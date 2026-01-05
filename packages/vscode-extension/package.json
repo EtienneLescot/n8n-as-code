@@ -37,11 +37,13 @@
         "commands": [
             {
                 "command": "n8n.pull",
-                "title": "n8n: Pull Workflows"
+                "title": "n8n: Pull Workflows",
+                "enablement": "!n8n.watchModeActive"
             },
             {
                 "command": "n8n.push",
-                "title": "n8n: Push Workflows (Sync Up)"
+                "title": "n8n: Push Workflows (Sync Up)",
+                "enablement": "!n8n.watchModeActive"
             },
             {
                 "command": "n8n.openBoard",
@@ -61,17 +63,24 @@
             {
                 "command": "n8n.pushWorkflow",
                 "title": "Push (Sync Up)",
-                "icon": "$(cloud-upload)"
+                "icon": "$(cloud-upload)",
+                "enablement": "!n8n.watchModeActive"
             },
             {
                 "command": "n8n.pullWorkflow",
                 "title": "Pull (Sync Down)",
-                "icon": "$(cloud-download)"
+                "icon": "$(cloud-download)",
+                "enablement": "!n8n.watchModeActive"
             },
             {
                 "command": "n8n.refresh",
                 "title": "Refresh",
                 "icon": "$(refresh)"
+            },
+            {
+                "command": "n8n.toggleWatchMode",
+                "title": "n8n: Toggle Watch Mode",
+                "icon": "$(eye)"
             },
             {
                 "command": "n8n.initializeAI",
@@ -87,6 +96,11 @@
                     "when": "view == n8n-explorer.workflows"
                 },
                 {
+                    "command": "n8n.toggleWatchMode",
+                    "group": "navigation",
+                    "when": "view == n8n-explorer.workflows"
+                },
+                {
                     "command": "n8n.push",
                     "group": "navigation"
                 },
@@ -96,7 +110,8 @@
                 },
                 {
                     "command": "n8n.refresh",
-                    "group": "navigation"
+                    "group": "navigation",
+                    "when": "!n8n.watchModeActive"
                 }
             ],
             "view/item/context": [
@@ -145,6 +160,11 @@
                     "type": "string",
                     "default": "workflows",
                     "description": "Local folder to sync workflows"
+                },
+                "n8n.pollInterval": {
+                    "type": "number",
+                    "default": 30000,
+                    "description": "Polling interval in milliseconds for Watch Mode"
                 }
             }
         }

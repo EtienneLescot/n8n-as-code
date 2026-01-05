@@ -29,4 +29,17 @@ export class StatusBar {
         this.item.tooltip = msg;
         this.item.show();
     }
+
+    setWatchMode(active: boolean) {
+        if (active) {
+            this.item.text = '$(eye) n8n (Watch)';
+            this.item.tooltip = 'n8n: Watch Mode Active (Auto-sync)';
+            this.item.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+        } else {
+            this.item.text = 'n8n';
+            this.item.tooltip = 'n8n: Manual Mode';
+            this.item.backgroundColor = undefined;
+        }
+        this.item.show();
+    }
 }

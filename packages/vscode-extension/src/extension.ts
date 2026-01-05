@@ -8,6 +8,8 @@ import { WorkflowWebview } from './ui/workflow-webview.js';
 import { ProxyService } from './services/proxy-service.js';
 
 let syncManager: SyncManager | undefined;
+let watchInterval: NodeJS.Timeout | undefined;
+let watchModeActive = false;
 const statusBar = new StatusBar();
 const proxyService = new ProxyService();
 const outputChannel = vscode.window.createOutputChannel("n8n-as-code");
@@ -230,6 +232,46 @@ export async function activate(context: vscode.ExtensionContext) {
                     vscode.window.showErrorMessage(`AI Init Failed: ${e.message}`);
                 }
             });
+        }),
+
+        vscode.commands.registerCommand('n8n.toggleWatchMode', async () => {
+            const config = vscode.workspace.getConfiguration('n8n');
+            const pollInterval = config.get<number>('pollInterval') || 30000;
+
+            watchModeActive = !watchModeActive;
+
+            // Set context for UI (menus)
+            await vscode.commands.executeCommand('setContext', 'n8n.watchModeActive', watchModeActive);
+
+            if (watchModeActive) {
+                if (!syncManager) await initializeSyncManager();
+                if (syncManager) {
+                    outputChannel.appendLine('👀 Watch Mode Enabled. Auto-syncing every ' + (pollInterval / 1000) + 's');
+                    statusBar.setWatchMode(true);
+
+                    // Initial sync
+                    await syncManager.syncDown();
+                    treeProvider.refresh();
+
+                    // Start interval
+                    watchInterval = setInterval(async () => {
+                        try {
+                            outputChannel.appendLine('🔄 [Watch] Auto-pulling...');
+                            await syncManager?.syncDown();
+                            treeProvider.refresh();
+                        } catch (e: any) {
+                            outputChannel.appendLine(`❌ [Watch] Sync error: ${e.message}`);
+                        }
+                    }, pollInterval);
+                }
+            } else {
+                outputChannel.appendLine('🛑 Watch Mode Disabled.');
+                statusBar.setWatchMode(false);
+                if (watchInterval) {
+                    clearInterval(watchInterval);
+                    watchInterval = undefined;
+                }
+            }
         })
     );
 
