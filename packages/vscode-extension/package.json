@@ -5,6 +5,7 @@
     "version": "0.0.1",
     "publisher": "etienne-lescot",
     "license": "MIT",
+    "icon": "assets/logo.png",
     "repository": {
         "type": "git",
         "url": "https://github.com/EtienneLescot/n8n-as-code"
@@ -22,7 +23,7 @@
                 {
                     "id": "n8n-explorer",
                     "title": "n8n",
-                    "icon": "$(server-process)"
+                    "icon": "assets/logo.png"
                 }
             ]
         },
