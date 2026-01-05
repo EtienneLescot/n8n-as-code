@@ -37,13 +37,11 @@
         "commands": [
             {
                 "command": "n8n.pull",
-                "title": "n8n: Pull Workflows",
-                "enablement": "!n8n.watchModeActive"
+                "title": "n8n: Pull Workflows"
             },
             {
                 "command": "n8n.push",
-                "title": "n8n: Push Workflows (Sync Up)",
-                "enablement": "!n8n.watchModeActive"
+                "title": "n8n: Push Workflows (Sync Up)"
             },
             {
                 "command": "n8n.openBoard",
@@ -63,14 +61,12 @@
             {
                 "command": "n8n.pushWorkflow",
                 "title": "Push (Sync Up)",
-                "icon": "$(cloud-upload)",
-                "enablement": "!n8n.watchModeActive"
+                "icon": "$(cloud-upload)"
             },
             {
                 "command": "n8n.pullWorkflow",
                 "title": "Pull (Sync Down)",
-                "icon": "$(cloud-download)",
-                "enablement": "!n8n.watchModeActive"
+                "icon": "$(cloud-download)"
             },
             {
                 "command": "n8n.refresh",
@@ -78,9 +74,9 @@
                 "icon": "$(refresh)"
             },
             {
-                "command": "n8n.toggleWatchMode",
-                "title": "n8n: Toggle Watch Mode",
-                "icon": "$(eye)"
+                "command": "n8n.openSettings",
+                "title": "n8n: Open Settings",
+                "icon": "$(gear)"
             },
             {
                 "command": "n8n.initializeAI",
@@ -96,22 +92,24 @@
                     "when": "view == n8n-explorer.workflows"
                 },
                 {
-                    "command": "n8n.toggleWatchMode",
+                    "command": "n8n.openSettings",
                     "group": "navigation",
                     "when": "view == n8n-explorer.workflows"
                 },
                 {
                     "command": "n8n.push",
-                    "group": "navigation"
+                    "group": "navigation",
+                    "when": "config.n8n.syncMode == manual"
                 },
                 {
                     "command": "n8n.pull",
-                    "group": "navigation"
+                    "group": "navigation",
+                    "when": "config.n8n.syncMode == manual"
                 },
                 {
                     "command": "n8n.refresh",
                     "group": "navigation",
-                    "when": "!n8n.watchModeActive"
+                    "when": "config.n8n.syncMode == manual"
                 }
             ],
             "view/item/context": [
@@ -137,11 +135,13 @@
                 },
                 {
                     "command": "n8n.pushWorkflow",
-                    "group": "2_sync@1"
+                    "group": "2_sync@1",
+                    "when": "config.n8n.syncMode == manual"
                 },
                 {
                     "command": "n8n.pullWorkflow",
-                    "group": "2_sync@2"
+                    "group": "2_sync@2",
+                    "when": "config.n8n.syncMode == manual"
                 }
             ]
         },
@@ -161,10 +161,23 @@
                     "default": "workflows",
                     "description": "Local folder to sync workflows"
                 },
+                "n8n.syncMode": {
+                    "type": "string",
+                    "default": "auto",
+                    "enum": [
+                        "auto",
+                        "manual"
+                    ],
+                    "enumDescriptions": [
+                        "Automatic sync (Watch Mode) - Buttons hidden",
+                        "Manual sync - Buttons visible"
+                    ],
+                    "description": "Synchronization mode. Auto enables Watch Mode and hides manual sync buttons."
+                },
                 "n8n.pollInterval": {
                     "type": "number",
                     "default": 3000,
-                    "description": "Polling interval in milliseconds for Watch Mode (default 3s)"
+                    "description": "Polling interval in milliseconds for Auto Mode (default 3s)"
                 }
             }
         }

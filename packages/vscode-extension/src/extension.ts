@@ -231,27 +231,28 @@ export async function activate(context: vscode.ExtensionContext) {
             });
         }),
 
-        vscode.commands.registerCommand('n8n.toggleWatchMode', async () => {
-            watchModeActive = !watchModeActive;
+        vscode.commands.registerCommand('n8n.openSettings', () => {
+            vscode.commands.executeCommand('workbench.action.openSettings', 'n8n');
+        })
+    );
 
-            // Set context for UI (menus)
-            await vscode.commands.executeCommand('setContext', 'n8n.watchModeActive', watchModeActive);
+    // 2b. Listen for Config Changes
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration(async (e) => {
+            if (e.affectsConfiguration('n8n.syncMode') || e.affectsConfiguration('n8n.pollInterval')) {
+                const config = vscode.workspace.getConfiguration('n8n');
+                const mode = config.get<string>('syncMode') || 'auto';
 
-            if (watchModeActive) {
-                if (!syncManager) await initializeSyncManager();
-                if (syncManager) {
-                    statusBar.setWatchMode(true);
-
-                    // Listen for changes to refresh tree (Optional: SyncManager already emits log/error, 
-                    // we might want a 'sync' event or just rely on the interval and tree auto-refresh)
-                    // For UI responsiveness, let's refresh tree when SyncManager completes a pull.
-                    // We can listen to 'log' for now or add a 'synced' event to SyncManager.
-
-                    await syncManager.startWatch();
+                if (mode === 'auto') {
+                    if (!syncManager) await initializeSyncManager();
+                    if (syncManager) {
+                        statusBar.setWatchMode(true);
+                        await syncManager.startWatch();
+                    }
+                } else {
+                    statusBar.setWatchMode(false);
+                    syncManager?.stopWatch();
                 }
-            } else {
-                statusBar.setWatchMode(false);
-                syncManager?.stopWatch();
             }
         })
     );
@@ -314,6 +315,15 @@ async function initializeSyncManager() {
             WorkflowWebview.reloadIfMatching(ev.id, outputChannel);
         }
     });
+
+    // Start Watcher if in Auto mode
+    const mode = config.get<string>('syncMode') || 'auto';
+    if (mode === 'auto') {
+        statusBar.setWatchMode(true);
+        await syncManager.startWatch();
+    } else {
+        statusBar.setWatchMode(false);
+    }
 
     // Check for AI Context
     const agentsPath = path.join(workspaceRoot, 'AGENTS.md');
