@@ -328,13 +328,8 @@ async function initializeSyncManager() {
     // Check for AI Context
     const agentsPath = path.join(workspaceRoot, 'AGENTS.md');
     if (!fs.existsSync(agentsPath)) {
-        const answer = await vscode.window.showInformationMessage(
-            'n8n-as-code: AI Context (AGENTS.md) is missing. Initialize it now for better AI assistance?',
-            'Yes', 'No'
-        );
-        if (answer === 'Yes') {
-            vscode.commands.executeCommand('n8n.initializeAI');
-        }
+        outputChannel.appendLine('[n8n] AI Context (AGENTS.md) is missing. Auto-initializing...');
+        vscode.commands.executeCommand('n8n.initializeAI');
     }
 }
 
