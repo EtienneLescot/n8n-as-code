@@ -15,7 +15,10 @@ Prêt à synchroniser vos workflows en moins de 2 minutes ?
 1.  **Installation** :
     ```bash
     npm install && npm run build
+    npm link
     ```
+
+    > **Note** : La commande `npm link` permet de créer un lien global vers le CLI, vous permettant d'utiliser `n8n-as-code` directement depuis n'importe quel terminal.
 2.  **Configuration** : Créez un fichier `.env` à la racine :
     ```env
     N8N_HOST=https://votre-instance.n8n.cloud
@@ -23,7 +26,7 @@ Prêt à synchroniser vos workflows en moins de 2 minutes ?
     ```
 3.  **Sync initial** : Téléchargez vos workflows existants :
     ```bash
-    node packages/cli/dist/index.js pull
+    n8n-as-code pull
     ```
 4.  **Ouvrez VS Code** : Installez l'extension locale (`packages/vscode-extension`) et profitez de la synchronisation automatique et de l'assistance IA.
 
@@ -49,6 +52,15 @@ Pour ceux qui préfèrent le terminal ou l'automatisation.
 -   **`push`** : Envoie les nouveaux fichiers locaux vers n8n.
 -   **`watch`** : Mode synchronisation bidirectionnelle en temps réel.
 -   **`init-ai`** : Génère manuellement le contexte pour votre agent IA.
+
+Pour utiliser ces commandes, utilisez simplement `n8n-as-code <command>`. Par exemple :
+
+```bash
+n8n-as-code pull
+n8n-as-code push
+n8n-as-code watch
+n8n-as-code init-ai
+```
 
 ---
 

@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "n8n workflow ecosystem",
+  "bin": {
+    "n8n-as-code": "./packages/cli/dist/index.js"
+  },
   "workspaces": [
     "packages/*"
   ],
