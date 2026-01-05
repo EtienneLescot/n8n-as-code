@@ -38,31 +38,6 @@ export class WatchCommand extends BaseCommand {
             spinner.start('Watching...');
         });
 
-        // 1. Initial Sync
-        try {
-            await syncManager.syncDown();
-            await syncManager.syncUp();
-            spinner.succeed('Initial sync complete.');
-        } catch (e: any) {
-            spinner.fail(`Initial sync failed: ${e.message}`);
-        }
-
-        // 2. Start Watcher
-        console.log(chalk.cyan(`👀 Watching directory: ${this.config.directory}`));
-        const watcher = chokidar.watch(this.config.directory, {
-            ignored: /(^|[\/\\])\../,
-            persistent: true,
-            ignoreInitial: true,
-            awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 }
-        });
-
-        watcher
-            .on('change', (p) => syncManager.handleLocalFileChange(p))
-            .on('add', (p) => syncManager.handleLocalFileChange(p));
-
-        // 3. Polling Loop
-        setInterval(async () => {
-            await syncManager.syncDown();
-        }, this.config.pollInterval);
+        await syncManager.startWatch();
     }
 }

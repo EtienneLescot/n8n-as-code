@@ -163,8 +163,8 @@
                 },
                 "n8n.pollInterval": {
                     "type": "number",
-                    "default": 30000,
-                    "description": "Polling interval in milliseconds for Watch Mode"
+                    "default": 3000,
+                    "description": "Polling interval in milliseconds for Watch Mode (default 3s)"
                 }
             }
         }

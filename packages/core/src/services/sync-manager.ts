@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import EventEmitter from 'events';
-import deepEqual from 'deep-equal'; // Note: deep-equal doesn't have types by default usually, might need @types/deep-equal or ignore
+import deepEqual from 'deep-equal';
+import * as chokidar from 'chokidar';
 import { N8nApiClient } from './n8n-api-client.js';
 import { WorkflowSanitizer } from './workflow-sanitizer.js';
 import { ISyncConfig, IWorkflow, WorkflowSyncStatus, IWorkflowStatus } from '../types.js';
@@ -18,6 +19,9 @@ export class SyncManager extends EventEmitter {
     private fileToIdMap: Map<string, string> = new Map();
     // Maps filePath -> Content (to detect self-written changes)
     private selfWrittenCache: Map<string, string> = new Map();
+
+    private watcher: chokidar.FSWatcher | null = null;
+    private pollInterval: NodeJS.Timeout | null = null;
 
     constructor(client: N8nApiClient, config: ISyncConfig) {
         super();
@@ -186,6 +190,7 @@ export class SyncManager extends EventEmitter {
             this.emit('log', `📥 [n8n->Local] New: "${filename}"`);
             this.markAsSelfWritten(filePath, contentStr);
             fs.writeFileSync(filePath, contentStr);
+            this.emit('change', { type: 'remote-to-local', filename });
             return;
         }
 
@@ -198,6 +203,7 @@ export class SyncManager extends EventEmitter {
             this.emit('log', `📥 [n8n->Local] Updated: "${filename}"`);
             this.markAsSelfWritten(filePath, contentStr);
             fs.writeFileSync(filePath, contentStr);
+            this.emit('change', { type: 'remote-to-local', filename });
         }
     }
 
@@ -272,6 +278,7 @@ export class SyncManager extends EventEmitter {
                 this.emit('log', `📤 [Local->n8n] Update: "${filename}"`);
                 await this.client.updateWorkflow(id, payload);
                 this.emit('log', `✅ Update OK`);
+                this.emit('change', { type: 'local-to-remote', filename });
 
             } else {
                 // CREATE (New file added manually)
@@ -287,6 +294,7 @@ export class SyncManager extends EventEmitter {
                 const newWf = await this.client.createWorkflow(payload);
                 this.emit('log', `✅ Created (ID: ${newWf.id})`);
                 this.fileToIdMap.set(filename, newWf.id);
+                this.emit('change', { type: 'local-to-remote', filename });
             }
         } catch (error: any) {
             this.emit('error', `❌ Sync Up Error: ${error.message}`);
@@ -299,6 +307,55 @@ export class SyncManager extends EventEmitter {
 
     private readRawFile(filePath: string): string | null {
         try { return fs.readFileSync(filePath, 'utf8'); } catch { return null; }
+    }
+
+    async startWatch() {
+        if (this.watcher || this.pollInterval) return;
+
+        this.emit('log', `🚀 [SyncManager] Starting Watcher (Poll: ${this.config.pollIntervalMs}ms)`);
+
+        // 1. Initial Sync
+        try {
+            await this.syncDown();
+            await this.syncUp();
+        } catch (e: any) {
+            this.emit('error', `Initial sync failed: ${e.message}`);
+        }
+
+        // 2. Local FS Watcher
+        this.watcher = chokidar.watch(this.config.directory, {
+            ignored: /(^|[\/\\])\../,
+            persistent: true,
+            ignoreInitial: true,
+            awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 }
+        });
+
+        this.watcher
+            .on('change', (p: string) => this.handleLocalFileChange(p))
+            .on('add', (p: string) => this.handleLocalFileChange(p));
+
+        // 3. Remote Polling Loop
+        if (this.config.pollIntervalMs > 0) {
+            this.pollInterval = setInterval(async () => {
+                try {
+                    await this.syncDown();
+                } catch (e: any) {
+                    this.emit('error', `Remote poll failed: ${e.message}`);
+                }
+            }, this.config.pollIntervalMs);
+        }
+    }
+
+    stopWatch() {
+        if (this.watcher) {
+            this.watcher.close();
+            this.watcher = null;
+        }
+        if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
+        }
+        this.emit('log', '🛑 [SyncManager] Watcher Stopped.');
     }
 }
 
