@@ -26,7 +26,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // 2. Register Commands
     context.subscriptions.push(
         vscode.commands.registerCommand('n8n.pull', async () => {
-            if (!syncManager) await initializeSyncManager();
+            if (!syncManager) await initializeSyncManager(context);
             if (syncManager) {
                 statusBar.showSyncing();
                 try {
@@ -44,7 +44,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         vscode.commands.registerCommand('n8n.push', async () => {
-            if (!syncManager) await initializeSyncManager();
+            if (!syncManager) await initializeSyncManager(context);
             if (syncManager) {
                 statusBar.showSyncing();
                 try {
@@ -188,7 +188,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 return;
             }
 
-            if (!syncManager) await initializeSyncManager();
+            if (!syncManager) await initializeSyncManager(context);
 
             const config = vscode.workspace.getConfiguration('n8n');
             const host = config.get<string>('host') || process.env.N8N_HOST || '';
