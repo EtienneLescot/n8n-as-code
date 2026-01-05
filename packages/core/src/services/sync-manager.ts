@@ -177,20 +177,20 @@ export class SyncManager extends EventEmitter {
         const filePath = this.getFilePath(filename);
 
         // Write to disk
-        await this.writeLocalFile(filePath, cleanRemote, filename);
+        await this.writeLocalFile(filePath, cleanRemote, filename, id);
     }
 
     /**
      * Writes file to disk only if changed
      */
-    private async writeLocalFile(filePath: string, contentObj: any, filename: string) {
+    private async writeLocalFile(filePath: string, contentObj: any, filename: string, id: string) {
         const contentStr = JSON.stringify(contentObj, null, 2);
 
         if (!fs.existsSync(filePath)) {
             this.emit('log', `📥 [n8n->Local] New: "${filename}"`);
             this.markAsSelfWritten(filePath, contentStr);
             fs.writeFileSync(filePath, contentStr);
-            this.emit('change', { type: 'remote-to-local', filename });
+            this.emit('change', { type: 'remote-to-local', filename, id });
             return;
         }
 
@@ -203,7 +203,7 @@ export class SyncManager extends EventEmitter {
             this.emit('log', `📥 [n8n->Local] Updated: "${filename}"`);
             this.markAsSelfWritten(filePath, contentStr);
             fs.writeFileSync(filePath, contentStr);
-            this.emit('change', { type: 'remote-to-local', filename });
+            this.emit('change', { type: 'remote-to-local', filename, id });
         }
     }
 
@@ -278,7 +278,7 @@ export class SyncManager extends EventEmitter {
                 this.emit('log', `📤 [Local->n8n] Update: "${filename}"`);
                 await this.client.updateWorkflow(id, payload);
                 this.emit('log', `✅ Update OK`);
-                this.emit('change', { type: 'local-to-remote', filename });
+                this.emit('change', { type: 'local-to-remote', filename, id });
 
             } else {
                 // CREATE (New file added manually)
@@ -294,7 +294,7 @@ export class SyncManager extends EventEmitter {
                 const newWf = await this.client.createWorkflow(payload);
                 this.emit('log', `✅ Created (ID: ${newWf.id})`);
                 this.fileToIdMap.set(filename, newWf.id);
-                this.emit('change', { type: 'local-to-remote', filename });
+                this.emit('change', { type: 'local-to-remote', filename, id: newWf.id });
             }
         } catch (error: any) {
             this.emit('error', `❌ Sync Up Error: ${error.message}`);

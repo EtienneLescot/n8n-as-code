@@ -50,9 +50,6 @@ export async function activate(context: vscode.ExtensionContext) {
                     // Update: use syncUp() for full sync like in CLI
                     await syncManager.syncUp();
 
-                    // Intelligent Refresh: Refresh whatever is currently open if we did a global push
-                    WorkflowWebview.reloadCurrent(outputChannel);
-
                     // Refresh tree
                     treeProvider.refresh();
                     statusBar.showSynced();
@@ -151,7 +148,6 @@ export async function activate(context: vscode.ExtensionContext) {
                 await syncManager.handleLocalFileChange(absPath);
 
                 outputChannel.appendLine(`[n8n] Push successful for: ${wf.name} (${wf.id})`);
-                WorkflowWebview.reloadIfMatching(wf.id, outputChannel);
 
                 treeProvider.refresh();
                 statusBar.showSynced();
@@ -305,9 +301,14 @@ async function initializeSyncManager() {
         outputChannel.appendLine(msg);
     });
 
-    // Auto-refresh tree on ANY change (Watch or manual)
-    syncManager.on('change', () => {
+    // Auto-refresh tree & webview on ANY change (Watch or manual)
+    syncManager.on('change', (ev: any) => {
+        outputChannel.appendLine(`[n8n] Change detected: ${ev.type} (${ev.filename})`);
         vscode.commands.executeCommand('n8n.refresh');
+
+        if (ev.id) {
+            WorkflowWebview.reloadIfMatching(ev.id, outputChannel);
+        }
     });
 
     // Check for AI Context
