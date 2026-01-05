@@ -33,6 +33,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     await syncManager.syncDown();
                     // Refresh tree
                     treeProvider.refresh();
+
                     statusBar.showSynced();
                     vscode.window.showInformationMessage('✅ n8n: Workflows pulled successfully.');
                 } catch (e: any) {
@@ -166,6 +167,7 @@ export async function activate(context: vscode.ExtensionContext) {
             try {
                 if (wf.filename) {
                     await syncManager.pullWorkflow(wf.filename, wf.id);
+
                     treeProvider.refresh();
                     statusBar.showSynced();
                     vscode.window.showInformationMessage(`✅ Pulled "${wf.name}"`);
@@ -306,7 +308,9 @@ async function initializeSyncManager() {
         outputChannel.appendLine(`[n8n] Change detected: ${ev.type} (${ev.filename})`);
         vscode.commands.executeCommand('n8n.refresh');
 
-        if (ev.id) {
+        // ONLY reload webview automatically on PUSH (local-to-remote)
+        // This avoids the feedback loop where saving in webview triggers a pull
+        if (ev.id && ev.type === 'local-to-remote') {
             WorkflowWebview.reloadIfMatching(ev.id, outputChannel);
         }
     });
