@@ -101,15 +101,42 @@ export class WorkflowWebview {
                     padding: 0; 
                     height: 100%; 
                     overflow: hidden; 
-                    background: #f0f0f0;
+                    background: var(--vscode-editor-background, #1e1e1e);
+                }
+                .iframe-container {
+                    position: relative;
+                    width: 100%;
+                    height: 100%;
                 }
                 iframe { 
+                    position: absolute;
+                    top: 0;
+                    left: 0;
                     width: 100%; 
                     height: 100%; 
                     border: none; 
                     display: block;
+                    transition: opacity 0.3s ease;
                 }
-                .loading {
+                iframe.hidden {
+                    opacity: 0;
+                    pointer-events: none;
+                }
+                .loading-overlay {
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                    padding: 5px 10px;
+                    background: var(--vscode-button-background, #007acc);
+                    color: var(--vscode-button-foreground, #ffffff);
+                    font-family: system-ui, -apple-system, sans-serif;
+                    font-size: 12px;
+                    border-radius: 4px;
+                    display: none;
+                    z-index: 100;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                }
+                .initial-loading {
                     position: absolute;
                     top: 50%;
                     left: 50%;
@@ -118,30 +145,90 @@ export class WorkflowWebview {
                     color: #666;
                     text-align: center;
                 }
-                .loading::after {
-                    content: '...';
-                    animation: dots 1.5s steps(4, end) infinite;
-                }
-                @keyframes dots {
-                    0%, 20% { content: '.'; }
-                    40% { content: '..'; }
-                    60%, 100% { content: '...'; }
-                }
             </style>
         </head>
         <body>
-            <div class="loading">Loading n8n workflow</div>
-            <iframe 
-                id="n8n-frame"
-                src="${url}" 
-                sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation allow-top-navigation-by-user-activation"
-                allow="clipboard-read; clipboard-write; geolocation; microphone; camera"
-                onload="document.querySelector('.loading').style.display='none'; console.log('n8n iframe loaded');"
-                onerror="console.error('n8n iframe failed to load');">
-            </iframe>
+            <div id="loading-overlay" class="loading-overlay">Refreshing n8n...</div>
+            <div id="initial-loading" class="initial-loading">Loading n8n workflow...</div>
+            
+            <div class="iframe-container">
+                <iframe 
+                    id="frame-1"
+                    src="${url}" 
+                    sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation allow-top-navigation-by-user-activation"
+                    allow="clipboard-read; clipboard-write; geolocation; microphone; camera">
+                </iframe>
+                <iframe 
+                    id="frame-2"
+                    class="hidden"
+                    sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation allow-top-navigation-by-user-activation"
+                    allow="clipboard-read; clipboard-write; geolocation; microphone; camera">
+                </iframe>
+            </div>
+
             <script>
                 const vscode = acquireVsCodeApi();
-                const frame = document.getElementById('n8n-frame');
+                let activeFrame = document.getElementById('frame-1');
+                let pendingFrame = document.getElementById('frame-2');
+                const loadingOverlay = document.getElementById('loading-overlay');
+                const initialLoading = document.getElementById('initial-loading');
+                const workflowId = "${workflowId}";
+
+                // Hide initial loading when first iframe is ready
+                activeFrame.onload = () => {
+                    initialLoading.style.display = 'none';
+                    console.log('n8n initial iframe loaded');
+                };
+
+                /**
+                 * Attempt a "Soft Refresh" by finding n8n's Vue instance and triggering a workflow load.
+                 */
+                function attemptSoftRefresh() {
+                    try {
+                        const win = activeFrame.contentWindow;
+                        // n8n uses Vue 2, usually reachable via #app
+                        const app = win.document.querySelector('#app');
+                        if (app && app.__vue__) {
+                            const vueInstance = app.__vue__;
+                            const store = vueInstance.$store;
+                            
+                            if (store && store.dispatch) {
+                                console.log('[Webview] Soft Refresh: Dispatching workflows/getWorkflow');
+                                store.dispatch('workflows/getWorkflow', workflowId);
+                                return true;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[Webview] Soft Refresh failed or cross-origin blocked:', e);
+                    }
+                    return false;
+                }
+
+                /**
+                 * Perform a "Seamless Refresh" using double buffering.
+                 */
+                function performSeamlessRefresh() {
+                    console.log('[Webview] Seamless Refresh: Loading pending iframe...');
+                    loadingOverlay.style.display = 'block';
+
+                    pendingFrame.onload = () => {
+                        console.log('[Webview] Seamless Refresh: Swapping frames');
+                        
+                        // Swap frames
+                        activeFrame.classList.add('hidden');
+                        pendingFrame.classList.remove('hidden');
+
+                        // Update references
+                        const temp = activeFrame;
+                        activeFrame = pendingFrame;
+                        pendingFrame = temp;
+
+                        loadingOverlay.style.display = 'none';
+                    };
+
+                    // Trigger load in pending frame
+                    pendingFrame.src = activeFrame.src;
+                }
 
                 // Handle messages from the extension
                 window.addEventListener('message', (event) => {
@@ -149,14 +236,13 @@ export class WorkflowWebview {
                     console.log('Webview received message:', message);
                     
                     if (message.type === 'reload') {
-                        console.log('Reloading n8n iframe...');
-                        document.querySelector('.loading').style.display = 'block';
-                        // Refresh the iframe by re-setting its src
-                        const currentSrc = frame.src;
-                        frame.src = 'about:blank';
-                        setTimeout(() => {
-                            frame.src = currentSrc;
-                        }, 10);
+                        // 1. Try Soft Refresh first
+                        const softRefreshWorked = attemptSoftRefresh();
+                        
+                        if (!softRefreshWorked) {
+                            // 2. Fallback to Seamless Refresh (Double Buffering)
+                            performSeamlessRefresh();
+                        }
                     }
                 });
             </script>
