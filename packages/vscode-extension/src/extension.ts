@@ -102,7 +102,9 @@ export async function activate(context: vscode.ExtensionContext) {
             if (!wf || !syncManager) return;
 
             if (wf.filename) {
-                const uri = vscode.Uri.file(path.join(syncManager['config'].directory, wf.filename));
+                // Use the instance-specific directory, not the base directory
+                const instanceDirectory = syncManager['getInstanceDirectory']();
+                const uri = vscode.Uri.file(path.join(instanceDirectory, wf.filename));
                 try {
                     const doc = await vscode.workspace.openTextDocument(uri);
                     await vscode.window.showTextDocument(doc);
@@ -118,9 +120,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
             const { host } = getN8nConfig();
 
-            // 1. Open JSON in left column
+            // 1. Open JSON in left column (use instance-specific directory)
             if (wf.filename) {
-                const uri = vscode.Uri.file(path.join(syncManager['config'].directory, wf.filename));
+                const instanceDirectory = syncManager['getInstanceDirectory']();
+                const uri = vscode.Uri.file(path.join(instanceDirectory, wf.filename));
                 try {
                     const doc = await vscode.workspace.openTextDocument(uri);
                     await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One });
@@ -148,7 +151,8 @@ export async function activate(context: vscode.ExtensionContext) {
             statusBar.showSyncing();
             try {
                 // We reuse handleLocalFileChange which does the "Push" (Update/Create) logic
-                const absPath = path.join(syncManager['config'].directory, wf.filename);
+                const instanceDirectory = syncManager['getInstanceDirectory']();
+                const absPath = path.join(instanceDirectory, wf.filename);
                 await syncManager.handleLocalFileChange(absPath);
 
                 outputChannel.appendLine(`[n8n] Push successful for: ${wf.name} (${wf.id})`);
