@@ -41,4 +41,5 @@ export interface ISyncConfig {
     pollIntervalMs: number;
     syncInactive: boolean;
     ignoredTags: string[];
+    instanceIdentifier?: string; // Optional: auto-generated if not provided
 }

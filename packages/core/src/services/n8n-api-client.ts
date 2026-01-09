@@ -29,6 +29,21 @@ export class N8nApiClient {
         }
     }
 
+    async getCurrentUser(): Promise<{ id: string; email: string; firstName?: string; lastName?: string; } | null> {
+        try {
+            const res = await this.client.get('/api/v1/users/me');
+            return {
+                id: res.data.id,
+                email: res.data.email,
+                firstName: res.data.firstName,
+                lastName: res.data.lastName
+            };
+        } catch (error) {
+            console.error('Failed to get current user:', error);
+            return null;
+        }
+    }
+
     async getAllWorkflows(): Promise<IWorkflow[]> {
         try {
             const res = await this.client.get('/api/v1/workflows');

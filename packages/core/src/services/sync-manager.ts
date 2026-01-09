@@ -5,6 +5,7 @@ import deepEqual from 'deep-equal';
 import * as chokidar from 'chokidar';
 import { N8nApiClient } from './n8n-api-client.js';
 import { WorkflowSanitizer } from './workflow-sanitizer.js';
+import { createInstanceIdentifier, createFallbackInstanceIdentifier } from './directory-utils.js';
 import { ISyncConfig, IWorkflow, WorkflowSyncStatus, IWorkflowStatus } from '../types.js';
 
 // Define a simple deepEqual if strict module resolution fails on the import
@@ -28,13 +29,40 @@ export class SyncManager extends EventEmitter {
         this.client = client;
         this.config = config;
 
+        // Create base directory if it doesn't exist
         if (!fs.existsSync(this.config.directory)) {
             fs.mkdirSync(this.config.directory, { recursive: true });
         }
     }
 
+    private async initializeInstanceIdentifier(): Promise<string> {
+        try {
+            // Try to get user information for friendly naming
+            const user = await this.client.getCurrentUser();
+            if (user) {
+                // Use host from client configuration
+                const host = this.client['client']?.defaults?.baseURL || 'unknown';
+                return createInstanceIdentifier(host, user);
+            }
+        } catch (error) {
+            console.warn('Could not get user info for instance identifier:', error);
+        }
+
+        // Fallback: use host and API key hash
+        const host = this.client['client']?.defaults?.baseURL || 'unknown';
+        const apiKey = this.client['client']?.defaults?.headers?.['X-N8N-API-KEY'] || 'unknown';
+        return createFallbackInstanceIdentifier(host, String(apiKey));
+    }
+
+    private getInstanceDirectory(): string {
+        if (!this.config.instanceIdentifier) {
+            throw new Error('Instance identifier not available');
+        }
+        return path.join(this.config.directory, this.config.instanceIdentifier);
+    }
+
     private getFilePath(filename: string): string {
-        return path.join(this.config.directory, filename);
+        return path.join(this.getInstanceDirectory(), filename);
     }
 
     private safeName(name: string): string {
@@ -166,6 +194,35 @@ export class SyncManager extends EventEmitter {
     }
 
     /**
+     * Scans n8n instance and updates local files with conflict resolution
+     */
+    async syncDownWithConflictResolution() {
+        this.emit('log', '🔄 [SyncManager] Starting Downstream Sync with Conflict Resolution...');
+        const remoteWorkflows = await this.client.getAllWorkflows();
+
+        // Sort: Active first to prioritize their naming
+        remoteWorkflows.sort((a, b) => (a.active === b.active ? 0 : a.active ? -1 : 1));
+
+        const processedFiles = new Set<string>();
+
+        for (const wf of remoteWorkflows) {
+            // Filter
+            if (this.shouldIgnore(wf)) continue;
+
+            const filename = `${this.safeName(wf.name)}.json`;
+
+            // Collision check
+            if (processedFiles.has(filename)) continue;
+            processedFiles.add(filename);
+
+            this.fileToIdMap.set(filename, wf.id);
+
+            // Use conflict-aware pull logic
+            await this.pullWorkflowWithConflictResolution(filename, wf.id, wf.updatedAt || wf.createdAt);
+        }
+    }
+
+    /**
      * Pulls a single workflow by ID and writes to filename
      */
     async pullWorkflow(filename: string, id: string) {
@@ -178,6 +235,47 @@ export class SyncManager extends EventEmitter {
 
         // Write to disk
         await this.writeLocalFile(filePath, cleanRemote, filename, id);
+    }
+
+    /**
+     * Pulls a single workflow with timestamp-based conflict resolution
+     */
+    async pullWorkflowWithConflictResolution(filename: string, id: string, remoteUpdatedAt?: string) {
+        // Fetch full details
+        const fullWf = await this.client.getWorkflow(id);
+        if (!fullWf) return;
+
+        const cleanRemote = WorkflowSanitizer.cleanForStorage(fullWf);
+        const filePath = this.getFilePath(filename);
+
+        // Check if file exists locally
+        if (fs.existsSync(filePath)) {
+            // Get local file timestamp (in UTC milliseconds)
+            const localStats = fs.statSync(filePath);
+            const localTimestamp = new Date(localStats.mtime).getTime();
+            
+            // Get remote timestamp (in UTC milliseconds)
+            const remoteTimestampStr = remoteUpdatedAt || fullWf.updatedAt || fullWf.createdAt || '';
+            const remoteTimestamp = remoteTimestampStr ? new Date(remoteTimestampStr).getTime() : 0;
+
+            // Resolve conflict based on timestamps
+            if (localTimestamp > remoteTimestamp) {
+                // Local is newer - skip this pull to avoid overwriting local changes
+                this.emit('log', `🔄 [Conflict] Local "${filename}" is newer than remote. Keeping local version.`);
+                return;
+            } else if (remoteTimestamp > localTimestamp) {
+                // Remote is newer - proceed with pull
+                this.emit('log', `📥 [n8n->Local] Updated (newer remote): "${filename}"`);
+                await this.writeLocalFile(filePath, cleanRemote, filename, id);
+            } else {
+                // Timestamps are equal - proceed with pull (could be same content)
+                await this.writeLocalFile(filePath, cleanRemote, filename, id);
+            }
+        } else {
+            // File doesn't exist locally - safe to pull
+            this.emit('log', `📥 [n8n->Local] New: "${filename}"`);
+            await this.writeLocalFile(filePath, cleanRemote, filename, id);
+        }
     }
 
     /**
@@ -314,7 +412,16 @@ export class SyncManager extends EventEmitter {
 
         this.emit('log', `🚀 [SyncManager] Starting Watcher (Poll: ${this.config.pollIntervalMs}ms)`);
 
-        // 1. Initial Sync
+        // 1. Initialize instance identifier if not provided
+        if (!this.config.instanceIdentifier) {
+            this.config.instanceIdentifier = await this.initializeInstanceIdentifier();
+            const instanceDirectory = this.getInstanceDirectory();
+            if (!fs.existsSync(instanceDirectory)) {
+                fs.mkdirSync(instanceDirectory, { recursive: true });
+            }
+        }
+
+        // 2. Initial Sync
         try {
             await this.syncDown();
             await this.syncUp();
@@ -322,8 +429,9 @@ export class SyncManager extends EventEmitter {
             this.emit('error', `Initial sync failed: ${e.message}`);
         }
 
-        // 2. Local FS Watcher
-        this.watcher = chokidar.watch(this.config.directory, {
+        // 3. Local FS Watcher - watch instance-specific directory
+        const instanceDirectory = this.getInstanceDirectory();
+        this.watcher = chokidar.watch(instanceDirectory, {
             ignored: /(^|[\/\\])\../,
             persistent: true,
             ignoreInitial: true,
@@ -334,11 +442,11 @@ export class SyncManager extends EventEmitter {
             .on('change', (p: string) => this.handleLocalFileChange(p))
             .on('add', (p: string) => this.handleLocalFileChange(p));
 
-        // 3. Remote Polling Loop
+        // 4. Remote Polling Loop with conflict resolution
         if (this.config.pollIntervalMs > 0) {
             this.pollInterval = setInterval(async () => {
                 try {
-                    await this.syncDown();
+                    await this.syncDownWithConflictResolution();
                 } catch (e: any) {
                     this.emit('error', `Remote poll failed: ${e.message}`);
                 }

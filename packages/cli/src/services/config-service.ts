@@ -5,6 +5,7 @@ import path from 'path';
 export interface ILocalConfig {
     host: string;
     syncFolder: string;
+    instanceIdentifier?: string;
     pollInterval: number;
     syncInactive: boolean;
     ignoredTags: string[];
