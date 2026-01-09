@@ -2,6 +2,23 @@ import { IWorkflow } from '../types.js';
 
 export class WorkflowSanitizer {
     /**
+     * Recursively sorts object keys to ensure deterministic JSON output.
+     */
+    private static sortKeys(obj: any): any {
+        if (Array.isArray(obj)) {
+            return obj.map(this.sortKeys.bind(this));
+        } else if (obj !== null && typeof obj === 'object') {
+            return Object.keys(obj)
+                .sort()
+                .reduce((acc: any, key) => {
+                    acc[key] = this.sortKeys(obj[key]);
+                    return acc;
+                }, {});
+        }
+        return obj;
+    }
+
+    /**
      * Prepares a workflow JSON for storage on disk (GIT).
      * Removes dynamic IDs, execution URLs, and standardizes key order.
      */
@@ -21,7 +38,7 @@ export class WorkflowSanitizer {
 
         keysToRemove.forEach(k => delete settings[k]);
 
-        return {
+        const cleaned = {
             name: workflow.name,
             nodes: workflow.nodes || [],
             connections: workflow.connections || {},
@@ -29,6 +46,9 @@ export class WorkflowSanitizer {
             tags: workflow.tags || [],
             active: workflow.active
         };
+
+        // Ensure deterministic key order for hashing consistency
+        return this.sortKeys(cleaned);
     }
 
     /**

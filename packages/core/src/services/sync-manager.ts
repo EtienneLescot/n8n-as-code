@@ -6,6 +6,7 @@ import * as chokidar from 'chokidar';
 import { N8nApiClient } from './n8n-api-client.js';
 import { WorkflowSanitizer } from './workflow-sanitizer.js';
 import { createInstanceIdentifier, createFallbackInstanceIdentifier } from './directory-utils.js';
+import { StateManager } from './state-manager.js';
 import { ISyncConfig, IWorkflow, WorkflowSyncStatus, IWorkflowStatus } from '../types.js';
 
 interface IInstanceConfig {
@@ -30,6 +31,7 @@ export class SyncManager extends EventEmitter {
 
     private watcher: chokidar.FSWatcher | null = null;
     private pollInterval: NodeJS.Timeout | null = null;
+    private stateManager: StateManager | null = null;
 
     constructor(client: N8nApiClient, config: ISyncConfig) {
         super();
@@ -78,7 +80,7 @@ export class SyncManager extends EventEmitter {
      */
     private async ensureInstanceIdentifier(): Promise<string> {
         // Check if instance identifier is already provided in config
-        if (this.config.instanceIdentifier) {
+        if (this.config.instanceIdentifier && this.stateManager) {
             return this.config.instanceIdentifier;
         }
 
@@ -86,6 +88,7 @@ export class SyncManager extends EventEmitter {
         const instanceConfig = this.loadInstanceConfig();
         if (instanceConfig.instanceIdentifier) {
             this.config.instanceIdentifier = instanceConfig.instanceIdentifier;
+            this.stateManager = new StateManager(this.getInstanceDirectory());
             return instanceConfig.instanceIdentifier;
         }
 
@@ -99,6 +102,7 @@ export class SyncManager extends EventEmitter {
         
         // Update config
         this.config.instanceIdentifier = newIdentifier;
+        this.stateManager = new StateManager(this.getInstanceDirectory());
         
         return newIdentifier;
     }
@@ -275,8 +279,8 @@ export class SyncManager extends EventEmitter {
 
             this.fileToIdMap.set(filename, wf.id);
 
-            // Reuse the single pull logic
-            await this.pullWorkflow(filename, wf.id);
+            // Reuse the conflict-aware logic to prevent accidental overwrites on startup
+            await this.pullWorkflowWithConflictResolution(filename, wf.id, wf.updatedAt || wf.createdAt);
         }
     }
 
@@ -325,8 +329,9 @@ export class SyncManager extends EventEmitter {
 
     /**
      * Pulls a single workflow by ID and writes to filename
+     * @param force If true, overwrites local changes without checking for conflicts
      */
-    async pullWorkflow(filename: string, id: string) {
+    async pullWorkflow(filename: string, id: string, force: boolean = false) {
         // Fetch full details
         const fullWf = await this.client.getWorkflow(id);
         if (!fullWf) return;
@@ -334,13 +339,36 @@ export class SyncManager extends EventEmitter {
         const cleanRemote = WorkflowSanitizer.cleanForStorage(fullWf);
         const filePath = this.getFilePath(filename);
 
+        if (!force && fs.existsSync(filePath)) {
+            const localContent = this.readLocalFile(filePath);
+            const localClean = WorkflowSanitizer.cleanForStorage(localContent);
+            const isLocalSynced = this.stateManager?.isLocalSynced(id, localClean) ?? false;
+            
+            if (!isLocalSynced) {
+                // Check if remote also changed (Real conflict) OR if we just want to protect local work
+                // Here we protect local work regardless if remote changed, because "Pull" implies "Update from Remote"
+                // but we shouldn't destroy local work.
+                
+                // Check if remote is different from local (otherwise no-op)
+                if (!deepEqual(localClean, cleanRemote)) {
+                     this.emit('conflict', {
+                        id,
+                        filename,
+                        localContent: localClean,
+                        remoteContent: cleanRemote
+                    });
+                    return;
+                }
+            }
+        }
+
         // Write to disk
         await this.writeLocalFile(filePath, cleanRemote, filename, id);
     }
 
     /**
-     * Pulls a single workflow with timestamp-based conflict resolution
-     * @returns 'updated' if file was updated, 'skipped' if local was newer, 'new' if file was created
+     * Pulls a single workflow with conflict resolution
+     * @returns 'updated' if file was updated, 'skipped' if no change or conflict, 'new' if file was created
      */
     async pullWorkflowWithConflictResolution(filename: string, id: string, remoteUpdatedAt?: string): Promise<'updated' | 'skipped' | 'new'> {
         // Fetch full details
@@ -352,34 +380,36 @@ export class SyncManager extends EventEmitter {
 
         // Check if file exists locally
         if (fs.existsSync(filePath)) {
-            // Get local file timestamp (in UTC milliseconds)
-            const localStats = fs.statSync(filePath);
-            const localTimestamp = new Date(localStats.mtime).getTime();
+            const localContent = this.readLocalFile(filePath);
+            const localClean = WorkflowSanitizer.cleanForStorage(localContent);
+
+            // 1. Check if Remote is different from our last synced state
+            const isRemoteSynced = this.stateManager?.isRemoteSynced(id, cleanRemote) ?? false;
             
-            // Get remote timestamp (in UTC milliseconds)
-            const remoteTimestampStr = remoteUpdatedAt || fullWf.updatedAt || fullWf.createdAt || '';
-            const remoteTimestamp = remoteTimestampStr ? new Date(remoteTimestampStr).getTime() : 0;
-
-            console.log(`[DEBUG] SyncDown Check: "${filename}"`);
-            console.log(`[DEBUG]   Local : ${new Date(localTimestamp).toISOString()} (${localTimestamp})`);
-            console.log(`[DEBUG]   Remote: ${new Date(remoteTimestamp).toISOString()} (${remoteTimestamp})`);
-            console.log(`[DEBUG]   Diff  : ${localTimestamp - remoteTimestamp}ms (Local - Remote)`);
-
-            // Resolve conflict based on timestamps
-            // We use a small safety margin (1000ms) to account for clock skew between local and server
-            if (localTimestamp > (remoteTimestamp + 1000)) {
-                // Local is definitely newer
-                return 'skipped';
-            } else if (remoteTimestamp > localTimestamp) {
-                // Remote is newer - this is a meaningful update that should be logged
-                this.emit('log', `📥 [n8n->Local] Updated: "${filename}"`);
-                await this.writeLocalFile(filePath, cleanRemote, filename, id);
-                return 'updated';
-            } else {
-                // Timestamps are equal - could be same content, no need to log
-                await this.writeLocalFile(filePath, cleanRemote, filename, id);
+            if (isRemoteSynced) {
+                // Remote hasn't changed since we last saw it
                 return 'skipped';
             }
+
+            // 2. Remote HAS changed. Check if Local has ALSO changed.
+            const isLocalSynced = this.stateManager?.isLocalSynced(id, localClean) ?? false;
+
+            if (!isLocalSynced) {
+                // BOTH CHANGED -> CONFLICT!
+                this.emit('log', `⚠️ [Conflict] Workflow "${filename}" changed both locally and on n8n. Skipping auto-pull.`);
+                this.emit('conflict', {
+                    id,
+                    filename,
+                    localContent: localClean,
+                    remoteContent: cleanRemote
+                });
+                return 'skipped';
+            }
+
+            // ONLY Remote changed -> Safe to pull
+            this.emit('log', `📥 [n8n->Local] Updated: "${filename}" (Remote changes detected)`);
+            await this.writeLocalFile(filePath, cleanRemote, filename, id);
+            return 'updated';
         } else {
             // File doesn't exist locally - safe to pull
             this.emit('log', `📥 [n8n->Local] New: "${filename}"`);
@@ -395,10 +425,14 @@ export class SyncManager extends EventEmitter {
         const contentStr = JSON.stringify(contentObj, null, 2);
 
         const doWrite = (isNew: boolean) => {
-            this.emit('log', isNew ? `📥 [n8n->Local] New: "${filename}"` : `📥 [n8n->Local] Updated: "${filename}"`);
+            // this.emit('log', isNew ? `📥 [n8n->Local] New: "${filename}"` : `📥 [n8n->Local] Updated: "${filename}"`);
             this.isWriting.add(filePath);
             this.markAsSelfWritten(filePath, contentStr);
             fs.writeFileSync(filePath, contentStr);
+            
+            // Update state tracking
+            this.stateManager?.updateWorkflowState(id, contentObj);
+
             this.emit('change', { type: 'remote-to-local', filename, id });
             
             // Release the lock after a short delay to allow FS events to clear
@@ -503,26 +537,44 @@ export class SyncManager extends EventEmitter {
         try {
             if (id) {
                 // UPDATE
-                this.emit('log', `📤 [Local->n8n] Update: "${filename}" (ID: ${id})`);
                 
-                // Fetch current remote state to compare
+                // 1. Fetch current remote state
                 const remoteRaw = await this.client.getWorkflow(id);
-                if (remoteRaw) {
-                    const remoteClean = WorkflowSanitizer.cleanForStorage(remoteRaw);
-                    const localClean = WorkflowSanitizer.cleanForStorage(json);
-                    if (deepEqual(remoteClean, localClean)) {
-                        this.emit('log', `[DEBUG] Content unchanged compared to n8n, skipping update`);
-                        return;
-                    }
+                if (!remoteRaw) throw new Error('Remote workflow not found');
+                
+                const remoteClean = WorkflowSanitizer.cleanForStorage(remoteRaw);
+                const localClean = WorkflowSanitizer.cleanForStorage(json);
+
+                // 2. Check if Remote is different from our last synced state
+                const isRemoteSynced = this.stateManager?.isRemoteSynced(id, remoteClean) ?? false;
+
+                if (!isRemoteSynced) {
+                    // CONFLICT! Remote has changed since we last synced.
+                    this.emit('log', `⚠️ [Conflict] Remote workflow "${filename}" has been modified on n8n. Push aborted to prevent overwriting.`);
+                    this.emit('conflict', {
+                        id,
+                        filename,
+                        localContent: localClean,
+                        remoteContent: remoteClean
+                    });
+                    return;
+                }
+
+                // 3. Optimization: Don't push if local matches remote
+                if (deepEqual(remoteClean, localClean)) {
+                    // No change needed
+                    return;
                 }
 
                 if (!payload.name) payload.name = nameFromFile;
 
-                this.emit('log', `[DEBUG] Sending payload to n8n (Size: ${JSON.stringify(payload).length} chars)`);
+                this.emit('log', `📤 [Local->n8n] Update: "${filename}" (ID: ${id})`);
                 const updatedWf = await this.client.updateWorkflow(id, payload);
                 
                 if (updatedWf && updatedWf.id) {
                     this.emit('log', `✅ Update OK (ID: ${updatedWf.id})`);
+                    // Update last known synced state
+                    this.stateManager?.updateWorkflowState(id, localClean);
                 } else {
                     this.emit('log', `⚠️  Update returned unexpected response (No ID)`);
                 }

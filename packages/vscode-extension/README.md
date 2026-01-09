@@ -27,6 +27,15 @@ Votre environnement est automatiquement configuré pour l'IA dès l'ouverture :
 -   **Bibliothèque de Snippets** : Modèles de nœuds prêts à l'emploi (`node:webhook`, `node:code`, etc.).
 -   **Contexte `AGENTS.md`** : Instructions générées pour que Cline, Cursor, Windsurf, Antigravity ou Copilot maîtrisent la structure de vos workflows.
 
+### 🛡️ Gestion des Conflits
+Le système détecte intelligemment les conflits pour éviter toute perte de données :
+- **Protection**: Si un workflow est modifié simultanément en local et sur n8n, la synchronisation s'arrête.
+- **Résolution**: Une interface vous permet de comparer les versions (Diff View) et de choisir laquelle conserver (Force Push/Pull).
+
+### 🗂️ Support Multi-Instances
+Vos workflows sont organisés automatiquement par instance pour éviter les mélanges :
+`workflows/nom_instance_user/mon_workflow.json`
+
 ### 🍱 Vue Divisée (Split View)
 Visualisez le canvas n8n en temps réel grâce à la Webview intégrée tout en éditant le code JSON. C'est l'interface idéale pour valider visuellement vos modifications structurelles.
 

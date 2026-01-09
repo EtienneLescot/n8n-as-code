@@ -14,9 +14,20 @@ const proxyService = new ProxyService();
 const treeProvider = new WorkflowTreeProvider();
 const outputChannel = vscode.window.createOutputChannel("n8n-as-code");
 
+const conflictStore = new Map<string, string>();
+
 export async function activate(context: vscode.ExtensionContext) {
     outputChannel.show(true);
     outputChannel.appendLine('🔌 Activation of "n8n-as-code" ...');
+
+    // Register Remote Content Provider for Diffs
+    context.subscriptions.push(
+        vscode.workspace.registerTextDocumentContentProvider('n8n-remote', {
+            provideTextDocumentContent(uri: vscode.Uri): string {
+                return conflictStore.get(uri.toString()) || '';
+            }
+        })
+    );
 
     // Register Tree View early
     vscode.window.registerTreeDataProvider('n8n-explorer.workflows', treeProvider);
@@ -346,6 +357,43 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         // This avoids the feedback loop where saving in webview triggers a pull
         if (ev.id && ev.type === 'local-to-remote') {
             WorkflowWebview.reloadIfMatching(ev.id, outputChannel);
+        }
+    });
+
+    // Handle Conflicts
+    syncManager.on('conflict', async (conflict: any) => {
+        const { id, filename, localContent, remoteContent } = conflict;
+        outputChannel.appendLine(`[n8n] CONFLICT detected for: ${filename}`);
+
+        const choice = await vscode.window.showWarningMessage(
+            `Conflict detected for "${filename}". The workflow was modified both locally and on n8n.`,
+            'Show Diff',
+            'Overwrite Remote (Use Local)',
+            'Overwrite Local (Use Remote)'
+        );
+
+        if (choice === 'Show Diff') {
+            // Create a virtual document for the remote content
+            const remoteUri = vscode.Uri.parse(`n8n-remote:${filename}?id=${id}`);
+            const localUri = vscode.Uri.file(path.join(syncManager!.getInstanceDirectory(), filename));
+            
+            // Store remote content for the provider
+            conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
+            
+            await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
+        } else if (choice === 'Overwrite Remote (Use Local)') {
+            // Force push by updating the state first
+            syncManager?.['stateManager']?.updateWorkflowState(id, remoteContent);
+            // Now trigger a manual change event to retry the push
+            const absPath = path.join(syncManager!.getInstanceDirectory(), filename);
+            await syncManager?.handleLocalFileChange(absPath);
+        } else if (choice === 'Overwrite Local (Use Remote)') {
+            // Force pull by updating the state first
+            // syncManager?.['stateManager']?.updateWorkflowState(id, localContent); // No need, pullWorkflow updates state
+            
+            // Force pull
+            await syncManager?.pullWorkflow(filename, id, true);
+            vscode.window.showInformationMessage(`✅ Local file "${filename}" updated from n8n.`);
         }
     });
 
