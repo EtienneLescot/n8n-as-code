@@ -109,7 +109,7 @@ export class ProxyService {
         // Strip headers that block iframe embedding and manage cookies
         this.proxy.on('proxyRes', (proxyRes, req, res) => {
             const path = req.url || 'unknown';
-            this.log(`[Proxy] ${req.method} ${path} -> ${proxyRes.statusCode}`);
+            // this.log(`[Proxy] ${req.method} ${path} -> ${proxyRes.statusCode}`);
 
             // Remove headers that prevent iframe embedding
             delete proxyRes.headers['x-frame-options'];
@@ -130,7 +130,7 @@ export class ProxyService {
                         ? `http://localhost:${this.port}${location}`
                         : location;
 
-                this.log(`[Proxy] Redirect: ${location} -> ${newLocation}`);
+                // this.log(`[Proxy] Redirect: ${location} -> ${newLocation}`);
                 proxyRes.headers['location'] = newLocation;
             }
 
@@ -145,9 +145,9 @@ export class ProxyService {
                         // Capture the whole cookie string up to attributes
                         const valuePart = cookie.substring(0, scIdx !== -1 ? scIdx : undefined).trim();
                         this.cookieJar.set(key, valuePart);
-                        if (key === 'n8n-auth') {
+                        /* if (key === 'n8n-auth') {
                             this.log(`[Proxy] Captured session cookie: ${key}`);
-                        }
+                        } */
                     }
 
                     // Save cookies whenever we get new ones
@@ -239,11 +239,11 @@ export class ProxyService {
                     req.headers['referer'] = req.headers['referer'].replace(new RegExp(`^http://localhost:[0-9]+`), `${proto}://${proxyHost}`);
                 }
 
-                if (req.headers['cookie']?.includes('n8n-auth')) {
+                /* if (req.headers['cookie']?.includes('n8n-auth')) {
                     this.log(`[Proxy] Forwarding: ${req.method} ${url} (Cookie injected) [${proto}]`);
                 } else {
                     this.log(`[Proxy] Forwarding: ${req.method} ${url} [${proto}]`);
-                }
+                } */
 
                 // CRITICAL for SSE: Disable buffering
                 this.proxy.web(req, res, { buffer: undefined });
@@ -256,10 +256,7 @@ export class ProxyService {
             // Try to listen on the stable port
             this.server.listen(this.port, 'localhost', () => {
                 const proxyUrl = `http://localhost:${this.port}`;
-                this.log(`🟢 [Proxy] Server started successfully on stable port!`);
-                this.log(`   Local: ${proxyUrl}`);
-                this.log(`   Target: ${this.target}`);
-                this.log(`   Ready to proxy n8n requests`);
+                this.log(`🟢 [Proxy] Started: ${proxyUrl} -> ${this.target}`);
                 resolve(proxyUrl);
             });
 
@@ -284,7 +281,7 @@ export class ProxyService {
             // Proxy WebSockets for real-time features
             this.server.on('upgrade', (req, socket, head) => {
                 if (this.proxy) {
-                    this.log(`[Proxy] Upgrading to WebSocket: ${req.url}`);
+                    // this.log(`[Proxy] Upgrading to WebSocket: ${req.url}`);
 
                     // Add same headers to WS upgrade request
                     const proxyHost = `localhost:${this.port}`;

@@ -47,14 +47,10 @@ export class WorkflowWebview {
         if (WorkflowWebview.currentPanel) {
             const panelId = WorkflowWebview.currentPanel._workflowId;
             if (panelId === workflowId) {
-                outputChannel?.appendLine(`[Webview] Reloading matching workflow: ${workflowId}`);
+                // outputChannel?.appendLine(`[Webview] Reloading matching workflow: ${workflowId}`);
                 WorkflowWebview.currentPanel._panel.webview.postMessage({ type: 'reload' });
                 return true;
-            } else {
-                outputChannel?.appendLine(`[Webview] Workflow ID mismatch for reload. Panel: ${panelId}, Requested: ${workflowId}`);
             }
-        } else {
-            outputChannel?.appendLine(`[Webview] No active panel for reload matching: ${workflowId}`);
         }
         return false;
     }
@@ -64,7 +60,7 @@ export class WorkflowWebview {
      */
     public static reloadCurrent(outputChannel?: vscode.OutputChannel) {
         if (WorkflowWebview.currentPanel) {
-            outputChannel?.appendLine(`[Webview] Reloading current panel (${WorkflowWebview.currentPanel._workflowId})`);
+            // outputChannel?.appendLine(`[Webview] Reloading current panel (${WorkflowWebview.currentPanel._workflowId})`);
             WorkflowWebview.currentPanel._panel.webview.postMessage({ type: 'reload' });
             return true;
         }
@@ -177,7 +173,7 @@ export class WorkflowWebview {
                 // Hide initial loading when first iframe is ready
                 activeFrame.onload = () => {
                     initialLoading.style.display = 'none';
-                    console.log('n8n initial iframe loaded');
+                    // console.log('n8n initial iframe loaded');
                 };
 
                 /**
@@ -193,13 +189,13 @@ export class WorkflowWebview {
                             const store = vueInstance.$store;
                             
                             if (store && store.dispatch) {
-                                console.log('[Webview] Soft Refresh: Dispatching workflows/getWorkflow');
+                                // console.log('[Webview] Soft Refresh: Dispatching workflows/getWorkflow');
                                 store.dispatch('workflows/getWorkflow', workflowId);
                                 return true;
                             }
                         }
                     } catch (e) {
-                        console.warn('[Webview] Soft Refresh failed or cross-origin blocked:', e);
+                        // console.warn('[Webview] Soft Refresh failed or cross-origin blocked:', e);
                     }
                     return false;
                 }
@@ -208,11 +204,11 @@ export class WorkflowWebview {
                  * Perform a "Seamless Refresh" using double buffering.
                  */
                 function performSeamlessRefresh() {
-                    console.log('[Webview] Seamless Refresh: Loading pending iframe...');
+                    // console.log('[Webview] Seamless Refresh: Loading pending iframe...');
                     loadingOverlay.style.display = 'block';
 
                     pendingFrame.onload = () => {
-                        console.log('[Webview] Seamless Refresh: Swapping frames');
+                        // console.log('[Webview] Seamless Refresh: Swapping frames');
                         
                         // Swap frames
                         activeFrame.classList.add('hidden');
@@ -233,7 +229,7 @@ export class WorkflowWebview {
                 // Handle messages from the extension
                 window.addEventListener('message', (event) => {
                     const message = event.data;
-                    console.log('Webview received message:', message);
+                    // console.log('Webview received message:', message);
                     
                     if (message.type === 'reload') {
                         // 1. Try Soft Refresh first
