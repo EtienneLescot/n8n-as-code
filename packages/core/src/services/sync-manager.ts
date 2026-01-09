@@ -197,7 +197,6 @@ export class SyncManager extends EventEmitter {
      * Scans n8n instance and updates local files with conflict resolution
      */
     async syncDownWithConflictResolution() {
-        this.emit('log', '🔄 [SyncManager] Checking for remote updates...');
         const remoteWorkflows = await this.client.getAllWorkflows();
 
         // Sort: Active first to prioritize their naming
