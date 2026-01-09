@@ -46,12 +46,14 @@ export async function activate(context: vscode.ExtensionContext) {
             if (syncManager) {
                 statusBar.showSyncing();
                 try {
+                    // Collect stats manually if needed or listen to logs
+                    // But easier to just trust the core logic now
                     await syncManager.syncDown();
+                    
                     // Refresh tree
                     treeProvider.refresh();
-
                     statusBar.showSynced();
-                    vscode.window.showInformationMessage('✅ n8n: Workflows pulled successfully.');
+                    // vscode.window.showInformationMessage('✅ n8n: Workflows pulled successfully.');
                 } catch (e: any) {
                     statusBar.showError(e.message);
                     vscode.window.showErrorMessage(`n8n Pull Error: ${e.message}`);
@@ -64,13 +66,12 @@ export async function activate(context: vscode.ExtensionContext) {
             if (syncManager) {
                 statusBar.showSyncing();
                 try {
-                    // Update: use syncUp() for full sync like in CLI
                     await syncManager.syncUp();
 
                     // Refresh tree
                     treeProvider.refresh();
                     statusBar.showSynced();
-                    vscode.window.showInformationMessage('✅ n8n: Pushed missing/updated workflows.');
+                    // vscode.window.showInformationMessage('✅ n8n: Pushed missing/updated workflows.');
                 } catch (e: any) {
                     statusBar.showError(e.message);
                     vscode.window.showErrorMessage(`n8n Push Error: ${e.message}`);
@@ -342,10 +343,18 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     treeProvider.setSyncManager(syncManager);
 
     // Wire up logs
-    syncManager.on('error', (msg) => console.error(msg));
+    syncManager.on('error', (msg) => {
+        console.error(msg);
+        vscode.window.showErrorMessage(`n8n Error: ${msg}`);
+    });
     syncManager.on('log', (msg) => {
         console.log(msg);
         outputChannel.appendLine(msg);
+        
+        // Show information messages for major sync events in VS Code popups
+        if (msg.includes('Sync complete') || msg.includes('Push complete')) {
+            vscode.window.showInformationMessage(msg.replace(/^📥 |^📤 |^🔄 |^✅ /, ''));
+        }
     });
 
     // Auto-refresh tree & webview on ANY change (Watch or manual)
