@@ -428,6 +428,13 @@ export class SyncManager extends EventEmitter {
             // this.emit('log', isNew ? `📥 [n8n->Local] New: "${filename}"` : `📥 [n8n->Local] Updated: "${filename}"`);
             this.isWriting.add(filePath);
             this.markAsSelfWritten(filePath, contentStr);
+            
+            // Ensure directory exists
+            const dir = path.dirname(filePath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+
             fs.writeFileSync(filePath, contentStr);
             
             // Update state tracking
