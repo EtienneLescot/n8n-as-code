@@ -22,9 +22,9 @@ const getVersion = () => {
         if (pkg.name === '@n8n-as-code/cli') return pkg.version;
         
         // Fallback for different execution contexts
-        return '0.0.7';
+        return '0.1.0';
     } catch {
-        return '0.0.7';
+        return '0.1.0';
     }
 };
 

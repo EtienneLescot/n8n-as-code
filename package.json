@@ -1,6 +1,6 @@
 {
   "name": "n8n-as-code-monorepo",
-  "version": "0.0.7",
+  "version": "0.1.0",
   "private": true,
   "description": "n8n workflow ecosystem",
   "bin": {
