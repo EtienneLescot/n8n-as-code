@@ -10,6 +10,21 @@ export class WatchCommand extends BaseCommand {
     private isPromptActive = false;
     private logBuffer: string[] = [];
     private pendingConflictIds = new Set<string>();
+    private originalConsoleLog: any = null;
+
+    private startConsoleCapture() {
+        if (this.originalConsoleLog) return;
+        this.originalConsoleLog = console.log;
+        console.log = (...args: any[]) => {
+            this.logBuffer.push(args.join(' '));
+        };
+    }
+
+    private stopConsoleCapture() {
+        if (!this.originalConsoleLog) return;
+        console.log = this.originalConsoleLog;
+        this.originalConsoleLog = null;
+    }
 
     private flushLogBuffer(spinner: any) {
         if (this.logBuffer.length === 0) return;
@@ -72,6 +87,7 @@ export class WatchCommand extends BaseCommand {
             
             // Activate prompt protection
             this.isPromptActive = true;
+            this.startConsoleCapture();
             const { confirm } = await inquirer.prompt([{
                 type: 'confirm',
                 name: 'confirm',
@@ -79,6 +95,7 @@ export class WatchCommand extends BaseCommand {
                 default: false
             }]);
             this.isPromptActive = false;
+            this.stopConsoleCapture();
             
             // Flush buffered logs
             this.flushLogBuffer(spinner);
@@ -116,17 +133,20 @@ export class WatchCommand extends BaseCommand {
             
             // Activate prompt protection
             this.isPromptActive = true;
+            this.startConsoleCapture();
             const { action } = await inquirer.prompt([{
-                type: 'list',
+                type: 'rawlist',
                 name: 'action',
                 message: 'How do you want to resolve this conflict?',
                 choices: [
                     { name: 'Skip (Keep both as is for now)', value: 'skip' },
                     { name: 'Overwrite Remote (Force Push my local changes)', value: 'push' },
                     { name: 'Overwrite Local (Force Pull remote changes)', value: 'pull' }
-                ]
+                ],
+                pageSize: 3
             }]);
             this.isPromptActive = false;
+            this.stopConsoleCapture();
             
             // Flush buffered logs
             this.flushLogBuffer(spinner);

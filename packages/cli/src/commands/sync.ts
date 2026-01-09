@@ -24,14 +24,15 @@ export class SyncCommand extends BaseCommand {
         // Activate prompt protection
         this.isPromptActive = true;
         const { action } = await inquirer.prompt([{
-            type: 'list',
+            type: 'rawlist',
             name: 'action',
             message: 'How do you want to resolve this conflict?',
             choices: [
                 { name: 'Skip (Keep both as is for now)', value: 'skip' },
                 { name: 'Overwrite Remote (Force Push my local changes)', value: 'push' },
                 { name: 'Overwrite Local (Force Pull remote changes)', value: 'pull' }
-            ]
+            ],
+            pageSize: 3
         }]);
         this.isPromptActive = false;
         
@@ -88,11 +89,26 @@ export class SyncCommand extends BaseCommand {
                 if (msg.includes('Updated') || msg.includes('New')) spinner.info(msg);
             });
 
-            syncManager.on('conflict', async (conflict: any) => {
-                await this.handleConflict(conflict, syncManager, spinner);
-            });
+            // Collect conflict resolution promises
+            const conflictPromises: Promise<void>[] = [];
+            const conflictHandler = async (conflict: any) => {
+                // Create a promise that resolves when this conflict is handled
+                const promise = this.handleConflict(conflict, syncManager, spinner);
+                conflictPromises.push(promise);
+                await promise;
+            };
+            syncManager.on('conflict', conflictHandler);
 
             await syncManager.syncDown();
+            
+            // Wait for all conflict resolutions to complete
+            if (conflictPromises.length > 0) {
+                spinner.stop();
+                console.log(chalk.blue(`⏳ Resolving ${conflictPromises.length} conflict(s)...`));
+                await Promise.all(conflictPromises);
+                spinner.start('Pulling workflows from n8n...');
+            }
+
             spinner.succeed('Pull complete.');
         } catch (e: any) {
             spinner.fail(`Pull failed: ${e.message}`);
@@ -118,13 +134,26 @@ export class SyncCommand extends BaseCommand {
                 if (msg.includes('Created') || msg.includes('Update')) spinner.info(msg);
             });
 
-            syncManager.on('conflict', async (conflict: any) => {
-                await this.handleConflict(conflict, syncManager, spinner);
-            });
+            // Collect conflict resolution promises
+            const conflictPromises: Promise<void>[] = [];
+            const conflictHandler = async (conflict: any) => {
+                const promise = this.handleConflict(conflict, syncManager, spinner);
+                conflictPromises.push(promise);
+                await promise;
+            };
+            syncManager.on('conflict', conflictHandler);
 
             // Prevent creation of duplicates by loading remote state first
             await syncManager.loadRemoteState();
             await syncManager.syncUp();
+            
+            // Wait for all conflict resolutions to complete
+            if (conflictPromises.length > 0) {
+                spinner.stop();
+                console.log(chalk.blue(`⏳ Resolving ${conflictPromises.length} conflict(s)...`));
+                await Promise.all(conflictPromises);
+                spinner.start('Pushing new local workflows to n8n...');
+            }
 
             spinner.succeed('Push complete.');
         } catch (e: any) {
