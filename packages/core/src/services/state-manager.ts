@@ -71,6 +71,23 @@ export class StateManager {
     }
 
     /**
+     * Removes a workflow from state.
+     */
+    removeWorkflowState(id: string) {
+        const state = this.load();
+        delete state.workflows[id];
+        this.save(state);
+    }
+
+    /**
+     * Gets all tracked workflow IDs.
+     */
+    getTrackedWorkflowIds(): string[] {
+        const state = this.load();
+        return Object.keys(state.workflows);
+    }
+
+    /**
      * Checks if a local content matches the last synced state.
      */
     isLocalSynced(id: string, localContent: any): boolean {

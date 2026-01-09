@@ -39,6 +39,37 @@ export class WatchCommand extends BaseCommand {
             spinner.start('Watching...');
         });
 
+        syncManager.on('local-deletion', async (data: { id: string, filename: string }) => {
+            spinner.stop();
+            console.log(chalk.yellow(`🗑️  LOCAL DELETION detected for "${data.filename}"`));
+            
+            const { confirm } = await inquirer.prompt([{
+                type: 'confirm',
+                name: 'confirm',
+                message: `Are you sure? This workflow will also be deleted on your n8n instance.`,
+                default: false
+            }]);
+
+            if (confirm) {
+                const success = await syncManager.deleteRemoteWorkflow(data.id, data.filename);
+                if (success) {
+                    console.log(chalk.green(`✅ Remote workflow deleted and backed up to .archive`));
+                }
+            } else {
+                console.log(chalk.blue(`🔄 Restoring local file from n8n...`));
+                await syncManager.restoreLocalFile(data.id, data.filename);
+            }
+
+            spinner.start('Watching...');
+        });
+
+        syncManager.on('change', (data: any) => {
+            if (data.type === 'remote-deletion') {
+                spinner.info(chalk.blue(`🗑️  Remote workflow "${data.filename}" was deleted. Local file moved to .archive.`));
+                spinner.start('Watching...');
+            }
+        });
+
         syncManager.on('conflict', async (conflict: any) => {
             spinner.stop();
             console.log(chalk.yellow(`⚠️  CONFLICT detected for "${conflict.filename}"`));

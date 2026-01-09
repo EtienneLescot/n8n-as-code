@@ -7,6 +7,7 @@ import { N8nApiClient } from './n8n-api-client.js';
 import { WorkflowSanitizer } from './workflow-sanitizer.js';
 import { createInstanceIdentifier, createFallbackInstanceIdentifier } from './directory-utils.js';
 import { StateManager } from './state-manager.js';
+import { TrashService } from './trash-service.js';
 import { ISyncConfig, IWorkflow, WorkflowSyncStatus, IWorkflowStatus } from '../types.js';
 
 interface IInstanceConfig {
@@ -28,6 +29,7 @@ export class SyncManager extends EventEmitter {
     private watcher: chokidar.FSWatcher | null = null;
     private pollInterval: NodeJS.Timeout | null = null;
     private stateManager: StateManager | null = null;
+    private trashService: TrashService | null = null;
 
     constructor(client: N8nApiClient, config: ISyncConfig) {
         super();
@@ -85,6 +87,7 @@ export class SyncManager extends EventEmitter {
         if (instanceConfig.instanceIdentifier) {
             this.config.instanceIdentifier = instanceConfig.instanceIdentifier;
             this.stateManager = new StateManager(this.getInstanceDirectory());
+            this.trashService = new TrashService(this.getInstanceDirectory());
             return instanceConfig.instanceIdentifier;
         }
 
@@ -99,6 +102,7 @@ export class SyncManager extends EventEmitter {
         // Update config
         this.config.instanceIdentifier = newIdentifier;
         this.stateManager = new StateManager(this.getInstanceDirectory());
+        this.trashService = new TrashService(this.getInstanceDirectory());
         
         return newIdentifier;
     }
@@ -276,7 +280,49 @@ export class SyncManager extends EventEmitter {
             else if (result === 'conflict') counts.conflict++;
         }
 
-        this.emit('log', `📥 [SyncManager] Sync complete: ${this.formatSummary(counts)}`);
+        // 3. Process remote deletions
+        const deletionCounts = await this.processRemoteDeletions(remoteWorkflows);
+
+        this.emit('log', `📥 [SyncManager] Sync complete: ${this.formatSummary(counts)}${deletionCounts > 0 ? `, ${deletionCounts} remote deleted` : ''}`);
+    }
+
+    /**
+     * Identifies and handles workflows deleted on n8n but still present locally and tracked in state
+     */
+    private async processRemoteDeletions(remoteWorkflows: IWorkflow[]): Promise<number> {
+        if (!this.stateManager || !this.trashService) return 0;
+
+        const remoteIds = new Set(remoteWorkflows.map(wf => wf.id));
+        const trackedIds = this.stateManager.getTrackedWorkflowIds();
+        let deletedCount = 0;
+
+        for (const id of trackedIds) {
+            if (!remoteIds.has(id)) {
+                // Workflow deleted remotely!
+                const state = this.stateManager.getWorkflowState(id);
+                if (!state) continue;
+
+                // Find local file for this ID
+                const filename = Array.from(this.fileToIdMap.entries())
+                    .find(([_, fid]) => fid === id)?.[0];
+                
+                if (filename) {
+                    const filePath = this.getFilePath(filename);
+                    if (fs.existsSync(filePath)) {
+                        this.emit('log', `🗑️ [Remote->Local] Remote workflow deleted: "${filename}". Moving local file to .archive`);
+                        await this.trashService.archiveFile(filePath, filename);
+                        this.stateManager.removeWorkflowState(id);
+                        this.fileToIdMap.delete(filename);
+                        this.emit('change', { type: 'remote-deletion', filename, id });
+                        deletedCount++;
+                    }
+                } else {
+                    // ID tracked but no file found? Just clean state
+                    this.stateManager.removeWorkflowState(id);
+                }
+            }
+        }
+        return deletedCount;
     }
 
     /**
@@ -307,6 +353,9 @@ export class SyncManager extends EventEmitter {
             else if (result === 'up-to-date') counts.upToDate++;
             else if (result === 'conflict') counts.conflict++;
         }
+
+        // 3. Process remote deletions
+        await this.processRemoteDeletions(remoteWorkflows);
 
         if (counts.updated > 0 || counts.new > 0 || counts.conflict > 0) {
             this.emit('log', `📥 [SyncManager] Applied: ${this.formatSummary({ new: counts.new, updated: counts.updated, conflict: counts.conflict })}`);
@@ -481,6 +530,65 @@ export class SyncManager extends EventEmitter {
     }
 
     /**
+     * Handles local file deletion (detected by watcher)
+     */
+    async handleLocalFileDeletion(filePath: string) {
+        const filename = path.basename(filePath);
+        if (!filename.endsWith('.json') || filename.startsWith('.n8n-state')) return;
+
+        const id = this.fileToIdMap.get(filename);
+        if (id) {
+            this.emit('log', `🗑️ [Local->Remote] Local file deleted: "${filename}". (ID: ${id})`);
+            this.emit('local-deletion', { id, filename, filePath });
+        }
+    }
+
+    /**
+     * Actually deletes the remote workflow and cleans up local state
+     */
+    async deleteRemoteWorkflow(id: string, filename: string): Promise<boolean> {
+        try {
+            // First archive the remote version locally for safety
+            const remoteWf = await this.client.getWorkflow(id);
+            if (remoteWf && this.trashService) {
+                await this.trashService.archiveWorkflow(remoteWf, filename);
+            }
+
+            const success = await this.client.deleteWorkflow(id);
+            if (success) {
+                this.stateManager?.removeWorkflowState(id);
+                this.fileToIdMap.delete(filename);
+                this.emit('log', `✅ [n8n] Workflow ${id} deleted successfully.`);
+                return true;
+            }
+            return false;
+        } catch (error: any) {
+            this.emit('log', `❌ Failed to delete remote workflow ${id}: ${error.message}`);
+            return false;
+        }
+    }
+
+    /**
+     * Restore a deleted local file from remote
+     */
+    async restoreLocalFile(id: string, filename: string): Promise<boolean> {
+        try {
+            const remoteWf = await this.client.getWorkflow(id);
+            if (!remoteWf) throw new Error('Remote workflow not found');
+
+            const cleanRemote = WorkflowSanitizer.cleanForStorage(remoteWf);
+            const filePath = this.getFilePath(filename);
+            
+            await this.writeLocalFile(filePath, cleanRemote, filename, id);
+            this.emit('log', `✅ [Local] Workflow "${filename}" restored from n8n.`);
+            return true;
+        } catch (error: any) {
+            this.emit('log', `❌ Failed to restore local file ${filename}: ${error.message}`);
+            return false;
+        }
+    }
+
+    /**
      * Handle FS watcher events
      */
     async handleLocalFileChange(filePath: string, silent: boolean = false): Promise<'updated' | 'created' | 'up-to-date' | 'conflict' | 'skipped'> {
@@ -493,14 +601,23 @@ export class SyncManager extends EventEmitter {
         }
 
         const rawContent = this.readRawFile(filePath);
-        if (!rawContent || this.isSelfWritten(filePath, rawContent)) {
+        if (!rawContent) {
+            return 'skipped';
+        }
+        
+        if (this.isSelfWritten(filePath, rawContent)) {
             return 'skipped';
         }
 
         const id = this.fileToIdMap.get(filename);
         const nameFromFile = path.parse(filename).name;
 
-        const json = JSON.parse(rawContent);
+        let json;
+        try {
+            json = JSON.parse(rawContent);
+        } catch (e) {
+            return 'skipped'; // Invalid JSON
+        }
         const payload = WorkflowSanitizer.cleanForPush(json);
 
         try {
@@ -595,7 +712,8 @@ export class SyncManager extends EventEmitter {
 
         this.watcher
             .on('change', (p: string) => this.handleLocalFileChange(p))
-            .on('add', (p: string) => this.handleLocalFileChange(p));
+            .on('add', (p: string) => this.handleLocalFileChange(p))
+            .on('unlink', (p: string) => this.handleLocalFileDeletion(p));
 
         if (this.config.pollIntervalMs > 0) {
             this.pollInterval = setInterval(async () => {

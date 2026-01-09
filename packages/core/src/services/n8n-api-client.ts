@@ -107,6 +107,16 @@ export class N8nApiClient {
         }
     }
 
+    async deleteWorkflow(id: string): Promise<boolean> {
+        try {
+            await this.client.delete(`/api/v1/workflows/${id}`);
+            return true;
+        } catch (error) {
+            console.error(`Failed to delete workflow ${id}:`, error);
+            return false;
+        }
+    }
+
     async activateWorkflow(id: string, active: boolean): Promise<boolean> {
         try {
             await this.client.post(`/api/v1/workflows/${id}/activate`, { active });
