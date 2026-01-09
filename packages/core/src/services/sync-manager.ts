@@ -25,6 +25,8 @@ export class SyncManager extends EventEmitter {
     private fileToIdMap: Map<string, string> = new Map();
     // Maps filePath -> Content (to detect self-written changes)
     private selfWrittenCache: Map<string, string> = new Map();
+    // Busy writing flag to avoid loops
+    private isWriting = new Set<string>();
 
     private watcher: chokidar.FSWatcher | null = null;
     private pollInterval: NodeJS.Timeout | null = null;
@@ -120,9 +122,15 @@ export class SyncManager extends EventEmitter {
         return createFallbackInstanceIdentifier(host, String(apiKey));
     }
 
-    private getInstanceDirectory(): string {
+    public getInstanceDirectory(): string {
         if (!this.config.instanceIdentifier) {
-            throw new Error('Instance identifier not available');
+            // This should not happen if callers await ensureInstanceIdentifier
+            const instanceConfig = this.loadInstanceConfig();
+            if (instanceConfig.instanceIdentifier) {
+                this.config.instanceIdentifier = instanceConfig.instanceIdentifier;
+            } else {
+                throw new Error('Instance identifier not available. Please wait for initialization.');
+            }
         }
         return path.join(this.config.directory, this.config.instanceIdentifier);
     }
@@ -135,13 +143,19 @@ export class SyncManager extends EventEmitter {
         return name.replace(/[\/\\:]/g, '_').replace(/\s+/g, ' ').trim();
     }
 
+    private normalizeContent(content: string): string {
+        return content.replace(/\r\n/g, '\n').trim();
+    }
+
     private markAsSelfWritten(filePath: string, content: string) {
-        this.selfWrittenCache.set(filePath, content);
+        this.selfWrittenCache.set(filePath, this.normalizeContent(content));
     }
 
     private isSelfWritten(filePath: string, currentContent: string): boolean {
         if (!this.selfWrittenCache.has(filePath)) return false;
-        return this.selfWrittenCache.get(filePath) === currentContent;
+        const cached = this.selfWrittenCache.get(filePath);
+        const current = this.normalizeContent(currentContent);
+        return cached === current;
     }
 
     async loadRemoteState() {
@@ -153,13 +167,18 @@ export class SyncManager extends EventEmitter {
             if (this.shouldIgnore(wf)) continue;
             const filename = `${this.safeName(wf.name)}.json`;
             this.fileToIdMap.set(filename, wf.id);
+            console.log(`[DEBUG] Mapped: "${filename}" -> "${wf.id}"`);
         }
+        
+        console.log(`[DEBUG] Total workflows loaded: ${remoteWorkflows.length}`);
+        console.log(`[DEBUG] Total mappings created: ${this.fileToIdMap.size}`);
     }
 
     /**
      * Retrieves the status of all workflows (local and remote)
      */
     async getWorkflowsStatus(): Promise<IWorkflowStatus[]> {
+        await this.ensureInstanceIdentifier();
         await this.loadRemoteState();
         const statuses: IWorkflowStatus[] = [];
 
@@ -235,6 +254,7 @@ export class SyncManager extends EventEmitter {
      * Scans n8n instance and updates local files (Downstream Sync)
      */
     async syncDown() {
+        await this.ensureInstanceIdentifier();
         this.emit('log', '🔄 [SyncManager] Starting Downstream Sync...');
         const remoteWorkflows = await this.client.getAllWorkflows();
 
@@ -264,6 +284,7 @@ export class SyncManager extends EventEmitter {
      * Scans n8n instance and updates local files with conflict resolution
      */
     async syncDownWithConflictResolution() {
+        await this.ensureInstanceIdentifier();
         const remoteWorkflows = await this.client.getAllWorkflows();
 
         // Sort: Active first to prioritize their naming
@@ -339,10 +360,15 @@ export class SyncManager extends EventEmitter {
             const remoteTimestampStr = remoteUpdatedAt || fullWf.updatedAt || fullWf.createdAt || '';
             const remoteTimestamp = remoteTimestampStr ? new Date(remoteTimestampStr).getTime() : 0;
 
+            console.log(`[DEBUG] SyncDown Check: "${filename}"`);
+            console.log(`[DEBUG]   Local : ${new Date(localTimestamp).toISOString()} (${localTimestamp})`);
+            console.log(`[DEBUG]   Remote: ${new Date(remoteTimestamp).toISOString()} (${remoteTimestamp})`);
+            console.log(`[DEBUG]   Diff  : ${localTimestamp - remoteTimestamp}ms (Local - Remote)`);
+
             // Resolve conflict based on timestamps
-            if (localTimestamp > remoteTimestamp) {
-                // Local is newer - skip this pull to avoid overwriting local changes
-                // No logging for this case (normal polling behavior)
+            // We use a small safety margin (1000ms) to account for clock skew between local and server
+            if (localTimestamp > (remoteTimestamp + 1000)) {
+                // Local is definitely newer
                 return 'skipped';
             } else if (remoteTimestamp > localTimestamp) {
                 // Remote is newer - this is a meaningful update that should be logged
@@ -368,24 +394,33 @@ export class SyncManager extends EventEmitter {
     private async writeLocalFile(filePath: string, contentObj: any, filename: string, id: string) {
         const contentStr = JSON.stringify(contentObj, null, 2);
 
-        if (!fs.existsSync(filePath)) {
-            this.emit('log', `📥 [n8n->Local] New: "${filename}"`);
+        const doWrite = (isNew: boolean) => {
+            this.emit('log', isNew ? `📥 [n8n->Local] New: "${filename}"` : `📥 [n8n->Local] Updated: "${filename}"`);
+            this.isWriting.add(filePath);
             this.markAsSelfWritten(filePath, contentStr);
             fs.writeFileSync(filePath, contentStr);
             this.emit('change', { type: 'remote-to-local', filename, id });
+            
+            // Release the lock after a short delay to allow FS events to clear
+            setTimeout(() => this.isWriting.delete(filePath), 1000);
+        };
+
+        if (!fs.existsSync(filePath)) {
+            doWrite(true);
             return;
         }
 
         const localContent = fs.readFileSync(filePath, 'utf8');
-        const localObj = JSON.parse(localContent);
-        // We clean the local obj just to be sure we compare apples to apples (though it should be clean)
-        const cleanLocal = WorkflowSanitizer.cleanForStorage(localObj);
+        try {
+            const localObj = JSON.parse(localContent);
+            const cleanLocal = WorkflowSanitizer.cleanForStorage(localObj);
 
-        if (!deepEqual(cleanLocal, contentObj)) {
-            this.emit('log', `📥 [n8n->Local] Updated: "${filename}"`);
-            this.markAsSelfWritten(filePath, contentStr);
-            fs.writeFileSync(filePath, contentStr);
-            this.emit('change', { type: 'remote-to-local', filename, id });
+            if (!deepEqual(cleanLocal, contentObj)) {
+                doWrite(false);
+            }
+        } catch (e) {
+            // If file is corrupt, overwrite it
+            doWrite(false);
         }
     }
 
@@ -402,6 +437,7 @@ export class SyncManager extends EventEmitter {
      * Uploads local files that don't exist remotely (Upstream Sync - Init)
      */
     async syncUpMissing() {
+        await this.ensureInstanceIdentifier();
         this.emit('log', '🔄 [SyncManager] Checking for orphans...');
         const instanceDirectory = this.getInstanceDirectory();
         if (!fs.existsSync(instanceDirectory)) return;
@@ -420,6 +456,7 @@ export class SyncManager extends EventEmitter {
      * Full Upstream Sync: Updates existing and Creates new.
      */
     async syncUp() {
+        await this.ensureInstanceIdentifier();
         this.emit('log', '📤 [SyncManager] Starting Upstream Sync (Push)...');
         const instanceDirectory = this.getInstanceDirectory();
         if (!fs.existsSync(instanceDirectory)) return;
@@ -436,15 +473,29 @@ export class SyncManager extends EventEmitter {
      * Handle FS watcher events
      */
     async handleLocalFileChange(filePath: string) {
+        await this.ensureInstanceIdentifier();
         if (!filePath.endsWith('.json')) return;
+        if (this.isWriting.has(filePath)) {
+            this.emit('log', `[DEBUG] Ignoring FS event (SyncManager is writing): ${path.basename(filePath)}`);
+            return;
+        }
 
         // Ignore self-written files to avoid infinite loops
         const rawContent = this.readRawFile(filePath);
-        if (!rawContent || this.isSelfWritten(filePath, rawContent)) return;
+        if (!rawContent || this.isSelfWritten(filePath, rawContent)) {
+            // this.emit('log', `[DEBUG] Ignoring FS event (Self-written): ${path.basename(filePath)}`);
+            return;
+        }
 
         const filename = path.basename(filePath);
         const nameFromFile = path.parse(filename).name;
         const id = this.fileToIdMap.get(filename);
+
+        // Debug: Log mapping information
+        this.emit('log', `[DEBUG] handleLocalFileChange: ${filename}`);
+        this.emit('log', `[DEBUG] fileToIdMap has ${filename}: ${this.fileToIdMap.has(filename)}`);
+        this.emit('log', `[DEBUG] Workflow ID: ${id}`);
+        // this.emit('log', `[DEBUG] Current fileToIdMap entries: ${JSON.stringify(Array.from(this.fileToIdMap.entries()))}`);
 
         const json = JSON.parse(rawContent);
         const payload = WorkflowSanitizer.cleanForPush(json);
@@ -452,20 +503,29 @@ export class SyncManager extends EventEmitter {
         try {
             if (id) {
                 // UPDATE
-                // Check if actually changed vs remote (Optimization)
+                this.emit('log', `📤 [Local->n8n] Update: "${filename}" (ID: ${id})`);
+                
+                // Fetch current remote state to compare
                 const remoteRaw = await this.client.getWorkflow(id);
                 if (remoteRaw) {
                     const remoteClean = WorkflowSanitizer.cleanForStorage(remoteRaw);
                     const localClean = WorkflowSanitizer.cleanForStorage(json);
-                    // We use deepEqual here, assuming it's imported or available
-                    if (deepEqual(remoteClean, localClean)) return;
+                    if (deepEqual(remoteClean, localClean)) {
+                        this.emit('log', `[DEBUG] Content unchanged compared to n8n, skipping update`);
+                        return;
+                    }
                 }
 
                 if (!payload.name) payload.name = nameFromFile;
 
-                this.emit('log', `📤 [Local->n8n] Update: "${filename}"`);
+                this.emit('log', `[DEBUG] Sending payload to n8n (Size: ${JSON.stringify(payload).length} chars)`);
                 const updatedWf = await this.client.updateWorkflow(id, payload);
-                this.emit('log', `✅ Update OK (ID: ${updatedWf.id})`);
+                
+                if (updatedWf && updatedWf.id) {
+                    this.emit('log', `✅ Update OK (ID: ${updatedWf.id})`);
+                } else {
+                    this.emit('log', `⚠️  Update returned unexpected response (No ID)`);
+                }
                 this.emit('change', { type: 'local-to-remote', filename, id });
 
             } else {
@@ -485,12 +545,17 @@ export class SyncManager extends EventEmitter {
                 this.emit('change', { type: 'local-to-remote', filename, id: newWf.id });
             }
         } catch (error: any) {
-            this.emit('error', `❌ Sync Up Error for "${filename}": ${error.message}`);
+            const errorMsg = error.response?.data?.message || error.message || 'Unknown error';
+            this.emit('log', `❌ Sync Up Failed for "${filename}": ${errorMsg}`);
+            this.emit('error', `Sync Up Error: ${errorMsg}`);
+            
             console.error('Detailed sync error:', {
                 filename,
                 id,
-                error: error.stack || error.message,
-                payload: JSON.stringify(payload, null, 2).substring(0, 500) + '...'
+                status: error.response?.status,
+                data: error.response?.data,
+                message: error.message,
+                stack: error.stack
             });
         }
     }

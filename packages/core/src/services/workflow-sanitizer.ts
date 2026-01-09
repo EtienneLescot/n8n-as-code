@@ -38,13 +38,32 @@ export class WorkflowSanitizer {
     static cleanForPush(workflow: Partial<IWorkflow>): Partial<IWorkflow> {
         const clean = this.cleanForStorage(workflow as IWorkflow);
 
-        // When pushing, we might not want to force-overwrite active state if handled separately,
-        // but for now we follow the simple sync logic.
-        // removing active state from payload might be safer effectively? 
-        // Sync.js logic: delete clean.active; delete clean.tags;
-
+        // n8n public API v1 (PUT /workflows/{id})
+        // 1. 'active' is read-only and will cause a 400 error if included
         delete clean.active;
+        
+        // 2. Tags are often problematic and not always supported in the same way via Public API
         delete clean.tags;
+
+        // 3. Settings must be strictly filtered (Whitelist)
+        // Public API schema for settings is very restrictive
+        if (clean.settings) {
+            const allowedSettings = [
+                'errorWorkflow',
+                'timezone',
+                'saveManualExecutions',
+                'saveDataErrorExecution',
+                'saveExecutionProgress',
+                'executionOrder'
+            ];
+            const filteredSettings: any = {};
+            for (const key of allowedSettings) {
+                if (clean.settings[key] !== undefined) {
+                    filteredSettings[key] = clean.settings[key];
+                }
+            }
+            clean.settings = filteredSettings;
+        }
 
         return clean;
     }

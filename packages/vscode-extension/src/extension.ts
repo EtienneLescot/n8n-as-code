@@ -103,7 +103,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
             if (wf.filename) {
                 // Use the instance-specific directory, not the base directory
-                const instanceDirectory = syncManager['getInstanceDirectory']();
+                const instanceDirectory = syncManager.getInstanceDirectory();
                 const uri = vscode.Uri.file(path.join(instanceDirectory, wf.filename));
                 try {
                     const doc = await vscode.workspace.openTextDocument(uri);
@@ -122,7 +122,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
             // 1. Open JSON in left column (use instance-specific directory)
             if (wf.filename) {
-                const instanceDirectory = syncManager['getInstanceDirectory']();
+                const instanceDirectory = syncManager.getInstanceDirectory();
                 const uri = vscode.Uri.file(path.join(instanceDirectory, wf.filename));
                 try {
                     const doc = await vscode.workspace.openTextDocument(uri);
@@ -151,7 +151,7 @@ export async function activate(context: vscode.ExtensionContext) {
             statusBar.showSyncing();
             try {
                 // We reuse handleLocalFileChange which does the "Push" (Update/Create) logic
-                const instanceDirectory = syncManager['getInstanceDirectory']();
+                const instanceDirectory = syncManager.getInstanceDirectory();
                 const absPath = path.join(instanceDirectory, wf.filename);
                 await syncManager.handleLocalFileChange(absPath);
 

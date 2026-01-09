@@ -70,8 +70,23 @@ export class N8nApiClient {
     }
 
     async updateWorkflow(id: string, payload: Partial<IWorkflow>): Promise<IWorkflow> {
-        const res = await this.client.put(`/api/v1/workflows/${id}`, payload);
-        return res.data;
+        // Use console.warn to be more visible in some environments
+        console.warn(`[N8nApiClient] Starting PUT /api/v1/workflows/${id}`);
+        const startTime = Date.now();
+        
+        try {
+            const res = await this.client.put(`/api/v1/workflows/${id}`, payload);
+            const duration = Date.now() - startTime;
+            console.warn(`[N8nApiClient] PUT finished in ${duration}ms. Status: ${res.status}`);
+            return res.data;
+        } catch (error: any) {
+            const duration = Date.now() - startTime;
+            console.error(`[N8nApiClient] PUT failed after ${duration}ms: ${error.message}`);
+            if (error.response) {
+                console.error(`[N8nApiClient] Error data:`, error.response.data);
+            }
+            throw error;
+        }
     }
 
     async activateWorkflow(id: string, active: boolean): Promise<boolean> {
