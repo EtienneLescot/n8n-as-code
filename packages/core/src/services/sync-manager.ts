@@ -197,13 +197,15 @@ export class SyncManager extends EventEmitter {
      * Scans n8n instance and updates local files with conflict resolution
      */
     async syncDownWithConflictResolution() {
-        this.emit('log', '🔄 [SyncManager] Starting Downstream Sync with Conflict Resolution...');
+        this.emit('log', '🔄 [SyncManager] Checking for remote updates...');
         const remoteWorkflows = await this.client.getAllWorkflows();
 
         // Sort: Active first to prioritize their naming
         remoteWorkflows.sort((a, b) => (a.active === b.active ? 0 : a.active ? -1 : 1));
 
         const processedFiles = new Set<string>();
+        let updateCount = 0;
+        let newCount = 0;
 
         for (const wf of remoteWorkflows) {
             // Filter
@@ -218,7 +220,19 @@ export class SyncManager extends EventEmitter {
             this.fileToIdMap.set(filename, wf.id);
 
             // Use conflict-aware pull logic
-            await this.pullWorkflowWithConflictResolution(filename, wf.id, wf.updatedAt || wf.createdAt);
+            const result = await this.pullWorkflowWithConflictResolution(filename, wf.id, wf.updatedAt || wf.createdAt);
+            if (result === 'updated') {
+                updateCount++;
+            } else if (result === 'new') {
+                newCount++;
+            }
+        }
+
+        if (updateCount > 0 || newCount > 0) {
+            const summary = [];
+            if (newCount > 0) summary.push(`${newCount} new`);
+            if (updateCount > 0) summary.push(`${updateCount} updated`);
+            this.emit('log', `📥 [SyncManager] Applied ${summary.join(', ')} workflow(s)`);
         }
     }
 
@@ -239,11 +253,12 @@ export class SyncManager extends EventEmitter {
 
     /**
      * Pulls a single workflow with timestamp-based conflict resolution
+     * @returns 'updated' if file was updated, 'skipped' if local was newer, 'new' if file was created
      */
-    async pullWorkflowWithConflictResolution(filename: string, id: string, remoteUpdatedAt?: string) {
+    async pullWorkflowWithConflictResolution(filename: string, id: string, remoteUpdatedAt?: string): Promise<'updated' | 'skipped' | 'new'> {
         // Fetch full details
         const fullWf = await this.client.getWorkflow(id);
-        if (!fullWf) return;
+        if (!fullWf) return 'skipped';
 
         const cleanRemote = WorkflowSanitizer.cleanForStorage(fullWf);
         const filePath = this.getFilePath(filename);
@@ -261,20 +276,23 @@ export class SyncManager extends EventEmitter {
             // Resolve conflict based on timestamps
             if (localTimestamp > remoteTimestamp) {
                 // Local is newer - skip this pull to avoid overwriting local changes
-                this.emit('log', `🔄 [Conflict] Local "${filename}" is newer than remote. Keeping local version.`);
-                return;
+                // No logging for this case (normal polling behavior)
+                return 'skipped';
             } else if (remoteTimestamp > localTimestamp) {
-                // Remote is newer - proceed with pull
-                this.emit('log', `📥 [n8n->Local] Updated (newer remote): "${filename}"`);
+                // Remote is newer - this is a meaningful update that should be logged
+                this.emit('log', `📥 [n8n->Local] Updated: "${filename}"`);
                 await this.writeLocalFile(filePath, cleanRemote, filename, id);
+                return 'updated';
             } else {
-                // Timestamps are equal - proceed with pull (could be same content)
+                // Timestamps are equal - could be same content, no need to log
                 await this.writeLocalFile(filePath, cleanRemote, filename, id);
+                return 'skipped';
             }
         } else {
             // File doesn't exist locally - safe to pull
             this.emit('log', `📥 [n8n->Local] New: "${filename}"`);
             await this.writeLocalFile(filePath, cleanRemote, filename, id);
+            return 'new';
         }
     }
 
