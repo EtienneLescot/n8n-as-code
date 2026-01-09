@@ -8,6 +8,11 @@ import { WorkflowSanitizer } from './workflow-sanitizer.js';
 import { createInstanceIdentifier, createFallbackInstanceIdentifier } from './directory-utils.js';
 import { ISyncConfig, IWorkflow, WorkflowSyncStatus, IWorkflowStatus } from '../types.js';
 
+interface IInstanceConfig {
+    instanceIdentifier?: string;
+    lastUsed?: string;
+}
+
 // Define a simple deepEqual if strict module resolution fails on the import
 // For this environment, we'll try to rely on the package, but if it fails we might need a utility.
 // Assuming user will install @types/deep-equal or allow implicits.
@@ -33,6 +38,67 @@ export class SyncManager extends EventEmitter {
         if (!fs.existsSync(this.config.directory)) {
             fs.mkdirSync(this.config.directory, { recursive: true });
         }
+    }
+
+    /**
+     * Get the path to the instance configuration file
+     */
+    private getInstanceConfigPath(): string {
+        return path.join(this.config.directory, 'n8n-as-code-instance.json');
+    }
+
+    /**
+     * Load instance configuration from disk
+     */
+    private loadInstanceConfig(): IInstanceConfig {
+        const configPath = this.getInstanceConfigPath();
+        if (fs.existsSync(configPath)) {
+            try {
+                const content = fs.readFileSync(configPath, 'utf-8');
+                return JSON.parse(content);
+            } catch (error) {
+                console.warn('Could not read instance config, using defaults:', error);
+            }
+        }
+        return {};
+    }
+
+    /**
+     * Save instance configuration to disk
+     */
+    private saveInstanceConfig(config: IInstanceConfig): void {
+        const configPath = this.getInstanceConfigPath();
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    }
+
+    /**
+     * Ensure instance identifier is set and persistent
+     */
+    private async ensureInstanceIdentifier(): Promise<string> {
+        // Check if instance identifier is already provided in config
+        if (this.config.instanceIdentifier) {
+            return this.config.instanceIdentifier;
+        }
+
+        // Try to load from persistent storage
+        const instanceConfig = this.loadInstanceConfig();
+        if (instanceConfig.instanceIdentifier) {
+            this.config.instanceIdentifier = instanceConfig.instanceIdentifier;
+            return instanceConfig.instanceIdentifier;
+        }
+
+        // Generate new instance identifier
+        const newIdentifier = await this.initializeInstanceIdentifier();
+        
+        // Save to persistent storage
+        instanceConfig.instanceIdentifier = newIdentifier;
+        instanceConfig.lastUsed = new Date().toISOString();
+        this.saveInstanceConfig(instanceConfig);
+        
+        // Update config
+        this.config.instanceIdentifier = newIdentifier;
+        
+        return newIdentifier;
     }
 
     private async initializeInstanceIdentifier(): Promise<string> {
@@ -442,12 +508,22 @@ export class SyncManager extends EventEmitter {
 
         this.emit('log', `🚀 [SyncManager] Starting Watcher (Poll: ${this.config.pollIntervalMs}ms)`);
 
-        // 1. Initialize instance identifier if not provided
-        if (!this.config.instanceIdentifier) {
-            this.config.instanceIdentifier = await this.initializeInstanceIdentifier();
-            const instanceDirectory = this.getInstanceDirectory();
-            if (!fs.existsSync(instanceDirectory)) {
-                fs.mkdirSync(instanceDirectory, { recursive: true });
+        // 1. Ensure instance identifier is set (centralized in core)
+        await this.ensureInstanceIdentifier();
+        const instanceDirectory = this.getInstanceDirectory();
+        
+        if (!fs.existsSync(instanceDirectory)) {
+            fs.mkdirSync(instanceDirectory, { recursive: true });
+        }
+
+        // Debug: Show which directory is being watched
+        this.emit('log', `👁️  Watching directory: ${instanceDirectory}`);
+        
+        // List existing workflow files in the directory
+        if (fs.existsSync(instanceDirectory)) {
+            const files = fs.readdirSync(instanceDirectory).filter(f => f.endsWith('.json'));
+            if (files.length > 0) {
+                this.emit('log', `📁 Found ${files.length} workflow file(s): ${files.join(', ')}`);
             }
         }
 
@@ -460,7 +536,6 @@ export class SyncManager extends EventEmitter {
         }
 
         // 3. Local FS Watcher - watch instance-specific directory
-        const instanceDirectory = this.getInstanceDirectory();
         this.watcher = chokidar.watch(instanceDirectory, {
             ignored: /(^|[\/\\])\../,
             persistent: true,
@@ -469,8 +544,14 @@ export class SyncManager extends EventEmitter {
         });
 
         this.watcher
-            .on('change', (p: string) => this.handleLocalFileChange(p))
-            .on('add', (p: string) => this.handleLocalFileChange(p));
+            .on('change', (p: string) => {
+                console.log(`[DEBUG] File changed detected: ${p}`);
+                this.handleLocalFileChange(p)
+            })
+            .on('add', (p: string) => {
+                console.log(`[DEBUG] File added detected: ${p}`);
+                this.handleLocalFileChange(p)
+            });
 
         // 4. Remote Polling Loop with conflict resolution
         if (this.config.pollIntervalMs > 0) {

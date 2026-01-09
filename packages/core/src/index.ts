@@ -5,3 +5,4 @@ export * from './services/sync-manager.js';
 export * from './services/schema-generator.js';
 export * from './services/ai-context-generator.js';
 export * from './services/snippet-generator.js';
+export * from './services/directory-utils.js';

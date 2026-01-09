@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { SyncManager, N8nApiClient, IN8nCredentials, IWorkflowStatus, SchemaGenerator, AiContextGenerator, SnippetGenerator } from '@n8n-as-code/core';
+import { SyncManager, N8nApiClient, IN8nCredentials, IWorkflowStatus, SchemaGenerator, AiContextGenerator, SnippetGenerator, createInstanceIdentifier, createFallbackInstanceIdentifier } from '@n8n-as-code/core';
 import { StatusBar } from './ui/status-bar.js';
 import { WorkflowTreeProvider } from './ui/workflow-tree-provider.js';
 import { WorkflowWebview } from './ui/workflow-webview.js';
@@ -314,11 +314,13 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
     const absDirectory = path.join(workspaceRoot, folder);
 
+    // Let SyncManager handle instance identifier internally (centralized in core)
     syncManager = new SyncManager(client, {
         directory: absDirectory,
         pollIntervalMs: pollIntervalMs,
         syncInactive: true,
         ignoredTags: []
+        // instanceIdentifier is now handled automatically by SyncManager
     });
 
     // Pass syncManager to tree provider

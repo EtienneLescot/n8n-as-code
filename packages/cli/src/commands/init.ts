@@ -77,32 +77,11 @@ export class InitCommand {
 
             spinner.succeed(chalk.green('Successfully connected to n8n!'));
 
-            // Generate instance identifier for user-friendly directory structure
-            const spinnerInstance = ora('Generating instance identifier...').start();
-            let instanceIdentifier = '';
-            
-            try {
-                // Try to get user information for friendly naming
-                const user = await client.getCurrentUser();
-                if (user) {
-                    instanceIdentifier = createInstanceIdentifier(answers.host, user);
-                } else {
-                    // Fallback to host + API key hash
-                    instanceIdentifier = createFallbackInstanceIdentifier(answers.host, answers.apiKey);
-                }
-                
-                spinnerInstance.succeed(chalk.green(`Instance identifier: ${instanceIdentifier}`));
-                console.log(chalk.gray(`Your workflows will be stored in: ${answers.syncFolder}/${instanceIdentifier}/`));
-            } catch (error) {
-                spinnerInstance.warn(chalk.yellow('Could not generate friendly instance identifier, using fallback'));
-                instanceIdentifier = createFallbackInstanceIdentifier(answers.host, answers.apiKey);
-            }
-
-            // Save configurations
+            // Save configurations (instance identifier will be handled by SyncManager automatically)
             const localConfig: ILocalConfig = {
                 host: answers.host,
                 syncFolder: answers.syncFolder,
-                instanceIdentifier: instanceIdentifier, // Store the generated identifier
+                // instanceIdentifier is now handled by SyncManager core, not CLI
                 pollInterval: currentLocal.pollInterval || 3000,
                 syncInactive: currentLocal.syncInactive ?? true,
                 ignoredTags: currentLocal.ignoredTags || ['archive']
@@ -113,13 +92,12 @@ export class InitCommand {
 
             console.log('\n' + chalk.green('✔ Configuration saved successfully!'));
             console.log(chalk.blue('📁 Project config:') + ' n8n-as-code.json');
-            console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config');
-            console.log(chalk.blue('🏷️  Instance ID:') + ` ${instanceIdentifier}\n`);
+            console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
             
             console.log(chalk.yellow('Next steps:'));
             console.log(`1. Run ${chalk.bold('n8n-as-code pull')} to download your workflows`);
             console.log(`2. Run ${chalk.bold('n8n-as-code watch')} to start real-time synchronization`);
-            console.log(chalk.gray(`(Workflows will be saved in: ${answers.syncFolder}/${instanceIdentifier}/)\n`));
+            console.log(chalk.gray(`(Instance identifier will be generated automatically on first use)\n`));
 
         } catch (error: any) {
             spinner.fail(chalk.red(`An error occurred: ${error.message}`));
