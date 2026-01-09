@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import * as https from 'https';
 import { IN8nCredentials, IWorkflow } from '../types.js';
 
 export class N8nApiClient {
@@ -14,8 +15,13 @@ export class N8nApiClient {
             baseURL: host,
             headers: {
                 'X-N8N-API-KEY': credentials.apiKey,
-                'Content-Type': 'application/json'
-            }
+                'Content-Type': 'application/json',
+                'User-Agent': 'n8n-as-code'
+            },
+            // Allow self-signed certificates by default to avoid issues in local environments
+            httpsAgent: new https.Agent({  
+                rejectUnauthorized: false 
+            })
         });
     }
 
@@ -34,6 +40,7 @@ export class N8nApiClient {
             // Try /me first (modern n8n)
             try {
                 const res = await this.client.get('/api/v1/users/me');
+                console.debug('[N8nApiClient] getCurrentUser: Successfully retrieved user from /me endpoint');
                 if (res.data && res.data.id) {
                     return {
                         id: res.data.id,
@@ -42,22 +49,42 @@ export class N8nApiClient {
                         lastName: res.data.lastName
                     };
                 }
-            } catch { /* Fallback to list */ }
+            } catch (error: any) {
+                console.debug('[N8nApiClient] getCurrentUser: /me endpoint failed:', error.message);
+                if (error.response) {
+                    console.debug('[N8nApiClient] getCurrentUser: Response status:', error.response.status);
+                    // Avoid logging potentially sensitive data, but structure might be useful
+                    // console.debug('[N8nApiClient] getCurrentUser: Response data:', error.response.data);
+                }
+            }
 
             // Fallback: get all users and take the first one (assuming the API key belongs to an admin or the only user)
-            const res = await this.client.get('/api/v1/users');
-            if (res.data && res.data.data && res.data.data.length > 0) {
-                const user = res.data.data[0];
-                return {
-                    id: user.id,
-                    email: user.email,
-                    firstName: user.firstName,
-                    lastName: user.lastName
-                };
+            console.debug('[N8nApiClient] getCurrentUser: Trying /api/v1/users endpoint');
+            try {
+                const res = await this.client.get('/api/v1/users');
+                if (res.data && res.data.data && res.data.data.length > 0) {
+                    console.debug('[N8nApiClient] getCurrentUser: Found', res.data.data.length, 'users');
+                    const user = res.data.data[0];
+                    return {
+                        id: user.id,
+                        email: user.email,
+                        firstName: user.firstName,
+                        lastName: user.lastName
+                    };
+                } else {
+                    console.debug('[N8nApiClient] getCurrentUser: No users found in response');
+                }
+            } catch (error: any) {
+                console.debug('[N8nApiClient] getCurrentUser: /api/v1/users endpoint failed:', error.message);
+                if (error.response) {
+                    console.debug('[N8nApiClient] getCurrentUser: Response status:', error.response.status);
+                }
             }
+            
+            console.debug('[N8nApiClient] getCurrentUser: All attempts failed, returning null');
             return null;
-        } catch (error) {
-            // Silent failure, fallback will be used
+        } catch (error: any) {
+            console.debug('[N8nApiClient] getCurrentUser: Unexpected error:', error.message);
             return null;
         }
     }

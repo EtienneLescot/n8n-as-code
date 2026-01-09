@@ -110,20 +110,19 @@ export class SyncManager extends EventEmitter {
     }
 
     private async initializeInstanceIdentifier(): Promise<string> {
+        const host = this.client['client']?.defaults?.baseURL || 'unknown';
+
         try {
             // Try to get user information for friendly naming
             const user = await this.client.getCurrentUser();
             if (user) {
                 // Use host from client configuration
-                const host = this.client['client']?.defaults?.baseURL || 'unknown';
                 return createInstanceIdentifier(host, user);
             }
         } catch (error) {
             console.warn('Could not get user info for instance identifier:', error);
         }
 
-        // Fallback: use host and API key hash
-        const host = this.client['client']?.defaults?.baseURL || 'unknown';
         const apiKey = this.client['client']?.defaults?.headers?.['X-N8N-API-KEY'] || 'unknown';
         return createFallbackInstanceIdentifier(host, String(apiKey));
     }
