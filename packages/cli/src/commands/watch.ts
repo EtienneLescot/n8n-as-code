@@ -40,6 +40,7 @@ export class WatchCommand extends BaseCommand {
         });
 
         syncManager.on('local-deletion', async (data: { id: string, filename: string }) => {
+            console.log(`[DEBUG] WatchCommand received local-deletion event for ${data.filename}`);
             spinner.stop();
             console.log(chalk.yellow(`🗑️  LOCAL DELETION detected for "${data.filename}"`));
             

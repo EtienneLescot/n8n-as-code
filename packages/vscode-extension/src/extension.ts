@@ -362,6 +362,11 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         if (ev.id && ev.type === 'local-to-remote') {
             WorkflowWebview.reloadIfMatching(ev.id, outputChannel);
         }
+
+        // Notify user about remote deletion
+        if (ev.type === 'remote-deletion') {
+            vscode.window.showInformationMessage(`🗑️ Remote workflow "${ev.filename}" was deleted. Local file moved to .archive.`);
+        }
     });
 
     // Handle Conflicts
@@ -399,6 +404,36 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             await syncManager?.pullWorkflow(filename, id, true);
             vscode.window.showInformationMessage(`✅ Local file "${filename}" updated from n8n.`);
         }
+    });
+
+    // Handle Local Deletion (user deleted a file locally)
+    syncManager.on('local-deletion', async (data: { id: string, filename: string, filePath: string }) => {
+        outputChannel.appendLine(`[n8n] LOCAL DELETION detected for: ${data.filename}`);
+
+        const choice = await vscode.window.showWarningMessage(
+            `Local file "${data.filename}" was deleted. Do you want to also delete the workflow on n8n?`,
+            'Delete Remote Workflow',
+            'Restore Local File'
+        );
+
+        if (choice === 'Delete Remote Workflow') {
+            const success = await syncManager?.deleteRemoteWorkflow(data.id, data.filename);
+            if (success) {
+                vscode.window.showInformationMessage(`✅ Remote workflow "${data.filename}" deleted and archived.`);
+            } else {
+                vscode.window.showErrorMessage(`❌ Failed to delete remote workflow "${data.filename}".`);
+            }
+        } else if (choice === 'Restore Local File') {
+            const success = await syncManager?.restoreLocalFile(data.id, data.filename);
+            if (success) {
+                vscode.window.showInformationMessage(`✅ Local file "${data.filename}" restored from n8n.`);
+            } else {
+                vscode.window.showErrorMessage(`❌ Failed to restore local file "${data.filename}".`);
+            }
+        }
+        // If user closes the notification, the pending deletion remains (file stays deleted, remote not touched)
+        // The pendingDeletions set will keep the ID, preventing automatic re-download.
+        // The user can later restore via manual pull or by re-creating the file.
     });
 
     // Start Watcher if in Auto mode

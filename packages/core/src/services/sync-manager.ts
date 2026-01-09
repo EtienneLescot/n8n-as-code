@@ -25,6 +25,8 @@ export class SyncManager extends EventEmitter {
     private selfWrittenCache: Map<string, string> = new Map();
     // Busy writing flag to avoid loops
     private isWriting = new Set<string>();
+    // Pending deletions (IDs) to prevent immediate re‑download
+    private pendingDeletions = new Set<string>();
 
     private watcher: chokidar.FSWatcher | null = null;
     private pollInterval: NodeJS.Timeout | null = null;
@@ -172,6 +174,7 @@ export class SyncManager extends EventEmitter {
             const filename = `${this.safeName(wf.name)}.json`;
             this.fileToIdMap.set(filename, wf.id);
         }
+        console.log(`[DEBUG] loadRemoteState populated ${this.fileToIdMap.size} entries`);
     }
 
     /**
@@ -399,6 +402,12 @@ export class SyncManager extends EventEmitter {
      * @returns 'updated' if file was updated, 'skipped' if no change or conflict, 'new' if file was created
      */
     async pullWorkflowWithConflictResolution(filename: string, id: string, remoteUpdatedAt?: string): Promise<'updated' | 'skipped' | 'new' | 'up-to-date' | 'conflict'> {
+        // Skip if this workflow is pending deletion (user hasn't decided yet)
+        if (this.pendingDeletions.has(id)) {
+            console.log(`[DEBUG] Skipping pull for ${filename} because ID ${id} is pending deletion`);
+            return 'skipped';
+        }
+
         const fullWf = await this.client.getWorkflow(id);
         if (!fullWf) return 'skipped';
 
@@ -536,10 +545,16 @@ export class SyncManager extends EventEmitter {
         const filename = path.basename(filePath);
         if (!filename.endsWith('.json') || filename.startsWith('.n8n-state')) return;
 
+        console.log(`[DEBUG] handleLocalFileDeletion called for ${filename}`);
+        console.log(`[DEBUG] fileToIdMap entries: ${Array.from(this.fileToIdMap.entries()).map(([f, i]) => `${f}=${i}`).join(', ')}`);
+
         const id = this.fileToIdMap.get(filename);
         if (id) {
+            this.pendingDeletions.add(id);
             this.emit('log', `🗑️ [Local->Remote] Local file deleted: "${filename}". (ID: ${id})`);
             this.emit('local-deletion', { id, filename, filePath });
+        } else {
+            console.log(`[DEBUG] No ID found for ${filename} in fileToIdMap`);
         }
     }
 
@@ -558,6 +573,7 @@ export class SyncManager extends EventEmitter {
             if (success) {
                 this.stateManager?.removeWorkflowState(id);
                 this.fileToIdMap.delete(filename);
+                this.pendingDeletions.delete(id);
                 this.emit('log', `✅ [n8n] Workflow ${id} deleted successfully.`);
                 return true;
             }
@@ -580,6 +596,7 @@ export class SyncManager extends EventEmitter {
             const filePath = this.getFilePath(filename);
             
             await this.writeLocalFile(filePath, cleanRemote, filename, id);
+            this.pendingDeletions.delete(id);
             this.emit('log', `✅ [Local] Workflow "${filename}" restored from n8n.`);
             return true;
         } catch (error: any) {
@@ -702,6 +719,9 @@ export class SyncManager extends EventEmitter {
 
         await this.syncDown();
         await this.syncUp();
+
+        console.log(`[DEBUG] startWatch: fileToIdMap size = ${this.fileToIdMap.size}`);
+        console.log(`[DEBUG] entries: ${Array.from(this.fileToIdMap.entries()).map(([f, i]) => `${f}=${i}`).join(', ')}`);
 
         this.watcher = chokidar.watch(instanceDirectory, {
             ignored: /(^|[\/\\])\../,
