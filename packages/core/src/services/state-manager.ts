@@ -23,7 +23,12 @@ export class StateManager {
     private load(): IInstanceState {
         if (fs.existsSync(this.stateFilePath)) {
             try {
-                return JSON.parse(fs.readFileSync(this.stateFilePath, 'utf-8'));
+                const data = JSON.parse(fs.readFileSync(this.stateFilePath, 'utf-8'));
+                // Ensure workflows object exists
+                if (!data.workflows) {
+                    data.workflows = {};
+                }
+                return data;
             } catch (e) {
                 console.warn('Could not read state file, using empty state');
             }
