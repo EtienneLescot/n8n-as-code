@@ -7,7 +7,27 @@ import inquirer from 'inquirer';
 import path from 'path';
 
 export class WatchCommand extends BaseCommand {
+    private isPromptActive = false;
+    private logBuffer: string[] = [];
+    private pendingConflictIds = new Set<string>();
+
+    private flushLogBuffer(spinner: any) {
+        if (this.logBuffer.length === 0) return;
+        
+        // Display buffered logs with a notice
+        console.log(chalk.gray('\n--- Buffered logs during prompt ---'));
+        for (const msg of this.logBuffer) {
+            // Just print the log without affecting spinner state
+            console.log(chalk.gray(msg));
+        }
+        console.log(chalk.gray('--- End buffered logs ---\n'));
+        this.logBuffer = [];
+    }
+
     async run() {
+        // Increase max listeners to avoid warning from inquirer
+        process.stdin.setMaxListeners(20);
+        
         console.log(chalk.blue('🚀 Starting n8n-as-code Watcher...'));
 
         const syncManager = new SyncManager(this.client, {
@@ -21,6 +41,12 @@ export class WatchCommand extends BaseCommand {
 
         // Connect logs
         syncManager.on('log', (msg: string) => {
+            if (this.isPromptActive) {
+                // Buffer logs during prompts to prevent interference
+                this.logBuffer.push(msg);
+                return;
+            }
+
             if (msg.includes('Error')) {
                 // Don't break spinner if possible, or just log
                 spinner.text = msg; // Update text instead of fail/succeed to keep spinning
@@ -44,12 +70,18 @@ export class WatchCommand extends BaseCommand {
             spinner.stop();
             console.log(chalk.yellow(`🗑️  LOCAL DELETION detected for "${data.filename}"`));
             
+            // Activate prompt protection
+            this.isPromptActive = true;
             const { confirm } = await inquirer.prompt([{
                 type: 'confirm',
                 name: 'confirm',
                 message: `Are you sure? This workflow will also be deleted on your n8n instance.`,
                 default: false
             }]);
+            this.isPromptActive = false;
+            
+            // Flush buffered logs
+            this.flushLogBuffer(spinner);
 
             if (confirm) {
                 const success = await syncManager.deleteRemoteWorkflow(data.id, data.filename);
@@ -72,9 +104,18 @@ export class WatchCommand extends BaseCommand {
         });
 
         syncManager.on('conflict', async (conflict: any) => {
+            // Skip if this conflict is already being handled
+            if (this.pendingConflictIds.has(conflict.id)) {
+                console.log(chalk.gray(`[Debug] Conflict for ${conflict.filename} already being handled, skipping duplicate.`));
+                return;
+            }
+            this.pendingConflictIds.add(conflict.id);
+            
             spinner.stop();
             console.log(chalk.yellow(`⚠️  CONFLICT detected for "${conflict.filename}"`));
             
+            // Activate prompt protection
+            this.isPromptActive = true;
             const { action } = await inquirer.prompt([{
                 type: 'list',
                 name: 'action',
@@ -85,6 +126,10 @@ export class WatchCommand extends BaseCommand {
                     { name: 'Overwrite Local (Force Pull remote changes)', value: 'pull' }
                 ]
             }]);
+            this.isPromptActive = false;
+            
+            // Flush buffered logs
+            this.flushLogBuffer(spinner);
 
             if (action === 'push') {
                 // Update state to match remote so we can push (pretend we saw it)
@@ -101,6 +146,8 @@ export class WatchCommand extends BaseCommand {
                 console.log(chalk.gray('Skipped. Conflict remains.'));
             }
 
+            // Remove from pending set after resolution
+            this.pendingConflictIds.delete(conflict.id);
             spinner.start('Watching...');
         });
 

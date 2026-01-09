@@ -193,7 +193,7 @@
         "Other"
     ],
     "dependencies": {
-        "@n8n-as-code/core": "workspace:*",
+        "@n8n-as-code/core": "0.0.7",
         "http-proxy": "^1.18.1"
     },
     "devDependencies": {

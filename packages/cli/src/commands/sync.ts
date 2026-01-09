@@ -2,8 +2,74 @@ import { BaseCommand } from './base.js';
 import { SyncManager } from '@n8n-as-code/core';
 import chalk from 'chalk';
 import ora from 'ora';
+import inquirer from 'inquirer';
+import path from 'path';
 
 export class SyncCommand extends BaseCommand {
+    private isPromptActive = false;
+    private logBuffer: string[] = [];
+    private pendingConflictIds = new Set<string>();
+
+    private async handleConflict(conflict: any, syncManager: SyncManager, spinner: any) {
+        // Skip if already handling
+        if (this.pendingConflictIds.has(conflict.id)) {
+            console.log(chalk.gray(`[Debug] Conflict for ${conflict.filename} already being handled, skipping duplicate.`));
+            return;
+        }
+        this.pendingConflictIds.add(conflict.id);
+
+        spinner.stop();
+        console.log(chalk.yellow(`⚠️  CONFLICT detected for "${conflict.filename}"`));
+        
+        // Activate prompt protection
+        this.isPromptActive = true;
+        const { action } = await inquirer.prompt([{
+            type: 'list',
+            name: 'action',
+            message: 'How do you want to resolve this conflict?',
+            choices: [
+                { name: 'Skip (Keep both as is for now)', value: 'skip' },
+                { name: 'Overwrite Remote (Force Push my local changes)', value: 'push' },
+                { name: 'Overwrite Local (Force Pull remote changes)', value: 'pull' }
+            ]
+        }]);
+        this.isPromptActive = false;
+        
+        // Flush buffered logs
+        this.flushLogBuffer(spinner);
+
+        if (action === 'push') {
+            // Update state to match remote so we can push (pretend we saw it)
+            // Accessing private stateManager via bracket notation to bypass TS check
+            (syncManager as any)['stateManager']?.updateWorkflowState(conflict.id, conflict.remoteContent);
+            // Trigger push
+            const absPath = path.join(syncManager.getInstanceDirectory(), conflict.filename);
+            await syncManager.handleLocalFileChange(absPath);
+        } else if (action === 'pull') {
+            // Force pull
+            await syncManager.pullWorkflow(conflict.filename, conflict.id, true);
+            console.log(chalk.green(`✅ Local file updated from n8n.`));
+        } else {
+            console.log(chalk.gray('Skipped. Conflict remains.'));
+        }
+
+        this.pendingConflictIds.delete(conflict.id);
+        spinner.start('Pulling workflows from n8n...');
+    }
+
+    private flushLogBuffer(spinner: any) {
+        if (this.logBuffer.length === 0) return;
+        
+        // Display buffered logs with a notice
+        console.log(chalk.gray('\n--- Buffered logs during prompt ---'));
+        for (const msg of this.logBuffer) {
+            // Just print the log without affecting spinner state
+            console.log(chalk.gray(msg));
+        }
+        console.log(chalk.gray('--- End buffered logs ---\n'));
+        this.logBuffer = [];
+    }
+
     async pull() {
         const spinner = ora('Pulling workflows from n8n...').start();
         try {
@@ -15,7 +81,15 @@ export class SyncCommand extends BaseCommand {
             });
 
             syncManager.on('log', (msg) => {
+                if (this.isPromptActive) {
+                    this.logBuffer.push(msg);
+                    return;
+                }
                 if (msg.includes('Updated') || msg.includes('New')) spinner.info(msg);
+            });
+
+            syncManager.on('conflict', async (conflict: any) => {
+                await this.handleConflict(conflict, syncManager, spinner);
             });
 
             await syncManager.syncDown();
@@ -37,7 +111,15 @@ export class SyncCommand extends BaseCommand {
             });
 
             syncManager.on('log', (msg) => {
+                if (this.isPromptActive) {
+                    this.logBuffer.push(msg);
+                    return;
+                }
                 if (msg.includes('Created') || msg.includes('Update')) spinner.info(msg);
+            });
+
+            syncManager.on('conflict', async (conflict: any) => {
+                await this.handleConflict(conflict, syncManager, spinner);
             });
 
             // Prevent creation of duplicates by loading remote state first
