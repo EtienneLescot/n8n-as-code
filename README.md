@@ -3,70 +3,69 @@
 ![Tests](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/tests.yml/badge.svg)
 ![Version](https://img.shields.io/badge/version-0.0.7-blue)
 
-**n8n-as-code** est un écosystème conçu pour gérer vos workflows n8n comme du code. Il transforme vos automations en fichiers JSON locaux synchronisés, permettant le versioning (Git), l'édition assistée par IA et une intégration fluide dans VS Code.
+**n8n-as-code** is an ecosystem designed to manage your n8n workflows as code. It transforms your automations into synchronized local JSON files, enabling version control (Git), AI-assisted editing, and seamless integration into VS Code.
 
 ---
 
 ## ⚡ Quick Start
 
-Prêt à synchroniser vos workflows en moins de 2 minutes ?
+Ready to sync your workflows in under 2 minutes?
 
-1.  **Installation** :
+1.  **Installation**:
     ```bash
     npm install && npm run build
     npm link
     ```
 
-    > **Note** : La commande `npm link` permet de créer un lien global vers le CLI, vous permettant d'utiliser `n8n-as-code` directement depuis n'importe quel terminal.
-2.  **Configuration** :
+    > **Note**: The `npm link` command creates a global link to the CLI, allowing you to use `n8n-as-code` directly from any terminal.
+2.  **Configuration**:
     ```bash
     n8n-as-code init
     ```
-    > **Note** : L'assistant vous guidera pour configurer votre instance n8n et stockera votre clé d'API de manière sécurisée hors de votre projet.
-3.  **Sync initial** : Téléchargez vos workflows existants :
+    > **Note**: The assistant will guide you through configuring your n8n instance and will securely store your API key off-project.
+3.  **Initial Sync**: Download your existing workflows:
     ```bash
     n8n-as-code pull
     ```
-4.  **Ouvrez VS Code** : Installez l'extension locale (`packages/vscode-extension`) et profitez de la synchronisation automatique et de l'assistance IA.
+4.  **Open VS Code**: Install the local extension (`packages/vscode-extension`) and enjoy automatic synchronization and AI assistance.
 
 ---
 
-## 🎨 VS Code Extension : Le cockpit n8n
+## 🎨 VS Code Extension: The n8n Cockpit
 
-L'extension transforme VS Code en un véritable IDE pour n8n.
+The extension transforms VS Code into a true IDE for n8n.
 
--   **Activity Bar Icon** : Un accès direct à tous vos workflows depuis le panneau latéral de gauche.
--   **Embedded Board** : Ouvrez vos workflows dans une vue web intégrée pour un retour visuel immédiat.
--   **Split View** : Éditez le JSON à gauche tout en gardant le canvas n8n à droite.
--   **Push on Save** : Toute modification locale est instantanément envoyée vers n8n.
--   **Automatic AI Context** : Dès l'ouverture, l'extension génère automatiquement l'assistance IA (`AGENTS.md`, snippets, schémas).
--   **🛡️ Gestion des Conflits** : Détecte si un workflow a été modifié simultanément sur n8n et en local, proposant un Diff View pour résoudre le conflit sans perte de données.
+-   **Activity Bar Icon**: Direct access to all your workflows from the left side panel.
+-   **Embedded Board**: Open your workflows in an integrated web view for immediate visual feedback.
+-   **Split View**: Edit the JSON on the left while keeping the n8n canvas on the right.
+-   **Push on Save**: Any local modification is instantly sent to n8n.
+-   **Automatic AI Context**: Upon opening, the extension automatically generates AI assistance (`AGENTS.md`, snippets, schemas).
+-   **🛡️ Conflict Management**: Detects if a workflow has been modified simultaneously on n8n and locally, offering a Diff View to resolve conflicts without data loss.
 
 ---
 
 ## ⚙️ Configuration
 
-Le CLI utilise un système de configuration interactif et sécurisé via la commande `init`.
+The CLI uses an interactive and secure configuration system via the `init` command.
 
-### Fichiers de configuration générés
-- **`n8n-as-code.json`** : Contient les réglages du projet (Host, dossiers, etc.). Ce fichier est créé à la racine.
-- **`n8n-as-code-instance.json`** : Gère l'identifiant unique de votre instance pour isoler les fichiers de différents environnements.
-- **Stockage Global** : Vos clés d'API sont liées à l'hôte et stockées localement sur votre machine par le système, jamais commitées.
-
+### Configuration Files
+- **`n8n-as-code.json`**: Contains project settings (Host, folders, etc.). This file is created at the root and can be shared via Git.
+- **Global Storage**: Your API keys are linked to the host and stored locally on your machine, never committed.
+- **`n8n-as-code-instance.json`**: Manages your instance's unique identifier to isolate files from different environments.
 
 ---
 
 ## 🛠 CLI Commands (`@n8n-as-code/cli`)
 
-Pour ceux qui préfèrent le terminal ou l'automatisation. Les commandes sont accessibles via `n8n-as-code`.
+For those who prefer the terminal or automation. Commands are accessible via `n8n-as-code`.
 
--   **`init`** : Configure votre instance n8n et votre projet local.
--   **`pull`** : Récupère tous les workflows depuis n8n.
--   **`push`** : Envoie les nouveaux fichiers locaux vers n8n.
--   **`watch`** : Mode synchronisation bidirectionnelle en temps réel avec résolution de conflits interactive.
--   **`init-ai`** : Génère le contexte pour votre agent IA.
+-   **`init`**: Configures your n8n instance and local project.
+-   **`pull`**: Retrieves all workflows from n8n.
+-   **`push`**: Sends new local files to n8n.
+-   **`watch`**: Real-time bi-directional synchronization mode with interactive conflict resolution.
+-   **`init-ai`**: Generates context for your AI agent.
 
-Exemple d'utilisation :
+Example usage:
 ```bash
 n8n-as-code init
 n8n-as-code pull
@@ -75,41 +74,63 @@ n8n-as-code watch
 
 ---
 
-## 🧪 Tests & Qualité
+## 🤖 AI Context & Superpowers
 
-Le projet inclut une suite de tests unitaires et d'intégration pour garantir la fiabilité de la synchronisation.
+We inject specific context to make your AI (Cursor, Windsurf, Copilot) an expert in n8n:
 
-### Lancer les tests
+-   📄 **`AGENTS.md`**: System instructions on n8n structure and best practices.
+-   🛡️ **`n8n-schema.json`**: Strict validation of your JSONs to avoid structural errors.
+-   🧩 **Snippets**: Library of predefined nodes (Webhook, Code, HTTP...) for faster coding.
+
+---
+
+## 🧪 Tests & Quality
+
+The project includes a suite of unit and integration tests to guarantee synchronization reliability.
+
+### Run Tests
 ```bash
-# Tests unitaires et d'intégration
+# Unit and integration tests
 npm test
 ```
 
-*Note : Les tests d'intégration nécessitent un fichier `.env.test` à la racine avec `N8N_HOST` et `N8N_API_KEY`.*
+*Note: Integration tests require a `.env.test` file at the root with `N8N_HOST` and `N8N_API_KEY`.*
+
+---
+
+## 🛠️ Local Development and Testing
+
+Debug mode (F5) from `packages/vscode-extension`.
+
+Or use the following command at the root to compile, package, and install the extension locally in your main VS Code instance:
+
+```bash
+npm run extension:install
+```
 
 ---
 
 ## 🏗 Architecture (Monorepo)
 
--   **`packages/core`** : Coeur logique (API, Sync, Sanitization, State Tracking).
--   **`packages/cli`** : Interface de commande.
--   **`packages/vscode-extension`** : Plugin VS Code.
+-   **`packages/core`**: Logical core (API, Sync, Sanitization, State Tracking).
+-   **`packages/cli`**: Command interface.
+-   **`packages/vscode-extension`**: VS Code plugin.
 
 ---
 
 ## 🤝 Contribution
 
-Les contributions sont les bienvenues ! 
+Contributions are welcome!
 
-1.  **Fork** le projet.
-2.  **Clone** votre fork localement.
-3.  **Créez une branche** pour votre fonctionnalité (`git checkout -b feature/AmazingFeature`).
-4.  **Assurez-vous que les tests passent** (`npm test`).
-5.  **Commit** vos changements (`git commit -m 'Add some AmazingFeature'`).
-6.  **Push** vers la branche (`git push origin feature/AmazingFeature`).
-7.  **Ouvrez une Pull Request**.
+1.  **Fork** the project.
+2.  **Clone** your fork locally.
+3.  **Create a branch** for your feature (`git checkout -b feature/AmazingFeature`).
+4.  **Ensure tests pass** (`npm test`).
+5.  **Commit** your changes (`git commit -m 'Add some AmazingFeature'`).
+6.  **Push** to the branch (`git push origin feature/AmazingFeature`).
+7.  **Open a Pull Request**.
 
 ---
 
-## 📄 Licence
+## 📄 License
 MIT

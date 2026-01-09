@@ -4,59 +4,56 @@
 
 # 🚀 n8n-as-code : VS Code Extension
 
-**n8n-as-code** transforme VS Code en un IDE surpuissant pour vos workflows n8n. Vos automations deviennent du code : versionning Git, édition assistée par IA et synchronisation transparente.
+**n8n-as-code** transforms VS Code into a powerful IDE for your n8n workflows. Your automations become code: Git versioning, AI-assisted editing, and seamless synchronization.
 
 ---
 
 ## ⚡ Quick Start
 
-1.  **Installation** : Installez l'extension depuis le Marketplace.
-2.  **Connexion** : Cliquez sur l'icône **n8n** dans la barre d'activité, puis sur la **roue crantée (⚙️)** pour configurer votre `Host` et `API Key`.
-3.  **Import** : Utilisez le bouton rafraîchir (**Pull Workflows**) pour rapatrier vos workflows existants.
+1.  **Installation**: Install the extension from the Marketplace.
+2.  **Connection**: Click the **n8n** icon in the Activity Bar, then click the **Gear (⚙️)** to configure your `Host` and `API Key`.
+3.  **Import**: Use the refresh button (**Pull Workflows**) to bring in your existing workflows.
 
 ---
 
-## 🎨 Fonctionnalités
+## 🎨 Features
 
-### 🔄 Synchronisation Native
-L'extension synchronise vos modifications en temps réel. Par défaut, chaque sauvegarde (`Ctrl+S`) du fichier JSON envoie instantanément les changements vers votre instance n8n.
+### 🔄 Native Synchronization
+The extension synchronizes your modifications in real-time. By default, every JSON file save (`Ctrl+S`) instantly sends changes to your n8n instance.
 
-### 🤖 Assistance IA Intégrée
-Votre environnement est automatiquement configuré pour l'IA dès l'ouverture :
--   **Validation JSON** : Schéma n8n appliqué pour une aide à la saisie et une détection d'erreurs en direct.
--   **Bibliothèque de Snippets** : Modèles de nœuds prêts à l'emploi (`node:webhook`, `node:code`, etc.).
--   **Contexte `AGENTS.md`** : Instructions générées pour que Cline, Cursor, Windsurf, Antigravity ou Copilot maîtrisent la structure de vos workflows.
+### 🛡️ Conflict Management
+The system intelligently detects conflicts to prevent data loss:
+- **Protection**: If a workflow is modified simultaneously on n8n and locally, synchronization stops.
+- **Resolution**: An interface allows you to compare versions (Diff View) and choose which one to keep (Force Push/Pull).
 
-### 🛡️ Gestion des Conflits
-Le système détecte intelligemment les conflits pour éviter toute perte de données :
-- **Protection**: Si un workflow est modifié simultanément en local et sur n8n, la synchronisation s'arrête.
-- **Résolution**: Une interface vous permet de comparer les versions (Diff View) et de choisir laquelle conserver (Force Push/Pull).
+### 🗂️ Multi-Instance Support
+Your workflows are automatically organized by instance to avoid mixing files from different environments:
+`workflows/instance_name_user/my_workflow.json`
 
-### 🗂️ Support Multi-Instances
-Vos workflows sont organisés automatiquement par instance pour éviter les mélanges :
-`workflows/nom_instance_user/mon_workflow.json`
+### 🤖 Built-in AI Assistance
+Your environment is automatically configured for AI upon opening:
+-   **JSON Validation**: n8n schema applied for input assistance and live error detection.
+-   **Snippet Library**: Ready-to-use node templates (`node:webhook`, `node:code`, etc.).
+-   **`AGENTS.md` Context**: Instructions generated so that Cline, Cursor, Windsurf, or Copilot can master your workflow structure.
 
-### 🍱 Vue Divisée (Split View)
-Visualisez le canvas n8n en temps réel grâce à la Webview intégrée tout en éditant le code JSON. C'est l'interface idéale pour valider visuellement vos modifications structurelles.
+### 🍱 Split View
+Visualize the n8n canvas in real-time using the integrated Webview while editing the JSON code. This is the ideal interface for visually validating your structural changes.
 
 ---
 
 ## ⚙️ Configuration
 
-L'extension utilise les paramètres natifs de VS Code (accessibles via la roue crantée ⚙️) :
+The extension uses native VS Code settings (accessible via the Gear ⚙️):
 
-| Paramètre | Description | Défaut |
+| Parameter | Description | Default |
 | :--- | :--- | :--- |
-| `n8n.host` | URL de votre instance n8n | - |
-| `n8n.apiKey` | Votre clé API n8n | - |
-| `n8n.syncMode` | `auto` (push à la sauvegarde) ou `manual` | `auto` |
-| `n8n.syncFolder` | Dossier local de stockage | `workflows` |
-| `n8n.pollInterval`| Fréquence de rafraîchissement (ms) | `3000` |
+| `n8n.host` | URL of your n8n instance | - |
+| `n8n.apiKey` | Your n8n API Key | - |
+| `n8n.syncMode` | `auto` (push on save) or `manual` | `auto` |
+| `n8n.syncFolder` | Local storage folder | `workflows` |
+| `n8n.pollInterval`| Refresh frequency (ms) | `3000` |
 
 ---
 
-## 📄 Licence
+## 📄 License
 MIT
-
-
-
