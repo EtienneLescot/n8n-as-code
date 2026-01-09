@@ -77,7 +77,13 @@ export class StateManager {
         const state = this.getWorkflowState(id);
         if (!state) return true; // If no state, we assume it's new
         const currentHash = StateManager.computeHash(localContent);
-        return state.lastSyncedHash === currentHash;
+        const result = state.lastSyncedHash === currentHash;
+        if (!result) {
+            console.log(`[DEBUG] Local Mismatch for ${id}:`);
+            console.log(`  Stored: ${state.lastSyncedHash}`);
+            console.log(`  Current: ${currentHash}`);
+        }
+        return result;
     }
 
     /**
@@ -87,6 +93,12 @@ export class StateManager {
         const state = this.getWorkflowState(id);
         if (!state) return true;
         const remoteHash = StateManager.computeHash(remoteWorkflow);
-        return state.lastSyncedHash === remoteHash;
+        const result = state.lastSyncedHash === remoteHash;
+        if (!result) {
+            console.log(`[DEBUG] Remote Mismatch for ${id}:`);
+            console.log(`  Stored: ${state.lastSyncedHash}`);
+            console.log(`  Remote: ${remoteHash}`);
+        }
+        return result;
     }
 }

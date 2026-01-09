@@ -12,7 +12,7 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "extension:install": "node scripts/build-and-install.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npx -y tsx --test packages/core/tests/unit/*.test.ts packages/core/tests/integration/*.test.ts",
     "postinstall": "node scripts/init-synced-git.js"
   },
   "author": "",

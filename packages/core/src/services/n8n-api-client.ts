@@ -31,15 +31,33 @@ export class N8nApiClient {
 
     async getCurrentUser(): Promise<{ id: string; email: string; firstName?: string; lastName?: string; } | null> {
         try {
-            const res = await this.client.get('/api/v1/users/me');
-            return {
-                id: res.data.id,
-                email: res.data.email,
-                firstName: res.data.firstName,
-                lastName: res.data.lastName
-            };
+            // Try /me first (modern n8n)
+            try {
+                const res = await this.client.get('/api/v1/users/me');
+                if (res.data && res.data.id) {
+                    return {
+                        id: res.data.id,
+                        email: res.data.email,
+                        firstName: res.data.firstName,
+                        lastName: res.data.lastName
+                    };
+                }
+            } catch { /* Fallback to list */ }
+
+            // Fallback: get all users and take the first one (assuming the API key belongs to an admin or the only user)
+            const res = await this.client.get('/api/v1/users');
+            if (res.data && res.data.data && res.data.data.length > 0) {
+                const user = res.data.data[0];
+                return {
+                    id: user.id,
+                    email: user.email,
+                    firstName: user.firstName,
+                    lastName: user.lastName
+                };
+            }
+            return null;
         } catch (error) {
-            console.error('Failed to get current user:', error);
+            // Silent failure, fallback will be used
             return null;
         }
     }
