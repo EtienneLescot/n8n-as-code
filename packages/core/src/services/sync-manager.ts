@@ -135,8 +135,9 @@ export class SyncManager extends EventEmitter {
         }
 
         // 2. Check Local Files (for Orphans)
-        if (fs.existsSync(this.config.directory)) {
-            const localFiles = fs.readdirSync(this.config.directory).filter(f => f.endsWith('.json'));
+        const instanceDirectory = this.getInstanceDirectory();
+        if (fs.existsSync(instanceDirectory)) {
+            const localFiles = fs.readdirSync(instanceDirectory).filter(f => f.endsWith('.json'));
             for (const file of localFiles) {
                 // If not mapped to a remote ID
                 // BUT, fileToIdMap might map it.
@@ -148,7 +149,7 @@ export class SyncManager extends EventEmitter {
                     const filePath = this.getFilePath(file);
                     const content = this.readLocalFile(filePath);
                     const name = content?.name || path.parse(file).name;
-                    // Only assume missing remote if we are sure we loaded all remotes. 
+                    // Only assume missing remote if we are sure we loaded all remotes.
                     // Since we loaded all remotes above, this is MISSING_REMOTE.
                     statuses.push({
                         id: '',
@@ -336,7 +337,10 @@ export class SyncManager extends EventEmitter {
      */
     async syncUpMissing() {
         this.emit('log', '🔄 [SyncManager] Checking for orphans...');
-        const localFiles = fs.readdirSync(this.config.directory).filter(f => f.endsWith('.json'));
+        const instanceDirectory = this.getInstanceDirectory();
+        if (!fs.existsSync(instanceDirectory)) return;
+        
+        const localFiles = fs.readdirSync(instanceDirectory).filter(f => f.endsWith('.json'));
 
         for (const file of localFiles) {
             if (this.fileToIdMap.has(file)) continue;
@@ -351,7 +355,10 @@ export class SyncManager extends EventEmitter {
      */
     async syncUp() {
         this.emit('log', '📤 [SyncManager] Starting Upstream Sync (Push)...');
-        const localFiles = fs.readdirSync(this.config.directory).filter(f => f.endsWith('.json'));
+        const instanceDirectory = this.getInstanceDirectory();
+        if (!fs.existsSync(instanceDirectory)) return;
+        
+        const localFiles = fs.readdirSync(instanceDirectory).filter(f => f.endsWith('.json'));
 
         for (const file of localFiles) {
             const filePath = this.getFilePath(file);
