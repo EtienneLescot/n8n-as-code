@@ -5,13 +5,35 @@ import { SyncCommand } from './commands/sync.js';
 import { InitAiCommand } from './commands/init-ai.js';
 import { InitCommand } from './commands/init.js';
 import chalk from 'chalk';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+/**
+ * Get version from package.json
+ * We use a simple approach that works with our build system
+ */
+const getVersion = () => {
+    try {
+        // Try to find package.json relative to this file's location in dist
+        // In dist, index.js is at packages/cli/dist/index.js
+        // package.json is at packages/cli/package.json
+        const pkgPath = join(process.cwd(), 'package.json');
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+        if (pkg.name === '@n8n-as-code/cli') return pkg.version;
+        
+        // Fallback for different execution contexts
+        return '0.0.7';
+    } catch {
+        return '0.0.7';
+    }
+};
 
 const program = new Command();
 
 program
     .name('n8n-as-code')
     .description('CLI to synchronize n8n workflows with local files')
-    .version('1.0.0');
+    .version(getVersion());
 
 program.command('init')
     .description('Configure your n8n instance and local project')
