@@ -398,8 +398,8 @@ export class SyncManager extends EventEmitter {
                 if (!payload.name) payload.name = nameFromFile;
 
                 this.emit('log', `📤 [Local->n8n] Update: "${filename}"`);
-                await this.client.updateWorkflow(id, payload);
-                this.emit('log', `✅ Update OK`);
+                const updatedWf = await this.client.updateWorkflow(id, payload);
+                this.emit('log', `✅ Update OK (ID: ${updatedWf.id})`);
                 this.emit('change', { type: 'local-to-remote', filename, id });
 
             } else {
@@ -419,7 +419,13 @@ export class SyncManager extends EventEmitter {
                 this.emit('change', { type: 'local-to-remote', filename, id: newWf.id });
             }
         } catch (error: any) {
-            this.emit('error', `❌ Sync Up Error: ${error.message}`);
+            this.emit('error', `❌ Sync Up Error for "${filename}": ${error.message}`);
+            console.error('Detailed sync error:', {
+                filename,
+                id,
+                error: error.stack || error.message,
+                payload: JSON.stringify(payload, null, 2).substring(0, 500) + '...'
+            });
         }
     }
 
