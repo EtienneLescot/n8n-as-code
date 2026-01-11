@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { SyncManager, N8nApiClient, IN8nCredentials, IWorkflowStatus, SchemaGenerator, AiContextGenerator, SnippetGenerator, createInstanceIdentifier, createFallbackInstanceIdentifier } from '@n8n-as-code/core';
+import { SyncManager, N8nApiClient, IN8nCredentials, IWorkflowStatus, SchemaGenerator, createInstanceIdentifier, createFallbackInstanceIdentifier } from '@n8n-as-code/core';
+import { AiContextGenerator, SnippetGenerator } from '@n8n-as-code/agent-cli';
+
 import { StatusBar } from './ui/status-bar.js';
 import { WorkflowTreeProvider } from './ui/workflow-tree-provider.js';
 import { WorkflowWebview } from './ui/workflow-webview.js';
@@ -224,12 +226,16 @@ export async function activate(context: vscode.ExtensionContext) {
                     await schemaGen.generateSchema(path.join(rootPath, 'n8n-schema.json'));
 
                     progress?.report({ message: "Generating AGENTS.md..." });
-                    const contextGen = new AiContextGenerator(client);
-                    await contextGen.generate(rootPath);
+                    const contextGen = new AiContextGenerator();
+                    await contextGen.generate(rootPath, version);
 
-                    progress?.report({ message: "Fetching Snippets..." });
-                    const snippetGen = new SnippetGenerator(client);
+                    progress?.report({ message: "Generating Snippets..." });
+                    const indexPath = path.join(context.extensionPath, 'assets', 'n8n-nodes-index.json');
+                    const snippetGen = new SnippetGenerator(indexPath);
                     await snippetGen.generate(rootPath);
+
+
+
 
                     // Store current version to avoid unnecessary refreshes if already aligned
                     context.workspaceState.update('n8n.lastInitVersion', version);

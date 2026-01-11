@@ -6,9 +6,8 @@
     "types": "dist/index.d.ts",
     "type": "module",
     "scripts": {
-        "prebuild": "node ../../scripts/generate-n8n-index.cjs && node ../../scripts/compare-extraction.mjs || echo 'Warning: Schema extraction failed'",
+        "prebuild": "node ../../scripts/compare-extraction.mjs || echo 'Warning: Report generation skipped/failed'",
         "build": "tsc -b",
-        "postbuild": "mkdir -p dist/assets && cp src/assets/n8n-nodes-index.json dist/assets/",
         "watch": "tsc -b -w",
         "test": "jest",
         "validate-schema": "node ../../scripts/validate-schema.js --schema ./src/assets/n8n-nodes-index.json"
@@ -30,7 +29,6 @@
         "typescript": "^5.3.3"
     },
     "files": [
-        "dist/",
-        "src/assets/n8n-nodes-index.json"
+        "dist/"
     ]
 }

@@ -1,0 +1,25 @@
+{
+    "name": "@n8n-as-code/agent-cli",
+    "version": "0.1.0",
+    "description": "AI Agent Tools for n8n-as-code (Search, Get Schema)",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "bin": {
+        "n8n-agent": "./dist/cli.js"
+    },
+    "scripts": {
+        "prebuild": "node ../../scripts/generate-n8n-index.cjs",
+        "build": "tsc -b",
+        "postbuild": "mkdir -p dist/assets && cp src/assets/n8n-nodes-index.json dist/assets/",
+        "clean": "rm -rf dist tsconfig.tsbuildinfo"
+    },
+    "dependencies": {
+        "chalk": "^4.1.2",
+        "commander": "^11.1.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "typescript": "^5.3.3"
+    }
+}

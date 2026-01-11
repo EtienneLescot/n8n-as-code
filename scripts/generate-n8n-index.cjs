@@ -10,7 +10,7 @@ const DIST_ROOT = path.resolve(ROOT_DIR, '.n8n-cache/packages/nodes-base/dist/no
 const NODES_BASE_MODULES = path.resolve(ROOT_DIR, '.n8n-cache/packages/nodes-base/node_modules');
 
 // Output
-const OUTPUT_FILE = path.resolve(ROOT_DIR, 'packages/core/src/assets/n8n-nodes-index.json');
+const OUTPUT_FILE = path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-nodes-index.json');
 
 // Ensure we can require modules from nodes-base (legacy dependencies)
 if (fs.existsSync(NODES_BASE_MODULES)) {

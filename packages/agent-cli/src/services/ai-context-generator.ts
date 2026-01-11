@@ -1,21 +1,12 @@
 import fs from 'fs';
-import { N8nApiClient } from './n8n-api-client.js';
 
 export class AiContextGenerator {
-  constructor(private client?: N8nApiClient) { }
+  constructor() { }
 
-  async generate(projectRoot: string): Promise<void> {
+  async generate(projectRoot: string, n8nVersion: string = "Unknown"): Promise<void> {
     // 1. Generate AGENTS.md
     const agentsPath = `${projectRoot}/AGENTS.md`;
 
-    // Fetch real version
-    let version = "Unknown";
-    try {
-      if (this.client) {
-        const health = await this.client.getHealth();
-        version = health.version;
-      }
-    } catch { }
 
     const content = [
       `# 🤖 AGENTS.md - Context for AI Agents`,
@@ -25,7 +16,8 @@ export class AiContextGenerator {
       `You are an **Expert n8n Automation Engineer**. Your goal is to manage n8n workflows as **clean, version-controlled code** (JSON) while maintaining full compatibility with the n8n Visual Editor.`,
       ``,
       `## 🌍 Instance Context`,
-      `- **n8n Version**: ${version}`,
+      `- **n8n Version**: ${n8nVersion}`,
+
       `- **Environment**: Production/Dev (Inferred)`,
       ``,
       `## 🛠 Coding Standards & Syntax Rules`,
@@ -50,22 +42,28 @@ export class AiContextGenerator {
       `> Before generating JSON for a specific node (e.g., "Google Sheets", "HTTP Request"), you MUST execute the following **Live Documentation Lookup** sequence:`,
       ``,
       `### Step 1: Browse Local Node Documentation`,
-      `The repository contains a generated index of all n8n nodes and their properties.`,
-      `**Location**: \`packages/core/src/assets/n8n-nodes-index.json\``,
+      `> **DO NOT** read the \`n8n-nodes-index.json\` file directly (it is too large).`,
+      `> Instead, use the **Function Calling Tools** provided via the Agent CLI.`,
       ``,
-      `### Step 2: Extract Node Details`,
-      `1. Read the \`n8n-nodes-index.json\` file.`,
-      `2. Search for the node key (e.g., "awsS3", "httpRequest").`,
-      `3. Use the \`properties\` array defined there as the **source of truth** for your JSON generation.`,
+      `#### Tool 1: Search for a Node`,
+      `Find the exact node name (camelCase) for your topic.`,
+      `\`$ npx @n8n-as-code/agent-cli search "google sheets"\``,
       ``,
-      `> **Note**: This index is auto-generated from the actual n8n source code and is 100% accurate regarding internal parameter names.`,
-      `> You do NOT need to fetch external documentation via curl.`,
+      `#### Tool 2: Get Node Schema`,
+      `Get the full property documentation for a specific node.`,
+      `\`$ npx @n8n-as-code/agent-cli get "googleSheets"\``,
       ``,
-      `### Step 3: Apply Knowledge`,
-      `Use the content found in the node index as the **source of truth** for:`,
+      `#### Tool 3: List All Nodes`,
+      `Get a compact catalog of all available nodes.`,
+      `\`$ npx @n8n-as-code/agent-cli list\``,
+      ``,
+      `### Step 2: Apply Knowledge`,
+      `Use the JSON output from these commands as the **source of truth** for:`,
       `- Parameter names (camelCase vs snake_case)`,
       `- Required fields`,
       `- Data structure inputs`,
+
+
       ``,
       `## 🧠 Common Patterns`,
       `- **Error Handling**: Use "Error Trigger" workflow or "Continue On Fail" settings.`,

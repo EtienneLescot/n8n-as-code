@@ -194,6 +194,7 @@
     ],
     "dependencies": {
         "@n8n-as-code/core": "0.1.0",
+        "@n8n-as-code/agent-cli": "0.1.0",
         "http-proxy": "^1.18.1"
     },
     "devDependencies": {
@@ -208,6 +209,7 @@
         "compile": "tsc -b",
         "watch": "tsc -b -w",
         "package-bundle": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
-        "build": "npm run compile && npm run package-bundle"
+        "copy-assets": "mkdir -p assets && cp ../agent-cli/src/assets/n8n-nodes-index.json assets/",
+        "build": "npm run compile && npm run copy-assets && npm run package-bundle"
     }
 }

@@ -5,12 +5,12 @@ import fs from 'fs';
 import {
     N8nApiClient,
     SchemaGenerator,
-    AiContextGenerator, // Replaced EnhancedAiContextGenerator
-    SnippetGenerator,
-    IN8nCredentials,
-    // EnhancedSchemaGenerator, // Removed
-    // NodeSchemaLoader        // Removed
+    IN8nCredentials
 } from '@n8n-as-code/core';
+import {
+    AiContextGenerator,
+    SnippetGenerator
+} from '@n8n-as-code/agent-cli';
 import dotenv from 'dotenv';
 
 export class InitAiCommand {
@@ -42,30 +42,36 @@ export class InitAiCommand {
                 client = new N8nApiClient(credentials);
             }
 
-            // 1. Generate Context (AGENTS.md, rules)
+            // 1. Fetch version once if possible
+            let version = "Unknown";
+            if (client) {
+                try {
+                    const health = await client.getHealth();
+                    version = health.version;
+                } catch { } // Ignore version fetch error
+            }
+
+            // 2. Generate Context (AGENTS.md, rules)
             console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md, rules)...'));
-            const aiContextGenerator = new AiContextGenerator(client);
-            await aiContextGenerator.generate(projectRoot);
+            const aiContextGenerator = new AiContextGenerator();
+            await aiContextGenerator.generate(projectRoot, version);
 
             if (!options.docOnly) {
                 console.log(chalk.gray('   - Generating n8n-schema.json...'));
                 const schemaGen = new SchemaGenerator();
                 await schemaGen.generateSchema(path.join(projectRoot, 'n8n-schema.json'));
                 console.log(chalk.green('   ✅ n8n-schema.json created.'));
-            }
 
-            // 3. Generate Snippets (if not doc-only and we have API access)
-            if (!options.docOnly && client) {
                 console.log(chalk.gray('   - Generating VS Code Snippets...'));
                 try {
-                    const snippetGen = new SnippetGenerator(client);
+                    const snippetGen = new SnippetGenerator();
                     await snippetGen.generate(projectRoot);
                     console.log(chalk.green('   ✅ .vscode/n8n.code-snippets created.'));
                 } catch (snippetError: any) {
                     console.log(chalk.yellow(`   ⚠️  Snippet generation skipped: ${snippetError.message}`));
                 }
-            } else if (!options.docOnly) {
-                console.log(chalk.gray('   - Skipping snippets (no N8N_HOST/N8N_API_KEY in .env)'));
+            } else {
+                console.log(chalk.gray('   - Skipping schema and snippets (doc-only mode)'));
             }
 
             console.log(chalk.blueBright('\n✨ AI Context Ready!'));

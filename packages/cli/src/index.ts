@@ -5,6 +5,8 @@ import { SyncCommand } from './commands/sync.js';
 import { InitAiCommand } from './commands/init-ai.js';
 import { InitCommand } from './commands/init.js';
 import chalk from 'chalk';
+
+
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -56,6 +58,7 @@ program.command('pull')
 program.command('push')
     .description('Upload missing local workflows to n8n')
     .action(async () => {
+
         await new SyncCommand().push();
     });
 

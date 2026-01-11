@@ -1,28 +1,40 @@
 import fs from 'fs';
-import { N8nApiClient } from './n8n-api-client.js';
+import { NodeSchemaProvider } from './node-schema-provider.js';
 
 export class SnippetGenerator {
-    constructor(private client: N8nApiClient) { }
+    constructor(private customIndexPath?: string) { }
 
     async generate(projectRoot: string): Promise<void> {
-        const nodeTypes = await this.client.getNodeTypes();
+        const provider = new NodeSchemaProvider(this.customIndexPath);
+
+        let nodeTypes: any[] = [];
+
+        try {
+            nodeTypes = provider.listAllNodes();
+        } catch (e) {
+            // Index loading failed, fall back to hardcoded
+            console.warn("Failed to load node index for snippets, using fallbacks.");
+        }
+
         const snippets: any = {};
 
-        // If no nodes found (API permission or endpoint issue), generate generic ones
+        // If no nodes found, generate generic ones
         if (!nodeTypes || nodeTypes.length === 0) {
             // Hardcoded common nodes for fallback
             this.addFallbackSnippets(snippets);
         } else {
             for (const node of nodeTypes) {
-                const name = node.name.replace('n8n-nodes-base.', '');
-                snippets[`n8n-${name}`] = {
-                    prefix: `n8n-${name}`,
+                // node.name is camelCase (e.g. googleSheets). 
+                // We want n8n-googleSheets
+                const key = `n8n-${node.name}`;
+                snippets[key] = {
+                    prefix: key,
                     body: [
                         "{",
                         `  "parameters": {},`,
                         `  "name": "${node.displayName}",`,
-                        `  "type": "${node.name}",`,
-                        `  "typeVersion": ${node.defaults?.typeVersion || 1},`,
+                        `  "type": "n8n-nodes-base.${node.name}",`,
+                        `  "typeVersion": ${Array.isArray(node.version) ? Math.max(...node.version) : node.version},`,
                         `  "position": [0, 0]`,
                         "}"
                     ],
@@ -30,6 +42,7 @@ export class SnippetGenerator {
                 };
             }
         }
+
 
         const vscodeDir = `${projectRoot}/.vscode`;
         if (!fs.existsSync(vscodeDir)) {
@@ -131,4 +144,3 @@ export class SnippetGenerator {
         }
     }
 }
-
