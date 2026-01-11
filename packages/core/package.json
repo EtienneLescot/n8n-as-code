@@ -9,7 +9,8 @@
         "prebuild": "node ../../scripts/compare-extraction.mjs || echo 'Warning: Report generation skipped/failed'",
         "build": "tsc -b",
         "watch": "tsc -b -w",
-        "test": "jest",
+        "clean": "rm -rf dist tsconfig.tsbuildinfo",
+        "test": "npx tsx --test tests/unit/*.test.ts tests/integration/*.test.ts",
         "validate-schema": "node ../../scripts/validate-schema.js --schema ./src/assets/n8n-nodes-index.json"
     },
     "dependencies": {

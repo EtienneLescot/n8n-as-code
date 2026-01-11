@@ -16,12 +16,13 @@
     "build:cli": "cd packages/cli && npm run build",
     "build:extension": "cd packages/vscode-extension && npm run build",
     "extension:install": "node scripts/build-and-install.js",
-    "test": "npx -y tsx --test packages/core/tests/unit/*.test.ts packages/core/tests/integration/*.test.ts",
+    "test": "npm test --workspaces --if-present",
     "postinstall": "node scripts/init-synced-git.cjs",
     "extract-schema": "node scripts/extract-node-schema.js --source ./n8n-cache/nodes-base --output ./packages/core/src/assets/n8n-nodes-index.json",
     "validate-schema": "node scripts/validate-schema.js --schema ./packages/core/src/assets/n8n-nodes-index.json",
     "test-extraction": "node scripts/test-extraction.js",
-    "generate:nodes": "node scripts/generate-n8n-index.cjs && node scripts/compare-extraction.mjs"
+    "generate:nodes": "node scripts/generate-n8n-index.cjs && node scripts/compare-extraction.mjs",
+    "clean": "npm run clean --workspaces --if-present && rm -rf dist out node_modules/.cache"
   },
   "author": "",
   "license": "ISC",

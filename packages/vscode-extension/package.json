@@ -210,6 +210,7 @@
         "watch": "tsc -b -w",
         "package-bundle": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
         "copy-assets": "mkdir -p assets && cp ../agent-cli/src/assets/n8n-nodes-index.json assets/",
-        "build": "npm run compile && npm run copy-assets && npm run package-bundle"
+        "build": "npm run compile && npm run copy-assets && npm run package-bundle",
+        "clean": "rm -rf out assets tsconfig.tsbuildinfo"
     }
 }

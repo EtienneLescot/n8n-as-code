@@ -8,7 +8,8 @@
     "type": "module",
     "scripts": {
         "build": "tsc -b",
-        "watch": "tsc -b -w"
+        "watch": "tsc -b -w",
+        "clean": "rm -rf dist tsconfig.tsbuildinfo"
     },
     "dependencies": {
         "@n8n-as-code/agent-cli": "0.1.0",
