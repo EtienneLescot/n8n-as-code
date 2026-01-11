@@ -25,5 +25,11 @@
     "devDependencies": {
         "@types/inquirer": "^9.0.9",
         "typescript": "^5.3.3"
+    },
+    "files": [
+        "dist/"
+    ],
+    "publishConfig": {
+        "access": "public"
     }
 }

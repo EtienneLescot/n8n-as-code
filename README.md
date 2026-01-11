@@ -110,6 +110,32 @@ npm run extension:install
 
 ---
 
+## 🚀 Release & Distribution
+
+This project uses [Changesets](https://github.com/changesets/changesets) for automated versioning and NPM publishing.
+
+### For Developers: Creating a Release
+
+1.  **Document your changes**:
+    ```bash
+    npm run changeset
+    ```
+    Follow the prompts to select packages and version types (patch/minor/major) and provide a summary.
+
+2.  **Version and Changelog**:
+    Once ready for a release, update versions and changelogs:
+    ```bash
+    npm run version-packages
+    ```
+
+3.  **Publish**:
+    Build and publish all packages to NPM:
+    ```bash
+    npm run release
+    ```
+
+---
+
 ## 🏗 Architecture (Monorepo)
 
 -   **`packages/core`**: Logical core (API, Sync, Sanitization, State Tracking).
