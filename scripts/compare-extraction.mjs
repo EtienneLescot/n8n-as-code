@@ -91,7 +91,7 @@ async function generateReport() {
   report.push(`- ⚠️ **Partial**: ${partialCount} nodes`);
   report.push(`- ❌ **Empty/Missing**: ${emptyCount} nodes`);
 
-  const reportPath = path.resolve(ROOT_DIR, 'packages/core/extraction-report.md');
+  const reportPath = path.resolve(ROOT_DIR, 'packages/agent-cli/extraction-report.md');
   fs.writeFileSync(reportPath, report.join('\n'));
   console.log(`📄 Report saved to: ${reportPath}`);
 }

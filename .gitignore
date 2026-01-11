@@ -56,5 +56,6 @@ n8n-schema.json
 n8n-as-code.json
 
 # Generated n8n assets
-packages/core/src/assets/n8n-nodes-index.json
-packages/core/extraction-report.md
+packages/agent-cli/src/assets/n8n-nodes-index.json
+packages/agent-cli/extraction-report.md
+packages/vscode-extension/assets/n8n-nodes-index.json
