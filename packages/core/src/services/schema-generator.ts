@@ -3,7 +3,7 @@ import path from 'path';
 import { N8nApiClient } from './n8n-api-client.js';
 
 export class SchemaGenerator {
-    constructor(private client: N8nApiClient) { }
+    constructor() { }
 
     /**
      * Fetches node types from n8n and generates a standard JSON Schema.

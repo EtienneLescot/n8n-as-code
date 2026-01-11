@@ -49,7 +49,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     // Collect stats manually if needed or listen to logs
                     // But easier to just trust the core logic now
                     await syncManager.syncDown();
-                    
+
                     // Refresh tree
                     treeProvider.refresh();
                     statusBar.showSynced();
@@ -220,7 +220,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     const version = health.version;
 
                     progress?.report({ message: `Generating Schema (n8n v${version})...` });
-                    const schemaGen = new SchemaGenerator(client);
+                    const schemaGen = new SchemaGenerator();
                     await schemaGen.generateSchema(path.join(rootPath, 'n8n-schema.json'));
 
                     progress?.report({ message: "Generating AGENTS.md..." });
@@ -345,7 +345,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     syncManager.on('log', (msg) => {
         console.log(msg);
         outputChannel.appendLine(msg);
-        
+
         // Show information messages for major sync events in VS Code popups
         if (msg.includes('Sync complete') || msg.includes('Push complete')) {
             vscode.window.showInformationMessage(msg.replace(/^📥 |^📤 |^🔄 |^✅ /, ''));
@@ -385,10 +385,10 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             // Create a virtual document for the remote content
             const remoteUri = vscode.Uri.parse(`n8n-remote:${filename}?id=${id}`);
             const localUri = vscode.Uri.file(path.join(syncManager!.getInstanceDirectory(), filename));
-            
+
             // Store remote content for the provider
             conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
-            
+
             await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
         } else if (choice === 'Overwrite Remote (Use Local)') {
             // Force push by updating the state first
@@ -399,7 +399,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         } else if (choice === 'Overwrite Local (Use Remote)') {
             // Force pull by updating the state first
             // syncManager?.['stateManager']?.updateWorkflowState(id, localContent); // No need, pullWorkflow updates state
-            
+
             // Force pull
             await syncManager?.pullWorkflow(filename, id, true);
             vscode.window.showInformationMessage(`✅ Local file "${filename}" updated from n8n.`);

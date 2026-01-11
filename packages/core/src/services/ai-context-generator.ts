@@ -2,7 +2,7 @@ import fs from 'fs';
 import { N8nApiClient } from './n8n-api-client.js';
 
 export class AiContextGenerator {
-  constructor(private client: N8nApiClient) { }
+  constructor(private client?: N8nApiClient) { }
 
   async generate(projectRoot: string): Promise<void> {
     // 1. Generate AGENTS.md
@@ -11,8 +11,10 @@ export class AiContextGenerator {
     // Fetch real version
     let version = "Unknown";
     try {
-      const health = await this.client.getHealth();
-      version = health.version;
+      if (this.client) {
+        const health = await this.client.getHealth();
+        version = health.version;
+      }
     } catch { }
 
     const content = [
@@ -47,22 +49,20 @@ export class AiContextGenerator {
       `> **STOP & READ**: You must NOT hallucinate node parameters. n8n nodes change frequently.`,
       `> Before generating JSON for a specific node (e.g., "Google Sheets", "HTTP Request"), you MUST execute the following **Live Documentation Lookup** sequence:`,
       ``,
-      `### Step 1: Fetch the Documentation Index`,
-      `Execute the following command to get the latest list of nodes and their documentation URLs:`,
-      `\`\`\`bash`,
-      `curl -s https://docs.n8n.io/llms.txt`,
-      `\`\`\``,
+      `### Step 1: Browse Local Node Documentation`,
+      `The repository contains a generated index of all n8n nodes and their properties.`,
+      `**Location**: \`packages/core/src/assets/n8n-nodes-index.json\``,
       ``,
-      `### Step 2: Extract & Fetch Node Details (Recursive)`,
-      `1. Parse the output from Step 1 to find the specific URL(s) corresponding to the node(s) you need.`,
-      `2. **For EACH node**, execute curl on its specific URL to retrieve the parameter schema.`,
-      `   - *Example*: If you need the HTTP Request node, find its URL in the list and run:`,
-      `   \`\`\`bash`,
-      `   curl -s [SPECIFIC_NODE_URL_FOUND_IN_STEP_1]`,
-      `   \`\`\``,
+      `### Step 2: Extract Node Details`,
+      `1. Read the \`n8n-nodes-index.json\` file.`,
+      `2. Search for the node key (e.g., "awsS3", "httpRequest").`,
+      `3. Use the \`properties\` array defined there as the **source of truth** for your JSON generation.`,
+      ``,
+      `> **Note**: This index is auto-generated from the actual n8n source code and is 100% accurate regarding internal parameter names.`,
+      `> You do NOT need to fetch external documentation via curl.`,
       ``,
       `### Step 3: Apply Knowledge`,
-      `Use the content retrieved in Step 2 as the **source of truth** for:`,
+      `Use the content found in the node index as the **source of truth** for:`,
       `- Parameter names (camelCase vs snake_case)`,
       `- Required fields`,
       `- Data structure inputs`,

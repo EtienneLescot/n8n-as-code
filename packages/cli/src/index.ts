@@ -20,7 +20,7 @@ const getVersion = () => {
         const pkgPath = join(process.cwd(), 'package.json');
         const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
         if (pkg.name === '@n8n-as-code/cli') return pkg.version;
-        
+
         // Fallback for different execution contexts
         return '0.1.0';
     } catch {

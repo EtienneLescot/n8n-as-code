@@ -8,3 +8,5 @@ export * from './services/ai-context-generator.js';
 export * from './services/snippet-generator.js';
 export * from './services/directory-utils.js';
 export * from './services/trash-service.js';
+export * from './services/directory-utils.js';
+export * from './services/trash-service.js';

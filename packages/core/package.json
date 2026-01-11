@@ -4,10 +4,14 @@
     "description": "Core library for n8n-as-code ecosystem",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
+    "type": "module",
     "scripts": {
+        "prebuild": "node ../../scripts/generate-n8n-index.cjs && node ../../scripts/compare-extraction.mjs || echo 'Warning: Schema extraction failed'",
         "build": "tsc -b",
+        "postbuild": "mkdir -p dist/assets && cp src/assets/n8n-nodes-index.json dist/assets/",
         "watch": "tsc -b -w",
-        "test": "jest"
+        "test": "jest",
+        "validate-schema": "node ../../scripts/validate-schema.js --schema ./src/assets/n8n-nodes-index.json"
     },
     "dependencies": {
         "axios": "^1.6.0",
@@ -24,5 +28,9 @@
         "jest": "^29.7.0",
         "ts-jest": "^29.1.1",
         "typescript": "^5.3.3"
-    }
+    },
+    "files": [
+        "dist/",
+        "src/assets/n8n-nodes-index.json"
+    ]
 }

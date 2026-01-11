@@ -54,3 +54,7 @@ n8n-schema.json
 .clinerules
 
 n8n-as-code.json
+
+# Generated n8n assets
+packages/core/src/assets/n8n-nodes-index.json
+packages/core/extraction-report.md
