@@ -205,7 +205,7 @@
         "typescript": "^5.3.3"
     },
     "scripts": {
-        "vscode:prepublish": "npm run package-bundle",
+        "vscode:prepublish": "npm run build",
         "compile": "tsc -b",
         "watch": "tsc -b -w",
         "package-bundle": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
