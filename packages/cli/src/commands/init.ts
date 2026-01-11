@@ -3,6 +3,8 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { N8nApiClient, createInstanceIdentifier, createFallbackInstanceIdentifier } from '@n8n-as-code/core';
 import { ConfigService, ILocalConfig } from '../services/config-service.js';
+import { InitAiCommand } from './init-ai.js';
+import { Command } from 'commander';
 
 export class InitCommand {
     private configService: ConfigService;
@@ -93,11 +95,15 @@ export class InitCommand {
             console.log('\n' + chalk.green('✔ Configuration saved successfully!'));
             console.log(chalk.blue('📁 Project config:') + ' n8n-as-code.json');
             console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
-            
+
             console.log(chalk.yellow('Next steps:'));
             console.log(`1. Run ${chalk.bold('n8n-as-code pull')} to download your workflows`);
             console.log(`2. Run ${chalk.bold('n8n-as-code watch')} to start real-time synchronization`);
             console.log(chalk.gray(`(Instance identifier will be generated automatically on first use)\n`));
+
+            // Automatically initialize AI context
+            const initAi = new InitAiCommand(new Command());
+            await initAi.run({}, { host: answers.host, apiKey: answers.apiKey });
 
         } catch (error: any) {
             spinner.fail(chalk.red(`An error occurred: ${error.message}`));

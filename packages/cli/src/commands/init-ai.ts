@@ -24,7 +24,7 @@ export class InitAiCommand {
             });
     }
 
-    private async run(options: any) {
+    public async run(options: any = {}, providedCredentials?: IN8nCredentials) {
         console.log(chalk.blue('🤖 Initializing Enhanced AI Context Injection...'));
         console.log(chalk.gray('   Using local schema-based approach (no API calls required)'));
 
@@ -33,7 +33,7 @@ export class InitAiCommand {
         try {
             // Initialize N8nApiClient if credentials are available
             dotenv.config();
-            const credentials: IN8nCredentials = {
+            const credentials: IN8nCredentials = providedCredentials || {
                 host: process.env.N8N_HOST || '',
                 apiKey: process.env.N8N_API_KEY || ''
             };
