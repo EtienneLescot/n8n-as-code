@@ -10,7 +10,17 @@ const __dirname = path.dirname(__filename);
 
 const extensionDir = path.join(__dirname, '..', 'packages', 'vscode-extension');
 const vsixName = 'n8n-as-code.vsix';
-const vsixPath = path.join(extensionDir, vsixName);
+let vsixPath = path.join(extensionDir, vsixName);
+
+// Handle WSL path conversion if necessary
+try {
+    const isWsl = execSync('uname -a').toString().includes('microsoft');
+    if (isWsl) {
+        vsixPath = execSync(`wslpath -w "${vsixPath}"`).toString().trim();
+    }
+} catch (e) {
+    // Not in a WSL environment or wslpath not available, stick to local path
+}
 
 try {
     console.log('🔧 Rebuilding the extension...');
