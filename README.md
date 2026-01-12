@@ -139,9 +139,10 @@ This project uses [Changesets](https://github.com/changesets/changesets) for aut
 
 ## 🏗 Architecture (Monorepo)
 
--   **`packages/core`**: Logical core (API, Sync, Sanitization, State Tracking).
--   **`packages/cli`**: Command interface.
--   **`packages/vscode-extension`**: VS Code plugin.
+-   **`packages/core`**: The logical core: API interactions, synchronization logic, and workflow sanitization.
+-   **`packages/cli`**: The main command-line interface for manual workflow management.
+-   **`packages/agent-cli`**: Specialized tools for AI Agents (Cursor, Cline), providing search and schema retrieval capabilities.
+-   **`packages/vscode-extension`**: The VS Code plugin for seamless real-time synchronization and AI assistance.
 
 ---
 
