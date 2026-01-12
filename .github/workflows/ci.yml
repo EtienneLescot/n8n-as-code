@@ -1,29 +1,42 @@
 name: CI
- 
+
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
- 
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
- 
+
     steps:
       - uses: actions/checkout@v4
- 
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
- 
+
       - name: Install dependencies
         run: npm install
- 
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Cache n8n repository
+        uses: actions/cache@v4
+        with:
+          path: .n8n-cache
+          key: ${{ runner.os }}-n8n-cache-${{ hashFiles('scripts/ensure-n8n-cache.cjs') }}
+          restore-keys: |
+            ${{ runner.os }}-n8n-cache-
+
       - name: Build all packages
         run: npm run build
- 
+
       - name: Run tests
         run: npm test

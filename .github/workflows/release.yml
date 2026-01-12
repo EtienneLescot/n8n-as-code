@@ -1,11 +1,11 @@
 name: Release
- 
+
 on:
   push:
     branches: [ main ]
- 
+
 concurrency: ${{ github.workflow }}-${{ github.ref }}
- 
+
 jobs:
   release:
     name: Release
@@ -13,21 +13,33 @@ jobs:
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
- 
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
- 
+
       - name: Install Dependencies
         run: npm install
- 
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Cache n8n repository
+        uses: actions/cache@v4
+        with:
+          path: .n8n-cache
+          key: ${{ runner.os }}-n8n-cache-${{ hashFiles('scripts/ensure-n8n-cache.cjs') }}
+          restore-keys: |
+            ${{ runner.os }}-n8n-cache-
+
       - name: Create Release Pull Request or Publish to NPM
         id: changesets
         uses: changesets/action@v1
         with:
-          # This expects you to have scripts/release and scripts/version in package.json
           publish: npm run release
           version: npm run version-packages
         env:
