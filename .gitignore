@@ -59,5 +59,6 @@ n8n-as-code.json
 packages/agent-cli/src/assets/n8n-nodes-index.json
 packages/agent-cli/extraction-report.md
 packages/vscode-extension/assets/n8n-nodes-index.json
+packages/vscode-extension/assets/logo.png
 
 .n8n-cache/

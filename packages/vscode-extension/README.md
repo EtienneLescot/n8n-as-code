@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/EtienneLescot/n8n-as-code/main/assets/logo.png" alt="n8n-as-code logo" width="120" />
+  <img src="https://raw.githubusercontent.com/EtienneLescot/n8n-as-code/main/packages/vscode-extension/res/logo.png" alt="n8n-as-code logo" width="120" />
 </p>
 
 # 🚀 n8n-as-code : VS Code Extension
