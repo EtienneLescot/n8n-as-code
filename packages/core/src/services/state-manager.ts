@@ -96,9 +96,7 @@ export class StateManager {
         const currentHash = StateManager.computeHash(localContent);
         const result = state.lastSyncedHash === currentHash;
         if (!result) {
-            console.log(`[DEBUG] Local Mismatch for ${id}:`);
-            console.log(`  Stored: ${state.lastSyncedHash}`);
-            console.log(`  Current: ${currentHash}`);
+            // Changed from console.log to silent for production
         }
         return result;
     }
@@ -112,9 +110,7 @@ export class StateManager {
         const remoteHash = StateManager.computeHash(remoteWorkflow);
         const result = state.lastSyncedHash === remoteHash;
         if (!result) {
-            console.log(`[DEBUG] Remote Mismatch for ${id}:`);
-            console.log(`  Stored: ${state.lastSyncedHash}`);
-            console.log(`  Remote: ${remoteHash}`);
+            // Changed from console.log to silent for production
         }
         return result;
     }

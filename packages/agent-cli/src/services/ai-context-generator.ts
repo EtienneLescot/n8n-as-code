@@ -1,105 +1,114 @@
 import fs from 'fs';
+import path from 'path';
 
 export class AiContextGenerator {
   constructor() { }
 
   async generate(projectRoot: string, n8nVersion: string = "Unknown"): Promise<void> {
-    // 1. Generate AGENTS.md
-    const agentsPath = `${projectRoot}/AGENTS.md`;
+    const agentsContent = this.getAgentsContent(n8nVersion);
+    const cursorContent = this.getCursorRulesContent();
+    const clineContent = this.getClineRulesContent();
+    const windsurfContent = this.getWindsurfRulesContent();
+    const commonRules = this.getCommonRulesContent();
 
+    // 1. AGENTS.md (Central documentation)
+    this.injectOrUpdate(path.join(projectRoot, 'AGENTS.md'), agentsContent, true);
 
-    const content = [
-      `# 🤖 AGENTS.md - Context for AI Agents`,
-      `> **CRITICAL**: Read this file before creating or modifying any n8n workflow files.`,
+    // 2. Specialized Rule Files
+    this.injectOrUpdate(path.join(projectRoot, '.cursorrules'), cursorContent);
+    this.injectOrUpdate(path.join(projectRoot, '.clinerules'), clineContent);
+    this.injectOrUpdate(path.join(projectRoot, '.windsurfrules'), windsurfContent);
+
+    // 3. General AI Context (for Claude, Mistral, etc.)
+    this.injectOrUpdate(path.join(projectRoot, '.ai-rules.md'), commonRules);
+  }
+
+  private injectOrUpdate(filePath: string, content: string, isMarkdownFile: boolean = false): void {
+    const startMarker = isMarkdownFile ? '<!-- n8n-as-code-start -->' : '### 🤖 n8n-as-code-start';
+    const endMarker = isMarkdownFile ? '<!-- n8n-as-code-end -->' : '### 🤖 n8n-as-code-end';
+
+    const block = `\n${startMarker}\n${content.trim()}\n${endMarker}\n`;
+
+    if (!fs.existsSync(filePath)) {
+      // Create new file with header if it's AGENTS.md
+      const header = filePath.endsWith('AGENTS.md') ? '# 🤖 AI Agents Guidelines\n' : '';
+      fs.writeFileSync(filePath, header + block.trim() + '\n');
+      return;
+    }
+
+    let existing = fs.readFileSync(filePath, 'utf8');
+    const startIdx = existing.indexOf(startMarker);
+    const endIdx = existing.indexOf(endMarker);
+
+    if (startIdx !== -1 && endIdx !== -1) {
+      // Update existing block while preserving what's before/after
+      const before = existing.substring(0, startIdx);
+      const after = existing.substring(endIdx + endMarker.length);
+      fs.writeFileSync(filePath, before + block.trim() + after);
+    } else {
+      // Append to end of existing file
+      fs.writeFileSync(filePath, existing.trim() + '\n' + block);
+    }
+  }
+
+  private getAgentsContent(n8nVersion: string): string {
+    return [
+      `## 🎭 Role: Expert n8n Engineer`,
+      `You manage n8n workflows as **clean, version-controlled JSON**.`,
       ``,
-      `## 🎭 Role & Objective`,
-      `You are an **Expert n8n Automation Engineer**. Your goal is to manage n8n workflows as **clean, version-controlled code** (JSON) while maintaining full compatibility with the n8n Visual Editor.`,
-      ``,
-      `## 🌍 Instance Context`,
+      `### 🌍 Context`,
       `- **n8n Version**: ${n8nVersion}`,
-
-      `- **Environment**: Production/Dev (Inferred)`,
+      `- **Schema**: Use \`n8n-schema.json\` for structural validation.`,
       ``,
-      `## 🛠 Coding Standards & Syntax Rules`,
-      `1. **JSON Structure**:`,
-      `   - Workflows are stored as standard .json files.`,
-      `   - Use the \`n8n-schema.json\` (if present) to validate structure.`,
-      `   - **Order Matters**: Keep \`nodes\` and \`connections\` objects sorted.`,
+      `### 🛠 Coding Standards`,
+      `1. **Expressions**: Use \`{{ $json.field }}\` (modern) instead of \`{{ $node["Name"].json.field }}\` when possible.`,
+      `2. **Nodes**: Always prefer the \`Code\` node for custom logic.`,
+      `3. **Credentials**: NEVER hardcode API keys. Mention needed credentials by name.`,
       ``,
-      `2. **Expressions**:`,
-      `   - Use standard n8n expression syntax: \`{{ $` + `json.myField }}\` or \`{{ $` + `node["Node Name"].json.field }}\`.`,
-      `   - **Do not** use Python or generic JS unless inside a Function/Code node.`,
+      `### 🔬 Research Protocol (MANDATORY)`,
+      `Do NOT hallucinate node parameters. Use these tools via \`npx @n8n-as-code/agent-cli\`:`,
+      `- \`search "<term>"\`: Find the correct node named (camelCase).`,
+      `- \`get "<nodeName>"\`: Get the EXACT property definitions for a node.`,
+      `- \`list\`: See all available nodes.`,
       ``,
-      `3. **Node Configuration**:`,
-      `   - **Function Nodes**: Prefer the new \`Code\` node type over legacy \`Function\`.`,
-      `   - **Triggers**: Ensure only ONE trigger is active if multiple exist.`,
-      ``,
-      `4. **Git Workflow**:`,
-      `   - **Never** commit credentials. Use n8n Credentials store.`,
-      ``,
-      `## 🔬 Research Protocol (Mandatory)`,
-      `> **STOP & READ**: You must NOT hallucinate node parameters. n8n nodes change frequently.`,
-      `> Before generating JSON for a specific node (e.g., "Google Sheets", "HTTP Request"), you MUST execute the following **Live Documentation Lookup** sequence:`,
-      ``,
-      `### Step 1: Browse Local Node Documentation`,
-      `> **DO NOT** read the \`n8n-nodes-index.json\` file directly (it is too large).`,
-      `> Instead, use the **Function Calling Tools** provided via the Agent CLI.`,
-      ``,
-      `#### Tool 1: Search for a Node`,
-      `Find the exact node name (camelCase) for your topic.`,
-      `\`$ npx @n8n-as-code/agent-cli search "google sheets"\``,
-      ``,
-      `#### Tool 2: Get Node Schema`,
-      `Get the full property documentation for a specific node.`,
-      `\`$ npx @n8n-as-code/agent-cli get "googleSheets"\``,
-      ``,
-      `#### Tool 3: List All Nodes`,
-      `Get a compact catalog of all available nodes.`,
-      `\`$ npx @n8n-as-code/agent-cli list\``,
-      ``,
-      `### Step 2: Apply Knowledge`,
-      `Use the JSON output from these commands as the **source of truth** for:`,
-      `- Parameter names (camelCase vs snake_case)`,
-      `- Required fields`,
-      `- Data structure inputs`,
-
-
-      ``,
-      `## 🧠 Common Patterns`,
-      `- **Error Handling**: Use "Error Trigger" workflow or "Continue On Fail" settings.`,
-      `- **Looping**: Use "Split In Batches" node.`,
-      ``,
-      `## 🚫 Prohibited`,
-      `- Do not manually edit ID hash strings unless resolving a merge conflict.`,
-      `- Do not remove \`parameters\` object from nodes even if empty.`
+      `Apply the Knowledge: Use the \`get\` tool's output as the absolute source of truth for JSON parameter names.`
     ].join('\n');
+  }
 
-    fs.writeFileSync(agentsPath, content);
+  private getCursorRulesContent(): string {
+    return [
+      `# n8n-as-code rules`,
+      `- Refer to AGENTS.md for n8n workflow standards.`,
+      `- Use @n8n-as-code/agent-cli tools to prevent parameter hallucinations.`,
+      `- Validate all workflow JSON against n8n-schema.json.`
+    ].join('\n');
+  }
 
-    // 2. Generate .cursorrules
-    const cursorRules = `
-# .cursorrules
-# Defines rules for Cursor AI Agent
+  private getClineRulesContent(): string {
+    return [
+      `n8n_engineer_role:`,
+      `  description: Expert in n8n-as-code`,
+      `  instructions:`,
+      `    - Read AGENTS.md for core principles.`,
+      `    - Use npx @n8n-as-code/agent-cli search/get before editing workflow JSON.`,
+      `    - Ensure connections are correctly indexed.`
+    ].join('\n');
+  }
 
-# 1. ALWAYS read AGENTS.md for context on n8n specific syntax.
-# 2. When asking to generate a workflow, output Valid JSON compatible with n8n import.
-# 3. Refer to n8n-schema.json for validation.
-`;
-    fs.writeFileSync(`${projectRoot}/.cursorrules`, cursorRules.trim());
+  private getWindsurfRulesContent(): string {
+    return [
+      `### n8n Development Rules`,
+      `- Follow the Research Protocol in AGENTS.md.`,
+      `- Tooling: Use @n8n-as-code/agent-cli to fetch node schemas.`,
+    ].join('\n');
+  }
 
-    // 3. Generate .clinerules
-    const clineRules = `
-# .clinerules
-# Rules for Cline/Roo agents
-
-MEMORY_BANK:
-  - READ "AGENTS.md" to understand n8n-as-code principles.
-  - VALIDATE generated JSON against "n8n-schema.json".
-
-BEHAVIOR:
-  - Prioritize "Code Node" (JS) over deprecated nodes.
-  - Maintain clean JSON formatting (2 spaces indentation).
-`;
-    fs.writeFileSync(`${projectRoot}/.clinerules`, clineRules.trim());
+  private getCommonRulesContent(): string {
+    return [
+      `# Common Rules for All AI Agents (Claude, Mistral, etc.)`,
+      `- Role: Expert n8n Automation Engineer.`,
+      `- Workflow Source of Truth: \`@n8n-as-code/agent-cli\` tools.`,
+      `- Documentation: Read AGENTS.md for full syntax rules.`
+    ].join('\n');
   }
 }

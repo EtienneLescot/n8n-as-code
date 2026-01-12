@@ -44,6 +44,8 @@ describe('SnippetGenerator', () => {
     });
 
     test('should fallback to hardcoded snippets if index is missing', async () => {
+        const originalWarn = console.warn;
+        console.warn = () => { };
         const invalidPath = path.join(tempDir, 'missing.json');
         const generator = new SnippetGenerator(invalidPath);
         await generator.generate(projectDir);
@@ -54,5 +56,6 @@ describe('SnippetGenerator', () => {
         const content = JSON.parse(fs.readFileSync(snippetPath, 'utf-8'));
         expect(content['n8n-webhook']).toBeDefined();
         expect(content['n8n-code']).toBeDefined();
+        console.warn = originalWarn;
     });
 });

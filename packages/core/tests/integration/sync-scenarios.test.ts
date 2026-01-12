@@ -10,10 +10,24 @@ import dotenv from 'dotenv';
 import deepEqual from 'deep-equal';
 
 // Load test credentials from root
-dotenv.config({ path: path.join(process.cwd(), '.env.test') });
+const rootEnv = path.resolve(process.cwd(), '.env.test');
+const pkgEnv = path.resolve(process.cwd(), '../../.env.test');
+const localEnv = path.resolve(new URL('.', import.meta.url).pathname, '../../../../.env.test');
+
+if (fs.existsSync(rootEnv)) {
+    dotenv.config({ path: rootEnv });
+} else if (fs.existsSync(pkgEnv)) {
+    dotenv.config({ path: pkgEnv });
+} else if (fs.existsSync(localEnv)) {
+    dotenv.config({ path: localEnv });
+}
 
 const host = process.env.N8N_HOST || 'http://localhost:5678';
-const apiKey = process.env.N8N_API_KEY || '';
+const apiKey = process.env.N8N_API_KEY || process.env.N8N_API_Key || '';
+
+if (!apiKey) {
+    throw new Error(`[OFFLINE] No N8N_API_KEY found. Integration tests require a valid .env.test file at the root.`);
+}
 
 let client: N8nApiClient;
 let testWorkflowId: string;
@@ -21,11 +35,11 @@ let testWorkflowId: string;
 const baseWorkflow = {
     name: 'Test test',
     nodes: [
-        { 
-            id: 'node-1', 
-            name: 'Start', 
-            type: 'n8n-nodes-base.start', 
-            typeVersion: 1, 
+        {
+            id: 'node-1',
+            name: 'Start',
+            type: 'n8n-nodes-base.start',
+            typeVersion: 1,
             position: [250, 300],
             parameters: {}
         }
@@ -35,7 +49,6 @@ const baseWorkflow = {
 };
 
 before(async () => {
-    if (!apiKey) return;
     client = new N8nApiClient({ host, apiKey });
     try {
         const all = await client.getAllWorkflows();
@@ -47,13 +60,18 @@ before(async () => {
             const newWf = await client.createWorkflow(baseWorkflow);
             testWorkflowId = newWf.id;
         }
-    } catch (e) {
+    } catch (e: any) {
+        if (e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND' || e.response?.status === 401) {
+            throw new Error(`[OFFLINE] Could not connect or authenticate to n8n instance at ${host}. Please ensure n8n is running and API Key is valid.`);
+        }
         throw e;
     }
 });
 
 test('Integration Scenarios', async (t) => {
-    if (!testWorkflowId) return;
+    if (!testWorkflowId) {
+        throw new Error('[OFFLINE] No n8n instance available to run integration scenarios.');
+    }
 
     await t.test('Scenario 1: Clean Push', async () => {
         const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8n-sync-test-'));
@@ -67,18 +85,18 @@ test('Integration Scenarios', async (t) => {
         try {
             await syncManager.syncDown();
             const filePath = path.join(syncManager.getInstanceDirectory(), 'Test test.json');
-            
+
             // Wait for writing lock to clear (SyncManager sets a 1s lock after writing)
             await new Promise(resolve => setTimeout(resolve, 1100));
 
             const localContent = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-            localContent.nodes.push({ 
-                id: 'node-local', 
-                name: 'Local Node', 
-                type: 'n8n-nodes-base.noOp', 
-                typeVersion: 1, 
+            localContent.nodes.push({
+                id: 'node-local',
+                name: 'Local Node',
+                type: 'n8n-nodes-base.noOp',
+                typeVersion: 1,
                 position: [450, 300],
-                parameters: {} 
+                parameters: {}
             });
             fs.writeFileSync(filePath, JSON.stringify(localContent, null, 2));
 
@@ -159,7 +177,7 @@ test('Integration Scenarios', async (t) => {
 
             // 5. Local file should be gone (moved to .archive)
             assert.strictEqual(fs.existsSync(filePath), false, 'Local file should be removed');
-            
+
             // 6. Check archive
             const archiveDir = path.join(instanceDir, '.archive');
             assert.ok(fs.existsSync(archiveDir), 'Archive directory should exist');
