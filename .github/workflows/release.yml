@@ -30,7 +30,7 @@ jobs:
           version: 10
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       - name: Cache n8n repository
         uses: actions/cache@v4
@@ -39,6 +39,18 @@ jobs:
           key: ${{ runner.os }}-n8n-cache-${{ hashFiles('scripts/ensure-n8n-cache.cjs') }}
           restore-keys: |
             ${{ runner.os }}-n8n-cache-
+
+      - name: Setup npm authentication
+        if: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+          echo "registry=https://registry.npmjs.org/" >> ~/.npmrc
+          echo "always-auth=true" >> ~/.npmrc
+          echo "@n8n-as-code:registry=https://registry.npmjs.org/" >> ~/.npmrc
+          # Also create project-level .npmrc for tools that look in current directory
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+          echo "registry=https://registry.npmjs.org/" >> .npmrc
+          echo "@n8n-as-code:registry=https://registry.npmjs.org/" >> .npmrc
 
       - name: Create Release Pull Request or Publish to NPM
         id: changesets
