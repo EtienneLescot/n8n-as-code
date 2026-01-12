@@ -37,8 +37,6 @@ package-lock.json
 ehthumbs.db
 Thumbs.db
 
-# Exclude workflows directory (managed as independent repo)
-./workflows/
 
 # --- Packages build artifacts ---
 packages/*/dist/
