@@ -35,8 +35,8 @@ async function main() {
                 const remote = execSync('git rev-parse @{u}', { cwd: CACHE_DIR }).toString().trim();
 
                 if (local !== remote) {
-                    console.log('⬇️  Updates found. Pulling...');
-                    run('git pull', CACHE_DIR);
+                    console.log('⬇️  Updates found. Syncing cache...');
+                    run('git reset --hard origin/master', CACHE_DIR);
                     // Force rebuild of nodes-base if updated
                     process.env.FORCE_REBUILD_NODES = 'true';
                 } else {
@@ -54,13 +54,11 @@ async function main() {
     if (!fs.existsSync(nodesBaseDist) || process.env.FORCE_REBUILD_NODES === 'true') {
         console.log('🏗 Preparing n8n nodes-base (this may take a while)...');
 
-        if (!fs.existsSync(path.join(nodesBaseDir, 'node_modules'))) {
-            console.log('📦 Installing dependencies for nodes-base...');
-            run('pnpm install', nodesBaseDir);
-        }
+        console.log('📦 Installing dependencies (root)...');
+        run('pnpm install', CACHE_DIR);
 
-        console.log('🔨 Building nodes-base...');
-        run('pnpm build', nodesBaseDir);
+        console.log('🔨 Building n8n-nodes-base (with dependencies)...');
+        run('pnpm build --filter n8n-nodes-base...', CACHE_DIR);
     } else {
         console.log('✅ n8n nodes-base is already built.');
     }

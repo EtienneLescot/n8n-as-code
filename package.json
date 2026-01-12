@@ -11,7 +11,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run generate:nodes && tsc -b && npm run build --workspaces --if-present",
     "build:core": "cd packages/core && npm run build",
     "build:cli": "cd packages/cli && npm run build",
     "build:extension": "cd packages/vscode-extension && npm run build",

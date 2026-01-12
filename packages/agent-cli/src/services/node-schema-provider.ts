@@ -2,9 +2,14 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
-// Helper to get __dirname in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Helper to get __dirname in ESM and CJS (bundled)
+const _filename = typeof import.meta !== 'undefined' && import.meta.url
+    ? fileURLToPath(import.meta.url)
+    : (typeof __filename !== 'undefined' ? __filename : '');
+
+const _dirname = typeof __dirname !== 'undefined'
+    ? __dirname
+    : path.dirname(_filename as string);
 
 export interface INodeSchemaStub {
     name: string;
@@ -23,7 +28,7 @@ export class NodeSchemaProvider {
         } else {
             // Resolve path to assets/n8n-nodes-index.json
             // In dist structure: dist/services/node-schema-provider.js -> dist/assets/n8n-nodes-index.json
-            this.indexPath = path.resolve(__dirname, '../assets/n8n-nodes-index.json');
+            this.indexPath = path.resolve(_dirname, '../assets/n8n-nodes-index.json');
         }
     }
 

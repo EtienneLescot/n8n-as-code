@@ -31,10 +31,14 @@ let OUTPUT_FILE = (outputArg !== -1 && args[outputArg + 1])
 
 // The node_modules of nodes-base might be needed for some resolutions if not hoisted
 const NODES_BASE_MODULES = path.resolve(DIST_ROOT, '../../node_modules');
+const CACHE_ROOT_MODULES = path.resolve(DIST_ROOT, '../../../../node_modules');
 
 // Ensure we can require modules from nodes-base (legacy dependencies)
 if (fs.existsSync(NODES_BASE_MODULES)) {
     module.paths.push(NODES_BASE_MODULES);
+}
+if (fs.existsSync(CACHE_ROOT_MODULES)) {
+    module.paths.push(CACHE_ROOT_MODULES);
 }
 
 // Simple recursive file walker instead of glob dependency
@@ -70,7 +74,7 @@ async function extractNodes() {
     const nodeFiles = findNodeFiles(DIST_ROOT);
     console.log(`📦 Found ${nodeFiles.length} source files.`);
 
-    const results = {};
+    const results = [];
     let successCount = 0;
     let errorCount = 0;
 
@@ -83,74 +87,73 @@ async function extractNodes() {
             const moduleKeys = Object.keys(module);
             let description = null;
 
+            if (moduleKeys.length === 0) {
+                if (process.env.DEBUG) console.log(`⚠️ Empty module: ${path.basename(fullPath)}`);
+            }
+
             for (const key of moduleKeys) {
                 const item = module[key];
 
                 // Strategy A: Class (AwsS3V2, etc)
                 if (typeof item === 'function' && item.prototype) {
-                    try {
-                        // Try instantiating with empty baseDescription
-                        // Some nodes (Versioned) require a baseDescription in constructor
-                        const instance = new item({ properties: [], inputs: [], outputs: [] });
+                    // Check static property first
+                    if (item.description) {
+                        description = item.description;
+                        break;
+                    }
 
+                    try {
+                        // Try different instantiation signatures
+                        const instance = new item();
                         if (instance.description) {
                             description = instance.description;
                             break;
                         }
                     } catch (e) {
-                        // Ignore instantiation errors
+                        try {
+                            const instance = new item({ properties: [], inputs: [], outputs: [] });
+                            if (instance.description) {
+                                description = instance.description;
+                                break;
+                            }
+                        } catch (e2) {
+                            // If it fails, maybe it's on prototype (rare for fields but possible for getters)
+                            if (item.prototype.description) {
+                                description = item.prototype.description;
+                                break;
+                            }
+                        }
                     }
                 }
 
                 // Strategy B: Object (Legacy)
-                if (typeof item === 'object' && item.description && item.description.properties) {
-                    description = item.description;
-                    break;
+                if (typeof item === 'object' && item !== null) {
+                    if (item.description && (item.description.properties || item.description.name)) {
+                        description = item.description;
+                        break;
+                    }
                 }
             }
 
             if (description) {
-                let nodeName = description.name;
-
-                // Fallback: Infer name from filename if missing (common in Versioned nodes like SwitchV3)
-                if (!nodeName) {
-                    const filename = path.basename(fullPath);
-                    // Remove extension and V suffix (SwitchV3.node.js -> Switch)
-                    const cleanName = filename
-                        .replace(/\.node\.js$/, '')
-                        .replace(/V[0-9]+$/, '');
-
-                    // camelCase it (Switch -> switch)
-                    nodeName = cleanName.charAt(0).toLowerCase() + cleanName.slice(1);
-                }
-
-                if (nodeName) {
-                    const newPropsCount = description.properties ? description.properties.length : 0;
-
-                    if (results[nodeName]) {
-                        // Collision detected!
-                        // Strategy: Keep the one with more properties
-                        const existingPropsCount = results[nodeName].properties ? results[nodeName].properties.length : 0;
-
-                        if (newPropsCount > existingPropsCount) {
-                            results[nodeName] = description;
-                        }
-                        // Else: keep existing
-                    } else {
-                        // New entry
-                        results[nodeName] = description;
-                    }
-
-                    successCount++;
-                    if (successCount % 50 === 0) process.stdout.write('.');
-                } else {
-                    errorCount++; // Still couldn't determine a name
-                }
+                results.push({
+                    name: description.name,
+                    displayName: description.displayName,
+                    description: description.description,
+                    icon: description.icon,
+                    group: description.group,
+                    version: description.version,
+                    properties: description.properties,
+                    sourcePath: fullPath.replace(ROOT_DIR, '')
+                });
+                successCount++;
             } else {
+                if (process.env.DEBUG) console.log(`❌ No description found for: ${path.basename(fullPath)} (Keys: ${moduleKeys.join(', ')})`);
                 errorCount++;
             }
 
         } catch (error) {
+            if (process.env.DEBUG) console.log(`💥 Error requiring ${path.basename(fullPath)}: ${error.message}`);
             errorCount++;
         }
     }

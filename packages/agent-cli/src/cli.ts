@@ -6,13 +6,18 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-// Resolve __dirname for ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// Resolve __dirname for ESM and CJS (bundled)
+const _filename = typeof import.meta !== 'undefined' && import.meta.url
+    ? fileURLToPath(import.meta.url)
+    : (typeof __filename !== 'undefined' ? __filename : '');
+
+const _dirname = typeof __dirname !== 'undefined'
+    ? __dirname
+    : dirname(_filename as string);
 
 const getVersion = () => {
     try {
-        const pkgPath = join(__dirname, '../package.json');
+        const pkgPath = join(_dirname, '../package.json');
         const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
         return pkg.version;
     } catch {
