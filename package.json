@@ -11,7 +11,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run generate:nodes && tsc -b && npm run build --workspaces --if-present",
+    "build": "npm run generate:nodes && tsc -b --force && npm run build --workspaces --if-present",
     "build:core": "cd packages/core && npm run build",
     "build:cli": "cd packages/cli && npm run build",
     "build:extension": "cd packages/vscode-extension && npm run build",
@@ -22,7 +22,7 @@
     "validate-schema": "node scripts/validate-schema.js --schema ./packages/core/src/assets/n8n-nodes-index.json",
     "test-extraction": "node scripts/test-extraction.js",
     "generate:nodes": "node scripts/ensure-n8n-cache.cjs && node scripts/generate-n8n-index.cjs && node scripts/compare-extraction.mjs",
-    "clean": "npm run clean --workspaces --if-present && rm -rf dist out node_modules/.cache",
+    "clean": "npm run clean --workspaces --if-present && rm -rf packages/*/dist packages/*/out packages/**/tsconfig.tsbuildinfo .n8n-cache/ node_modules/.cache",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "npm run build && changeset publish"
