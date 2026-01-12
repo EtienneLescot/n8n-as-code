@@ -10,7 +10,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    environment: production
+    environment: prod
     permissions:
       contents: write
       pull-requests: write
@@ -26,7 +26,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          registry-url: 'https://registry.npmjs.org/'
           # cache: 'npm' removed because package-lock.json is gitignored
+          scope: '@n8n-as-code'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -44,6 +46,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-n8n-cache-
 
+      - name: Check authentication tokens
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "::error::NPM_TOKEN is not set. Cannot publish to npm registry."
+            exit 1
+          fi
+          if [ -z "$VSCE_TOKEN" ]; then
+            echo "::warning::VSCE_TOKEN is not set. VS Code extension publishing will be skipped."
+          fi
+      
       - name: Setup npm authentication
         if: env.NPM_TOKEN != ''
         run: |
@@ -58,7 +71,7 @@ jobs:
 
       - name: Create Release Pull Request or Publish to NPM
         id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
           publish: npm run release
           version: npm run version-packages
