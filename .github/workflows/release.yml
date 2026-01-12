@@ -10,6 +10,10 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -45,3 +49,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish VS Code Extension
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          npm run build:extension
+          cd packages/vscode-extension
+          npx @vscode/vsce publish --no-dependencies -t ${{ secrets.VSCE_TOKEN }}
