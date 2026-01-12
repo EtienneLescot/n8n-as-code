@@ -38,7 +38,7 @@ ehthumbs.db
 Thumbs.db
 
 # Exclude workflows directory (managed as independent repo)
-workflows/
+./workflows/
 
 # --- Packages build artifacts ---
 packages/*/dist/

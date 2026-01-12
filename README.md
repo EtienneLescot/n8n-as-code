@@ -17,6 +17,7 @@ Ready to sync your workflows in under 2 minutes?
     npm link
     ```
 
+    > **Note**: The first `npm run build` will automatically clone the n8n repository (`.n8n-cache`) to generate the node schema. This may take a few minutes.
     > **Note**: The `npm link` command creates a global link to the CLI, allowing you to use `n8n-as-code` directly from any terminal.
 2.  **Configuration**:
     ```bash

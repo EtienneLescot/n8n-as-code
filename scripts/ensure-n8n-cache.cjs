@@ -1,0 +1,72 @@
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+const ROOT_DIR = path.resolve(__dirname, '..');
+const CACHE_DIR = path.resolve(ROOT_DIR, '.n8n-cache');
+const N8N_REPO_URL = 'https://github.com/n8n-io/n8n.git';
+
+function run(command, cwd = ROOT_DIR) {
+    console.log(`> ${command}`);
+    try {
+        execSync(command, { cwd, stdio: 'inherit' });
+    } catch (error) {
+        console.error(`❌ Command failed: ${command}`);
+        process.exit(1);
+    }
+}
+
+async function main() {
+    console.log('🔍 Checking n8n cache...');
+
+    if (!fs.existsSync(CACHE_DIR)) {
+        console.log('🚀 Cache missing. Cloning n8n repository (depth 1)...');
+        run(`git clone --depth 1 ${N8N_REPO_URL} .n8n-cache`);
+    } else {
+        console.log('✅ Cache directory found.');
+
+        // Try to update if it's a git repo
+        if (fs.existsSync(path.join(CACHE_DIR, '.git'))) {
+            console.log('🔄 Checking for updates in n8n repository...');
+            try {
+                // Fetch to check if remote has changes
+                run('git fetch --depth 1', CACHE_DIR);
+                const local = execSync('git rev-parse HEAD', { cwd: CACHE_DIR }).toString().trim();
+                const remote = execSync('git rev-parse @{u}', { cwd: CACHE_DIR }).toString().trim();
+
+                if (local !== remote) {
+                    console.log('⬇️  Updates found. Pulling...');
+                    run('git pull', CACHE_DIR);
+                    // Force rebuild of nodes-base if updated
+                    process.env.FORCE_REBUILD_NODES = 'true';
+                } else {
+                    console.log('✨ Cache is up to date.');
+                }
+            } catch (e) {
+                console.warn('⚠️  Could not check for updates. Using existing cache.');
+            }
+        }
+    }
+
+    const nodesBaseDir = path.join(CACHE_DIR, 'packages/nodes-base');
+    const nodesBaseDist = path.join(nodesBaseDir, 'dist/nodes');
+
+    if (!fs.existsSync(nodesBaseDist) || process.env.FORCE_REBUILD_NODES === 'true') {
+        console.log('🏗 Preparing n8n nodes-base (this may take a while)...');
+
+        if (!fs.existsSync(path.join(nodesBaseDir, 'node_modules'))) {
+            console.log('📦 Installing dependencies for nodes-base...');
+            run('pnpm install', nodesBaseDir);
+        }
+
+        console.log('🔨 Building nodes-base...');
+        run('pnpm build', nodesBaseDir);
+    } else {
+        console.log('✅ n8n nodes-base is already built.');
+    }
+}
+
+main().catch(err => {
+    console.error('💥 Unexpected error:', err);
+    process.exit(1);
+});

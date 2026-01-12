@@ -9,7 +9,7 @@
         "n8n-agent": "./dist/cli.js"
     },
     "scripts": {
-        "prebuild": "node ../../scripts/generate-n8n-index.cjs",
+        "prebuild": "node ../../scripts/ensure-n8n-cache.cjs && node ../../scripts/generate-n8n-index.cjs",
         "build": "tsc -b",
         "postbuild": "mkdir -p dist/assets && cp src/assets/n8n-nodes-index.json dist/assets/",
         "clean": "rm -rf dist tsconfig.tsbuildinfo",

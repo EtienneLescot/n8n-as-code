@@ -3,14 +3,34 @@ const fs = require('fs');
 const path = require('path');
 
 // Configuration
-// We are in scripts/, so simple ../ points to root
 const ROOT_DIR = path.resolve(__dirname, '..');
-const DIST_ROOT = path.resolve(ROOT_DIR, '.n8n-cache/packages/nodes-base/dist/nodes');
-// The node_modules of nodes-base might be needed for some resolutions if not hoisted
-const NODES_BASE_MODULES = path.resolve(ROOT_DIR, '.n8n-cache/packages/nodes-base/node_modules');
 
-// Output
-const OUTPUT_FILE = path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-nodes-index.json');
+// Argument parsing
+const args = process.argv.slice(2);
+const sourceArg = args.indexOf('--source');
+const outputArg = args.indexOf('--output');
+
+let DIST_ROOT = (sourceArg !== -1 && args[sourceArg + 1])
+    ? path.resolve(process.cwd(), args[sourceArg + 1])
+    : path.resolve(ROOT_DIR, '.n8n-cache/packages/nodes-base/dist/nodes');
+
+// If --source is a directory but doesn't end in /dist/nodes, try to append it
+if (fs.existsSync(DIST_ROOT) && !DIST_ROOT.endsWith('dist/nodes')) {
+    const potentialDist = path.join(DIST_ROOT, 'dist/nodes');
+    if (fs.existsSync(potentialDist)) {
+        DIST_ROOT = potentialDist;
+    } else if (path.basename(DIST_ROOT) === 'nodes-base') {
+        const p2 = path.join(DIST_ROOT, 'dist/nodes');
+        if (fs.existsSync(p2)) DIST_ROOT = p2;
+    }
+}
+
+let OUTPUT_FILE = (outputArg !== -1 && args[outputArg + 1])
+    ? path.resolve(process.cwd(), args[outputArg + 1])
+    : path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-nodes-index.json');
+
+// The node_modules of nodes-base might be needed for some resolutions if not hoisted
+const NODES_BASE_MODULES = path.resolve(DIST_ROOT, '../../node_modules');
 
 // Ensure we can require modules from nodes-base (legacy dependencies)
 if (fs.existsSync(NODES_BASE_MODULES)) {

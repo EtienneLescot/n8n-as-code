@@ -21,7 +21,7 @@
     "extract-schema": "node scripts/extract-node-schema.js --source ./n8n-cache/nodes-base --output ./packages/core/src/assets/n8n-nodes-index.json",
     "validate-schema": "node scripts/validate-schema.js --schema ./packages/core/src/assets/n8n-nodes-index.json",
     "test-extraction": "node scripts/test-extraction.js",
-    "generate:nodes": "node scripts/generate-n8n-index.cjs && node scripts/compare-extraction.mjs",
+    "generate:nodes": "node scripts/ensure-n8n-cache.cjs && node scripts/generate-n8n-index.cjs && node scripts/compare-extraction.mjs",
     "clean": "npm run clean --workspaces --if-present && rm -rf dist out node_modules/.cache",
     "changeset": "changeset",
     "version-packages": "changeset version",
