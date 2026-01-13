@@ -15,7 +15,7 @@ This guide helps you diagnose and resolve common issues with n8n-as-code. If you
 # Test n8n connectivity
 curl -I https://your-n8n-instance.com
 
-# Test API access
+# Test API access (if you know your API key)
 curl -H "X-N8N-API-KEY: your-api-key" https://your-n8n-instance.com/api/v1/workflows
 ```
 
@@ -30,8 +30,8 @@ code --list-extensions | grep n8n-as-code
 
 ### 3. Check Configuration
 ```bash
-# View current configuration
-n8n-as-code config --show
+# View current configuration file
+cat n8n-as-code.json
 ```
 
 ## 📦 Installation Issues
@@ -91,30 +91,18 @@ n8n-as-code config --show
    curl -v https://your-n8n-instance.com
    ```
 
-2. **Check CORS Settings:**
-   In n8n configuration (`~/.n8n/config`):
-   ```json
-   {
-     "cors": {
-       "allowedOrigins": "*",
-       "allowedMethods": "*",
-       "allowedHeaders": "*"
-     }
-   }
-   ```
-
-3. **Verify API Key:**
+2. **Verify API Key:**
    - Go to n8n Settings → API
    - Ensure API key is active
    - Check permissions (workflow read/write)
 
-4. **Network Issues:**
+3. **Network Issues:**
    ```bash
    # Check DNS resolution
    nslookup your-n8n-instance.com
    
-   # Check firewall
-   telnet your-n8n-instance.com 443
+   # Check firewall (if using HTTPS)
+   curl -v https://your-n8n-instance.com
    ```
 
 ### "Invalid API key" or "Unauthorized"
@@ -135,34 +123,32 @@ n8n-as-code config --show
    # Set environment variable
    export N8N_API_KEY="your-new-api-key"
    
-   # Test with new key
-   n8n-as-code list
+   # Test with new key by running init again
+   n8n-as-code init
    ```
 
 ## 🔄 Synchronization Issues
 
-### "Sync failed" or "Connection lost during sync"
-**Problem**: Synchronization fails unexpectedly.
+### "Connection lost during sync"
+**Problem**: Connection fails during synchronization.
 
 **Solutions:**
-1. **Retry with Debug:**
-   ```bash
-   DEBUG=n8n-as-code:* n8n-as-code sync
-   ```
-
-2. **Check Network Stability:**
+1. **Check Network Stability:**
    ```bash
    # Test network stability
    ping -c 10 your-n8n-instance.com
    ```
 
-3. **Reduce Batch Size:**
+2. **Retry Operation:**
    ```bash
-   # Sync in smaller batches
-   n8n-as-code sync --batch-size 10
+   # Pull workflows again
+   n8n-as-code pull
+   
+   # Or push workflows
+   n8n-as-code push
    ```
 
-4. **Check File Permissions:**
+3. **Check File Permissions:**
    ```bash
    # Verify write permissions
    ls -la workflows/
@@ -175,51 +161,51 @@ n8n-as-code config --show
 **Problem**: Conflicts between local and remote versions.
 
 **Solutions:**
-1. **View Conflicts:**
-   ```bash
-   n8n-as-code conflicts
-   ```
+1. **Manual Resolution:**
+   - Compare local and remote versions manually
+   - Use `git diff` if using version control
+   - Decide which version to keep
 
 2. **Resolve Conflicts:**
    ```bash
-   # Interactive resolution
-   n8n-as-code sync --interactive
+   # Option 1: Keep local version
+   n8n-as-code push
    
-   # Keep local version
-   n8n-as-code sync --force-local
-   
-   # Keep remote version
-   n8n-as-code sync --force-remote
+   # Option 2: Get fresh copy from n8n
+   n8n-as-code pull
    ```
 
-3. **Manual Resolution:**
+3. **Backup and Restore:**
    ```bash
-   # View diff
-   n8n-as-code diff workflow-id
+   # Backup local version
+   cp workflows/conflicting-workflow.json workflows/conflicting-workflow.json.backup
    
-   # Manual edit and sync
-   n8n-as-code sync --push
+   # Get fresh copy from n8n
+   n8n-as-code pull
+   
+   # Manually merge changes if needed
    ```
 
 ### "Workflow validation failed"
-**Problem**: Workflow JSON doesn't pass validation.
+**Problem**: Workflow JSON doesn't pass n8n validation.
 
 **Solutions:**
-1. **View Validation Errors:**
+1. **Check JSON Syntax:**
    ```bash
-   n8n-as-code validate workflows/ --verbose
+   # Validate JSON syntax
+   jq . workflows/problematic-workflow.json
    ```
 
-2. **Auto-fix (if possible):**
-   ```bash
-   n8n-as-code validate workflows/ --fix
-   ```
-
-3. **Common Issues:**
+2. **Common Issues:**
    - Missing required fields
    - Invalid node types
    - Malformed expressions
    - Circular references
+
+3. **Manual Fix:**
+   - Open workflow in n8n editor
+   - Save it to trigger n8n's validation
+   - Pull the corrected version
 
 ## 🖥️ VS Code Extension Issues
 
@@ -269,8 +255,8 @@ n8n-as-code config --show
 
 2. **Check File Watching:**
    ```bash
-   # Test file watching
-   n8n-as-code watch --verbose
+   # Start watch mode to test synchronization
+   n8n-as-code watch
    ```
 
 3. **VS Code Auto-save:**
@@ -297,12 +283,10 @@ n8n-as-code config --show
    chmod 644 AGENTS.md n8n-schema.json
    ```
 
-3. **Manual Generation:**
+3. **Check Generated Files:**
    ```bash
-   # Generate individual files
-   n8n-as-code init-ai --only agents
-   n8n-as-code init-ai --only schema
-   n8n-as-code init-ai --only snippets
+   # Verify files were created
+   ls -la AGENTS.md n8n-schema.json .vscode/n8n.code-snippets 2>/dev/null || echo "Some files missing"
    ```
 
 ### "AI assistant doesn't understand n8n"
@@ -361,8 +345,8 @@ n8n-as-code config --show
    # Check specific file
    jq . workflows/my-workflow.json
    
-   # Validate all files
-   n8n-as-code validate workflows/
+   # Check all files for JSON syntax
+   find workflows/ -name "*.json" -exec jq . {} >/dev/null 2>&1 \; || echo "Some files have JSON errors"
    ```
 
 2. **Restore from Backup:**
@@ -377,7 +361,7 @@ n8n-as-code config --show
 3. **Restore from n8n:**
    ```bash
    # Pull fresh copy
-   n8n-as-code sync --pull --force-remote
+   n8n-as-code pull
    ```
 
 ## 🔧 Configuration Issues
@@ -395,9 +379,6 @@ n8n-as-code config --show
    ```bash
    # Default location
    ls -la n8n-as-code.json
-   
-   # Custom location
-   n8n-as-code --config /path/to/config.json
    ```
 
 3. **Validate Configuration:**
@@ -423,8 +404,8 @@ n8n-as-code config --show
    export N8N_HOST="https://n8n.example.com"
    export N8N_API_KEY="your-key"
    
-   # Test
-   n8n-as-code list
+   # Test with init (will use env vars)
+   n8n-as-code init
    ```
 
 3. **Permanent Setup:**
@@ -439,11 +420,11 @@ n8n-as-code config --show
 
 ### Enable Debug Logging
 ```bash
-# CLI debug
-DEBUG=n8n-as-code:* n8n-as-code sync
+# CLI debug (for watch mode)
+DEBUG=n8n-as-code:* n8n-as-code watch
 
-# More detailed
-DEBUG=axios,n8n-as-code:* n8n-as-code sync
+# For pull/push operations, check console output
+n8n-as-code pull
 ```
 
 ### Check Logs
@@ -460,8 +441,11 @@ journalctl -f | grep n8n
 # Minimal reproduction
 mkdir test-case
 cd test-case
-n8n-as-code init --host https://test.n8n.io --api-key test
-n8n-as-code sync
+# Set environment variables first
+export N8N_HOST="https://test.n8n.io"
+export N8N_API_KEY="test"
+n8n-as-code init
+n8n-as-code pull
 ```
 
 ## 📞 Getting Help
@@ -506,43 +490,39 @@ n8n-as-code sync
 
 ### Slow Sync Operations
 **Solutions:**
-1. **Increase Timeout:**
-   ```json
-   {
-     "timeout": 30000,
-     "maxRetries": 3
-   }
+1. **Check Network Speed:**
+   ```bash
+   # Test connection speed
+   curl -o /dev/null -s -w 'Total: %{time_total}s\n' https://your-n8n-instance.com
    ```
 
-2. **Reduce Batch Size:**
-   ```bash
-   n8n-as-code sync --batch-size 5
-   ```
+2. **Reduce Number of Workflows:**
+   - Consider archiving unused workflows in n8n
+   - Use tags to filter workflows if supported in future versions
 
-3. **Disable Validation:**
+3. **Use `watch` Mode:**
    ```bash
-   n8n-as-code sync --no-validate
+   # Real-time sync is more efficient than repeated pull/push
+   n8n-as-code watch
    ```
 
 ### High Memory Usage
 **Solutions:**
-1. **Limit Concurrent Operations:**
-   ```json
-   {
-     "concurrency": 2
-   }
-   ```
-
-2. **Clear Cache:**
-   ```bash
-   rm -rf .n8n-cache/
-   ```
-
-3. **Monitor Memory:**
+1. **Monitor Memory:**
    ```bash
    # Watch memory usage
    top -p $(pgrep -f n8n-as-code)
    ```
+
+2. **Restart CLI:**
+   ```bash
+   # If memory usage grows over time
+   # Stop and restart the watch command
+   ```
+
+3. **Check Workflow Size:**
+   - Large workflows with many nodes use more memory
+   - Consider splitting very large workflows
 
 ## 🔄 Recovery Procedures
 
@@ -553,24 +533,22 @@ cp -r workflows/ workflows-backup-$(date +%Y%m%d)
 
 # Remove configuration
 rm n8n-as-code.json
-rm -rf .n8n-cache/
 
 # Reinitialize
 n8n-as-code init
-n8n-as-code sync --pull
+n8n-as-code pull
 ```
 
 ### Workflow Recovery
 ```bash
-# List available workflows
-n8n-as-code list --format json
+# Get fresh copy of all workflows
+n8n-as-code pull
 
-# Pull specific workflow
-n8n-as-code sync --pull --filter "workflow-name"
-
-# Restore from trash (if available)
-n8n-as-code trash --list
-n8n-as-code trash --restore workflow-id
+# If specific workflow is missing:
+# 1. Check if it exists in n8n UI
+# 2. If deleted from n8n, restore from backup
+# 3. If local copy exists, push it back
+n8n-as-code push
 ```
 
 ---
