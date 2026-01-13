@@ -16,6 +16,7 @@ This section is organized by the primary user-facing tools:
 |------|---------|----------|
 | **[VS Code Extension](/docs/usage/vscode-extension)** | Integrated development environment | Visual editing, real-time sync, workflow validation |
 | **[CLI](/docs/usage/cli)** | Command-line interface | Automation, scripting, CI/CD integration |
+| **[Agent CLI](/docs/usage/agent-cli)** | AI tools and node schemas | AI coding assistants, node search, schema retrieval |
 
 ## 🎨 Choosing the Right Tool
 
@@ -99,6 +100,9 @@ n8n-as-code push
 | `n8n-as-code push` | Upload workflows to n8n | CLI |
 | `n8n-as-code watch` | Real-time sync mode | CLI |
 | `n8n-as-code init-ai` | Generate AI context files | CLI |
+| `npx @n8n-as-code/agent-cli search` | Search for n8n nodes | Agent CLI |
+| `npx @n8n-as-code/agent-cli get` | Get node JSON schema | Agent CLI |
+| `npx @n8n-as-code/agent-cli list` | List all available nodes | Agent CLI |
 | VS Code: Refresh button | Pull workflows | Extension |
 | VS Code: Save file | Auto-push to n8n | Extension |
 
@@ -123,6 +127,12 @@ n8n-as-code push
 3. Sync workflows: `n8n-as-code pull`
 4. Use commands as needed for automation
 
+### 3. Agent CLI (For AI Tools)
+1. Run with npx: `npx @n8n-as-code/agent-cli --help`
+2. Search for nodes: `npx @n8n-as-code/agent-cli search "query"`
+3. Get node schemas: `npx @n8n-as-code/agent-cli get nodeName`
+4. Use output for AI context or development
+
 ## 🔧 Advanced Features
 
 ### Multi-Instance Management
@@ -143,13 +153,14 @@ Explore the specific guides for each tool:
 
 - **[VS Code Extension Guide](/docs/usage/vscode-extension)**: Learn about visual editing, real-time sync, and advanced features
 - **[CLI Guide](/docs/usage/cli)**: Master command-line usage, automation, and scripting
+- **[Agent CLI Guide](/docs/usage/agent-cli)**: Use AI tools for node search and schema retrieval
 
 ## 🔍 Internal Components
 
 For information about internal components used by developers and AI assistants, see:
 
-- **[Contributor Guide](/docs/contributors)**: Architecture, development setup, and internal packages
-- **[API Reference](/api)**: Developer documentation for all packages
+- **[Contribution Guide](/docs/contribution)**: Architecture, development setup, and internal packages
+- **[API Reference](/api/index.html)**: Developer documentation for all packages
 
 ## 🆘 Troubleshooting
 

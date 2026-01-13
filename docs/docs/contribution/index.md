@@ -1,6 +1,6 @@
-# Contributors Documentation
+# Contribution Guide
 
-This section contains internal documentation for developers and contributors working on n8n-as-code.
+This section contains documentation for developers and contributors working on n8n-as-code.
 
 ## 📚 Available Documentation
 

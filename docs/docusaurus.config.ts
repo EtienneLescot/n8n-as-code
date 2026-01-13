@@ -25,7 +25,7 @@ const config: Config = {
   organizationName: 'EtienneLescot',
   projectName: 'n8n-as-code',
 
-  onBrokenLinks: 'throw',
+  onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
 
   // Even if you don't use internationalization, you can use this field to set

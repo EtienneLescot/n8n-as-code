@@ -133,7 +133,7 @@ This documentation is organized into several sections:
 
 - **Getting Started**: Installation, configuration, and first steps
 - **Usage**: Detailed guides for each package (CLI, VS Code Extension, Agent CLI, Core)
-- **Contributors**: Architecture, development setup, and contribution guidelines
+- **Contribution**: Architecture, development setup, and contribution guidelines
 - **Troubleshooting**: Common issues and solutions
 
 ## 🆕 What's New?
@@ -149,7 +149,7 @@ n8n-as-code is an open-source project. We welcome contributions!
 
 - **Report Issues**: Found a bug? [Open an issue](https://github.com/EtienneLescot/n8n-as-code/issues)
 - **Request Features**: Have an idea? [Start a discussion](https://github.com/EtienneLescot/n8n-as-code/discussions)
-- **Contribute Code**: Check out our [Contributor Guide](/docs/contributors)
+- **Contribute Code**: Check out our [Contribution Guide](/docs/contribution)
 
 ## 📞 Need Help?
 

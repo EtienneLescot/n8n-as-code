@@ -1,12 +1,12 @@
 ---
-sidebar_label: Core Package (Internal)
-title: Core Package - Internal Shared Library
-description: Internal documentation for the Core package that provides shared business logic for all n8n-as-code components.
+sidebar_label: Core Package
+title: Core Package - Shared Library
+description: Documentation for the Core package that provides shared business logic for all n8n-as-code components.
 ---
 
-# Core Package - Internal Documentation
+# Core Package - Shared Library Documentation
 
-**Note**: This package is an internal dependency used by all other n8n-as-code packages. End users do not interact with it directly.
+**Note**: This package is a shared dependency used by all other n8n-as-code packages. It provides the foundational services for workflow management.
 
 ## 🎯 Purpose
 
@@ -347,9 +347,9 @@ npm run dev
 
 ## 📚 Related Documentation
 
-- [Architecture Overview](/docs/contributors/architecture): Overall system architecture
-- [Agent CLI](/docs/contributors/agent-cli): AI integration details
-- [Contributing Guide](/docs/contributors): How to contribute
+- [Architecture Overview](/docs/contribution/architecture): Overall system architecture
+- [Agent CLI](/docs/contribution/agent-cli): AI integration details
+- [Contribution Guide](/docs/contribution): How to contribute
 
 ---
 

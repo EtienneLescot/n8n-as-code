@@ -1,5 +1,5 @@
 ---
-id: cli/index
+id: cli-index
 title: Cli Package
 sidebar_label: Overview
 ---

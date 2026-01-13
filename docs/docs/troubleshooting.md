@@ -184,55 +184,41 @@ cat n8n-as-code.json
 **Problem**: Tree view shows no workflows.
 
 **Solutions:**
-1. **Check Connection:**
-   - Click the n8n icon in Activity Bar
-   - Click gear icon → "Test Connection"
+1. **Check Configuration:**
+   - Verify `n8n.host` and `n8n.apiKey` are set in VS Code settings
+   - Check the Output panel (View → Output, select "n8n-as-code") for errors
 
 2. **Refresh Tree View:**
-   - Click refresh button in n8n panel
-   - Or press `F5`
+   - Click the refresh button in the n8n panel
+   - Or run the command: `n8n.refresh`
 
-3. **Check Output Panel:**
-   - View → Output
-   - Select "n8n-as-code" from dropdown
-   - Look for error messages
+3. **Check Connection:**
+   - Verify your n8n instance is accessible
+   - Check network connectivity
 
 ### "Canvas not loading in webview"
 **Problem**: n8n canvas doesn't appear in split view.
 
 **Solutions:**
 1. **Check n8n URL:**
-   - Ensure URL is correct in settings
-   - Test URL in browser
+   - Ensure the URL in settings is correct
+   - Test the URL in a browser to verify accessibility
 
-2. **Webview Developer Tools:**
-   - Right-click in webview
-   - Select "Inspect"
-   - Check Console for errors
-
-3. **Clear Webview Cache:**
-   ```bash
-   # VS Code webview cache location
-   rm -rf ~/.config/Code/User/workspaceStorage/*/state.vscdb
-   ```
+2. **Check Permissions:**
+   - Verify the API key has proper permissions
+   - Check if CORS is configured on the n8n instance
 
 ### "Auto-sync not working"
 **Problem**: Changes aren't synced automatically.
 
 **Solutions:**
 1. **Check Sync Mode:**
-   - Settings → n8n-as-code → Sync Mode
-   - Ensure it's set to "auto"
+   - Settings → n8n → Sync Mode
+   - Ensure it's set to "auto" (not "manual")
 
-2. **Check File Watching:**
-   ```bash
-   # Start watch mode to test synchronization
-   n8n-as-code watch
-   ```
-
-3. **VS Code Auto-save:**
-   - Ensure auto-save is enabled
-   - Or manually save with `Ctrl+S`
+2. **Check File System:**
+   - Verify the workflows directory exists and is writable
+   - Check for file system permissions issues
 
 ## 🤖 AI Integration Issues
 
@@ -240,18 +226,15 @@ cat n8n-as-code.json
 **Problem**: `init-ai` command doesn't create files.
 
 **Solutions:**
-1. **Force Generation:**
+1. **Run init-ai:**
    ```bash
-   n8n-as-code init-ai --force
+   n8n-as-code init-ai
    ```
 
 2. **Check Permissions:**
    ```bash
-   # Check write permissions
-   ls -la AGENTS.md
-   
-   # Fix if needed
-   chmod 644 AGENTS.md n8n-schema.json
+   # Check write permissions in current directory
+   ls -la AGENTS.md 2>/dev/null || echo "File not created"
    ```
 
 3. **Check Generated Files:**
@@ -265,20 +248,15 @@ cat n8n-as-code.json
 
 **Solutions:**
 1. **Verify Context Files:**
-   - Ensure `AGENTS.md` exists
+   - Ensure `AGENTS.md` exists in your project root
    - Check `n8n-schema.json` is valid JSON
    - Verify snippets are in `.vscode/` folder
 
 2. **Update Context:**
    ```bash
-   # Regenerate with latest n8n schema
-   n8n-as-code init-ai --force
+   # Regenerate AI context
+   n8n-as-code init-ai
    ```
-
-3. **AI Model Limitations:**
-   - Some AI models have token limits
-   - Try breaking workflows into smaller parts
-   - Use more specific prompts
 
 ## 📁 File System Issues
 
@@ -389,23 +367,19 @@ cat n8n-as-code.json
 
 ## 🐛 Debugging Tips
 
-### Enable Debug Logging
+### Check Console Output
 ```bash
-# CLI debug (for watch mode)
-DEBUG=n8n-as-code:* n8n-as-code watch
-
-# For pull/push operations, check console output
+# For CLI operations, check console output
 n8n-as-code pull
+
+# For watch mode, check the terminal output
+n8n-as-code watch
 ```
 
-### Check Logs
-```bash
-# VS Code extension logs
-code --log debug
-
-# System logs
-journalctl -f | grep n8n
-```
+### Check VS Code Output Panel
+- Open View → Output
+- Select "n8n-as-code" from the dropdown
+- Look for error messages and logs
 
 ### Create Test Case
 ```bash
@@ -413,8 +387,8 @@ journalctl -f | grep n8n
 mkdir test-case
 cd test-case
 # Set environment variables first
-export N8N_HOST="https://test.n8n.io"
-export N8N_API_KEY="test"
+export N8N_HOST="https://your-n8n-instance.com"
+export N8N_API_KEY="your-api-key"
 n8n-as-code init
 n8n-as-code pull
 ```
@@ -455,7 +429,7 @@ n8n-as-code pull
 3. **Documentation:**
    - [Getting Started](/docs/getting-started)
    - [Usage Guides](/docs/usage)
-   - [API Reference](/api)
+   - [API Reference](/api/index.html)
 
 ## 🚀 Performance Optimization
 

@@ -42,11 +42,14 @@ Visualize the n8n canvas in real-time using the integrated Webview while editing
 ## 🔧 Configuration
 
 ### Initial Setup
-1. Click the n8n icon in the Activity Bar
-2. Click the gear icon (⚙️) to open settings
-3. Enter your n8n host URL (e.g., `https://n8n.yourdomain.com`)
-4. Enter your n8n API key (found in Settings > API)
-5. Click "Connect"
+1. Open VS Code Settings (File > Preferences > Settings or Ctrl+,)
+2. Search for "n8n"
+3. Configure the following settings:
+   - `n8n.host`: URL of your n8n instance (e.g., `https://n8n.yourdomain.com`)
+   - `n8n.apiKey`: Your n8n API key (found in n8n Settings > API)
+   - `n8n.syncFolder`: Local storage folder (default: `workflows`)
+   - `n8n.syncMode`: Sync mode (`auto` or `manual`)
+   - `n8n.pollInterval`: Polling interval in milliseconds (default: 3000)
 
 ### Settings Reference
 
@@ -55,14 +58,18 @@ Visualize the n8n canvas in real-time using the integrated Webview while editing
 | `n8n.host` | URL of your n8n instance | - |
 | `n8n.apiKey` | Your n8n API Key | - |
 | `n8n.syncFolder` | Local storage folder | `workflows` |
+| `n8n.syncMode` | Sync mode: `auto` (watch mode) or `manual` | `auto` |
+| `n8n.pollInterval` | Polling interval for auto mode (ms) | 3000 |
 
 ## 📖 Usage
 
 ### Connecting to n8n
-1. Open the n8n panel from the Activity Bar
-2. Click the gear icon (⚙️)
-3. Enter your connection details
-4. Click "Connect"
+The extension automatically connects to n8n when:
+1. You have configured `n8n.host` and `n8n.apiKey` in settings
+2. You open a workspace with the extension
+3. The extension validates the connection automatically
+
+If connection fails, check the Output panel (View > Output, select "n8n-as-code") for error details.
 
 ### Pulling Workflows
 1. Click the refresh button in the n8n panel
@@ -157,8 +164,8 @@ AI coding assistants (like Cursor, Copilot, Claude, etc.) can use these generate
 ## 📚 Next Steps
 
 - [CLI Guide](/docs/usage/cli): Learn about command-line automation
-- [Contributor Guide](/docs/contributors): Understand the architecture
-- [API Reference](/api): Developer documentation
+- [Contribution Guide](/docs/contribution): Understand the architecture
+- [API Reference](/api/index.html): Developer documentation
 
 ---
 

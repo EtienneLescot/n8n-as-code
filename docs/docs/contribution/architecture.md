@@ -317,9 +317,9 @@ npm run docs
 
 ## 📚 Related Documentation
 
-- [Core Package](/docs/contributors/core): Core library details
-- [Agent CLI](/docs/contributors/agent-cli): AI integration details
-- [Contributing Guide](/docs/contributors): How to contribute
+- [Core Package](/docs/contribution/core): Core library details
+- [Agent CLI](/docs/contribution/agent-cli): AI integration details
+- [Contribution Guide](/docs/contribution): How to contribute
 
 ---
 

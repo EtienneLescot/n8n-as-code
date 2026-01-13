@@ -1,5 +1,5 @@
 ---
-id: agent-cli/index
+id: agent-cli-index
 title: Agent-cli Package
 sidebar_label: Overview
 ---

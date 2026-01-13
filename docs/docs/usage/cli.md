@@ -360,8 +360,8 @@ DEBUG=axios,n8n-as-code:* n8n-as-code pull
 
 - [VS Code Extension Guide](/docs/usage/vscode-extension): Visual editing experience with real-time sync
 - [Getting Started](/docs/getting-started): Complete setup guide
-- [Contributor Guide](/docs/contributors): Understand the architecture and development
-- [API Reference](/api): Developer documentation for all packages
+- [Contribution Guide](/docs/contribution): Understand the architecture and development
+- [API Reference](/api/index.html): Developer documentation for all packages
 
 ---
 

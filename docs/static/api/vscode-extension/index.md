@@ -1,5 +1,5 @@
 ---
-id: vscode-extension/index
+id: vscode-extension-index
 title: Vscode-extension Package
 sidebar_label: Overview
 ---

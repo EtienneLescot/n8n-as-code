@@ -193,7 +193,7 @@ Now that you're set up, explore these resources:
 
 - [VS Code Extension Guide](/docs/usage/vscode-extension): Learn about visual editing features
 - [CLI Reference](/docs/usage/cli): Complete command reference for automation
-- [Contributor Guide](/docs/contributors): Learn about the architecture and development
+- [Contribution Guide](/docs/contribution): Learn about the architecture and development
 
 ## 🆘 Need Help?
 

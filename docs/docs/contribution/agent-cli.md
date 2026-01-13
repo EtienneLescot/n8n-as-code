@@ -1,12 +1,12 @@
 ---
-sidebar_label: Agent CLI (Internal)
-title: Agent CLI - Internal AI Integration
-description: Internal documentation for the Agent CLI package used by AI assistants to generate context and snippets.
+sidebar_label: Agent CLI
+title: Agent CLI - AI Integration
+description: Documentation for the Agent CLI package used by AI assistants to generate context and snippets.
 ---
 
-# Agent CLI - Internal Documentation
+# Agent CLI - AI Integration Documentation
 
-**Note**: This package is primarily used by AI assistants to access n8n node documentation and generate AI context files. It can be used via NPX commands or programmatically.
+**Note**: This package is used by AI assistants to access n8n node documentation and generate AI context files. It can be used via NPX commands or programmatically.
 
 ## 🎯 Purpose
 
@@ -260,9 +260,9 @@ npm run dev
 
 ## 📚 Related Documentation
 
-- [Architecture Overview](/docs/contributors/architecture): Overall system architecture
-- [Core Package](/docs/contributors/core): Shared library details
-- [Contributing Guide](/docs/contributors): How to contribute
+- [Architecture Overview](/docs/contribution/architecture): Overall system architecture
+- [Core Package](/docs/contribution/core): Shared library details
+- [Contribution Guide](/docs/contribution): How to contribute
 
 ---
 

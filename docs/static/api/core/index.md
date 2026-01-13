@@ -1,5 +1,5 @@
 ---
-id: core/index
+id: core-index
 title: Core Package
 sidebar_label: Overview
 ---
