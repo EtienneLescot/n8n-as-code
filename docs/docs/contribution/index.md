@@ -64,6 +64,39 @@ npm run build
 npm run dev
 ```
 
+## 📦 Version Management
+
+n8n-as-code uses **Changeset** with independent package versioning (Option A). Each package evolves independently while Changeset automatically manages internal dependencies.
+
+### Current Package Versions
+- **@n8n-as-code/core**: `0.2.0`
+- **@n8n-as-code/cli**: `0.2.0`
+- **@n8n-as-code/agent-cli**: `0.2.0`
+- **VS Code Extension**: `0.2.0`
+
+### Release Workflow
+1. **Declare Changes**: After modifying code, run `npx changeset add`
+   - Select affected packages
+   - Choose version type: `patch` (bug fix), `minor` (feature), `major` (breaking)
+   - Write changelog message
+
+2. **Apply Versions**: Run `npm run version-packages`
+   - Updates package.json versions
+   - Automatically updates internal dependencies
+   - Generates/updates CHANGELOG.md files
+
+3. **Publish**: Run `npm run release` (via GitHub Actions)
+   - Builds all packages
+   - Publishes to npm registry
+   - Publishes VS Code extension to Marketplace
+   - Creates Git tag
+
+### Key Rules
+- **Never manually edit versions** in package.json
+- **Always use Changeset** even for small fixes
+- **Internal dependencies** are automatically updated thanks to `"updateInternalDependencies": "patch"` in Changeset config
+- **Check consistency** with `node scripts/check-version-consistency.js`
+
 ## 📝 Contribution Guidelines
 
 ### Code Style
@@ -87,6 +120,8 @@ npm run dev
 - [GitHub Repository](https://github.com/EtienneLescot/n8n-as-code)
 - [Issue Tracker](https://github.com/EtienneLescot/n8n-as-code/issues)
 - [Discussion Forum](https://github.com/EtienneLescot/n8n-as-code/discussions)
+- [Changeset Documentation](https://github.com/changesets/changesets)
+- [Release Workflow](../.github/workflows/release.yml)
 
 ## ❓ Need Help?
 
