@@ -78,16 +78,15 @@ Visualize the n8n canvas in real-time using the integrated Webview while editing
 4. Save (`Ctrl+S`) to sync to n8n (when auto-sync is enabled)
 
 ### Creating New Workflows
-1. Right-click in the workflow tree view
-2. Select "New Workflow"
-3. Enter a name for the workflow
-4. The workflow is created locally and in n8n
+To create a new workflow:
+1. Create a new JSON file in your workflows directory
+2. Use the n8n schema for structure guidance
+3. The extension will detect the new file and sync it to n8n
 
 ### Deleting Workflows
-1. Right-click a workflow in the tree view
-2. Select "Delete"
-3. Confirm deletion
-4. The workflow is removed from both local and n8n
+To delete a workflow:
+1. Delete the workflow file from your local workflows directory
+2. The extension will detect the deletion and prompt you to delete from n8n or restore the file
 
 ## 🔄 Sync Behavior
 
