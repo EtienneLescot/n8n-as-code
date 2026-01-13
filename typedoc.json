@@ -1,0 +1,42 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["packages/*"],
+  "entryPointStrategy": "packages",
+  "out": "docs/api",
+  "name": "n8n-as-code API Reference",
+  "includeVersion": true,
+  "categorizeByGroup": true,
+  "searchCategoryBoosts": {
+    "Core": 2.0,
+    "CLI": 1.5,
+    "Agent Tools": 1.5,
+    "VS Code": 1.5
+  },
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": true
+  },
+  "theme": "default",
+  "exclude": [
+    "**/node_modules/**",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/tests/**",
+    "**/dist/**",
+    "**/out/**"
+  ],
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "excludeExternals": true,
+  "readme": "none",
+  "disableSources": false,
+  "cleanOutputDir": true,
+  "favicon": "docs/static/img/favicon.ico",
+  "githubPages": false,
+  "hideGenerator": false,
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": false
+  }
+}

@@ -1,0 +1,83 @@
+<!DOCTYPE html><html class="default" lang="en" data-base="../"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>n8n-as-code | n8n-as-code API Reference - v0.2.0</title><link rel="icon" href="../assets/favicon.ico"/><meta name="description" content="Documentation for n8n-as-code API Reference"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="../assets/style.css"/><link rel="stylesheet" href="../assets/highlight.css"/><script defer src="../assets/main.js"></script><script async src="../assets/icons.js" id="tsd-icons-script"></script><script async src="../assets/search.js" id="tsd-search-script"></script><script async src="../assets/navigation.js" id="tsd-nav-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar"><div class="tsd-toolbar-contents container"><a href="../index.html" class="title">n8n-as-code API Reference - v0.2.0</a><div id="tsd-toolbar-links"></div><button id="tsd-search-trigger" class="tsd-widget" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-search"></use></svg></button><dialog id="tsd-search" aria-label="Search"><input role="combobox" id="tsd-search-input" aria-controls="tsd-search-results" aria-autocomplete="list" aria-expanded="true" autocapitalize="off" autocomplete="off" placeholder="Search the docs" maxLength="100"/><ul role="listbox" id="tsd-search-results"></ul><div id="tsd-search-status" aria-live="polite" aria-atomic="true"><div>Preparing search index...</div></div></dialog><a href="#" class="tsd-widget menu" id="tsd-toolbar-menu-trigger" data-toggle="menu" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-menu"></use></svg></a></div></header><div class="container container-main"><div class="col-content"><div class="tsd-page-title"><ul class="tsd-breadcrumb" aria-label="Breadcrumb"><li><a href="" aria-current="page">n8n-as-code</a></li></ul><h1>Module n8n-as-code</h1></div><section class="tsd-panel tsd-typography"><p align="center">
+  <img src="https://raw.githubusercontent.com/EtienneLescot/n8n-as-code/main/packages/vscode-extension/res/logo.png" alt="n8n-as-code logo" width="120" />
+</p>
+<h1 id="🚀-n8n-as-code-vs-code-extension" class="tsd-anchor-link">🚀 n8n-as-code : VS Code Extension<a href="#🚀-n8n-as-code-vs-code-extension" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h1>
+<p><strong>n8n-as-code</strong> transforms VS Code into a powerful IDE for your n8n workflows. Your automations become code: Git versioning, AI-assisted editing, and seamless synchronization.</p>
+<hr>
+<h2 id="⚡-quick-start" class="tsd-anchor-link">⚡ Quick Start<a href="#⚡-quick-start" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<ol>
+<li><strong>Installation</strong>: Install the extension from the Marketplace.</li>
+<li><strong>Connection</strong>: Click the <strong>n8n</strong> icon in the Activity Bar, then click the <strong>Gear (⚙️)</strong> to configure your <code>Host</code> and <code>API Key</code>.</li>
+<li><strong>Import</strong>: Use the refresh button (<strong>Pull Workflows</strong>) to bring in your existing workflows.</li>
+</ol>
+<hr>
+<h2 id="🎨-features" class="tsd-anchor-link">🎨 Features<a href="#🎨-features" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<h3 id="🔄-native-synchronization" class="tsd-anchor-link">🔄 Native Synchronization<a href="#🔄-native-synchronization" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>The extension synchronizes your modifications in real-time. By default, every JSON file save (<code>Ctrl+S</code>) instantly sends changes to your n8n instance.</p>
+<h3 id="🛡️-conflict-management" class="tsd-anchor-link">🛡️ Conflict Management<a href="#🛡️-conflict-management" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>The system intelligently detects conflicts to prevent data loss:</p>
+<ul>
+<li><strong>Protection</strong>: If a workflow is modified simultaneously on n8n and locally, synchronization stops.</li>
+<li><strong>Resolution</strong>: An interface allows you to compare versions (Diff View) and choose which one to keep (Force Push/Pull).</li>
+</ul>
+<h3 id="🗂️-multi-instance-support" class="tsd-anchor-link">🗂️ Multi-Instance Support<a href="#🗂️-multi-instance-support" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Your workflows are automatically organized by instance to avoid mixing files from different environments:
+<code>workflows/instance_name_user/my_workflow.json</code></p>
+<h3 id="🤖-built-in-ai-assistance" class="tsd-anchor-link">🤖 Built-in AI Assistance<a href="#🤖-built-in-ai-assistance" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Your environment is automatically configured for AI upon opening:</p>
+<ul>
+<li><strong>JSON Validation</strong>: n8n schema applied for input assistance and live error detection.</li>
+<li><strong>Snippet Library</strong>: Ready-to-use node templates (<code>node:webhook</code>, <code>node:code</code>, etc.).</li>
+<li><strong><code>AGENTS.md</code> Context</strong>: Automated documentation generated using <code>@n8n-as-code/agent-cli</code> so that Cline, Cursor, Windsurf, or Copilot can master your workflow structure.</li>
+</ul>
+<h3 id="🛠️-integrated-tooling" class="tsd-anchor-link">🛠️ Integrated Tooling<a href="#🛠️-integrated-tooling" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>The extension leverages the <code>@n8n-as-code/agent-cli</code> package to:</p>
+<ul>
+<li><strong>Index Nodes</strong>: Pre-generate a searchable index of available n8n nodes.</li>
+<li><strong>AI Initialization</strong>: Power the <code>n8n.initializeAI</code> command to bootstrap your environment with relevant context.</li>
+</ul>
+<h3 id="🍱-split-view" class="tsd-anchor-link">🍱 Split View<a href="#🍱-split-view" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p>Visualize the n8n canvas in real-time using the integrated Webview while editing the JSON code. This is the ideal interface for visually validating your structural changes.</p>
+<hr>
+<h2 id="⚙️-configuration" class="tsd-anchor-link">⚙️ Configuration<a href="#⚙️-configuration" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>The extension uses native VS Code settings (accessible via the Gear ⚙️):</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Parameter</th>
+<th style="text-align:left">Description</th>
+<th style="text-align:left">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>n8n.host</code></td>
+<td style="text-align:left">URL of your n8n instance</td>
+<td style="text-align:left">-</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>n8n.apiKey</code></td>
+<td style="text-align:left">Your n8n API Key</td>
+<td style="text-align:left">-</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>n8n.syncMode</code></td>
+<td style="text-align:left"><code>auto</code> (push on save) or <code>manual</code></td>
+<td style="text-align:left"><code>auto</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>n8n.syncFolder</code></td>
+<td style="text-align:left">Local storage folder</td>
+<td style="text-align:left"><code>workflows</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><code>n8n.pollInterval</code></td>
+<td style="text-align:left">Refresh frequency (ms)</td>
+<td style="text-align:left"><code>3000</code></td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="📄-license" class="tsd-anchor-link">📄 License<a href="#📄-license" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2>
+<p>MIT</p>
+</section><details class="tsd-panel-group tsd-member-group tsd-accordion" open><summary class="tsd-accordion-summary" data-key="section-Functions"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg><h2>Functions</h2></summary><dl class="tsd-member-summaries"><dt class="tsd-member-summary" id="activate"><span class="tsd-member-summary-name"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Function"><use href="../assets/icons.svg#icon-64"></use></svg><a href="../functions/n8n-as-code.activate.html">activate</a><a href="#activate" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></span></dt><dd class="tsd-member-summary"></dd><dt class="tsd-member-summary" id="deactivate"><span class="tsd-member-summary-name"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Function"><use href="../assets/icons.svg#icon-64"></use></svg><a href="../functions/n8n-as-code.deactivate.html">deactivate</a><a href="#deactivate" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></span></dt><dd class="tsd-member-summary"></dd></dl></details></div><div class="col-sidebar"><div class="page-menu"><div class="tsd-navigation settings"><details class="tsd-accordion"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg><h3>Settings</h3></summary><div class="tsd-accordion-details"><div class="tsd-filter-visibility"><span class="settings-label">Member Visibility</span><ul id="tsd-filter-options"><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-protected" name="protected"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Protected</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li></ul></div><div class="tsd-theme-toggle"><label class="settings-label" for="tsd-theme">Theme</label><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div><details open class="tsd-accordion tsd-page-navigation"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg><h3>On This Page</h3></summary><div class="tsd-accordion-details"><a href="#🚀-n8n-as-code-vs-code-extension"><span>🚀 n8n-<wbr/>as-<wbr/>code : <wbr/>VS <wbr/>Code <wbr/>Extension</span></a><ul><li><a href="#⚡-quick-start"><span>⚡ <wbr/>Quick <wbr/>Start</span></a></li><li><a href="#🎨-features"><span>🎨 <wbr/>Features</span></a></li><li><ul><li><a href="#🔄-native-synchronization"><span>🔄 <wbr/>Native <wbr/>Synchronization</span></a></li><li><a href="#🛡️-conflict-management"><span>🛡️ <wbr/>Conflict <wbr/>Management</span></a></li><li><a href="#🗂️-multi-instance-support"><span>🗂️ <wbr/>Multi-<wbr/>Instance <wbr/>Support</span></a></li><li><a href="#🤖-built-in-ai-assistance"><span>🤖 <wbr/>Built-<wbr/>in <wbr/>AI <wbr/>Assistance</span></a></li><li><a href="#🛠️-integrated-tooling"><span>🛠️ <wbr/>Integrated <wbr/>Tooling</span></a></li><li><a href="#🍱-split-view"><span>🍱 <wbr/>Split <wbr/>View</span></a></li></ul></li><li><a href="#⚙️-configuration"><span>⚙️ <wbr/>Configuration</span></a></li><li><a href="#📄-license"><span>📄 <wbr/>License</span></a></li></ul><details open class="tsd-accordion tsd-page-navigation-section"><summary class="tsd-accordion-summary" data-key="section-Functions"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>Functions</summary><div><a href="#activate"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Function"><use href="../assets/icons.svg#icon-64"></use></svg><span>activate</span></a><a href="#deactivate"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Function"><use href="../assets/icons.svg#icon-64"></use></svg><span>deactivate</span></a></div></details></div></details></div><div class="site-menu"><nav class="tsd-navigation"><a href="../index.html">n8n-as-code API Reference - v0.2.0</a><ul class="tsd-small-nested-navigation" id="tsd-nav-container"><li>Loading...</li></ul></nav></div></div></div><footer><p class="tsd-generator">Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></footer><div class="overlay"></div></body></html>
