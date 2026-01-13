@@ -80,8 +80,8 @@ jobs:
           NPM_TOKEN: ${{ env.NPM_TOKEN }}
 
       - name: Publish VS Code Extension
-        if: steps.changesets.outputs.published == 'true'
+        if: env.VSCE_TOKEN != ''
         run: |
           npm run build:extension
           cd packages/vscode-extension
-          npx @vscode/vsce publish --no-dependencies -t ${{ env.VSCE_TOKEN }}
+          npx @vscode/vsce publish patch --no-dependencies -t ${{ env.VSCE_TOKEN }}
