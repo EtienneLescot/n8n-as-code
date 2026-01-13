@@ -7,5 +7,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["n8n-as-code"]
+  "ignore": ["n8n-as-code-monorepo", "n8n-as-code"]
 }

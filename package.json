@@ -8,6 +8,7 @@
     "n8n-as-code": "./packages/cli/dist/index.js"
   },
   "workspaces": [
+    ".",
     "packages/*"
   ],
   "scripts": {
