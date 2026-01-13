@@ -35,19 +35,13 @@ Or if you prefer, you can manually push/pull your workflows.
 <div className="n8n-card">
 
 ### 🤖 AI Agent Empowerment
-Supercharge your AI coding assistants with **agent-cli** – a comprehensive toolkit that provides structured documentation, schemas, and context for all 525 n8n nodes. This enables AI assistants to understand the n8n ecosystem and provide intelligent workflow development support.
+Empower your AI coding assistants with **agent-cli** – a toolkit that provides complete documentation, schemas, and context for all 525 n8n nodes. This enables AI assistants to understand the n8n ecosystem and provide intelligent workflow development support.
 
-**What agent-cli provides:**
-- **Complete node documentation**: Structured JSON schemas and documentation for all 525 n8n nodes, including parameters, examples, and usage patterns
-- **Context generation**: Generate rich context files that AI assistants can use to understand your specific workflow structure
-- **Snippet libraries**: Pre-built code snippets and workflow patterns for common automation scenarios
-- **Schema validation**: JSON schemas that AI assistants can use to validate workflow structure and parameter correctness
-
-**How AI assistants leverage this:**
-- **Intelligent suggestions**: AI agents can provide context-aware recommendations based on the complete n8n node ecosystem
-- **Error prevention**: Assistants can identify potential issues by validating against node schemas
-- **Workflow patterns**: Access to proven workflow templates and best practices
-- **Rapid prototyping**: Quick generation of workflow skeletons based on your requirements
+**Key capabilities:**
+- **Complete node documentation**: Structured schemas and documentation for all n8n nodes
+- **Context generation**: Rich context files for AI assistants to understand your workflow structure
+- **Snippet libraries**: Pre-built code snippets for common automation scenarios
+- **Schema validation**: JSON schemas for workflow validation and error prevention
 
 </div>
 
