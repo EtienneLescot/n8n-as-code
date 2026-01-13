@@ -157,35 +157,6 @@ cat n8n-as-code.json
    chmod -R 755 workflows/
    ```
 
-### "Workflow conflicts detected"
-**Problem**: Conflicts between local and remote versions.
-
-**Solutions:**
-1. **Manual Resolution:**
-   - Compare local and remote versions manually
-   - Use `git diff` if using version control
-   - Decide which version to keep
-
-2. **Resolve Conflicts:**
-   ```bash
-   # Option 1: Keep local version
-   n8n-as-code push
-   
-   # Option 2: Get fresh copy from n8n
-   n8n-as-code pull
-   ```
-
-3. **Backup and Restore:**
-   ```bash
-   # Backup local version
-   cp workflows/conflicting-workflow.json workflows/conflicting-workflow.json.backup
-   
-   # Get fresh copy from n8n
-   n8n-as-code pull
-   
-   # Manually merge changes if needed
-   ```
-
 ### "Workflow validation failed"
 **Problem**: Workflow JSON doesn't pass n8n validation.
 
