@@ -1,0 +1,287 @@
+/**
+ * CSS files with the .module.css suffix will be treated as CSS modules
+ * and scoped locally.
+ */
+
+.heroBanner {
+  padding: 6rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.heroBanner .hero__title {
+  font-size: 3.5rem;
+  font-weight: 800;
+  margin-bottom: 1rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.heroBanner .hero__subtitle {
+  font-size: 1.5rem;
+  margin-bottom: 2rem;
+  opacity: 0.9;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 4rem 1rem;
+  }
+  
+  .heroBanner .hero__title {
+    font-size: 2.5rem;
+  }
+  
+  .heroBanner .hero__subtitle {
+    font-size: 1.25rem;
+  }
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.hero .button--secondary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border: none;
+  color: white;
+  font-weight: 600;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.heroBanner .button--secondary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border: none;
+  color: white;
+  font-weight: 600;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+[data-theme='dark'] .heroBanner .button--secondary {
+  background: linear-gradient(135deg, #ff6b35 0%, #ff7c4d 100%);
+}
+
+.heroBanner .button--secondary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+  color: white;
+}
+
+[data-theme='dark'] .heroBanner .button--secondary:hover {
+  box-shadow: 0 8px 20px rgba(255, 107, 53, 0.3);
+}
+
+.heroBanner .button--outline {
+  background: transparent;
+  border: 2px solid white;
+  color: white;
+  font-weight: 600;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  transition: all 0.2s;
+}
+
+.heroBanner .button--outline:hover {
+  background: white;
+  color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(255, 255, 255, 0.2);
+}
+
+.heroSection {
+  padding: 5rem 0;
+  background: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%);
+}
+
+[data-theme='dark'] .heroSection {
+  background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+}
+
+.heroSection h2 {
+  font-size: 2.8rem;
+  margin-bottom: 1.5rem;
+  color: #333;
+  font-weight: 700;
+}
+
+[data-theme='dark'] .heroSection h2 {
+  color: #e9ecef;
+}
+
+.heroSection .text--large {
+  font-size: 1.3rem;
+  line-height: 1.7;
+  color: #555;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+[data-theme='dark'] .heroSection .text--large {
+  color: #adb5bd;
+}
+
+.ctaSection {
+  padding: 7rem 0;
+  background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+  color: #1a237e;
+  position: relative;
+  overflow: hidden;
+}
+
+[data-theme='dark'] .ctaSection {
+  background: linear-gradient(135deg, #1a237e 0%, #4a148c 100%);
+  color: #e9ecef;
+}
+
+.ctaSection::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0,0 L100,0 L100,100 Z" fill="rgba(102, 126, 234, 0.08)"/></svg>');
+  background-size: cover;
+  pointer-events: none;
+}
+
+[data-theme='dark'] .ctaSection::before {
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0,0 L100,0 L100,100 Z" fill="rgba(255, 255, 255, 0.05)"/></svg>');
+  pointer-events: none;
+}
+
+.ctaSection h2 {
+  font-size: 3rem;
+  margin-bottom: 1.5rem;
+  color: #1a237e;
+  font-weight: 800;
+  position: relative;
+}
+
+[data-theme='dark'] .ctaSection h2 {
+  color: #ffffff;
+}
+
+.ctaSection .text--large {
+  font-size: 1.4rem;
+  line-height: 1.7;
+  margin-bottom: 3rem;
+  color: #283593;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+  position: relative;
+}
+
+[data-theme='dark'] .ctaSection .text--large {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.ctaSection .button--primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: white;
+  font-weight: 700;
+  padding: 1.2rem 2.5rem;
+  font-size: 1.2rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+[data-theme='dark'] .ctaSection .button--primary {
+  background: linear-gradient(135deg, #ff6b35 0%, #ff7c4d 100%);
+}
+
+.ctaSection .button--primary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 25px rgba(102, 126, 234, 0.4);
+  color: white;
+}
+
+[data-theme='dark'] .ctaSection .button--primary:hover {
+  box-shadow: 0 12px 25px rgba(255, 107, 53, 0.4);
+}
+
+.ctaSection .button--outline {
+  background: transparent;
+  border: 2px solid #667eea;
+  color: #667eea;
+  font-weight: 600;
+  padding: 1.2rem 2.5rem;
+  font-size: 1.2rem;
+  transition: all 0.2s;
+}
+
+[data-theme='dark'] .ctaSection .button--outline {
+  border: 2px solid #ff6b35;
+  color: #ff6b35;
+}
+
+.ctaSection .button--outline:hover {
+  background: #667eea;
+  color: white;
+  transform: translateY(-3px);
+  box-shadow: 0 12px 25px rgba(102, 126, 234, 0.3);
+}
+
+[data-theme='dark'] .ctaSection .button--outline:hover {
+  background: #ff6b35;
+  color: white;
+  box-shadow: 0 12px 25px rgba(255, 107, 53, 0.3);
+}
+
+@media screen and (max-width: 996px) {
+  .heroSection,
+  .ctaSection {
+    padding: 3rem 1rem;
+  }
+  
+  .heroSection h2,
+  .ctaSection h2 {
+    font-size: 2rem;
+  }
+  
+  .buttons {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .margin-left--md {
+    margin-left: 0;
+    margin-top: 0.5rem;
+  }
+}
+
+.text--center {
+  text-align: center;
+}
+
+.padding-vert--lg {
+  padding-top: 3rem;
+  padding-bottom: 3rem;
+}
+
+.padding-vert--xl {
+  padding-top: 4rem;
+  padding-bottom: 4rem;
+}
+
+.margin-bottom--lg {
+  margin-bottom: 2rem;
+}
+
+.margin-left--md {
+  margin-left: 1rem;
+}
