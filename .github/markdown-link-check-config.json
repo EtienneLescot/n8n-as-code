@@ -1,0 +1,46 @@
+{
+  "ignorePatterns": [
+    {
+      "pattern": "^https?://localhost"
+    },
+    {
+      "pattern": "^https?://127.0.0.1"
+    },
+    {
+      "pattern": "^mailto:"
+    },
+    {
+      "pattern": "^#"
+    },
+    {
+      "pattern": "^http://"
+    }
+  ],
+  "replacementPatterns": [
+    {
+      "pattern": "^/",
+      "replacement": "https://n8n-as-code.dev/"
+    },
+    {
+      "pattern": "^docs/",
+      "replacement": "https://n8n-as-code.dev/docs/"
+    },
+    {
+      "pattern": "^api/",
+      "replacement": "https://n8n-as-code.dev/api/"
+    }
+  ],
+  "httpHeaders": [
+    {
+      "urls": ["https://n8n-as-code.dev"],
+      "headers": {
+        "Accept": "text/html"
+      }
+    }
+  ],
+  "timeout": "20s",
+  "retryOn429": true,
+  "retryCount": 3,
+  "fallbackRetryDelay": "30s",
+  "aliveStatusCodes": [200, 206, 403, 429]
+}
