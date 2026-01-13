@@ -1,0 +1,100 @@
+# Contributors Documentation
+
+This section contains internal documentation for developers and contributors working on n8n-as-code.
+
+## 📚 Available Documentation
+
+### Architecture & Design
+- **[Architecture Overview](architecture.md)**: Understand the n8n-as-code monorepo architecture, component interactions, and design decisions.
+
+### Internal Packages
+- **[Core Package](core.md)**: Internal documentation for the Core package that provides shared business logic for all n8n-as-code components.
+- **[Agent CLI](agent-cli.md)**: Internal documentation for the Agent CLI package used by AI assistants to generate context and snippets.
+
+## 🛠 Development Setup
+
+### Prerequisites
+- Node.js 18+
+- npm 9+
+- Git
+
+### Getting Started
+1. Clone the repository
+2. Run `npm install` in the root directory
+3. Build all packages with `npm run build`
+4. Run tests with `npm test`
+
+## 📦 Package Structure
+
+n8n-as-code is organized as a monorepo with the following packages:
+
+| Package | Purpose | Primary Users |
+|---------|---------|---------------|
+| **Core** (`@n8n-as-code/core`) | Shared logic, API client, synchronization | All packages |
+| **CLI** (`@n8n-as-code/cli`) | Command-line interface for workflow management | Terminal users, automation |
+| **VS Code Extension** | Integrated development environment | VS Code users |
+| **Agent CLI** (`@n8n-as-code/agent-cli`) | AI context generation and node schemas | AI assistants, developers |
+
+## 🧪 Testing
+
+### Test Structure
+- **Unit Tests**: Individual component testing with Jest
+- **Integration Tests**: End-to-end workflow tests
+- **Snapshot Tests**: Ensure generated files match expected format
+
+### Running Tests
+```bash
+# Run all tests
+npm test
+
+# Run tests for specific package
+cd packages/core && npm test
+cd packages/agent-cli && npm test
+```
+
+## 🔧 Building
+
+### Development Build
+```bash
+npm run build
+```
+
+### Watch Mode (Development)
+```bash
+npm run dev
+```
+
+## 📝 Contribution Guidelines
+
+### Code Style
+- Use TypeScript with strict type checking
+- Follow ESLint configuration
+- Write comprehensive tests for new features
+
+### Pull Request Process
+1. Create a feature branch from `main`
+2. Make your changes with tests
+3. Ensure all tests pass
+4. Submit a pull request with clear description
+
+### Documentation
+- Update relevant documentation when adding features
+- Include JSDoc comments for public APIs
+- Keep the contributors documentation up to date
+
+## 🔗 Related Resources
+
+- [GitHub Repository](https://github.com/EtienneLescot/n8n-as-code)
+- [Issue Tracker](https://github.com/EtienneLescot/n8n-as-code/issues)
+- [Discussion Forum](https://github.com/EtienneLescot/n8n-as-code/discussions)
+
+## ❓ Need Help?
+
+- Check the existing documentation in this section
+- Look at the source code for examples
+- Open an issue on GitHub for specific questions
+- Join discussions in the GitHub forum
+
+---
+
+*This documentation is maintained by the n8n-as-code development team.*
