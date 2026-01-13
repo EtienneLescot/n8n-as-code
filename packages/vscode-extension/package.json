@@ -3,6 +3,7 @@
     "displayName": "n8n as code",
     "description": "Edit your n8n workflows directly in VS Code with AI assistance.",
     "version": "0.2.0",
+    "private": true,
     "publisher": "etienne-lescot",
     "files": [
         "out",
