@@ -6,28 +6,29 @@ description: Internal documentation for the Agent CLI package used by AI assista
 
 # Agent CLI - Internal Documentation
 
-**Note**: This package is an internal dependency used by AI assistants. End users do not interact with it directly.
+**Note**: This package is primarily used by AI assistants to access n8n node documentation and generate AI context files. It can be used via NPX commands or programmatically.
 
 ## 🎯 Purpose
 
-The Agent CLI (`@n8n-as-code/agent-cli`) generates AI context files that help AI assistants understand and work with n8n workflows. It creates:
+The Agent CLI (`@n8n-as-code/agent-cli`) provides tools for AI assistants to understand and work with n8n workflows. It offers:
 
-1. **AGENTS.md**: Instructions for AI assistants
-2. **n8n-schema.json**: Validation schema for n8n workflows
-3. **Code Snippets**: VS Code snippets for common n8n patterns
+1. **Node Schema Access**: Search and retrieve n8n node schemas
+2. **AI Context Generation**: Create `AGENTS.md` and AI rule files
+3. **Code Snippets**: Generate VS Code snippets for common n8n patterns
 
 ## 🏗️ Architecture
 
 ### Component Diagram
 ```mermaid
 graph TD
-    A[Agent CLI] --> B[AIContextGenerator]
-    A --> C[NodeSchemaProvider]
+    A[Agent CLI] --> B[NodeSchemaProvider]
+    A --> C[AIContextGenerator]
     A --> D[SnippetGenerator]
     
-    B --> E[AGENTS.md]
-    C --> F[n8n-schema.json]
-    D --> G[.vscode/n8n.code-snippets]
+    B --> E[Search/Get/List Commands]
+    C --> F[AGENTS.md]
+    C --> G[.cursorrules/.clinerules/.windsurfrules]
+    D --> H[.vscode/n8n.code-snippets]
     
     style A fill:#ff6b35
     style B fill:#3498db
@@ -37,165 +38,158 @@ graph TD
 
 ### Core Components
 
-#### 1. **AIContextGenerator**
-Generates the `AGENTS.md` file with instructions for AI assistants.
+#### 1. **NodeSchemaProvider**
+Provides access to n8n node schemas for AI assistants.
 
 **Key Features:**
-- Provides n8n-as-code context and rules
-- Includes workflow structure guidelines
-- Documents expression syntax and patterns
-- Specifies validation requirements
+- Loads n8n node index from generated JSON
+- Supports fuzzy search for nodes
+- Returns full JSON schemas for specific nodes
+- Lists all available nodes
 
-#### 2. **NodeSchemaProvider**
-Generates the `n8n-schema.json` validation schema.
+#### 2. **AIContextGenerator**
+Generates AI context files with instructions for AI assistants.
 
 **Key Features:**
-- Extracts node schemas from n8n documentation
-- Creates JSON Schema for validation
-- Supports type checking and autocomplete
-- Provides error messages for invalid workflows
+- Creates `AGENTS.md` with n8n-as-code context and rules
+- Generates specialized rule files (`.cursorrules`, `.clinerules`, `.windsurfrules`)
+- Creates `.ai-rules.md` for general AI assistants
+- Injects/updates existing files without overwriting user content
 
 #### 3. **SnippetGenerator**
 Generates VS Code snippets for common n8n patterns.
 
 **Key Features:**
-- Creates code snippets for common nodes
+- Creates code snippets for common n8n nodes
 - Supports tab stops and placeholders
+- Falls back to hardcoded snippets when node index is unavailable
 - Organized by node category
-- Includes documentation links
 
 ## 📁 Generated Files
 
 ### AGENTS.md
 ```markdown
-# 🤖 AGENTS.md - Context for AI Agents
-> **CRITICAL**: Read this file before creating or modifying any n8n workflow files.
+# 🤖 AI Agents Guidelines
 
-## 🎭 Role & Objective
-You are an **Expert n8n Automation Engineer**. Your goal is to manage n8n workflows as **clean, version-controlled code** (JSON) while maintaining full compatibility with the n8n Visual Editor.
+<!-- n8n-as-code-start -->
+## 🎭 Role: Expert n8n Engineer
+You manage n8n workflows as **clean, version-controlled JSON**.
 
-## 🌍 Instance Context
+### 🌍 Context
 - **n8n Version**: 2.2.6
-- **Environment**: Production/Dev (Inferred)
+- **Schema**: Use `n8n-schema.json` for structural validation.
 
-## 🛠 Coding Standards & Syntax Rules
-1. **JSON Structure**: Workflows are stored as standard .json files.
-2. **Expressions**: Use standard n8n expression syntax: `{{ $json.myField }}`
-3. **Node Configuration**: Prefer the new `Code` node type over legacy `Function`.
-4. **Git Workflow**: Never commit credentials. Use n8n Credentials store.
+### 🛠 Coding Standards
+1. **Expressions**: Use `{{ $json.field }}` (modern) instead of `{{ $node["Name"].json.field }}` when possible.
+2. **Nodes**: Always prefer the `Code` node for custom logic.
+3. **Credentials**: NEVER hardcode API keys. Mention needed credentials by name.
+
+### 🔬 Research Protocol (MANDATORY)
+Do NOT hallucinate node parameters. Use these tools via `npx @n8n-as-code/agent-cli`:
+- `search "<term>"`: Find the correct node named (camelCase).
+- `get "<nodeName>"`: Get the EXACT property definitions for a node.
+- `list`: See all available nodes.
+
+Apply the Knowledge: Use the `get` tool's output as the absolute source of truth for JSON parameter names.
+<!-- n8n-as-code-end -->
 ```
 
-### n8n-schema.json
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "n8n Workflow Schema",
-  "description": "JSON Schema for n8n workflows",
-  "type": "object",
-  "properties": {
-    "name": {
-      "type": "string",
-      "description": "Workflow name"
-    },
-    "nodes": {
-      "type": "array",
-      "description": "Array of workflow nodes",
-      "items": {
-        "$ref": "#/definitions/node"
-      }
-    }
-  },
-  "required": ["name", "nodes"]
-}
-```
+### AI Rule Files
+- `.cursorrules`: Rules for Cursor AI
+- `.clinerules`: Rules for Cline AI
+- `.windsurfrules`: Rules for Windsurf AI
+- `.ai-rules.md`: General rules for all AI assistants
 
 ### .vscode/n8n.code-snippets
 ```json
 {
-  "Webhook Trigger": {
-    "prefix": "node:webhook",
+  "n8n-webhook": {
+    "prefix": "n8n-webhook",
     "body": [
       "{",
+      "  \"parameters\": {\"path\": \"webhook\", \"httpMethod\": \"POST\"},",
       "  \"name\": \"Webhook\",",
       "  \"type\": \"n8n-nodes-base.webhook\",",
-      "  \"position\": [250, 300],",
-      "  \"parameters\": {",
-      "    \"path\": \"${1:webhook}\",",
-      "    \"options\": {}",
-      "  }",
+      "  \"typeVersion\": 1,",
+      "  \"position\": [0, 0]",
       "}"
     ],
-    "description": "Webhook trigger node"
+    "description": "⚡ Insert a Webhook node"
   }
 }
 ```
 
 ## 🔧 Usage
 
-### Command Line
+### Command Line Interface
+The Agent CLI provides three main commands for AI assistants:
+
 ```bash
-# Generate all AI context files
-npx @n8n-as-code/agent-cli generate
+# Search for nodes by name, display name, or description
+npx @n8n-as-code/agent-cli search "google sheets"
 
-# Generate specific files
-npx @n8n-as-code/agent-cli generate --only agents
-npx @n8n-as-code/agent-cli generate --only schema
-npx @n8n-as-code/agent-cli generate --only snippets
+# Get full JSON schema for a specific node
+npx @n8n-as-code/agent-cli get "httpRequest"
 
-# Update existing files
-npx @n8n-as-code/agent-cli generate --force
+# List all available nodes
+npx @n8n-as-code/agent-cli list
 ```
 
 ### Programmatic API
 ```typescript
-import { generateAIContext } from '@n8n-as-code/agent-cli';
+import { NodeSchemaProvider, AiContextGenerator, SnippetGenerator } from '@n8n-as-code/agent-cli';
 
-// Generate all context files
-await generateAIContext({
-  outputDir: './',
-  force: false,
-  components: ['agents', 'schema', 'snippets']
-});
+// Access node schemas
+const provider = new NodeSchemaProvider();
+const schema = provider.getNodeSchema('httpRequest');
+const results = provider.searchNodes('google');
+const allNodes = provider.listAllNodes();
+
+// Generate AI context files
+const aiGenerator = new AiContextGenerator();
+await aiGenerator.generate('./project-root', '2.2.6');
+
+// Generate VS Code snippets
+const snippetGenerator = new SnippetGenerator();
+await snippetGenerator.generate('./project-root');
 ```
 
 ## 🧠 How AI Assistants Use This
 
-### 1. **Context Understanding**
-AI assistants read `AGENTS.md` to understand:
+### 1. **Node Schema Research**
+AI assistants use the CLI commands to:
+- Search for the correct node names using `search`
+- Get exact parameter definitions using `get`
+- Avoid hallucinations by using real n8n node schemas
+- Ensure workflow JSON follows n8n's actual structure
+
+### 2. **Context Understanding**
+AI assistants read generated files to understand:
 - Their role as n8n Automation Engineer
 - n8n version and environment context
 - Coding standards and syntax rules
-- Git workflow and security requirements
-
-### 2. **Validation**
-AI assistants use `n8n-schema.json` to:
-- Validate workflow JSON structure
-- Provide autocomplete suggestions
-- Generate type-safe workflow code
-- Catch errors before runtime
+- Research protocol for avoiding hallucinations
 
 ### 3. **Code Generation**
-AI assistants use snippets to:
-- Generate common node patterns quickly
-- Ensure consistent node configuration
-- Follow best practices automatically
-- Reduce manual typing errors
+AI assistants use:
+- Generated snippets for common node patterns
+- Real node schemas for accurate parameter configuration
+- AGENTS.md guidelines for workflow structure
 
 ## 🔄 Integration with Other Packages
 
 ### VS Code Extension
-The VS Code extension automatically runs the Agent CLI when:
-1. A new project is initialized
-2. The extension detects missing context files
-3. User requests AI context generation
+The VS Code extension can use the Agent CLI programmatically to:
+1. Generate AI context files when initializing projects
+2. Provide node schema access for AI features
+3. Update rule files when n8n version changes
 
-### CLI
-The main CLI includes the `init-ai` command:
+### Main CLI
+The main CLI's `init-ai` command uses the Agent CLI internally to:
 ```bash
 n8n-as-code init-ai
 ```
-
-This command delegates to the Agent CLI to generate context files.
+This generates all AI context files in the current project.
 
 ## 🧪 Testing
 
