@@ -11,12 +11,7 @@ The n8n-as-code VS Code Extension transforms VS Code into a powerful IDE for you
 ## 🎨 Features
 
 ### 🔄 Native Synchronization
-The extension synchronizes your modifications in real-time. By default, every JSON file save (`Ctrl+S`) instantly sends changes to your n8n instance.
-
-### 🛡️ Conflict Management
-The system intelligently detects conflicts to prevent data loss:
-- **Protection**: If a workflow is modified simultaneously on n8n and locally, synchronization stops
-- **Resolution**: An interface allows you to compare versions (Diff View) and choose which one to keep
+The extension synchronizes your modifications in real-time. By default, every JSON file save (`Ctrl+S`) instantly sends changes to your n8n instance when auto-sync is enabled.
 
 ### 🗂️ Multi-Instance Support
 Your workflows are automatically organized by instance to avoid mixing files from different environments:
@@ -59,9 +54,7 @@ Visualize the n8n canvas in real-time using the integrated Webview while editing
 | :--- | :--- | :--- |
 | `n8n.host` | URL of your n8n instance | - |
 | `n8n.apiKey` | Your n8n API Key | - |
-| `n8n.syncMode` | `auto` (push on save) or `manual` | `auto` |
 | `n8n.syncFolder` | Local storage folder | `workflows` |
-| `n8n.pollInterval`| Refresh frequency (ms) | `3000` |
 
 ## 📖 Usage
 
@@ -82,7 +75,7 @@ Visualize the n8n canvas in real-time using the integrated Webview while editing
    - **Left**: JSON editor
    - **Right**: n8n canvas preview
 3. Make changes in the JSON editor
-4. Save (`Ctrl+S`) to auto-sync to n8n
+4. Save (`Ctrl+S`) to sync to n8n (when auto-sync is enabled)
 
 ### Creating New Workflows
 1. Right-click in the workflow tree view
@@ -96,36 +89,20 @@ Visualize the n8n canvas in real-time using the integrated Webview while editing
 3. Confirm deletion
 4. The workflow is removed from both local and n8n
 
-## 🔄 Sync Modes
+## 🔄 Sync Behavior
 
 ### Auto Sync (Default)
 - Changes are automatically pushed to n8n on save
-- Remote changes are pulled automatically
 - Best for most use cases
 
 ### Manual Sync
-- Changes are only synced when you click the sync button
+- Changes are only synced when you manually trigger sync
 - Gives you more control over when changes are pushed
-- Useful for batch operations
-
-## 🛡️ Conflict Resolution
-
-### What Triggers a Conflict
-- You edit a workflow locally while someone else edits it in n8n
-- You have unsynced changes and someone else modifies the workflow
-
-### Resolving Conflicts
-1. The extension detects a conflict and stops syncing
-2. A notification appears with options:
-   - **View Diff**: Compare local and remote versions
-   - **Keep Local**: Overwrite remote with your local version
-   - **Keep Remote**: Discard local changes and use remote version
-   - **Merge Manually**: Open both versions for manual merging
 
 ## 🤝 AI Agent Support
 
 ### Context Generation for AI Assistants
-The extension automatically generates context files that empower AI coding assistants:
+The extension works with the CLI to generate context files that empower AI coding assistants:
 - `AGENTS.md`: Instructions for AI assistants on n8n workflow development
 - `n8n-schema.json`: JSON Schema for workflow validation and autocomplete
 - `.vscode/n8n.code-snippets`: Code snippets for common n8n node patterns
@@ -161,10 +138,10 @@ AI coding assistants (like Cursor, Copilot, Claude, etc.) can use these generate
 **Extension not connecting**
 - Check n8n URL and API key
 - Verify n8n instance is accessible
-- Check CORS settings on n8n
+- Check network connectivity
 
 **Sync not working**
-- Check sync mode in settings
+- Check if auto-sync is enabled in settings
 - Verify file permissions
 - Check network connectivity
 

@@ -91,8 +91,7 @@ n8n-as-code watch
 After setup, you'll have:
 
 - `n8n-as-code.json`: Project configuration (safe to commit to Git)
-- Global API key storage (not committed, stored locally)
-- `n8n-as-code-instance.json`: Instance identifier
+- Global API key storage (not committed, stored securely in your system)
 
 ## 🔄 Syncing Your Workflows
 
@@ -117,7 +116,7 @@ This will:
 
 Send your local modifications back to n8n:
 
-- **VS Code Extension**: Changes are auto-synced on save
+- **VS Code Extension**: Changes are auto-synced on save when using auto-sync mode
 - **CLI**: Use `n8n-as-code push` command
 
 ### Watch Mode (Real-time Sync)
@@ -131,7 +130,7 @@ n8n-as-code watch
 In watch mode:
 - Local file changes are automatically pushed to n8n
 - Remote changes are pulled automatically
-- Conflicts are detected and resolved interactively
+- You get notifications about sync status
 
 ## 🎨 VS Code Extension Features
 
@@ -139,9 +138,9 @@ Once configured, you'll have access to:
 
 - **Workflow Tree View**: Browse all your workflows in the sidebar
 - **Split View Editing**: Edit JSON while viewing the n8n canvas
-- **Auto-sync**: Changes are synchronized automatically on save
+- **Auto-sync**: Changes are synchronized automatically on save (when enabled)
 - **Validation & Snippets**: JSON validation and code snippets
-- **Conflict Management**: Visual diff tools for conflict resolution
+- **AI Context Generation**: Files to help AI assistants understand n8n workflows
 
 ## 📁 Project Structure
 
@@ -156,6 +155,8 @@ your-project/
 │       ├── workflow-2.json
 │       └── folder/
 │           └── workflow-3.json
+├── AGENTS.md                # AI assistant instructions (optional)
+├── n8n-schema.json          # JSON schema for validation (optional)
 └── .git/                    # Version control (recommended)
 ```
 
@@ -167,7 +168,7 @@ your-project/
 **Solution**: 
 - Verify the n8n URL is correct and accessible
 - Check that API key has proper permissions
-- Ensure CORS is configured on n8n if using a different domain
+- Ensure n8n instance is running and accessible
 
 ### Permission Issues
 
@@ -177,13 +178,14 @@ your-project/
 - Run with appropriate user privileges
 - Use a different project directory
 
-### Sync Conflicts
+### Sync Issues
 
-**Problem**: Conflicts between local and remote changes
+**Problem**: Changes not syncing properly
 **Solution**:
-- Use `n8n-as-code watch` for interactive resolution
-- Choose between local and remote versions
-- Manually resolve using the diff view in VS Code
+- Check if watch mode is running (stop it if needed)
+- Use `n8n-as-code pull` to get fresh copy
+- Use `n8n-as-code push` to send local changes
+- Check network connectivity to n8n instance
 
 ## 📚 Next Steps
 

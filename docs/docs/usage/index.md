@@ -25,7 +25,7 @@ Use the **VS Code Extension** if you:
 - Want real-time synchronization as you type
 - Need workflow validation and schema checking
 - Work primarily in VS Code for development
-- Want conflict resolution with visual diff tools
+- Want to see n8n canvas preview while editing JSON
 
 ### For Automation and Scripting
 Use the **CLI** if you:
@@ -54,7 +54,7 @@ graph LR
 graph LR
     A[Git Push] --> B[CI/CD Pipeline]
     B --> C[Run Tests]
-    C --> D[Validate Workflows]
+    C --> D[Validate JSON]
     D --> E[Push to n8n]
     E --> F[Deploy to Production]
 ```
@@ -74,10 +74,17 @@ graph LR
 ```bash
 #!/bin/bash
 # Example automation script for CI/CD
+
+# Pull workflows from source instance
 n8n-as-code pull
-# Run workflow validation
-n8n-as-code push --dry-run
-# Deploy if validation passes
+
+# Validate JSON syntax (using jq or other tools)
+find workflows/ -name "*.json" -exec jq . {} >/dev/null 2>&1 \;
+
+# Push to target environment
+export N8N_HOST="https://target.n8n.example.com"
+export N8N_API_KEY="$TARGET_API_KEY"
+n8n-as-code init
 n8n-as-code push
 ```
 
@@ -91,6 +98,7 @@ n8n-as-code push
 | `n8n-as-code pull` | Download workflows from n8n | CLI |
 | `n8n-as-code push` | Upload workflows to n8n | CLI |
 | `n8n-as-code watch` | Real-time sync mode | CLI |
+| `n8n-as-code init-ai` | Generate AI context files | CLI |
 | VS Code: Refresh button | Pull workflows | Extension |
 | VS Code: Save file | Auto-push to n8n | Extension |
 
@@ -99,7 +107,6 @@ n8n-as-code push
 | File | Purpose | Location |
 |------|---------|----------|
 | `n8n-as-code.json` | Project settings | Project root |
-| `n8n-as-code-instance.json` | Instance identifier | Project root |
 | VS Code Settings | Connection config | VS Code settings |
 
 ## 🚀 Getting Started with Each Tool
@@ -119,16 +126,16 @@ n8n-as-code push
 ## 🔧 Advanced Features
 
 ### Multi-Instance Management
-Work with multiple n8n instances simultaneously. Workflows are automatically organized by instance to avoid mixing files.
-
-### Conflict Resolution
-Smart conflict detection with visual diff tools in VS Code. Choose which version to keep when conflicts occur.
+Work with multiple n8n instances. Workflows are automatically organized by instance to avoid mixing files from different environments.
 
 ### Real-time Sync
-Changes made in VS Code are instantly reflected in n8n, and vice versa. No manual push/pull required.
+Changes made in VS Code are instantly reflected in n8n, and vice versa. No manual push/pull required when using watch mode.
 
 ### Git Integration
 Store workflows as JSON files in Git for version control, collaboration, and deployment pipelines.
+
+### AI Assistant Support
+Generate context files that help AI coding assistants understand n8n workflow structure and provide accurate suggestions.
 
 ## 📖 Next Steps
 
@@ -149,8 +156,7 @@ For information about internal components used by developers and AI assistants, 
 Common issues and solutions:
 
 - **Connection issues**: Check n8n URL and API key
-- **Sync conflicts**: Use watch mode or VS Code diff tools
-- **Permission errors**: Check file and directory permissions
+- **File permission errors**: Check file and directory permissions
 - **Extension not working**: Restart VS Code or reinstall extension
 
 For more help, check the [Troubleshooting guide](/docs/troubleshooting) or [open an issue](https://github.com/EtienneLescot/n8n-as-code/issues).

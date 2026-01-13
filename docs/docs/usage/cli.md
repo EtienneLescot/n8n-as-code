@@ -37,9 +37,9 @@ This command:
 2. Sets up the project structure
 3. Configures connection to your n8n instance
 
-### Sync Workflows
+### Download Workflows from n8n
 ```bash
-n8n-as-code sync
+n8n-as-code pull
 ```
 
 This command:
@@ -47,94 +47,103 @@ This command:
 2. Saves them to the local `workflows` directory
 3. Organizes them by instance
 
+### Upload Local Workflows to n8n
+```bash
+n8n-as-code push
+```
+
+This command:
+1. Uploads new or modified workflows to n8n
+2. Creates workflows that exist locally but not in n8n
+3. Updates existing workflows with local changes
+
 ## 📋 Command Reference
 
 ### `init`
 Initialize a new n8n-as-code project.
 
-**Options:**
-- `--host <url>`: n8n instance URL
-- `--api-key <key>`: n8n API key
-- `--config <path>`: Custom config file path
+**Description:**
+Interactive wizard that guides you through setting up your n8n connection and project configuration.
 
 **Example:**
 ```bash
-n8n-as-code init --host https://n8n.example.com --api-key my-api-key
+n8n-as-code init
 ```
 
-### `sync`
-Synchronize workflows between n8n and local files.
+The wizard will ask for:
+- **n8n Host URL**: The URL of your n8n instance (e.g., `http://localhost:5678`)
+- **API Key**: Your n8n API key (found in n8n Settings > API)
+- **Sync Folder**: Local directory for workflow storage (default: `workflows`)
 
-**Options:**
-- `--pull`: Only pull from n8n
-- `--push`: Only push to n8n
-- `--force`: Force sync even with conflicts
-- `--dry-run`: Show what would be synced without making changes
+### `pull`
+Download all workflows from n8n to local directory.
 
-**Examples:**
+**Description:**
+Downloads all workflows from your configured n8n instance and saves them as JSON files in your local workflows directory.
+
+**Example:**
 ```bash
-# Full sync (pull + push)
-n8n-as-code sync
-
-# Only pull workflows
-n8n-as-code sync --pull
-
-# Only push local changes
-n8n-as-code sync --push
+n8n-as-code pull
 ```
+
+**What happens:**
+1. Connects to your n8n instance using stored credentials
+2. Fetches all workflows (including inactive ones)
+3. Saves each workflow as a JSON file in `workflows/` directory
+4. Organizes files by instance identifier
+
+### `push`
+Upload missing local workflows to n8n.
+
+**Description:**
+Uploads workflows that exist locally but not in n8n, and updates workflows that have been modified locally.
+
+**Example:**
+```bash
+n8n-as-code push
+```
+
+**What happens:**
+1. Scans local `workflows/` directory for JSON files
+2. Compares with workflows in n8n
+3. Creates new workflows in n8n for missing local files
+4. Updates existing workflows with local modifications
 
 ### `watch`
-Watch for local changes and auto-sync.
+Start bi-directional synchronization in real-time.
 
-**Options:**
-- `--interval <ms>`: Polling interval in milliseconds (default: 3000)
-- `--ignore <pattern>`: Glob pattern to ignore files
+**Description:**
+Monitors both local file system and n8n for changes, automatically synchronizing in both directions.
 
 **Example:**
 ```bash
-n8n-as-code watch --interval 5000
+n8n-as-code watch
 ```
 
+**Features:**
+- **File watching**: Automatically pushes local changes to n8n when files are saved
+- **Polling**: Periodically checks n8n for remote changes and pulls them locally
+- **Conflict detection**: Warns if conflicts are detected between local and remote versions
+
 ### `init-ai`
-Initialize AI context files for the project.
+Initialize AI Context (AGENTS.md, n8n-schema.json, rule files).
+
+**Description:**
+Generates context files that help AI coding assistants understand n8n workflow structure and best practices.
 
 **Options:**
-- `--force`: Overwrite existing files
-- `--minimal`: Create minimal context only
+- `--doc-only`: Generate only documentation, skip schema and snippets
 
 **Example:**
 ```bash
 n8n-as-code init-ai
 ```
 
-This creates:
-- `AGENTS.md`: AI assistant instructions
-- `n8n-schema.json`: Validation schema
-- `.vscode/n8n.code-snippets`: Code snippets
-
-### `validate`
-Validate workflow JSON files.
-
-**Options:**
-- `--fix`: Attempt to fix validation errors
-- `--strict`: Enable strict validation
-
-**Example:**
-```bash
-n8n-as-code validate workflows/
-```
-
-### `list`
-List workflows from n8n.
-
-**Options:**
-- `--format <format>`: Output format (json, table, csv)
-- `--filter <pattern>`: Filter workflows by name
-
-**Example:**
-```bash
-n8n-as-code list --format table
-```
+**Creates:**
+- `AGENTS.md`: Instructions for AI assistants on n8n workflow development
+- `n8n-schema.json`: JSON Schema for workflow validation and autocomplete
+- `.vscode/n8n.code-snippets`: Code snippets for common n8n node patterns
+- `.cursorrules` / `.clinerules`: AI agent rule files
 
 ## ⚙️ Configuration
 
@@ -144,16 +153,14 @@ The CLI uses a configuration file (`n8n-as-code.json`) with the following struct
 ```json
 {
   "host": "https://n8n.example.com",
-  "apiKey": "your-api-key",
   "syncFolder": "workflows",
-  "syncMode": "auto",
   "pollInterval": 3000,
-  "ignorePatterns": [
-    "**/node_modules/**",
-    "**/.git/**"
-  ]
+  "syncInactive": true,
+  "ignoredTags": ["archive"]
 }
 ```
+
+**Note:** API keys are stored securely in your system's credential store, not in this file.
 
 ### Environment Variables
 You can also configure via environment variables:
@@ -163,75 +170,44 @@ You can also configure via environment variables:
 | `N8N_HOST` | n8n instance URL | `https://n8n.example.com` |
 | `N8N_API_KEY` | n8n API key | `my-api-key` |
 | `N8N_SYNC_FOLDER` | Local sync folder | `workflows` |
-| `N8N_SYNC_MODE` | Sync mode | `auto` or `manual` |
 
 ### Priority Order
-1. Command-line arguments
+1. Command-line arguments (when supported)
 2. Environment variables
-3. Configuration file
+3. Configuration file (`n8n-as-code.json`)
 4. Default values
 
-## 🔄 Sync Modes
+## 🔄 Workflow Management
 
-### Auto Mode (Default)
-- Changes are automatically synced
-- Best for interactive use
-- Uses polling to detect remote changes
-
-### Manual Mode
-- Sync only when explicitly triggered
-- Better for scripting and automation
-- More predictable behavior
-
-## 🛡️ Conflict Management
-
-### Conflict Detection
-The CLI detects conflicts when:
-1. A workflow is modified both locally and remotely
-2. You have unsynced changes and someone else modifies the workflow
-
-### Conflict Resolution
-When conflicts occur, you have several options:
-
-**Interactive Mode:**
+### Basic Workflow
 ```bash
-n8n-as-code sync --interactive
+# 1. Initialize project
+n8n-as-code init
+
+# 2. Download existing workflows
+n8n-as-code pull
+
+# 3. Edit workflow files locally
+#    (edit workflows/*.json files)
+
+# 4. Upload changes to n8n
+n8n-as-code push
+
+# 5. Or use real-time sync
+n8n-as-code watch
 ```
 
-**Force Options:**
+### Real-time Development with Watch Mode
 ```bash
-# Keep local version
-n8n-as-code sync --force-local
+# Start watch mode for real-time sync
+n8n-as-code watch
 
-# Keep remote version
-n8n-as-code sync --force-remote
+# Now you can:
+# - Edit workflow JSON files locally
+# - Changes are automatically pushed to n8n on save
+# - Remote changes in n8n are pulled automatically
+# - Get notifications about sync status
 ```
-
-**Diff View:**
-```bash
-n8n-as-code diff <workflow-id>
-```
-
-## 🤖 AI Integration
-
-### AI Context Generation
-The CLI can generate AI context files for your project:
-
-```bash
-n8n-as-code init-ai
-```
-
-This creates files that help AI assistants understand:
-- n8n workflow structure
-- Validation rules
-- Common patterns and snippets
-
-### Using with AI Assistants
-With the generated context, AI assistants can:
-- Write n8n workflow JSON
-- Validate workflow structure
-- Suggest improvements
-- Generate documentation
 
 ## 📊 Scripting Examples
 
@@ -247,8 +223,11 @@ BACKUP_DIR="backups/$BACKUP_DATE"
 # Create backup directory
 mkdir -p "$BACKUP_DIR"
 
-# Sync workflows to backup directory
-N8N_SYNC_FOLDER="$BACKUP_DIR" n8n-as-code sync --pull
+# Copy workflows to backup directory
+cp -r workflows/* "$BACKUP_DIR/" 2>/dev/null || true
+
+# Or pull fresh copy to backup directory
+# N8N_SYNC_FOLDER="$BACKUP_DIR" n8n-as-code pull
 
 # Compress backup
 tar -czf "$BACKUP_DIR.tar.gz" "$BACKUP_DIR"
@@ -261,19 +240,24 @@ echo "Backup created: $BACKUP_DIR.tar.gz"
 #!/bin/bash
 # ci-sync.sh
 
-# Validate workflows before sync
-n8n-as-code validate workflows/
+# Set environment variables for target instance
+export N8N_HOST="https://staging.n8n.example.com"
+export N8N_API_KEY="$STAGING_API_KEY"
 
-# Sync to staging environment
-N8N_HOST="https://staging.n8n.example.com" \
-N8N_API_KEY="$STAGING_API_KEY" \
-n8n-as-code sync --push
+# Initialize with environment variables
+n8n-as-code init
 
-# Sync to production (manual approval)
+# Pull workflows from staging
+n8n-as-code pull
+
+# (Make any necessary transformations)
+
+# Push to production if approved
 if [ "$DEPLOY_TO_PROD" = "true" ]; then
-  N8N_HOST="https://prod.n8n.example.com" \
-  N8N_API_KEY="$PROD_API_KEY" \
-  n8n-as-code sync --push
+  export N8N_HOST="https://prod.n8n.example.com"
+  export N8N_API_KEY="$PROD_API_KEY"
+  n8n-as-code init
+  n8n-as-code push
 fi
 ```
 
@@ -286,13 +270,13 @@ fi
 for workflow in workflows/*.json; do
   echo "Updating $workflow"
   
-  # Add metadata
+  # Add metadata using jq
   jq '.metadata.tags += ["automated"]' "$workflow" > "$workflow.tmp"
   mv "$workflow.tmp" "$workflow"
 done
 
-# Sync changes
-n8n-as-code sync --push
+# Push changes to n8n
+n8n-as-code push
 ```
 
 ## 🎯 Best Practices
@@ -300,27 +284,29 @@ n8n-as-code sync --push
 ### Project Structure
 ```
 my-project/
-├── n8n-as-code.json
-├── workflows/
-│   ├── instance1/
+├── n8n-as-code.json          # Project configuration
+├── workflows/                # Workflow storage
+│   ├── instance1/           # Organized by instance
 │   │   ├── workflow1.json
 │   │   └── workflow2.json
 │   └── instance2/
 │       └── workflow3.json
-├── scripts/
+├── scripts/                  # Automation scripts
 │   └── backup.sh
 └── README.md
 ```
 
 ### Version Control
-- Commit workflow JSON files to Git
-- Use `.gitignore` for sensitive data
+- Commit workflow JSON files to Git for version history
+- Use `.gitignore` to exclude sensitive data
 - Tag releases with workflow versions
+- Review changes using Git diff before pushing to n8n
 
 ### Security
-- Never commit API keys to version control
-- Use environment variables or secret managers
+- Never commit API keys or credentials to version control
+- Use environment variables or secret managers for sensitive data
 - Rotate API keys regularly
+- Store API keys in system credential store (handled automatically by CLI)
 
 ## 🚨 Troubleshooting
 
@@ -328,44 +314,55 @@ my-project/
 
 **Connection Errors**
 ```bash
-# Check connectivity
+# Check connectivity to n8n instance
 curl -I https://n8n.example.com
 
-# Verify API key
-n8n-as-code list --host https://n8n.example.com --api-key my-key
+# Verify configuration
+cat n8n-as-code.json
+
+# Reinitialize connection
+n8n-as-code init
+```
+
+**File Permission Issues**
+```bash
+# Check file permissions
+ls -la workflows/
+
+# Fix permissions if needed
+chmod -R 755 workflows/
 ```
 
 **Sync Issues**
 ```bash
-# Dry run to see what would happen
-n8n-as-code sync --dry-run
+# Check if watch mode is running
+# (Stop any running watch processes first)
 
-# Check for conflicts
-n8n-as-code sync --interactive
-```
+# Pull fresh copy
+n8n-as-code pull
 
-**Validation Errors**
-```bash
-# Show validation errors
-n8n-as-code validate workflows/ --verbose
-
-# Attempt to fix errors
-n8n-as-code validate workflows/ --fix
+# Push local changes
+n8n-as-code push
 ```
 
 ### Debug Mode
 Enable debug logging for detailed output:
 
 ```bash
-DEBUG=n8n-as-code:* n8n-as-code sync
+# Debug watch mode
+DEBUG=n8n-as-code:* n8n-as-code watch
+
+# Debug specific operations
+DEBUG=axios,n8n-as-code:* n8n-as-code pull
 ```
 
 ## 📚 Next Steps
 
-- [VS Code Extension Guide](/docs/usage/vscode-extension): Visual editing experience
-- [Contributor Guide](/docs/contributors): Understand the architecture
-- [API Reference](/api): Developer documentation
+- [VS Code Extension Guide](/docs/usage/vscode-extension): Visual editing experience with real-time sync
+- [Getting Started](/docs/getting-started): Complete setup guide
+- [Contributor Guide](/docs/contributors): Understand the architecture and development
+- [API Reference](/api): Developer documentation for all packages
 
 ---
 
-*The CLI provides powerful automation capabilities for managing n8n workflows as code.*
+*The CLI provides powerful automation capabilities for managing n8n workflows as code. Use it for scripting, CI/CD integration, and headless workflow management.*
