@@ -26,7 +26,11 @@
     "clean": "npm run clean --workspaces --if-present && rm -rf packages/*/dist packages/*/out packages/**/tsconfig.tsbuildinfo .n8n-cache/ node_modules/.cache",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "npm run build && changeset publish --filter \"!n8n-as-code\""
+    "release": "npm run build && changeset publish --filter \"!n8n-as-code\"",
+    "docs": "cd docs && npm start",
+    "docs:build": "cd docs && npm run build",
+    "docs:api": "node scripts/generate-api-docs.cjs",
+    "docs:all": "npm run docs:api && npm run docs:build"
   },
   "author": "",
   "license": "ISC",
@@ -39,6 +43,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
+    "typedoc": "^0.28.16",
     "typescript": "^5.3.3"
   }
 }
