@@ -1,7 +1,7 @@
 ---
 sidebar_position: 1
 title: Home
-description: Welcome to n8n-as-code documentation - Manage your n8n workflows as code with version control and AI assistance
+description: Welcome to n8n-as-code documentation - Manage your n8n workflows as code with version control and AI agent support
 ---
 
 # Welcome to n8n-as-code
@@ -13,7 +13,7 @@ description: Welcome to n8n-as-code documentation - Manage your n8n workflows as
 n8n-as-code bridges the gap between visual workflow automation and software engineering best practices. It provides:
 
 - **Version Control**: Leverage the ability for you to version your workflows with Git
-- **AI Assistance**: Get intelligent suggestions and validation for your workflows
+- **AI Agent Support**: Empower AI coding assistants with complete n8n node documentation and schemas
 - **Real-time Sync**: Keep your local files and n8n instance in sync
 - **VS Code Integration**: Edit workflows directly in your favorite code editor
 - **Conflict Resolution**: Smart conflict detection and resolution tools
@@ -34,15 +34,20 @@ Or if you prefer, you can manually push/pull your workflows.
 
 <div className="n8n-card">
 
-### 🤖 AI-Powered Assistance
-Empower your AI agents with **agent-cli** – a comprehensive toolbelt that provides complete access to documentation for all 525 n8n nodes. This enables AI assistants to discover, understand, and leverage the full n8n ecosystem for intelligent workflow development.
+### 🤖 AI Agent Empowerment
+Supercharge your AI coding assistants with **agent-cli** – a comprehensive toolkit that provides structured documentation, schemas, and context for all 525 n8n nodes. This enables AI assistants to understand the n8n ecosystem and provide intelligent workflow development support.
 
-**Key capabilities:**
-- **Complete node documentation**: Access detailed documentation for all 525 n8n nodes, including parameters, examples, and best practices
-- **Intelligent suggestions**: Receive context-aware recommendations for node connections, parameter values, and workflow patterns
-- **Validation**: Automatic detection of common errors and best practice violations before execution
-- **Code completion**: Intelligent autocomplete for n8n expressions, node parameters, and JavaScript functions
-- **Context awareness**: The system analyzes your entire workflow structure to provide relevant assistance
+**What agent-cli provides:**
+- **Complete node documentation**: Structured JSON schemas and documentation for all 525 n8n nodes, including parameters, examples, and usage patterns
+- **Context generation**: Generate rich context files that AI assistants can use to understand your specific workflow structure
+- **Snippet libraries**: Pre-built code snippets and workflow patterns for common automation scenarios
+- **Schema validation**: JSON schemas that AI assistants can use to validate workflow structure and parameter correctness
+
+**How AI assistants leverage this:**
+- **Intelligent suggestions**: AI agents can provide context-aware recommendations based on the complete n8n node ecosystem
+- **Error prevention**: Assistants can identify potential issues by validating against node schemas
+- **Workflow patterns**: Access to proven workflow templates and best practices
+- **Rapid prototyping**: Quick generation of workflow skeletons based on your requirements
 
 </div>
 

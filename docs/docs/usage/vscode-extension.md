@@ -6,7 +6,7 @@ description: Learn how to use the n8n-as-code VS Code Extension for visual workf
 
 # VS Code Extension Guide
 
-The n8n-as-code VS Code Extension transforms VS Code into a powerful IDE for your n8n workflows. It provides visual editing, real-time synchronization, and AI assistance.
+The n8n-as-code VS Code Extension transforms VS Code into a powerful IDE for your n8n workflows. It provides visual editing, real-time synchronization, and workflow validation.
 
 ## 🎨 Features
 
@@ -22,8 +22,8 @@ The system intelligently detects conflicts to prevent data loss:
 Your workflows are automatically organized by instance to avoid mixing files from different environments:
 `workflows/instance_name_user/my_workflow.json`
 
-### 🤖 Built-in AI Assistance
-Your environment is automatically configured for AI upon opening:
+### 🛠️ Built-in Validation & Snippets
+Your environment is automatically configured with validation and snippets upon opening:
 - **JSON Validation**: n8n schema applied for input assistance and live error detection
 - **Snippet Library**: Ready-to-use node templates (`node:webhook`, `node:code`, etc.)
 
@@ -122,20 +122,20 @@ Visualize the n8n canvas in real-time using the integrated Webview while editing
    - **Keep Remote**: Discard local changes and use remote version
    - **Merge Manually**: Open both versions for manual merging
 
-## 🤖 AI Features
+## 🤝 AI Agent Support
 
-### Context Generation
-The extension automatically generates AI context files:
-- `AGENTS.md`: Instructions for AI assistants
-- `n8n-schema.json`: Validation schema
-- `.vscode/n8n.code-snippets`: Code snippets
+### Context Generation for AI Assistants
+The extension automatically generates context files that empower AI coding assistants:
+- `AGENTS.md`: Instructions for AI assistants on n8n workflow development
+- `n8n-schema.json`: JSON Schema for workflow validation and autocomplete
+- `.vscode/n8n.code-snippets`: Code snippets for common n8n node patterns
 
-### Using AI Assistants
-With the context files, AI assistants like Cursor, Copilot, or Claude can:
-- Understand n8n workflow structure
-- Provide accurate code suggestions
-- Validate workflow JSON
-- Generate common node patterns
+### How AI Assistants Leverage These Files
+AI coding assistants (like Cursor, Copilot, Claude, etc.) can use these generated files to:
+- Understand n8n workflow structure and best practices
+- Provide accurate code suggestions based on node schemas
+- Validate workflow JSON against the n8n schema
+- Generate common node patterns using pre-built snippets
 
 ## 🎯 Tips & Best Practices
 

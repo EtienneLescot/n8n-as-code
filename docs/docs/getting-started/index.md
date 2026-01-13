@@ -27,7 +27,7 @@ Before you begin, make sure you have:
 
 ## 🚀 Quick Start: VS Code Extension (Recommended)
 
-The VS Code Extension provides the best user experience with visual editing, real-time sync, and AI assistance.
+The VS Code Extension provides the best user experience with visual editing, real-time sync, and workflow validation.
 
 ### Step 1: Install VS Code Extension
 
@@ -140,7 +140,7 @@ Once configured, you'll have access to:
 - **Workflow Tree View**: Browse all your workflows in the sidebar
 - **Split View Editing**: Edit JSON while viewing the n8n canvas
 - **Auto-sync**: Changes are synchronized automatically on save
-- **AI Assistance**: Context-aware suggestions and validation
+- **Validation & Snippets**: JSON validation and code snippets
 - **Conflict Management**: Visual diff tools for conflict resolution
 
 ## 📁 Project Structure

@@ -14,7 +14,7 @@ This section is organized by the primary user-facing tools:
 
 | Tool | Purpose | Best For |
 |------|---------|----------|
-| **[VS Code Extension](/docs/usage/vscode-extension)** | Integrated development environment | Visual editing, real-time sync, AI assistance |
+| **[VS Code Extension](/docs/usage/vscode-extension)** | Integrated development environment | Visual editing, real-time sync, workflow validation |
 | **[CLI](/docs/usage/cli)** | Command-line interface | Automation, scripting, CI/CD integration |
 
 ## 🎨 Choosing the Right Tool
@@ -23,7 +23,7 @@ This section is organized by the primary user-facing tools:
 Use the **VS Code Extension** if you:
 - Prefer a visual interface with split-view editing
 - Want real-time synchronization as you type
-- Need AI assistance while editing workflows
+- Need workflow validation and schema checking
 - Work primarily in VS Code for development
 - Want conflict resolution with visual diff tools
 
