@@ -49,10 +49,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            docs/package-lock.json
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -60,7 +56,7 @@ jobs:
           version: 10
 
       - name: Install root dependencies
-        run: npm ci
+        run: npm install
 
       - name: Cache n8n repository
         uses: actions/cache@v4
@@ -75,7 +71,7 @@ jobs:
 
       - name: Install docs dependencies
         working-directory: ./docs
-        run: npm ci
+        run: npm install
 
       - name: Generate API documentation
         run: npm run docs:api
@@ -137,10 +133,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            docs/package-lock.json
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -148,11 +140,11 @@ jobs:
           version: 10
 
       - name: Install root dependencies
-        run: npm ci
+        run: npm install
 
       - name: Install docs dependencies
         working-directory: ./docs
-        run: npm ci
+        run: npm install
 
       - name: Validate documentation structure
         run: |
