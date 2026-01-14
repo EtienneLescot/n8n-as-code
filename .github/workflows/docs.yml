@@ -98,7 +98,8 @@ jobs:
           
           # Check for broken links (basic check)
           echo "Checking for broken internal links..."
-          find ./docs/build -name "*.html" -type f | head -20 | while read file; do
+          # We exclude 404.html because it naturally contains "Page Not Found"
+          find ./docs/build -name "*.html" -type f ! -name "404.html" | head -20 | while read file; do
             echo "Checking $file"
             if grep -q "Page Not Found" "$file"; then
               echo "ERROR: Found 'Page Not Found' in $file"
