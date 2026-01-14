@@ -28,20 +28,19 @@ async function main() {
 
         // Try to update if it's a git repo
         if (fs.existsSync(path.join(CACHE_DIR, '.git'))) {
-            console.log('🔄 Checking for updates in n8n repository...');
+            console.log(`🔄 Checking for updates in n8n repository (target: ${N8N_STABLE_TAG})...`);
             try {
-                // Fetch to check if remote has changes
-                run('git fetch --depth 1 origin master', CACHE_DIR);
                 const local = execSync('git rev-parse HEAD', { cwd: CACHE_DIR }).toString().trim();
-                const remote = execSync('git rev-parse origin/master', { cwd: CACHE_DIR }).toString().trim();
+                const target = execSync(`git rev-parse ${N8N_STABLE_TAG}`, { cwd: CACHE_DIR }).toString().trim();
 
-                if (local !== remote) {
-                    console.log('⬇️  Updates found. Syncing cache...');
-                    run('git reset --hard origin/master', CACHE_DIR);
+                if (local !== target) {
+                    console.log('⬇️  Updating cache to stable tag...');
+                    run(`git fetch --depth 1 origin ${N8N_STABLE_TAG}`, CACHE_DIR);
+                    run(`git reset --hard ${N8N_STABLE_TAG}`, CACHE_DIR);
                     // Force rebuild of nodes-base if updated
                     process.env.FORCE_REBUILD_NODES = 'true';
                 } else {
-                    console.log('✨ Cache is up to date.');
+                    console.log('✨ Cache is already at the correct stable tag.');
                 }
             } catch (e) {
                 console.warn('⚠️  Could not check for updates. Using existing cache.');
