@@ -35,7 +35,7 @@ test('Required documentation directories exist', () => {
     'docs/docs/home',
     'docs/docs/getting-started',
     'docs/docs/usage',
-    'docs/docs/contributors',
+    'docs/docs/contribution',
     'docs/docs/community',
     'docs/docs/usage/vscode-extension',
     'docs/docs/usage/cli',
@@ -99,7 +99,7 @@ test('Sidebar configurations are valid', () => {
   const sidebarsApiContent = fs.readFileSync(sidebarsApiPath, 'utf-8');
   
   // Check for required sections
-  const requiredSections = ['Home', 'Getting Started', 'Usage', 'Contributors', 'Community'];
+  const requiredSections = ['Home', 'Getting Started', 'Usage', 'Contribution', 'Community'];
   for (const section of requiredSections) {
     if (!sidebarsContent.includes(section)) {
       throw new Error(`Missing section in sidebars: ${section}`);
@@ -231,7 +231,7 @@ test('Markdown files have proper structure', () => {
     'home/index.md',
     'getting-started/index.md',
     'usage/index.md',
-    'contributors/index.md',
+    'contribution/index.md',
     'community/index.md',
   ];
   

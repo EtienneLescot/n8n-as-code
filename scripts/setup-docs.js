@@ -68,7 +68,7 @@ try {
     'docs/docs/usage/cli',
     'docs/docs/usage/agent-cli',
     'docs/docs/usage/core',
-    'docs/docs/contributors',
+    'docs/docs/contribution',
     'docs/docs/community',
     'docs/src/components',
     'docs/src/css',
