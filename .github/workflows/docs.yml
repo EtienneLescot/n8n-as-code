@@ -48,6 +48,9 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            docs/package-lock.json
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -132,6 +135,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            docs/package-lock.json
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -154,7 +161,7 @@ jobs:
             "docs/docs/home"
             "docs/docs/getting-started"
             "docs/docs/usage"
-            "docs/docs/contributors"
+            "docs/docs/contribution"
             "docs/docs/community"
           )
           

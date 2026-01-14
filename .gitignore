@@ -60,3 +60,5 @@ packages/vscode-extension/assets/n8n-nodes-index.json
 packages/vscode-extension/assets/logo.png
 
 .n8n-cache/
+
+.local
