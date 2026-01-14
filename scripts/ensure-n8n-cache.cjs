@@ -5,6 +5,7 @@ const { execSync } = require('child_process');
 const ROOT_DIR = path.resolve(__dirname, '..');
 const CACHE_DIR = path.resolve(ROOT_DIR, '.n8n-cache');
 const N8N_REPO_URL = 'https://github.com/n8n-io/n8n.git';
+const N8N_STABLE_TAG = 'n8n@1.74.2'; // Use a known stable tag to avoid master branch breakages
 
 function run(command, cwd = ROOT_DIR) {
     console.log(`> ${command}`);
@@ -20,8 +21,8 @@ async function main() {
     console.log('🔍 Checking n8n cache...');
 
     if (!fs.existsSync(CACHE_DIR)) {
-        console.log('🚀 Cache missing. Cloning n8n repository (depth 1)...');
-        run(`git clone --depth 1 ${N8N_REPO_URL} .n8n-cache`);
+        console.log(`🚀 Cache missing. Cloning n8n repository (depth 1, tag ${N8N_STABLE_TAG})...`);
+        run(`git clone --depth 1 --branch ${N8N_STABLE_TAG} ${N8N_REPO_URL} .n8n-cache`);
     } else {
         console.log('✅ Cache directory found.');
 
@@ -30,9 +31,9 @@ async function main() {
             console.log('🔄 Checking for updates in n8n repository...');
             try {
                 // Fetch to check if remote has changes
-                run('git fetch --depth 1', CACHE_DIR);
+                run('git fetch --depth 1 origin master', CACHE_DIR);
                 const local = execSync('git rev-parse HEAD', { cwd: CACHE_DIR }).toString().trim();
-                const remote = execSync('git rev-parse @{u}', { cwd: CACHE_DIR }).toString().trim();
+                const remote = execSync('git rev-parse origin/master', { cwd: CACHE_DIR }).toString().trim();
 
                 if (local !== remote) {
                     console.log('⬇️  Updates found. Syncing cache...');
