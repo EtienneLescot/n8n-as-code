@@ -72,7 +72,7 @@
       },
       {
         "command": "n8n.push",
-        "title": "n8n: Push Workflows (Sync Up)",
+        "title": "n8n: Push Workflows",
         "icon": "$(cloud-upload)"
       },
       {
