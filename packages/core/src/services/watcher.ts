@@ -29,6 +29,7 @@ export class Watcher extends EventEmitter {
     private syncInactive: boolean;
     private ignoredTags: string[];
     private stateFilePath: string;
+    private isConnected: boolean = true;
 
     // Internal state tracking
     private localHashes: Map<string, string> = new Map(); // filename -> hash
@@ -64,8 +65,27 @@ export class Watcher extends EventEmitter {
     public async start() {
         if (this.watcher || this.pollInterval) return;
 
-        // Initial scan
-        await this.refreshRemoteState();
+        // Initial scan - throw error if connection fails on startup
+        try {
+            await this.refreshRemoteState();
+        } catch (error: any) {
+            // Check if it's a connection error
+            const isConnectionError = error.code === 'ECONNREFUSED' ||
+                                      error.code === 'ENOTFOUND' ||
+                                      error.code === 'ETIMEDOUT' ||
+                                      error.message?.includes('fetch failed') ||
+                                      error.message?.includes('ECONNREFUSED') ||
+                                      error.message?.includes('ENOTFOUND') ||
+                                      error.cause?.code === 'ECONNREFUSED';
+            
+            if (isConnectionError) {
+                // On startup, throw the error to prevent initialization
+                throw new Error('Cannot connect to n8n instance. Please check if n8n is running and the host URL is correct.');
+            }
+            // For other errors, re-throw
+            throw error;
+        }
+        
         await this.refreshLocalState();
 
         // Local Watch with debounce
@@ -254,6 +274,7 @@ export class Watcher extends EventEmitter {
     public async refreshRemoteState() {
         try {
             const remoteWorkflows = await this.client.getAllWorkflows();
+            this.isConnected = true;
             const currentRemoteIds = new Set<string>();
             
             for (const wf of remoteWorkflows) {
@@ -268,7 +289,7 @@ export class Watcher extends EventEmitter {
 
                 // Check if we need to fetch full content
                 const cachedTimestamp = this.remoteTimestamps.get(wf.id);
-                const needsFullFetch = !cachedTimestamp || 
+                const needsFullFetch = !cachedTimestamp ||
                     (wf.updatedAt && wf.updatedAt !== cachedTimestamp);
 
                 if (needsFullFetch) {
@@ -305,8 +326,31 @@ export class Watcher extends EventEmitter {
                     if (filename) this.broadcastStatus(filename, id);
                 }
             }
-        } catch (error) {
-            this.emit('error', error);
+        } catch (error: any) {
+            // Check if it's a connection error
+            const isConnectionError = error.code === 'ECONNREFUSED' ||
+                                      error.code === 'ENOTFOUND' ||
+                                      error.code === 'ETIMEDOUT' ||
+                                      error.message?.includes('fetch failed') ||
+                                      error.message?.includes('ECONNREFUSED') ||
+                                      error.message?.includes('ENOTFOUND') ||
+                                      error.cause?.code === 'ECONNREFUSED';
+            
+            if (isConnectionError) {
+                this.isConnected = false;
+                // Stop polling to avoid spamming errors
+                if (this.pollInterval) {
+                    clearInterval(this.pollInterval);
+                    this.pollInterval = null;
+                }
+                // Emit a specific connection error
+                this.emit('connection-lost', new Error('Lost connection to n8n instance. Please check if n8n is running.'));
+            } else {
+                // For other errors, just emit the error
+                this.emit('error', error);
+            }
+            // Re-throw so that start() can catch it on initial call
+            throw error;
         }
     }
 
@@ -443,6 +487,11 @@ export class Watcher extends EventEmitter {
         const localHash = this.localHashes.get(filename);
         const remoteHash = workflowId ? this.remoteHashes.get(workflowId) : undefined;
         
+        // If we are disconnected and don't have a remote hash, don't claim it's deleted
+        if (!this.isConnected && !remoteHash && workflowId) {
+            return WorkflowSyncStatus.IN_SYNC; // Treat as in-sync or unknown to avoid "deleted" panic
+        }
+
         // Get base state
         const state = this.loadState();
         const baseState = workflowId ? state.workflows[workflowId] : undefined;

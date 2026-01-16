@@ -36,66 +36,56 @@ export class N8nApiClient {
     }
 
     async getCurrentUser(): Promise<{ id: string; email: string; firstName?: string; lastName?: string; } | null> {
+        // Try /me first (modern n8n)
         try {
-            // Try /me first (modern n8n)
-            try {
-                const res = await this.client.get('/api/v1/users/me');
-                console.debug('[N8nApiClient] getCurrentUser: Successfully retrieved user from /me endpoint');
-                if (res.data && res.data.id) {
-                    return {
-                        id: res.data.id,
-                        email: res.data.email,
-                        firstName: res.data.firstName,
-                        lastName: res.data.lastName
-                    };
-                }
-            } catch (error: any) {
-                console.debug('[N8nApiClient] getCurrentUser: /me endpoint failed:', error.message);
-                if (error.response) {
-                    console.debug('[N8nApiClient] getCurrentUser: Response status:', error.response.status);
-                    // Avoid logging potentially sensitive data, but structure might be useful
-                    // console.debug('[N8nApiClient] getCurrentUser: Response data:', error.response.data);
-                }
+            const res = await this.client.get('/api/v1/users/me');
+            console.debug('[N8nApiClient] getCurrentUser: Successfully retrieved user from /me endpoint');
+            if (res.data && res.data.id) {
+                return {
+                    id: res.data.id,
+                    email: res.data.email,
+                    firstName: res.data.firstName,
+                    lastName: res.data.lastName
+                };
             }
-
-            // Fallback: get all users and take the first one (assuming the API key belongs to an admin or the only user)
-            console.debug('[N8nApiClient] getCurrentUser: Trying /api/v1/users endpoint');
-            try {
-                const res = await this.client.get('/api/v1/users');
-                if (res.data && res.data.data && res.data.data.length > 0) {
-                    console.debug('[N8nApiClient] getCurrentUser: Found', res.data.data.length, 'users');
-                    const user = res.data.data[0];
-                    return {
-                        id: user.id,
-                        email: user.email,
-                        firstName: user.firstName,
-                        lastName: user.lastName
-                    };
-                } else {
-                    console.debug('[N8nApiClient] getCurrentUser: No users found in response');
-                }
-            } catch (error: any) {
-                console.debug('[N8nApiClient] getCurrentUser: /api/v1/users endpoint failed:', error.message);
-                if (error.response) {
-                    console.debug('[N8nApiClient] getCurrentUser: Response status:', error.response.status);
-                }
-            }
-            
-            console.debug('[N8nApiClient] getCurrentUser: All attempts failed, returning null');
-            return null;
         } catch (error: any) {
-            console.debug('[N8nApiClient] getCurrentUser: Unexpected error:', error.message);
-            return null;
+            console.debug('[N8nApiClient] getCurrentUser: /me endpoint failed:', error.message);
+            // If it's a connection error, throw immediately
+            if (!error.response) throw error;
         }
+
+        // Fallback: get all users and take the first one (assuming the API key belongs to an admin or the only user)
+        console.debug('[N8nApiClient] getCurrentUser: Trying /api/v1/users endpoint');
+        try {
+            const res = await this.client.get('/api/v1/users');
+            if (res.data && res.data.data && res.data.data.length > 0) {
+                console.debug('[N8nApiClient] getCurrentUser: Found', res.data.data.length, 'users');
+                const user = res.data.data[0];
+                return {
+                    id: user.id,
+                    email: user.email,
+                    firstName: user.firstName,
+                    lastName: user.lastName
+                };
+            }
+        } catch (error: any) {
+            console.debug('[N8nApiClient] getCurrentUser: /api/v1/users endpoint failed:', error.message);
+            // If it's a connection error, throw immediately
+            if (!error.response) throw error;
+        }
+        
+        console.debug('[N8nApiClient] getCurrentUser: All attempts failed, returning null');
+        return null;
     }
 
     async getAllWorkflows(): Promise<IWorkflow[]> {
         try {
             const res = await this.client.get('/api/v1/workflows');
             return res.data.data;
-        } catch (error) {
-            console.error('Failed to get workflows:', error);
-            return [];
+        } catch (error: any) {
+            console.error('Failed to get workflows:', error.message);
+            // Re-throw so the caller (Watcher) can distinguish between "no workflows" and "connection error"
+            throw error;
         }
     }
 
@@ -103,9 +93,13 @@ export class N8nApiClient {
         try {
             const res = await this.client.get(`/api/v1/workflows/${id}`);
             return res.data;
-        } catch (error) {
+        } catch (error: any) {
             // 404 is expected if workflow deleted remotely
-            return null;
+            if (error.response && error.response.status === 404) {
+                return null;
+            }
+            // Re-throw other errors (connection, 500, etc.)
+            throw error;
         }
     }
 

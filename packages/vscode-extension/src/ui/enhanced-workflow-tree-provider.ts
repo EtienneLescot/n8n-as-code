@@ -256,8 +256,47 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
 
   private getErrorItems(): BaseTreeItem[] {
     const configValidation = validateN8nConfig();
-    const canRetry = configValidation.isValid;
-    return [new ErrorItem(this.initializationError || 'Unknown error', canRetry)];
+    
+    const items: BaseTreeItem[] = [];
+    
+    // 1. Main Error Item (non-clickable, just status)
+    const errorItem = new ErrorItem(this.initializationError || 'Unknown error', false);
+    errorItem.label = 'Initialization Failed';
+    errorItem.description = '';
+    errorItem.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('errorForeground'));
+    items.push(errorItem);
+    
+    // 2. Explanation
+    const explanationItem = new InfoItem(
+      'Instance is unreachable',
+      'It may have stopped',
+      new vscode.ThemeIcon('warning')
+    );
+    explanationItem.tooltip = this.initializationError;
+    items.push(explanationItem);
+
+    // 3. Spacing
+    items.push(new InfoItem('', '', new vscode.ThemeIcon('blank')));
+
+    // 4. Action: Retry
+    if (configValidation.isValid) {
+      const retryItem = new InfoItem('Retry Connection', '', new vscode.ThemeIcon('refresh'));
+      retryItem.command = {
+        command: 'n8n.init',
+        title: 'Retry Connection'
+      };
+      items.push(retryItem);
+    }
+
+    // 5. Action: Settings
+    const settingsItem = new InfoItem('Open Settings', '', new vscode.ThemeIcon('settings-gear'));
+    settingsItem.command = {
+      command: 'n8n.openSettings',
+      title: 'Open Settings'
+    };
+    items.push(settingsItem);
+    
+    return items;
   }
 
   getParent(_element: BaseTreeItem): vscode.ProviderResult<BaseTreeItem> {

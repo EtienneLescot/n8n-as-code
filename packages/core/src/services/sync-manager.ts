@@ -65,6 +65,10 @@ export class SyncManager extends EventEmitter {
         this.watcher.on('error', (err) => {
             this.emit('error', err);
         });
+
+        this.watcher.on('connection-lost', (err) => {
+            this.emit('connection-lost', err);
+        });
     }
 
     async getWorkflowsStatus(): Promise<IWorkflowStatus[]> {

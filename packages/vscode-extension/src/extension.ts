@@ -673,7 +673,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
     const absDirectory = path.join(workspaceRoot, folder);
 
-    // Generate instance identifier based on host and user
+    // Generate instance identifier
+    // Try to get user info for a more stable identifier, but don't fail if unavailable
     let instanceIdentifier: string;
     try {
         const user = await client.getCurrentUser();
@@ -685,10 +686,23 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             instanceIdentifier = createFallbackInstanceIdentifier(host, apiKey);
             outputChannel.appendLine(`[n8n] Instance identifier: ${instanceIdentifier} (fallback)`);
         }
-    } catch (error) {
-        // Fallback on error
+    } catch (error: any) {
+        // Check if it's a connection error (no response from server or specific codes)
+        const isConnectionError = !error.response ||
+                                  error.code === 'ECONNREFUSED' ||
+                                  error.code === 'ENOTFOUND' ||
+                                  error.code === 'ETIMEDOUT';
+
+        if (isConnectionError) {
+            outputChannel.appendLine(`[n8n] Connection test failed: ${error.message}`);
+            // Throw a friendly error message immediately to prevent directory creation
+            throw new Error(`Cannot connect to n8n instance at "${host}". Please check if n8n is running and the host URL is correct.`);
+        }
+        
+        // For other errors (like 401 Unauthorized or 403 Forbidden),
+        // we can still use the fallback identifier since the instance IS reachable
         instanceIdentifier = createFallbackInstanceIdentifier(host, apiKey);
-        outputChannel.appendLine(`[n8n] Instance identifier: ${instanceIdentifier} (fallback due to error)`);
+        outputChannel.appendLine(`[n8n] Instance identifier: ${instanceIdentifier} (fallback - API error: ${error.message})`);
     }
 
     syncManager = new SyncManager(client, {
@@ -708,11 +722,40 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     setSyncManager(syncManager);
     enhancedTreeProvider.subscribeToStore(store);
 
+    // Wire up event handlers BEFORE starting watch
+    // This ensures connection-lost is caught even during initial refresh
+    
+    // Handle connection loss (both during startup and runtime)
+    syncManager.on('connection-lost', (error: Error) => {
+        outputChannel.appendLine(`[n8n] CONNECTION LOST: ${error.message}`);
+        
+        // Stop sync manager
+        syncManager!.stopWatch();
+        
+        // Update UI to error state
+        enhancedTreeProvider.setExtensionState(ExtensionState.ERROR, error.message);
+        statusBar.showError('Connection lost');
+        
+        // Show notification with retry option
+        vscode.window.showErrorMessage(
+            `Lost connection to n8n instance. The instance may have stopped.`,
+            'Retry Connection',
+            'Open Settings'
+        ).then(choice => {
+            if (choice === 'Retry Connection') {
+                reinitializeSyncManager(context);
+            } else if (choice === 'Open Settings') {
+                vscode.commands.executeCommand('n8n.openSettings');
+            }
+        });
+    });
+
     // Wire up logs
     syncManager.on('error', (msg) => {
         console.error(msg);
         vscode.window.showErrorMessage(`n8n Error: ${msg}`);
     });
+    
     syncManager.on('log', (msg) => {
         console.log(msg);
         outputChannel.appendLine(msg);
