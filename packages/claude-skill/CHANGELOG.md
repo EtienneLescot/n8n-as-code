@@ -1,5 +1,17 @@
 # @n8n-as-code/claude-skill
 
+## 0.2.1
+
+### Patch Changes
+
+- feat(skills): initial release of Claude Agent Skill package
+
+  Introduces a filesystem-based Skill for Claude agents to interact with N8N documentation.
+
+  - Added `SKILL.md` with prompt engineering for N8N node lookups.
+  - configured CLI wrapper using `npx @n8n-as-code/agent-cli`.
+  - Enables direct tool usage within Claude's sandbox environment, removing the need for MCP.
+
 ## 0.2.0
 
 ### Initial Release

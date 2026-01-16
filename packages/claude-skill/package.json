@@ -1,6 +1,6 @@
 {
   "name": "@n8n-as-code/claude-skill",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Claude Agent Skill for n8n workflow development",
   "type": "module",
   "private": true,
