@@ -19,7 +19,6 @@ const enhancedTreeProvider = new EnhancedWorkflowTreeProvider();
 const outputChannel = vscode.window.createOutputChannel("n8n-as-code");
 
 const conflictStore = new Map<string, string>();
-const activeConflictModals = new Set<string>();
 
 export async function activate(context: vscode.ExtensionContext) {
     outputChannel.show(true);
@@ -489,73 +488,37 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     });
 
     // Handle Conflicts
-    syncManager.on('conflict', (conflict: any) => {
-        const { id, filename, remoteContent } = conflict;
-        
+    syncManager.on('conflict', async (conflict: any) => {
+        const { id, filename, localContent, remoteContent } = conflict;
         outputChannel.appendLine(`[n8n] CONFLICT detected for: ${filename}`);
 
-        // Prevent duplicate modals for the same file
-        if (activeConflictModals.has(id)) {
-            return;
+        const choice = await vscode.window.showWarningMessage(
+            `Conflict detected for "${filename}". The workflow was modified both locally and on n8n.`,
+            'Show Diff',
+            'Overwrite Remote (Use Local)',
+            'Overwrite Local (Use Remote)'
+        );
+
+        if (choice === 'Show Diff') {
+            // Create a virtual document for the remote content
+            const remoteUri = vscode.Uri.parse(`n8n-remote:${filename}?id=${id}`);
+            const localUri = vscode.Uri.file(path.join(syncManager!.getInstanceDirectory(), filename));
+
+            // Store remote content for the provider
+            conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
+
+            await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
+        } else if (choice === 'Overwrite Remote (Use Local)') {
+            // Force push by updating the state first
+            syncManager?.['stateManager']?.updateWorkflowState(id, remoteContent);
+            // Now trigger a manual change event to retry the push
+            const absPath = path.join(syncManager!.getInstanceDirectory(), filename);
+            await syncManager?.handleLocalFileChange(absPath);
+        } else if (choice === 'Overwrite Local (Use Remote)') {
+            // Force pull by updating the state first
+            await syncManager?.pullWorkflow(filename, id, true);
+            vscode.window.showInformationMessage(`✅ Local file "${filename}" updated from n8n.`);
         }
-        activeConflictModals.add(id);
-
-        // We use an error message which is more prominent and less likely to be suppressed
-        vscode.window.showErrorMessage(
-            `CONFLICT in "${filename}": Workflow changed both locally and on n8n.`,
-            'Resolve Conflict',
-            'Show Diff'
-        ).then(async (choice) => {
-            if (choice === 'Resolve Conflict' || choice === 'Show Diff') {
-                const subChoice = choice === 'Show Diff' ? 'Show Diff' : await vscode.window.showQuickPick(
-                    ['Show Diff', 'Overwrite Remote (Use Local)', 'Overwrite Local (Use Remote)'],
-                    { placeHolder: `How to resolve conflict for ${filename}?` }
-                );
-
-                if (!subChoice) {
-                    activeConflictModals.delete(id);
-                    return;
-                }
-                
-                if (subChoice === 'Show Diff') {
-                    const remoteUri = vscode.Uri.parse(`n8n-remote:${filename}?id=${id}`);
-                    const localUri = vscode.Uri.file(path.join(syncManager!.getInstanceDirectory(), filename));
-                    conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
-                    await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
-                    // We keep it in activeConflictModals while viewing diff to avoid being bothered?
-                    // No, let's release it so they can resolve it after viewing.
-                    activeConflictModals.delete(id);
-                } else if (subChoice === 'Overwrite Remote (Use Local)') {
-                    activeConflictModals.delete(id);
-                    syncManager?.['stateManager']?.updateWorkflowState(id, remoteContent);
-                    const absPath = path.join(syncManager!.getInstanceDirectory(), filename);
-                    await syncManager?.handleLocalFileChange(absPath);
-                } else if (subChoice === 'Overwrite Local (Use Remote)') {
-                    activeConflictModals.delete(id);
-                    await syncManager?.pullWorkflow(filename, id, true);
-                    vscode.window.showInformationMessage(`✅ Local file "${filename}" updated from n8n.`);
-                }
-            } else {
-                activeConflictModals.delete(id);
-            }
-        ).then(async (choice) => {
-            activeConflictModals.delete(id);
-            if (!choice) return;
-
-            if (choice === 'Show Diff') {
-                const remoteUri = vscode.Uri.parse(`n8n-remote:${filename}?id=${id}`);
-                const localUri = vscode.Uri.file(path.join(syncManager!.getInstanceDirectory(), filename));
-                conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
-                await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
-            } else if (choice === 'Overwrite Remote (Use Local)') {
-                syncManager?.['stateManager']?.updateWorkflowState(id, remoteContent);
-                const absPath = path.join(syncManager!.getInstanceDirectory(), filename);
-                await syncManager?.handleLocalFileChange(absPath);
-            } else if (choice === 'Overwrite Local (Use Remote)') {
-                await syncManager?.pullWorkflow(filename, id, true);
-                vscode.window.showInformationMessage(`✅ Local file "${filename}" updated from n8n.`);
-            }
-        });
     });
 
     // Handle Local Deletion (user deleted a file locally)
