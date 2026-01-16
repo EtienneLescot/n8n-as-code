@@ -269,7 +269,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         vscode.commands.registerCommand('n8n.deleteWorkflow', async (arg: any) => {
-            outputChannel.appendLine(`[n8n] deleteWorkflow command called. Arg: ${JSON.stringify(arg ? (arg.workflow ? 'item.wf' : 'wf') : 'null')}`);
+            outputChannel.appendLine(`[n8n] deleteWorkflow command called. Arg keys: ${arg ? Object.keys(arg).join(', ') : 'null'}`);
             const wf = arg?.workflow ? arg.workflow : arg;
             
             if (!syncManager) {
@@ -278,41 +278,25 @@ export async function activate(context: vscode.ExtensionContext) {
             }
 
             if (!wf || !wf.filename) {
-                outputChannel.appendLine(`[n8n] deleteWorkflow: No workflow or filename found. wf: ${JSON.stringify(wf)}`);
+                outputChannel.appendLine(`[n8n] deleteWorkflow: No workflow or filename found. wf keys: ${wf ? Object.keys(wf).join(', ') : 'null'}`);
                 return;
             }
 
-            const choice = await vscode.window.showWarningMessage(
-                `Delete local JSON file "${wf.filename}"? This will move it to the .archive folder.`,
-                'Delete',
-                'Cancel'
-            );
-
-            if (choice !== 'Delete') return;
-
-            statusBar.showSyncing();
             try {
                 const instanceDirectory = syncManager.getInstanceDirectory();
                 const absPath = path.join(instanceDirectory, wf.filename);
-                const archivePath = path.join(instanceDirectory, '.archive', wf.filename);
-
-                // Ensure archive directory exists
-                const archiveDir = path.dirname(archivePath);
-                if (!fs.existsSync(archiveDir)) {
-                    await fs.promises.mkdir(archiveDir, { recursive: true });
-                }
 
                 if (fs.existsSync(absPath)) {
-                    await fs.promises.rename(absPath, archivePath);
-                    outputChannel.appendLine(`[n8n] Local file deleted (moved to .archive): ${wf.filename}`);
+                    outputChannel.appendLine(`[n8n] Deleting local file: ${absPath}`);
+                    await fs.promises.unlink(absPath);
+                    // Immediate refresh to show status change (will show yellow cloud for missing local)
                     enhancedTreeProvider.refresh();
-                    statusBar.showSynced();
-                    vscode.window.showInformationMessage(`🗑️ Local JSON "${wf.filename}" moved to .archive`);
                 } else {
-                    throw new Error(`File not found: ${wf.filename}`);
+                    outputChannel.appendLine(`[n8n] File not found for deletion: ${absPath}`);
+                    vscode.window.showErrorMessage(`File not found: ${wf.filename}`);
                 }
             } catch (e: any) {
-                statusBar.showError(e.message);
+                outputChannel.appendLine(`[n8n] Delete Error: ${e.message}`);
                 vscode.window.showErrorMessage(`Delete Error: ${e.message}`);
             }
         }),
@@ -596,6 +580,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             const success = await syncManager?.deleteRemoteWorkflow(data.id, data.filename);
             if (success) {
                 vscode.window.showInformationMessage(`✅ Remote workflow "${data.filename}" deleted and archived.`);
+                // Disappear from list
+                enhancedTreeProvider.refresh();
             } else {
                 vscode.window.showErrorMessage(`❌ Failed to delete remote workflow "${data.filename}".`);
             }
@@ -603,6 +589,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             const success = await syncManager?.restoreLocalFile(data.id, data.filename);
             if (success) {
                 vscode.window.showInformationMessage(`✅ Local file "${data.filename}" restored from n8n.`);
+                // Back to synced status
+                enhancedTreeProvider.refresh();
             } else {
                 vscode.window.showErrorMessage(`❌ Failed to restore local file "${data.filename}".`);
             }

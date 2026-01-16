@@ -127,41 +127,41 @@
       },
       {
         "command": "n8n.spacer",
-        "title": "",
+        "title": " ",
         "icon": "assets/spacer.png"
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "n8n.push",
+          "command": "n8n.openSettings",
           "group": "navigation@1",
-          "when": "view == n8n-explorer.workflows && config.n8n.syncMode == manual"
-        },
-        {
-          "command": "n8n.pull",
-          "group": "navigation@2",
-          "when": "view == n8n-explorer.workflows && config.n8n.syncMode == manual"
+          "when": "view == n8n-explorer.workflows"
         },
         {
           "command": "n8n.spacer",
-          "group": "navigation@3",
+          "group": "navigation@2",
           "when": "view == n8n-explorer.workflows"
         },
         {
-          "command": "n8n.openSettings",
+          "command": "n8n.pull",
+          "group": "navigation@3",
+          "when": "view == n8n-explorer.workflows && config.n8n.syncMode == manual"
+        },
+        {
+          "command": "n8n.push",
           "group": "navigation@4",
-          "when": "view == n8n-explorer.workflows"
+          "when": "view == n8n-explorer.workflows && config.n8n.syncMode == manual"
         }
       ],
       "view/item/context": [
         {
-          "command": "n8n.openBoard",
+          "command": "n8n.deleteWorkflow",
           "group": "inline@1",
           "when": "viewItem == workflow"
         },
         {
-          "command": "n8n.openJson",
+          "command": "n8n.spacer",
           "group": "inline@2",
           "when": "viewItem == workflow"
         },
@@ -171,12 +171,12 @@
           "when": "viewItem == workflow"
         },
         {
-          "command": "n8n.spacer",
+          "command": "n8n.openJson",
           "group": "inline@4",
           "when": "viewItem == workflow"
         },
         {
-          "command": "n8n.deleteWorkflow",
+          "command": "n8n.openBoard",
           "group": "inline@5",
           "when": "viewItem == workflow"
         },
