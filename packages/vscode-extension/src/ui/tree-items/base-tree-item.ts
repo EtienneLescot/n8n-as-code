@@ -24,7 +24,7 @@ export abstract class BaseTreeItem extends vscode.TreeItem {
   /**
    * Update the item based on current state
    */
-  updateState(state: any): void {
+  updateState(_state: any): void {
     // Base implementation does nothing
     // Override in subclasses to update based on state changes
   }

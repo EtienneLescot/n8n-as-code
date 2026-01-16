@@ -107,8 +107,7 @@ export class ProxyService {
         });
 
         // Strip headers that block iframe embedding and manage cookies
-        this.proxy.on('proxyRes', (proxyRes, req, res) => {
-            const path = req.url || 'unknown';
+        this.proxy.on('proxyRes', (proxyRes, _req, _res) => {
             // this.log(`[Proxy] ${req.method} ${path} -> ${proxyRes.statusCode}`);
 
             // Remove headers that prevent iframe embedding
@@ -173,7 +172,7 @@ export class ProxyService {
             proxyRes.headers['access-control-allow-headers'] = '*';
         });
 
-        this.proxy.on('error', (err, req, res) => {
+        this.proxy.on('error', (err, _req, res) => {
             this.log(`[Proxy] ERROR: ${err.message}`);
             // If it's a websocket error, res is a socket
             if ((res as any).writeHead) {
@@ -199,8 +198,6 @@ export class ProxyService {
             }
 
             if (this.proxy) {
-                const url = req.url || 'unknown';
-
                 // Merge cookies
                 const clientCookies = req.headers.cookie;
                 let finalCookies: string[] = clientCookies ? [clientCookies] : [];

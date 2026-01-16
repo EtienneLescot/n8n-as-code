@@ -90,7 +90,37 @@ export class SyncManager extends EventEmitter {
     async startWatch() {
         await this.ensureInitialized();
         await this.watcher!.start();
+        
+        // Create instance config file to mark workspace as initialized
+        this.ensureInstanceConfigFile();
+        
         this.emit('log', 'Watcher started.');
+    }
+
+    /**
+     * Create or update the n8n-as-code-instance.json file
+     * This file marks the workspace as initialized and stores the instance identifier
+     */
+    private ensureInstanceConfigFile() {
+        if (!this.config.instanceConfigPath || !this.config.instanceIdentifier) {
+            return;
+        }
+
+        const configData = {
+            instanceIdentifier: this.config.instanceIdentifier,
+            directory: this.config.directory,
+            lastSync: new Date().toISOString()
+        };
+
+        try {
+            fs.writeFileSync(
+                this.config.instanceConfigPath,
+                JSON.stringify(configData, null, 2),
+                'utf-8'
+            );
+        } catch (error) {
+            console.warn(`[SyncManager] Failed to write instance config file: ${error}`);
+        }
     }
 
     stopWatch() {

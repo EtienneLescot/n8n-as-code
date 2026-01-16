@@ -123,7 +123,7 @@ export class WorkflowItem extends BaseTreeItem {
     return this.contextValue || 'workflow';
   }
   
-  override updateState(state: any): void {
+  override updateState(_state: any): void {
     // Workflow items don't need dynamic updates for now
   }
 }

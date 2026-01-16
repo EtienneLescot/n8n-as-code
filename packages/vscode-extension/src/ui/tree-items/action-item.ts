@@ -131,7 +131,7 @@ export class ActionItem extends BaseTreeItem {
     return this.contextValue || 'action-item';
   }
   
-  override updateState(state: any): void {
+  override updateState(_state: any): void {
     // Action items are static
   }
 }

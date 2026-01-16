@@ -1,13 +1,12 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { SyncManager, N8nApiClient, IN8nCredentials, IWorkflowStatus, SchemaGenerator, WorkflowSyncStatus, createInstanceIdentifier, createFallbackInstanceIdentifier } from '@n8n-as-code/core';
+import { SyncManager, N8nApiClient, IN8nCredentials, SchemaGenerator, WorkflowSyncStatus, createInstanceIdentifier, createFallbackInstanceIdentifier } from '@n8n-as-code/core';
 import { AiContextGenerator, SnippetGenerator } from '@n8n-as-code/agent-cli';
 
 import { StatusBar } from './ui/status-bar.js';
 import { EnhancedWorkflowTreeProvider } from './ui/enhanced-workflow-tree-provider.js';
 import { WorkflowWebview } from './ui/workflow-webview.js';
-import { WorkflowDetailWebview } from './ui/workflow-detail-webview.js';
 import { WorkflowDecorationProvider } from './ui/workflow-decoration-provider.js';
 import { ProxyService } from './services/proxy-service.js';
 import { ExtensionState } from './types.js';
@@ -16,7 +15,6 @@ import { validateN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } fr
 import {
     store,
     setSyncManager,
-    loadWorkflows,
     syncDown,
     syncUp,
     setWorkflows,
@@ -29,7 +27,6 @@ import {
 } from './services/workflow-store.js';
 
 let syncManager: SyncManager | undefined;
-let watchModeActive = false;
 const statusBar = new StatusBar();
 const proxyService = new ProxyService();
 const enhancedTreeProvider = new EnhancedWorkflowTreeProvider();
@@ -153,14 +150,6 @@ export async function activate(context: vscode.ExtensionContext) {
             } else {
                 vscode.window.showErrorMessage('n8n Host not configured.');
             }
-        }),
-
-        vscode.commands.registerCommand('n8n.openWorkflowDetail', async (arg: any) => {
-            const wf = arg?.workflow ? arg.workflow : arg;
-            if (!wf || !syncManager) return;
-
-            const extensionUri = context.extensionUri;
-            WorkflowDetailWebview.createOrShow(extensionUri, wf, syncManager);
         }),
 
         vscode.commands.registerCommand('n8n.openJson', async (arg: any) => {
@@ -744,7 +733,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
     // Handle Conflicts using Redux store
     syncManager.on('conflict', (conflict: any) => {
-        const { id, filename } = conflict;
+        const { filename } = conflict;
         outputChannel.appendLine(`[n8n] CONFLICT detected for: ${filename}`);
 
         store.dispatch(addConflict({

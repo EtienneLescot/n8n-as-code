@@ -43,7 +43,7 @@ export class WorkflowWebview {
     /**
      * Trigger a reload of the webview if the workflowId matches the one currently displayed.
      */
-    public static reloadIfMatching(workflowId: string, outputChannel?: vscode.OutputChannel) {
+    public static reloadIfMatching(workflowId: string, _outputChannel?: vscode.OutputChannel) {
         if (WorkflowWebview.currentPanel) {
             const panelId = WorkflowWebview.currentPanel._workflowId;
             if (panelId === workflowId) {
@@ -58,7 +58,7 @@ export class WorkflowWebview {
     /**
      * Reload the currently open webview regardless of workflow ID.
      */
-    public static reloadCurrent(outputChannel?: vscode.OutputChannel) {
+    public static reloadCurrent(_outputChannel?: vscode.OutputChannel) {
         if (WorkflowWebview.currentPanel) {
             // outputChannel?.appendLine(`[Webview] Reloading current panel (${WorkflowWebview.currentPanel._workflowId})`);
             WorkflowWebview.currentPanel._panel.webview.postMessage({ type: 'reload' });

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Store } from '@reduxjs/toolkit';
-import { SyncManager, IWorkflowStatus, WorkflowSyncStatus } from '@n8n-as-code/core';
+import { SyncManager, WorkflowSyncStatus } from '@n8n-as-code/core';
 import { ExtensionState } from '../types.js';
 import { validateN8nConfig } from '../utils/state-detection.js';
 
@@ -131,13 +131,6 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
       Date.now() - this.cacheInvalidationTime < CACHE_TTL_MS;
   }
 
-  /**
-   * Check if cache is stale (older than 5 seconds)
-   */
-  private isCacheStale(): boolean {
-    const CACHE_TTL_MS = 5000; // 5 seconds
-    return Date.now() - this.cacheInvalidationTime > CACHE_TTL_MS;
-  }
 
   /**
    * Get tree item for element
@@ -267,11 +260,11 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     return [new ErrorItem(this.initializationError || 'Unknown error', canRetry)];
   }
 
-  getParent(element: BaseTreeItem): vscode.ProviderResult<BaseTreeItem> {
+  getParent(_element: BaseTreeItem): vscode.ProviderResult<BaseTreeItem> {
     return null;
   }
 
-  resolveTreeItem(item: BaseTreeItem, element: BaseTreeItem, token: vscode.CancellationToken): vscode.ProviderResult<vscode.TreeItem> {
+  resolveTreeItem(_item: BaseTreeItem, element: BaseTreeItem, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.TreeItem> {
     return element;
   }
 

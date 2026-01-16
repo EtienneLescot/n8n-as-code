@@ -24,7 +24,7 @@ export class InfoItem extends BaseTreeItem {
     return 'info';
   }
   
-  override updateState(state: any): void {
+  override updateState(_state: any): void {
     // Info items don't need dynamic updates
   }
 }
