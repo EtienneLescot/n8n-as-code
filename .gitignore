@@ -69,3 +69,4 @@ workflows_test/
 n8n-as-code-instance.json
 
 ignoredTests/
+session_context.json

@@ -9,7 +9,10 @@
     "scripts": {
         "build": "tsc -b",
         "watch": "tsc -b -w",
-        "clean": "rm -rf dist tsconfig.tsbuildinfo"
+        "clean": "rm -rf dist tsconfig.tsbuildinfo",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage"
     },
     "dependencies": {
         "@n8n-as-code/agent-cli": "0.2.0",
@@ -28,7 +31,10 @@
     "devDependencies": {
         "@types/diff": "^5.0.9",
         "@types/inquirer": "^9.0.9",
-        "typescript": "^5.3.3"
+        "@types/node": "^20.10.6",
+        "@vitest/coverage-v8": "^1.1.0",
+        "typescript": "^5.3.3",
+        "vitest": "^1.1.0"
     },
     "files": [
         "dist/"
