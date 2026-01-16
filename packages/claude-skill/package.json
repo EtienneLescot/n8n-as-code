@@ -1,0 +1,19 @@
+{
+  "name": "@n8n-as-code/claude-skill",
+  "version": "0.2.0",
+  "description": "Claude Agent Skill for n8n workflow development",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "node build.js",
+    "clean": "rm -rf dist",
+    "validate": "node validate.js",
+    "prebuild": "node validate.js"
+  },
+  "dependencies": {
+    "@n8n-as-code/agent-cli": "^0.2.0"
+  },
+  "files": [
+    "dist/"
+  ]
+}

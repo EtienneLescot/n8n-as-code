@@ -1,0 +1,4 @@
+templates/
+build.js
+*.md
+!README.md

@@ -10,6 +10,7 @@ This section contains documentation for developers and contributors working on n
 ### Internal Packages
 - **[Core Package](core.md)**: Internal documentation for the Core package that provides shared business logic for all n8n-as-code components.
 - **[Agent CLI](agent-cli.md)**: Internal documentation for the Agent CLI package used by AI assistants to generate context and snippets.
+- **[Claude Skill](claude-skill.md)**: Internal documentation for the Claude Agent Skill package.
 
 ## 🛠 Development Setup
 

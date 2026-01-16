@@ -95,6 +95,28 @@ We inject specific context to make your AI (Cursor, Windsurf, Copilot) an expert
 -   🛡️ **`n8n-schema.json`**: Strict validation of your JSONs to avoid structural errors.
 -   🧩 **Snippets**: Library of predefined nodes (Webhook, Code, HTTP...) for faster coding.
 
+### 🎭 Claude Agent Skill
+
+Transform Claude AI into an n8n expert with our official **Claude Agent Skill**!
+
+The `@n8n-as-code/claude-skill` package provides a [Claude Agent Skill](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills) that enables Claude to:
+
+- ✅ Search for n8n nodes using exact documentation
+- ✅ Retrieve node schemas to prevent parameter hallucination
+- ✅ Generate valid workflow JSON following best practices
+
+**Quick Start:**
+
+```bash
+# Build the skill package
+cd packages/claude-skill
+npm run build
+
+# Install to Claude.ai (upload ZIP) or Claude Code (copy folder)
+```
+
+📖 [Usage Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill) | [Contribution Guide](https://etiennelescot.github.io/n8n-as-code/docs/contribution/claude-skill)
+
 ---
 
 ## 🧪 Tests & Quality
@@ -161,6 +183,7 @@ This project uses [Changesets](https://github.com/changesets/changesets) for aut
     - Uses base-local-remote comparison for deterministic conflict detection
 -   **`packages/cli`**: The main command-line interface for manual workflow management.
 -   **`packages/agent-cli`**: Specialized tools for AI Agents (Cursor, Cline), providing search and schema retrieval capabilities.
+-   **`packages/claude-skill`**: Official Claude Agent Skill package for Anthropic's Claude AI.
 -   **`packages/vscode-extension`**: The VS Code plugin for seamless real-time synchronization and AI assistance.
 
 ---

@@ -17,6 +17,7 @@ This section is organized by the primary user-facing tools:
 | **[VS Code Extension](/docs/usage/vscode-extension)** | Integrated development environment | Visual editing, real-time sync, workflow validation |
 | **[CLI](/docs/usage/cli)** | Command-line interface | Automation, scripting, CI/CD integration |
 | **[Agent CLI](/docs/usage/agent-cli)** | AI tools and node schemas | AI coding assistants, node search, schema retrieval |
+| **[Claude Skill](/docs/usage/claude-skill)** | Claude Agent Skill package | Using Claude AI to generate n8n workflows |
 
 ## 🎨 Choosing the Right Tool
 
@@ -132,6 +133,12 @@ n8n-as-code push
 2. Search for nodes: `npx @n8n-as-code/agent-cli search "query"`
 3. Get node schemas: `npx @n8n-as-code/agent-cli get nodeName`
 4. Use output for AI context or development
+
+### 4. Claude Skill (For Claude AI)
+1. Build: `cd packages/claude-skill && npm run build`
+2. Install to Claude.ai, Claude Code, or use via API
+3. Claude automatically uses the skill for n8n questions
+4. See [Claude Skill Guide](/docs/usage/claude-skill) for details
 
 ## 🔧 Advanced Features
 

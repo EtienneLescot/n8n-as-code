@@ -11,7 +11,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run generate:nodes && tsc -b --force && npm run build --workspace=packages/agent-cli --workspace=packages/cli --workspace=packages/core --workspace=packages/vscode-extension",
+    "build": "npm run generate:nodes && tsc -b --force && npm run build --workspace=packages/agent-cli --workspace=packages/cli --workspace=packages/core --workspace=packages/vscode-extension && npm run build --workspace=packages/claude-skill",
     "build:core": "cd packages/core && npm run build",
     "build:cli": "cd packages/cli && npm run build",
     "build:extension": "cd packages/vscode-extension && npm run build",
