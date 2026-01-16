@@ -1,5 +1,11 @@
 # @n8n-as-code/core
 
+## 0.3.1
+
+### Patch Changes
+
+- 08b83b5: doc update
+
 ## 0.3.0
 
 ### Minor Changes
