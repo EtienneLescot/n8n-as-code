@@ -39,6 +39,7 @@ export class WorkflowSanitizer {
         keysToRemove.forEach(k => delete settings[k]);
 
         const cleaned = {
+            id: workflow.id,
             name: workflow.name,
             nodes: workflow.nodes || [],
             connections: workflow.connections || {},
@@ -61,7 +62,7 @@ export class WorkflowSanitizer {
         // n8n public API v1 (PUT /workflows/{id})
         // 1. 'active' is read-only and will cause a 400 error if included
         delete clean.active;
-        
+
         // 2. Tags are often problematic and not always supported in the same way via Public API
         delete clean.tags;
 

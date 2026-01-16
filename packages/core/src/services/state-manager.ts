@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import stringify from 'json-stable-stringify';
 import { IWorkflow } from '../types.js';
 import { WorkflowSanitizer } from './workflow-sanitizer.js';
 
@@ -41,16 +42,16 @@ export class StateManager {
     }
 
     /**
-     * Computes a stable hash for a workflow object.
+     * Computes a stable, canonical hash for any object (usually a workflow).
+     * Non-functional metadata should be removed before calling this.
      */
-    static computeHash(workflow: any): string {
-        // We use the cleaned version to ensure stable hashing (no dynamic IDs or timestamps)
-        const content = typeof workflow === 'string' ? workflow : JSON.stringify(workflow);
-        return crypto.createHash('sha256').update(content).digest('hex');
+    static computeHash(content: any): string {
+        const canonicalString = stringify(content) || '';
+        return crypto.createHash('sha256').update(canonicalString).digest('hex');
     }
 
     /**
-     * Gets the last known state for a workflow.
+     * Gets the last known state (Base) for a workflow.
      */
     getWorkflowState(id: string): IWorkflowState | undefined {
         const state = this.load();
@@ -58,11 +59,11 @@ export class StateManager {
     }
 
     /**
-     * Updates the last known state for a workflow.
+     * Updates the last known state (Base) for a workflow.
+     * This is the "Commit" operation.
      */
-    updateWorkflowState(id: string, workflow: any) {
+    updateWorkflowState(id: string, hash: string) {
         const state = this.load();
-        const hash = StateManager.computeHash(workflow);
         state.workflows[id] = {
             lastSyncedHash: hash,
             lastSyncedAt: new Date().toISOString()
@@ -88,30 +89,11 @@ export class StateManager {
     }
 
     /**
-     * Checks if a local content matches the last synced state.
+     * Checks if a hash matches the last synced state.
      */
-    isLocalSynced(id: string, localContent: any): boolean {
+    isSynced(id: string, currentHash: string): boolean {
         const state = this.getWorkflowState(id);
-        if (!state) return true; // If no state, we assume it's new
-        const currentHash = StateManager.computeHash(localContent);
-        const result = state.lastSyncedHash === currentHash;
-        if (!result) {
-            // Changed from console.log to silent for production
-        }
-        return result;
-    }
-
-    /**
-     * Checks if a remote workflow matches the last synced state.
-     */
-    isRemoteSynced(id: string, remoteWorkflow: any): boolean {
-        const state = this.getWorkflowState(id);
-        if (!state) return true;
-        const remoteHash = StateManager.computeHash(remoteWorkflow);
-        const result = state.lastSyncedHash === remoteHash;
-        if (!result) {
-            // Changed from console.log to silent for production
-        }
-        return result;
+        if (!state) return false;
+        return state.lastSyncedHash === currentHash;
     }
 }

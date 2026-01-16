@@ -83,7 +83,9 @@ test('Integration Scenarios', async (t) => {
         });
 
         try {
+            await syncManager.refreshState();
             await syncManager.syncDown();
+            await syncManager.getWorkflowsStatus();
             const filePath = path.join(syncManager.getInstanceDirectory(), 'Test test.json');
 
             // Wait for writing lock to clear (SyncManager sets a 1s lock after writing)
@@ -121,7 +123,9 @@ test('Integration Scenarios', async (t) => {
 
         try {
             await client.updateWorkflow(testWorkflowId, baseWorkflow);
+            await syncManager.refreshState();
             await syncManager.syncDown();
+            await syncManager.getWorkflowsStatus();
             const filePath = path.join(syncManager.getInstanceDirectory(), 'Test test.json');
 
             // Wait for writing lock to clear
@@ -164,6 +168,7 @@ test('Integration Scenarios', async (t) => {
             const wfId = wf.id;
 
             // 2. Sync down
+            await syncManager.refreshState();
             await syncManager.syncDown();
             const instanceDir = syncManager.getInstanceDirectory();
             const filePath = path.join(instanceDir, 'Delete Me Remote.json');
@@ -204,7 +209,9 @@ test('Integration Scenarios', async (t) => {
         try {
             // 1. Setup local file
             await client.updateWorkflow(testWorkflowId, baseWorkflow);
+            await syncManager.refreshState();
             await syncManager.syncDown();
+            await syncManager.getWorkflowsStatus();
             const instanceDir = syncManager.getInstanceDirectory();
             const filePath = path.join(instanceDir, 'Test test.json');
 
@@ -241,7 +248,9 @@ test('Integration Scenarios', async (t) => {
             const wfId = wf.id;
 
             // 2. Sync down
+            await syncManager.refreshState();
             await syncManager.syncDown();
+            await syncManager.getWorkflowsStatus();
             const instanceDir = syncManager.getInstanceDirectory();
             const filePath = path.join(instanceDir, 'Delete Me Local.json');
 

@@ -24,25 +24,25 @@ test('WorkflowSanitizer: cleanForStorage should remove dynamic keys and sort key
     };
 
     const cleaned = WorkflowSanitizer.cleanForStorage(mockWorkflow as IWorkflow);
-    
+
     // Check removed keys
     assert.strictEqual(cleaned.settings.executionUrl, undefined);
     assert.strictEqual(cleaned.settings.availableInMCP, undefined);
     assert.strictEqual((cleaned as any).updatedAt, undefined);
-    
+
     // Check kept keys
     assert.strictEqual(cleaned.name, 'Test test');
     assert.strictEqual(cleaned.settings.timezone, 'Europe/Paris');
-    
+
     // Check sorting (deterministic output)
     const keys = Object.keys(cleaned);
-    assert.deepStrictEqual(keys, ['active', 'connections', 'name', 'nodes', 'settings', 'tags']);
+    assert.deepStrictEqual(keys, ['active', 'connections', 'id', 'name', 'nodes', 'settings', 'tags']);
 });
 
 test('WorkflowSanitizer: cleanForPush should remove read-only fields (active, tags)', () => {
-    const mockWorkflow: any = { name: 'Test', active: true, nodes: [], connections: {}, tags: [{name: 't'}] };
+    const mockWorkflow: any = { name: 'Test', active: true, nodes: [], connections: {}, tags: [{ name: 't' }] };
     const pushPayload = WorkflowSanitizer.cleanForPush(mockWorkflow as IWorkflow);
-    
+
     assert.strictEqual(pushPayload.active, undefined);
     assert.strictEqual(pushPayload.tags, undefined);
     assert.strictEqual(pushPayload.name, 'Test');
