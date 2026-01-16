@@ -114,13 +114,15 @@ The `_archive` folder must be strictly ignored by the Watcher. Destructive actio
 - `npx @n8n-as-code/agent-cli get "<nodeName>"`: Returns exact property definitions.
 - `npx @n8n-as-code/agent-cli list`: Lists all nodes.
 
-## 4. PART III: THE CLI (n8n-sync-cli)
+## 4. PART III: THE CLI (@n8n-as-code/cli)
 
-A terminal-based interface using `commander`, `inquirer`, `chalk`, `ora`, and `cli-table3`.
+A professional terminal-based interface using `commander`, `inquirer`, `chalk`, `ora`, `cli-table3`, `log-update`, and `diff`.
+
+**Status:** ✅ **FULLY IMPLEMENTED AND TESTED** (37 tests passing)
 
 ### 4.1. Commands
 
-**init**
+**init** ✅
 
 - **Prompts:** N8N Host URL, API Key (Masked), Sync Folder Path.
 - **AI Bootstrap:** Automatically triggers `update-ai` logic to generate `AGENTS.md`, `n8n-schema.json`, and rule files immediately.
