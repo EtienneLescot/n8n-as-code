@@ -67,3 +67,5 @@ packages/vscode-extension/assets/logo.png
 workflows_test/
 
 n8n-as-code-instance.json
+
+ignoredTests/
