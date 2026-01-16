@@ -67,11 +67,13 @@
       },
       {
         "command": "n8n.pull",
-        "title": "n8n: Pull Workflows"
+        "title": "n8n: Pull Workflows",
+        "icon": "$(cloud-download)"
       },
       {
         "command": "n8n.push",
-        "title": "n8n: Push Workflows (Sync Up)"
+        "title": "n8n: Push Workflows",
+        "icon": "$(cloud-upload)"
       },
       {
         "command": "n8n.openBoard",
@@ -117,40 +119,65 @@
         "command": "n8n.applySettings",
         "title": "Apply n8n Settings",
         "icon": "$(check)"
+      },
+      {
+        "command": "n8n.deleteWorkflow",
+        "title": "Delete Local JSON",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "n8n.spacer",
+        "title": "",
+        "icon": "assets/spacer.png"
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "n8n.openSettings",
-          "group": "navigation",
-          "when": "view == n8n-explorer.workflows"
-        },
-        {
           "command": "n8n.push",
-          "group": "navigation",
-          "when": "config.n8n.syncMode == manual"
+          "group": "navigation@1",
+          "when": "view == n8n-explorer.workflows && config.n8n.syncMode == manual"
         },
         {
           "command": "n8n.pull",
-          "group": "navigation",
-          "when": "config.n8n.syncMode == manual"
+          "group": "navigation@2",
+          "when": "view == n8n-explorer.workflows && config.n8n.syncMode == manual"
         },
         {
-          "command": "n8n.refresh",
-          "group": "navigation",
-          "when": "config.n8n.syncMode == manual"
+          "command": "n8n.spacer",
+          "group": "navigation@3",
+          "when": "view == n8n-explorer.workflows"
+        },
+        {
+          "command": "n8n.openSettings",
+          "group": "navigation@4",
+          "when": "view == n8n-explorer.workflows"
         }
       ],
       "view/item/context": [
         {
           "command": "n8n.openBoard",
-          "group": "inline",
+          "group": "inline@1",
           "when": "viewItem == workflow"
         },
         {
           "command": "n8n.openJson",
-          "group": "inline",
+          "group": "inline@2",
+          "when": "viewItem == workflow"
+        },
+        {
+          "command": "n8n.openSplit",
+          "group": "inline@3",
+          "when": "viewItem == workflow"
+        },
+        {
+          "command": "n8n.spacer",
+          "group": "inline@4",
+          "when": "viewItem == workflow"
+        },
+        {
+          "command": "n8n.deleteWorkflow",
+          "group": "inline@5",
           "when": "viewItem == workflow"
         },
         {
@@ -171,12 +198,12 @@
         {
           "command": "n8n.pushWorkflow",
           "group": "2_sync@1",
-          "when": "viewItem == workflow && config.n8n.syncMode == manual"
+          "when": "viewItem == workflow"
         },
         {
           "command": "n8n.pullWorkflow",
           "group": "2_sync@2",
-          "when": "viewItem == workflow && config.n8n.syncMode == manual"
+          "when": "viewItem == workflow"
         }
       ]
     },
@@ -237,7 +264,7 @@
     "compile": "tsc -b",
     "watch": "tsc -b -w",
     "package-bundle": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --log-override:empty-import-meta=silent",
-    "copy-assets": "mkdir -p assets && cp ./res/logo.png assets/ && cp ../agent-cli/src/assets/n8n-nodes-index.json assets/",
+    "copy-assets": "mkdir -p assets && cp ./res/logo.png assets/ && cp ./res/spacer.png assets/ && cp ../agent-cli/src/assets/n8n-nodes-index.json assets/",
     "build": "npm run compile && npm run copy-assets && npm run package-bundle",
     "clean": "rm -rf out assets tsconfig.tsbuildinfo"
   }

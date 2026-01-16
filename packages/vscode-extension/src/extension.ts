@@ -266,6 +266,59 @@ export async function activate(context: vscode.ExtensionContext) {
 
         vscode.commands.registerCommand('n8n.openSettings', () => {
             vscode.commands.executeCommand('workbench.action.openSettings', 'n8n');
+        }),
+
+        vscode.commands.registerCommand('n8n.deleteWorkflow', async (arg: any) => {
+            outputChannel.appendLine(`[n8n] deleteWorkflow command called. Arg: ${JSON.stringify(arg ? (arg.workflow ? 'item.wf' : 'wf') : 'null')}`);
+            const wf = arg?.workflow ? arg.workflow : arg;
+            
+            if (!syncManager) {
+                vscode.window.showErrorMessage('n8n: Not initialized.');
+                return;
+            }
+
+            if (!wf || !wf.filename) {
+                outputChannel.appendLine(`[n8n] deleteWorkflow: No workflow or filename found. wf: ${JSON.stringify(wf)}`);
+                return;
+            }
+
+            const choice = await vscode.window.showWarningMessage(
+                `Delete local JSON file "${wf.filename}"? This will move it to the .archive folder.`,
+                'Delete',
+                'Cancel'
+            );
+
+            if (choice !== 'Delete') return;
+
+            statusBar.showSyncing();
+            try {
+                const instanceDirectory = syncManager.getInstanceDirectory();
+                const absPath = path.join(instanceDirectory, wf.filename);
+                const archivePath = path.join(instanceDirectory, '.archive', wf.filename);
+
+                // Ensure archive directory exists
+                const archiveDir = path.dirname(archivePath);
+                if (!fs.existsSync(archiveDir)) {
+                    await fs.promises.mkdir(archiveDir, { recursive: true });
+                }
+
+                if (fs.existsSync(absPath)) {
+                    await fs.promises.rename(absPath, archivePath);
+                    outputChannel.appendLine(`[n8n] Local file deleted (moved to .archive): ${wf.filename}`);
+                    enhancedTreeProvider.refresh();
+                    statusBar.showSynced();
+                    vscode.window.showInformationMessage(`🗑️ Local JSON "${wf.filename}" moved to .archive`);
+                } else {
+                    throw new Error(`File not found: ${wf.filename}`);
+                }
+            } catch (e: any) {
+                statusBar.showError(e.message);
+                vscode.window.showErrorMessage(`Delete Error: ${e.message}`);
+            }
+        }),
+
+        vscode.commands.registerCommand('n8n.spacer', () => {
+            // Dummy command for spacing
         })
     );
 
@@ -275,38 +328,46 @@ export async function activate(context: vscode.ExtensionContext) {
             if (
                 e.affectsConfiguration('n8n.host') ||
                 e.affectsConfiguration('n8n.apiKey') ||
-                e.affectsConfiguration('n8n.syncFolder') ||
-                e.affectsConfiguration('n8n.syncMode') ||
-                e.affectsConfiguration('n8n.pollInterval')
+                e.affectsConfiguration('n8n.syncFolder')
             ) {
-                outputChannel.appendLine('[n8n] Settings changed. Updating UI state...');
-                
-                // Update tree provider state based on new configuration
-                const configValidation = validateN8nConfig();
-                const workspaceRoot = getWorkspaceRoot();
-                const previouslyInitialized = workspaceRoot ? isFolderPreviouslyInitialized(workspaceRoot) : false;
+                // Critical settings changed: host, API key, or folder
+                outputChannel.appendLine('[n8n] Critical settings changed (host/apiKey/folder). Pausing sync until applied.');
                 
                 if (syncManager) {
-                    // Settings changed while initialized - don't sync yet
-                    outputChannel.appendLine('[n8n] Settings changed. Pausing sync until applied.');
                     enhancedTreeProvider.setExtensionState(ExtensionState.SETTINGS_CHANGED);
                 } else {
-                    // Not initialized yet, update UI state
+                    const configValidation = validateN8nConfig();
+                    const workspaceRoot = getWorkspaceRoot();
+                    const previouslyInitialized = workspaceRoot ? isFolderPreviouslyInitialized(workspaceRoot) : false;
+                    
                     if (configValidation.isValid && previouslyInitialized) {
-                        // Valid config and previously initialized folder - show ready to init
                         enhancedTreeProvider.setExtensionState(ExtensionState.UNINITIALIZED);
                         statusBar.showNotInitialized();
                     } else if (!configValidation.isValid) {
-                        // Invalid config
                         enhancedTreeProvider.setExtensionState(ExtensionState.CONFIGURING);
                         statusBar.showConfiguring();
                     } else {
-                        // Valid config but not previously initialized
                         enhancedTreeProvider.setExtensionState(ExtensionState.UNINITIALIZED);
                         statusBar.showNotInitialized();
                     }
                 }
                 updateContextKeys();
+            } else if (
+                e.affectsConfiguration('n8n.syncMode') ||
+                e.affectsConfiguration('n8n.pollInterval')
+            ) {
+                // Non-critical settings: syncMode or pollInterval
+                outputChannel.appendLine('[n8n] Non-critical settings changed (syncMode/pollInterval). Auto-applying...');
+                
+                if (syncManager) {
+                    try {
+                        await reinitializeSyncManager(context);
+                        vscode.window.showInformationMessage('✅ Sync mode / interval updated.');
+                    } catch (error: any) {
+                        outputChannel.appendLine(`[n8n] Failed to auto-apply settings: ${error.message}`);
+                    }
+                }
+                // No UI state change needed
             }
         })
     );
