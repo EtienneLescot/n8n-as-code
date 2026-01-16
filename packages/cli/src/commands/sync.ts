@@ -40,15 +40,12 @@ export class SyncCommand extends BaseCommand {
         this.flushLogBuffer(spinner);
 
         if (action === 'push') {
-            // Update state to match remote so we can push (pretend we saw it)
-            // Accessing private stateManager via bracket notation to bypass TS check
-            (syncManager as any)['stateManager']?.updateWorkflowState(conflict.id, conflict.remoteContent);
-            // Trigger push
-            const absPath = path.join(syncManager.getInstanceDirectory(), conflict.filename);
-            await syncManager.handleLocalFileChange(absPath);
+            // Use resolveConflict to force push local to remote
+            await syncManager.resolveConflict(conflict.id, conflict.filename, 'local');
+            console.log(chalk.green(`✅ Remote overwritten by local.`));
         } else if (action === 'pull') {
-            // Force pull
-            await syncManager.pullWorkflow(conflict.filename, conflict.id, true);
+            // Use resolveConflict to force pull remote to local
+            await syncManager.resolveConflict(conflict.id, conflict.filename, 'remote');
             console.log(chalk.green(`✅ Local file updated from n8n.`));
         } else {
             console.log(chalk.gray('Skipped. Conflict remains.'));
@@ -143,8 +140,6 @@ export class SyncCommand extends BaseCommand {
             };
             syncManager.on('conflict', conflictHandler);
 
-            // Prevent creation of duplicates by loading remote state first
-            await syncManager.loadRemoteState();
             await syncManager.syncUp();
             
             // Wait for all conflict resolutions to complete

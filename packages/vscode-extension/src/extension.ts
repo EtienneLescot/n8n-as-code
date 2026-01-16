@@ -766,6 +766,12 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         );
     });
 
+    // Handle Remote Updated (after auto-sync push) - reload webview
+    syncManager.on('remote-updated', (data: { workflowId: string, filename: string }) => {
+        outputChannel.appendLine(`[n8n] Remote updated for: ${data.filename} (auto-sync push)`);
+        WorkflowWebview.reloadIfMatching(data.workflowId, outputChannel);
+    });
+
     // Global File System Watcher (VS Code side) for Real-Time UI Updates
     // Triggers refresh on Create, Delete, Change in sync folder
     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
