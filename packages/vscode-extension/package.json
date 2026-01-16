@@ -72,7 +72,7 @@
       },
       {
         "command": "n8n.push",
-        "title": "n8n: Push Workflows",
+        "title": "n8n: Push Workflows (Sync Up)",
         "icon": "$(cloud-upload)"
       },
       {
@@ -134,34 +134,34 @@
     "menus": {
       "view/title": [
         {
-          "command": "n8n.openSettings",
+          "command": "n8n.push",
           "group": "navigation@1",
-          "when": "view == n8n-explorer.workflows"
-        },
-        {
-          "command": "n8n.spacer",
-          "group": "navigation@2",
-          "when": "view == n8n-explorer.workflows"
+          "when": "view == n8n-explorer.workflows && config.n8n.syncMode == manual"
         },
         {
           "command": "n8n.pull",
-          "group": "navigation@3",
+          "group": "navigation@2",
           "when": "view == n8n-explorer.workflows && config.n8n.syncMode == manual"
         },
         {
-          "command": "n8n.push",
+          "command": "n8n.spacer",
+          "group": "navigation@3",
+          "when": "view == n8n-explorer.workflows"
+        },
+        {
+          "command": "n8n.openSettings",
           "group": "navigation@4",
-          "when": "view == n8n-explorer.workflows && config.n8n.syncMode == manual"
+          "when": "view == n8n-explorer.workflows"
         }
       ],
       "view/item/context": [
         {
-          "command": "n8n.deleteWorkflow",
+          "command": "n8n.openBoard",
           "group": "inline@1",
           "when": "viewItem == workflow"
         },
         {
-          "command": "n8n.spacer",
+          "command": "n8n.openJson",
           "group": "inline@2",
           "when": "viewItem == workflow"
         },
@@ -171,28 +171,13 @@
           "when": "viewItem == workflow"
         },
         {
-          "command": "n8n.openJson",
+          "command": "n8n.spacer",
           "group": "inline@4",
           "when": "viewItem == workflow"
         },
         {
-          "command": "n8n.openBoard",
+          "command": "n8n.deleteWorkflow",
           "group": "inline@5",
-          "when": "viewItem == workflow"
-        },
-        {
-          "command": "n8n.openBoard",
-          "group": "1_open@1",
-          "when": "viewItem == workflow"
-        },
-        {
-          "command": "n8n.openJson",
-          "group": "1_open@2",
-          "when": "viewItem == workflow"
-        },
-        {
-          "command": "n8n.openSplit",
-          "group": "1_open@3",
           "when": "viewItem == workflow"
         },
         {
