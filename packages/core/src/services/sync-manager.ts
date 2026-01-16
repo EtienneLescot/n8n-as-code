@@ -156,11 +156,12 @@ export class SyncManager extends EventEmitter {
     async deleteRemoteWorkflow(id: string, filename: string): Promise<boolean> {
         await this.ensureInitialized();
         try {
-            // Step 1: Archive Remote (SyncEngine does this)
+            // Step 1: Archive local file (if exists)
             await this.syncEngine!.archive(filename);
             // Step 2: Delete from API
             await this.client.deleteWorkflow(id);
-            // Note: State removal is handled by Watcher when it detects deletion
+            // Step 3: Remove from state (workflow is completely deleted)
+            await this.watcher!.removeWorkflowState(id);
             return true;
         } catch {
             return false;
