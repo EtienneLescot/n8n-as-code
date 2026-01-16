@@ -119,7 +119,10 @@ export class SyncEngine {
 
     private async executePull(workflowId: string, filename: string) {
         const fullWf = await this.client.getWorkflow(workflowId);
-        if (!fullWf) throw new Error('Remote workflow not found during pull');
+        if (!fullWf) {
+            console.warn(`[SyncEngine] Remote workflow ${workflowId} not found during pull, skipping.`);
+            return;
+        }
 
         const clean = WorkflowSanitizer.cleanForStorage(fullWf);
         const filePath = path.join(this.directory, filename);
