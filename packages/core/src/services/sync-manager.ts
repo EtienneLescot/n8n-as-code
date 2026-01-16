@@ -36,15 +36,15 @@ export class SyncManager extends EventEmitter {
         if (!fs.existsSync(instanceDir)) fs.mkdirSync(instanceDir, { recursive: true });
 
         this.stateManager = new StateManager(instanceDir);
-        this.watcher = new Watcher(this.client, this.stateManager, {
+        this.watcher = new Watcher(this.client, {
             directory: instanceDir,
             pollIntervalMs: this.config.pollIntervalMs,
             syncInactive: this.config.syncInactive,
             ignoredTags: this.config.ignoredTags
         });
 
-        this.syncEngine = new SyncEngine(this.client, this.stateManager, this.watcher, instanceDir);
-        this.resolutionManager = new ResolutionManager(this.syncEngine, this.watcher);
+        this.syncEngine = new SyncEngine(this.client, this.watcher, instanceDir);
+        this.resolutionManager = new ResolutionManager(this.syncEngine, this.watcher, this.client);
 
         this.watcher.on('statusChange', (data) => {
             this.emit('change', data);
@@ -66,10 +66,11 @@ export class SyncManager extends EventEmitter {
         const statuses = await this.getWorkflowsStatus();
         for (const s of statuses) {
             if (s.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY ||
-                s.status === WorkflowSyncStatus.MODIFIED_REMOTELY ||
-                s.status === WorkflowSyncStatus.DELETED_REMOTELY) {
+                s.status === WorkflowSyncStatus.MODIFIED_REMOTELY) {
                 await this.syncEngine!.pull(s.id, s.filename, s.status);
             }
+            // DELETED_REMOTELY requires user confirmation via confirmDeletion()
+            // Per spec 5.2: "Halt. Trigger Deletion Validation."
         }
     }
 
@@ -79,6 +80,9 @@ export class SyncManager extends EventEmitter {
         for (const s of statuses) {
             if (s.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY || s.status === WorkflowSyncStatus.MODIFIED_LOCALLY) {
                 await this.syncEngine!.push(s.filename, s.id, s.status);
+            } else if (s.status === WorkflowSyncStatus.DELETED_LOCALLY) {
+                // Per spec: Halt and trigger deletion validation
+                throw new Error(`Local deletion detected for workflow "${s.filename}". Use confirmDeletion() to proceed with remote deletion or restoreWorkflow() to restore the file.`);
             }
         }
     }
@@ -96,10 +100,9 @@ export class SyncManager extends EventEmitter {
 
     async refreshState() {
         await this.ensureInitialized();
-        await Promise.all([
-            this.watcher!.refreshRemoteState(),
-            this.watcher!.refreshLocalState()
-        ]);
+        // Run sequentially to avoid potential race conditions during state loading
+        await this.watcher!.refreshRemoteState();
+        await this.watcher!.refreshLocalState();
     }
 
     public getInstanceDirectory(): string {
@@ -157,12 +160,29 @@ export class SyncManager extends EventEmitter {
             await this.syncEngine!.archive(filename);
             // Step 2: Delete from API
             await this.client.deleteWorkflow(id);
-            // Note: State removal usually happens in SyncEngine's commit or similar, 
-            // but for deletion we should remove it.
-            this.stateManager!.removeWorkflowState(id);
+            // Note: State removal is handled by Watcher when it detects deletion
             return true;
         } catch {
             return false;
         }
+    }
+
+    // Deletion Validation Methods (6.2 from spec)
+    async confirmDeletion(id: string, filename: string): Promise<void> {
+        await this.ensureInitialized();
+        const statuses = await this.getWorkflowsStatus();
+        const workflow = statuses.find(s => s.id === id);
+        
+        if (!workflow) {
+            throw new Error(`Workflow ${id} not found in state`);
+        }
+
+        const deletionType = workflow.status === WorkflowSyncStatus.DELETED_LOCALLY ? 'local' : 'remote';
+        await this.resolutionManager!.confirmDeletion(id, filename, deletionType);
+    }
+
+    async restoreRemoteWorkflow(id: string, filename: string): Promise<string> {
+        await this.ensureInitialized();
+        return await this.resolutionManager!.restoreWorkflow(id, filename, 'remote');
     }
 }

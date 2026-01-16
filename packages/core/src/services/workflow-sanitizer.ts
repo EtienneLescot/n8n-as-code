@@ -33,19 +33,37 @@ export class WorkflowSanitizer {
             'saveDataErrorExecution',
             'saveManualExecutions',
             'saveExecutionProgress',
-            'executionOrder'
+            'executionOrder',
+            'trialStartedAt'
         ];
 
         keysToRemove.forEach(k => delete settings[k]);
 
+        // Clean nodes
+        const nodes = (workflow.nodes || []).map(node => {
+            const newNode = { ...node };
+            // Remove node-level metadata that might vary
+            delete newNode.id; // n8n 2.x often adds node IDs
+            
+            // Standardize parameters
+            if (newNode.parameters && Object.keys(newNode.parameters).length === 0) {
+                newNode.parameters = {};
+            }
+            
+            return newNode;
+        });
+
         const cleaned = {
+            // We keep ID at the top level because it's functional
             id: workflow.id,
             name: workflow.name,
-            nodes: workflow.nodes || [],
+            nodes: nodes,
             connections: workflow.connections || {},
             settings: settings,
+            // Tags can be messy, but they are functional.
+            // Standardize to avoid issues with empty arrays vs undefined
             tags: workflow.tags || [],
-            active: workflow.active
+            active: !!workflow.active
         };
 
         // Ensure deterministic key order for hashing consistency
@@ -55,23 +73,33 @@ export class WorkflowSanitizer {
     /**
      * Prepares a local workflow JSON for pushing to n8n API.
      * Removes read-only fields or fields that shouldn't be overwritten blindly (like tags if needed).
+     *
+     * n8n API v1 PUT /workflows/{id} expects a very specific schema.
+     * Based on n8n 2.2.6 API documentation, the allowed fields are:
+     * - name (string, required)
+     * - nodes (array, required)
+     * - connections (object, required)
+     * - settings (object, optional but with strict schema)
+     * - staticData (object, optional)
+     * - triggerCount (number, optional)
      */
     static cleanForPush(workflow: Partial<IWorkflow>): Partial<IWorkflow> {
+        // Start with cleanForStorage to get basic structure
         const clean = this.cleanForStorage(workflow as IWorkflow);
 
-        // n8n public API v1 (PUT /workflows/{id})
-        // 1. 'active' is read-only and will cause a 400 error if included
-        delete clean.active;
+        // Remove all fields that are not in the n8n API v1 PUT schema
+        // Keep only: name, nodes, connections, settings, staticData, triggerCount
+        const allowedFields = ['name', 'nodes', 'connections', 'settings', 'staticData', 'triggerCount'];
+        const result: any = {};
+        
+        for (const key of allowedFields) {
+            if (clean[key as keyof typeof clean] !== undefined) {
+                result[key] = clean[key as keyof typeof clean];
+            }
+        }
 
-        // 2. 'id' is in the URL, and read-only in the body for the Public API
-        delete clean.id;
-
-        // 3. Tags are often problematic and not always supported in the same way via Public API
-        delete clean.tags;
-
-        // 3. Settings must be strictly filtered (Whitelist)
-        // Public API schema for settings is very restrictive
-        if (clean.settings) {
+        // Ensure settings is properly filtered
+        if (result.settings) {
             const allowedSettings = [
                 'errorWorkflow',
                 'timezone',
@@ -81,14 +109,14 @@ export class WorkflowSanitizer {
                 'executionOrder'
             ];
             const filteredSettings: any = {};
-            for (const key of allowedSettings) {
-                if (clean.settings[key] !== undefined) {
-                    filteredSettings[key] = clean.settings[key];
+            for (const settingKey of allowedSettings) {
+                if (result.settings[settingKey] !== undefined) {
+                    filteredSettings[settingKey] = result.settings[settingKey];
                 }
             }
-            clean.settings = filteredSettings;
+            result.settings = filteredSettings;
         }
 
-        return clean;
+        return result;
     }
 }

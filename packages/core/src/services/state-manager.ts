@@ -1,9 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
-import stringify from 'json-stable-stringify';
 import { IWorkflow } from '../types.js';
-import { WorkflowSanitizer } from './workflow-sanitizer.js';
 
 export interface IWorkflowState {
     lastSyncedHash: string;
@@ -14,6 +11,16 @@ export interface IInstanceState {
     workflows: Record<string, IWorkflowState>;
 }
 
+/**
+ * Read-only State Manager
+ * 
+ * Responsibilities:
+ * 1. Read state from .n8n-state.json
+ * 2. Provide read-only access to workflow states
+ * 
+ * Note: Write operations are handled exclusively by Watcher component
+ * to maintain single source of truth for state mutations.
+ */
 export class StateManager {
     private stateFilePath: string;
 
@@ -21,6 +28,9 @@ export class StateManager {
         this.stateFilePath = path.join(directory, '.n8n-state.json');
     }
 
+    /**
+     * Load state from disk (private method)
+     */
     private load(): IInstanceState {
         if (fs.existsSync(this.stateFilePath)) {
             try {
@@ -37,47 +47,12 @@ export class StateManager {
         return { workflows: {} };
     }
 
-    private save(state: IInstanceState) {
-        fs.writeFileSync(this.stateFilePath, JSON.stringify(state, null, 2));
-    }
-
-    /**
-     * Computes a stable, canonical hash for any object (usually a workflow).
-     * Non-functional metadata should be removed before calling this.
-     */
-    static computeHash(content: any): string {
-        const canonicalString = stringify(content) || '';
-        return crypto.createHash('sha256').update(canonicalString).digest('hex');
-    }
-
     /**
      * Gets the last known state (Base) for a workflow.
      */
     getWorkflowState(id: string): IWorkflowState | undefined {
         const state = this.load();
         return state.workflows[id];
-    }
-
-    /**
-     * Updates the last known state (Base) for a workflow.
-     * This is the "Commit" operation.
-     */
-    updateWorkflowState(id: string, hash: string) {
-        const state = this.load();
-        state.workflows[id] = {
-            lastSyncedHash: hash,
-            lastSyncedAt: new Date().toISOString()
-        };
-        this.save(state);
-    }
-
-    /**
-     * Removes a workflow from state.
-     */
-    removeWorkflowState(id: string) {
-        const state = this.load();
-        delete state.workflows[id];
-        this.save(state);
     }
 
     /**
@@ -95,5 +70,13 @@ export class StateManager {
         const state = this.getWorkflowState(id);
         if (!state) return false;
         return state.lastSyncedHash === currentHash;
+    }
+
+    /**
+     * Get the entire state object (for Watcher's internal use)
+     * @internal
+     */
+    getFullState(): IInstanceState {
+        return this.load();
     }
 }
