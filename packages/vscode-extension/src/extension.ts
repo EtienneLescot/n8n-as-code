@@ -340,7 +340,31 @@ export async function activate(context: vscode.ExtensionContext) {
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf || !syncManager) return;
 
-            const conflict = enhancedTreeProvider.getConflict(wf.id);
+            // Try to get conflict data from store first
+            let conflict = enhancedTreeProvider.getConflict(wf.id);
+            
+            // If not in store, fetch remote content to create conflict data
+            if (!conflict && wf.filename) {
+                try {
+                    outputChannel.appendLine(`[n8n] Fetching remote content for conflict resolution: ${wf.id}`);
+                    const client = new N8nApiClient(getN8nConfig());
+                    const remoteWorkflow = await client.getWorkflow(wf.id);
+                    
+                    conflict = {
+                        id: wf.id,
+                        filename: wf.filename,
+                        remoteContent: remoteWorkflow
+                    };
+                    
+                    // Store it for future use
+                    store.dispatch(addConflict(conflict));
+                } catch (e: any) {
+                    outputChannel.appendLine(`[n8n] Failed to fetch remote content: ${e.message}`);
+                    vscode.window.showErrorMessage(`Failed to fetch remote workflow: ${e.message}`);
+                    return;
+                }
+            }
+            
             if (!conflict) {
                 vscode.window.showInformationMessage('No conflict data found for this workflow.');
                 return;
@@ -369,9 +393,15 @@ export async function activate(context: vscode.ExtensionContext) {
                 const absPath = path.join(syncManager.getInstanceDirectory(), filename);
                 await syncManager.handleLocalFileChange(absPath);
 
-                // Update Store
+                // Wait a bit for the sync to complete
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // Reload workflows to get updated state
+                const workflows = await syncManager.getWorkflowsStatus();
+                store.dispatch(setWorkflows(workflows));
+                
+                // Remove conflict
                 store.dispatch(removeConflict(id));
-                store.dispatch(updateWorkflow({ id, updates: { status: WorkflowSyncStatus.IN_SYNC } }));
 
                 vscode.window.showInformationMessage(`✅ Resolved: Remote overwritten by Local.`);
                 enhancedTreeProvider.refresh();
@@ -380,9 +410,19 @@ export async function activate(context: vscode.ExtensionContext) {
                 const absPath = path.join(syncManager.getInstanceDirectory(), filename);
                 await fs.promises.writeFile(absPath, JSON.stringify(remoteContent, null, 2), 'utf-8');
 
-                // Update Store
+                // Trigger handleLocalFileChange to update state properly
+                // This will update the state manager through the watcher
+                await syncManager.handleLocalFileChange(absPath);
+
+                // Wait a bit for the state to be updated
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // Reload workflows to get updated state
+                const workflows = await syncManager.getWorkflowsStatus();
+                store.dispatch(setWorkflows(workflows));
+                
+                // Remove conflict
                 store.dispatch(removeConflict(id));
-                store.dispatch(updateWorkflow({ id, updates: { status: WorkflowSyncStatus.IN_SYNC } }));
 
                 vscode.window.showInformationMessage(`✅ Resolved: Local overwritten by Remote.`);
                 enhancedTreeProvider.refresh();
