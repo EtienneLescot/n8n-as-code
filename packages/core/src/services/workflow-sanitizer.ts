@@ -2,23 +2,6 @@ import { IWorkflow } from '../types.js';
 
 export class WorkflowSanitizer {
     /**
-     * Recursively sorts object keys to ensure deterministic JSON output.
-     */
-    private static sortKeys(obj: any): any {
-        if (Array.isArray(obj)) {
-            return obj.map(this.sortKeys.bind(this));
-        } else if (obj !== null && typeof obj === 'object') {
-            return Object.keys(obj)
-                .sort()
-                .reduce((acc: any, key) => {
-                    acc[key] = this.sortKeys(obj[key]);
-                    return acc;
-                }, {});
-        }
-        return obj;
-    }
-
-    /**
      * Prepares a workflow JSON for storage on disk (GIT).
      * Removes dynamic IDs, execution URLs, and standardizes key order.
      */
@@ -53,21 +36,29 @@ export class WorkflowSanitizer {
             return newNode;
         });
 
+        // Build cleaned object with ONLY the fields we want to keep
+        // Explicitly exclude version-related fields that n8n auto-generates:
+        // - versionId: UUID that changes on every update
+        // - activeVersionId: Version tracking field
+        // - versionCounter: Increments on every update
+        // - pinData: Execution pin data (not part of workflow definition)
+        // These fields cause false conflicts if included in hashing
+        //
+        // IMPORTANT: We build the object with a deterministic key order
+        // (id, name, nodes, connections, settings, tags, active)
+        // No need to call sortKeys() which would recursively sort ALL keys
+        // including inside nodes, which can cause massive diffs
         const cleaned = {
-            // We keep ID at the top level because it's functional
             id: workflow.id,
             name: workflow.name,
             nodes: nodes,
             connections: workflow.connections || {},
             settings: settings,
-            // Tags can be messy, but they are functional.
-            // Standardize to avoid issues with empty arrays vs undefined
             tags: workflow.tags || [],
             active: !!workflow.active
         };
 
-        // Ensure deterministic key order for hashing consistency
-        return this.sortKeys(cleaned);
+        return cleaned;
     }
 
     /**

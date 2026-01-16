@@ -146,6 +146,9 @@ export class Watcher extends EventEmitter {
             return;
         }
 
+        // IMPORTANT: Hash is calculated on the SANITIZED version
+        // This means versionId, versionCounter, pinData, etc. are ignored
+        // The file on disk can contain these fields, but they won't affect the hash
         const clean = WorkflowSanitizer.cleanForStorage(content);
         const hash = this.computeHash(clean);
 

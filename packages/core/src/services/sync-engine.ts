@@ -283,8 +283,12 @@ export class SyncEngine {
             throw new Error('Failed to update remote workflow');
         }
 
-        // Update Watcher's remote hash cache with the updated workflow
+        // CRITICAL: Write the API response back to local file to ensure consistency
+        // This ensures local and remote have identical content after push
         const clean = WorkflowSanitizer.cleanForStorage(updatedWf);
+        fs.writeFileSync(filePath, JSON.stringify(clean, null, 2));
+
+        // Update Watcher's remote hash cache with the updated workflow
         const hash = HashUtils.computeHash(clean);
         this.watcher.setRemoteHash(workflowId, hash);
     }

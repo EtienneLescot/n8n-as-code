@@ -110,8 +110,22 @@ export async function activate(context: vscode.ExtensionContext) {
             statusBar.showSyncing();
 
             try {
+                // Get workflows before push to know which ones were modified
+                const workflowsBefore = await syncManager.getWorkflowsStatus();
+                const modifiedWorkflows = workflowsBefore.filter(
+                    wf => wf.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
+                          wf.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY
+                );
+
                 // Use Redux Thunk
                 await store.dispatch(syncUp()).unwrap();
+
+                // Reload webviews for pushed workflows (remote was modified)
+                for (const wf of modifiedWorkflows) {
+                    if (wf.id) {
+                        WorkflowWebview.reloadIfMatching(wf.id, outputChannel);
+                    }
+                }
 
                 statusBar.showSynced();
             } catch (e: any) {
@@ -203,6 +217,11 @@ export async function activate(context: vscode.ExtensionContext) {
                 const absPath = path.join(instanceDirectory, wf.filename);
                 await syncManager.handleLocalFileChange(absPath);
 
+                // Reload webview if open
+                if (wf.id) {
+                    WorkflowWebview.reloadIfMatching(wf.id, outputChannel);
+                }
+
                 outputChannel.appendLine(`[n8n] Push successful for: ${wf.name} (${wf.id})`);
                 enhancedTreeProvider.refresh();
                 statusBar.showSynced();
@@ -221,6 +240,9 @@ export async function activate(context: vscode.ExtensionContext) {
             try {
                 // Use syncDown to pull all workflows, which will update this one
                 await syncManager.syncDown();
+                
+                // No need to reload webview on pull - we're just updating local to match remote
+                // The webview already shows the remote version
                 
                 enhancedTreeProvider.refresh();
                 statusBar.showSynced();
@@ -389,9 +411,8 @@ export async function activate(context: vscode.ExtensionContext) {
                 conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
                 await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
             } else if (choice === 'Overwrite Remote (Use Local)') {
-                // Force push local to remote
-                const absPath = path.join(syncManager.getInstanceDirectory(), filename);
-                await syncManager.handleLocalFileChange(absPath);
+                // Use resolveConflict to force push local to remote
+                await syncManager.resolveConflict(id, filename, 'local');
 
                 // Wait a bit for the sync to complete
                 await new Promise(resolve => setTimeout(resolve, 500));
@@ -403,16 +424,14 @@ export async function activate(context: vscode.ExtensionContext) {
                 // Remove conflict
                 store.dispatch(removeConflict(id));
 
+                // Reload webview if open
+                WorkflowWebview.reloadIfMatching(id, outputChannel);
+
                 vscode.window.showInformationMessage(`✅ Resolved: Remote overwritten by Local.`);
                 enhancedTreeProvider.refresh();
             } else if (choice === 'Overwrite Local (Use Remote)') {
-                // Force pull remote to local - write remote content to file
-                const absPath = path.join(syncManager.getInstanceDirectory(), filename);
-                await fs.promises.writeFile(absPath, JSON.stringify(remoteContent, null, 2), 'utf-8');
-
-                // Trigger handleLocalFileChange to update state properly
-                // This will update the state manager through the watcher
-                await syncManager.handleLocalFileChange(absPath);
+                // Use resolveConflict to force pull remote to local
+                await syncManager.resolveConflict(id, filename, 'remote');
 
                 // Wait a bit for the state to be updated
                 await new Promise(resolve => setTimeout(resolve, 500));
@@ -423,6 +442,9 @@ export async function activate(context: vscode.ExtensionContext) {
                 
                 // Remove conflict
                 store.dispatch(removeConflict(id));
+
+                // No need to reload webview - we're just updating local to match remote
+                // The webview already shows the remote version
 
                 vscode.window.showInformationMessage(`✅ Resolved: Local overwritten by Remote.`);
                 enhancedTreeProvider.refresh();
@@ -686,7 +708,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
     // Auto-refresh tree on changes using Redux store
     syncManager.on('change', async (ev: any) => {
-        outputChannel.appendLine(`[n8n] Change detected: ${ev.type} (${ev.filename})`);
+        outputChannel.appendLine(`[n8n] Change detected: ${ev.status} (${ev.filename})`);
 
         // Reload workflows into store
         try {
@@ -696,15 +718,9 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             console.error('Failed to reload workflows:', error);
         }
 
-        // ONLY reload webview automatically on PUSH (local-to-remote)
-        if (ev.id && ev.type === 'local-to-remote') {
-            WorkflowWebview.reloadIfMatching(ev.id, outputChannel);
-        }
-
-        // Notify user about remote deletion
-        if (ev.type === 'remote-deletion') {
-            vscode.window.showInformationMessage(`🗑️ Remote workflow "${ev.filename}" was deleted. Local file moved to .archive.`);
-        }
+        // Note: Webview reload is handled explicitly in push/pull commands
+        // The Watcher doesn't emit 'type' field, only 'status', so we can't
+        // reliably determine if remote changed here
     });
 
     // Handle Conflicts using Redux store
