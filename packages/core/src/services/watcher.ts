@@ -37,6 +37,7 @@ export class Watcher extends EventEmitter {
     private remoteHashes: Map<string, string> = new Map(); // workflowId -> hash
     private fileToIdMap: Map<string, string> = new Map(); // filename -> workflowId
     private idToFileMap: Map<string, string> = new Map(); // workflowId -> filename
+    private lastKnownStatuses: Map<string, WorkflowSyncStatus> = new Map(); // workflowId or filename -> status
 
     // Concurrency control
     private isPaused = new Set<string>(); // IDs for which observation is paused
@@ -495,11 +496,17 @@ export class Watcher extends EventEmitter {
         if (this.isInitializing) return;
         
         const status = this.calculateStatus(filename, workflowId);
-        this.emit('statusChange', {
-            filename,
-            workflowId,
-            status
-        });
+        const key = workflowId || filename;
+        const lastStatus = this.lastKnownStatuses.get(key);
+
+        if (status !== lastStatus) {
+            this.lastKnownStatuses.set(key, status);
+            this.emit('statusChange', {
+                filename,
+                workflowId,
+                status
+            });
+        }
     }
 
     public calculateStatus(filename: string, workflowId?: string): WorkflowSyncStatus {

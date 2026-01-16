@@ -784,12 +784,12 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             // Interactive notification with action buttons
             const choice = await vscode.window.showWarningMessage(
                 `🗑️ Remote workflow "${ev.filename}" was deleted - Archive local file?`,
-                'Archive Local File',
-                'Keep Local & Re-push',
-                'Open in Sidebar'
+                'Delete File',
+                'Restore File',
+                'Show in Sidebar'
             );
 
-            if (choice === 'Archive Local File') {
+            if (choice === 'Delete File') {
                 // Confirm deletion (archive local file)
                 try {
                     await syncManager!.confirmDeletion(ev.workflowId, ev.filename);
@@ -800,7 +800,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
                 } catch (error: any) {
                     vscode.window.showErrorMessage(`❌ Failed to archive: ${error.message}`);
                 }
-            } else if (choice === 'Keep Local & Re-push') {
+            } else if (choice === 'Restore File') {
                 // Restore workflow by re-pushing to remote
                 try {
                     await syncManager!.restoreRemoteWorkflow(ev.workflowId, ev.filename);
@@ -811,7 +811,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
                 } catch (error: any) {
                     vscode.window.showErrorMessage(`❌ Failed to restore: ${error.message}`);
                 }
-            } else if (choice === 'Open in Sidebar') {
+            } else if (choice === 'Show in Sidebar') {
                 // Focus on n8n explorer view
                 await vscode.commands.executeCommand('n8n-explorer.workflows.focus');
             }
@@ -882,12 +882,12 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         // Interactive notification with action buttons
         const choice = await vscode.window.showWarningMessage(
             `🗑️ Local file "${data.filename}" deleted - Confirm remote deletion?`,
-            'Delete from n8n',
-            'Restore Local File',
-            'Open in Sidebar'
+            'Delete File',
+            'Restore File',
+            'Show in Sidebar'
         );
 
-        if (choice === 'Delete from n8n') {
+        if (choice === 'Delete File') {
             // Confirm deletion on remote
             const success = await syncManager!.deleteRemoteWorkflow(data.id, data.filename);
             if (success) {
@@ -897,7 +897,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             } else {
                 vscode.window.showErrorMessage(`❌ Failed to delete "${data.filename}" from n8n`);
             }
-        } else if (choice === 'Restore Local File') {
+        } else if (choice === 'Restore File') {
             // Restore the local file from remote
             const success = await syncManager!.restoreLocalFile(data.id, data.filename);
             if (success) {
@@ -908,7 +908,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             } else {
                 vscode.window.showErrorMessage(`❌ Failed to restore "${data.filename}"`);
             }
-        } else if (choice === 'Open in Sidebar') {
+        } else if (choice === 'Show in Sidebar') {
             // Focus on n8n explorer view
             await vscode.commands.executeCommand('n8n-explorer.workflows.focus');
         }
