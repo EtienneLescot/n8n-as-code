@@ -95,21 +95,52 @@ The project includes different types of packages:
 
 ### Release Workflow
 
-1. **Declare Changes**: After modifying code, run `npm run changeset`
-   - Select affected packages (including VS Code extension if modified)
-   - Choose version type: `patch` (bug fix), `minor` (feature), `major` (breaking)
-   - Write changelog message
+#### Step 1: Create Changeset (Developer)
 
-2. **Apply Versions**: Run `npm run version-packages`
-   - Updates package.json versions for ALL packages (including private ones)
-   - Automatically updates internal dependencies across all packages
-   - Generates/updates CHANGELOG.md files
+After modifying code, document your changes:
 
-3. **Publish**: Run `npm run release` (via GitHub Actions)
+```bash
+npm run changeset
+```
+
+This command:
+- Creates a file `.changeset/random-name-123.md`
+- Prompts you to select affected packages (including VS Code extension if modified)
+- Asks for version bump type: `patch` (0.3.0→0.3.1), `minor` (0.3.0→0.4.0), `major` (0.3.0→1.0.0)
+- Requests a changelog message
+
+**Important**: Commit this changeset file with your code changes.
+
+#### Step 2: Version Packages PR (Automated)
+
+When changesets are pushed to `main`, the CI creates a **"Version Packages"** Pull Request automatically:
+
+- Reads all `.changeset/*.md` files
+- Updates `package.json` versions for ALL packages (including private ones)
+- Automatically updates internal dependencies across all packages
+- Generates/updates `CHANGELOG.md` files
+- Deletes processed changeset files
+- Creates a single PR with all these changes
+
+#### Step 3: Merge & Publish (Automated)
+
+When the "Version Packages" PR is merged:
+
+1. **NPM Publication**:
    - Builds all packages
-   - Publishes public packages to NPM registry (skips private packages automatically)
-   - Separately publishes VS Code extension to Marketplace using the version from package.json
-   - Creates Git tag
+   - Publishes public packages to NPM registry (`@n8n-as-code/core`, `@n8n-as-code/cli`, `@n8n-as-code/agent-cli`)
+   - Skips private packages automatically (monorepo root, VS Code extension, docs)
+   - Creates Git tags for each published package (e.g., `@n8n-as-code/core@0.3.1`)
+
+2. **VS Code Extension**:
+   - Separately publishes to VS Code Marketplace using the version from package.json
+   - No Git tag created for the extension (private package)
+
+3. **GitHub Releases**:
+   - **ENABLED** - One GitHub Release is created per published package
+   - Each package has its own release timeline (e.g., `@n8n-as-code/core@0.3.1`, `@n8n-as-code/cli@0.3.2`)
+   - Release notes are automatically extracted from each package's CHANGELOG.md
+   - Private packages (VS Code extension) do not get GitHub Releases automatically
 
 ### Example: How Internal Dependencies Stay Synchronized
 
@@ -133,6 +164,25 @@ npm run version-packages
 
 All packages that depend on `core` will have their `package.json` updated to reference `"@n8n-as-code/core": "0.3.1"`.
 
+### Workflow Summary Diagram
+
+```
+Developer makes changes
+       ↓
+npm run changeset (creates .changeset/xyz.md)
+       ↓
+git commit + git push
+       ↓
+CI detects changeset files → Creates "Version Packages" PR
+       ↓
+Maintainer reviews & merges PR
+       ↓
+CI automatically:
+  ├─→ Publishes to NPM (@n8n-as-code/*)
+  ├─→ Creates Git tags (one per package)
+  └─→ Publishes VS Code extension to Marketplace
+```
+
 ### Key Rules
 - **Never manually edit versions** in package.json
 - **Always use Changeset** even for small fixes
@@ -140,6 +190,34 @@ All packages that depend on `core` will have their `package.json` updated to ref
 - **Internal dependencies are automatically updated** thanks to `"updateInternalDependencies": "patch"` in Changeset config
 - **Private packages are safe** - Changeset will manage their versions but never publish them to NPM
 - **Use `npm run check-versions`** to verify all internal dependencies are up-to-date
+- **Git tags are created automatically** for each published NPM package
+- **GitHub Releases are created automatically** - One release per package with its own timeline
+- **Each package has independent releases** - No global monorepo release
+
+### GitHub Releases per Package
+
+When a "Version Packages" PR is merged, Changeset automatically creates:
+
+**For each published NPM package:**
+- ✅ GitHub Release (e.g., `@n8n-as-code/core@0.3.1`)
+- ✅ Git Tag with the same name
+- ✅ Release notes extracted from the package's CHANGELOG.md
+
+**For private packages (VS Code extension):**
+- ❌ No GitHub Release (private packages are skipped)
+- ℹ️  You can create manual releases if needed
+
+**Example timeline on GitHub:**
+```
+Releases
+├─ @n8n-as-code/core@0.3.2        (Jan 20, 2024)
+├─ @n8n-as-code/cli@0.4.1         (Jan 20, 2024)
+├─ @n8n-as-code/agent-cli@0.3.0   (Jan 18, 2024)
+├─ @n8n-as-code/core@0.3.1        (Jan 15, 2024)
+└─ @n8n-as-code/cli@0.4.0         (Jan 15, 2024)
+```
+
+Each package maintains its own release history!
 
 ## 📝 Contribution Guidelines
 

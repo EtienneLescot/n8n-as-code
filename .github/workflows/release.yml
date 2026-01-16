@@ -75,6 +75,7 @@ jobs:
         with:
           publish: npm run release
           version: npm run version-packages
+          createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ env.NPM_TOKEN }}

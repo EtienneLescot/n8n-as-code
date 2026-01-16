@@ -134,24 +134,21 @@ This project uses [Changesets](https://github.com/changesets/changesets) for aut
     ```bash
     npm run changeset
     ```
-    Follow the prompts to select packages (including VS Code extension if modified) and version types (patch/minor/major) and provide a summary.
+    Select affected packages and version bump type (patch/minor/major), then provide a changelog message. Commit the generated `.changeset/*.md` file with your code.
 
-2.  **Version and Changelog**:
-    Once ready for a release, update versions and changelogs:
-    ```bash
-    npm run version-packages
-    ```
-    This updates ALL packages including the VS Code extension and synchronizes internal dependencies.
-
-3.  **Publish**:
-    Build and publish all packages:
-    ```bash
-    npm run release
-    ```
-    - NPM packages are published to the registry
-    - VS Code extension is published to the Marketplace (handled separately in CI/CD)
-
-> **Note**: The VS Code extension is marked as `private: true` to prevent NPM publication, but Changeset still manages its versioning and dependencies.
+2.  **Automatic PR Creation**:
+    When merged to `main`, CI automatically creates a **"Version Packages"** Pull Request that:
+    - Updates all `package.json` versions
+    - Synchronizes internal dependencies
+    - Generates `CHANGELOG.md` entries
+    
+3.  **Merge & Publish**:
+    When the "Version Packages" PR is merged, CI automatically:
+    - Publishes NPM packages (`@n8n-as-code/core`, `@n8n-as-code/cli`, `@n8n-as-code/agent-cli`)
+    - Creates Git tags and GitHub Releases for each published package
+    - Publishes VS Code extension to the Marketplace
+    
+> **Note**: Each package gets its own GitHub Release with independent versioning (e.g., `@n8n-as-code/core@0.3.1`, `@n8n-as-code/cli@0.3.2`). The VS Code extension is marked as `private: true` to prevent NPM publication, but Changeset manages its versioning and dependencies.
 
 ---
 
