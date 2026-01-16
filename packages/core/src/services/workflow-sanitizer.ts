@@ -63,7 +63,10 @@ export class WorkflowSanitizer {
         // 1. 'active' is read-only and will cause a 400 error if included
         delete clean.active;
 
-        // 2. Tags are often problematic and not always supported in the same way via Public API
+        // 2. 'id' is in the URL, and read-only in the body for the Public API
+        delete clean.id;
+
+        // 3. Tags are often problematic and not always supported in the same way via Public API
         delete clean.tags;
 
         // 3. Settings must be strictly filtered (Whitelist)

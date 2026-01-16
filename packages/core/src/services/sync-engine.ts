@@ -23,7 +23,7 @@ export class SyncEngine {
         this.stateManager = stateManager;
         this.watcher = watcher;
         this.directory = directory;
-        this.archiveDirectory = path.join(directory, '_archive');
+        this.archiveDirectory = path.join(directory, '.archive');
 
         if (!fs.existsSync(this.archiveDirectory)) {
             fs.mkdirSync(this.archiveDirectory, { recursive: true });
@@ -42,6 +42,10 @@ export class SyncEngine {
                 case WorkflowSyncStatus.IN_SYNC: // Force pull
                 case WorkflowSyncStatus.CONFLICT: // Force pull
                     await this.executePull(workflowId, filename);
+                    break;
+                case WorkflowSyncStatus.DELETED_REMOTELY:
+                    await this.archive(filename);
+                    this.stateManager.removeWorkflowState(workflowId);
                     break;
                 default:
                     // No action needed for other statuses in standard PULL
@@ -103,9 +107,13 @@ export class SyncEngine {
         const localHash = StateManager.computeHash(cleanLocal);
 
         if (remoteHash !== localHash) {
+            console.log('[DEBUG] commit: Hash mismatch');
+            console.log('  cleanRemote:', JSON.stringify(cleanRemote));
+            console.log('  cleanLocal:', JSON.stringify(cleanLocal));
             throw new Error('Cannot commit state: Local and Remote content differ.');
         }
 
+        console.log(`[DEBUG] commit: Success for ${workflowId} (hash: ${remoteHash.substring(0, 8)})`);
         this.stateManager.updateWorkflowState(workflowId, remoteHash);
     }
 

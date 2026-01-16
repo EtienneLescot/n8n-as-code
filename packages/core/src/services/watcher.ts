@@ -131,10 +131,14 @@ export class Watcher extends EventEmitter {
         this.broadcastStatus(filename, workflowId);
     }
 
-    private async refreshLocalState() {
-        if (!fs.existsSync(this.directory)) return;
+    public async refreshLocalState() {
+        if (!fs.existsSync(this.directory)) {
+            console.log(`[DEBUG] refreshLocalState: Directory missing: ${this.directory}`);
+            return;
+        }
 
         const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.json') && !f.startsWith('.'));
+        console.log(`[DEBUG] refreshLocalState found ${files.length} files in ${this.directory}:`, files);
         for (const filename of files) {
             const filePath = path.join(this.directory, filename);
             const content = this.readJsonFile(filePath);
@@ -153,9 +157,11 @@ export class Watcher extends EventEmitter {
     public async refreshRemoteState() {
         try {
             const remoteWorkflows = await this.client.getAllWorkflows();
+            const currentRemoteIds = new Set<string>();
             for (const wf of remoteWorkflows) {
                 if (this.shouldIgnore(wf)) continue;
                 if (this.isPaused.has(wf.id)) continue;
+                currentRemoteIds.add(wf.id);
 
                 const filename = `${this.safeName(wf.name)}.json`;
                 this.idToFileMap.set(wf.id, filename);
@@ -164,13 +170,27 @@ export class Watcher extends EventEmitter {
                 // Lightweight calculation: compare updatedAt if available
                 // For now, we fetch full content to be safe and deterministic as per spec
                 // Optimized fetching can be added later
-                const fullWf = await this.client.getWorkflow(wf.id);
-                if (fullWf) {
-                    const clean = WorkflowSanitizer.cleanForStorage(fullWf);
-                    const hash = StateManager.computeHash(clean);
+                try {
+                    const fullWf = await this.client.getWorkflow(wf.id);
+                    if (fullWf) {
+                        const clean = WorkflowSanitizer.cleanForStorage(fullWf);
+                        const hash = StateManager.computeHash(clean);
 
-                    this.remoteHashes.set(wf.id, hash);
-                    this.broadcastStatus(filename, wf.id);
+                        this.remoteHashes.set(wf.id, hash);
+                        this.broadcastStatus(filename, wf.id);
+                    }
+                } catch (e) {
+                    // Ignore transiently missing workflows during poll
+                    console.warn(`[Watcher] Could not fetch workflow ${wf.id} during poll:`, e);
+                }
+            }
+
+            // Prune remoteHashes for deleted workflows
+            for (const id of this.remoteHashes.keys()) {
+                if (!currentRemoteIds.has(id)) {
+                    this.remoteHashes.delete(id);
+                    const filename = this.idToFileMap.get(id);
+                    if (filename) this.broadcastStatus(filename, id);
                 }
             }
         } catch (error) {
@@ -193,6 +213,11 @@ export class Watcher extends EventEmitter {
         const remoteHash = workflowId ? this.remoteHashes.get(workflowId) : undefined;
         const baseState = workflowId ? this.stateManager.getWorkflowState(workflowId) : undefined;
         const lastSyncedHash = baseState?.lastSyncedHash;
+
+        console.log(`[DEBUG] calculateStatus: ${filename} (ID: ${workflowId})`);
+        console.log(`  local: ${localHash ? localHash.substring(0, 8) : 'MISSING'}`);
+        console.log(`  remote: ${remoteHash ? remoteHash.substring(0, 8) : 'MISSING'}`);
+        console.log(`  lastSynced: ${lastSyncedHash ? lastSyncedHash.substring(0, 8) : 'MISSING'}`);
 
         // Implementation of 4.2 Status Logic Matrix
         if (localHash && !lastSyncedHash && !remoteHash) return WorkflowSyncStatus.EXIST_ONLY_LOCALLY;

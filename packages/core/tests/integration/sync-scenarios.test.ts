@@ -52,14 +52,16 @@ before(async () => {
     client = new N8nApiClient({ host, apiKey });
     try {
         const all = await client.getAllWorkflows();
-        const existing = all.find(wf => wf.name === 'Test test');
-        if (existing) {
-            testWorkflowId = existing.id;
-            await client.updateWorkflow(testWorkflowId, baseWorkflow);
-        } else {
-            const newWf = await client.createWorkflow(baseWorkflow);
-            testWorkflowId = newWf.id;
+        const testNames = ['Test test', 'Delete Me Remote', 'Delete Me Local'];
+
+        for (const wf of all) {
+            if (testNames.includes(wf.name)) {
+                await client.deleteWorkflow(wf.id);
+            }
         }
+
+        const newWf = await client.createWorkflow(baseWorkflow);
+        testWorkflowId = newWf.id;
     } catch (e: any) {
         if (e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND' || e.response?.status === 401) {
             throw new Error(`[OFFLINE] Could not connect or authenticate to n8n instance at ${host}. Please ensure n8n is running and API Key is valid.`);
@@ -178,6 +180,8 @@ test('Integration Scenarios', async (t) => {
             await client.deleteWorkflow(wfId);
 
             // 4. Sync down again -> Should detect remote deletion
+            // We MUST refresh state before syncDown to see the remote deletion
+            await syncManager.refreshState();
             await syncManager.syncDown();
 
             // 5. Local file should be gone (moved to .archive)
@@ -188,10 +192,6 @@ test('Integration Scenarios', async (t) => {
             assert.ok(fs.existsSync(archiveDir), 'Archive directory should exist');
             const archivedFiles = fs.readdirSync(archiveDir);
             assert.ok(archivedFiles.some(f => f.includes('Delete Me Remote.json')), 'Archived file should exist');
-
-        } catch (error) {
-            // If creation fails (maybe API issue), skip test
-            console.warn('Skipping remote deletion test due to API error:', error);
         } finally {
             fs.rmSync(tempDir, { recursive: true, force: true });
         }

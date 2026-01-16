@@ -65,7 +65,9 @@ export class SyncManager extends EventEmitter {
         await this.ensureInitialized();
         const statuses = await this.getWorkflowsStatus();
         for (const s of statuses) {
-            if (s.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY || s.status === WorkflowSyncStatus.MODIFIED_REMOTELY) {
+            if (s.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY ||
+                s.status === WorkflowSyncStatus.MODIFIED_REMOTELY ||
+                s.status === WorkflowSyncStatus.DELETED_REMOTELY) {
                 await this.syncEngine!.pull(s.id, s.filename, s.status);
             }
         }
@@ -94,7 +96,10 @@ export class SyncManager extends EventEmitter {
 
     async refreshState() {
         await this.ensureInitialized();
-        await this.watcher!.refreshRemoteState();
+        await Promise.all([
+            this.watcher!.refreshRemoteState(),
+            this.watcher!.refreshLocalState()
+        ]);
     }
 
     public getInstanceDirectory(): string {
@@ -114,10 +119,10 @@ export class SyncManager extends EventEmitter {
     async handleLocalFileChange(filePath: string): Promise<'updated' | 'created' | 'up-to-date' | 'conflict' | 'skipped'> {
         await this.ensureInitialized();
         const filename = path.basename(filePath);
+        console.log(`[DEBUG] handleLocalFileChange: ${filename}`);
 
-        // Manual refresh for this file to ensure fresh detection in tests/manual calls
-        // @ts-ignore
-        await this.watcher!.onLocalChange(filePath);
+        // Ensure we have the latest from both worlds
+        await this.refreshState();
 
         const status = this.watcher!.calculateStatus(filename);
 
