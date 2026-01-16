@@ -65,12 +65,21 @@ async function runTest(suite) {
                 }
             } else {
                 // Parse counts
-                if (suite.name === 'agent-cli') {
-                    const match = output.match(/(\d+)\s+passed/g);
-                    if (match) {
-                        const counts = match.map(m => parseInt(m.match(/(\d+)/)[0]));
-                        passed = Math.max(...counts).toString();
+                if (suite.name === 'agent-cli' || suite.name === 'cli') {
+                    // Vitest format: "Tests  53 passed (53)"
+                    const testMatch = output.match(/Tests\s+(\d+)\s+passed/i);
+                    if (testMatch) {
+                        passed = testMatch[1];
+                    } else {
+                        // Alternative format: "13 passed"
+                        const match = output.match(/(\d+)\s+passed/g);
+                        if (match) {
+                            const counts = match.map(m => parseInt(m.match(/(\d+)/)[0]));
+                            passed = Math.max(...counts).toString();
+                        }
                     }
+                    const failMatch = output.match(/Tests\s+(\d+)\s+failed/i);
+                    if (failMatch) failed = failMatch[1];
                 } else {
                     const passMatch = output.match(/pass\s+(\d+)/i);
                     if (passMatch) passed = passMatch[1];
