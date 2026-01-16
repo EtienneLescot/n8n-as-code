@@ -114,43 +114,42 @@ export class StartCommand extends BaseCommand {
             }
         });
 
-        // Initial render
+        // Initial render and capture issues BEFORE starting watch
         await syncManager.refreshState();
         await this.renderTable(syncManager);
 
-        // Handle existing conflicts/deletions BEFORE starting watch
-        if (this.manualMode) {
-            await this.handleInitialIssues(syncManager);
-        }
+        // Capture issues that exist at startup (before watch changes them)
+        const initialStatuses = await syncManager.getWorkflowsStatus();
+        const initialConflicts = initialStatuses.filter(w => w.status === WorkflowSyncStatus.CONFLICT);
+        const initialDeletions = initialStatuses.filter(w => w.status === WorkflowSyncStatus.DELETED_LOCALLY);
 
-        // Start watching
-        watchStarted = true; // Enable event handlers
+        // Start watching FIRST (needed for proper state management)
         await syncManager.startWatch();
-    }
-
-    /**
-     * Handle conflicts and deletions that exist at startup (manual mode only)
-     */
-    private async handleInitialIssues(syncManager: SyncManager) {
-        const statuses = await syncManager.getWorkflowsStatus();
         
-        // Handle conflicts first
-        const conflicts = statuses.filter(w => w.status === WorkflowSyncStatus.CONFLICT);
-        for (const conflict of conflicts) {
-            await this.handleConflictPrompt(conflict, syncManager);
-        }
+        // Small delay to let the watcher stabilize
+        await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Handle local deletions
-        const localDeletions = statuses.filter(w => w.status === WorkflowSyncStatus.DELETED_LOCALLY);
-        for (const deletion of localDeletions) {
-            await this.handleLocalDeletionPrompt(deletion, syncManager);
-        }
-        
-        // Refresh display after initial handling
-        if (conflicts.length > 0 || localDeletions.length > 0) {
+        // Handle initial issues that we captured BEFORE watch
+        // In both manual and auto mode, conflicts and deletions require user decision
+        if (initialConflicts.length > 0 || initialDeletions.length > 0) {
+            // Handle conflicts first
+            for (const conflict of initialConflicts) {
+                await this.handleConflictPrompt(conflict, syncManager);
+            }
+            
+            // Handle local deletions
+            for (const deletion of initialDeletions) {
+                await this.handleLocalDeletionPrompt(deletion, syncManager);
+            }
+            
+            // Refresh display after handling
             await this.renderTable(syncManager);
         }
+        
+        // Now enable event handlers for new changes
+        watchStarted = true;
     }
+
 
     /**
      * Handle conflict with prompt
@@ -220,6 +219,24 @@ export class StartCommand extends BaseCommand {
         }]);
 
         if (action === 'delete') {
+            // Before deleting, ensure we have a backup
+            // If file was deleted manually (outside watch), download it first for backup
+            try {
+                const fs = await import('fs');
+                const path = await import('path');
+                const localPath = path.join(syncManager.getInstanceDirectory(), data.filename);
+                
+                // Check if file exists locally
+                if (!fs.existsSync(localPath)) {
+                    // File doesn't exist, download from n8n for backup before deleting
+                    console.log(chalk.gray(`  Downloading workflow for backup...\n`));
+                    await syncManager.resolveConflict(data.id, data.filename, 'remote');
+                }
+            } catch (error: any) {
+                console.log(chalk.yellow(`  Warning: Could not create backup: ${error.message}\n`));
+            }
+            
+            // Now delete on remote
             const success = await syncManager.deleteRemoteWorkflow(data.id, data.filename);
             if (success) {
                 console.log(chalk.green(`✅ Remote workflow deleted and backed up to _archive.\n`));
@@ -227,11 +244,13 @@ export class StartCommand extends BaseCommand {
                 console.log(chalk.red(`❌ Failed to delete remote workflow.\n`));
             }
         } else if (action === 'restore') {
-            const success = await syncManager.restoreLocalFile(data.id, data.filename);
-            if (success) {
+            // Use resolveConflict with 'remote' to force pull from n8n
+            // This works even if file is not in _archive (manual deletion case)
+            try {
+                await syncManager.resolveConflict(data.id, data.filename, 'remote');
                 console.log(chalk.blue(`🔄 Local file restored from n8n.\n`));
-            } else {
-                console.log(chalk.red(`❌ Failed to restore local file.\n`));
+            } catch (error: any) {
+                console.log(chalk.red(`❌ Failed to restore local file: ${error.message}\n`));
             }
         } else {
             console.log(chalk.gray(`⏭️  Skipped deletion.\n`));
