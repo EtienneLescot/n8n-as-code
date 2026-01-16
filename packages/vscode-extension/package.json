@@ -263,8 +263,9 @@
     "Other"
   ],
   "dependencies": {
-    "@n8n-as-code/core": "0.2.0",
     "@n8n-as-code/agent-cli": "0.2.0",
+    "@n8n-as-code/core": "0.2.0",
+    "@reduxjs/toolkit": "^2.11.2",
     "http-proxy": "^1.18.1"
   },
   "devDependencies": {

@@ -1,7 +1,19 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { SyncManager, IWorkflowStatus, WorkflowSyncStatus } from '@n8n-as-code/core';
-import { UIEventHelpers } from '../services/ui-event-bus.js';
+
+import {
+    store,
+    selectWorkflowById,
+    selectConflicts,
+    selectPendingDeletions,
+    syncDown,
+    syncUp,
+    addPendingDeletion,
+    removePendingDeletion,
+    updateWorkflow,
+    removeConflict
+} from '../services/workflow-store.js';
 
 /**
  * Webview panel for displaying workflow details and actions
@@ -10,19 +22,20 @@ export class WorkflowDetailWebview {
     private static currentPanel: WorkflowDetailWebview | undefined;
     private readonly panel: vscode.WebviewPanel;
     private readonly extensionUri: vscode.Uri;
-    private workflow: IWorkflowStatus;
+    private workflowId: string;
     private syncManager: SyncManager | undefined;
     private disposables: vscode.Disposable[] = [];
+    private storeUnsubscribe?: () => void;
 
     private constructor(
         panel: vscode.WebviewPanel,
         extensionUri: vscode.Uri,
-        workflow: IWorkflowStatus,
+        workflowId: string,
         syncManager?: SyncManager
     ) {
         this.panel = panel;
         this.extensionUri = extensionUri;
-        this.workflow = workflow;
+        this.workflowId = workflowId;
         this.syncManager = syncManager;
 
         // Set the webview's initial html content
@@ -40,8 +53,28 @@ export class WorkflowDetailWebview {
             this.disposables
         );
 
-        // Update content when workflow changes
-        this.setupEventListeners();
+        // Subscribe to Redux store
+        this.setupStoreSubscription();
+    }
+
+    /**
+     * Refresh the current panel if it exists
+     */
+    public static refreshCurrentPanel(): void {
+        if (WorkflowDetailWebview.currentPanel) {
+            WorkflowDetailWebview.currentPanel.update();
+        }
+    }
+
+    /**
+     * Helper to reload a specific workflow page if open
+     */
+    public static reloadIfMatching(workflowId: string, outputChannel?: vscode.OutputChannel): void {
+        const panel = WorkflowDetailWebview.currentPanel;
+        if (panel && panel.workflowId === workflowId) {
+            outputChannel?.appendLine(`[n8n] Reloading webview for ${workflowId}`);
+            panel.update();
+        }
     }
 
     /**
@@ -59,7 +92,7 @@ export class WorkflowDetailWebview {
         // If we already have a panel, show it
         if (WorkflowDetailWebview.currentPanel) {
             WorkflowDetailWebview.currentPanel.panel.reveal(column);
-            WorkflowDetailWebview.currentPanel.workflow = workflow;
+            WorkflowDetailWebview.currentPanel.workflowId = workflow.id;
             WorkflowDetailWebview.currentPanel.syncManager = syncManager;
             WorkflowDetailWebview.currentPanel.update();
             return WorkflowDetailWebview.currentPanel;
@@ -83,7 +116,7 @@ export class WorkflowDetailWebview {
         WorkflowDetailWebview.currentPanel = new WorkflowDetailWebview(
             panel,
             extensionUri,
-            workflow,
+            workflow.id,
             syncManager
         );
 
@@ -91,27 +124,46 @@ export class WorkflowDetailWebview {
     }
 
     /**
+     * Get current workflow state from Redux
+     */
+    private getWorkflow(): IWorkflowStatus | undefined {
+        const state = store.getState();
+        return selectWorkflowById(state, this.workflowId);
+    }
+
+    /**
      * Update the webview content
      */
     private update(): void {
-        this.panel.title = `Workflow: ${this.workflow.name}`;
-        this.panel.webview.html = this.getHtmlForWebview();
+        const workflow = this.getWorkflow();
+        if (!workflow) {
+            // Workflow might have been deleted
+            this.panel.dispose();
+            return;
+        }
+
+        this.panel.title = `Workflow: ${workflow.name}`;
+        this.panel.webview.html = this.getHtmlForWebview(workflow);
     }
 
     /**
      * Get HTML content for the webview
      */
-    private getHtmlForWebview(): string {
-        const status = this.workflow.status;
-        const hasConflict = status === WorkflowSyncStatus.CONFLICT;
-        const isPendingDeletion = this.workflow.status === WorkflowSyncStatus.MISSING_LOCAL;
+    private getHtmlForWebview(workflow: IWorkflowStatus): string {
+        const state = store.getState();
+        const pendingDeletions = selectPendingDeletions(state);
+        const conflicts = selectConflicts(state);
+
+        const status = workflow.status;
+        const hasConflict = !!conflicts[workflow.id];
+        const isPendingDeletion = pendingDeletions.includes(workflow.id);
 
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workflow: ${this.workflow.name}</title>
+    <title>Workflow: ${workflow.name}</title>
     <style>
         body {
             font-family: var(--vscode-font-family);
@@ -245,11 +297,11 @@ export class WorkflowDetailWebview {
 </head>
 <body>
     <div class="header">
-        <div class="workflow-name">${this.workflow.name}</div>
-        <div class="workflow-id">ID: ${this.workflow.id}</div>
+        <div class="workflow-name">${workflow.name}</div>
+        <div class="workflow-id">ID: ${workflow.id}</div>
         <div>
             <span class="status-badge ${this.getStatusClass(status)}">${status}</span>
-            ${this.workflow.active ? '<span class="status-badge status-synced">Active</span>' : '<span class="status-badge status-missing">Inactive</span>'}
+            ${workflow.active ? '<span class="status-badge status-synced">Active</span>' : '<span class="status-badge status-missing">Inactive</span>'}
         </div>
     </div>
     
@@ -257,13 +309,13 @@ export class WorkflowDetailWebview {
         <div class="section-title">Workflow Information</div>
         <div class="info-grid">
             <div class="info-label">Filename:</div>
-            <div class="info-value">${this.workflow.filename || 'N/A'}</div>
+            <div class="info-value">${workflow.filename || 'N/A'}</div>
             
             <div class="info-label">Status:</div>
             <div class="info-value">${this.getStatusDescription(status)}</div>
             
             <div class="info-label">Active:</div>
-            <div class="info-value">${this.workflow.active ? 'Yes' : 'No'}</div>
+            <div class="info-value">${workflow.active ? 'Yes' : 'No'}</div>
             
             <div class="info-label">Last Sync:</div>
             <div class="info-value">${new Date().toLocaleString()}</div>
@@ -276,7 +328,7 @@ export class WorkflowDetailWebview {
     <div class="section">
         <div class="section-title">Actions</div>
         <div class="action-buttons">
-            ${this.getActionButtons()}
+            ${this.getActionButtons(workflow, hasConflict, isPendingDeletion)}
         </div>
     </div>
     
@@ -291,7 +343,7 @@ export class WorkflowDetailWebview {
         }
         
         // Store initial state
-        vscode.setState({ workflowId: '${this.workflow.id}' });
+        vscode.setState({ workflowId: '${workflow.id}' });
     </script>
 </body>
 </html>`;
@@ -383,9 +435,9 @@ export class WorkflowDetailWebview {
     /**
      * Get HTML for action buttons
      */
-    private getActionButtons(): string {
+    private getActionButtons(workflow: IWorkflowStatus, hasConflict: boolean, isPendingDeletion: boolean): string {
         const buttons = [];
-        
+
         // Always available actions
         buttons.push(`
             <button class="action-button action-button-primary" onclick="handleAction('openBoard')">
@@ -398,9 +450,14 @@ export class WorkflowDetailWebview {
                 <span class="icon">📊</span> Open Split View
             </button>
         `);
-        
+
+        if (hasConflict || isPendingDeletion) {
+            // Actions handled in special sections
+            return buttons.join('\n');
+        }
+
         // Sync actions based on status
-        const status = this.workflow.status;
+        const status = workflow.status;
         if (status === WorkflowSyncStatus.LOCAL_MODIFIED || status === WorkflowSyncStatus.MISSING_REMOTE) {
             buttons.push(`
                 <button class="action-button action-button-primary" onclick="handleAction('pushWorkflow')">
@@ -408,7 +465,7 @@ export class WorkflowDetailWebview {
                 </button>
             `);
         }
-        
+
         if (status === WorkflowSyncStatus.REMOTE_MODIFIED || status === WorkflowSyncStatus.MISSING_LOCAL) {
             buttons.push(`
                 <button class="action-button action-button-primary" onclick="handleAction('pullWorkflow')">
@@ -416,16 +473,16 @@ export class WorkflowDetailWebview {
                 </button>
             `);
         }
-        
+
         // Delete action (only if file exists locally)
-        if (this.workflow.filename && this.syncManager) {
+        if (workflow.filename && this.syncManager) {
             buttons.push(`
                 <button class="action-button action-button-danger" onclick="handleAction('deleteWorkflow')">
                     <span class="icon">🗑️</span> Delete Local File
                 </button>
             `);
         }
-        
+
         return buttons.join('\n');
     }
 
@@ -433,69 +490,89 @@ export class WorkflowDetailWebview {
      * Handle messages from the webview
      */
     private async handleMessage(message: any): Promise<void> {
+        const workflow = this.getWorkflow();
+        if (!workflow) return;
+
         switch (message.command) {
             case 'openBoard':
-                await vscode.commands.executeCommand('n8n.openBoard', this.workflow);
+                await vscode.commands.executeCommand('n8n.openBoard', workflow);
                 break;
-                
+
             case 'openJson':
-                await vscode.commands.executeCommand('n8n.openJson', this.workflow);
+                await vscode.commands.executeCommand('n8n.openJson', workflow);
                 break;
-                
+
             case 'openSplit':
-                await vscode.commands.executeCommand('n8n.openSplit', this.workflow);
+                await vscode.commands.executeCommand('n8n.openSplit', workflow);
                 break;
-                
+
             case 'pushWorkflow':
-                await vscode.commands.executeCommand('n8n.pushWorkflow', this.workflow);
+                await vscode.commands.executeCommand('n8n.pushWorkflow', workflow);
+                // Update happens via Redux store automatically
                 break;
-                
+
             case 'pullWorkflow':
-                await vscode.commands.executeCommand('n8n.pullWorkflow', this.workflow);
+                await vscode.commands.executeCommand('n8n.pullWorkflow', workflow);
                 break;
-                
+
             case 'deleteWorkflow':
-                await vscode.commands.executeCommand('n8n.deleteWorkflow', this.workflow);
+                await vscode.commands.executeCommand('n8n.deleteWorkflow', workflow);
                 break;
-                
+
             case 'showDiff':
-                await vscode.commands.executeCommand('n8n.resolveConflict', this.workflow);
+                await vscode.commands.executeCommand('n8n.resolveConflict', workflow);
                 break;
-                
+
             case 'useLocal':
-                // Force push local version
-                if (this.syncManager && this.workflow.filename) {
+                // Handled via command now
+                await vscode.commands.executeCommand('n8n.resolveConflict', { workflow, choice: 'Overwrite Remote (Use Local)' });
+                // Fallback implementation if command arg isn't supported yet:
+                if (this.syncManager && workflow.filename) {
                     const instanceDirectory = this.syncManager.getInstanceDirectory();
-                    const absPath = path.join(instanceDirectory, this.workflow.filename);
+                    const absPath = path.join(instanceDirectory, workflow.filename);
                     await this.syncManager.handleLocalFileChange(absPath);
-                    UIEventHelpers.emitUIRefreshNeeded('conflict resolved - use local');
+                    store.dispatch(removeConflict(workflow.id));
+                    store.dispatch(updateWorkflow({ id: workflow.id, updates: { status: WorkflowSyncStatus.SYNCED } }));
+                    vscode.window.showInformationMessage(`✅ Resolved: Remote overwritten by Local.`);
                 }
                 break;
-                
+
             case 'useRemote':
-                // Force pull remote version
-                if (this.syncManager && this.workflow.filename && this.workflow.id) {
-                    await this.syncManager.pullWorkflow(this.workflow.filename, this.workflow.id, true);
-                    UIEventHelpers.emitUIRefreshNeeded('conflict resolved - use remote');
+                // Handled via command now
+                await vscode.commands.executeCommand('n8n.resolveConflict', { workflow, choice: 'Overwrite Local (Use Remote)' });
+                // Fallback implementation if command arg isn't supported yet:
+                if (this.syncManager && workflow.filename) {
+                    await this.syncManager.pullWorkflow(workflow.filename, workflow.id, true);
+                    store.dispatch(removeConflict(workflow.id));
+                    store.dispatch(updateWorkflow({ id: workflow.id, updates: { status: WorkflowSyncStatus.SYNCED } }));
+                    vscode.window.showInformationMessage(`✅ Resolved: Local overwritten by Remote.`);
                 }
                 break;
-                
+
             case 'confirmDeletion':
-                await vscode.commands.executeCommand('n8n.confirmDeletion', this.workflow);
+                await vscode.commands.executeCommand('n8n.confirmDeletion', workflow);
                 break;
-                
+
             case 'restoreLocal':
-                await vscode.commands.executeCommand('n8n.restoreDeletion', this.workflow);
+                await vscode.commands.executeCommand('n8n.restoreDeletion', workflow);
                 break;
         }
     }
 
     /**
-     * Setup event listeners for workflow changes
+     * Subscribe to store updates
      */
-    private setupEventListeners(): void {
-        // This method would listen for workflow status changes
-        // For now, it's a placeholder
+    private setupStoreSubscription(): void {
+        this.storeUnsubscribe = store.subscribe(() => {
+            const workflow = this.getWorkflow();
+            if (workflow) {
+                // If workflow still exists, update view
+                this.update();
+            } else {
+                // Workflow removed (maybe via deletion confirmation)
+                this.panel.dispose();
+            }
+        });
     }
 
     /**
@@ -503,6 +580,11 @@ export class WorkflowDetailWebview {
      */
     public dispose(): void {
         WorkflowDetailWebview.currentPanel = undefined;
+
+        // Unsubscribe from store
+        if (this.storeUnsubscribe) {
+            this.storeUnsubscribe();
+        }
 
         // Clean up our resources
         this.panel.dispose();
