@@ -126,7 +126,7 @@ npm run extension:install
 
 ## 🚀 Release & Distribution
 
-This project uses [Changesets](https://github.com/changesets/changesets) for automated versioning and NPM publishing.
+This project uses [Changesets](https://github.com/changesets/changesets) for automated versioning and publishing.
 
 ### For Developers: Creating a Release
 
@@ -134,19 +134,24 @@ This project uses [Changesets](https://github.com/changesets/changesets) for aut
     ```bash
     npm run changeset
     ```
-    Follow the prompts to select packages and version types (patch/minor/major) and provide a summary.
+    Follow the prompts to select packages (including VS Code extension if modified) and version types (patch/minor/major) and provide a summary.
 
 2.  **Version and Changelog**:
     Once ready for a release, update versions and changelogs:
     ```bash
     npm run version-packages
     ```
+    This updates ALL packages including the VS Code extension and synchronizes internal dependencies.
 
 3.  **Publish**:
-    Build and publish all packages to NPM:
+    Build and publish all packages:
     ```bash
     npm run release
     ```
+    - NPM packages are published to the registry
+    - VS Code extension is published to the Marketplace (handled separately in CI/CD)
+
+> **Note**: The VS Code extension is marked as `private: true` to prevent NPM publication, but Changeset still manages its versioning and dependencies.
 
 ---
 

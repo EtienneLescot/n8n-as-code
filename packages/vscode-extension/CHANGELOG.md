@@ -1,5 +1,17 @@
 # n8n-as-code
 
+## 0.3.0
+
+### Minor Changes
+
+- refactor(vscode): complete UI overhaul and state-driven tree view
+
+  - Implemented visual status indicators (icons/colors) in the workflow tree.
+  - Added persistent conflict resolution actions directly in the tree items.
+  - Introduced Redux-style state management for fluid UI updates.
+  - Redesigned initialization flow to be non-intrusive.
+  - Added Vitest suite for UI state and event handling.
+
 ## 0.2.0
 
 ### Minor Changes

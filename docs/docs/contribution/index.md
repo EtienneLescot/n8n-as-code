@@ -66,36 +66,80 @@ npm run dev
 
 ## 📦 Version Management
 
-n8n-as-code uses **Changeset** with independent package versioning (Option A). Each package evolves independently while Changeset automatically manages internal dependencies.
+n8n-as-code uses **Changeset** with independent package versioning. Each package evolves independently while Changeset automatically manages internal dependencies.
 
 ### Current Package Versions
-- **@n8n-as-code/core**: `0.2.0`
-- **@n8n-as-code/cli**: `0.2.0`
+
+Packages evolve **independently** with their own version numbers:
+- **@n8n-as-code/core**: `0.3.0`
+- **@n8n-as-code/cli**: `0.3.0`
 - **@n8n-as-code/agent-cli**: `0.2.0`
 - **VS Code Extension**: `0.2.0`
 
+> **Note**: Each package has its own version number. Changeset ensures that when a package depends on another internal package, it always references the **current version** of that dependency.
+
+### Package Publication Strategy
+
+The project includes different types of packages:
+
+| Package | Published To | Managed By Changeset |
+|---------|-------------|---------------------|
+| `@n8n-as-code/core` | NPM Registry | ✅ Yes |
+| `@n8n-as-code/cli` | NPM Registry | ✅ Yes |
+| `@n8n-as-code/agent-cli` | NPM Registry | ✅ Yes |
+| `n8n-as-code` (VS Code Extension) | VS Code Marketplace | ✅ Yes (versioning only) |
+| `n8n-as-code-monorepo` (root) | Not published | ❌ No (ignored) |
+| `docs` | Not published | ❌ No (private) |
+
+**Important**: The VS Code extension is marked as `"private": true` to prevent accidental NPM publication, but **it is still managed by Changeset** for version numbering and dependency synchronization. Changeset automatically skips private packages during `changeset publish`.
+
 ### Release Workflow
-1. **Declare Changes**: After modifying code, run `npx changeset add`
-   - Select affected packages
+
+1. **Declare Changes**: After modifying code, run `npm run changeset`
+   - Select affected packages (including VS Code extension if modified)
    - Choose version type: `patch` (bug fix), `minor` (feature), `major` (breaking)
    - Write changelog message
 
 2. **Apply Versions**: Run `npm run version-packages`
-   - Updates package.json versions
-   - Automatically updates internal dependencies
+   - Updates package.json versions for ALL packages (including private ones)
+   - Automatically updates internal dependencies across all packages
    - Generates/updates CHANGELOG.md files
 
 3. **Publish**: Run `npm run release` (via GitHub Actions)
    - Builds all packages
-   - Publishes to npm registry
-   - Publishes VS Code extension to Marketplace
+   - Publishes public packages to NPM registry (skips private packages automatically)
+   - Separately publishes VS Code extension to Marketplace using the version from package.json
    - Creates Git tag
+
+### Example: How Internal Dependencies Stay Synchronized
+
+Let's say you fix a bug in `@n8n-as-code/core`:
+
+```bash
+# 1. Create a changeset for the core fix
+npm run changeset
+# Select: @n8n-as-code/core
+# Type: patch (0.3.0 → 0.3.1)
+
+# 2. Apply versions
+npm run version-packages
+```
+
+**Result:**
+- `@n8n-as-code/core`: `0.3.0` → `0.3.1` ✅
+- `@n8n-as-code/cli`: `0.3.0` → `0.3.1` (auto-bumped because it depends on core) ✅
+- `@n8n-as-code/agent-cli`: `0.2.0` (unchanged, no dependency on core) ✅
+- `VS Code Extension`: `0.2.0` → `0.2.1` (auto-bumped because it depends on core) ✅
+
+All packages that depend on `core` will have their `package.json` updated to reference `"@n8n-as-code/core": "0.3.1"`.
 
 ### Key Rules
 - **Never manually edit versions** in package.json
 - **Always use Changeset** even for small fixes
-- **Internal dependencies** are automatically updated thanks to `"updateInternalDependencies": "patch"` in Changeset config
-- **Check consistency** with `node scripts/check-version-consistency.js`
+- **Include VS Code extension in changesets** when you modify it - this ensures dependencies stay synchronized
+- **Internal dependencies are automatically updated** thanks to `"updateInternalDependencies": "patch"` in Changeset config
+- **Private packages are safe** - Changeset will manage their versions but never publish them to NPM
+- **Use `npm run check-versions`** to verify all internal dependencies are up-to-date
 
 ## 📝 Contribution Guidelines
 

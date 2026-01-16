@@ -84,4 +84,5 @@ jobs:
         run: |
           npm run build:extension
           cd packages/vscode-extension
-          npx @vscode/vsce publish patch --no-dependencies --pat ${{ env.VSCE_TOKEN }}
+          # Use the version from package.json (updated by Changeset)
+          npx @vscode/vsce publish --no-dependencies --pat ${{ env.VSCE_TOKEN }}
