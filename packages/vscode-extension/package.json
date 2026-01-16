@@ -274,7 +274,7 @@
   ],
   "dependencies": {
     "@n8n-as-code/agent-cli": "0.2.0",
-    "@n8n-as-code/core": "0.2.0",
+    "@n8n-as-code/core": "0.3.0",
     "@reduxjs/toolkit": "^2.11.2",
     "http-proxy": "^1.18.1"
   },
@@ -294,5 +294,5 @@
     "build": "npm run compile && npm run copy-assets && npm run package-bundle",
     "clean": "rm -rf out assets tsconfig.tsbuildinfo",
     "test": "npx tsx --test tests/unit/*.test.ts"
-}
+  }
 }

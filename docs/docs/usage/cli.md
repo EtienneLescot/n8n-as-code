@@ -75,55 +75,104 @@ The wizard will ask for:
 - **API Key**: Your n8n API key (found in n8n Settings > API)
 - **Sync Folder**: Local directory for workflow storage (default: `workflows`)
 
-### `pull`
-Download all workflows from n8n to local directory.
+### `list`
+Display all workflows with their current sync status.
 
 **Description:**
-Downloads all workflows from your configured n8n instance and saves them as JSON files in your local workflows directory.
+Shows a color-coded table of all workflows with their sync status, helping you understand the current state of your workflow synchronization.
+
+**Example:**
+```bash
+n8n-as-code list
+```
+
+**Output:**
+- Status indicators with icons (✔ In Sync, ✏️ Modified Locally, ☁️ Modified Remotely, 💥 Conflicts, etc.)
+- Workflow ID, name, and local path
+- Summary statistics showing counts by status
+
+**Status Types:**
+- `IN_SYNC` - Local and remote are identical
+- `MODIFIED_LOCALLY` - Local changes not yet pushed
+- `MODIFIED_REMOTELY` - Remote changes not yet pulled
+- `CONFLICT` - Both local and remote modified since last sync
+- `EXIST_ONLY_LOCALLY` - New local workflow not yet pushed
+- `EXIST_ONLY_REMOTELY` - New remote workflow not yet pulled
+- `DELETED_LOCALLY` - Local file removed
+- `DELETED_REMOTELY` - Remote workflow deleted
+
+### `pull`
+Download workflows from n8n to local directory.
+
+**Description:**
+Downloads workflows from your configured n8n instance. Detects conflicts when both local and remote have changed since last sync.
+
+**Options:**
+- `--force`: Skip conflict checks and overwrite local files with remote versions
 
 **Example:**
 ```bash
 n8n-as-code pull
+n8n-as-code pull --force  # Force overwrite local changes
 ```
 
-**What happens:**
-1. Connects to your n8n instance using stored credentials
-2. Fetches all workflows (including inactive ones)
-3. Saves each workflow as a JSON file in `workflows/` directory
-4. Organizes files by instance identifier
+**Behavior:**
+1. Refreshes workflow status using 3-way merge detection
+2. Pulls new and modified workflows from n8n
+3. For conflicts, prompts interactively to:
+   - Keep local version (force push)
+   - Keep remote version (force pull)
+   - Show diff
+   - Skip
+4. Creates automatic backups before overwriting files
 
 ### `push`
-Upload missing local workflows to n8n.
+Upload local workflows to n8n.
 
 **Description:**
-Uploads workflows that exist locally but not in n8n, and updates workflows that have been modified locally.
+Uploads workflows that exist locally to n8n. Detects conflicts when both local and remote have changed since last sync.
+
+**Options:**
+- `--force`: Skip conflict checks and overwrite remote workflows with local versions
 
 **Example:**
 ```bash
 n8n-as-code push
+n8n-as-code push --force  # Force overwrite remote changes
 ```
 
-**What happens:**
-1. Scans local `workflows/` directory for JSON files
-2. Compares with workflows in n8n
-3. Creates new workflows in n8n for missing local files
-4. Updates existing workflows with local modifications
+**Behavior:**
+1. Refreshes workflow status using 3-way merge detection
+2. Pushes new and modified workflows to n8n
+3. For conflicts, prompts interactively to:
+   - Keep local version (force push)
+   - Keep remote version (force pull)
+   - Show diff
+   - Skip
+4. Updates `.n8n-state.json` after successful operations
 
-### `watch`
-Start bi-directional synchronization in real-time.
+### `start`
+Start real-time bi-directional synchronization (replaces `watch`).
 
 **Description:**
-Monitors both local file system and n8n for changes, automatically synchronizing in both directions.
+Monitors both local file system and n8n for changes, automatically synchronizing in both directions with live status updates.
+
+**Options:**
+- `--manual`: Enable manual mode with interactive prompts for all actions (default is auto-sync)
 
 **Example:**
 ```bash
-n8n-as-code watch
+n8n-as-code start           # Auto-sync mode
+n8n-as-code start --manual  # Manual mode with prompts
 ```
 
 **Features:**
-- **File watching**: Automatically pushes local changes to n8n when files are saved
-- **Polling**: Periodically checks n8n for remote changes and pulls them locally
-- **Conflict detection**: Warns if conflicts are detected between local and remote versions
+- **Auto-sync mode (default)**: Automatically syncs changes without prompts (except for conflicts)
+- **Manual mode**: Prompts for confirmation on every change
+- **Live monitoring**: Real-time status display with workflow counts
+- **Conflict resolution**: Interactive prompts for conflicts with diff viewing
+- **Deletion handling**: Prompts to confirm deletions or restore files
+- **3-way merge detection**: Uses base-local-remote comparison for accurate conflict detection
 
 ### `init-ai`
 Initialize AI Context (AGENTS.md, n8n-schema.json, rule files).

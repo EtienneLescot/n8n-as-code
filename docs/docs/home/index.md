@@ -14,9 +14,9 @@ n8n-as-code bridges the gap between visual workflow automation and software engi
 
 - **Version Control**: Leverage the ability for you to version your workflows with Git
 - **AI Agent Support**: Empower AI coding assistants with complete n8n node documentation and schemas
-- **Real-time Sync**: Keep your local files and n8n instance in sync
-- **VS Code Integration**: Edit workflows directly in your favorite code editor
-- **Conflict Resolution**: Smart conflict detection and resolution tools
+- **Real-time Sync**: Keep your local files and n8n instance in sync with 3-way merge detection
+- **VS Code Integration**: Edit workflows directly in your favorite code editor with visual status indicators
+- **Smart Conflict Resolution**: Deterministic 3-way merge prevents false conflicts with persistent resolution UI
 
 ## 🎯 Key Features
 
@@ -24,10 +24,14 @@ n8n-as-code bridges the gap between visual workflow automation and software engi
 
 <div className="n8n-card">
 
-### 🔄 Real-time Synchronization or manual push/pull
+### 🔄 Real-time Synchronization with 3-Way Merge
 
-Keep your workflows synchronized between your local files and n8n instance. Changes made in VS Code are instantly reflected in n8n, and vice versa.
-Or if you prefer, you can manually push/pull your workflows.
+Keep your workflows synchronized between your local files and n8n instance using a robust **3-way merge architecture**:
+- **Watcher** observes file system and API changes passively
+- **3-way comparison** (base vs local vs remote) detects true conflicts
+- **Deterministic detection** eliminates false positive conflicts
+- Changes made in VS Code are instantly reflected in n8n, and vice versa
+- Manual push/pull commands available for more control
 
 
 </div>
@@ -47,8 +51,12 @@ Empower your AI coding assistants with **agent-cli** – a toolkit that provides
 
 <div className="n8n-card">
 
-### 🛡️ Conflict Management
-Smart conflict detection prevents data loss. When conflicts occur, you get a visual diff to choose which version to keep.
+### 🛡️ Smart Conflict Resolution
+Deterministic 3-way merge detection prevents false conflicts. When real conflicts occur:
+- **Visual diff** shows differences between local and remote versions
+- **Persistent UI** in VS Code tree view with expandable action buttons
+- **Interactive CLI prompts** for conflict resolution
+- **Automatic backups** before destructive operations
 
 </div>
 
@@ -138,6 +146,12 @@ This documentation is organized into several sections:
 
 ## 🆕 What's New?
 
+- **Major Refactor (Latest)**: 3-way merge architecture for reliable conflict detection
+  - New CLI commands: `start` (replaces `watch`) and `list` for status overview
+  - Persistent conflict resolution UI in VS Code with expandable action buttons
+  - Visual status indicators (color-coded icons) in tree view
+  - Enhanced synchronization reliability with atomic operations and backups
+  - Separated state observation (Watcher) from state mutation (SyncEngine)
 - **Version 0.2.0**: Multi-instance support, improved conflict resolution, enhanced AI context
 - **Version 0.1.0**: Initial release with core synchronization, VS Code extension, and CLI
 

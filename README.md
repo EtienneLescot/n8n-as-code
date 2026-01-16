@@ -37,11 +37,19 @@ Ready to sync your workflows in under 2 minutes?
 The extension transforms VS Code into a true IDE for n8n.
 
 -   **Activity Bar Icon**: Direct access to all your workflows from the left side panel.
+-   **Visual Status Indicators**: Color-coded icons show sync status at a glance:
+    - ✅ Green sync icon for workflows in sync
+    - 📝 Orange pencil for local modifications
+    - ☁️ Orange cloud for remote modifications
+    - 🔴 Red alert for conflicts
+    - 🗑️ Grey trash for deletions
 -   **Embedded Board**: Open your workflows in an integrated web view for immediate visual feedback.
 -   **Split View**: Edit the JSON on the left while keeping the n8n canvas on the right.
 -   **Push on Save**: Any local modification is instantly sent to n8n.
 -   **Automatic AI Context**: Upon opening, the extension automatically generates AI assistance (`AGENTS.md`, snippets, schemas).
--   **🛡️ Conflict Management**: Detects if a workflow has been modified simultaneously on n8n and locally, offering a Diff View to resolve conflicts without data loss.
+-   **🛡️ Persistent Conflict Resolution**: Workflows in conflict or deleted states become expandable tree items with action buttons:
+    - For conflicts: Show Diff, Keep Local, Keep Remote
+    - For deletions: Confirm Deletion, Restore File
 
 ---
 
@@ -61,16 +69,20 @@ The CLI uses an interactive and secure configuration system via the `init` comma
 For those who prefer the terminal or automation. Commands are accessible via `n8n-as-code`.
 
 -   **`init`**: Configures your n8n instance and local project.
--   **`pull`**: Retrieves all workflows from n8n.
--   **`push`**: Sends new local files to n8n.
--   **`watch`**: Real-time bi-directional synchronization mode with interactive conflict resolution.
+-   **`list`**: Displays all workflows with their sync status in a color-coded table.
+-   **`pull`**: Retrieves all workflows from n8n (with interactive conflict resolution).
+-   **`push`**: Sends new local files to n8n (with interactive conflict resolution).
+-   **`start`**: Real-time bi-directional synchronization mode with live monitoring (replaces `watch`).
 -   **`init-ai`**: Generates context for your AI agent.
 
 Example usage:
 ```bash
 n8n-as-code init
-n8n-as-code pull
-n8n-as-code watch
+n8n-as-code list          # View all workflow statuses
+n8n-as-code pull          # Download workflows
+n8n-as-code push          # Upload workflows
+n8n-as-code start         # Start watch mode with auto-sync
+n8n-as-code start --manual # Start with interactive prompts
 ```
 
 ---
@@ -140,7 +152,11 @@ This project uses [Changesets](https://github.com/changesets/changesets) for aut
 
 ## 🏗 Architecture (Monorepo)
 
--   **`packages/core`**: The logical core: API interactions, synchronization logic, and workflow sanitization.
+-   **`packages/core`**: The logical core with **3-way merge architecture**:
+    - **Watcher**: Observes file system and API changes (state observation)
+    - **SyncEngine**: Performs synchronization operations (state mutation)
+    - **ResolutionManager**: Handles conflict and deletion resolution
+    - Uses base-local-remote comparison for deterministic conflict detection
 -   **`packages/cli`**: The main command-line interface for manual workflow management.
 -   **`packages/agent-cli`**: Specialized tools for AI Agents (Cursor, Cline), providing search and schema retrieval capabilities.
 -   **`packages/vscode-extension`**: The VS Code plugin for seamless real-time synchronization and AI assistance.

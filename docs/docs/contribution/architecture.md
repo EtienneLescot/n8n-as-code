@@ -45,24 +45,72 @@ graph TD
 
 ## 🧩 Core Library Architecture
 
+### 3-Way Merge Architecture
+
+The core library implements a **3-way merge architecture** that cleanly separates state observation from state mutation:
+
+```mermaid
+graph TD
+    A[Watcher] -->|observes| B[File System]
+    A -->|observes| C[n8n API]
+    A -->|emits status| D[SyncManager]
+    D -->|orchestrates| E[SyncEngine]
+    D -->|resolves| F[ResolutionManager]
+    E -->|reads/writes| B
+    E -->|API calls| C
+    E -->|updates| G[StateManager]
+    G -->|persists| H[.n8n-state.json]
+```
+
+### Key Principles
+
+1. **Separation of Concerns**: Watcher observes, SyncEngine mutates
+2. **3-Way Comparison**: Uses base-local-remote to detect conflicts
+3. **Deterministic Detection**: Only flags conflicts when both sides changed
+4. **State Persistence**: `.n8n-state.json` tracks last synced state (base)
+
 ### Service Layer
+
 ```typescript
 // Core services architecture
 classDiagram
+    class Watcher {
+        +startWatching()
+        +stopWatching()
+        +scanLocalFiles()
+        +pollRemoteWorkflows()
+        -detectChanges()
+    }
+    
+    class SyncEngine {
+        +push(workflow)
+        +pull(workflow)
+        +delete(workflow)
+        +finalizeSync(workflow)
+    }
+    
+    class ResolutionManager {
+        +promptForConflict()
+        +promptForDeletion()
+        +resolveConflict()
+    }
+    
     class SyncManager {
-        +sync()
-        +pull()
-        +push()
+        +refreshState()
+        +syncUp()
+        +syncDown()
+        +startWatching()
     }
     
     class StateManager {
-        +getState()
-        +updateState()
-        +detectChanges()
+        +loadState()
+        +saveState()
+        +updateWorkflowState()
     }
     
     class N8nApiClient {
         +getWorkflows()
+        +getWorkflow()
         +updateWorkflow()
         +createWorkflow()
     }
@@ -70,34 +118,84 @@ classDiagram
     class WorkflowSanitizer {
         +sanitize()
         +validate()
+        +sortNodes()
     }
     
-    SyncManager --> StateManager
-    SyncManager --> N8nApiClient
-    SyncManager --> WorkflowSanitizer
+    SyncManager --> Watcher
+    SyncManager --> SyncEngine
+    SyncManager --> ResolutionManager
+    SyncEngine --> StateManager
+    SyncEngine --> N8nApiClient
+    SyncEngine --> WorkflowSanitizer
+    Watcher --> StateManager
 ```
 
 ### Key Components
 
-#### 1. **Sync Manager**
-- Orchestrates synchronization between n8n and local files
-- Handles conflict detection and resolution
-- Manages sync modes (auto/manual)
+#### 1. **Watcher** (State Observation)
+- **Passive observer** that never performs sync operations
+- Watches file system for local changes (with 500ms debouncing)
+- Polls n8n API for remote changes
+- Calculates workflow status using 3-way comparison:
+  - `localHash` - SHA-256 hash of current file content
+  - `remoteHash` - SHA-256 hash of current n8n workflow
+  - `lastSyncedHash` - SHA-256 hash from `.n8n-state.json` (base)
+- Emits status events: `status-changed`, `conflict`, `deletion`
 
-#### 2. **State Manager**
-- Tracks workflow state and changes
-- Detects modifications and conflicts
-- Maintains consistency across operations
+#### 2. **SyncEngine** (State Mutation)
+- **Stateless I/O executor** that performs actual sync operations
+- `push()` - Uploads local workflow to n8n
+- `pull()` - Downloads remote workflow to local file
+- `delete()` - Deletes workflow from n8n or local
+- `finalizeSync()` - Updates `.n8n-state.json` after successful operations
+- Creates backups before destructive operations
+- Uses WorkflowSanitizer to clean workflows before saving
 
-#### 3. **N8n API Client**
+#### 3. **ResolutionManager**
+- Dedicated service for interactive conflict and deletion resolution
+- Provides CLI prompts for user decisions
+- Handles "show diff" functionality
+- Maintains separation between automated and user-driven actions
+
+#### 4. **SyncManager** (Orchestration)
+- High-level orchestrator that coordinates components
+- `refreshState()` - Triggers Watcher to scan and emit status
+- `syncUp()` - Pushes local-only and modified-locally workflows
+- `syncDown()` - Pulls remote-only and modified-remotely workflows
+- `startWatching()` - Starts continuous monitoring mode
+- Emits events: `log`, `conflict`, `deletion`, `statusChanged`
+
+#### 5. **StateManager**
+- Manages `.n8n-state.json` file (the "base" in 3-way merge)
+- Tracks `lastSyncedHash` and `lastSyncedAt` for each workflow
+- Provides atomic read/write operations
+- Enables 3-way merge conflict detection
+
+#### 6. **N8n API Client**
 - Communicates with n8n REST API
 - Handles authentication and rate limiting
 - Provides typed API responses
 
-#### 4. **Workflow Sanitizer**
+#### 7. **Workflow Sanitizer**
 - Validates workflow JSON structure
 - Removes sensitive data (credentials)
+- Sorts nodes and connections canonically for consistent hashing
 - Ensures compatibility with n8n
+
+### 8 Workflow States
+
+Based on 3-way comparison (base vs local vs remote):
+
+| Status | Description |
+|--------|-------------|
+| `IN_SYNC` | Local and remote match |
+| `MODIFIED_LOCALLY` | Local changed since last sync, remote unchanged |
+| `MODIFIED_REMOTELY` | Remote changed since last sync, local unchanged |
+| `CONFLICT` | Both local and remote changed since last sync |
+| `EXIST_ONLY_LOCALLY` | New workflow created locally |
+| `EXIST_ONLY_REMOTELY` | New workflow created remotely |
+| `DELETED_LOCALLY` | Local file removed |
+| `DELETED_REMOTELY` | Remote workflow deleted |
 
 ## 🔌 VS Code Extension Architecture
 

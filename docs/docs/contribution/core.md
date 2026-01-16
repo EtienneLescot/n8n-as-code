@@ -19,26 +19,40 @@ It encapsulates all n8n API interactions, state management, and synchronization 
 
 ## 🏗️ Architecture
 
-### Service Layer Architecture
+### 3-Way Merge Architecture
+
+The Core package implements a **3-way merge architecture** that separates concerns cleanly:
+
 ```mermaid
 graph TD
-    A[SyncManager] --> B[StateManager]
-    A --> C[N8nApiClient]
-    A --> D[WorkflowSanitizer]
-    A --> E[DirectoryUtils]
-    A --> F[TrashService]
+    A[SyncManager] --> B[Watcher]
+    A --> C[SyncEngine]
+    A --> D[ResolutionManager]
     
-    B --> G[Local State]
-    C --> H[n8n API]
-    D --> I[Validation]
-    E --> J[File System]
-    F --> K[Trash Management]
+    B --> E[StateManager]
+    C --> E
+    C --> F[N8nApiClient]
+    C --> G[WorkflowSanitizer]
+    C --> H[DirectoryUtils]
+    
+    E --> I[.n8n-state.json]
+    F --> J[n8n API]
+    G --> K[Validation]
+    H --> L[File System]
     
     style A fill:#ff6b35
     style B fill:#3498db
     style C fill:#2ecc71
     style D fill:#9b59b6
 ```
+
+**Key Design Principles:**
+
+1. **Watcher** observes state (file system + API) and emits status events
+2. **SyncEngine** mutates state (performs I/O operations)
+3. **ResolutionManager** handles interactive conflict resolution
+4. **SyncManager** orchestrates the components
+5. **StateManager** maintains the "base" state for 3-way comparison
 
 ### Package Dependencies
 ```json
@@ -54,51 +68,147 @@ graph TD
 
 ## 🧩 Core Services
 
-### 1. **SyncManager**
-The central service that orchestrates synchronization between n8n and local files.
+### 1. **Watcher** (`src/services/watcher.ts`)
+Passive observer service that detects changes without performing synchronization.
 
 **Key Responsibilities:**
-- Manage sync operations (pull, push, full sync)
-- Handle conflict detection and resolution
-- Coordinate between different sync modes
-- Provide progress reporting and error handling
+- Watch file system for local changes using `chokidar` (debounced 500ms)
+- Poll n8n API for remote changes (configurable interval)
+- Calculate workflow status using 3-way comparison
+- Emit status events for SyncManager to handle
+- Never perform any synchronization operations (read-only)
 
-**Interface:**
+**Events Emitted:**
 ```typescript
-interface SyncManager {
-  sync(options: SyncOptions): Promise<SyncResult>;
-  pull(options: PullOptions): Promise<PullResult>;
-  push(options: PushOptions): Promise<PushResult>;
-  watch(options: WatchOptions): Promise<Watcher>;
-  resolveConflict(conflict: Conflict): Promise<Resolution>;
+watcher.on('status-changed', (status: IWorkflowStatus) => {...});
+watcher.on('conflict', (conflict: IWorkflowStatus) => {...});
+watcher.on('deletion', (deletion: IWorkflowStatus) => {...});
+```
+
+**Status Detection Algorithm:**
+Uses 3-way merge comparison (base vs local vs remote):
+```typescript
+// Pseudo-code for status detection
+if (!existsLocally && !existsRemotely) return null;
+if (!existsLocally) return DELETED_LOCALLY;
+if (!existsRemotely && !lastSynced) return EXIST_ONLY_LOCALLY;
+if (!existsRemotely && lastSynced) return DELETED_REMOTELY;
+if (!lastSynced) return EXIST_ONLY_REMOTELY;
+
+if (localHash === remoteHash) return IN_SYNC;
+if (localHash === lastSyncedHash) return MODIFIED_REMOTELY;
+if (remoteHash === lastSyncedHash) return MODIFIED_LOCALLY;
+return CONFLICT; // Both changed since last sync
+```
+
+### 2. **SyncEngine** (`src/services/sync-engine.ts`)
+Stateless I/O executor that performs actual synchronization operations.
+
+**Key Responsibilities:**
+- Execute push operations (local → remote)
+- Execute pull operations (remote → local)
+- Delete workflows from local or remote
+- Finalize sync by updating `.n8n-state.json`
+- Create backups before destructive operations
+- Never decide what to sync (receives instructions from SyncManager)
+
+**Core Methods:**
+```typescript
+class SyncEngine {
+  async push(workflow: IWorkflowStatus): Promise<void>;
+  async pull(workflow: IWorkflowStatus): Promise<void>;
+  async delete(workflow: IWorkflowStatus, target: 'local' | 'remote'): Promise<void>;
+  async finalizeSync(workflowId: string, filename: string): Promise<void>;
 }
 ```
 
-### 2. **StateManager**
-Tracks and manages the state of workflows across local and remote.
+**Atomic Operations:**
+- Uses temporary files for safe writes
+- Creates timestamped backups in `.trash/` directory
+- Updates state only after successful API/file operations
+
+### 3. **ResolutionManager** (`src/services/resolution-manager.ts`)
+Handles interactive conflict and deletion resolution.
 
 **Key Responsibilities:**
-- Maintain workflow state (local vs remote)
-- Detect changes and modifications
-- Track sync status and history
-- Provide state persistence
+- Prompt user for conflict resolution choices
+- Prompt user for deletion confirmation
+- Display diffs between local and remote versions
+- Keep resolution logic separate from sync logic
 
-**State Model:**
+**Resolution Flow:**
 ```typescript
-interface WorkflowState {
-  id: string;
-  name: string;
-  localPath: string;
-  remoteId?: string;
-  localHash: string;
-  remoteHash?: string;
-  lastSync: Date;
-  status: 'synced' | 'modified' | 'conflict' | 'error';
-  conflicts?: Conflict[];
+class ResolutionManager {
+  async promptForConflict(workflow: IWorkflowStatus): Promise<'local' | 'remote' | 'skip'>;
+  async promptForDeletion(workflow: IWorkflowStatus): Promise<'delete' | 'restore' | 'skip'>;
+  async showDiff(workflow: IWorkflowStatus): Promise<void>;
 }
 ```
 
-### 3. **N8nApiClient**
+### 4. **SyncManager** (`src/services/sync-manager.ts`)
+High-level orchestrator that coordinates all components.
+
+**Key Responsibilities:**
+- Orchestrate Watcher, SyncEngine, and ResolutionManager
+- Implement high-level sync strategies (syncUp, syncDown, startWatching)
+- Handle event forwarding and aggregation
+- Provide public API for CLI and VS Code extension
+
+**Public API:**
+```typescript
+class SyncManager extends EventEmitter {
+  async refreshState(): Promise<void>;
+  async syncUp(): Promise<void>;
+  async syncDown(): Promise<void>;
+  async startWatching(): Promise<void>;
+  async stopWatching(): Promise<void>;
+  async getWorkflowsStatus(): Promise<IWorkflowStatus[]>;
+  async resolveConflict(id: string, filename: string, choice: 'local' | 'remote'): Promise<void>;
+}
+```
+
+**Events Emitted:**
+```typescript
+syncManager.on('log', (message: string) => {...});
+syncManager.on('conflict', (conflict: IWorkflowStatus) => {...});
+syncManager.on('deletion', (deletion: IWorkflowStatus) => {...});
+syncManager.on('statusChanged', (status: IWorkflowStatus) => {...});
+```
+
+### 5. **StateManager** (`src/services/state-manager.ts`)
+Manages `.n8n-state.json` file that tracks the "base" state for 3-way merge.
+
+**Key Responsibilities:**
+- Load and save `.n8n-state.json`
+- Track `lastSyncedHash` and `lastSyncedAt` for each workflow
+- Provide the "base" state for 3-way comparison
+- Enable deterministic conflict detection
+
+**State File Structure:**
+```typescript
+interface IInstanceState {
+  workflows: {
+    [workflowId: string]: IWorkflowState;
+  };
+}
+
+interface IWorkflowState {
+  lastSyncedHash: string;  // SHA-256 hash of last synced content
+  lastSyncedAt: string;    // ISO timestamp
+}
+```
+
+**Core Methods:**
+```typescript
+class StateManager {
+  async loadState(): Promise<IInstanceState>;
+  async saveState(state: IInstanceState): Promise<void>;
+  async updateWorkflowState(workflowId: string, hash: string): Promise<void>;
+  getWorkflowState(workflowId: string): IWorkflowState | undefined;
+}
+```
+
+### 6. **N8nApiClient** (`src/services/n8n-api-client.ts`)
 Communicates with the n8n REST API.
 
 **Key Responsibilities:**
@@ -126,7 +236,7 @@ interface N8nApiClient {
 }
 ```
 
-### 4. **WorkflowSanitizer**
+### 7. **WorkflowSanitizer** (`src/services/workflow-sanitizer.ts`)
 Validates and sanitizes workflow JSON.
 
 **Key Responsibilities:**
@@ -145,7 +255,7 @@ interface WorkflowSanitizer {
 }
 ```
 
-### 5. **DirectoryUtils**
+### 8. **DirectoryUtils** (`src/services/directory-utils.ts`)
 Manages file system operations for workflows.
 
 **Key Responsibilities:**

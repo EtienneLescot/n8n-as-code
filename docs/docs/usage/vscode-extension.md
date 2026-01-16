@@ -17,6 +17,31 @@ The extension synchronizes your modifications in real-time. By default, every JS
 Your workflows are automatically organized by instance to avoid mixing files from different environments:
 `workflows/instance_name_user/my_workflow.json`
 
+### 🎯 Visual Status Indicators
+The tree view displays color-coded icons showing the sync status of each workflow at a glance:
+
+- **✅ Green sync icon** - `IN_SYNC`: Workflow is synchronized between local and remote
+- **📝 Orange pencil** - `MODIFIED_LOCALLY`: Local changes not yet pushed
+- **☁️ Orange cloud** - `MODIFIED_REMOTELY`: Remote changes not yet pulled  
+- **📁 Orange file** - `EXIST_ONLY_LOCALLY`: New local workflow not yet pushed
+- **☁️ Orange cloud** - `EXIST_ONLY_REMOTELY`: New remote workflow not yet pulled
+- **🔴 Red alert** - `CONFLICT`: Both local and remote modified since last sync
+- **🗑️ Grey trash** - `DELETED_LOCALLY` / `DELETED_REMOTELY`: Workflow deleted on one side
+
+### 🛡️ Persistent Conflict Resolution UI
+Workflows in **conflict** or **deleted** states become **expandable tree items** with child action buttons, ensuring you never lose track of issues that need resolution:
+
+**For Conflicts:**
+- **📄 Show Diff** - Opens a side-by-side diff view comparing local and remote versions
+- **✅ Keep Local Version** - Force push local changes to remote (overwrite remote)
+- **☁️ Keep Remote Version** - Force pull remote changes to local (overwrite local)
+
+**For Deletions:**
+- **🗑️ Confirm Remote Deletion** - Delete the workflow from n8n
+- **↩️ Restore File** - Restore the local file from remote
+
+These actions remain visible in the tree until resolved, preventing conflicts from being forgotten or lost.
+
 ### 🛠️ Built-in Validation & Snippets
 Your environment is automatically configured with validation and snippets upon opening:
 - **JSON Validation**: n8n schema applied for input assistance and live error detection
@@ -77,33 +102,60 @@ If connection fails, check the Output panel (View > Output, select "n8n-as-code"
 3. Workflows are organized by instance
 
 ### Editing Workflows
-1. Double-click a workflow in the tree view
-2. The workflow opens in a split view:
+1. Click a workflow in the tree view to open the JSON editor
+2. For split view with canvas preview:
+   - Click **"Open Workspace"** action button
+   - Or use the context menu option
+3. The split view shows:
    - **Left**: JSON editor
    - **Right**: n8n canvas preview
-3. Make changes in the JSON editor
-4. Save (`Ctrl+S`) to sync to n8n (when auto-sync is enabled)
+4. Make changes in the JSON editor
+5. Save (`Ctrl+S`) to sync to n8n (when auto-sync is enabled)
 
 ### Creating New Workflows
 To create a new workflow:
 1. Create a new JSON file in your workflows directory
 2. Use the n8n schema for structure guidance
-3. The extension will detect the new file and sync it to n8n
+3. The extension will detect the new file and sync it to n8n automatically
 
-### Deleting Workflows
-To delete a workflow:
-1. Delete the workflow file from your local workflows directory
-2. The extension will detect the deletion and prompt you to delete from n8n or restore the file
+### Resolving Conflicts
+When a workflow has a conflict (both local and remote modified):
+1. The workflow appears with a **🔴 red alert icon** in the tree
+2. Expand the workflow to see resolution actions:
+   - **📄 Show Diff** - View differences between versions
+   - **✅ Keep Local Version** - Push your local changes
+   - **☁️ Keep Remote Version** - Pull remote changes
+3. Click the desired action to resolve
+4. The workflow returns to normal sync state
+
+### Handling Deletions
+When a workflow is deleted locally or remotely:
+1. The workflow appears with a **🗑️ grey trash icon** in the tree
+2. Expand the workflow to see actions:
+   - **🗑️ Confirm Remote Deletion** - Delete from n8n
+   - **↩️ Restore File** - Restore the local file
+3. Choose an action to resolve the deletion state
 
 ## 🔄 Sync Behavior
 
 ### Auto Sync (Default)
 - Changes are automatically pushed to n8n on save
+- Remote changes are automatically pulled
+- Conflicts require manual resolution
 - Best for most use cases
 
 ### Manual Sync
-- Changes are only synced when you manually trigger sync
+- Changes are only synced when you manually trigger sync actions
 - Gives you more control over when changes are pushed
+- Use the action buttons in the tree view for manual operations
+
+### 3-Way Merge Detection
+The extension uses a sophisticated 3-way merge algorithm to detect conflicts:
+- Tracks the **base** state (last synced version) in `.n8n-state.json`
+- Compares **local** version (file on disk)
+- Compares **remote** version (workflow in n8n)
+- Only flags as conflict when both local AND remote have changed since the base
+- This prevents false positive conflicts and enables deterministic sync behavior
 
 ## 🤝 AI Agent Support
 
