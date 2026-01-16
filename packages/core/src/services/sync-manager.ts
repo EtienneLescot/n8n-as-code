@@ -49,14 +49,23 @@ export class SyncManager extends EventEmitter {
         this.watcher.on('statusChange', (data) => {
             this.emit('change', data);
             
-            // Emit specific events for deletions
+            // Emit specific events for deletions and conflicts
             if (data.status === WorkflowSyncStatus.DELETED_LOCALLY && data.workflowId) {
                 this.emit('local-deletion', {
                     id: data.workflowId,
                     filename: data.filename
                 });
-            } else if (data.status === WorkflowSyncStatus.DELETED_REMOTELY && data.workflowId) {
-                // remote deletion is handled in extension.ts change listener
+            } else if (data.status === WorkflowSyncStatus.CONFLICT && data.workflowId) {
+                // Fetch remote content for conflict notification
+                this.client.getWorkflow(data.workflowId).then(remoteContent => {
+                    this.emit('conflict', {
+                        id: data.workflowId!,
+                        filename: data.filename,
+                        remoteContent
+                    });
+                }).catch(err => {
+                    console.error(`[SyncManager] Failed to fetch remote content for conflict: ${err.message}`);
+                });
             }
             
             // Auto-sync in auto mode
@@ -183,20 +192,7 @@ export class SyncManager extends EventEmitter {
                 case WorkflowSyncStatus.CONFLICT:
                     // Conflicts require manual resolution
                     this.emit('log', `⚠️ Conflict detected for "${filename}". Manual resolution required.`);
-                    // Note: conflict event is already emitted by the Watcher
-                    // We only emit it here if we need to fetch remote content for the first time
-                    if (workflowId) {
-                        try {
-                            const remoteContent = await this.client.getWorkflow(workflowId);
-                            this.emit('conflict', {
-                                id: workflowId,
-                                filename,
-                                remoteContent
-                            });
-                        } catch (error) {
-                            console.error(`[SyncManager] Failed to fetch remote content for conflict: ${error}`);
-                        }
-                    }
+                    // conflict event is handled in ensureInitialized above
                     break;
                     
                 case WorkflowSyncStatus.DELETED_LOCALLY:

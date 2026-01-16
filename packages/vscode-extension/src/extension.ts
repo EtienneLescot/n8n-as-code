@@ -836,13 +836,13 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         // Interactive notification with action buttons
         const choice = await vscode.window.showWarningMessage(
             `⚠️ Conflict: "${filename}" - Local and remote versions differ`,
-            'Use Local (Push)',
-            'Use Remote (Pull)',
-            'View Diff',
-            'Open in Sidebar'
+            'Use Local Version',
+            'Use Remote Version',
+            'Show Diff',
+            'Show in Sidebar'
         );
 
-        if (choice === 'Use Local (Push)') {
+        if (choice === 'Use Local Version') {
             // Resolve conflict by pushing local to remote
             await syncManager!.resolveConflict(id, filename, 'local');
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -852,7 +852,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             WorkflowWebview.reloadIfMatching(id, outputChannel);
             vscode.window.showInformationMessage(`✅ Conflict resolved: Remote overwritten by local`);
             enhancedTreeProvider.refresh();
-        } else if (choice === 'Use Remote (Pull)') {
+        } else if (choice === 'Use Remote Version') {
             // Resolve conflict by pulling remote to local
             await syncManager!.resolveConflict(id, filename, 'remote');
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -861,13 +861,13 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             store.dispatch(removeConflict(id));
             vscode.window.showInformationMessage(`✅ Conflict resolved: Local overwritten by remote`);
             enhancedTreeProvider.refresh();
-        } else if (choice === 'View Diff') {
+        } else if (choice === 'Show Diff') {
             // Show diff view
             const remoteUri = vscode.Uri.parse(`n8n-remote:${filename}?id=${id}`);
             const localUri = vscode.Uri.file(path.join(syncManager!.getInstanceDirectory(), filename));
             conflictStore.set(remoteUri.toString(), JSON.stringify(conflict.remoteContent, null, 2));
             await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
-        } else if (choice === 'Open in Sidebar') {
+        } else if (choice === 'Show in Sidebar') {
             // Focus on n8n explorer view
             await vscode.commands.executeCommand('n8n-explorer.workflows.focus');
         }
