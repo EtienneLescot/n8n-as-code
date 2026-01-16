@@ -57,7 +57,8 @@ describe('ConfigService', () => {
         });
 
         it('should return empty object when JSON parse fails', () => {
-            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation();
+            // Mock console.error to suppress the error output
+            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
             (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
             (fs.readFileSync as any).mockReturnValue('invalid json');
