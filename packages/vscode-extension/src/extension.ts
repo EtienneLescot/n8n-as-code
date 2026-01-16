@@ -84,6 +84,15 @@ export async function activate(context: vscode.ExtensionContext) {
             statusBar.showSyncing();
             try {
                 await syncManager.syncUp();
+                
+                // Handle deletions manually (for when Watcher is off)
+                const deletions = await syncManager.getLocalDeletions();
+                if (deletions.length > 0) {
+                    for (const del of deletions) {
+                        await handleLocalDeletionPrompt(syncManager, del, enhancedTreeProvider);
+                    }
+                }
+
                 enhancedTreeProvider.refresh();
                 statusBar.showSynced();
             } catch (e: any) {
@@ -196,6 +205,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         vscode.commands.registerCommand('n8n.refresh', () => {
+            outputChannel.appendLine('[n8n] Manual refresh command triggered.');
             enhancedTreeProvider.refresh();
         }),
 
@@ -567,37 +577,40 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     });
 
     // Handle Local Deletion (user deleted a file locally)
-    syncManager.on('local-deletion', async (data: { id: string, filename: string, filePath: string }) => {
+    syncManager.on('local-deletion', async (data: { id: string, filename: string }) => {
         outputChannel.appendLine(`[n8n] LOCAL DELETION detected for: ${data.filename}`);
-
-        const choice = await vscode.window.showWarningMessage(
-            `Local file "${data.filename}" was deleted. Do you want to also delete the workflow on n8n?`,
-            'Delete Remote Workflow',
-            'Restore Local File'
-        );
-
-        if (choice === 'Delete Remote Workflow') {
-            const success = await syncManager?.deleteRemoteWorkflow(data.id, data.filename);
-            if (success) {
-                vscode.window.showInformationMessage(`✅ Remote workflow "${data.filename}" deleted and archived.`);
-                // Disappear from list
-                enhancedTreeProvider.refresh();
-            } else {
-                vscode.window.showErrorMessage(`❌ Failed to delete remote workflow "${data.filename}".`);
-            }
-        } else if (choice === 'Restore Local File') {
-            const success = await syncManager?.restoreLocalFile(data.id, data.filename);
-            if (success) {
-                vscode.window.showInformationMessage(`✅ Local file "${data.filename}" restored from n8n.`);
-                // Back to synced status
-                enhancedTreeProvider.refresh();
-            } else {
-                vscode.window.showErrorMessage(`❌ Failed to restore local file "${data.filename}".`);
-            }
-        }
+        await handleLocalDeletionPrompt(syncManager!, data, enhancedTreeProvider);
     });
 
-    // Start Watcher if in Auto mode
+    // Global File System Watcher (VS Code side) for Real-Time UI Updates
+    // Triggers refresh on Create, Delete, Change in sync folder
+    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+        const syncFolder = config.get<string>('syncFolder') || 'workflows';
+        // Use WorkspaceFolder as base for RelativePattern to ensure correct watching
+        const pattern = new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], `${syncFolder}/*.json`);
+        
+        outputChannel.appendLine(`[n8n] Starting global file watcher. Pattern: ${pattern.pattern}`);
+        const fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
+        
+        // Debounce refresh to avoid API spam on rapid saves
+        let refreshTimeout: NodeJS.Timeout | undefined;
+        const debouncedRefresh = (e: vscode.Uri) => {
+            outputChannel.appendLine(`[n8n] Watcher detected change: ${e.fsPath}`);
+            if (refreshTimeout) clearTimeout(refreshTimeout);
+            refreshTimeout = setTimeout(() => {
+                outputChannel.appendLine('[n8n] Triggering view refresh...');
+                enhancedTreeProvider.refresh();
+            }, 500);
+        };
+
+        fileWatcher.onDidCreate(debouncedRefresh);
+        fileWatcher.onDidDelete(debouncedRefresh);
+        fileWatcher.onDidChange(debouncedRefresh);
+        
+        context.subscriptions.push(fileWatcher);
+    }
+
+    // Start Internal Watcher if in Auto mode (for Syncing)
     const mode = config.get<string>('syncMode') || 'auto';
     if (mode === 'auto') {
         statusBar.setWatchMode(true);
@@ -690,4 +703,37 @@ async function reinitializeSyncManager(context: vscode.ExtensionContext) {
 
 export function deactivate() {
     proxyService.stop();
+}
+
+/**
+ * Reusable prompt for handling local file deletions
+ */
+async function handleLocalDeletionPrompt(
+    syncManager: SyncManager,
+    data: { id: string, filename: string },
+    provider: EnhancedWorkflowTreeProvider
+) {
+    const choice = await vscode.window.showWarningMessage(
+        `Local file "${data.filename}" is missing. Do you want to delete the workflow on n8n or restore the file?`,
+        'Delete Remote Workflow',
+        'Restore Local File'
+    );
+
+    if (choice === 'Delete Remote Workflow') {
+        const success = await syncManager.deleteRemoteWorkflow(data.id, data.filename);
+        if (success) {
+            vscode.window.showInformationMessage(`✅ Remote workflow "${data.filename}" deleted and archived.`);
+            provider.refresh();
+        } else {
+            vscode.window.showErrorMessage(`❌ Failed to delete remote workflow "${data.filename}".`);
+        }
+    } else if (choice === 'Restore Local File') {
+        const success = await syncManager.restoreLocalFile(data.id, data.filename);
+        if (success) {
+            vscode.window.showInformationMessage(`✅ Local file "${data.filename}" restored from n8n.`);
+            provider.refresh();
+        } else {
+            vscode.window.showErrorMessage(`❌ Failed to restore local file "${data.filename}".`);
+        }
+    }
 }

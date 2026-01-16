@@ -158,37 +158,37 @@
         {
           "command": "n8n.openBoard",
           "group": "inline@1",
-          "when": "viewItem == workflow"
+          "when": "viewItem =~ /workflow-(synced|cloud-only)/"
         },
         {
           "command": "n8n.openJson",
           "group": "inline@2",
-          "when": "viewItem == workflow"
+          "when": "viewItem =~ /workflow-(synced|local-only)/"
         },
         {
           "command": "n8n.openSplit",
           "group": "inline@3",
-          "when": "viewItem == workflow"
+          "when": "viewItem == workflow-synced"
         },
         {
           "command": "n8n.spacer",
           "group": "inline@4",
-          "when": "viewItem == workflow"
+          "when": "viewItem =~ /workflow-(synced|local-only|cloud-only)/"
         },
         {
           "command": "n8n.deleteWorkflow",
           "group": "inline@5",
-          "when": "viewItem == workflow"
+          "when": "viewItem =~ /workflow-(synced|local-only|cloud-only)/"
         },
         {
           "command": "n8n.pushWorkflow",
           "group": "2_sync@1",
-          "when": "viewItem == workflow"
+          "when": "viewItem =~ /workflow-(synced|local-only)/"
         },
         {
           "command": "n8n.pullWorkflow",
           "group": "2_sync@2",
-          "when": "viewItem == workflow"
+          "when": "viewItem =~ /workflow-(synced|cloud-only)/"
         }
       ]
     },

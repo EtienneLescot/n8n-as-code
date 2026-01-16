@@ -210,13 +210,22 @@ export class SyncManager extends EventEmitter {
             if (!fs.existsSync(filePath)) {
                 status = WorkflowSyncStatus.MISSING_LOCAL;
             } else {
-                // Check local modification using state tracking
+                // Check modifications using state tracking
                 const localContent = this.readLocalFile(filePath);
                 const localClean = WorkflowSanitizer.cleanForStorage(localContent);
-                const isSynced = this.stateManager?.isLocalSynced(wf.id, localClean) ?? true;
-                
-                if (!isSynced) {
+                const remoteClean = WorkflowSanitizer.cleanForStorage(wf);
+
+                const isLocalSynced = this.stateManager?.isLocalSynced(wf.id, localClean) ?? true;
+                const isRemoteSynced = this.stateManager?.isRemoteSynced(wf.id, remoteClean) ?? true;
+
+                if (isLocalSynced && isRemoteSynced) {
+                    status = WorkflowSyncStatus.SYNCED;
+                } else if (!isLocalSynced && !isRemoteSynced) {
+                    status = WorkflowSyncStatus.CONFLICT;
+                } else if (!isLocalSynced) {
                     status = WorkflowSyncStatus.LOCAL_MODIFIED;
+                } else if (!isRemoteSynced) {
+                    status = WorkflowSyncStatus.REMOTE_MODIFIED;
                 }
             }
 
@@ -768,5 +777,31 @@ export class SyncManager extends EventEmitter {
             this.pollInterval = null;
         }
         this.emit('log', '🛑 [SyncManager] Watcher Stopped.');
+    }
+
+    /**
+     * Get list of workflows that are tracked but missing locally
+     */
+    async getLocalDeletions(): Promise<{ id: string, filename: string }[]> {
+        if (!this.stateManager) return [];
+        
+        // Ensure map is populated from remote
+        await this.loadRemoteState();
+        
+        const trackedIds = this.stateManager.getTrackedWorkflowIds();
+        const deletions: { id: string, filename: string }[] = [];
+
+        for (const id of trackedIds) {
+            const filename = Array.from(this.fileToIdMap.entries())
+                    .find(([_, fid]) => fid === id)?.[0];
+            
+            if (filename) {
+                const filePath = this.getFilePath(filename);
+                if (!fs.existsSync(filePath)) {
+                    deletions.push({ id, filename });
+                }
+            }
+        }
+        return deletions;
     }
 }
