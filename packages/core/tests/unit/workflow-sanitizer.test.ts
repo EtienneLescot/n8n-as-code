@@ -36,7 +36,7 @@ test('WorkflowSanitizer: cleanForStorage should remove dynamic keys and sort key
 
     // Check sorting (deterministic output)
     const keys = Object.keys(cleaned);
-    assert.deepStrictEqual(keys, ['active', 'connections', 'id', 'name', 'nodes', 'settings', 'tags']);
+    assert.deepStrictEqual(keys, ['id', 'name', 'nodes', 'connections', 'settings', 'tags', 'active']);
 });
 
 test('WorkflowSanitizer: cleanForPush should remove read-only fields (active, tags)', () => {
