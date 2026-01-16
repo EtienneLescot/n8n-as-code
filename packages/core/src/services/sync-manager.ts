@@ -29,8 +29,8 @@ export class SyncManager extends EventEmitter {
     private async ensureInitialized() {
         if (this.watcher) return;
 
-        // Note: instanceIdentifier logic handling omitted for brevity, 
-        // assuming it's handled or using default directory for now 
+        // Note: instanceIdentifier logic handling omitted for brevity,
+        // assuming it's handled or using default directory for now
         // to focus on the 3-way merge integration.
         const instanceDir = path.join(this.config.directory, this.config.instanceIdentifier || 'default');
         if (!fs.existsSync(instanceDir)) fs.mkdirSync(instanceDir, { recursive: true });
@@ -48,6 +48,16 @@ export class SyncManager extends EventEmitter {
 
         this.watcher.on('statusChange', (data) => {
             this.emit('change', data);
+            
+            // Emit specific events for deletions
+            if (data.status === WorkflowSyncStatus.DELETED_LOCALLY && data.workflowId) {
+                this.emit('local-deletion', {
+                    id: data.workflowId,
+                    filename: data.filename
+                });
+            } else if (data.status === WorkflowSyncStatus.DELETED_REMOTELY && data.workflowId) {
+                // remote deletion is handled in extension.ts change listener
+            }
             
             // Auto-sync in auto mode
             console.log(`[SyncManager] statusChange event: ${data.filename}, status: ${data.status}, syncMode: ${this.config.syncMode}`);

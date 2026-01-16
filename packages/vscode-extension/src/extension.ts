@@ -957,9 +957,13 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     try {
         const workflows = await syncManager.getWorkflowsStatus();
         store.dispatch(setWorkflows(workflows));
-        // Also keep local tree provider method if needed for fallback, 
-        // but it should be subscribing to store now.
-        // enhancedTreeProvider.setWorkflows(workflows); 
+
+        // Sync pending actions state with store
+        for (const wf of workflows) {
+            if (wf.status === WorkflowSyncStatus.DELETED_LOCALLY || wf.status === WorkflowSyncStatus.DELETED_REMOTELY) {
+                store.dispatch(addPendingDeletion(wf.id));
+            }
+        }
     } catch (error: any) {
         outputChannel.appendLine(`[n8n] Failed to load workflows: ${error.message}`);
     }

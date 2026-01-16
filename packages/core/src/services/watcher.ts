@@ -30,6 +30,7 @@ export class Watcher extends EventEmitter {
     private ignoredTags: string[];
     private stateFilePath: string;
     private isConnected: boolean = true;
+    private isInitializing: boolean = false;
 
     // Internal state tracking
     private localHashes: Map<string, string> = new Map(); // filename -> hash
@@ -65,6 +66,8 @@ export class Watcher extends EventEmitter {
     public async start() {
         if (this.watcher || this.pollInterval) return;
 
+        this.isInitializing = true;
+
         // Initial scan - throw error if connection fails on startup
         try {
             await this.refreshRemoteState();
@@ -79,14 +82,17 @@ export class Watcher extends EventEmitter {
                                       error.cause?.code === 'ECONNREFUSED';
             
             if (isConnectionError) {
+                this.isInitializing = false;
                 // On startup, throw the error to prevent initialization
                 throw new Error('Cannot connect to n8n instance. Please check if n8n is running and the host URL is correct.');
             }
             // For other errors, re-throw
+            this.isInitializing = false;
             throw error;
         }
         
         await this.refreshLocalState();
+        this.isInitializing = false;
 
         // Local Watch with debounce
         this.watcher = chokidar.watch(this.directory, {
@@ -183,7 +189,19 @@ export class Watcher extends EventEmitter {
 
     private async onLocalDelete(filePath: string) {
         const filename = path.basename(filePath);
-        const workflowId = this.fileToIdMap.get(filename);
+        let workflowId = this.fileToIdMap.get(filename);
+
+        // If workflowId not found via filename mapping, try to find it via state
+        if (!workflowId) {
+            const state = this.loadState();
+            for (const [id, stateData] of Object.entries(state.workflows)) {
+                const mappedFilename = this.idToFileMap.get(id);
+                if (mappedFilename === filename) {
+                    workflowId = id;
+                    break;
+                }
+            }
+        }
 
         if (workflowId && (this.isPaused.has(workflowId) || this.syncInProgress.has(workflowId))) {
             return;
@@ -474,6 +492,8 @@ export class Watcher extends EventEmitter {
     }
 
     private broadcastStatus(filename: string, workflowId?: string) {
+        if (this.isInitializing) return;
+        
         const status = this.calculateStatus(filename, workflowId);
         this.emit('statusChange', {
             filename,
