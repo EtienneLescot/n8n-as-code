@@ -19,6 +19,7 @@ const enhancedTreeProvider = new EnhancedWorkflowTreeProvider();
 const outputChannel = vscode.window.createOutputChannel("n8n-as-code");
 
 const conflictStore = new Map<string, string>();
+const activeConflictModals = new Set<string>();
 
 export async function activate(context: vscode.ExtensionContext) {
     outputChannel.show(true);
@@ -43,10 +44,19 @@ export async function activate(context: vscode.ExtensionContext) {
     // 1. Determine initial state
     await determineInitialState(context);
 
+    // Initial context keys update
+    updateContextKeys();
+
     // 2. Register Commands
     context.subscriptions.push(
         vscode.commands.registerCommand('n8n.init', async () => {
             await handleInitializeCommand(context);
+        }),
+
+        vscode.commands.registerCommand('n8n.applySettings', async () => {
+            outputChannel.appendLine('[n8n] Applying new settings...');
+            await reinitializeSyncManager(context);
+            updateContextKeys();
         }),
 
         vscode.commands.registerCommand('n8n.pull', async () => {
@@ -278,8 +288,9 @@ export async function activate(context: vscode.ExtensionContext) {
                 const previouslyInitialized = workspaceRoot ? isFolderPreviouslyInitialized(workspaceRoot) : false;
                 
                 if (syncManager) {
-                    // If already initialized, just update the sync manager
-                    await reinitializeSyncManager(context);
+                    // Settings changed while initialized - don't sync yet
+                    outputChannel.appendLine('[n8n] Settings changed. Pausing sync until applied.');
+                    enhancedTreeProvider.setExtensionState(ExtensionState.SETTINGS_CHANGED);
                 } else {
                     // Not initialized yet, update UI state
                     if (configValidation.isValid && previouslyInitialized) {
@@ -296,9 +307,19 @@ export async function activate(context: vscode.ExtensionContext) {
                         statusBar.showNotInitialized();
                     }
                 }
+                updateContextKeys();
             }
         })
     );
+}
+
+/**
+ * Update VS Code context keys for use in package.json 'when' clauses
+ */
+function updateContextKeys() {
+    const state = enhancedTreeProvider.getExtensionState();
+    vscode.commands.executeCommand('setContext', 'n8n.state', state);
+    vscode.commands.executeCommand('setContext', 'n8n.initialized', state === ExtensionState.INITIALIZED);
 }
 
 /**
@@ -312,6 +333,7 @@ async function determineInitialState(context: vscode.ExtensionContext) {
         // No workspace open
         enhancedTreeProvider.setExtensionState(ExtensionState.UNINITIALIZED);
         statusBar.hide();
+        updateContextKeys();
         return;
     }
     
@@ -321,6 +343,7 @@ async function determineInitialState(context: vscode.ExtensionContext) {
         // Folder was previously initialized and config is valid - auto-load
         outputChannel.appendLine('[n8n] Previously initialized folder detected. Auto-loading...');
         enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZING);
+        updateContextKeys();
         statusBar.showLoading();
         
         try {
@@ -341,6 +364,7 @@ async function determineInitialState(context: vscode.ExtensionContext) {
         enhancedTreeProvider.setExtensionState(ExtensionState.UNINITIALIZED);
         statusBar.showNotInitialized();
     }
+    updateContextKeys();
 }
 
 /**
@@ -356,12 +380,19 @@ async function handleInitializeCommand(context: vscode.ExtensionContext) {
     }
     
     enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZING);
+    updateContextKeys();
     statusBar.showLoading();
     
     try {
         await initializeSyncManager(context);
         enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZED);
+        updateContextKeys();
         statusBar.showSynced();
+        
+        // Initialize AI context immediately after initial sync
+        outputChannel.appendLine('[n8n] Auto-initializing AI context...');
+        await vscode.commands.executeCommand('n8n.initializeAI', { silent: true });
+        
         vscode.window.showInformationMessage('✅ n8n as code initialized successfully!');
     } catch (error: any) {
         outputChannel.appendLine(`[n8n] Initialization failed: ${error.message}`);
@@ -420,7 +451,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         directory: absDirectory,
         pollIntervalMs: pollIntervalMs,
         syncInactive: true,
-        ignoredTags: []
+        ignoredTags: [],
+        instanceConfigPath: path.join(workspaceRoot, 'n8n-as-code-instance.json')
     });
 
     // Pass syncManager to enhanced tree provider
@@ -457,37 +489,73 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     });
 
     // Handle Conflicts
-    syncManager.on('conflict', async (conflict: any) => {
-        const { id, filename, localContent, remoteContent } = conflict;
+    syncManager.on('conflict', (conflict: any) => {
+        const { id, filename, remoteContent } = conflict;
+        
         outputChannel.appendLine(`[n8n] CONFLICT detected for: ${filename}`);
 
-        const choice = await vscode.window.showWarningMessage(
-            `Conflict detected for "${filename}". The workflow was modified both locally and on n8n.`,
-            'Show Diff',
-            'Overwrite Remote (Use Local)',
-            'Overwrite Local (Use Remote)'
-        );
-
-        if (choice === 'Show Diff') {
-            // Create a virtual document for the remote content
-            const remoteUri = vscode.Uri.parse(`n8n-remote:${filename}?id=${id}`);
-            const localUri = vscode.Uri.file(path.join(syncManager!.getInstanceDirectory(), filename));
-
-            // Store remote content for the provider
-            conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
-
-            await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
-        } else if (choice === 'Overwrite Remote (Use Local)') {
-            // Force push by updating the state first
-            syncManager?.['stateManager']?.updateWorkflowState(id, remoteContent);
-            // Now trigger a manual change event to retry the push
-            const absPath = path.join(syncManager!.getInstanceDirectory(), filename);
-            await syncManager?.handleLocalFileChange(absPath);
-        } else if (choice === 'Overwrite Local (Use Remote)') {
-            // Force pull by updating the state first
-            await syncManager?.pullWorkflow(filename, id, true);
-            vscode.window.showInformationMessage(`✅ Local file "${filename}" updated from n8n.`);
+        // Prevent duplicate modals for the same file
+        if (activeConflictModals.has(id)) {
+            return;
         }
+        activeConflictModals.add(id);
+
+        // We use an error message which is more prominent and less likely to be suppressed
+        vscode.window.showErrorMessage(
+            `CONFLICT in "${filename}": Workflow changed both locally and on n8n.`,
+            'Resolve Conflict',
+            'Show Diff'
+        ).then(async (choice) => {
+            if (choice === 'Resolve Conflict' || choice === 'Show Diff') {
+                const subChoice = choice === 'Show Diff' ? 'Show Diff' : await vscode.window.showQuickPick(
+                    ['Show Diff', 'Overwrite Remote (Use Local)', 'Overwrite Local (Use Remote)'],
+                    { placeHolder: `How to resolve conflict for ${filename}?` }
+                );
+
+                if (!subChoice) {
+                    activeConflictModals.delete(id);
+                    return;
+                }
+                
+                if (subChoice === 'Show Diff') {
+                    const remoteUri = vscode.Uri.parse(`n8n-remote:${filename}?id=${id}`);
+                    const localUri = vscode.Uri.file(path.join(syncManager!.getInstanceDirectory(), filename));
+                    conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
+                    await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
+                    // We keep it in activeConflictModals while viewing diff to avoid being bothered?
+                    // No, let's release it so they can resolve it after viewing.
+                    activeConflictModals.delete(id);
+                } else if (subChoice === 'Overwrite Remote (Use Local)') {
+                    activeConflictModals.delete(id);
+                    syncManager?.['stateManager']?.updateWorkflowState(id, remoteContent);
+                    const absPath = path.join(syncManager!.getInstanceDirectory(), filename);
+                    await syncManager?.handleLocalFileChange(absPath);
+                } else if (subChoice === 'Overwrite Local (Use Remote)') {
+                    activeConflictModals.delete(id);
+                    await syncManager?.pullWorkflow(filename, id, true);
+                    vscode.window.showInformationMessage(`✅ Local file "${filename}" updated from n8n.`);
+                }
+            } else {
+                activeConflictModals.delete(id);
+            }
+        ).then(async (choice) => {
+            activeConflictModals.delete(id);
+            if (!choice) return;
+
+            if (choice === 'Show Diff') {
+                const remoteUri = vscode.Uri.parse(`n8n-remote:${filename}?id=${id}`);
+                const localUri = vscode.Uri.file(path.join(syncManager!.getInstanceDirectory(), filename));
+                conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
+                await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
+            } else if (choice === 'Overwrite Remote (Use Local)') {
+                syncManager?.['stateManager']?.updateWorkflowState(id, remoteContent);
+                const absPath = path.join(syncManager!.getInstanceDirectory(), filename);
+                await syncManager?.handleLocalFileChange(absPath);
+            } else if (choice === 'Overwrite Local (Use Remote)') {
+                await syncManager?.pullWorkflow(filename, id, true);
+                vscode.window.showInformationMessage(`✅ Local file "${filename}" updated from n8n.`);
+            }
+        });
     });
 
     // Handle Local Deletion (user deleted a file locally)
@@ -536,9 +604,9 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
     // Check AI context
     const aiFiles = [
-        path.join(workspaceRoot, 'AGENTS.md'),
-        path.join(workspaceRoot, 'n8n-schema.json'),
-        path.join(workspaceRoot, '.vscode', 'n8n.code-snippets')
+      path.join(workspaceRoot, 'AGENTS.md'),
+      path.join(workspaceRoot, 'n8n-schema.json'),
+      path.join(workspaceRoot, '.vscode', 'n8n.code-snippets')
     ];
 
     const missingAny = aiFiles.some(f => !fs.existsSync(f));
@@ -546,8 +614,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     let currentVersion: string | undefined;
 
     try {
-        const health = await client.getHealth();
-        currentVersion = health.version;
+      const health = await client.getHealth();
+      currentVersion = health.version;
     } catch { }
 
     const versionMismatch = currentVersion && lastVersion && currentVersion !== lastVersion;
@@ -556,8 +624,24 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     enhancedTreeProvider.setAIContextInfo(currentVersion || undefined, !!needsUpdate);
 
     if (needsUpdate) {
-        outputChannel.appendLine(`[n8n] AI Context out of date or missing.`);
-        // Don't auto-initialize - let user click the AI button
+      outputChannel.appendLine(`[n8n] AI Context out of date or missing.`);
+      
+      // Auto-generate AI context on first initialization if completely missing
+      if (missingAny && !lastVersion) {
+        outputChannel.appendLine(`[n8n] Auto-generating AI context for first-time setup...`);
+        try {
+          // Silent AI initialization
+          await vscode.commands.executeCommand('n8n.initializeAI', { silent: true });
+          outputChannel.appendLine(`[n8n] AI context auto-generated successfully.`);
+          
+          // Update tree provider with new version
+          const newVersion = context.workspaceState.get<string>('n8n.lastInitVersion');
+          enhancedTreeProvider.setAIContextInfo(newVersion || currentVersion, false);
+        } catch (error: any) {
+          outputChannel.appendLine(`[n8n] Failed to auto-generate AI context: ${error.message}`);
+          // Don't show error to user - they can manually initialize later
+        }
+      }
     }
 }
 
@@ -577,10 +661,17 @@ async function reinitializeSyncManager(context: vscode.ExtensionContext) {
         oldManager.removeAllListeners();
         
         await initializeSyncManager(context);
+        
+        // After successful reinitialization, ensure state is set back to INITIALIZED
+        enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZED);
+        updateContextKeys();
+        
         enhancedTreeProvider.refresh();
         vscode.window.showInformationMessage('✅ n8n settings updated successfully.');
     } catch (error: any) {
         outputChannel.appendLine(`[n8n] Failed to reinitialize: ${error.message}`);
+        enhancedTreeProvider.setExtensionState(ExtensionState.ERROR, error.message);
+        updateContextKeys();
         vscode.window.showErrorMessage(`Failed to update settings: ${error.message}`);
     }
 }

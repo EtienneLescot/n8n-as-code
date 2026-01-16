@@ -19,7 +19,10 @@ export enum ExtensionState {
   INITIALIZED = 'initialized',
   
   /** Initialization failed with an error */
-  ERROR = 'error'
+  ERROR = 'error',
+  
+  /** Settings have changed, waiting for user to apply them */
+  SETTINGS_CHANGED = 'settings-changed'
 }
 
 /**
@@ -70,7 +73,10 @@ export enum TreeItemType {
   WORKFLOW = 'workflow',
   
   /** AI action button at bottom */
-  AI_ACTION = 'ai-action'
+  AI_ACTION = 'ai-action',
+  
+  /** Informational message item */
+  INFO = 'info'
 }
 
 /**

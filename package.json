@@ -16,6 +16,7 @@
     "build:cli": "cd packages/cli && npm run build",
     "build:extension": "cd packages/vscode-extension && npm run build",
     "extension:install": "node scripts/build-and-install.js",
+    "extension:dev": "node scripts/setup-dev-link.js",
     "test": "node scripts/unified-test-report.mjs",
     "test:ci-local": "node scripts/test-ci-local.js",
     "postinstall": "node scripts/init-synced-git.cjs",

@@ -63,26 +63,35 @@ try {
     
     if (isRemoteWsl) {
         console.log('🌐 Detected WSL remote environment.');
-        console.log('⚠️  Automatic installation has issues in WSL remote (opens new window, extension may not appear).');
-        console.log('💡 Please install manually in your WSL remote VS Code:');
-        console.log(`\n   1. Make sure you're in a VS Code window connected to WSL (not Windows)`);
-        console.log(`   2. Go to Extensions view (Ctrl+Shift+X)`);
-        console.log(`   3. Click "..." menu → "Install from VSIX..."`);
-        console.log(`   4. Select: ${vsixPath}`);
-        console.log(`\n   Or use the command (may open new window):`);
-        console.log(`   code --install-extension "${vsixPath}" --force`);
         
-        // Optional: Still try automatic installation but warn about potential issues
-        console.log('\n🔄 Attempting automatic installation (may open new window)...');
+        // Try to use the local vsix path relative to the current dir,
+        // as absolute WSL paths often confuse the 'code' command relay.
+        const relativeVsixPath = path.relative(process.cwd(), vsixPath);
+        
+        console.log(`\n🔄 Attempting installation using: code --install-extension ${vsixPath} --force`);
         try {
+            // In WSL Remote, 'code' command can be tricky.
+            // We try to run it without ELECTRON_RUN_AS_NODE first as it might be a wrapper script.
             execSync(`code --install-extension "${vsixPath}" --force`, {
                 stdio: 'inherit'
             });
-            console.log('\n✅ Extension installation attempted.');
-            console.log('⚠️  If extension doesn\'t appear, please use manual method above.');
+            console.log('\n✅ Extension installation successful.');
         } catch (installError) {
-            console.warn('\n❌ Automatic installation failed.');
-            console.warn('   Please use the manual method described above.');
+            console.warn('\n❌ Automatic installation failed with default "code" command.');
+            
+            try {
+                console.log('🔄 Trying with "code-insiders"...');
+                execSync(`code-insiders --install-extension "${vsixPath}" --force`, {
+                    stdio: 'inherit'
+                });
+                console.log('\n✅ Extension installed using code-insiders.');
+            } catch (e) {
+                console.warn('\n❌ All automatic installation attempts failed.');
+                console.log(`💡 Manual installation instructions:`);
+                console.log(`   1. Copy this path: ${vsixPath}`);
+                console.log(`   2. In VS Code, press F1, type "Install from VSIX"`);
+                console.log(`   3. Paste the path and press Enter.`);
+            }
         }
     } else if (isWsl) {
         console.log('🐧 Detected WSL environment (but not in VS Code remote).');

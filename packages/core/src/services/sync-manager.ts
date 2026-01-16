@@ -48,6 +48,9 @@ export class SyncManager extends EventEmitter {
      * Get the path to the instance configuration file
      */
     private getInstanceConfigPath(): string {
+        if (this.config.instanceConfigPath) {
+            return this.config.instanceConfigPath;
+        }
         return path.join(this.config.directory, 'n8n-as-code-instance.json');
     }
 
@@ -55,7 +58,17 @@ export class SyncManager extends EventEmitter {
      * Load instance configuration from disk
      */
     private loadInstanceConfig(): IInstanceConfig {
-        const configPath = this.getInstanceConfigPath();
+        // Try explicit/configured path first
+        let configPath = this.getInstanceConfigPath();
+        
+        // If not found at configured path, try legacy path (inside sync directory)
+        if (!fs.existsSync(configPath) && this.config.instanceConfigPath) {
+            const legacyPath = path.join(this.config.directory, 'n8n-as-code-instance.json');
+            if (fs.existsSync(legacyPath)) {
+                configPath = legacyPath;
+            }
+        }
+
         if (fs.existsSync(configPath)) {
             try {
                 const content = fs.readFileSync(configPath, 'utf-8');

@@ -54,49 +54,21 @@ export function validateN8nConfig(): ConfigValidationResult {
 
 /**
  * Check if a workspace folder was previously initialized with n8n-as-code
+ * Only checks for the definitive n8n-as-code-instance.json file
  */
 export function isFolderPreviouslyInitialized(workspaceRoot: string): boolean {
   if (!workspaceRoot) {
     return false;
   }
 
-  // Check for instance config file (primary indicator)
+  // Only check for instance config file at the root directory
   const instanceConfigPath = path.join(workspaceRoot, 'n8n-as-code-instance.json');
+  
   if (fs.existsSync(instanceConfigPath)) {
     try {
       const content = fs.readFileSync(instanceConfigPath, 'utf-8');
-      const config = JSON.parse(content);
-      return !!config.instanceIdentifier;
-    } catch {
-      // If we can't read it, assume not initialized
-      return false;
-    }
-  }
-
-  // Check for sync directory structure (secondary indicator)
-  const config = vscode.workspace.getConfiguration('n8n');
-  const folder = config.get<string>('syncFolder') || 'workflows';
-  const syncDir = path.join(workspaceRoot, folder);
-
-  if (fs.existsSync(syncDir)) {
-    try {
-      const items = fs.readdirSync(syncDir, { withFileTypes: true });
-      
-      // Check if directory has any instance subdirectories (not starting with .)
-      const hasInstanceDirs = items.some(item => 
-        item.isDirectory() && 
-        !item.name.startsWith('.') &&
-        !['.archive', '.trash'].includes(item.name)
-      );
-
-      // Check for workflow files in root sync directory (legacy structure)
-      const hasWorkflowFiles = items.some(item => 
-        item.isFile() && 
-        item.name.endsWith('.json') &&
-        !item.name.startsWith('.')
-      );
-
-      return hasInstanceDirs || hasWorkflowFiles;
+      const json = JSON.parse(content);
+      return !!json.instanceIdentifier;
     } catch {
       return false;
     }

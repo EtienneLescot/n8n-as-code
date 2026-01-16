@@ -4,12 +4,11 @@ import { ExtensionState, ExtensionStateContext } from '../types.js';
 import { validateN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from '../utils/state-detection.js';
 
 import { BaseTreeItem } from './tree-items/base-tree-item.js';
-import { InitButtonItem } from './tree-items/init-button-item.js';
-import { ConfigStatusItem } from './tree-items/config-status-item.js';
 import { LoadingItem } from './tree-items/loading-item.js';
 import { ErrorItem } from './tree-items/error-item.js';
 import { AIActionItem } from './tree-items/ai-action-item.js';
-import { PlaceholderItem } from './tree-items/placeholder-item.js';
+import { WorkflowItem } from './tree-items/workflow-item.js';
+import { InfoItem } from './tree-items/info-item.js';
 
 /**
  * Enhanced tree provider that handles multiple extension states
@@ -26,6 +25,13 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
   private aiNeedsUpdate: boolean = false;
 
   constructor() {}
+
+  /**
+   * Get the current extension state
+   */
+  getExtensionState(): ExtensionState {
+    return this.extensionState;
+  }
 
   /**
    * Set the current extension state
@@ -89,10 +95,10 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     // Root level items based on extension state
     switch (this.extensionState) {
       case ExtensionState.UNINITIALIZED:
-        return this.getUninitializedItems();
-        
       case ExtensionState.CONFIGURING:
-        return this.getConfiguringItems();
+      case ExtensionState.SETTINGS_CHANGED:
+        // Return empty to show viewsWelcome in these states
+        return [];
         
       case ExtensionState.INITIALIZING:
         return this.getInitializingItems();
@@ -106,61 +112,6 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
       default:
         return [];
     }
-  }
-
-  /**
-   * Get items for UNINITIALIZED state
-   */
-  private getUninitializedItems(): BaseTreeItem[] {
-    const configValidation = validateN8nConfig();
-    const workspaceRoot = getWorkspaceRoot();
-    const previouslyInitialized = workspaceRoot ? isFolderPreviouslyInitialized(workspaceRoot) : false;
-    
-    const items: BaseTreeItem[] = [];
-    
-    // Add initialization button
-    const initButton = new InitButtonItem(
-      configValidation.isValid,
-      configValidation.missing
-    );
-    items.push(initButton);
-    
-    // Add configuration guidance if needed
-    if (!configValidation.isValid) {
-      const configStatus = new ConfigStatusItem(configValidation.missing);
-      items.push(configStatus);
-    }
-    
-    // Add note about previously initialized folder if applicable
-    if (previouslyInitialized && !configValidation.isValid) {
-      // This would be a custom item, but for now we'll just update the button tooltip
-      initButton.updateState({
-        enabled: false,
-        missingConfig: configValidation.missing,
-        note: 'Folder was previously initialized. Configure settings to restore.'
-      });
-    }
-    
-    return items;
-  }
-
-  /**
-   * Get items for CONFIGURING state
-   */
-  private getConfiguringItems(): BaseTreeItem[] {
-    const configValidation = validateN8nConfig();
-    
-    const items: BaseTreeItem[] = [];
-    
-    // Add disabled initialization button
-    const initButton = new InitButtonItem(false, configValidation.missing);
-    items.push(initButton);
-    
-    // Add configuration status
-    const configStatus = new ConfigStatusItem(configValidation.missing);
-    items.push(configStatus);
-    
-    return items;
   }
 
   /**
@@ -181,17 +132,7 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     // Add workflow items if available
     if (this.workflows.length > 0) {
       // Convert workflows to tree items
-      // For now, we'll use a placeholder - in a real implementation,
-      // we would convert IWorkflowStatus to WorkflowItem
-      // items.push(...this.workflows.map(wf => new WorkflowItem(wf)));
-      
-      // Placeholder: show count
-      const placeholder = new PlaceholderItem(
-        `${this.workflows.length} workflow(s) loaded`,
-        'Click refresh to update',
-        new vscode.ThemeIcon('list-tree')
-      );
-      items.push(placeholder);
+      items.push(...this.workflows.map(wf => new WorkflowItem(wf)));
     } else if (this.syncManager) {
       // Try to load workflows
       try {
@@ -199,14 +140,10 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
         this.workflows = workflows;
         
         if (workflows.length > 0) {
-          const placeholder = new PlaceholderItem(
-            `${workflows.length} workflow(s) loaded`,
-            undefined,
-            new vscode.ThemeIcon('list-tree')
-          );
-          items.push(placeholder);
+          items.push(...workflows.map(wf => new WorkflowItem(wf)));
         } else {
-          const noWorkflows = new PlaceholderItem(
+          // Show info message when no workflows
+          const noWorkflows = new InfoItem(
             'No workflows found',
             'Create workflows in n8n or sync',
             new vscode.ThemeIcon('info')
@@ -214,7 +151,7 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
           items.push(noWorkflows);
         }
       } catch (error) {
-        const errorItem = new PlaceholderItem(
+        const errorItem = new InfoItem(
           'Error loading workflows',
           String(error),
           new vscode.ThemeIcon('error')
@@ -223,9 +160,11 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
       }
     }
     
-    // Add AI action button at the bottom
-    const aiAction = new AIActionItem(this.aiLastVersion, this.aiNeedsUpdate);
-    items.push(aiAction);
+    // Add AI action button at the bottom (only if we have workflows or sync manager)
+    if (this.syncManager) {
+      const aiAction = new AIActionItem(this.aiLastVersion, this.aiNeedsUpdate);
+      items.push(aiAction);
+    }
     
     return items;
   }

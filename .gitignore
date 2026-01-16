@@ -50,6 +50,9 @@ AGENTS.md
 n8n-schema.json
 .cursorrules
 .clinerules
+.ai-rules.md
+.windsurfrules
+.roo
 
 n8n-as-code.json
 
@@ -60,5 +63,5 @@ packages/vscode-extension/assets/n8n-nodes-index.json
 packages/vscode-extension/assets/logo.png
 
 .n8n-cache/
-
 .local
+workflows_test/

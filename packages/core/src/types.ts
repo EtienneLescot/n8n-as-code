@@ -42,4 +42,5 @@ export interface ISyncConfig {
     syncInactive: boolean;
     ignoredTags: string[];
     instanceIdentifier?: string; // Optional: auto-generated if not provided
+    instanceConfigPath?: string; // Optional: explicit path for n8n-as-code-instance.json
 }

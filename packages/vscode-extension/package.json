@@ -42,6 +42,23 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "n8n-explorer.workflows",
+        "contents": "Welcome to n8n as code!\n\nTo get started, you need to configure your n8n instance details.\n\n[Open Settings](command:n8n.openSettings)",
+        "when": "n8n.state == configuring"
+      },
+      {
+        "view": "n8n-explorer.workflows",
+        "contents": "Ready to sync your n8n workflows!\n\nClick the button below to start synchronizing workflows between your n8n instance and this workspace.\n\n[Initialize n8n as code](command:n8n.init)",
+        "when": "n8n.state == uninitialized"
+      },
+      {
+        "view": "n8n-explorer.workflows",
+        "contents": "Settings have changed. Syncing is currently paused.\n\nClick the button below to apply the new settings and resume synchronization.\n\n[Apply Changes](command:n8n.applySettings)",
+        "when": "n8n.state == settings-changed"
+      }
+    ],
     "commands": [
       {
         "command": "n8n.init",
@@ -95,15 +112,15 @@
         "command": "n8n.initializeAI",
         "title": "Initialize AI Context",
         "icon": "$(sparkle)"
+      },
+      {
+        "command": "n8n.applySettings",
+        "title": "Apply n8n Settings",
+        "icon": "$(check)"
       }
     ],
     "menus": {
       "view/title": [
-        {
-          "command": "n8n.initializeAI",
-          "group": "navigation",
-          "when": "view == n8n-explorer.workflows"
-        },
         {
           "command": "n8n.openSettings",
           "group": "navigation",
@@ -128,33 +145,38 @@
       "view/item/context": [
         {
           "command": "n8n.openBoard",
-          "group": "inline"
+          "group": "inline",
+          "when": "viewItem == workflow"
         },
         {
           "command": "n8n.openJson",
-          "group": "inline"
+          "group": "inline",
+          "when": "viewItem == workflow"
         },
         {
           "command": "n8n.openBoard",
-          "group": "1_open@1"
+          "group": "1_open@1",
+          "when": "viewItem == workflow"
         },
         {
           "command": "n8n.openJson",
-          "group": "1_open@2"
+          "group": "1_open@2",
+          "when": "viewItem == workflow"
         },
         {
           "command": "n8n.openSplit",
-          "group": "1_open@3"
+          "group": "1_open@3",
+          "when": "viewItem == workflow"
         },
         {
           "command": "n8n.pushWorkflow",
           "group": "2_sync@1",
-          "when": "config.n8n.syncMode == manual"
+          "when": "viewItem == workflow && config.n8n.syncMode == manual"
         },
         {
           "command": "n8n.pullWorkflow",
           "group": "2_sync@2",
-          "when": "config.n8n.syncMode == manual"
+          "when": "viewItem == workflow && config.n8n.syncMode == manual"
         }
       ]
     },
