@@ -137,7 +137,7 @@
       },
       {
         "command": "n8n.restoreDeletion",
-        "title": "Restore Local File",
+        "title": "Restore File",
         "icon": "$(discard)"
       },
       {
