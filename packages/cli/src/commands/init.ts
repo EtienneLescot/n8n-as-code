@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { N8nApiClient, createInstanceIdentifier, createFallbackInstanceIdentifier } from '@n8n-as-code/core';
 import { ConfigService, ILocalConfig } from '../services/config-service.js';
-import { InitAiCommand } from './init-ai.js';
+import { UpdateAiCommand } from './init-ai.js';
 import { Command } from 'commander';
 
 export class InitCommand {
@@ -96,14 +96,22 @@ export class InitCommand {
             console.log(chalk.blue('📁 Project config:') + ' n8n-as-code.json');
             console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
 
-            console.log(chalk.yellow('Next steps:'));
-            console.log(`1. Run ${chalk.bold('n8n-as-code pull')} to download your workflows`);
-            console.log(`2. Run ${chalk.bold('n8n-as-code watch')} to start real-time synchronization`);
-            console.log(chalk.gray(`(Instance identifier will be generated automatically on first use)\n`));
+            // Generate instance identifier (saved to n8n-as-code.json)
+            spinner.start('Generating instance identifier...');
+            const instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(answers.host);
+            spinner.succeed(chalk.green(`Instance identifier: ${instanceIdentifier}`));
+            console.log(chalk.gray('(n8n-as-code-instance.json will be created automatically on first sync)\n'));
 
-            // Automatically initialize AI context
-            const initAi = new InitAiCommand(new Command());
-            await initAi.run({}, { host: answers.host, apiKey: answers.apiKey });
+            // Automatically initialize AI context (AI Bootstrap)
+            console.log(chalk.cyan('🤖 Bootstrapping AI Context...'));
+            const updateAi = new UpdateAiCommand(new Command());
+            await updateAi.run({}, { host: answers.host, apiKey: answers.apiKey });
+
+            console.log(chalk.yellow('\nNext steps:'));
+            console.log(`1. Run ${chalk.bold('n8n-as-code pull')} to download your workflows`);
+            console.log(`2. Run ${chalk.bold('n8n-as-code watch')} to start passive monitoring`);
+            console.log(`3. Run ${chalk.bold('n8n-as-code auto-sync')} to enable automatic bidirectional sync`);
+            console.log(chalk.gray(`(Instance identifier will be generated automatically on first use)\n`));
 
         } catch (error: any) {
             spinner.fail(chalk.red(`An error occurred: ${error.message}`));

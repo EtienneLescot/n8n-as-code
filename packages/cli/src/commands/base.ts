@@ -5,11 +5,13 @@ import { ConfigService } from '../services/config-service.js';
 export class BaseCommand {
     protected client: N8nApiClient;
     protected config: any;
+    protected configService: ConfigService;
+    protected instanceIdentifier: string | null = null;
 
     constructor() {
-        const configService = new ConfigService();
-        const localConfig = configService.getLocalConfig();
-        const apiKey = localConfig.host ? configService.getApiKey(localConfig.host) : undefined;
+        this.configService = new ConfigService();
+        const localConfig = this.configService.getLocalConfig();
+        const apiKey = localConfig.host ? this.configService.getApiKey(localConfig.host) : undefined;
 
         if (!localConfig.host || !apiKey) {
             console.error(chalk.red('❌ CLI not configured.'));
@@ -29,7 +31,36 @@ export class BaseCommand {
             directory: localConfig.syncFolder || './workflows',
             pollInterval: localConfig.pollInterval || 3000,
             syncInactive: localConfig.syncInactive ?? true,
-            ignoredTags: localConfig.ignoredTags || ['archive']
+            ignoredTags: localConfig.ignoredTags || ['archive'],
+            host: localConfig.host
+        };
+    }
+
+    /**
+     * Get or create instance identifier and ensure it's in the config
+     */
+    protected async ensureInstanceIdentifier(): Promise<string> {
+        if (this.instanceIdentifier) {
+            return this.instanceIdentifier;
+        }
+
+        this.instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(this.config.host);
+        return this.instanceIdentifier;
+    }
+
+    /**
+     * Get sync config with instance identifier
+     */
+    protected async getSyncConfig(): Promise<any> {
+        const instanceIdentifier = await this.ensureInstanceIdentifier();
+        
+        return {
+            directory: this.config.directory,
+            pollIntervalMs: this.config.pollInterval,
+            syncInactive: this.config.syncInactive,
+            ignoredTags: this.config.ignoredTags,
+            instanceIdentifier: instanceIdentifier,
+            instanceConfigPath: this.configService.getInstanceConfigPath()
         };
     }
 }

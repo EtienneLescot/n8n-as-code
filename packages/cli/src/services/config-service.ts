@@ -81,4 +81,62 @@ export class ConfigService {
         const local = this.getLocalConfig();
         return !!(local.host && this.getApiKey(local.host));
     }
+
+    /**
+     * Generate or retrieve the instance identifier using Core's directory-utils
+     * Format: {hostSlug}_{userSlug} (e.g., "local_5678_etienne_l")
+     */
+    async getOrCreateInstanceIdentifier(host: string): Promise<string> {
+        const local = this.getLocalConfig();
+        
+        // If already exists in local config, return it
+        if (local.instanceIdentifier) {
+            return local.instanceIdentifier;
+        }
+
+        // Generate new instance identifier using Core's functions
+        try {
+            const apiKey = this.getApiKey(host);
+            if (!apiKey) {
+                throw new Error('API key not found');
+            }
+            
+            // Import Core utilities
+            const { N8nApiClient, createInstanceIdentifier, createFallbackInstanceIdentifier } = await import('@n8n-as-code/core');
+            
+            // Try to get current user from n8n API
+            const client = new N8nApiClient({ host, apiKey });
+            const user = await client.getCurrentUser();
+            
+            let identifier: string;
+            
+            if (user) {
+                // Use user info to create identifier
+                identifier = createInstanceIdentifier(host, user);
+            } else {
+                // Fallback to API key hash
+                identifier = createFallbackInstanceIdentifier(host, apiKey);
+            }
+            
+            // Save to local config
+            this.saveLocalConfig({
+                ...local as ILocalConfig,
+                instanceIdentifier: identifier
+            });
+            
+            return identifier;
+        } catch (error) {
+            console.warn('Could not fetch user info, using fallback identifier');
+            const apiKey = this.getApiKey(host)!;
+            const { createFallbackInstanceIdentifier } = await import('@n8n-as-code/core');
+            return createFallbackInstanceIdentifier(host, apiKey);
+        }
+    }
+
+    /**
+     * Get the path for n8n-as-code-instance.json
+     */
+    getInstanceConfigPath(): string {
+        return path.join(process.cwd(), 'n8n-as-code-instance.json');
+    }
 }

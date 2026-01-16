@@ -13,11 +13,11 @@ import {
 } from '@n8n-as-code/agent-cli';
 import dotenv from 'dotenv';
 
-export class InitAiCommand {
+export class UpdateAiCommand {
     constructor(private program: Command) {
         this.program
-            .command('init-ai')
-            .description('Initialize AI Context (AGENTS.md, n8n-schema.json, rule files)')
+            .command('update-ai')
+            .description('Update AI Context (AGENTS.md, n8n-schema.json, rule files)')
             .option('--doc-only', 'Generate only documentation, skip schema')
             .action(async (options) => {
                 await this.run(options);
@@ -25,8 +25,8 @@ export class InitAiCommand {
     }
 
     public async run(options: any = {}, providedCredentials?: IN8nCredentials) {
-        console.log(chalk.blue('🤖 Initializing Enhanced AI Context Injection...'));
-        console.log(chalk.gray('   Using local schema-based approach (no API calls required)'));
+        console.log(chalk.blue('🤖 Updating AI Context...'));
+        console.log(chalk.gray('   Regenerating AGENTS.md, n8n-schema.json, and rule files\n'));
 
         const projectRoot = process.cwd();
 
@@ -74,13 +74,13 @@ export class InitAiCommand {
                 console.log(chalk.gray('   - Skipping schema and snippets (doc-only mode)'));
             }
 
-            console.log(chalk.blueBright('\n✨ AI Context Ready!'));
-            console.log(chalk.gray('   - AGENTS.md: Complete AI agent guidelines'));
-            console.log(chalk.gray('   - n8n-schema.json: JSON schema with node definitions'));
-            console.log(chalk.gray('   - .cursorrules/.clinerules: AI agent rules'));
+            console.log(chalk.green('\n✨ AI Context Updated Successfully!'));
+            console.log(chalk.gray('   ✔ AGENTS.md: Complete AI agent guidelines'));
+            console.log(chalk.gray('   ✔ n8n-schema.json: JSON schema with node definitions'));
+            console.log(chalk.gray('   ✔ .cursorrules/.clinerules: AI agent rules\n'));
 
         } catch (error: any) {
-            console.error(chalk.red(`❌ Error during init-ai: ${error.message}`));
+            console.error(chalk.red(`❌ Error during update-ai: ${error.message}`));
             if (error.stack) {
                 console.error(chalk.gray(error.stack));
             }
@@ -88,3 +88,6 @@ export class InitAiCommand {
         }
     }
 }
+
+// Keep backward compatibility with old command name
+export class InitAiCommand extends UpdateAiCommand {}

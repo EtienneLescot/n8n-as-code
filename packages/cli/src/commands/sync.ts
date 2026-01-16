@@ -3,48 +3,54 @@ import { SyncManager } from '@n8n-as-code/core';
 import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';
-import path from 'path';
+import { showDiff, flushLogBuffer } from '../utils/cli-helpers.js';
 
 export class SyncCommand extends BaseCommand {
     private isPromptActive = false;
     private logBuffer: string[] = [];
     private pendingConflictIds = new Set<string>();
+    private forceMode = false;
 
-    private async handleConflict(conflict: any, syncManager: SyncManager, spinner: any) {
+    private async handleConflict(conflict: any, syncManager: SyncManager, spinner: any, mode: 'pull' | 'push') {
         // Skip if already handling
         if (this.pendingConflictIds.has(conflict.id)) {
-            console.log(chalk.gray(`[Debug] Conflict for ${conflict.filename} already being handled, skipping duplicate.`));
             return;
         }
         this.pendingConflictIds.add(conflict.id);
 
         spinner.stop();
         console.log(chalk.yellow(`⚠️  CONFLICT detected for "${conflict.filename}"`));
+        console.log(chalk.gray('Both local and remote versions have changed since last sync.\n'));
         
         // Activate prompt protection
         this.isPromptActive = true;
         const { action } = await inquirer.prompt([{
             type: 'rawlist',
             name: 'action',
-            message: 'How do you want to resolve this conflict?',
+            message: 'How do you want to resolve this?',
             choices: [
-                { name: 'Skip (Keep both as is for now)', value: 'skip' },
-                { name: 'Overwrite Remote (Force Push my local changes)', value: 'push' },
-                { name: 'Overwrite Local (Force Pull remote changes)', value: 'pull' }
-            ],
-            pageSize: 3
+                { name: '[1] Keep Local Version (Force Push)', value: 'push' },
+                { name: '[2] Keep Remote Version (Force Pull)', value: 'pull' },
+                { name: '[3] Show Diff (Display colored diff)', value: 'diff' },
+                { name: '[4] Skip', value: 'skip' }
+            ]
         }]);
         this.isPromptActive = false;
         
         // Flush buffered logs
-        this.flushLogBuffer(spinner);
+        flushLogBuffer(this.logBuffer);
+        this.logBuffer = [];
 
-        if (action === 'push') {
-            // Use resolveConflict to force push local to remote
+        if (action === 'diff') {
+            await showDiff(conflict, this.client, syncManager.getInstanceDirectory());
+            // Re-prompt after showing diff
+            this.pendingConflictIds.delete(conflict.id);
+            await this.handleConflict(conflict, syncManager, spinner, mode);
+            return;
+        } else if (action === 'push') {
             await syncManager.resolveConflict(conflict.id, conflict.filename, 'local');
             console.log(chalk.green(`✅ Remote overwritten by local.`));
         } else if (action === 'pull') {
-            // Use resolveConflict to force pull remote to local
             await syncManager.resolveConflict(conflict.id, conflict.filename, 'remote');
             console.log(chalk.green(`✅ Local file updated from n8n.`));
         } else {
@@ -52,31 +58,18 @@ export class SyncCommand extends BaseCommand {
         }
 
         this.pendingConflictIds.delete(conflict.id);
-        spinner.start('Pulling workflows from n8n...');
+        const action_name = mode === 'pull' ? 'Pulling' : 'Pushing';
+        spinner.start(`${action_name} workflows...`);
     }
 
-    private flushLogBuffer(spinner: any) {
-        if (this.logBuffer.length === 0) return;
-        
-        // Display buffered logs with a notice
-        console.log(chalk.gray('\n--- Buffered logs during prompt ---'));
-        for (const msg of this.logBuffer) {
-            // Just print the log without affecting spinner state
-            console.log(chalk.gray(msg));
-        }
-        console.log(chalk.gray('--- End buffered logs ---\n'));
-        this.logBuffer = [];
-    }
 
-    async pull() {
+    async pull(force: boolean = false) {
+        this.forceMode = force;
         const spinner = ora('Pulling workflows from n8n...').start();
         try {
-            const syncManager = new SyncManager(this.client, {
-                directory: this.config.directory,
-                pollIntervalMs: 0, // Not used for one-off
-                syncInactive: this.config.syncInactive,
-                ignoredTags: this.config.ignoredTags
-            });
+            const syncConfig = await this.getSyncConfig();
+            syncConfig.pollIntervalMs = 0; // Not used for one-off
+            const syncManager = new SyncManager(this.client, syncConfig);
 
             syncManager.on('log', (msg) => {
                 if (this.isPromptActive) {
@@ -89,13 +82,23 @@ export class SyncCommand extends BaseCommand {
             // Collect conflict resolution promises
             const conflictPromises: Promise<void>[] = [];
             const conflictHandler = async (conflict: any) => {
-                // Create a promise that resolves when this conflict is handled
-                const promise = this.handleConflict(conflict, syncManager, spinner);
-                conflictPromises.push(promise);
-                await promise;
+                if (force) {
+                    // Auto-resolve: force pull (keep remote)
+                    await syncManager.resolveConflict(conflict.id, conflict.filename, 'remote');
+                    spinner.info(chalk.yellow(`⚠️  CONFLICT resolved (--force): "${conflict.filename}" - kept remote version`));
+                } else {
+                    const promise = this.handleConflict(conflict, syncManager, spinner, 'pull');
+                    conflictPromises.push(promise);
+                    await promise;
+                }
             };
             syncManager.on('conflict', conflictHandler);
 
+            // Refresh state before pulling (Core bug workaround: syncDown doesn't refresh state)
+            spinner.text = 'Refreshing workflow state...';
+            await syncManager.refreshState();
+            spinner.text = 'Pulling workflows from n8n...';
+            
             await syncManager.syncDown();
             
             // Wait for all conflict resolutions to complete
@@ -103,25 +106,23 @@ export class SyncCommand extends BaseCommand {
                 spinner.stop();
                 console.log(chalk.blue(`⏳ Resolving ${conflictPromises.length} conflict(s)...`));
                 await Promise.all(conflictPromises);
-                spinner.start('Pulling workflows from n8n...');
             }
 
-            spinner.succeed('Pull complete.');
+            spinner.stop();
+            console.log(chalk.green('✔ Pull complete.'));
         } catch (e: any) {
             spinner.fail(`Pull failed: ${e.message}`);
             process.exit(1);
         }
     }
 
-    async push() {
+    async push(force: boolean = false) {
+        this.forceMode = force;
         const spinner = ora('Pushing new local workflows to n8n...').start();
         try {
-            const syncManager = new SyncManager(this.client, {
-                directory: this.config.directory,
-                pollIntervalMs: 0,
-                syncInactive: this.config.syncInactive,
-                ignoredTags: this.config.ignoredTags
-            });
+            const syncConfig = await this.getSyncConfig();
+            syncConfig.pollIntervalMs = 0; // Not used for one-off
+            const syncManager = new SyncManager(this.client, syncConfig);
 
             syncManager.on('log', (msg) => {
                 if (this.isPromptActive) {
@@ -131,12 +132,23 @@ export class SyncCommand extends BaseCommand {
                 if (msg.includes('Created') || msg.includes('Update')) spinner.info(msg);
             });
 
+            // Refresh state before pushing (Core bug workaround: syncUp doesn't refresh state)
+            spinner.text = 'Refreshing workflow state...';
+            await syncManager.refreshState();
+            spinner.text = 'Pushing new local workflows to n8n...';
+
             // Collect conflict resolution promises
             const conflictPromises: Promise<void>[] = [];
             const conflictHandler = async (conflict: any) => {
-                const promise = this.handleConflict(conflict, syncManager, spinner);
-                conflictPromises.push(promise);
-                await promise;
+                if (force) {
+                    // Auto-resolve: force push (keep local)
+                    await syncManager.resolveConflict(conflict.id, conflict.filename, 'local');
+                    spinner.info(chalk.yellow(`⚠️  CONFLICT resolved (--force): "${conflict.filename}" - kept local version`));
+                } else {
+                    const promise = this.handleConflict(conflict, syncManager, spinner, 'push');
+                    conflictPromises.push(promise);
+                    await promise;
+                }
             };
             syncManager.on('conflict', conflictHandler);
 
@@ -147,10 +159,10 @@ export class SyncCommand extends BaseCommand {
                 spinner.stop();
                 console.log(chalk.blue(`⏳ Resolving ${conflictPromises.length} conflict(s)...`));
                 await Promise.all(conflictPromises);
-                spinner.start('Pushing new local workflows to n8n...');
             }
 
-            spinner.succeed('Push complete.');
+            spinner.stop();
+            console.log(chalk.green('✔ Push complete.'));
         } catch (e: any) {
             spinner.fail(`Push failed: ${e.message}`);
             process.exit(1);
