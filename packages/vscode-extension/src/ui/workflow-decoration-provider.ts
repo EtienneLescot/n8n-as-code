@@ -33,7 +33,6 @@ export class WorkflowDecorationProvider implements vscode.FileDecorationProvider
     if (pendingAction === 'delete') {
       return {
         color: new vscode.ThemeColor('gitDecoration.deletedResourceForeground'),
-        badge: '🗑',
         tooltip: 'Pending Deletion'
       };
     }
@@ -41,7 +40,6 @@ export class WorkflowDecorationProvider implements vscode.FileDecorationProvider
     if (pendingAction === 'conflict' || status === WorkflowSyncStatus.CONFLICT) {
       return {
         color: new vscode.ThemeColor('errorForeground'),
-        badge: '⚠',
         tooltip: 'Conflict - Resolve Required'
       };
     }
@@ -51,35 +49,30 @@ export class WorkflowDecorationProvider implements vscode.FileDecorationProvider
       case WorkflowSyncStatus.IN_SYNC:
         return {
           color: new vscode.ThemeColor('gitDecoration.untrackedResourceForeground'),
-          badge: '✓',
           tooltip: 'In Sync'
         };
 
       case WorkflowSyncStatus.MODIFIED_LOCALLY:
         return {
           color: new vscode.ThemeColor('gitDecoration.modifiedResourceForeground'),
-          badge: '✎',
           tooltip: 'Modified Locally'
         };
 
       case WorkflowSyncStatus.MODIFIED_REMOTELY:
         return {
           color: new vscode.ThemeColor('gitDecoration.modifiedResourceForeground'),
-          badge: '☁',
           tooltip: 'Modified Remotely'
         };
 
       case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
         return {
           color: new vscode.ThemeColor('gitDecoration.deletedResourceForeground'),
-          badge: '☁',
           tooltip: 'Remote Only'
         };
 
       case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
         return {
           color: new vscode.ThemeColor('gitDecoration.addedResourceForeground'),
-          badge: '📄',
           tooltip: 'Local Only'
         };
 
@@ -87,7 +80,6 @@ export class WorkflowDecorationProvider implements vscode.FileDecorationProvider
       case WorkflowSyncStatus.DELETED_REMOTELY:
         return {
           color: new vscode.ThemeColor('gitDecoration.deletedResourceForeground'),
-          badge: '🗑',
           tooltip: 'Deleted'
         };
 

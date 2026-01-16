@@ -97,7 +97,7 @@ export class WorkflowItem extends BaseTreeItem {
 
     switch (status) {
       case WorkflowSyncStatus.IN_SYNC:
-        return new vscode.ThemeIcon('check', new vscode.ThemeColor('charts.green'));
+        return new vscode.ThemeIcon('sync', new vscode.ThemeColor('charts.green'));
       case WorkflowSyncStatus.CONFLICT:
         return new vscode.ThemeIcon('alert', new vscode.ThemeColor('charts.red'));
       

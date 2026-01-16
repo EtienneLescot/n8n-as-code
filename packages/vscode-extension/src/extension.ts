@@ -322,6 +322,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
             if (!syncManager || !wf || !wf.filename) return;
 
+            // Check if already pending deletion
+            const state = store.getState();
+            const pendingDeletions = state.pendingDeletions.workflowIds;
+            if (pendingDeletions.includes(wf.id)) {
+                outputChannel.appendLine(`[n8n] Workflow ${wf.id} is already pending deletion. Ignoring.`);
+                return;
+            }
+
             try {
                 const instanceDirectory = syncManager.getInstanceDirectory();
                 const absPath = path.join(instanceDirectory, wf.filename);
