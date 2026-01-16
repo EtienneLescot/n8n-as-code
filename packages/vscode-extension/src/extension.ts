@@ -350,12 +350,16 @@ export async function activate(context: vscode.ExtensionContext) {
 
             const { id, filename, remoteContent } = conflict;
 
-            const choice = await vscode.window.showWarningMessage(
-                `Resolve conflict for "${filename}"?`,
-                'Show Diff',
-                'Overwrite Remote (Use Local)',
-                'Overwrite Local (Use Remote)'
-            );
+            let choice = arg?.choice;
+
+            if (!choice) {
+                choice = await vscode.window.showWarningMessage(
+                    `Resolve conflict for "${filename}"?`,
+                    'Show Diff',
+                    'Overwrite Remote (Use Local)',
+                    'Overwrite Local (Use Remote)'
+                );
+            }
 
             if (choice === 'Show Diff') {
                 const remoteUri = vscode.Uri.parse(`n8n-remote:${filename}?id=${id}`);
@@ -614,7 +618,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         pollIntervalMs: pollIntervalMs,
         syncInactive: true,
         ignoredTags: [],
-        instanceConfigPath: path.join(workspaceRoot, 'n8n-as-code-instance.json')
+        instanceConfigPath: path.join(workspaceRoot, 'n8n-as-code-instance.json'),
+        syncMode: (config.get<string>('syncMode') || 'auto') as 'auto' | 'manual'
     });
 
     // Pass syncManager to enhanced tree provider
@@ -716,14 +721,10 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         context.subscriptions.push(fileWatcher);
     }
 
-    // Start Internal Watcher if in Auto mode (for Syncing)
+    // Start Internal Watcher (Always active now, logic inside determines behavior)
     const mode = config.get<string>('syncMode') || 'auto';
-    if (mode === 'auto') {
-        statusBar.setWatchMode(true);
-        await syncManager.startWatch();
-    } else {
-        statusBar.setWatchMode(false);
-    }
+    statusBar.setWatchMode(mode === 'auto');
+    await syncManager.startWatch();
 
     // Load workflows for store
     try {

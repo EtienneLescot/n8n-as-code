@@ -520,7 +520,7 @@ export class WorkflowDetailWebview {
                 break;
 
             case 'showDiff':
-                await vscode.commands.executeCommand('n8n.resolveConflict', workflow);
+                await vscode.commands.executeCommand('n8n.resolveConflict', { workflow, choice: 'Show Diff' });
                 break;
 
             case 'useLocal':
