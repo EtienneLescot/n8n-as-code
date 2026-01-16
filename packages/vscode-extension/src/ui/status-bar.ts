@@ -42,4 +42,29 @@ export class StatusBar {
         }
         this.item.show();
     }
+
+    // New methods for initialization state management
+    hide() {
+        this.item.hide();
+    }
+
+    showLoading(message: string = 'Initializing...') {
+        this.item.text = `$(loading~spin) ${message}`;
+        this.item.tooltip = message;
+        this.item.show();
+    }
+
+    showNotInitialized() {
+        this.item.text = '$(info) n8n: Not initialized';
+        this.item.tooltip = 'Click to initialize n8n as code';
+        this.item.command = 'n8n.init';
+        this.item.show();
+    }
+
+    showConfiguring() {
+        this.item.text = '$(settings) n8n: Configure';
+        this.item.tooltip = 'Configure n8n settings to continue';
+        this.item.command = 'n8n.openSettings';
+        this.item.show();
+    }
 }

@@ -1,217 +1,222 @@
 {
-    "name": "n8n-as-code",
-    "displayName": "n8n as code",
-    "description": "Edit your n8n workflows directly in VS Code with AI assistance.",
-    "version": "0.2.0",
-    "private": true,
-    "publisher": "etienne-lescot",
-    "files": [
-        "out",
-        "assets",
-        "LICENSE.md",
-        "README.md"
-    ],
-    "license": "MIT",
-    "icon": "assets/logo.png",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/EtienneLescot/n8n-as-code"
-    },
-    "engines": {
-        "vscode": "^1.85.0"
-    },
-    "activationEvents": [
-        "onStartupFinished"
-    ],
-    "main": "./out/extension.js",
-    "contributes": {
-        "viewsContainers": {
-            "activitybar": [
-                {
-                    "id": "n8n-explorer",
-                    "title": "n8n",
-                    "icon": "assets/logo.png"
-                }
-            ]
-        },
-        "views": {
-            "n8n-explorer": [
-                {
-                    "id": "n8n-explorer.workflows",
-                    "name": "Workflows"
-                }
-            ]
-        },
-        "commands": [
-            {
-                "command": "n8n.pull",
-                "title": "n8n: Pull Workflows"
-            },
-            {
-                "command": "n8n.push",
-                "title": "n8n: Push Workflows (Sync Up)"
-            },
-            {
-                "command": "n8n.openBoard",
-                "title": "Open Board (Webview)",
-                "icon": "$(browser)"
-            },
-            {
-                "command": "n8n.openJson",
-                "title": "Open JSON",
-                "icon": "$(json)"
-            },
-            {
-                "command": "n8n.openSplit",
-                "title": "Open Split View",
-                "icon": "$(split-horizontal)"
-            },
-            {
-                "command": "n8n.pushWorkflow",
-                "title": "Push (Sync Up)",
-                "icon": "$(cloud-upload)"
-            },
-            {
-                "command": "n8n.pullWorkflow",
-                "title": "Pull (Sync Down)",
-                "icon": "$(cloud-download)"
-            },
-            {
-                "command": "n8n.refresh",
-                "title": "Refresh",
-                "icon": "$(refresh)"
-            },
-            {
-                "command": "n8n.openSettings",
-                "title": "n8n: Open Settings",
-                "icon": "$(gear)"
-            },
-            {
-                "command": "n8n.initializeAI",
-                "title": "Initialize AI Context",
-                "icon": "$(sparkle)"
-            }
-        ],
-        "menus": {
-            "view/title": [
-                {
-                    "command": "n8n.initializeAI",
-                    "group": "navigation",
-                    "when": "view == n8n-explorer.workflows"
-                },
-                {
-                    "command": "n8n.openSettings",
-                    "group": "navigation",
-                    "when": "view == n8n-explorer.workflows"
-                },
-                {
-                    "command": "n8n.push",
-                    "group": "navigation",
-                    "when": "config.n8n.syncMode == manual"
-                },
-                {
-                    "command": "n8n.pull",
-                    "group": "navigation",
-                    "when": "config.n8n.syncMode == manual"
-                },
-                {
-                    "command": "n8n.refresh",
-                    "group": "navigation",
-                    "when": "config.n8n.syncMode == manual"
-                }
-            ],
-            "view/item/context": [
-                {
-                    "command": "n8n.openBoard",
-                    "group": "inline"
-                },
-                {
-                    "command": "n8n.openJson",
-                    "group": "inline"
-                },
-                {
-                    "command": "n8n.openBoard",
-                    "group": "1_open@1"
-                },
-                {
-                    "command": "n8n.openJson",
-                    "group": "1_open@2"
-                },
-                {
-                    "command": "n8n.openSplit",
-                    "group": "1_open@3"
-                },
-                {
-                    "command": "n8n.pushWorkflow",
-                    "group": "2_sync@1",
-                    "when": "config.n8n.syncMode == manual"
-                },
-                {
-                    "command": "n8n.pullWorkflow",
-                    "group": "2_sync@2",
-                    "when": "config.n8n.syncMode == manual"
-                }
-            ]
-        },
-        "configuration": {
-            "title": "n8n as Code",
-            "properties": {
-                "n8n.host": {
-                    "type": "string",
-                    "description": "Base URL of n8n instance"
-                },
-                "n8n.apiKey": {
-                    "type": "string",
-                    "description": "n8n API Key"
-                },
-                "n8n.syncFolder": {
-                    "type": "string",
-                    "default": "workflows",
-                    "description": "Local folder to sync workflows"
-                },
-                "n8n.syncMode": {
-                    "type": "string",
-                    "default": "auto",
-                    "enum": [
-                        "auto",
-                        "manual"
-                    ],
-                    "enumDescriptions": [
-                        "Automatic sync (Watch Mode) - Buttons hidden",
-                        "Manual sync - Buttons visible"
-                    ],
-                    "description": "Synchronization mode. Auto enables Watch Mode and hides manual sync buttons."
-                },
-                "n8n.pollInterval": {
-                    "type": "number",
-                    "default": 3000,
-                    "description": "Polling interval in milliseconds for Auto Mode (default 3s)"
-                }
-            }
+  "name": "n8n-as-code",
+  "displayName": "n8n as code",
+  "description": "Edit your n8n workflows directly in VS Code with AI assistance.",
+  "version": "0.2.0",
+  "private": true,
+  "publisher": "etienne-lescot",
+  "files": [
+    "out",
+    "assets",
+    "LICENSE.md",
+    "README.md"
+  ],
+  "license": "MIT",
+  "icon": "assets/logo.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EtienneLescot/n8n-as-code"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "n8n-explorer",
+          "title": "n8n",
+          "icon": "assets/logo.png"
         }
+      ]
     },
-    "categories": [
-        "Other"
+    "views": {
+      "n8n-explorer": [
+        {
+          "id": "n8n-explorer.workflows",
+          "name": "Workflows"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "n8n.init",
+        "title": "n8n: Initialize n8n as code",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "n8n.pull",
+        "title": "n8n: Pull Workflows"
+      },
+      {
+        "command": "n8n.push",
+        "title": "n8n: Push Workflows (Sync Up)"
+      },
+      {
+        "command": "n8n.openBoard",
+        "title": "Open Board (Webview)",
+        "icon": "$(browser)"
+      },
+      {
+        "command": "n8n.openJson",
+        "title": "Open JSON",
+        "icon": "$(json)"
+      },
+      {
+        "command": "n8n.openSplit",
+        "title": "Open Split View",
+        "icon": "$(split-horizontal)"
+      },
+      {
+        "command": "n8n.pushWorkflow",
+        "title": "Push (Sync Up)",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "n8n.pullWorkflow",
+        "title": "Pull (Sync Down)",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "n8n.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "n8n.openSettings",
+        "title": "n8n: Open Settings",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "n8n.initializeAI",
+        "title": "Initialize AI Context",
+        "icon": "$(sparkle)"
+      }
     ],
-    "dependencies": {
-        "@n8n-as-code/core": "0.2.0",
-        "@n8n-as-code/agent-cli": "0.2.0",
-        "http-proxy": "^1.18.1"
+    "menus": {
+      "view/title": [
+        {
+          "command": "n8n.initializeAI",
+          "group": "navigation",
+          "when": "view == n8n-explorer.workflows"
+        },
+        {
+          "command": "n8n.openSettings",
+          "group": "navigation",
+          "when": "view == n8n-explorer.workflows"
+        },
+        {
+          "command": "n8n.push",
+          "group": "navigation",
+          "when": "config.n8n.syncMode == manual"
+        },
+        {
+          "command": "n8n.pull",
+          "group": "navigation",
+          "when": "config.n8n.syncMode == manual"
+        },
+        {
+          "command": "n8n.refresh",
+          "group": "navigation",
+          "when": "config.n8n.syncMode == manual"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "n8n.openBoard",
+          "group": "inline"
+        },
+        {
+          "command": "n8n.openJson",
+          "group": "inline"
+        },
+        {
+          "command": "n8n.openBoard",
+          "group": "1_open@1"
+        },
+        {
+          "command": "n8n.openJson",
+          "group": "1_open@2"
+        },
+        {
+          "command": "n8n.openSplit",
+          "group": "1_open@3"
+        },
+        {
+          "command": "n8n.pushWorkflow",
+          "group": "2_sync@1",
+          "when": "config.n8n.syncMode == manual"
+        },
+        {
+          "command": "n8n.pullWorkflow",
+          "group": "2_sync@2",
+          "when": "config.n8n.syncMode == manual"
+        }
+      ]
     },
-    "devDependencies": {
-        "@types/http-proxy": "^1.17.17",
-        "@types/node": "^18.0.0",
-        "@types/vscode": "^1.85.0",
-        "esbuild": "^0.27.2",
-        "typescript": "^5.3.3"
-    },
-    "scripts": {
-        "vscode:prepublish": "npm run build",
-        "compile": "tsc -b",
-        "watch": "tsc -b -w",
-        "package-bundle": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --log-override:empty-import-meta=silent",
-        "copy-assets": "mkdir -p assets && cp ./res/logo.png assets/ && cp ../agent-cli/src/assets/n8n-nodes-index.json assets/",
-        "build": "npm run compile && npm run copy-assets && npm run package-bundle",
-        "clean": "rm -rf out assets tsconfig.tsbuildinfo"
+    "configuration": {
+      "title": "n8n as Code",
+      "properties": {
+        "n8n.host": {
+          "type": "string",
+          "description": "Base URL of n8n instance"
+        },
+        "n8n.apiKey": {
+          "type": "string",
+          "description": "n8n API Key"
+        },
+        "n8n.syncFolder": {
+          "type": "string",
+          "default": "workflows",
+          "description": "Local folder to sync workflows"
+        },
+        "n8n.syncMode": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "manual"
+          ],
+          "enumDescriptions": [
+            "Automatic sync (Watch Mode) - Buttons hidden",
+            "Manual sync - Buttons visible"
+          ],
+          "description": "Synchronization mode. Auto enables Watch Mode and hides manual sync buttons."
+        },
+        "n8n.pollInterval": {
+          "type": "number",
+          "default": 3000,
+          "description": "Polling interval in milliseconds for Auto Mode (default 3s)"
+        }
+      }
     }
+  },
+  "categories": [
+    "Other"
+  ],
+  "dependencies": {
+    "@n8n-as-code/core": "0.2.0",
+    "@n8n-as-code/agent-cli": "0.2.0",
+    "http-proxy": "^1.18.1"
+  },
+  "devDependencies": {
+    "@types/http-proxy": "^1.17.17",
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.27.2",
+    "typescript": "^5.3.3"
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "compile": "tsc -b",
+    "watch": "tsc -b -w",
+    "package-bundle": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --log-override:empty-import-meta=silent",
+    "copy-assets": "mkdir -p assets && cp ./res/logo.png assets/ && cp ../agent-cli/src/assets/n8n-nodes-index.json assets/",
+    "build": "npm run compile && npm run copy-assets && npm run package-bundle",
+    "clean": "rm -rf out assets tsconfig.tsbuildinfo"
+  }
 }
