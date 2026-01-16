@@ -42,7 +42,7 @@ export class WorkflowTreeProvider implements vscode.TreeDataProvider<WorkflowIte
             return statuses.map(s => new WorkflowItem(s));
         } catch (e) {
             console.error('Failed to get workflow tree data', e);
-            return [new WorkflowItem({ name: 'Error fetching workflows', id: 'error', filename: '', active: false, status: WorkflowSyncStatus.MISSING_REMOTE })]; // Fallback?
+            return [new WorkflowItem({ name: 'Error fetching workflows', id: 'error', filename: '', active: false, status: WorkflowSyncStatus.EXIST_ONLY_REMOTELY })]; // Fallback?
         }
     }
 }
@@ -68,16 +68,21 @@ export class WorkflowItem extends vscode.TreeItem {
 
     private getIcon(status: WorkflowSyncStatus): vscode.ThemeIcon {
         switch (status) {
-            case WorkflowSyncStatus.SYNCED:
+            case WorkflowSyncStatus.IN_SYNC:
                 return new vscode.ThemeIcon('check', new vscode.ThemeColor('charts.green'));
-            case WorkflowSyncStatus.LOCAL_MODIFIED:
+            case WorkflowSyncStatus.MODIFIED_LOCALLY:
                 return new vscode.ThemeIcon('pencil', new vscode.ThemeColor('charts.blue'));
-            case WorkflowSyncStatus.REMOTE_MODIFIED:
+            case WorkflowSyncStatus.MODIFIED_REMOTELY:
                 return new vscode.ThemeIcon('cloud-download', new vscode.ThemeColor('charts.orange'));
-            case WorkflowSyncStatus.MISSING_LOCAL:
+            case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
                 return new vscode.ThemeIcon('cloud', new vscode.ThemeColor('charts.yellow'));
-            case WorkflowSyncStatus.MISSING_REMOTE:
+            case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
                 return new vscode.ThemeIcon('file', new vscode.ThemeColor('charts.red'));
+            case WorkflowSyncStatus.CONFLICT:
+                return new vscode.ThemeIcon('alert', new vscode.ThemeColor('charts.red'));
+            case WorkflowSyncStatus.DELETED_LOCALLY:
+            case WorkflowSyncStatus.DELETED_REMOTELY:
+                return new vscode.ThemeIcon('trash', new vscode.ThemeColor('charts.gray'));
             default:
                 return new vscode.ThemeIcon('question');
         }

@@ -8,6 +8,7 @@ import { StatusBar } from './ui/status-bar.js';
 import { EnhancedWorkflowTreeProvider } from './ui/enhanced-workflow-tree-provider.js';
 import { WorkflowWebview } from './ui/workflow-webview.js';
 import { WorkflowDetailWebview } from './ui/workflow-detail-webview.js';
+import { WorkflowDecorationProvider } from './ui/workflow-decoration-provider.js';
 import { ProxyService } from './services/proxy-service.js';
 import { ExtensionState } from './types.js';
 import { validateN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from './utils/state-detection.js';
@@ -32,6 +33,7 @@ let watchModeActive = false;
 const statusBar = new StatusBar();
 const proxyService = new ProxyService();
 const enhancedTreeProvider = new EnhancedWorkflowTreeProvider();
+const decorationProvider = new WorkflowDecorationProvider();
 const outputChannel = vscode.window.createOutputChannel("n8n-as-code");
 
 const conflictStore = new Map<string, string>();
@@ -51,6 +53,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Register Enhanced Tree View early
     vscode.window.registerTreeDataProvider('n8n-explorer.workflows', enhancedTreeProvider);
+
+    // Register File Decoration Provider for visual colorization
+    context.subscriptions.push(
+        vscode.window.registerFileDecorationProvider(decorationProvider)
+    );
 
     // Pass output channel to proxy service
     proxyService.setOutputChannel(outputChannel);
@@ -105,15 +112,6 @@ export async function activate(context: vscode.ExtensionContext) {
             try {
                 // Use Redux Thunk
                 await store.dispatch(syncUp()).unwrap();
-
-                // Handle deletions manually (for when Watcher is off)
-                const deletions = await syncManager.getLocalDeletions();
-                if (deletions.length > 0) {
-                    for (const del of deletions) {
-                        store.dispatch(addPendingDeletion(del.id));
-                    }
-                    vscode.window.showInformationMessage(`Found ${deletions.length} pending deletions. Please check the tree view.`);
-                }
 
                 statusBar.showSynced();
             } catch (e: any) {
@@ -221,12 +219,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
             statusBar.showSyncing();
             try {
-                if (wf.filename) {
-                    await syncManager.pullWorkflow(wf.filename, wf.id);
-                    enhancedTreeProvider.refresh();
-                    statusBar.showSynced();
-                    vscode.window.showInformationMessage(`✅ Pulled "${wf.name}"`);
-                }
+                // Use syncDown to pull all workflows, which will update this one
+                await syncManager.syncDown();
+                
+                enhancedTreeProvider.refresh();
+                statusBar.showSynced();
+                vscode.window.showInformationMessage(`✅ Pulled "${wf.name}"`);
             } catch (e: any) {
                 statusBar.showError(e.message);
                 vscode.window.showErrorMessage(`Pull Error: ${e.message}`);
@@ -367,25 +365,27 @@ export async function activate(context: vscode.ExtensionContext) {
                 conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
                 await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
             } else if (choice === 'Overwrite Remote (Use Local)') {
-                // Force push
-                syncManager['stateManager']?.updateWorkflowState(id, remoteContent);
+                // Force push local to remote
                 const absPath = path.join(syncManager.getInstanceDirectory(), filename);
                 await syncManager.handleLocalFileChange(absPath);
 
                 // Update Store
                 store.dispatch(removeConflict(id));
-                store.dispatch(updateWorkflow({ id, updates: { status: WorkflowSyncStatus.SYNCED } }));
+                store.dispatch(updateWorkflow({ id, updates: { status: WorkflowSyncStatus.IN_SYNC } }));
 
                 vscode.window.showInformationMessage(`✅ Resolved: Remote overwritten by Local.`);
+                enhancedTreeProvider.refresh();
             } else if (choice === 'Overwrite Local (Use Remote)') {
-                // Force pull
-                await syncManager.pullWorkflow(filename, id, true);
+                // Force pull remote to local - write remote content to file
+                const absPath = path.join(syncManager.getInstanceDirectory(), filename);
+                await fs.promises.writeFile(absPath, JSON.stringify(remoteContent, null, 2), 'utf-8');
 
                 // Update Store
                 store.dispatch(removeConflict(id));
-                store.dispatch(updateWorkflow({ id, updates: { status: WorkflowSyncStatus.SYNCED } }));
+                store.dispatch(updateWorkflow({ id, updates: { status: WorkflowSyncStatus.IN_SYNC } }));
 
                 vscode.window.showInformationMessage(`✅ Resolved: Local overwritten by Remote.`);
+                enhancedTreeProvider.refresh();
             }
         }),
 
@@ -419,9 +419,10 @@ export async function activate(context: vscode.ExtensionContext) {
             const success = await syncManager.restoreLocalFile(wf.id, wf.filename);
             if (success) {
                 store.dispatch(removePendingDeletion(wf.id));
-                store.dispatch(updateWorkflow({ id: wf.id, updates: { status: WorkflowSyncStatus.SYNCED } }));
+                store.dispatch(updateWorkflow({ id: wf.id, updates: { status: WorkflowSyncStatus.IN_SYNC } }));
 
                 vscode.window.showInformationMessage(`✅ Restored "${wf.name}" locally.`);
+                enhancedTreeProvider.refresh();
             } else {
                 vscode.window.showErrorMessage(`❌ Failed to restore "${wf.name}".`);
             }

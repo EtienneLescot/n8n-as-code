@@ -12,6 +12,7 @@ import { ErrorItem } from './tree-items/error-item.js';
 import { AIActionItem } from './tree-items/ai-action-item.js';
 import { WorkflowItem } from './tree-items/workflow-item.js';
 import { InfoItem } from './tree-items/info-item.js';
+import { ActionItem, ActionItemType } from './tree-items/action-item.js';
 
 /**
  * Enhanced tree provider that handles multiple extension states
@@ -149,28 +150,68 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
    * Get children for element (or root if no element)
    */
   async getChildren(element?: BaseTreeItem): Promise<BaseTreeItem[]> {
-    if (element) {
-      return [];
+    // If element is a WorkflowItem, return its action children
+    if (element && element instanceof WorkflowItem) {
+      return this.getWorkflowActionItems(element);
     }
 
-    switch (this.extensionState) {
-      case ExtensionState.UNINITIALIZED:
-      case ExtensionState.CONFIGURING:
-      case ExtensionState.SETTINGS_CHANGED:
-        return [];
+    // Root level items
+    if (!element) {
+      switch (this.extensionState) {
+        case ExtensionState.UNINITIALIZED:
+        case ExtensionState.CONFIGURING:
+        case ExtensionState.SETTINGS_CHANGED:
+          return [];
 
-      case ExtensionState.INITIALIZING:
-        return this.getInitializingItems();
+        case ExtensionState.INITIALIZING:
+          return this.getInitializingItems();
 
-      case ExtensionState.INITIALIZED:
-        return await this.getInitializedItems();
+        case ExtensionState.INITIALIZED:
+          return await this.getInitializedItems();
 
-      case ExtensionState.ERROR:
-        return this.getErrorItems();
+        case ExtensionState.ERROR:
+          return this.getErrorItems();
 
-      default:
-        return [];
+        default:
+          return [];
+      }
     }
+
+    return [];
+  }
+
+  /**
+   * Get action items for a workflow (conflict resolution or deletion confirmation)
+   */
+  private getWorkflowActionItems(workflowItem: WorkflowItem): BaseTreeItem[] {
+    const { workflow, pendingAction } = workflowItem;
+    const actions: BaseTreeItem[] = [];
+
+    // Conflict resolution actions
+    if (pendingAction === 'conflict' || workflow.status === WorkflowSyncStatus.CONFLICT) {
+      actions.push(
+        new ActionItem(ActionItemType.SHOW_DIFF, workflow.id, workflow),
+        new ActionItem(ActionItemType.KEEP_LOCAL, workflow.id, workflow),
+        new ActionItem(ActionItemType.KEEP_REMOTE, workflow.id, workflow)
+      );
+    }
+
+    // Deletion confirmation actions
+    if (pendingAction === 'delete' || workflow.status === WorkflowSyncStatus.DELETED_LOCALLY) {
+      actions.push(
+        new ActionItem(ActionItemType.CONFIRM_DELETE, workflow.id, workflow),
+        new ActionItem(ActionItemType.RESTORE_FILE, workflow.id, workflow)
+      );
+    }
+
+    // Remote deletion actions (restore only)
+    if (workflow.status === WorkflowSyncStatus.DELETED_REMOTELY) {
+      actions.push(
+        new ActionItem(ActionItemType.RESTORE_FILE, workflow.id, workflow)
+      );
+    }
+
+    return actions;
   }
 
   private getInitializingItems(): BaseTreeItem[] {

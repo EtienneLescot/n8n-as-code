@@ -354,15 +354,18 @@ export class WorkflowDetailWebview {
      */
     private getStatusClass(status: WorkflowSyncStatus): string {
         switch (status) {
-            case WorkflowSyncStatus.SYNCED:
+            case WorkflowSyncStatus.IN_SYNC:
                 return 'status-synced';
             case WorkflowSyncStatus.CONFLICT:
                 return 'status-conflict';
-            case WorkflowSyncStatus.LOCAL_MODIFIED:
-            case WorkflowSyncStatus.REMOTE_MODIFIED:
+            case WorkflowSyncStatus.MODIFIED_LOCALLY:
+            case WorkflowSyncStatus.MODIFIED_REMOTELY:
                 return 'status-modified';
-            case WorkflowSyncStatus.MISSING_LOCAL:
-            case WorkflowSyncStatus.MISSING_REMOTE:
+            case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
+            case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
+                return 'status-missing';
+            case WorkflowSyncStatus.DELETED_LOCALLY:
+            case WorkflowSyncStatus.DELETED_REMOTELY:
                 return 'status-missing';
             default:
                 return '';
@@ -374,18 +377,22 @@ export class WorkflowDetailWebview {
      */
     private getStatusDescription(status: WorkflowSyncStatus): string {
         switch (status) {
-            case WorkflowSyncStatus.SYNCED:
+            case WorkflowSyncStatus.IN_SYNC:
                 return 'Fully synchronized';
             case WorkflowSyncStatus.CONFLICT:
                 return 'Conflict detected';
-            case WorkflowSyncStatus.LOCAL_MODIFIED:
+            case WorkflowSyncStatus.MODIFIED_LOCALLY:
                 return 'Local modifications pending';
-            case WorkflowSyncStatus.REMOTE_MODIFIED:
+            case WorkflowSyncStatus.MODIFIED_REMOTELY:
                 return 'Remote modifications pending';
-            case WorkflowSyncStatus.MISSING_LOCAL:
+            case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
                 return 'Local file missing';
-            case WorkflowSyncStatus.MISSING_REMOTE:
+            case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
                 return 'Remote workflow missing';
+            case WorkflowSyncStatus.DELETED_LOCALLY:
+                return 'Deleted locally';
+            case WorkflowSyncStatus.DELETED_REMOTELY:
+                return 'Deleted remotely';
             default:
                 return status;
         }
@@ -458,7 +465,7 @@ export class WorkflowDetailWebview {
 
         // Sync actions based on status
         const status = workflow.status;
-        if (status === WorkflowSyncStatus.LOCAL_MODIFIED || status === WorkflowSyncStatus.MISSING_REMOTE) {
+        if (status === WorkflowSyncStatus.MODIFIED_LOCALLY || status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY) {
             buttons.push(`
                 <button class="action-button action-button-primary" onclick="handleAction('pushWorkflow')">
                     <span class="icon">📤</span> Push to n8n
@@ -466,7 +473,7 @@ export class WorkflowDetailWebview {
             `);
         }
 
-        if (status === WorkflowSyncStatus.REMOTE_MODIFIED || status === WorkflowSyncStatus.MISSING_LOCAL) {
+        if (status === WorkflowSyncStatus.MODIFIED_REMOTELY || status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY) {
             buttons.push(`
                 <button class="action-button action-button-primary" onclick="handleAction('pullWorkflow')">
                     <span class="icon">📥</span> Pull from n8n
@@ -524,29 +531,13 @@ export class WorkflowDetailWebview {
                 break;
 
             case 'useLocal':
-                // Handled via command now
+                // Handled via command
                 await vscode.commands.executeCommand('n8n.resolveConflict', { workflow, choice: 'Overwrite Remote (Use Local)' });
-                // Fallback implementation if command arg isn't supported yet:
-                if (this.syncManager && workflow.filename) {
-                    const instanceDirectory = this.syncManager.getInstanceDirectory();
-                    const absPath = path.join(instanceDirectory, workflow.filename);
-                    await this.syncManager.handleLocalFileChange(absPath);
-                    store.dispatch(removeConflict(workflow.id));
-                    store.dispatch(updateWorkflow({ id: workflow.id, updates: { status: WorkflowSyncStatus.SYNCED } }));
-                    vscode.window.showInformationMessage(`✅ Resolved: Remote overwritten by Local.`);
-                }
                 break;
 
             case 'useRemote':
-                // Handled via command now
+                // Handled via command
                 await vscode.commands.executeCommand('n8n.resolveConflict', { workflow, choice: 'Overwrite Local (Use Remote)' });
-                // Fallback implementation if command arg isn't supported yet:
-                if (this.syncManager && workflow.filename) {
-                    await this.syncManager.pullWorkflow(workflow.filename, workflow.id, true);
-                    store.dispatch(removeConflict(workflow.id));
-                    store.dispatch(updateWorkflow({ id: workflow.id, updates: { status: WorkflowSyncStatus.SYNCED } }));
-                    vscode.window.showInformationMessage(`✅ Resolved: Local overwritten by Remote.`);
-                }
                 break;
 
             case 'confirmDeletion':

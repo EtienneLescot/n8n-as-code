@@ -171,53 +171,63 @@
       ],
       "view/item/context": [
         {
-          "command": "n8n.openBoard",
-          "group": "inline@1",
-          "when": "viewItem =~ /workflow-(synced|cloud-only)/"
-        },
-        {
-          "command": "n8n.openJson",
-          "group": "inline@2",
-          "when": "viewItem =~ /workflow-(synced|local-only)/"
-        },
-        {
           "command": "n8n.openSplit",
-          "group": "inline@3",
-          "when": "viewItem == workflow-synced"
+          "group": "inline@1",
+          "when": "viewItem =~ /workflow-(synced|modified-local|modified-remote)/ && viewItem != workflow-conflict && viewItem != workflow-pending-deletion"
         },
         {
-          "command": "n8n.spacer",
-          "group": "inline@4",
-          "when": "viewItem =~ /workflow-(synced|local-only|cloud-only)/"
+          "command": "n8n.pushWorkflow",
+          "group": "inline@2",
+          "when": "viewItem =~ /workflow-(modified-local|local-only)/ && viewItem != workflow-conflict"
+        },
+        {
+          "command": "n8n.pullWorkflow",
+          "group": "inline@3",
+          "when": "viewItem =~ /workflow-(modified-remote|cloud-only)/ && viewItem != workflow-conflict"
         },
         {
           "command": "n8n.deleteWorkflow",
+          "group": "inline@4",
+          "when": "viewItem =~ /workflow-/ && viewItem != workflow-pending-deletion && viewItem != workflow-deleted"
+        },
+        {
+          "command": "n8n.resolveConflict",
           "group": "inline@5",
-          "when": "viewItem =~ /workflow-(synced|local-only|cloud-only)/"
+          "when": "viewItem == workflow-conflict"
+        },
+        {
+          "command": "n8n.openBoard",
+          "group": "1_open@1",
+          "when": "viewItem =~ /workflow-(synced|cloud-only|modified-remote)/"
+        },
+        {
+          "command": "n8n.openJson",
+          "group": "1_open@2",
+          "when": "viewItem =~ /workflow-(synced|local-only|modified-local)/"
         },
         {
           "command": "n8n.pushWorkflow",
           "group": "2_sync@1",
-          "when": "viewItem =~ /workflow-(synced|local-only)/"
+          "when": "viewItem =~ /workflow-(synced|local-only|modified-local)/ && viewItem != workflow-conflict"
         },
         {
           "command": "n8n.pullWorkflow",
           "group": "2_sync@2",
-          "when": "viewItem =~ /workflow-(synced|cloud-only)/"
+          "when": "viewItem =~ /workflow-(synced|cloud-only|modified-remote)/ && viewItem != workflow-conflict"
         },
         {
           "command": "n8n.resolveConflict",
-          "group": "1_resolve@1",
+          "group": "3_resolve@1",
           "when": "viewItem == workflow-conflict"
         },
         {
           "command": "n8n.confirmDeletion",
-          "group": "1_resolve@1",
+          "group": "3_resolve@1",
           "when": "viewItem == workflow-pending-deletion"
         },
         {
           "command": "n8n.restoreDeletion",
-          "group": "1_resolve@2",
+          "group": "3_resolve@2",
           "when": "viewItem == workflow-pending-deletion"
         }
       ]
