@@ -204,9 +204,10 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
       );
     }
 
-    // Remote deletion actions (restore only)
+    // Remote deletion actions (confirm deletion OR restore)
     if (workflow.status === WorkflowSyncStatus.DELETED_REMOTELY) {
       actions.push(
+        new ActionItem(ActionItemType.CONFIRM_DELETE, workflow.id, workflow),
         new ActionItem(ActionItemType.RESTORE_FILE, workflow.id, workflow)
       );
     }

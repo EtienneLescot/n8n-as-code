@@ -169,6 +169,39 @@ export class Watcher extends EventEmitter {
             return;
         }
 
+        // CRITICAL: Per spec 5.3 DELETED_LOCALLY - Archive Remote to _archive/ IMMEDIATELY
+        // This happens BEFORE user confirmation, to ensure we have a backup
+        if (workflowId) {
+            const remoteHash = this.remoteHashes.get(workflowId);
+            const lastSyncedHash = this.getLastSyncedHash(workflowId);
+            
+            // Only archive if remote exists and matches last synced (true local deletion)
+            if (remoteHash && remoteHash === lastSyncedHash) {
+                try {
+                    // Fetch remote workflow content
+                    const remoteWorkflow = await this.client.getWorkflow(workflowId);
+                    
+                    if (remoteWorkflow) {
+                        // Create archive directory if it doesn't exist
+                        const archiveDir = path.join(this.directory, '.archive');
+                        if (!fs.existsSync(archiveDir)) {
+                            fs.mkdirSync(archiveDir, { recursive: true });
+                        }
+                        
+                        // Save to archive with timestamp
+                        const clean = WorkflowSanitizer.cleanForStorage(remoteWorkflow);
+                        const archivePath = path.join(archiveDir, `${Date.now()}_${filename}`);
+                        fs.writeFileSync(archivePath, JSON.stringify(clean, null, 2));
+                        
+                        console.log(`[Watcher] Archived remote workflow to: ${archivePath}`);
+                    }
+                } catch (error) {
+                    console.warn(`[Watcher] Failed to archive remote workflow ${workflowId}:`, error);
+                    // Continue anyway - deletion detection should still work
+                }
+            }
+        }
+
         this.localHashes.delete(filename);
         this.broadcastStatus(filename, workflowId);
     }

@@ -209,16 +209,20 @@ export class SyncEngine {
 
     /**
      * Delete remote workflow (for deletion validation)
+     * Note: The Watcher already archived the remote content when it detected the local deletion
      */
     public async deleteRemote(workflowId: string, filename: string): Promise<void> {
         this.watcher.markSyncInProgress(workflowId);
         this.watcher.pauseObservation(workflowId);
         
         try {
+            // Delete from API
             await this.client.deleteWorkflow(workflowId);
-            // Archive local file if it exists
+            
+            // Archive local file if it still exists (edge case - shouldn't happen for DELETED_LOCALLY)
             await this.archive(filename);
-            // Note: State removal will be handled by watcher when it detects remote deletion
+            
+            // Note: State removal will be handled by caller (ResolutionManager)
         } finally {
             this.watcher.markSyncComplete(workflowId);
             this.watcher.resumeObservation(workflowId);
@@ -227,6 +231,8 @@ export class SyncEngine {
 
     /**
      * Restore from archive (for deletion validation)
+     * Moves the file from archive back to workflows directory
+     * Then DELETES the archive file (no need to keep it after restoration)
      */
     public async restoreFromArchive(filename: string): Promise<boolean> {
         const archiveFiles = fs.readdirSync(this.archiveDirectory);
@@ -241,7 +247,15 @@ export class SyncEngine {
         const archivePath = path.join(this.archiveDirectory, mostRecent);
         const targetPath = path.join(this.directory, filename);
 
-        fs.renameSync(archivePath, targetPath);
+        // Read content from archive
+        const content = fs.readFileSync(archivePath, 'utf-8');
+        
+        // Write to target location
+        fs.writeFileSync(targetPath, content);
+        
+        // Delete the archive file (no need to keep it after restoration)
+        fs.unlinkSync(archivePath);
+        
         return true;
     }
 

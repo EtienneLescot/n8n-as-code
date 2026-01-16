@@ -146,7 +146,16 @@ export class SyncManager extends EventEmitter {
     async restoreLocalFile(id: string, filename: string): Promise<boolean> {
         await this.ensureInitialized();
         try {
-            await this.syncEngine!.pull(id, filename, WorkflowSyncStatus.MODIFIED_REMOTELY); // Force pull essentially
+            // Determine the deletion type based on current status
+            const statuses = await this.getWorkflowsStatus();
+            const workflow = statuses.find(s => s.id === id);
+            
+            if (!workflow) {
+                throw new Error(`Workflow ${id} not found in state`);
+            }
+            
+            const deletionType = workflow.status === WorkflowSyncStatus.DELETED_LOCALLY ? 'local' : 'remote';
+            await this.resolutionManager!.restoreWorkflow(id, filename, deletionType);
             return true;
         } catch {
             return false;
