@@ -26,7 +26,7 @@ npm run build
 This generates `dist/n8n-architect/` ready for distribution.
 
 **Installation methods:**
-- See the [Usage Guide](/docs/usage/claude-skill) for detailed installation instructions
+- See the [Usage Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill) for detailed installation instructions
 - For Claude.ai: Upload the generated folder as ZIP
 - For Claude Code: Copy to `~/.claude/skills/`
 - For API: Reference `skills: ['n8n-architect']` in your code
@@ -34,8 +34,8 @@ This generates `dist/n8n-architect/` ready for distribution.
 ## 📚 Documentation
 
 Full documentation is available in the [n8n-as-code docs](https://etiennelescot.github.io/n8n-as-code/):
-- [Usage Guide](/docs/usage/claude-skill) - Installation and usage
-- [Contribution Guide](/docs/contribution) - Development guidelines
+- [Usage Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill) - Installation and usage
+- [Contribution Guide](https://etiennelescot.github.io/n8n-as-code/docs/contribution/claude-skill) - Development guidelines
 
 ## 📄 License
 
