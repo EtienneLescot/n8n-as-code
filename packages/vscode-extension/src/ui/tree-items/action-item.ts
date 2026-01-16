@@ -47,7 +47,7 @@ export class ActionItem extends BaseTreeItem {
       case ActionItemType.CONFIRM_DELETE:
         return '🗑️ Confirm Remote Deletion';
       case ActionItemType.RESTORE_FILE:
-        return '↩️ Restore Local File';
+        return '↩️ Restore File';
       default:
         return 'Unknown Action';
     }
@@ -99,7 +99,7 @@ export class ActionItem extends BaseTreeItem {
       case ActionItemType.RESTORE_FILE:
         return {
           command: 'n8n.restoreDeletion',
-          title: 'Restore Local File',
+          title: 'Restore File',
           arguments: [{ workflow }]
         };
       default:

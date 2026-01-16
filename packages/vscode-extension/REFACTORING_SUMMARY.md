@@ -157,7 +157,7 @@ The following manual testing is recommended:
    - Delete a local workflow file
    - Verify it appears as expandable with deletion options
    - Test "Confirm Remote Deletion"
-   - Test "Restore Local File"
+   - Test "Restore File"
 
 3. **Double-Click Behavior**
    - Double-click a workflow in CONFLICT state → should open diff

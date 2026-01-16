@@ -79,7 +79,7 @@ If Status == DELETED_LOCALLY (Local file missing), expand to see:
   - Icon: `trash`
   - Command: Delete Remote Workflow.
 
-- **[↩️ Restore Local File]**
+- **[↩️ Restore File]**
   - Icon: `reply`
   - Command: Pull from Remote/Archive.
 

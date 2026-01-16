@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { SyncManager, N8nApiClient, IN8nCredentials, IWorkflowStatus, SchemaGenerator, WorkflowSyncStatus } from '@n8n-as-code/core';
+import { SyncManager, N8nApiClient, IN8nCredentials, IWorkflowStatus, SchemaGenerator, WorkflowSyncStatus, createInstanceIdentifier, createFallbackInstanceIdentifier } from '@n8n-as-code/core';
 import { AiContextGenerator, SnippetGenerator } from '@n8n-as-code/agent-cli';
 
 import { StatusBar } from './ui/status-bar.js';
@@ -676,11 +676,30 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
     const absDirectory = path.join(workspaceRoot, folder);
 
+    // Generate instance identifier based on host and user
+    let instanceIdentifier: string;
+    try {
+        const user = await client.getCurrentUser();
+        if (user) {
+            instanceIdentifier = createInstanceIdentifier(host, user);
+            outputChannel.appendLine(`[n8n] Instance identifier: ${instanceIdentifier} (user: ${user.firstName || user.email})`);
+        } else {
+            // Fallback: use API key hash if user info unavailable
+            instanceIdentifier = createFallbackInstanceIdentifier(host, apiKey);
+            outputChannel.appendLine(`[n8n] Instance identifier: ${instanceIdentifier} (fallback)`);
+        }
+    } catch (error) {
+        // Fallback on error
+        instanceIdentifier = createFallbackInstanceIdentifier(host, apiKey);
+        outputChannel.appendLine(`[n8n] Instance identifier: ${instanceIdentifier} (fallback due to error)`);
+    }
+
     syncManager = new SyncManager(client, {
         directory: absDirectory,
         pollIntervalMs: pollIntervalMs,
         syncInactive: true,
         ignoredTags: [],
+        instanceIdentifier: instanceIdentifier,
         instanceConfigPath: path.join(workspaceRoot, 'n8n-as-code-instance.json'),
         syncMode: (config.get<string>('syncMode') || 'auto') as 'auto' | 'manual'
     });
