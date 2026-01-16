@@ -10,24 +10,37 @@ export class WorkflowItem extends BaseTreeItem {
   readonly type = TreeItemType.WORKFLOW;
   
   constructor(
-    public readonly workflow: IWorkflowStatus
+    public readonly workflow: IWorkflowStatus,
+    public readonly pendingAction?: 'delete' | 'conflict'
   ) {
     super(workflow.name, vscode.TreeItemCollapsibleState.None);
     
-    this.contextValue = this.getContextValueForStatus(workflow.status);
+    this.contextValue = this.getContextValueForStatus(workflow.status, pendingAction);
     this.tooltip = `${workflow.name} (${workflow.status})`;
-    this.description = workflow.active ? '(Active)' : '(Inactive)';
-    this.iconPath = this.getIcon(workflow.status);
     
-    // Default command (open board)
+    let statusDesc = workflow.active ? 'Active' : 'Inactive';
+    if (pendingAction === 'delete') statusDesc = 'Pending Deletion';
+    if (pendingAction === 'conflict') statusDesc = 'Conflict';
+    this.description = `(${statusDesc})`;
+
+    this.iconPath = this.getIcon(workflow.status, pendingAction);
+    
+    // Default command (open workflow detail panel)
     this.command = {
-      command: 'n8n.openBoard',
-      title: 'Open Board',
+      command: 'n8n.openWorkflowDetail',
+      title: 'Open Workflow Details',
       arguments: [workflow]
     };
   }
+
+  setContextValue(value: string) {
+    this.contextValue = value;
+  }
   
-  private getContextValueForStatus(status: WorkflowSyncStatus): string {
+  private getContextValueForStatus(status: WorkflowSyncStatus, pendingAction?: string): string {
+    if (pendingAction === 'delete') return 'workflow-pending-deletion';
+    if (pendingAction === 'conflict' || status === WorkflowSyncStatus.CONFLICT) return 'workflow-conflict';
+
     switch (status) {
       case WorkflowSyncStatus.MISSING_LOCAL:
         return 'workflow-cloud-only';
@@ -38,7 +51,10 @@ export class WorkflowItem extends BaseTreeItem {
     }
   }
 
-  private getIcon(status: WorkflowSyncStatus): vscode.ThemeIcon {
+  private getIcon(status: WorkflowSyncStatus, pendingAction?: string): vscode.ThemeIcon {
+    if (pendingAction === 'delete') return new vscode.ThemeIcon('trash', new vscode.ThemeColor('charts.red'));
+    if (pendingAction === 'conflict') return new vscode.ThemeIcon('alert', new vscode.ThemeColor('charts.red'));
+
     switch (status) {
       case WorkflowSyncStatus.SYNCED:
         return new vscode.ThemeIcon('check', new vscode.ThemeColor('charts.green'));

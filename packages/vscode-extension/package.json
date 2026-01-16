@@ -126,6 +126,21 @@
         "icon": "$(trash)"
       },
       {
+        "command": "n8n.resolveConflict",
+        "title": "Resolve Conflict",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "n8n.confirmDeletion",
+        "title": "Confirm Delete (Remote)",
+        "icon": "$(check)"
+      },
+      {
+        "command": "n8n.restoreDeletion",
+        "title": "Restore Local File",
+        "icon": "$(discard)"
+      },
+      {
         "command": "n8n.spacer",
         "title": " ",
         "icon": "assets/spacer.png"
@@ -189,6 +204,21 @@
           "command": "n8n.pullWorkflow",
           "group": "2_sync@2",
           "when": "viewItem =~ /workflow-(synced|cloud-only)/"
+        },
+        {
+          "command": "n8n.resolveConflict",
+          "group": "1_resolve@1",
+          "when": "viewItem == workflow-conflict"
+        },
+        {
+          "command": "n8n.confirmDeletion",
+          "group": "1_resolve@1",
+          "when": "viewItem == workflow-pending-deletion"
+        },
+        {
+          "command": "n8n.restoreDeletion",
+          "group": "1_resolve@2",
+          "when": "viewItem == workflow-pending-deletion"
         }
       ]
     },

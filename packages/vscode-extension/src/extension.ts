@@ -7,9 +7,11 @@ import { AiContextGenerator, SnippetGenerator } from '@n8n-as-code/agent-cli';
 import { StatusBar } from './ui/status-bar.js';
 import { EnhancedWorkflowTreeProvider } from './ui/enhanced-workflow-tree-provider.js';
 import { WorkflowWebview } from './ui/workflow-webview.js';
+import { WorkflowDetailWebview } from './ui/workflow-detail-webview.js';
 import { ProxyService } from './services/proxy-service.js';
 import { ExtensionState } from './types.js';
 import { validateN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from './utils/state-detection.js';
+import { UIEventType, UIEventHelpers, getEventBus } from './services/ui-event-bus.js';
 
 let syncManager: SyncManager | undefined;
 let watchModeActive = false;
@@ -65,9 +67,12 @@ export async function activate(context: vscode.ExtensionContext) {
             }
             
             statusBar.showSyncing();
+            UIEventHelpers.emitSyncStarted('pull');
+            
             try {
                 await syncManager.syncDown();
-                enhancedTreeProvider.refresh();
+                UIEventHelpers.emitSyncCompleted('pull');
+                UIEventHelpers.emitUIRefreshNeeded('pull completed');
                 statusBar.showSynced();
             } catch (e: any) {
                 statusBar.showError(e.message);
@@ -82,18 +87,22 @@ export async function activate(context: vscode.ExtensionContext) {
             }
             
             statusBar.showSyncing();
+            UIEventHelpers.emitSyncStarted('push');
+            
             try {
                 await syncManager.syncUp();
+                UIEventHelpers.emitSyncCompleted('push');
                 
                 // Handle deletions manually (for when Watcher is off)
                 const deletions = await syncManager.getLocalDeletions();
                 if (deletions.length > 0) {
                     for (const del of deletions) {
-                        await handleLocalDeletionPrompt(syncManager, del, enhancedTreeProvider);
+                        UIEventHelpers.emitDeletionDetected(del.id, del.filename || '', true);
                     }
+                    vscode.window.showInformationMessage(`Found ${deletions.length} pending deletions. Please check the tree view.`);
                 }
-
-                enhancedTreeProvider.refresh();
+        
+                UIEventHelpers.emitUIRefreshNeeded('push completed');
                 statusBar.showSynced();
             } catch (e: any) {
                 statusBar.showError(e.message);
@@ -120,6 +129,14 @@ export async function activate(context: vscode.ExtensionContext) {
             } else {
                 vscode.window.showErrorMessage('n8n Host not configured.');
             }
+        }),
+
+        vscode.commands.registerCommand('n8n.openWorkflowDetail', async (arg: any) => {
+            const wf = arg?.workflow ? arg.workflow : arg;
+            if (!wf || !syncManager) return;
+            
+            const extensionUri = context.extensionUri;
+            WorkflowDetailWebview.createOrShow(extensionUri, wf, syncManager);
         }),
 
         vscode.commands.registerCommand('n8n.openJson', async (arg: any) => {
@@ -298,9 +315,22 @@ export async function activate(context: vscode.ExtensionContext) {
 
                 if (fs.existsSync(absPath)) {
                     outputChannel.appendLine(`[n8n] Deleting local file: ${absPath}`);
+                    
+                    // 1. Mise à jour optimistique immédiate de l'UI
+                    // Ajouter à la liste des suppressions en attente
+                    enhancedTreeProvider.addPendingDeletion(wf.id);
+                    
+                    // 2. Émettre un événement de suppression
+                    UIEventHelpers.emitDeletionDetected(wf.id, wf.filename, true);
+                    
+                    // 3. Supprimer le fichier
                     await fs.promises.unlink(absPath);
-                    // Immediate refresh to show status change (will show yellow cloud for missing local)
-                    enhancedTreeProvider.refresh();
+                    
+                    // 4. Rafraîchir l'UI immédiatement
+                    UIEventHelpers.emitUIRefreshNeeded('local file deleted');
+                    
+                    // 5. Notifier l'utilisateur
+                    vscode.window.showInformationMessage(`🗑️ Local file "${wf.filename}" deleted. Right-click to confirm remote deletion or restore.`);
                 } else {
                     outputChannel.appendLine(`[n8n] File not found for deletion: ${absPath}`);
                     vscode.window.showErrorMessage(`File not found: ${wf.filename}`);
@@ -308,11 +338,87 @@ export async function activate(context: vscode.ExtensionContext) {
             } catch (e: any) {
                 outputChannel.appendLine(`[n8n] Delete Error: ${e.message}`);
                 vscode.window.showErrorMessage(`Delete Error: ${e.message}`);
+                
+                // En cas d'erreur, retirer de la liste des suppressions en attente
+                enhancedTreeProvider.removePendingDeletion(wf.id);
             }
         }),
 
         vscode.commands.registerCommand('n8n.spacer', () => {
             // Dummy command for spacing
+        }),
+
+        vscode.commands.registerCommand('n8n.resolveConflict', async (arg: any) => {
+            const wf = arg?.workflow ? arg.workflow : arg;
+            if (!wf || !syncManager) return;
+
+            const conflict = enhancedTreeProvider.getConflict(wf.id);
+            if (!conflict) {
+                vscode.window.showInformationMessage('No conflict data found for this workflow.');
+                return;
+            }
+
+            const { id, filename, remoteContent } = conflict;
+
+            const choice = await vscode.window.showWarningMessage(
+                `Resolve conflict for "${filename}"?`,
+                'Show Diff',
+                'Overwrite Remote (Use Local)',
+                'Overwrite Local (Use Remote)'
+            );
+
+            if (choice === 'Show Diff') {
+                const remoteUri = vscode.Uri.parse(`n8n-remote:${filename}?id=${id}`);
+                const localUri = vscode.Uri.file(path.join(syncManager.getInstanceDirectory(), filename));
+                conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
+                await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
+            } else if (choice === 'Overwrite Remote (Use Local)') {
+                // Force push
+                syncManager['stateManager']?.updateWorkflowState(id, remoteContent);
+                const absPath = path.join(syncManager.getInstanceDirectory(), filename);
+                await syncManager.handleLocalFileChange(absPath);
+                enhancedTreeProvider.removeConflict(id);
+                vscode.window.showInformationMessage(`✅ Resolved: Remote overwritten by Local.`);
+            } else if (choice === 'Overwrite Local (Use Remote)') {
+                // Force pull
+                await syncManager.pullWorkflow(filename, id, true);
+                enhancedTreeProvider.removeConflict(id);
+                vscode.window.showInformationMessage(`✅ Resolved: Local overwritten by Remote.`);
+            }
+        }),
+
+        vscode.commands.registerCommand('n8n.confirmDeletion', async (arg: any) => {
+            const wf = arg?.workflow ? arg.workflow : arg;
+            if (!wf || !syncManager) return;
+
+            const confirm = await vscode.window.showWarningMessage(
+                `Are you sure you want to DELETE "${wf.name}" from n8n?`,
+                { modal: true },
+                'Delete Remote Workflow'
+            );
+
+            if (confirm === 'Delete Remote Workflow') {
+                const success = await syncManager.deleteRemoteWorkflow(wf.id, wf.filename);
+                if (success) {
+                    enhancedTreeProvider.removePendingDeletion(wf.id);
+                    vscode.window.showInformationMessage(`✅ Deleted "${wf.name}" from n8n.`);
+                } else {
+                    vscode.window.showErrorMessage(`❌ Failed to delete "${wf.name}".`);
+                }
+            }
+        }),
+
+        vscode.commands.registerCommand('n8n.restoreDeletion', async (arg: any) => {
+            const wf = arg?.workflow ? arg.workflow : arg;
+            if (!wf || !syncManager) return;
+
+            const success = await syncManager.restoreLocalFile(wf.id, wf.filename);
+            if (success) {
+                enhancedTreeProvider.removePendingDeletion(wf.id);
+                vscode.window.showInformationMessage(`✅ Restored "${wf.name}" locally.`);
+            } else {
+                vscode.window.showErrorMessage(`❌ Failed to restore "${wf.name}".`);
+            }
         })
     );
 
@@ -526,10 +632,17 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         }
     });
 
-    // Auto-refresh tree on changes
+    // Auto-refresh tree on changes using event bus
     syncManager.on('change', (ev: any) => {
         outputChannel.appendLine(`[n8n] Change detected: ${ev.type} (${ev.filename})`);
-        vscode.commands.executeCommand('n8n.refresh');
+        
+        // Emit UI refresh event
+        UIEventHelpers.emitUIRefreshNeeded(`sync change: ${ev.type}`);
+        
+        // Emit workflow status change if we have an ID
+        if (ev.id && ev.status) {
+            UIEventHelpers.emitWorkflowStatusChanged(ev.id, ev.status);
+        }
 
         // ONLY reload webview automatically on PUSH (local-to-remote)
         if (ev.id && ev.type === 'local-to-remote') {
@@ -542,44 +655,29 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         }
     });
 
-    // Handle Conflicts
+    // Handle Conflicts using event bus
     syncManager.on('conflict', async (conflict: any) => {
-        const { id, filename, localContent, remoteContent } = conflict;
+        const { id, filename } = conflict;
         outputChannel.appendLine(`[n8n] CONFLICT detected for: ${filename}`);
-
-        const choice = await vscode.window.showWarningMessage(
-            `Conflict detected for "${filename}". The workflow was modified both locally and on n8n.`,
-            'Show Diff',
-            'Overwrite Remote (Use Local)',
-            'Overwrite Local (Use Remote)'
+        
+        // Emit conflict event
+        UIEventHelpers.emitConflictDetected(id, filename, conflict);
+        
+        vscode.window.showWarningMessage(
+            `Conflict detected for "${filename}". Right-click in tree view to Resolve.`
         );
-
-        if (choice === 'Show Diff') {
-            // Create a virtual document for the remote content
-            const remoteUri = vscode.Uri.parse(`n8n-remote:${filename}?id=${id}`);
-            const localUri = vscode.Uri.file(path.join(syncManager!.getInstanceDirectory(), filename));
-
-            // Store remote content for the provider
-            conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
-
-            await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
-        } else if (choice === 'Overwrite Remote (Use Local)') {
-            // Force push by updating the state first
-            syncManager?.['stateManager']?.updateWorkflowState(id, remoteContent);
-            // Now trigger a manual change event to retry the push
-            const absPath = path.join(syncManager!.getInstanceDirectory(), filename);
-            await syncManager?.handleLocalFileChange(absPath);
-        } else if (choice === 'Overwrite Local (Use Remote)') {
-            // Force pull by updating the state first
-            await syncManager?.pullWorkflow(filename, id, true);
-            vscode.window.showInformationMessage(`✅ Local file "${filename}" updated from n8n.`);
-        }
     });
 
-    // Handle Local Deletion (user deleted a file locally)
+    // Handle Local Deletion using event bus
     syncManager.on('local-deletion', async (data: { id: string, filename: string }) => {
         outputChannel.appendLine(`[n8n] LOCAL DELETION detected for: ${data.filename}`);
-        await handleLocalDeletionPrompt(syncManager!, data, enhancedTreeProvider);
+        
+        // Emit deletion event
+        UIEventHelpers.emitDeletionDetected(data.id, data.filename, true);
+        
+        vscode.window.showInformationMessage(
+            `Local file "${data.filename}" deleted. Right-click in tree view to Confirm or Restore.`
+        );
     });
 
     // Global File System Watcher (VS Code side) for Real-Time UI Updates
@@ -705,35 +803,3 @@ export function deactivate() {
     proxyService.stop();
 }
 
-/**
- * Reusable prompt for handling local file deletions
- */
-async function handleLocalDeletionPrompt(
-    syncManager: SyncManager,
-    data: { id: string, filename: string },
-    provider: EnhancedWorkflowTreeProvider
-) {
-    const choice = await vscode.window.showWarningMessage(
-        `Local file "${data.filename}" is missing. Do you want to delete the workflow on n8n or restore the file?`,
-        'Delete Remote Workflow',
-        'Restore Local File'
-    );
-
-    if (choice === 'Delete Remote Workflow') {
-        const success = await syncManager.deleteRemoteWorkflow(data.id, data.filename);
-        if (success) {
-            vscode.window.showInformationMessage(`✅ Remote workflow "${data.filename}" deleted and archived.`);
-            provider.refresh();
-        } else {
-            vscode.window.showErrorMessage(`❌ Failed to delete remote workflow "${data.filename}".`);
-        }
-    } else if (choice === 'Restore Local File') {
-        const success = await syncManager.restoreLocalFile(data.id, data.filename);
-        if (success) {
-            vscode.window.showInformationMessage(`✅ Local file "${data.filename}" restored from n8n.`);
-            provider.refresh();
-        } else {
-            vscode.window.showErrorMessage(`❌ Failed to restore local file "${data.filename}".`);
-        }
-    }
-}
