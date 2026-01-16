@@ -106,6 +106,7 @@ Debug mode (F5) from `packages/vscode-extension`.
 Or use the following command at the root to compile, package, and install the extension locally in your main VS Code instance:
 
 ```bash
+npm run extension:dev
 npm run extension:install
 ```
 
