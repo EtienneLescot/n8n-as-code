@@ -1,5 +1,17 @@
 # @n8n-as-code/claude-skill
 
+## 0.2.4
+
+### Patch Changes
+
+- Optimize agent-cli package and enable enriched index in VS Code extension
+
+  - agent-cli: Reduced npm package size by 54% (68 MB → 31 MB) by removing src/assets/ from published files
+  - vscode-extension: Now uses n8n-nodes-enriched.json with enhanced metadata (keywords, operations, use cases)
+
+- Updated dependencies
+  - @n8n-as-code/agent-cli@0.4.0
+
 ## 0.2.3
 
 ### Patch Changes

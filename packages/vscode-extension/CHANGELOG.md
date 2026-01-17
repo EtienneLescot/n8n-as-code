@@ -1,5 +1,22 @@
 # n8n-as-code
 
+## 0.4.0
+
+### Minor Changes
+
+- Optimize agent-cli package and enable enriched index in VS Code extension
+
+  - agent-cli: Reduced npm package size by 54% (68 MB → 31 MB) by removing src/assets/ from published files
+  - vscode-extension: Now uses n8n-nodes-enriched.json with enhanced metadata (keywords, operations, use cases)
+  - vscode-extension: Added esbuild plugin to automatically copy assets from agent-cli during build
+  - Extension size increases to 5.2 MB due to enriched data, providing better search, autocompletion, and documentation for 400+ n8n nodes
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/agent-cli@0.4.0
+  - @n8n-as-code/core@0.3.3
+
 ## 0.3.2
 
 ### Patch Changes
