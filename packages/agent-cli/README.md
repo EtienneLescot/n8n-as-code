@@ -17,16 +17,6 @@ npm install @n8n-as-code/agent-cli
 
 ## 📖 CLI Usage
 
-### `init-ai`
-Generates the AI context files in your current workspace.
-```bash
-n8n-agent init-ai
-```
-Generates:
-- `AGENTS.md`: Instructions for your AI agent.
-- `n8n-schema.json`: Validation schema for workflows.
-- `.vscode/n8n.code-snippets`: Rich snippets for common nodes.
-
 ### `list`
 Lists all available n8n nodes.
 ```bash
@@ -45,7 +35,12 @@ Searches for nodes matching a query.
 n8n-agent search "google sheets"
 ```
 
-## 🧩 Integration with VS Code
+## 🧩 Integration
+
+### With @n8n-as-code/cli
+The main CLI package (`@n8n-as-code/cli`) uses this package internally for its `init-ai` / `update-ai` commands to generate AI context files.
+
+### With VS Code Extension
 This package is a core dependency of the `n8n-as-code` VS Code extension, powering its AI features and node indexing.
 
 ## 📄 License
