@@ -58,8 +58,11 @@ n8n-as-code.json
 
 # Generated n8n assets
 packages/agent-cli/src/assets/n8n-nodes-index.json
+packages/agent-cli/src/assets/n8n-nodes-enriched.json
+packages/agent-cli/src/assets/n8n-docs-cache/
 packages/agent-cli/extraction-report.md
 packages/vscode-extension/assets/n8n-nodes-index.json
+packages/vscode-extension/assets/n8n-nodes-enriched.json
 packages/vscode-extension/assets/logo.png
 
 .n8n-cache/
@@ -71,4 +74,4 @@ n8n-as-code-instance.json
 ignoredTests/
 session_context.json
 
-packages/agent-cli/src/assets/n8n-docs-cache/
+packages/agent-cli/src/assets/

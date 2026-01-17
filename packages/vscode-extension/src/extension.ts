@@ -282,8 +282,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     await contextGen.generate(rootPath, version);
 
                     progress?.report({ message: "Generating Snippets..." });
-                    const indexPath = path.join(context.extensionPath, 'assets', 'n8n-nodes-index.json');
-                    const snippetGen = new SnippetGenerator(indexPath);
+                    const snippetGen = new SnippetGenerator();
                     await snippetGen.generate(rootPath);
 
                     context.workspaceState.update('n8n.lastInitVersion', version);

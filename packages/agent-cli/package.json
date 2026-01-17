@@ -27,8 +27,7 @@
         "typescript": "^5.3.3"
     },
     "files": [
-        "dist/",
-        "src/assets/"
+        "dist/"
     ],
     "publishConfig": {
         "access": "public"
