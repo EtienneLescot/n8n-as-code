@@ -50,17 +50,27 @@ async function main() {
 
     const nodesBaseDir = path.join(CACHE_DIR, 'packages/nodes-base');
     const nodesBaseDist = path.join(nodesBaseDir, 'dist/nodes');
+    
+    const nodesLangchainDir = path.join(CACHE_DIR, 'packages/@n8n/nodes-langchain');
+    const nodesLangchainDist = path.join(nodesLangchainDir, 'dist');
 
-    if (!fs.existsSync(nodesBaseDist) || process.env.FORCE_REBUILD_NODES === 'true') {
-        console.log('🏗 Preparing n8n nodes-base (this may take a while)...');
+    const needsRebuild = !fs.existsSync(nodesBaseDist) || 
+                        !fs.existsSync(nodesLangchainDist) || 
+                        process.env.FORCE_REBUILD_NODES === 'true';
+
+    if (needsRebuild) {
+        console.log('🏗 Preparing n8n nodes (this may take a while)...');
 
         console.log('📦 Installing dependencies (root)...');
         run('pnpm install', CACHE_DIR);
 
         console.log('🔨 Building n8n-nodes-base (with dependencies)...');
         run('pnpm build --filter n8n-nodes-base...', CACHE_DIR);
+        
+        console.log('🔨 Building @n8n/nodes-langchain (AI nodes)...');
+        run('pnpm build --filter @n8n/n8n-nodes-langchain', CACHE_DIR);
     } else {
-        console.log('✅ n8n nodes-base is already built.');
+        console.log('✅ n8n nodes-base and nodes-langchain are already built.');
     }
 }
 

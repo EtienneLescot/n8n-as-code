@@ -10,36 +10,36 @@ const args = process.argv.slice(2);
 const sourceArg = args.indexOf('--source');
 const outputArg = args.indexOf('--output');
 
-let DIST_ROOT = (sourceArg !== -1 && args[sourceArg + 1])
-    ? path.resolve(process.cwd(), args[sourceArg + 1])
-    : path.resolve(ROOT_DIR, '.n8n-cache/packages/nodes-base/dist/nodes');
+// Support scanning multiple directories
+let SCAN_DIRS = [];
 
-// If --source is a directory but doesn't end in /dist/nodes, try to append it
-if (fs.existsSync(DIST_ROOT) && !DIST_ROOT.endsWith('dist/nodes')) {
-    const potentialDist = path.join(DIST_ROOT, 'dist/nodes');
-    if (fs.existsSync(potentialDist)) {
-        DIST_ROOT = potentialDist;
-    } else if (path.basename(DIST_ROOT) === 'nodes-base') {
-        const p2 = path.join(DIST_ROOT, 'dist/nodes');
-        if (fs.existsSync(p2)) DIST_ROOT = p2;
-    }
+if (sourceArg !== -1 && args[sourceArg + 1]) {
+    // Custom source provided
+    SCAN_DIRS = [path.resolve(process.cwd(), args[sourceArg + 1])];
+} else {
+    // Default: scan both nodes-base and nodes-langchain
+    SCAN_DIRS = [
+        path.resolve(ROOT_DIR, '.n8n-cache/packages/nodes-base/dist/nodes'),
+        path.resolve(ROOT_DIR, '.n8n-cache/packages/@n8n/nodes-langchain/dist')
+    ];
 }
 
 let OUTPUT_FILE = (outputArg !== -1 && args[outputArg + 1])
     ? path.resolve(process.cwd(), args[outputArg + 1])
     : path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-nodes-index.json');
 
-// The node_modules of nodes-base might be needed for some resolutions if not hoisted
-const NODES_BASE_MODULES = path.resolve(DIST_ROOT, '../../node_modules');
-const CACHE_ROOT_MODULES = path.resolve(DIST_ROOT, '../../../../node_modules');
+// Add common node_modules paths for resolution
+const CACHE_ROOT = path.resolve(ROOT_DIR, '.n8n-cache');
+const CACHE_ROOT_MODULES = path.join(CACHE_ROOT, 'node_modules');
+const NODES_BASE_MODULES = path.join(CACHE_ROOT, 'packages/nodes-base/node_modules');
+const NODES_LANGCHAIN_MODULES = path.join(CACHE_ROOT, 'packages/@n8n/nodes-langchain/node_modules');
 
-// Ensure we can require modules from nodes-base (legacy dependencies)
-if (fs.existsSync(NODES_BASE_MODULES)) {
-    module.paths.push(NODES_BASE_MODULES);
-}
-if (fs.existsSync(CACHE_ROOT_MODULES)) {
-    module.paths.push(CACHE_ROOT_MODULES);
-}
+// Ensure we can require modules from both packages
+[CACHE_ROOT_MODULES, NODES_BASE_MODULES, NODES_LANGCHAIN_MODULES].forEach(modulePath => {
+    if (fs.existsSync(modulePath) && !module.paths.includes(modulePath)) {
+        module.paths.push(modulePath);
+    }
+});
 
 // Simple recursive file walker instead of glob dependency
 function findNodeFiles(dir) {
@@ -63,22 +63,36 @@ function findNodeFiles(dir) {
 
 async function extractNodes() {
     console.log('🚀 Starting Native Node Extraction...');
-    console.log(`📂 Source: ${DIST_ROOT}`);
-
-    if (!fs.existsSync(DIST_ROOT)) {
-        console.error('❌ Error: dist/nodes directory not found. Please run "pnpm build" in .n8n-cache/packages/nodes-base first.');
+    console.log(`📂 Scanning directories:`);
+    
+    // Collect all node files from all scan directories
+    let allNodeFiles = [];
+    
+    for (const scanDir of SCAN_DIRS) {
+        console.log(`   - ${scanDir}`);
+        
+        if (!fs.existsSync(scanDir)) {
+            console.warn(`   ⚠️  Directory not found, skipping: ${scanDir}`);
+            continue;
+        }
+        
+        const nodeFiles = findNodeFiles(scanDir);
+        console.log(`   ✓ Found ${nodeFiles.length} files`);
+        allNodeFiles = allNodeFiles.concat(nodeFiles);
+    }
+    
+    if (allNodeFiles.length === 0) {
+        console.error('❌ Error: No node files found. Please run ensure-n8n-cache.cjs first.');
         process.exit(1);
     }
-
-    // Find all .node.js files
-    const nodeFiles = findNodeFiles(DIST_ROOT);
-    console.log(`📦 Found ${nodeFiles.length} source files.`);
+    
+    console.log(`\n📦 Total source files: ${allNodeFiles.length}`);
 
     const results = [];
     let successCount = 0;
     let errorCount = 0;
 
-    for (const fullPath of nodeFiles) {
+    for (const fullPath of allNodeFiles) {
         try {
             // NATIVE REQUIRE
             // We rely on standard node module resolution + our pushed path for deps
@@ -168,7 +182,8 @@ async function extractNodes() {
 
     const outputData = {
         generatedAt: new Date().toISOString(),
-        sourceFileCount: nodeFiles.length,
+        sourceFileCount: allNodeFiles.length,
+        scanDirectories: SCAN_DIRS,
         nodes: results
     };
 

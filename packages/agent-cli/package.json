@@ -9,9 +9,9 @@
         "n8n-agent": "./dist/cli.js"
     },
     "scripts": {
-        "prebuild": "node ../../scripts/ensure-n8n-cache.cjs && node ../../scripts/generate-n8n-index.cjs",
+        "prebuild": "node ../../scripts/ensure-n8n-cache.cjs && node ../../scripts/generate-n8n-index.cjs && node ../../scripts/download-n8n-docs.cjs && node ../../scripts/enrich-nodes-index.cjs",
         "build": "tsc -b",
-        "postbuild": "mkdir -p dist/assets && cp src/assets/n8n-nodes-index.json dist/assets/",
+        "postbuild": "mkdir -p dist/assets && cp src/assets/n8n-nodes-index.json dist/assets/ && (cp src/assets/n8n-nodes-enriched.json dist/assets/ 2>/dev/null || true)",
         "clean": "rm -rf dist tsconfig.tsbuildinfo",
         "test": "node --experimental-vm-modules ../../node_modules/.bin/jest"
     },

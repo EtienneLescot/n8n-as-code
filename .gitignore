@@ -70,3 +70,5 @@ n8n-as-code-instance.json
 
 ignoredTests/
 session_context.json
+
+packages/agent-cli/src/assets/n8n-docs-cache/
