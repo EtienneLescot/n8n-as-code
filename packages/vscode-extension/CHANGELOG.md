@@ -1,5 +1,13 @@
 # n8n-as-code
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/core@0.4.0
+  - @n8n-as-code/agent-cli@0.4.1
+
 ## 0.4.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
     "name": "@n8n-as-code/agent-cli",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "description": "AI Agent Tools for n8n-as-code (Search, Get Schema)",
     "type": "module",
     "main": "dist/index.js",

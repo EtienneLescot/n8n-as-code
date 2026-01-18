@@ -1,5 +1,11 @@
 # @n8n-as-code/agent-cli
 
+## 0.4.1
+
+### Patch Changes
+
+- Version bump only
+
 ## 0.4.0
 
 ### Minor Changes

@@ -1,5 +1,23 @@
 # @n8n-as-code/core
 
+## 0.4.0
+
+### Minor Changes
+
+- fix(watcher): handle workflows without ID and filename inconsistencies
+
+  - Add pause/resume observation by filename for new workflows
+  - Implement ID-based workflow identification to prevent filename mismatches
+  - Add comprehensive test suite for workflow identification edge cases
+
+  The changes address critical issues where:
+
+  1. Workflows without IDs (new workflows) couldn't be properly paused during sync
+  2. Filename vs workflow.name vs workflow.id inconsistencies caused sync failures
+  3. Renamed workflows in n8n UI or locally renamed files weren't properly tracked
+
+  BREAKING CHANGE: The watcher now prioritizes workflow ID over filename for identification, which may affect workflows that relied on filename-based matching.
+
 ## 0.3.3
 
 ### Patch Changes
