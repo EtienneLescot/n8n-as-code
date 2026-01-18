@@ -1,5 +1,0 @@
-### 🤖 n8n-as-code-start
-### n8n Development Rules
-- Follow the Research Protocol in AGENTS.md.
-- Tooling: Use @n8n-as-code/agent-cli to fetch node schemas.
-### 🤖 n8n-as-code-end
