@@ -1,5 +1,12 @@
 # @n8n-as-code/cli
 
+## 0.3.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/core@0.4.1
+
 ## 0.3.4
 
 ### Patch Changes

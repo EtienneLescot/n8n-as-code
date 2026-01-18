@@ -1,5 +1,12 @@
 # n8n-as-code
 
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/core@0.4.1
+
 ## 0.4.1
 
 ### Patch Changes

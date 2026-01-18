@@ -1,5 +1,15 @@
 # @n8n-as-code/core
 
+## 0.4.1
+
+### Patch Changes
+
+- fix(sync): prevent infinite sync loops by cleaning metadata before write
+
+  - Use WorkflowSanitizer.cleanForStorage() to remove dynamic metadata before writing to local files
+  - Remove forced refresh in watcher.resumeObservation() to avoid sync loops in auto-sync mode
+  - Ensures local and remote states remain consistent without triggering unnecessary sync cycles
+
 ## 0.4.0
 
 ### Minor Changes
