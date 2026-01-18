@@ -42,6 +42,7 @@ export class Watcher extends EventEmitter {
     // Concurrency control
     private isPaused = new Set<string>(); // IDs for which observation is paused
     private syncInProgress = new Set<string>(); // IDs currently being synced
+    private pausedFilenames = new Set<string>(); // Filenames for which observation is paused (for workflows without ID yet)
 
     // Lightweight polling cache
     private remoteTimestamps: Map<string, string> = new Map(); // workflowId -> updatedAt
@@ -148,6 +149,20 @@ export class Watcher extends EventEmitter {
     }
 
     /**
+     * Pause observation for a filename (for workflows without ID yet)
+     */
+    public pauseObservationByFilename(filename: string) {
+        this.pausedFilenames.add(filename);
+    }
+
+    /**
+     * Resume observation for a filename
+     */
+    public resumeObservationByFilename(filename: string) {
+        this.pausedFilenames.delete(filename);
+    }
+
+    /**
      * Mark a workflow as being synced (prevents race conditions)
      */
     public markSyncInProgress(workflowId: string) {
@@ -167,6 +182,11 @@ export class Watcher extends EventEmitter {
 
         const content = this.readJsonFile(filePath);
         if (!content) return;
+
+        // Check if filename is paused (for workflows without ID)
+        if (this.pausedFilenames.has(filename)) {
+            return;
+        }
 
         const workflowId = content.id || this.fileToIdMap.get(filename);
         if (workflowId && (this.isPaused.has(workflowId) || this.syncInProgress.has(workflowId))) {
@@ -302,7 +322,20 @@ export class Watcher extends EventEmitter {
                 
                 currentRemoteIds.add(wf.id);
 
-                const filename = `${this.safeName(wf.name)}.json`;
+                // CRITICAL: Use ID-based mapping instead of name-based filename generation
+                // This prevents issues when filename != workflow.name
+                let filename = this.idToFileMap.get(wf.id);
+                
+                // If no mapping exists, try to find the file by scanning local files
+                if (!filename) {
+                    filename = this.findFilenameByWorkflowId(wf.id);
+                }
+                
+                // If still not found, generate filename from name (new remote workflow)
+                if (!filename) {
+                    filename = `${this.safeName(wf.name)}.json`;
+                }
+                
                 this.idToFileMap.set(wf.id, filename);
                 this.fileToIdMap.set(filename, wf.id);
 
@@ -559,6 +592,27 @@ export class Watcher extends EventEmitter {
 
     private safeName(name: string): string {
         return name.replace(/[\/\\:]/g, '_').replace(/\s+/g, ' ').trim();
+    }
+
+    /**
+     * Find local file that contains a specific workflow ID
+     * Used when we have an ID but no filename mapping yet (e.g., after file rename)
+     */
+    private findFilenameByWorkflowId(workflowId: string): string | undefined {
+        if (!fs.existsSync(this.directory)) {
+            return undefined;
+        }
+        
+        const files = fs.readdirSync(this.directory)
+            .filter(f => f.endsWith('.json') && !f.startsWith('.'));
+        
+        for (const file of files) {
+            const content = this.readJsonFile(path.join(this.directory, file));
+            if (content?.id === workflowId) {
+                return file;
+            }
+        }
+        return undefined;
     }
 
     private readJsonFile(filePath: string): any {

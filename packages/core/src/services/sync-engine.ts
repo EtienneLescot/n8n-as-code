@@ -99,9 +99,13 @@ export class SyncEngine {
      * Based on spec 5.3 PUSH Strategy table
      */
     public async push(filename: string, workflowId?: string, status?: WorkflowSyncStatus): Promise<string> {
+        // If workflow has an ID, pause observation by ID
         if (workflowId) {
             this.watcher.markSyncInProgress(workflowId);
             this.watcher.pauseObservation(workflowId);
+        } else {
+            // If no ID yet (new workflow), pause observation by filename
+            this.watcher.pauseObservationByFilename(filename);
         }
 
         try {
@@ -149,6 +153,9 @@ export class SyncEngine {
             if (workflowId) {
                 this.watcher.markSyncComplete(workflowId);
                 this.watcher.resumeObservation(workflowId);
+            } else {
+                // Resume observation by filename if no ID (new workflow case)
+                this.watcher.resumeObservationByFilename(filename);
             }
         }
     }
