@@ -306,6 +306,8 @@ export class SyncEngine {
 
         // CRITICAL: Write the API response back to local file to ensure consistency
         // This ensures local and remote have identical content after push
+        // IMPORTANT: We use cleanForStorage to remove dynamic metadata (versionId, etc.)
+        // This prevents the watcher from detecting a change and triggering another sync
         const clean = WorkflowSanitizer.cleanForStorage(updatedWf);
         fs.writeFileSync(filePath, JSON.stringify(clean, null, 2));
 
@@ -331,9 +333,10 @@ export class SyncEngine {
             throw new Error('Failed to create remote workflow');
         }
 
-        // Update local file with new ID
-        localWf.id = newWf.id;
-        fs.writeFileSync(filePath, JSON.stringify(localWf, null, 2));
+        // Update local file with new ID and clean metadata
+        // IMPORTANT: Use cleanForStorage to prevent watcher from detecting metadata changes
+        const clean = WorkflowSanitizer.cleanForStorage(newWf);
+        fs.writeFileSync(filePath, JSON.stringify(clean, null, 2));
 
         return newWf.id;
     }

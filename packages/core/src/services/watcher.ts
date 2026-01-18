@@ -144,8 +144,9 @@ export class Watcher extends EventEmitter {
      */
     public resumeObservation(workflowId: string) {
         this.isPaused.delete(workflowId);
-        // Force refresh to get latest state
-        this.refreshRemoteState();
+        // Don't force refresh here - let the normal polling cycle handle it
+        // Forcing a refresh after every sync can cause loops in auto-sync mode
+        // because the remote state might not be immediately consistent with local state
     }
 
     /**
