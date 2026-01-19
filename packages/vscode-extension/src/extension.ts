@@ -275,7 +275,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
                     progress?.report({ message: "Generating AGENTS.md..." });
                     const contextGen = new AiContextGenerator();
-                    await contextGen.generate(rootPath, version);
+                    await contextGen.generate(rootPath, version, context.extensionPath);
 
                     progress?.report({ message: "Generating Snippets..." });
                     const snippetGen = new SnippetGenerator();
