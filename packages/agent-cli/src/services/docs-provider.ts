@@ -2,8 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const _filename = typeof __filename !== 'undefined'
+    ? __filename
+    : (typeof import.meta !== 'undefined' && import.meta.url ? fileURLToPath(import.meta.url) : '');
+
+const _dirname = typeof __dirname !== 'undefined'
+    ? __dirname
+    : (_filename ? path.dirname(_filename) : '');
 
 export interface DocPage {
     id: string;
@@ -81,7 +86,7 @@ export class DocsProvider {
         if (customDocsPath) {
             this.docsPath = customDocsPath;
         } else {
-            this.docsPath = path.resolve(__dirname, '../assets/n8n-docs-complete.json');
+            this.docsPath = path.resolve(_dirname, '../assets/n8n-docs-complete.json');
         }
     }
 
@@ -120,7 +125,7 @@ export class DocsProvider {
         // Normalization for accented characters (e.g. "génération" -> "generation")
         const queryClean = queryLower.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const queryTerms = queryClean.split(/\s+/).filter(t => t.length > 2);
-        
+
         const results: Array<{ page: DocPage; score: number }> = [];
 
         for (const page of this.docs.pages) {
@@ -140,7 +145,7 @@ export class DocsProvider {
             if (docTitleClean === queryClean) {
                 score += 100;
             }
-            
+
             // 2. All terms in title
             if (queryTerms.length > 0 && queryTerms.every(t => docTitleClean.includes(t))) {
                 score += 50;
@@ -190,7 +195,7 @@ export class DocsProvider {
         if (!this.docs) return null;
 
         const titleLower = title.toLowerCase();
-        return this.docs.pages.find(p => 
+        return this.docs.pages.find(p =>
             p.title.toLowerCase() === titleLower
         ) || null;
     }
@@ -252,7 +257,7 @@ export class DocsProvider {
 
         for (const keyword of keywords) {
             const keywordLower = keyword.toLowerCase();
-            
+
             for (const page of this.docs.pages) {
                 if (page.metadata.keywords.some(k => k.toLowerCase() === keywordLower)) {
                     const current = results.get(page.id) || 0;
@@ -277,7 +282,7 @@ export class DocsProvider {
         this.loadDocs();
         if (!this.docs) return [];
 
-        return this.docs.pages.filter(p => 
+        return this.docs.pages.filter(p =>
             p.nodeName?.toLowerCase() === nodeName.toLowerCase()
         );
     }
@@ -289,15 +294,15 @@ export class DocsProvider {
         this.loadDocs();
         if (!this.docs) return [];
 
-        let examples = this.docs.pages.filter(p => 
-            p.category === 'tutorials' || 
+        let examples = this.docs.pages.filter(p =>
+            p.category === 'tutorials' ||
             p.category === 'advanced-ai' ||
             p.subcategory === 'examples'
         );
 
         if (query) {
             const queryLower = query.toLowerCase();
-            examples = examples.filter(p => 
+            examples = examples.filter(p =>
                 p.title.toLowerCase().includes(queryLower) ||
                 p.metadata.keywords.some(k => k.toLowerCase().includes(queryLower)) ||
                 p.metadata.useCases.some(uc => uc.toLowerCase().includes(queryLower))

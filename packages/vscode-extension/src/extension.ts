@@ -36,8 +36,14 @@ const outputChannel = vscode.window.createOutputChannel("n8n-as-code");
 const conflictStore = new Map<string, string>();
 
 export async function activate(context: vscode.ExtensionContext) {
-    outputChannel.show(true);
-    outputChannel.appendLine('🔌 Activation of "n8n-as-code" (new initialization flow)...');
+    console.log('[n8n-debug] Activating extension...');
+    try {
+        console.log('[n8n-debug] Creating output channel...');
+        outputChannel.show(true);
+        outputChannel.appendLine('🔌 Activation of "n8n-as-code" (new initialization flow)...');
+    } catch (e) {
+        console.error('[n8n-debug] Failed to create output channel', e);
+    }
 
     // Register Remote Content Provider for Diffs
     context.subscriptions.push(
@@ -61,7 +67,13 @@ export async function activate(context: vscode.ExtensionContext) {
     proxyService.setSecrets(context.secrets);
 
     // 1. Determine initial state
-    await determineInitialState(context);
+    console.log('[n8n-debug] Determining initial state...');
+    try {
+        await determineInitialState(context);
+        console.log('[n8n-debug] Initial state determined.');
+    } catch (e) {
+        console.error('[n8n-debug] Failed to determine initial state', e);
+    }
 
     // Initial context keys update
     updateContextKeys();
@@ -111,7 +123,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 const workflowsBefore = await syncManager.getWorkflowsStatus();
                 const modifiedWorkflows = workflowsBefore.filter(
                     wf => wf.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
-                          wf.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY
+                        wf.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY
                 );
 
                 // Use Redux Thunk
@@ -229,10 +241,10 @@ export async function activate(context: vscode.ExtensionContext) {
             try {
                 // Use syncDown to pull all workflows, which will update this one
                 await syncManager.syncDown();
-                
+
                 // No need to reload webview on pull - we're just updating local to match remote
                 // The webview already shows the remote version
-                
+
                 enhancedTreeProvider.refresh();
                 statusBar.showSynced();
                 vscode.window.showInformationMessage(`✅ Pulled "${wf.name}"`);
@@ -356,20 +368,20 @@ export async function activate(context: vscode.ExtensionContext) {
 
             // Try to get conflict data from store first
             let conflict = enhancedTreeProvider.getConflict(wf.id);
-            
+
             // If not in store, fetch remote content to create conflict data
             if (!conflict && wf.filename) {
                 try {
                     outputChannel.appendLine(`[n8n] Fetching remote content for conflict resolution: ${wf.id}`);
                     const client = new N8nApiClient(getN8nConfig());
                     const remoteWorkflow = await client.getWorkflow(wf.id);
-                    
+
                     conflict = {
                         id: wf.id,
                         filename: wf.filename,
                         remoteContent: remoteWorkflow
                     };
-                    
+
                     // Store it for future use
                     store.dispatch(addConflict(conflict));
                 } catch (e: any) {
@@ -378,7 +390,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     return;
                 }
             }
-            
+
             if (!conflict) {
                 vscode.window.showInformationMessage('No conflict data found for this workflow.');
                 return;
@@ -412,7 +424,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 // Reload workflows to get updated state
                 const workflows = await syncManager.getWorkflowsStatus();
                 store.dispatch(setWorkflows(workflows));
-                
+
                 // Remove conflict
                 store.dispatch(removeConflict(id));
 
@@ -431,7 +443,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 // Reload workflows to get updated state
                 const workflows = await syncManager.getWorkflowsStatus();
                 store.dispatch(setWorkflows(workflows));
-                
+
                 // Remove conflict
                 store.dispatch(removeConflict(id));
 
@@ -549,6 +561,7 @@ function updateContextKeys() {
 async function determineInitialState(context: vscode.ExtensionContext) {
     const configValidation = validateN8nConfig();
     const workspaceRoot = getWorkspaceRoot();
+    console.log('[n8n-debug] getWorkspaceRoot returned:', workspaceRoot);
 
     if (!workspaceRoot) {
         // No workspace open
@@ -684,16 +697,16 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     } catch (error: any) {
         // Check if it's a connection error (no response from server or specific codes)
         const isConnectionError = !error.response ||
-                                  error.code === 'ECONNREFUSED' ||
-                                  error.code === 'ENOTFOUND' ||
-                                  error.code === 'ETIMEDOUT';
+            error.code === 'ECONNREFUSED' ||
+            error.code === 'ENOTFOUND' ||
+            error.code === 'ETIMEDOUT';
 
         if (isConnectionError) {
             outputChannel.appendLine(`[n8n] Connection test failed: ${error.message}`);
             // Throw a friendly error message immediately to prevent directory creation
             throw new Error(`Cannot connect to n8n instance at "${host}". Please check if n8n is running and the host URL is correct.`);
         }
-        
+
         // For other errors (like 401 Unauthorized or 403 Forbidden),
         // we can still use the fallback identifier since the instance IS reachable
         instanceIdentifier = createFallbackInstanceIdentifier(host, apiKey);
@@ -719,18 +732,18 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
     // Wire up event handlers BEFORE starting watch
     // This ensures connection-lost is caught even during initial refresh
-    
+
     // Handle connection loss (both during startup and runtime)
     syncManager.on('connection-lost', (error: Error) => {
         outputChannel.appendLine(`[n8n] CONNECTION LOST: ${error.message}`);
-        
+
         // Stop sync manager
         syncManager!.stopWatch();
-        
+
         // Update UI to error state
         enhancedTreeProvider.setExtensionState(ExtensionState.ERROR, error.message);
         statusBar.showError('Connection lost');
-        
+
         // Show notification with retry option
         vscode.window.showErrorMessage(
             `Lost connection to n8n instance. The instance may have stopped.`,
@@ -750,7 +763,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         console.error(msg);
         vscode.window.showErrorMessage(`n8n Error: ${msg}`);
     });
-    
+
     syncManager.on('log', (msg) => {
         console.log(msg);
         outputChannel.appendLine(msg);
@@ -775,7 +788,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         // Handle remote deletion with interactive notification
         if (ev.status === WorkflowSyncStatus.DELETED_REMOTELY && ev.workflowId) {
             outputChannel.appendLine(`[n8n] REMOTE DELETION detected for: ${ev.filename}`);
-            
+
             // Interactive notification with action buttons
             const choice = await vscode.window.showWarningMessage(
                 `🗑️ Remote workflow "${ev.filename}" was deleted - Archive local file?`,

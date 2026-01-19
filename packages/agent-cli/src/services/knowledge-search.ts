@@ -5,8 +5,13 @@ import FlexSearch from 'flexsearch';
 import { DocsProvider } from './docs-provider.js';
 import { NodeSchemaProvider } from './node-schema-provider.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const _filename = typeof __filename !== 'undefined'
+    ? __filename
+    : (typeof import.meta !== 'undefined' && import.meta.url ? fileURLToPath(import.meta.url) : '');
+
+const _dirname = typeof __dirname !== 'undefined'
+    ? __dirname
+    : (_filename ? path.dirname(_filename) : '');
 
 export interface UnifiedSearchResult {
     query: string;
@@ -55,7 +60,7 @@ export class KnowledgeSearch {
         } else {
             // In dev (ts-node): src/services/../assets -> src/assets
             // In prod (node dist): dist/services/../assets -> dist/assets
-            this.indexPath = path.resolve(__dirname, '../assets/n8n-knowledge-index.json');
+            this.indexPath = path.resolve(_dirname, '../assets/n8n-knowledge-index.json');
         }
         this.docsProvider = new DocsProvider();
         this.nodeProvider = new NodeSchemaProvider();

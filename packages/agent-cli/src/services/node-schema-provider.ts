@@ -3,13 +3,13 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 // Helper to get __dirname in ESM and CJS (bundled)
-const _filename = typeof import.meta !== 'undefined' && import.meta.url
-    ? fileURLToPath(import.meta.url)
-    : (typeof __filename !== 'undefined' ? __filename : '');
+const _filename = typeof __filename !== 'undefined'
+    ? __filename
+    : (typeof import.meta !== 'undefined' && import.meta.url ? fileURLToPath(import.meta.url) : '');
 
 const _dirname = typeof __dirname !== 'undefined'
     ? __dirname
-    : path.dirname(_filename as string);
+    : (_filename ? path.dirname(_filename) : '');
 
 export interface INodeSchemaStub {
     name: string;
@@ -62,7 +62,7 @@ export class NodeSchemaProvider {
 
     private loadIndex() {
         if (this.index) return;
-        
+
         // Load technical index (required)
         if (!fs.existsSync(this.enrichedIndexPath)) {
             throw new Error(
@@ -108,14 +108,14 @@ export class NodeSchemaProvider {
     private calculateRelevance(query: string, node: any, key: string): number {
         const lowerQuery = query.toLowerCase();
         let score = 0;
-        
+
         // Exact name match (highest priority)
         if (key.toLowerCase() === lowerQuery) {
             score += 1000;
         } else if (key.toLowerCase().includes(lowerQuery)) {
             score += 500;
         }
-        
+
         // Display name match
         const displayName = (node.displayName || '').toLowerCase();
         if (displayName === lowerQuery) {
@@ -123,7 +123,7 @@ export class NodeSchemaProvider {
         } else if (displayName.includes(lowerQuery)) {
             score += 400;
         }
-        
+
         // Keyword match (from enriched metadata)
         if (node.metadata?.keywords) {
             const keywords = node.metadata.keywords;
@@ -131,39 +131,39 @@ export class NodeSchemaProvider {
                 score += 300;
             }
             // Partial keyword match
-            const matchingKeywords = keywords.filter((k: string) => 
+            const matchingKeywords = keywords.filter((k: string) =>
                 k.includes(lowerQuery) || lowerQuery.includes(k)
             );
             score += matchingKeywords.length * 50;
         }
-        
+
         // Operations match
         if (node.metadata?.operations) {
-            const matchingOps = node.metadata.operations.filter((op: string) => 
+            const matchingOps = node.metadata.operations.filter((op: string) =>
                 op.toLowerCase().includes(lowerQuery)
             );
             score += matchingOps.length * 100;
         }
-        
+
         // Use cases match
         if (node.metadata?.useCases) {
-            const matchingUseCases = node.metadata.useCases.filter((uc: string) => 
+            const matchingUseCases = node.metadata.useCases.filter((uc: string) =>
                 uc.toLowerCase().includes(lowerQuery)
             );
             score += matchingUseCases.length * 80;
         }
-        
+
         // Description match (lower priority)
         const description = (node.description || '').toLowerCase();
         if (description.includes(lowerQuery)) {
             score += 100;
         }
-        
+
         // Bonus for nodes with high keyword scores (AI/popular nodes)
         if (node.metadata?.keywordScore) {
             score += node.metadata.keywordScore * 0.5;
         }
-        
+
         // Multi-word query: check if all words match
         const queryWords = lowerQuery.split(/\s+/).filter(w => w.length > 2);
         if (queryWords.length > 1) {
@@ -175,13 +175,13 @@ export class NodeSchemaProvider {
                 ...(node.metadata?.operations || []),
                 ...(node.metadata?.useCases || [])
             ].join(' ');
-            
+
             const matchedWords = queryWords.filter(word => allFields.includes(word));
             if (matchedWords.length === queryWords.length) {
                 score += 200 * queryWords.length;
             }
         }
-        
+
         return score;
     }
 
@@ -196,7 +196,7 @@ export class NodeSchemaProvider {
 
         for (const [key, node] of Object.entries<any>(this.index.nodes)) {
             const score = this.calculateRelevance(query, node, key);
-            
+
             if (score > 0) {
                 scoredResults.push({
                     name: node.name || key,
@@ -214,7 +214,7 @@ export class NodeSchemaProvider {
 
         // Sort by score (highest first) and take top results
         scoredResults.sort((a, b) => b.score - a.score);
-        
+
         return scoredResults.slice(0, limit).map(({ score, ...rest }) => rest);
     }
 
