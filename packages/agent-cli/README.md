@@ -17,11 +17,13 @@ npm install @n8n-as-code/agent-cli
 
 ## 📖 CLI Usage
 
-### `search <query>` - 🔍 Unified Search
-Search across nodes AND documentation with intelligent hints.
+### `search <query>` - 🚀 Deep Unified Search (PRIMARY TOOL)
+**Deep Full-Text Search** across 500+ nodes and 1240+ documentation pages.
+Optimized for natural language queries and vague intents.
 
 ```bash
-# Search everything
+# Search nodes, docs, and tutorials
+n8n-agent search "how to generate images"
 n8n-agent search "google sheets"
 
 # Filter by type
@@ -50,21 +52,16 @@ n8n-agent schema googleSheets
 # Returns only properties and required fields
 ```
 
-### `docs` - 📖 Access Documentation
-Access n8n's complete documentation (1246+ pages).
+### `docs <title>` - 📖 Read Documentation
+Read full documentation pages. Use `search` first to find relevant titles.
 
 ```bash
-# Search documentation
-n8n-agent docs --search "ai agents"
-
 # Read a specific page
-n8n-agent docs "What is an agent?"
+n8n-agent docs "Google Gemini"
+n8n-agent docs "Expressions"
 
-# List all categories
+# List categories or stats
 n8n-agent docs --list
-
-# Filter by category
-n8n-agent docs --search "memory" --category advanced-ai
 ```
 
 ### `examples [query]` - 🎯 Find Examples

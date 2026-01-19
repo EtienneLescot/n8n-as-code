@@ -218,10 +218,23 @@ function sleep(ms) {
  * Download all pages with rate limiting
  */
 async function downloadAllPages(links) {
-    console.log(`\n📥 Downloading ${links.length} pages...`);
-    
     const results = [];
     const errors = [];
+    
+    // Check if cache is sufficient
+    if (fs.existsSync(METADATA_FILE)) {
+        try {
+            const metadata = JSON.parse(fs.readFileSync(METADATA_FILE, 'utf-8'));
+            if (metadata.totalPages > 0 && fs.existsSync(PAGES_DIR)) {
+                console.log(`\n✅ Cache found with ${metadata.totalPages} pages. Skipping all downloads.`);
+                return { results: Object.values(metadata.pages), errors: [] };
+            }
+        } catch (e) {
+            console.log('⚠️ Failed to read metadata, proceeding with download.');
+        }
+    }
+
+    console.log(`\n📥 Downloading ${links.length} pages...`);
     
     // Process in batches
     for (let i = 0; i < links.length; i += MAX_CONCURRENT_DOWNLOADS) {
@@ -246,6 +259,10 @@ async function downloadAllPages(links) {
                 await mkdir(path.dirname(pagePath), { recursive: true });
                 await writeFile(pagePath, content);
                 
+                if ((results.length + 1) % 50 === 0) {
+                    console.log(`   Downloaded ${results.length + 1}/${links.length} pages...`);
+                }
+                
                 const result = {
                     id: pageId,
                     title: link.title,
@@ -261,10 +278,6 @@ async function downloadAllPages(links) {
                 };
                 
                 results.push(result);
-                
-                if ((results.length) % 50 === 0) {
-                    console.log(`   Downloaded ${results.length}/${links.length} pages...`);
-                }
                 
                 return result;
             } catch (error) {

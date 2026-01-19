@@ -134,7 +134,7 @@ export class AiContextGenerator {
       ``,
       `### 🌍 Context`,
       `- **n8n Version**: ${n8nVersion}`,
-      `- **Source of Truth**: \`@n8n-as-code/agent-cli\` tools (enriched node schemas with semantic metadata)`,
+      `- **Source of Truth**: \`@n8n-as-code/agent-cli\` tools (Deep Search Knowledge Base + Enriched Technical Schemas)`,
       ``,
       `---`,
       ``,
@@ -262,7 +262,7 @@ export class AiContextGenerator {
       `./n8n-agent search "how to use RAG"`,
       `./n8n-agent search "generate image"`,
       `\`\`\``,
-      `**ALWAYS START HERE.** This tool performs a deep hybrid search across all nodes, documentation, and tutorials. It is optimized to find what you need even with natural language.`,
+      `**ALWAYS START HERE.** This tool performs a **Deep Full-Text Search** across all nodes, documentation (1240+ pages), and tutorials. It is optimized to find what you need even with vague or natural language queries (e.g., "generate image").`,
       ``,
       `### 📖 Read Documentation`,
       `\`\`\`bash`,
@@ -346,13 +346,13 @@ export class AiContextGenerator {
       `# n8n-as-code rules`,
       `- Refer to AGENTS.md for complete n8n workflow standards.`,
       `- MANDATORY: Use 'n8n-agent' tools before creating/editing nodes.`,
-      `- Search: './n8n-agent search <query>' - Find nodes & docs`,
+      `- Search: './n8n-agent search <query>' - Find nodes & docs (PRIMARY TOOL)`,
       `- Get: './n8n-agent get <nodeName>' - Complete node info`,
-      `- Schema: './n8n-agent schema <nodeName>' - Quick parameters`,
-      `- Docs: './n8n-agent docs --search <query>' - Access 1246+ pages`,
-      `- Examples: './n8n-agent examples <query>' - Find tutorials`,
-      `- Related: './n8n-agent related <nodeName>' - Discover ecosystem`,
-      `- Validate: './n8n-agent validate workflow.json' - Check errors`
+      `- Schema: './n8n-agent schema <nodeName>' - Quick parameters reference`,
+      `- Docs: './n8n-agent docs <title>' - Read a specific documentation page`,
+      `- Examples: './n8n-agent examples <query>' - Find tutorials and examples`,
+      `- Related: './n8n-agent related <nodeName>' - Discover ecosystem and related nodes`,
+      `- Validate: './n8n-agent validate workflow.json' - Check your workflow for errors`
     ].join('\n');
   }
 
@@ -362,7 +362,8 @@ export class AiContextGenerator {
       `  description: Expert in n8n-as-code`,
       `  instructions:`,
       `    - Read AGENTS.md for core principles.`,
-      `    - Use './n8n-agent' search/get/docs before editing workflow JSON.`,
+      `    - Use './n8n-agent search' as your primary research tool.`,
+      `    - Use './n8n-agent get' to fetch exact schema before editing workflow JSON.`,
       `    - Use './n8n-agent' validate workflow.json to verify your work.`,
       `    - Ensure connections are correctly indexed.`
     ].join('\n');
