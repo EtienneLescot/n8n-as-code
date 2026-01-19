@@ -64,28 +64,28 @@ function findNodeFiles(dir) {
 async function extractNodes() {
     console.log('🚀 Starting Native Node Extraction...');
     console.log(`📂 Scanning directories:`);
-    
+
     // Collect all node files from all scan directories
     let allNodeFiles = [];
-    
+
     for (const scanDir of SCAN_DIRS) {
         console.log(`   - ${scanDir}`);
-        
+
         if (!fs.existsSync(scanDir)) {
             console.warn(`   ⚠️  Directory not found, skipping: ${scanDir}`);
             continue;
         }
-        
+
         const nodeFiles = findNodeFiles(scanDir);
         console.log(`   ✓ Found ${nodeFiles.length} files`);
         allNodeFiles = allNodeFiles.concat(nodeFiles);
     }
-    
+
     if (allNodeFiles.length === 0) {
         console.error('❌ Error: No node files found. Please run ensure-n8n-cache.cjs first.');
         process.exit(1);
     }
-    
+
     console.log(`\n📦 Total source files: ${allNodeFiles.length}`);
 
     const results = [];
@@ -149,7 +149,7 @@ async function extractNodes() {
                 }
             }
 
-            if (description) {
+            if (description && description.name && description.displayName) {
                 results.push({
                     name: description.name,
                     displayName: description.displayName,
@@ -161,6 +161,9 @@ async function extractNodes() {
                     sourcePath: fullPath.replace(ROOT_DIR, '')
                 });
                 successCount++;
+            } else if (description) {
+                if (process.env.DEBUG) console.log(`❌ Invalid description specific data (missing name/displayName): ${path.basename(fullPath)}`);
+                errorCount++;
             } else {
                 if (process.env.DEBUG) console.log(`❌ No description found for: ${path.basename(fullPath)} (Keys: ${moduleKeys.join(', ')})`);
                 errorCount++;
