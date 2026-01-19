@@ -37,20 +37,20 @@ function buildDocSearchEntry(page) {
         category: page.category,
         subcategory: page.subcategory,
         excerpt: page.content.excerpt,
-        
+
         searchTerms: [
             ...page.metadata.keywords,
             ...page.searchIndex.importantTerms,
             page.title.toLowerCase()
         ].filter((v, i, a) => a.indexOf(v) === i), // unique
-        
+
         metadata: {
             complexity: page.metadata.complexity,
             readingTime: page.metadata.readingTime,
             hasCodeExamples: page.metadata.codeExamples > 0,
             useCasesCount: page.metadata.useCases.length
         },
-        
+
         score: calculateDocScore(page)
     };
 }
@@ -60,7 +60,7 @@ function buildDocSearchEntry(page) {
  */
 function calculateDocScore(page) {
     let score = 5.0; // Base score
-    
+
     // Boost for categories
     const categoryBoosts = {
         'integrations': 2.0,
@@ -70,16 +70,16 @@ function calculateDocScore(page) {
         'concepts': 1.0
     };
     score += categoryBoosts[page.category] || 0;
-    
+
     // Boost for content quality
     if (page.metadata.useCases.length > 0) score += 1.0;
     if (page.metadata.codeExamples > 0) score += 0.5;
     if (page.metadata.contentLength > 5000) score += 1.0;
     else if (page.metadata.contentLength > 2000) score += 0.5;
-    
+
     // Boost for node-specific docs
     if (page.nodeName) score += 2.0;
-    
+
     return Math.round(score * 10) / 10;
 }
 
@@ -98,7 +98,7 @@ function buildNodeSearchEntry(nodeName, node) {
         displayName: node.displayName || nodeName,
         description: node.description || '',
         category: node.group?.[0] || 'other',
-        
+
         searchTerms: [
             nodeName.toLowerCase(),
             (node.displayName || nodeName).toLowerCase(),
@@ -108,19 +108,19 @@ function buildNodeSearchEntry(nodeName, node) {
             ...operations,
             ...useCases
         ].filter((v, i, a) => a.indexOf(v) === i).slice(0, 100), // unique, limit
-        
+
         metadata: {
             hasDocumentation: node.metadata?.hasDocumentation || false,
             hasExamples: useCases.length > 0,
             operationsCount: operations.length,
             propertiesCount: properties.length
         },
-        
+
         documentation: {
             mainPage: node.metadata?.markdownUrl || null,
             examplesCount: useCases.length
         },
-        
+
         score: calculateNodeScore(node)
     };
 }
@@ -130,18 +130,18 @@ function buildNodeSearchEntry(nodeName, node) {
  */
 function calculateNodeScore(node) {
     let score = 7.0; // Base score (nodes are important)
-    
+
     // Boost for documentation
     if (node.metadata?.hasDocumentation) score += 2.0;
     if (node.metadata?.useCases?.length > 0) score += 1.0;
-    
+
     // Boost for completeness
     const propertiesCount = node.schema?.properties?.length || 0;
     if (propertiesCount > 10) score += 0.5;
-    
+
     const operationsCount = node.metadata?.operations?.length || 0;
     if (operationsCount > 0) score += 0.5;
-    
+
     // Boost for common groups
     const groupBoosts = {
         'input': 1.5,
@@ -150,12 +150,12 @@ function calculateNodeScore(node) {
     };
     const group = node.group?.[0];
     if (group) score += groupBoosts[group] || 0;
-    
+
     // Keyword score boost
     if (node.metadata?.keywordScore) {
         score += Math.min(node.metadata.keywordScore / 10, 2);
     }
-    
+
     return Math.round(score * 10) / 10;
 }
 
@@ -164,7 +164,7 @@ function calculateNodeScore(node) {
  */
 function buildKeywordIndex(entries) {
     const index = {};
-    
+
     for (const entry of entries) {
         for (const term of entry.searchTerms) {
             if (!index[term]) {
@@ -177,12 +177,12 @@ function buildKeywordIndex(entries) {
             });
         }
     }
-    
+
     // Sort by score within each keyword
     for (const term in index) {
         index[term].sort((a, b) => b.score - a.score);
     }
-    
+
     return index;
 }
 
@@ -194,7 +194,7 @@ function buildCategoryIndex(entries) {
         documentation: {},
         nodes: {}
     };
-    
+
     for (const entry of entries) {
         if (entry.type === 'documentation') {
             const cat = entry.category;
@@ -210,7 +210,7 @@ function buildCategoryIndex(entries) {
             index.nodes[cat].push(entry.name);
         }
     }
-    
+
     return index;
 }
 
@@ -223,16 +223,16 @@ function buildQuickLookup(nodes, docs) {
         docById: {},
         docByNodeName: {}
     };
-    
+
     // Index nodes
     for (const entry of nodes) {
         lookup.nodeByName[entry.name] = entry;
     }
-    
+
     // Index docs
     for (const entry of docs) {
         lookup.docById[entry.id] = entry;
-        
+
         // Index by node name if applicable
         const page = docs.find(d => d.id === entry.id);
         if (page && page.nodeName) {
@@ -242,7 +242,7 @@ function buildQuickLookup(nodes, docs) {
             lookup.docByNodeName[page.nodeName].push(entry.id);
         }
     }
-    
+
     return lookup;
 }
 
@@ -259,7 +259,7 @@ function buildSuggestions(entries) {
             advanced: []
         }
     };
-    
+
     // Top scored entries
     const sorted = [...entries].sort((a, b) => b.score - a.score);
     suggestions.popular = sorted.slice(0, 20).map(e => ({
@@ -268,7 +268,7 @@ function buildSuggestions(entries) {
         title: e.type === 'node' ? e.displayName : e.title,
         score: e.score
     }));
-    
+
     // By category
     for (const entry of entries) {
         const cat = entry.category;
@@ -283,7 +283,7 @@ function buildSuggestions(entries) {
             });
         }
     }
-    
+
     // By complexity (docs only)
     for (const entry of entries) {
         if (entry.type === 'documentation' && entry.metadata.complexity) {
@@ -296,7 +296,7 @@ function buildSuggestions(entries) {
             }
         }
     }
-    
+
     return suggestions;
 }
 
@@ -306,31 +306,31 @@ function buildSuggestions(entries) {
 async function main() {
     console.log('🚀 n8n Knowledge Index Builder (with FlexSearch)');
     console.log('===============================================\n');
-    
+
     try {
         // Load documentation
         console.log('📥 Loading complete documentation...');
         const docsComplete = JSON.parse(await readFile(DOCS_COMPLETE_FILE, 'utf-8'));
         console.log(`✅ Loaded ${docsComplete.totalPages} documentation pages`);
-        
+
         // Load nodes
         console.log('\n📥 Loading technical nodes...');
         const nodesTechnical = JSON.parse(await readFile(NODES_TECHNICAL_FILE, 'utf-8'));
         const nodesCount = Object.keys(nodesTechnical.nodes).length;
         console.log(`✅ Loaded ${nodesCount} nodes`);
-        
+
         // Build search entries for docs
         console.log('\n🔍 Building search entries for documentation...');
         const docEntries = docsComplete.pages.map(page => buildDocSearchEntry(page));
         console.log(`✅ Built ${docEntries.length} doc entries`);
-        
+
         // Build search entries for nodes
         console.log('\n🔍 Building search entries for nodes...');
         const nodeEntries = Object.entries(nodesTechnical.nodes).map(([name, node]) =>
             buildNodeSearchEntry(name, node)
         );
         console.log(`✅ Built ${nodeEntries.length} node entries`);
-        
+
         // Combine all entries
         const allEntries = [...docEntries, ...nodeEntries];
         console.log(`\n📊 Total search entries: ${allEntries.length}`);
@@ -340,7 +340,7 @@ async function main() {
         const index = new FlexSearch.Document({
             document: {
                 id: "uid",
-                index: ["title", "content", "keywords"],
+                index: ["keywords", "title", "content"], // Prioritize keywords!
                 store: ["id", "type", "title", "displayName", "name", "category", "excerpt"]
             },
             tokenize: "forward",
@@ -353,7 +353,10 @@ async function main() {
             const uid = i;
             // Normalize for accented characters during indexing
             const titleClean = (entry.type === 'node' ? entry.displayName : entry.title || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-            const keywordsClean = (entry.searchTerms || []).join(' ').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+            // Join keywords with spaces for better tokenization
+            const keywordsClean = (entry.searchTerms || [])
+                .map(term => term.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase())
+                .join(' ');  // Join with single space
             const contentClean = (entry.excerpt || entry.description || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
             const searchData = {
@@ -365,7 +368,7 @@ async function main() {
                 name: entry.name || '',
                 category: entry.category,
                 excerpt: entry.excerpt || entry.description || '',
-                keywords: keywordsClean,
+                keywords: keywordsClean,  // Back to string but with better tokenization
                 content: contentClean
             };
             index.add(searchData);
@@ -388,7 +391,7 @@ async function main() {
                 }
             }
         });
-    
+
         // Export FlexSearch Index
         console.log('📤 Exporting FlexSearch segments...');
         const flexIndexData = {};
@@ -407,20 +410,20 @@ async function main() {
         // Build keyword index (Legacy fallback)
         console.log('\n🗂️  Building keyword index...');
         const keywordIndex = buildKeywordIndex(allEntries);
-        
+
         // Build quick lookup
         console.log('\n⚡ Building quick lookup index...');
         const quickLookup = buildQuickLookup(nodeEntries, docEntries);
-        
+
         // Build suggestions
         console.log('\n💡 Building suggestions...');
         const suggestions = buildSuggestions(allEntries);
-        
+
         // Generate knowledge index
         const knowledgeIndex = {
             generatedAt: new Date().toISOString(),
             version: '2.0.0', // Updated version
-            
+
             statistics: {
                 totalEntries: allEntries.length,
                 documentation: docEntries.length,
@@ -428,27 +431,27 @@ async function main() {
                 avgScoreDoc: Math.round(docEntries.reduce((sum, e) => sum + e.score, 0) / docEntries.length * 10) / 10,
                 avgScoreNode: Math.round(nodeEntries.reduce((sum, e) => sum + e.score, 0) / nodeEntries.length * 10) / 10
             },
-            
+
             // FlexSearch segments
             flexIndex: flexIndexData,
-            
+
             entries: {
                 documentation: docEntries,
                 nodes: nodeEntries
             },
-            
+
             indexes: {
                 quickLookup
             },
-            
+
             suggestions
         };
-        
+
         // Write to file
         console.log('\n💾 Writing knowledge index...');
         await writeFile(OUTPUT_FILE, JSON.stringify(knowledgeIndex, null, 2));
         console.log('✅ Knowledge index written (FlexSearch included)');
-        
+
         // Summary
         console.log('\n📊 Summary:');
         console.log(`   Total entries: ${knowledgeIndex.statistics.totalEntries}`);
@@ -458,10 +461,10 @@ async function main() {
         console.log(`   Avg score (docs): ${knowledgeIndex.statistics.avgScoreDoc}`);
         console.log(`   Avg score (nodes): ${knowledgeIndex.statistics.avgScoreNode}`);
         console.log(`   File size: ${(JSON.stringify(knowledgeIndex).length / 1024 / 1024).toFixed(2)} MB`);
-        
+
         console.log('\n✨ Complete! Knowledge index built successfully.');
         console.log(`   Output file: ${OUTPUT_FILE}`);
-        
+
     } catch (error) {
         console.error('\n❌ Error:', error);
         console.error(error.stack);

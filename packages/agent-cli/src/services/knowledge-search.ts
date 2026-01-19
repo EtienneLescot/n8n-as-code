@@ -74,7 +74,7 @@ export class KnowledgeSearch {
         this.flexIndex = new FlexSearch.Document({
             document: {
                 id: "uid",
-                index: ["title", "content", "keywords"],
+                index: ["keywords", "title", "content"], // Prioritize keywords!
                 store: ["id", "type", "title", "displayName", "name", "category", "excerpt"]
             },
             tokenize: "forward",
@@ -116,7 +116,7 @@ export class KnowledgeSearch {
             for (const item of fieldResult.result) {
                 const doc = item.doc;
                 const uniqueId = `${doc.type}:${doc.id}`;
-                
+
                 if (seenIds.has(uniqueId)) continue;
                 if (options.type && doc.type !== options.type) continue;
                 if (options.category && doc.category !== options.category) continue;
