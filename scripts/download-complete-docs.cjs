@@ -30,18 +30,24 @@ const METADATA_FILE = path.join(OUTPUT_DIR, 'metadata.json');
 const DELAY_BETWEEN_REQUESTS = 100; // ms
 const MAX_CONCURRENT_DOWNLOADS = 10;
 
-// Category detection patterns
+// Category detection patterns (order matters - most specific first)
+// Note: urlPath doesn't start with /, so patterns match without leading slash
 const CATEGORY_PATTERNS = {
-    integrations: /\/integrations\/builtin\//,
-    credentials: /\/integrations\/builtin\/credentials\//,
-    triggers: /\/integrations\/builtin\/trigger-nodes\//,
-    'core-nodes': /\/integrations\/builtin\/core-nodes\//,
-    'advanced-ai': /\/advanced-ai\//,
-    code: /\/code\//,
-    tutorials: /\/courses\/|\/video-courses\//,
-    concepts: /\/flow-logic\/|\/data\/|\/workflows\//,
-    hosting: /\/hosting\//,
-    api: /\/api\//,
+    'advanced-ai': /^advanced-ai\//,
+    credentials: /^credentials\//,
+    tutorials: /^courses\/|^video-courses\//,
+    hosting: /^hosting\//,
+    api: /^api\//,
+    integrations: /^integrations\/builtin\/app-nodes\//,
+    'trigger-nodes': /^integrations\/builtin\/trigger-nodes\//,
+    'core-nodes': /^integrations\/builtin\/core-nodes\//,
+    'cluster-nodes': /^integrations\/builtin\/cluster-nodes\//,
+    'flow-logic': /^flow-logic\//,
+    data: /^data\//,
+    workflows: /^workflows\//,
+    code: /\/code\//,  // Can be anywhere in path
+    expressions: /^expressions\//,
+    'try-it-out': /^try-it-out\//,
 };
 
 /**
@@ -368,6 +374,9 @@ async function main() {
         console.log('\n✨ Complete! Documentation downloaded successfully.');
         console.log(`   Output directory: ${OUTPUT_DIR}`);
         console.log(`   Metadata file: ${METADATA_FILE}`);
+        
+        // Exit explicitly to close all connections
+        process.exit(0);
         
     } catch (error) {
         console.error('\n❌ Error:', error);
