@@ -36,14 +36,8 @@ const outputChannel = vscode.window.createOutputChannel("n8n-as-code");
 const conflictStore = new Map<string, string>();
 
 export async function activate(context: vscode.ExtensionContext) {
-    console.log('[n8n-debug] Activating extension...');
-    try {
-        console.log('[n8n-debug] Creating output channel...');
-        outputChannel.show(true);
-        outputChannel.appendLine('🔌 Activation of "n8n-as-code" (new initialization flow)...');
-    } catch (e) {
-        console.error('[n8n-debug] Failed to create output channel', e);
-    }
+    outputChannel.show(true);
+    outputChannel.appendLine('🔌 Activation of "n8n-as-code" (new initialization flow)...');
 
     // Register Remote Content Provider for Diffs
     context.subscriptions.push(
@@ -67,13 +61,7 @@ export async function activate(context: vscode.ExtensionContext) {
     proxyService.setSecrets(context.secrets);
 
     // 1. Determine initial state
-    console.log('[n8n-debug] Determining initial state...');
-    try {
-        await determineInitialState(context);
-        console.log('[n8n-debug] Initial state determined.');
-    } catch (e) {
-        console.error('[n8n-debug] Failed to determine initial state', e);
-    }
+    await determineInitialState(context);
 
     // Initial context keys update
     updateContextKeys();
@@ -561,7 +549,6 @@ function updateContextKeys() {
 async function determineInitialState(context: vscode.ExtensionContext) {
     const configValidation = validateN8nConfig();
     const workspaceRoot = getWorkspaceRoot();
-    console.log('[n8n-debug] getWorkspaceRoot returned:', workspaceRoot);
 
     if (!workspaceRoot) {
         // No workspace open
