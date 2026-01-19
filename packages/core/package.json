@@ -1,6 +1,6 @@
 {
     "name": "@n8n-as-code/core",
-    "version": "0.4.1",
+    "version": "0.4.2",
     "description": "Core library for n8n-as-code ecosystem",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",

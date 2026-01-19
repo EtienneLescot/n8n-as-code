@@ -1,5 +1,18 @@
 # @n8n-as-code/agent-cli
 
+## 0.5.0
+
+### Minor Changes
+
+- Refonte majeure de l'agent-cli :
+
+  ✅ Recherche unifiée avec FlexSearch (500+ nœuds, 1200+ docs)
+  ✅ Nouvelles commandes : list, examples, related, validate, update-ai
+  ✅ Documentation enrichie avec système de recherche profonde
+  ✅ Validation des workflows et génération de contexte AI améliorée
+  ✅ Build optimisé avec scripts d'indexation complets
+  Impact : Les AI agents ont maintenant une recherche plus intuitive, des schémas exacts pour éviter les hallucinations, et des workflows validés automatiquement.
+
 ## 0.4.1
 
 ### Patch Changes
