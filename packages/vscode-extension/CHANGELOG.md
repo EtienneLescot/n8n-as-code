@@ -1,5 +1,13 @@
 # n8n-as-code
 
+## 0.4.5
+
+### Patch Changes
+
+- Fix VSCode Extension path
+- Updated dependencies
+  - @n8n-as-code/agent-cli@0.5.2
+
 ## 0.4.4
 
 ### Patch Changes
