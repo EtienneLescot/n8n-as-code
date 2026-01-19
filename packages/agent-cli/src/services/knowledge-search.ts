@@ -53,6 +53,8 @@ export class KnowledgeSearch {
         if (customIndexPath) {
             this.indexPath = customIndexPath;
         } else {
+            // In dev (ts-node): src/services/../assets -> src/assets
+            // In prod (node dist): dist/services/../assets -> dist/assets
             this.indexPath = path.resolve(__dirname, '../assets/n8n-knowledge-index.json');
         }
         this.docsProvider = new DocsProvider();
