@@ -1,5 +1,11 @@
 # @n8n-as-code/agent-cli
 
+## 0.5.1
+
+### Patch Changes
+
+- Search intelligence integration with test coverage and documentation updates
+
 ## 0.5.0
 
 ### Minor Changes
