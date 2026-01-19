@@ -92,13 +92,13 @@ function buildNodeSearchEntry(nodeName, node) {
     return {
         type: 'node',
         name: nodeName,
-        displayName: node.displayName,
-        description: node.description,
+        displayName: node.displayName || nodeName,
+        description: node.description || '',
         category: node.group?.[0] || 'other',
         
         searchTerms: [
             nodeName.toLowerCase(),
-            node.displayName.toLowerCase(),
+            (node.displayName || nodeName).toLowerCase(),
             ...(node.description || '').toLowerCase().split(/\s+/).filter(w => w.length > 3),
             ...(node.group || []).map(g => g.toLowerCase()),
             ...keywords,
