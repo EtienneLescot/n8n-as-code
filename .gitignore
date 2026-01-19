@@ -47,8 +47,8 @@ packages/*/node_modules/
 
 # --- AI Context Artifacts (Generated) ---
 AGENTS.md
-# n8n-schema.json - removed (using n8n-nodes-enriched.json instead)
-# n8n-nodes-index.json - removed (using n8n-nodes-enriched.json instead)
+n8n-agent
+n8n-agent.cmd
 .cursorrules
 .clinerules
 .ai-rules.md
@@ -59,11 +59,12 @@ n8n-as-code.json
 
 # Generated n8n assets
 packages/agent-cli/src/assets/n8n-nodes-index.json
-packages/agent-cli/src/assets/n8n-nodes-enriched.json
+packages/agent-cli/src/assets/n8n-nodes-technical.json
+packages/agent-cli/src/assets/n8n-docs-complete.json
+packages/agent-cli/src/assets/n8n-knowledge-index.json
 packages/agent-cli/src/assets/n8n-docs-cache/
 packages/agent-cli/extraction-report.md
-packages/vscode-extension/assets/n8n-nodes-index.json
-packages/vscode-extension/assets/n8n-nodes-enriched.json
+packages/vscode-extension/assets/*.json
 packages/vscode-extension/assets/logo.png
 
 .n8n-cache/
@@ -76,3 +77,5 @@ ignoredTests/
 session_context.json
 
 packages/agent-cli/src/assets/
+
+# n8n-as-code AI helpers

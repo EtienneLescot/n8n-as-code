@@ -234,8 +234,8 @@ program
                     name: schema.name,
                     displayName: schema.displayName,
                     version: schema.version,
-                    properties: schema.properties,
-                    requiredFields: schema.properties?.filter((p: any) => p.required).map((p: any) => p.name) || []
+                    properties: schema.schema?.properties,
+                    requiredFields: schema.schema?.properties?.filter((p: any) => p.required).map((p: any) => p.name) || []
                 };
                 console.log(JSON.stringify(technicalSchema, null, 2));
                 console.error(chalk.cyan('\n💡 Hint: Use \'get ' + name + '\' for complete documentation'));
@@ -310,14 +310,14 @@ program
 program
     .command('update-ai')
     .description('Update AI Context (AGENTS.md, rule files, snippets)')
-    .option('--version <version>', 'n8n version', 'Unknown')
+    .option('--n8n-version <version>', 'n8n version', 'Unknown')
     .action(async (options) => {
         try {
             console.error(chalk.blue('🤖 Updating AI Context...'));
             const projectRoot = process.cwd();
             
             const aiContextGenerator = new AiContextGenerator();
-            await aiContextGenerator.generate(projectRoot, options.version);
+            await aiContextGenerator.generate(projectRoot, options.n8nVersion);
             
             const snippetGen = new SnippetGenerator();
             await snippetGen.generate(projectRoot);

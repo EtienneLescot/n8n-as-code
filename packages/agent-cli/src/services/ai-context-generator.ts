@@ -1,5 +1,15 @@
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Helper to get __dirname in ESM
+const _filename = typeof import.meta !== 'undefined' && import.meta.url
+    ? fileURLToPath(import.meta.url)
+    : (typeof __filename !== 'undefined' ? __filename : '');
+
+const _dirname = typeof __dirname !== 'undefined'
+    ? __dirname
+    : path.dirname(_filename as string);
 
 export class AiContextGenerator {
   constructor() { }
@@ -23,14 +33,21 @@ export class AiContextGenerator {
     this.injectOrUpdate(path.join(projectRoot, '.ai-rules.md'), commonRules);
 
     // 4. Local Shim and Gitignore
-    if (extensionPath) {
-      this.generateShim(projectRoot, extensionPath);
-      this.updateGitignore(projectRoot);
-    }
+    this.generateShim(projectRoot, extensionPath);
+    this.updateGitignore(projectRoot);
   }
 
-  private generateShim(projectRoot: string, extensionPath: string): void {
-    const cliPath = path.join(extensionPath, 'dist', 'cli.js');
+  private generateShim(projectRoot: string, extensionPath?: string): void {
+    let cliPath: string;
+
+    if (extensionPath) {
+      cliPath = path.join(extensionPath, 'dist', 'cli.js');
+    } else {
+      // Find cli.js relative to this file's distribution location
+      // dist/services/ai-context-generator.js -> dist/cli.js
+      cliPath = path.resolve(_dirname, '../cli.js');
+    }
+
     const shimPath = path.join(projectRoot, 'n8n-agent');
     
     // Linux/Mac Shim

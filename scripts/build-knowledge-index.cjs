@@ -276,7 +276,7 @@ function buildSuggestions(entries) {
             suggestions.categories[cat].push({
                 type: entry.type,
                 id: entry.type === 'node' ? entry.name : entry.id,
-                title: entry.type === 'node' ? e.displayName : entry.title
+                title: entry.type === 'node' ? entry.displayName : entry.title
             });
         }
     }
