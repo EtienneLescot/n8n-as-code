@@ -79,3 +79,5 @@ session_context.json
 packages/agent-cli/src/assets/
 
 # n8n-as-code AI helpers
+
+conversation.md
