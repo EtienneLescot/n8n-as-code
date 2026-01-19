@@ -99,11 +99,32 @@ program
 // 3. List All
 program
     .command('list')
-    .description('List all available nodes (compact)')
-    .action(() => {
+    .description('List available nodes and documentation categories')
+    .option('--nodes', 'List all node names')
+    .option('--docs', 'List all documentation categories')
+    .action((options) => {
         try {
-            const list = provider.listAllNodes();
-            console.log(JSON.stringify(list, null, 2));
+            const nodes = provider.listAllNodes();
+            const stats = docsProvider.getStatistics();
+            
+            if (options.nodes) {
+                console.log(JSON.stringify(nodes, null, 2));
+                return;
+            }
+            if (options.docs) {
+                const categories = docsProvider.getCategories();
+                console.log(JSON.stringify(categories, null, 2));
+                return;
+            }
+            
+            console.log(JSON.stringify({
+                summary: {
+                    totalNodes: nodes.length,
+                    totalDocPages: stats?.totalPages || 0,
+                    docCategories: stats?.byCategory || {}
+                },
+                hint: "Use --nodes or --docs for full lists"
+            }, null, 2));
         } catch (error: any) {
             console.error(chalk.red(error.message));
             process.exit(1);

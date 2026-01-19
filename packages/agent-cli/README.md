@@ -84,11 +84,18 @@ n8n-agent related "ai agents"
 # Returns: AI-related concepts, nodes, examples
 ```
 
-### `list` - 📋 List All Nodes
-Lists all available n8n nodes (compact).
+### `list` - 📋 List Resources
+List available nodes and documentation categories.
 
 ```bash
+# Summary of nodes and docs
 n8n-agent list
+
+# List all node names
+n8n-agent list --nodes
+
+# List all doc categories
+n8n-agent list --docs
 ```
 
 ### `validate <file>` - ✅ Validate Workflows
