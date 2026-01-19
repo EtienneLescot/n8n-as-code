@@ -28,10 +28,22 @@ Send your local modifications back to the n8n instance.
 n8n-as-code push
 ```
 
-### `watch`
-Enable real-time synchronization. Every time you save a local file, it's pushed to n8n. Includes interactive conflict resolution.
+### `list`
+Display a table of all workflows and their current synchronization status.
 ```bash
-n8n-as-code watch
+n8n-as-code list
+```
+
+### `start`
+Start real-time monitoring and synchronization. This command provides a live dashboard of changes.
+```bash
+n8n-as-code start
+```
+
+### `update-ai`
+Generate or update AI context files (`AGENTS.md`, rules, snippets) and the local `n8n-agent` helper.
+```bash
+n8n-as-code update-ai
 ```
 
 ## 🏗 Part of the Ecosystem
