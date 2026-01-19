@@ -84,6 +84,11 @@ function calculateDocScore(page) {
  * Build search entry for a node
  */
 function buildNodeSearchEntry(nodeName, node) {
+    const operations = node.metadata?.operations || [];
+    const keywords = node.metadata?.keywords || [];
+    const useCases = node.metadata?.useCases || [];
+    const properties = node.schema?.properties || [];
+
     return {
         type: 'node',
         name: nodeName,
@@ -95,19 +100,22 @@ function buildNodeSearchEntry(nodeName, node) {
             nodeName.toLowerCase(),
             node.displayName.toLowerCase(),
             ...(node.description || '').toLowerCase().split(/\s+/).filter(w => w.length > 3),
-            ...(node.group || []).map(g => g.toLowerCase())
-        ].filter((v, i, a) => a.indexOf(v) === i).slice(0, 50), // unique, limit
+            ...(node.group || []).map(g => g.toLowerCase()),
+            ...keywords,
+            ...operations,
+            ...useCases
+        ].filter((v, i, a) => a.indexOf(v) === i).slice(0, 100), // unique, limit
         
         metadata: {
-            hasDocumentation: node.metadata.hasDocumentation,
-            hasExamples: node.metadata.hasExamples,
-            operationsCount: Object.keys(node.operations).length,
-            propertiesCount: node.metadata.totalProperties
+            hasDocumentation: node.metadata?.hasDocumentation || false,
+            hasExamples: useCases.length > 0,
+            operationsCount: operations.length,
+            propertiesCount: properties.length
         },
         
         documentation: {
-            mainPage: node.documentation.mainPage,
-            examplesCount: node.documentation.examples.length
+            mainPage: node.metadata?.markdownUrl || null,
+            examplesCount: useCases.length
         },
         
         score: calculateNodeScore(node)
@@ -121,12 +129,15 @@ function calculateNodeScore(node) {
     let score = 7.0; // Base score (nodes are important)
     
     // Boost for documentation
-    if (node.metadata.hasDocumentation) score += 2.0;
-    if (node.metadata.hasExamples) score += 1.0;
+    if (node.metadata?.hasDocumentation) score += 2.0;
+    if (node.metadata?.useCases?.length > 0) score += 1.0;
     
     // Boost for completeness
-    if (node.metadata.totalProperties > 10) score += 0.5;
-    if (Object.keys(node.operations).length > 0) score += 0.5;
+    const propertiesCount = node.schema?.properties?.length || 0;
+    if (propertiesCount > 10) score += 0.5;
+    
+    const operationsCount = node.metadata?.operations?.length || 0;
+    if (operationsCount > 0) score += 0.5;
     
     // Boost for common groups
     const groupBoosts = {
@@ -136,6 +147,11 @@ function calculateNodeScore(node) {
     };
     const group = node.group?.[0];
     if (group) score += groupBoosts[group] || 0;
+    
+    // Keyword score boost
+    if (node.metadata?.keywordScore) {
+        score += Math.min(node.metadata.keywordScore / 10, 2);
+    }
     
     return Math.round(score * 10) / 10;
 }

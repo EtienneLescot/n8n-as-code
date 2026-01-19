@@ -21,7 +21,10 @@ The Agent CLI is designed to:
 The Agent CLI is available as an npm package and can be run directly with npx:
 
 ```bash
-# Run directly with npx (recommended)
+# Run with n8n-agent (if installed globally)
+n8n-agent <command>
+
+# Or run directly with npx
 npx @n8n-as-code/agent-cli <command>
 
 # Or install globally

@@ -80,7 +80,6 @@ export class AiContextGenerator {
       `\`\`\`bash`,
       `n8n-agent search "google sheets"`,
       `\`\`\``,
-      `*(If \`n8n-agent\` command is not found, use \`npx @n8n-as-code/agent-cli search ...\`)*`,
       `- Find the **exact node name** (camelCase format: e.g., \`googleSheets\`)`,
       `- Verify the node exists in the current n8n version`,
       ``,
@@ -305,7 +304,7 @@ export class AiContextGenerator {
     return [
       `### n8n Development Rules`,
       `- Follow the Research Protocol in AGENTS.md.`,
-      `- Tooling: Use @n8n-as-code/agent-cli to fetch node schemas.`,
+      `- Tooling: Use 'n8n-agent' to fetch node schemas and documentation.`,
     ].join('\n');
   }
 
@@ -313,7 +312,7 @@ export class AiContextGenerator {
     return [
       `# Common Rules for All AI Agents (Claude, Mistral, etc.)`,
       `- Role: Expert n8n Automation Engineer.`,
-      `- Workflow Source of Truth: \`@n8n-as-code/agent-cli\` tools.`,
+      `- Workflow Source of Truth: 'n8n-agent' tools.`,
       `- Documentation: Read AGENTS.md for full syntax rules.`
     ].join('\n');
   }

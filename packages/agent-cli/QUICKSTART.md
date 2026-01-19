@@ -222,13 +222,15 @@ Once built, use the CLI:
 
 ```bash
 # Search (most common)
-npx @n8n-as-code/agent-cli search "your query"
+n8n-agent search "your query"
 
 # Get schema (for code generation)
-npx @n8n-as-code/agent-cli get "nodeName"
+n8n-agent get "nodeName"
 
 # List all (for discovery)
-npx @n8n-as-code/agent-cli list | grep -i "keyword"
+n8n-agent list | grep -i "keyword"
+
+# Note: You can also use 'npx @n8n-as-code/agent-cli' if not installed globally
 ```
 
 ## 📚 More Info
