@@ -18,8 +18,14 @@ npm install @n8n-as-code/agent-cli
 ## 📖 CLI Usage
 
 ### `search <query>` - 🚀 Deep Unified Search (PRIMARY TOOL)
-**Deep Full-Text Search** across 500+ nodes and 1240+ documentation pages.
-Optimized for natural language queries and vague intents.
+
+**Deep Full-Text Search with Smart Keyword Matching** across 600+ nodes and 1240+ documentation pages.
+Optimized for natural language queries, technical terms, and capabilities (e.g., "image generation" finds Google Gemini).
+
+KEY FEATURES:
+- **Comprehensive Keyword Extraction**: Finds nodes based on operations (e.g., "generate", "transcribe") and resources (e.g., "image", "video").
+- **Smart Prioritization**: Matches on keywords first, then titles, then content.
+- **Fuzzy Matching**: Handles typos and partial terms ("googl shets").
 
 ```bash
 # Search nodes, docs, and tutorials
@@ -113,6 +119,14 @@ Update AI Context (AGENTS.md, rule files, snippets).
 n8n-agent update-ai
 n8n-agent update-ai --version 1.70.0
 ```
+
+## 📁 Data Source
+
+The Agent CLI uses a pre-generated index of n8n nodes from the official n8n source code. The data is stored in `dist/assets/` (generated during build):
+
+- `n8n-knowledge-index.json`: Unified FlexSearch index for the `search` command.
+- `n8n-nodes-technical.json`: Detailed technical schemas for the `get` command.
+- `n8n-docs-complete.json`: Full documentation content.
 
 ## 🧩 Integration
 

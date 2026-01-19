@@ -1,4 +1,4 @@
-import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
+import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 
 /**
  * Documentation sidebar configuration for n8n-as-code
@@ -53,6 +53,11 @@ const sidebars: SidebarsConfig = {
           id: 'usage/agent-cli',
           label: 'Agent CLI (Tools for AI agents)',
         },
+        {
+          type: 'doc',
+          id: 'usage/claude-skill',
+          label: 'Claude Skill',
+        },
       ],
     },
     {
@@ -91,6 +96,18 @@ const sidebars: SidebarsConfig = {
           id: 'contribution/agent-cli',
           label: 'Agent CLI',
         },
+        {
+          type: 'doc',
+          id: 'contribution/claude-skill',
+          label: 'Claude Skill',
+        },
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Community',
+      items: [
+        'community/index',
       ],
     },
     {
