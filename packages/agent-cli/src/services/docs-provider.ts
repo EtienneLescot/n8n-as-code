@@ -117,6 +117,10 @@ export class DocsProvider {
         if (!this.docs) return [];
 
         const queryLower = query.toLowerCase();
+        // Normalization for accented characters (e.g. "génération" -> "generation")
+        const queryClean = queryLower.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const queryTerms = queryClean.split(/\s+/).filter(t => t.length > 2);
+        
         const results: Array<{ page: DocPage; score: number }> = [];
 
         for (const page of this.docs.pages) {
@@ -125,30 +129,36 @@ export class DocsProvider {
             if (options.complexity && page.metadata.complexity !== options.complexity) continue;
             if (options.hasCodeExamples && page.metadata.codeExamples === 0) continue;
 
+            const docTitleClean = page.title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const docContentClean = page.content.markdown.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const docKeywordsClean = page.metadata.keywords.join(' ').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
             // Calculate score
             let score = 0;
 
-            // Title match (highest priority)
-            if (page.title.toLowerCase().includes(queryLower)) {
-                score += 10;
+            // 1. Exact title match
+            if (docTitleClean === queryClean) {
+                score += 100;
+            }
+            
+            // 2. All terms in title
+            if (queryTerms.length > 0 && queryTerms.every(t => docTitleClean.includes(t))) {
+                score += 50;
             }
 
-            // Keywords match
-            const matchingKeywords = page.metadata.keywords.filter(k => 
-                k.toLowerCase().includes(queryLower) || queryLower.includes(k.toLowerCase())
-            );
-            score += matchingKeywords.length * 3;
+            // 3. Terms match count in title
+            const termsInTitle = queryTerms.filter(t => docTitleClean.includes(t)).length;
+            score += termsInTitle * 10;
 
-            // Content match
-            if (page.content.markdown.toLowerCase().includes(queryLower)) {
-                score += 2;
+            // 4. Terms match in keywords/metadata
+            const termsInKeywords = queryTerms.filter(t => docKeywordsClean.includes(t)).length;
+            score += termsInKeywords * 5;
+
+            // 5. Terms match in content
+            if (queryTerms.length > 0 && queryTerms.some(t => docContentClean.includes(t))) {
+                const termsInContent = queryTerms.filter(t => docContentClean.includes(t)).length;
+                score += termsInContent * 2;
             }
-
-            // Use cases match
-            const matchingUseCases = page.metadata.useCases.filter(uc => 
-                uc.toLowerCase().includes(queryLower)
-            );
-            score += matchingUseCases.length * 2;
 
             if (score > 0) {
                 results.push({ page, score });

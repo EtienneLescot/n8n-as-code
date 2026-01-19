@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import FlexSearch from 'flexsearch';
 import { DocsProvider } from './docs-provider.js';
 import { NodeSchemaProvider } from './node-schema-provider.js';
 
@@ -28,12 +29,13 @@ export interface UnifiedSearchResult {
 }
 
 interface KnowledgeIndex {
+    flexIndex: Record<string, any>;
     entries: {
         documentation: any[];
         nodes: any[];
     };
     indexes: {
-        byKeyword: Record<string, any[]>;
+        quickLookup: any;
     };
 }
 
@@ -42,6 +44,7 @@ interface KnowledgeIndex {
  */
 export class KnowledgeSearch {
     private index: KnowledgeIndex | null = null;
+    private flexIndex: any = null;
     private indexPath: string;
     private docsProvider: DocsProvider;
     private nodeProvider: NodeSchemaProvider;
@@ -60,113 +63,106 @@ export class KnowledgeSearch {
         if (this.index) return;
 
         if (!fs.existsSync(this.indexPath)) {
-            throw new Error(`Knowledge index not found at ${this.indexPath}`);
+            throw new Error(`Knowledge index not found at ${this.indexPath}. Please run build first.`);
         }
 
         const content = fs.readFileSync(this.indexPath, 'utf-8');
         this.index = JSON.parse(content);
+
+        // Initialize FlexSearch and import data
+        // @ts-ignore
+        this.flexIndex = new FlexSearch.Document({
+            document: {
+                id: "uid",
+                index: ["title", "content", "keywords"],
+                store: ["id", "type", "title", "displayName", "name", "category", "excerpt"]
+            },
+            tokenize: "forward",
+            context: true
+        });
+
+        if (this.index && this.index.flexIndex) {
+            for (const key in this.index.flexIndex) {
+                this.flexIndex.import(key, this.index.flexIndex[key]);
+            }
+        }
     }
 
     /**
-     * Unified search across all resources
+     * Unified search across all resources using FlexSearch
      */
     searchAll(query: string, options: { category?: string; type?: 'node' | 'documentation'; limit?: number } = {}): UnifiedSearchResult {
         this.loadIndex();
-        if (!this.index) {
+        if (!this.index || !this.flexIndex) {
             return { query, totalResults: 0, results: [], suggestions: [], hints: [] };
         }
 
-        const queryLower = query.toLowerCase();
         const results: UnifiedSearchResult['results'] = [];
 
-        // Search in nodes
-        if (!options.type || options.type === 'node') {
-            for (const nodeEntry of this.index.entries.nodes) {
-                if (options.category && nodeEntry.category !== options.category) continue;
+        // Normalize query for search (remove accents)
+        const queryClean = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
-                let score = 0;
-                let relevance: 'exact_match' | 'related' | 'partial' = 'partial';
+        // Perform multi-field search
+        const flexResults = this.flexIndex.search(queryClean, {
+            limit: options.limit || 20,
+            enrich: true,
+            suggest: true
+        });
 
-                // Exact name match
-                if (nodeEntry.name.toLowerCase() === queryLower || 
-                    nodeEntry.displayName.toLowerCase() === queryLower) {
-                    score = 10;
-                    relevance = 'exact_match';
-                }
-                // Partial name match
-                else if (nodeEntry.name.toLowerCase().includes(queryLower) || 
-                         nodeEntry.displayName.toLowerCase().includes(queryLower)) {
-                    score = 8;
-                    relevance = 'related';
-                }
-                // Search terms match
-                else if (nodeEntry.searchTerms.some((t: string) => t.includes(queryLower))) {
-                    score = 5;
-                    relevance = 'related';
-                }
+        // FlexSearch returns results grouped by field
+        const seenIds = new Set<string>();
 
-                if (score > 0) {
-                    results.push({
-                        type: 'node',
-                        id: nodeEntry.name,
-                        name: nodeEntry.name,
-                        displayName: nodeEntry.displayName,
-                        description: nodeEntry.description,
-                        score: score + (nodeEntry.score || 0),
-                        category: nodeEntry.category,
-                        relevance
-                    });
-                }
+        for (const fieldResult of flexResults) {
+            for (const item of fieldResult.result) {
+                const doc = item.doc;
+                const uniqueId = `${doc.type}:${doc.id}`;
+                
+                if (seenIds.has(uniqueId)) continue;
+                if (options.type && doc.type !== options.type) continue;
+                if (options.category && doc.category !== options.category) continue;
+
+                seenIds.add(uniqueId);
+
+                const resultType = (doc.category === 'tutorials' || doc.category === 'advanced-ai') ? 'example' : doc.type;
+
+                results.push({
+                    type: resultType as 'node' | 'documentation' | 'example',
+                    id: doc.id,
+                    name: doc.name,
+                    displayName: doc.displayName,
+                    title: doc.title,
+                    description: doc.excerpt,
+                    excerpt: doc.excerpt,
+                    score: 10, // FlexSearch relevance is implicit in order, we could refine this
+                    category: doc.category,
+                    relevance: 'related'
+                });
             }
         }
 
-        // Search in documentation
-        if (!options.type || options.type === 'documentation') {
-            for (const docEntry of this.index.entries.documentation) {
-                if (options.category && docEntry.category !== options.category) continue;
-
-                let score = 0;
-                let relevance: 'exact_match' | 'related' | 'partial' = 'partial';
-
-                // Title match
-                if (docEntry.title.toLowerCase() === queryLower) {
-                    score = 10;
-                    relevance = 'exact_match';
-                } else if (docEntry.title.toLowerCase().includes(queryLower)) {
-                    score = 7;
-                    relevance = 'related';
-                }
-                // Search terms match
-                else if (docEntry.searchTerms.some((t: string) => t.includes(queryLower))) {
-                    score = 4;
-                    relevance = 'related';
-                }
-
-                if (score > 0) {
-                    const resultType = (docEntry.category === 'tutorials' || docEntry.category === 'advanced-ai') ? 'example' : 'documentation';
-                    
-                    results.push({
-                        type: resultType,
-                        id: docEntry.id,
-                        title: docEntry.title,
-                        url: docEntry.url,
-                        excerpt: docEntry.excerpt,
-                        score: score + (docEntry.score || 0),
-                        category: docEntry.category,
-                        relevance
-                    });
-                }
+        // If no results from FlexSearch, fallback to basic full-text search in docs (Deep Search)
+        if (results.length === 0) {
+            const deepResults = this.docsProvider.searchDocs(query, { limit: options.limit });
+            for (const page of deepResults) {
+                const resultType = (page.category === 'tutorials' || page.category === 'advanced-ai') ? 'example' : 'documentation';
+                results.push({
+                    type: resultType as any,
+                    id: page.id,
+                    title: page.title,
+                    url: page.url,
+                    excerpt: page.content.excerpt,
+                    score: 5,
+                    category: page.category,
+                    relevance: 'partial'
+                });
             }
         }
-
-        // Sort by score
-        results.sort((a, b) => b.score - a.score);
 
         const limit = options.limit || 10;
         const limitedResults = results.slice(0, limit);
 
         // Generate suggestions
-        const suggestions = this.generateSuggestions(queryLower, results);
+        const suggestions = this.generateSuggestions(query, results);
 
         // Generate hints
         const hints = this.generateHints(limitedResults);

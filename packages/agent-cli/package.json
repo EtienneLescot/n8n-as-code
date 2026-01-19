@@ -17,7 +17,8 @@
     },
     "dependencies": {
         "chalk": "^4.1.2",
-        "commander": "^11.1.0"
+        "commander": "^11.1.0",
+        "flexsearch": "^0.8.212"
     },
     "devDependencies": {
         "@types/jest": "^29.5.11",

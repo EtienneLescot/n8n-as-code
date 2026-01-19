@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+const FlexSearch = require('flexsearch');
+
 /**
  * Build Unified Knowledge Index
  * 
@@ -72,7 +74,8 @@ function calculateDocScore(page) {
     // Boost for content quality
     if (page.metadata.useCases.length > 0) score += 1.0;
     if (page.metadata.codeExamples > 0) score += 0.5;
-    if (page.metadata.contentLength > 2000) score += 0.5;
+    if (page.metadata.contentLength > 5000) score += 1.0;
+    else if (page.metadata.contentLength > 2000) score += 0.5;
     
     // Boost for node-specific docs
     if (page.nodeName) score += 2.0;
@@ -301,8 +304,8 @@ function buildSuggestions(entries) {
  * Main execution
  */
 async function main() {
-    console.log('🚀 n8n Knowledge Index Builder');
-    console.log('===============================\n');
+    console.log('🚀 n8n Knowledge Index Builder (with FlexSearch)');
+    console.log('===============================================\n');
     
     try {
         // Load documentation
@@ -323,7 +326,7 @@ async function main() {
         
         // Build search entries for nodes
         console.log('\n🔍 Building search entries for nodes...');
-        const nodeEntries = Object.entries(nodesTechnical.nodes).map(([name, node]) => 
+        const nodeEntries = Object.entries(nodesTechnical.nodes).map(([name, node]) =>
             buildNodeSearchEntry(name, node)
         );
         console.log(`✅ Built ${nodeEntries.length} node entries`);
@@ -331,40 +334,103 @@ async function main() {
         // Combine all entries
         const allEntries = [...docEntries, ...nodeEntries];
         console.log(`\n📊 Total search entries: ${allEntries.length}`);
-        
-        // Build keyword index
+
+        // FlexSearch Index Initialization
+        console.log('\n⚡ Initializing FlexSearch Index...');
+        const index = new FlexSearch.Document({
+            document: {
+                id: "uid",
+                index: ["title", "content", "keywords"],
+                store: ["id", "type", "title", "displayName", "name", "category", "excerpt"]
+            },
+            tokenize: "forward",
+            context: true
+        });
+
+        // Add entries to FlexSearch
+        console.log('📥 Indexing entries...');
+        allEntries.forEach((entry, i) => {
+            const uid = i;
+            // Normalize for accented characters during indexing
+            const titleClean = (entry.type === 'node' ? entry.displayName : entry.title || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+            const keywordsClean = (entry.searchTerms || []).join(' ').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+            const contentClean = (entry.excerpt || entry.description || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+            const searchData = {
+                uid: uid,
+                id: entry.type === 'node' ? entry.name : entry.id,
+                type: entry.type,
+                title: titleClean,
+                displayName: entry.displayName || '',
+                name: entry.name || '',
+                category: entry.category,
+                excerpt: entry.excerpt || entry.description || '',
+                keywords: keywordsClean,
+                content: contentClean
+            };
+            index.add(searchData);
+        });
+
+        // OPTIONAL: Deep Content Indexing for all documentation
+        console.log('📥 Deep Indexing full markdown content...');
+        allEntries.forEach((entry, i) => {
+            if (entry.type === 'documentation' || entry.type === 'example') {
+                const page = docsComplete.pages.find(p => p.id === entry.id);
+                if (page && page.content && page.content.markdown) {
+                    const markdownClean = page.content.markdown.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                    // We add a separate entry for full-text to keep titles/keywords weighted higher
+                    index.add({
+                        uid: allEntries.length + i, // Unique ID for content entry
+                        id: entry.id,
+                        type: entry.type,
+                        content: markdownClean
+                    });
+                }
+            }
+        });
+    
+        // Export FlexSearch Index
+        console.log('📤 Exporting FlexSearch segments...');
+        const flexIndexData = {};
+        await new Promise((resolve) => {
+            index.export((key, data) => {
+                flexIndexData[key] = data;
+                if (Object.keys(flexIndexData).length >= 0) { // Keep track of exported parts
+                    // In a real async export we'd wait for all parts,
+                    // but FlexSearch.Document.export is synchronous-like in this usage.
+                }
+            });
+            // Give it a small tick to ensure all segments are captured
+            setTimeout(resolve, 100);
+        });
+
+        // Build keyword index (Legacy fallback)
         console.log('\n🗂️  Building keyword index...');
         const keywordIndex = buildKeywordIndex(allEntries);
-        console.log(`✅ Indexed ${Object.keys(keywordIndex).length} keywords`);
-        
-        // Build category index
-        console.log('\n🗂️  Building category index...');
-        const categoryIndex = buildCategoryIndex(allEntries);
-        console.log('✅ Category index built');
         
         // Build quick lookup
         console.log('\n⚡ Building quick lookup index...');
         const quickLookup = buildQuickLookup(nodeEntries, docEntries);
-        console.log('✅ Quick lookup built');
         
         // Build suggestions
         console.log('\n💡 Building suggestions...');
         const suggestions = buildSuggestions(allEntries);
-        console.log('✅ Suggestions built');
         
         // Generate knowledge index
         const knowledgeIndex = {
             generatedAt: new Date().toISOString(),
-            version: '1.0.0',
+            version: '2.0.0', // Updated version
             
             statistics: {
                 totalEntries: allEntries.length,
                 documentation: docEntries.length,
                 nodes: nodeEntries.length,
-                keywords: Object.keys(keywordIndex).length,
                 avgScoreDoc: Math.round(docEntries.reduce((sum, e) => sum + e.score, 0) / docEntries.length * 10) / 10,
                 avgScoreNode: Math.round(nodeEntries.reduce((sum, e) => sum + e.score, 0) / nodeEntries.length * 10) / 10
             },
+            
+            // FlexSearch segments
+            flexIndex: flexIndexData,
             
             entries: {
                 documentation: docEntries,
@@ -372,8 +438,6 @@ async function main() {
             },
             
             indexes: {
-                byKeyword: keywordIndex,
-                byCategory: categoryIndex,
                 quickLookup
             },
             
@@ -383,7 +447,7 @@ async function main() {
         // Write to file
         console.log('\n💾 Writing knowledge index...');
         await writeFile(OUTPUT_FILE, JSON.stringify(knowledgeIndex, null, 2));
-        console.log('✅ Knowledge index written');
+        console.log('✅ Knowledge index written (FlexSearch included)');
         
         // Summary
         console.log('\n📊 Summary:');

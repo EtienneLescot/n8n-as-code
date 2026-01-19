@@ -188,9 +188,9 @@ program
 // 5. Docs - Access documentation
 program
     .command('docs')
-    .description('Access n8n documentation')
+    .description('Access n8n documentation (DEPRECATED: Use search instead)')
     .argument('[title]', 'Documentation page title')
-    .option('--search <query>', 'Search documentation')
+    .option('--search <query>', 'Search documentation (Deprecated: Use search command)')
     .option('--list', 'List all categories')
     .option('--category <category>', 'Filter by category')
     .action((title, options) => {
@@ -199,8 +199,12 @@ program
                 const categories = docsProvider.getCategories();
                 console.log(JSON.stringify(categories, null, 2));
             } else if (options.search) {
-                const results = docsProvider.searchDocs(options.search, { category: options.category });
-                console.log(JSON.stringify(results, null, 2));
+                console.error(chalk.yellow('⚠️  docs --search is deprecated. Using search command instead.\n'));
+                const results = knowledgeSearch.searchAll(options.search, {
+                    category: options.category,
+                    type: 'documentation'
+                });
+                console.log(JSON.stringify(results.results, null, 2));
                 console.error(chalk.cyan('\n💡 Hint: Use \'docs "<title>"\' to read a full page'));
             } else if (title) {
                 const page = docsProvider.getDocPageByTitle(title);
