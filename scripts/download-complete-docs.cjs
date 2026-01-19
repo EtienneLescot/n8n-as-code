@@ -35,7 +35,7 @@ const MAX_CONCURRENT_DOWNLOADS = 10;
 const CATEGORY_PATTERNS = {
     'advanced-ai': /^advanced-ai\//,
     credentials: /^credentials\//,
-    tutorials: /^courses\/|^video-courses\//,
+    tutorials: /^courses\/|^video-courses\/|^tutorials\//,
     hosting: /^hosting\//,
     api: /^api\//,
     integrations: /^integrations\/builtin\/app-nodes\//,
@@ -45,8 +45,9 @@ const CATEGORY_PATTERNS = {
     'flow-logic': /^flow-logic\//,
     data: /^data\//,
     workflows: /^workflows\//,
-    code: /\/code\//,  // Can be anywhere in path
+    code: /^code\/|\/code\//,
     expressions: /^expressions\//,
+    concepts: /^concepts\//,
     'try-it-out': /^try-it-out\//,
 };
 

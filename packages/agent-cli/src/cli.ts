@@ -5,6 +5,8 @@ import { NodeSchemaProvider } from './services/node-schema-provider.js';
 import { WorkflowValidator } from './services/workflow-validator.js';
 import { DocsProvider } from './services/docs-provider.js';
 import { KnowledgeSearch } from './services/knowledge-search.js';
+import { AiContextGenerator } from './services/ai-context-generator.js';
+import { SnippetGenerator } from './services/snippet-generator.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -67,26 +69,6 @@ program
         }
     });
 
-// 2. Get Schema
-program
-    .command('get')
-    .description('Get full JSON schema for a specific node')
-    .argument('<name>', 'Node name (camelCase, e.g. httpRequest)')
-    .action((name) => {
-        try {
-            const schema = provider.getNodeSchema(name);
-            if (schema) {
-                console.log(JSON.stringify(schema, null, 2));
-            } else {
-                console.error(chalk.red(`Node '${name}' not found.`));
-                process.exit(1);
-            }
-        } catch (error: any) {
-            console.error(chalk.red(error.message));
-            process.exit(1);
-        }
-    });
-
 // 2. Get Full Details - With hints
 program
     .command('get')
@@ -95,14 +77,19 @@ program
     .action((name) => {
         try {
             const schema = provider.getNodeSchema(name);
-            console.log(JSON.stringify(schema, null, 2));
-            
-            // Add helpful hints
-            console.error(chalk.cyan('\n💡 Next steps:'));
-            console.error(chalk.gray(`   - 'schema ${name}' for quick parameter reference`));
-            console.error(chalk.gray(`   - 'examples ${name}' to find usage examples`));
-            console.error(chalk.gray(`   - 'related ${name}' to discover similar nodes`));
-            console.error(chalk.gray(`   - 'docs <title>' to read full documentation`));
+            if (schema) {
+                console.log(JSON.stringify(schema, null, 2));
+                
+                // Add helpful hints to stderr
+                console.error(chalk.cyan('\n💡 Next steps:'));
+                console.error(chalk.gray(`   - 'schema ${name}' for quick parameter reference`));
+                console.error(chalk.gray(`   - 'examples ${name}' to find usage examples`));
+                console.error(chalk.gray(`   - 'related ${name}' to discover similar nodes`));
+                console.error(chalk.gray(`   - 'docs <title>' to read full documentation`));
+            } else {
+                console.error(chalk.red(`Node '${name}' not found.`));
+                process.exit(1);
+            }
         } catch (error: any) {
             console.error(chalk.red(error.message));
             process.exit(1);
@@ -313,6 +300,29 @@ program
             console.error(chalk.cyan('\n💡 Hints:'));
             console.error(chalk.gray('   - Use \'get <nodeName>\' for complete node information'));
             console.error(chalk.gray('   - Use \'docs <title>\' to read documentation pages'));
+        } catch (error: any) {
+            console.error(chalk.red(error.message));
+            process.exit(1);
+        }
+    });
+
+// 9. Update AI Context
+program
+    .command('update-ai')
+    .description('Update AI Context (AGENTS.md, rule files, snippets)')
+    .option('--version <version>', 'n8n version', 'Unknown')
+    .action(async (options) => {
+        try {
+            console.error(chalk.blue('🤖 Updating AI Context...'));
+            const projectRoot = process.cwd();
+            
+            const aiContextGenerator = new AiContextGenerator();
+            await aiContextGenerator.generate(projectRoot, options.version);
+            
+            const snippetGen = new SnippetGenerator();
+            await snippetGen.generate(projectRoot);
+            
+            console.error(chalk.green('✅ AI Context updated successfully!'));
         } catch (error: any) {
             console.error(chalk.red(error.message));
             process.exit(1);

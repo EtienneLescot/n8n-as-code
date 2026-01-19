@@ -53,9 +53,9 @@ export class NodeSchemaProvider {
         if (customIndexPath) {
             this.enrichedIndexPath = customIndexPath;
         } else {
-            // Resolve path to assets/n8n-nodes-enriched.json
-            // In dist structure: dist/services/node-schema-provider.js -> dist/assets/n8n-nodes-enriched.json
-            this.enrichedIndexPath = path.resolve(_dirname, '../assets/n8n-nodes-enriched.json');
+            // Resolve path to assets/n8n-nodes-technical.json
+            // In dist structure: dist/services/node-schema-provider.js -> dist/assets/n8n-nodes-technical.json
+            this.enrichedIndexPath = path.resolve(_dirname, '../assets/n8n-nodes-technical.json');
         }
     }
 
@@ -63,10 +63,10 @@ export class NodeSchemaProvider {
     private loadIndex() {
         if (this.index) return;
         
-        // Load enriched index (required)
+        // Load technical index (required)
         if (!fs.existsSync(this.enrichedIndexPath)) {
             throw new Error(
-                `Enriched node index not found at: ${this.enrichedIndexPath}\n` +
+                `Technical node index not found at: ${this.enrichedIndexPath}\n` +
                 `Please run the build process: npm run build in packages/agent-cli`
             );
         }
@@ -77,7 +77,7 @@ export class NodeSchemaProvider {
             this.index = this.enrichedIndex;
         } catch (error: any) {
             throw new Error(
-                `Failed to load enriched node index: ${error.message}\n` +
+                `Failed to load technical node index: ${error.message}\n` +
                 `The index file may be corrupted. Try rebuilding: npm run build in packages/agent-cli`
             );
         }

@@ -102,6 +102,14 @@ n8n-agent validate workflow.json
 n8n-agent validate workflow.json --strict
 ```
 
+### `update-ai` - 🤖 Update AI Context
+Update AI Context (AGENTS.md, rule files, snippets).
+
+```bash
+n8n-agent update-ai
+n8n-agent update-ai --version 1.70.0
+```
+
 ## 🧩 Integration
 
 ### With @n8n-as-code/cli

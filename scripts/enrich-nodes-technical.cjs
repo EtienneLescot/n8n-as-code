@@ -8,8 +8,8 @@ const path = require('path');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const NODES_INDEX_FILE = path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-nodes-index.json');
-const DOCS_METADATA_FILE = path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-docs-cache/docs-metadata.json');
-const OUTPUT_FILE = path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-nodes-enriched.json');
+const DOCS_METADATA_FILE = path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-docs-cache/metadata.json');
+const OUTPUT_FILE = path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-nodes-technical.json');
 
 /**
  * Normalize node name for matching (remove spaces, lowercase, remove special chars)
@@ -25,29 +25,32 @@ function normalizeNodeName(name) {
  * Try to match a node from the schema with documentation
  * Returns the best matching doc or null
  */
-function findMatchingDoc(node, docsNodes) {
+function findMatchingDoc(node, docsPages) {
     const nodeName = normalizeNodeName(node.name || '');
     const nodeDisplayName = normalizeNodeName(node.displayName || '');
     
-    // Try exact matches first
-    for (const [docName, docData] of Object.entries(docsNodes)) {
-        const docNameNorm = normalizeNodeName(docName);
-        
-        if (docNameNorm === nodeName || docNameNorm === nodeDisplayName) {
-            return docData;
+    const pages = Object.values(docsPages);
+
+    // 1. Try matching by extracted nodeName property
+    for (const page of pages) {
+        if (page.nodeName && normalizeNodeName(page.nodeName) === nodeName) {
+            return page;
+        }
+    }
+
+    // 2. Try matching by title (exact)
+    for (const page of pages) {
+        const titleNorm = normalizeNodeName(page.title);
+        if (titleNorm === nodeName || titleNorm === nodeDisplayName) {
+            return page;
         }
     }
     
-    // Try partial matches (doc name contains node name or vice versa)
-    for (const [docName, docData] of Object.entries(docsNodes)) {
-        const docNameNorm = normalizeNodeName(docName);
-        
-        if (docNameNorm.includes(nodeName) || nodeName.includes(docNameNorm)) {
-            return docData;
-        }
-        
-        if (docNameNorm.includes(nodeDisplayName) || nodeDisplayName.includes(docNameNorm)) {
-            return docData;
+    // 3. Try matching by title (partial)
+    for (const page of pages) {
+        const titleNorm = normalizeNodeName(page.title);
+        if (titleNorm.includes(nodeName) || titleNorm.includes(nodeDisplayName)) {
+            return page;
         }
     }
     
@@ -148,7 +151,7 @@ async function enrichNodesIndex() {
     if (fs.existsSync(DOCS_METADATA_FILE)) {
         console.log('📂 Loading documentation metadata...');
         docsMetadata = JSON.parse(fs.readFileSync(DOCS_METADATA_FILE, 'utf8'));
-        console.log(`✓ Loaded documentation for ${Object.keys(docsMetadata.nodes).length} nodes`);
+        console.log(`✓ Loaded documentation for ${Object.keys(docsMetadata.pages).length} pages`);
     } else {
         console.warn('⚠️  Documentation metadata not found. Enriching with schema data only.');
         console.log('To include documentation, run: node scripts/download-n8n-docs.cjs first');
@@ -166,7 +169,7 @@ async function enrichNodesIndex() {
         // Find matching documentation
         let docData = null;
         if (docsMetadata) {
-            docData = findMatchingDoc(node, docsMetadata.nodes);
+            docData = findMatchingDoc(node, docsMetadata.pages);
             if (docData) {
                 matchedCount++;
             }

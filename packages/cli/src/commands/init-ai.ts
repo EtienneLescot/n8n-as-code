@@ -69,7 +69,7 @@ export class UpdateAiCommand {
             console.log(chalk.gray('   ✔ AGENTS.md: Complete AI agent guidelines'));
             console.log(chalk.gray('   ✔ .cursorrules/.clinerules/.windsurfrules: AI agent rules'));
             console.log(chalk.gray('   ✔ .vscode/n8n.code-snippets: Code completion snippets'));
-            console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-index.json (via @n8n-as-code/agent-cli)\n'));
+            console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/agent-cli)\n'));
 
         } catch (error: any) {
             console.error(chalk.red(`❌ Error during update-ai: ${error.message}`));
