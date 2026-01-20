@@ -1,5 +1,11 @@
 # @n8n-as-code/agent-cli
 
+## 0.7.0
+
+### Minor Changes
+
+- fix(agent-cli): improve asset path resolution with fallback logic
+
 ## 0.6.0
 
 ### Minor Changes
