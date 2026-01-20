@@ -88,7 +88,7 @@ async function extractNodes() {
 
     console.log(`\n📦 Total source files: ${allNodeFiles.length}`);
 
-    const results = [];
+    const resultsMap = new Map();
     let successCount = 0;
     let errorCount = 0;
 
@@ -125,6 +125,8 @@ async function extractNodes() {
 
                             if (version && version.description) {
                                 description = version.description;
+                                // Add all versions to description for indexing
+                                description.allVersions = Object.keys(instance.nodeVersions).map(Number).sort((a, b) => a - b);
                             }
                         } else if (instance.description) {
                             description = instance.description;
@@ -155,18 +157,47 @@ async function extractNodes() {
 
                 const fullType = `${prefix}.${description.name}`;
 
-                results.push({
-                    name: description.name,
-                    fullType: fullType,
-                    displayName: description.displayName,
-                    description: description.description,
-                    icon: description.icon,
-                    group: description.group,
-                    version: description.version,
-                    properties: description.properties || [],
-                    sourcePath: fullPath.replace(ROOT_DIR, '')
-                });
-                successCount++;
+                // VERSIONING LOGIC: Deduplicate by name
+                const existing = resultsMap.get(description.name);
+
+                // If we already have it, only replace if this one looks "better" (has versions or more props)
+                let shouldReplace = !existing;
+                if (existing) {
+                    const existingHasVersions = Array.isArray(existing.version) && existing.version.length > 1;
+                    const newHasVersions = Array.isArray(description.allVersions) && description.allVersions.length > 1;
+
+                    if (newHasVersions && !existingHasVersions) {
+                        shouldReplace = true;
+                    } else if (newHasVersions === existingHasVersions) {
+                        // Tie-break: one with more properties
+                        if ((description.properties?.length || 0) > (existing.properties?.length || 0)) {
+                            shouldReplace = true;
+                        }
+                    }
+                }
+
+                if (shouldReplace) {
+                    if (process.env.DEBUG && existing) {
+                        console.log(`   🔄 Replacing ${description.name} with better metadata (FullType: ${fullType})`);
+                        console.log(`      New Versions: ${JSON.stringify(description.allVersions || description.version)}`);
+                    } else if (process.env.DEBUG) {
+                        console.log(`   ➕ Adding ${description.name} (${fullType})`);
+                    }
+                    resultsMap.set(description.name, {
+                        name: description.name,
+                        fullType: fullType,
+                        displayName: description.displayName,
+                        description: description.description,
+                        icon: description.icon,
+                        group: description.group,
+                        version: description.allVersions || description.version || 1,
+                        properties: description.properties || [],
+                        sourcePath: fullPath.replace(ROOT_DIR, '')
+                    });
+                    if (!existing) successCount++;
+                } else if (process.env.DEBUG && existing) {
+                    console.log(`   ⏭️  Skipping duplicate ${description.name} from ${path.basename(fullPath)} (Existing is better)`);
+                }
             } else if (description) {
                 if (process.env.DEBUG) console.log(`❌ Invalid description specific data (missing name/displayName): ${path.basename(fullPath)}`);
                 errorCount++;
@@ -193,7 +224,7 @@ async function extractNodes() {
         generatedAt: new Date().toISOString(),
         sourceFileCount: allNodeFiles.length,
         scanDirectories: SCAN_DIRS,
-        nodes: results
+        nodes: Array.from(resultsMap.values())
     };
 
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(outputData, null, 2));
