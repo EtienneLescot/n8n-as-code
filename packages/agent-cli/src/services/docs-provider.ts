@@ -83,10 +83,20 @@ export class DocsProvider {
     private docsPath: string;
 
     constructor(customDocsPath?: string) {
+        const envAssetsDir = process.env.N8N_AS_CODE_ASSETS_DIR;
         if (customDocsPath) {
             this.docsPath = customDocsPath;
+        } else if (envAssetsDir) {
+            this.docsPath = path.join(envAssetsDir, 'n8n-docs-complete.json');
         } else {
-            this.docsPath = path.resolve(_dirname, '../assets/n8n-docs-complete.json');
+            // Check sibling first
+            const siblingPath = path.resolve(_dirname, '../assets/n8n-docs-complete.json');
+            if (fs.existsSync(siblingPath)) {
+                this.docsPath = siblingPath;
+            } else {
+                // VS Code Extension fallback
+                this.docsPath = path.resolve(_dirname, '../../assets/n8n-docs-complete.json');
+            }
         }
     }
 

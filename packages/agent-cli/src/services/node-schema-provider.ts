@@ -50,12 +50,18 @@ export class NodeSchemaProvider {
     private enrichedIndexPath: string;
 
     constructor(customIndexPath?: string) {
+        const envAssetsDir = process.env.N8N_AS_CODE_ASSETS_DIR;
         if (customIndexPath) {
             this.enrichedIndexPath = customIndexPath;
+        } else if (envAssetsDir) {
+            this.enrichedIndexPath = path.join(envAssetsDir, 'n8n-nodes-technical.json');
         } else {
-            // Resolve path to assets/n8n-nodes-technical.json
-            // In dist structure: dist/services/node-schema-provider.js -> dist/assets/n8n-nodes-technical.json
-            this.enrichedIndexPath = path.resolve(_dirname, '../assets/n8n-nodes-technical.json');
+            const siblingPath = path.resolve(_dirname, '../assets/n8n-nodes-technical.json');
+            if (fs.existsSync(siblingPath)) {
+                this.enrichedIndexPath = siblingPath;
+            } else {
+                this.enrichedIndexPath = path.resolve(_dirname, '../../assets/n8n-nodes-technical.json');
+            }
         }
     }
 

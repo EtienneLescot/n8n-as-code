@@ -31,7 +31,18 @@ const getVersion = () => {
 };
 
 const getAssetsDir = () => {
-    return process.env.N8N_AS_CODE_ASSETS_DIR || join(_dirname, '../assets');
+    if (process.env.N8N_AS_CODE_ASSETS_DIR) {
+        return process.env.N8N_AS_CODE_ASSETS_DIR;
+    }
+
+    // Fallback 1: sibling assets (Standard NPM install or dev)
+    const siblingAssets = join(_dirname, '../assets');
+    if (readFileSync(join(siblingAssets, 'n8n-docs-complete.json'), { flag: 'r' }).length > 0) {
+        return siblingAssets;
+    }
+
+    // Fallback 2: parent's sibling assets (VS Code Extension: out/agent-cli/cli.js -> assets/)
+    return join(_dirname, '../../assets');
 };
 
 const assetsDir = getAssetsDir();

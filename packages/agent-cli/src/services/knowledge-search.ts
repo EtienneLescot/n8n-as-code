@@ -55,15 +55,23 @@ export class KnowledgeSearch {
     private nodeProvider: NodeSchemaProvider;
 
     constructor(customIndexPath?: string) {
+        const envAssetsDir = process.env.N8N_AS_CODE_ASSETS_DIR;
+
         if (customIndexPath) {
             this.indexPath = customIndexPath;
+            const assetsDir = path.dirname(customIndexPath);
+            this.docsProvider = new DocsProvider(path.join(assetsDir, 'n8n-docs-complete.json'));
+            this.nodeProvider = new NodeSchemaProvider(path.join(assetsDir, 'n8n-nodes-technical.json'));
+        } else if (envAssetsDir) {
+            this.indexPath = path.join(envAssetsDir, 'n8n-knowledge-index.json');
+            this.docsProvider = new DocsProvider(path.join(envAssetsDir, 'n8n-docs-complete.json'));
+            this.nodeProvider = new NodeSchemaProvider(path.join(envAssetsDir, 'n8n-nodes-technical.json'));
         } else {
-            // In dev (ts-node): src/services/../assets -> src/assets
-            // In prod (node dist): dist/services/../assets -> dist/assets
+            // Fallback to relative path
             this.indexPath = path.resolve(_dirname, '../assets/n8n-knowledge-index.json');
+            this.docsProvider = new DocsProvider();
+            this.nodeProvider = new NodeSchemaProvider();
         }
-        this.docsProvider = new DocsProvider();
-        this.nodeProvider = new NodeSchemaProvider();
     }
 
     private loadIndex(): void {
