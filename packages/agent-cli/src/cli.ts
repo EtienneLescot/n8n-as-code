@@ -30,10 +30,15 @@ const getVersion = () => {
     }
 };
 
+const getAssetsDir = () => {
+    return process.env.N8N_AS_CODE_ASSETS_DIR || join(_dirname, '../assets');
+};
+
+const assetsDir = getAssetsDir();
 const program = new Command();
-const provider = new NodeSchemaProvider();
-const docsProvider = new DocsProvider();
-const knowledgeSearch = new KnowledgeSearch();
+const provider = new NodeSchemaProvider(join(assetsDir, 'n8n-nodes-technical.json'));
+const docsProvider = new DocsProvider(join(assetsDir, 'n8n-docs-complete.json'));
+const knowledgeSearch = new KnowledgeSearch(join(assetsDir, 'n8n-knowledge-index.json'));
 
 program
     .name('n8n-agent')
@@ -55,9 +60,9 @@ program
                 type: options.type,
                 limit: parseInt(options.limit)
             });
-            
+
             console.log(JSON.stringify(results, null, 2));
-            
+
             // Print hints to stderr so they don't interfere with JSON parsing
             if (results.hints && results.hints.length > 0) {
                 console.error(chalk.cyan('\n💡 Hints:'));
@@ -79,7 +84,7 @@ program
             const schema = provider.getNodeSchema(name);
             if (schema) {
                 console.log(JSON.stringify(schema, null, 2));
-                
+
                 // Add helpful hints to stderr
                 console.error(chalk.cyan('\n💡 Next steps:'));
                 console.error(chalk.gray(`   - 'schema ${name}' for quick parameter reference`));
@@ -106,7 +111,7 @@ program
         try {
             const nodes = provider.listAllNodes();
             const stats = docsProvider.getStatistics();
-            
+
             if (options.nodes) {
                 console.log(JSON.stringify(nodes, null, 2));
                 return;
@@ -116,7 +121,7 @@ program
                 console.log(JSON.stringify(categories, null, 2));
                 return;
             }
-            
+
             console.log(JSON.stringify({
                 summary: {
                     totalNodes: nodes.length,
@@ -141,7 +146,7 @@ program
         try {
             const workflowContent = readFileSync(file, 'utf8');
             const workflow = JSON.parse(workflowContent);
-            
+
             const validator = new WorkflowValidator();
             const result = validator.validateWorkflow(workflow);
 
@@ -149,11 +154,11 @@ program
             if (result.errors.length > 0) {
                 console.log(chalk.red.bold(`\n❌ Errors (${result.errors.length}):\n`));
                 for (const error of result.errors) {
-                    const location = error.nodeName 
-                        ? ` [${error.nodeName}]` 
-                        : error.nodeId 
-                        ? ` [${error.nodeId}]` 
-                        : '';
+                    const location = error.nodeName
+                        ? ` [${error.nodeName}]`
+                        : error.nodeId
+                            ? ` [${error.nodeId}]`
+                            : '';
                     console.log(chalk.red(`  • ${error.message}${location}`));
                     if (error.path) {
                         console.log(chalk.gray(`    Path: ${error.path}`));
@@ -165,11 +170,11 @@ program
             if (result.warnings.length > 0) {
                 console.log(chalk.yellow.bold(`\n⚠️  Warnings (${result.warnings.length}):\n`));
                 for (const warning of result.warnings) {
-                    const location = warning.nodeName 
-                        ? ` [${warning.nodeName}]` 
-                        : warning.nodeId 
-                        ? ` [${warning.nodeId}]` 
-                        : '';
+                    const location = warning.nodeName
+                        ? ` [${warning.nodeName}]`
+                        : warning.nodeId
+                            ? ` [${warning.nodeId}]`
+                            : '';
                     console.log(chalk.yellow(`  • ${warning.message}${location}`));
                     if (warning.path) {
                         console.log(chalk.gray(`    Path: ${warning.path}`));
@@ -285,7 +290,7 @@ program
         try {
             const examples = docsProvider.getExamples(query, parseInt(options.limit));
             console.log(JSON.stringify(examples, null, 2));
-            
+
             if (examples.length > 0) {
                 console.error(chalk.cyan('\n💡 Hint: Use \'docs "<title>"\' to read the full example'));
             }
@@ -307,7 +312,7 @@ program
             if (nodeSchema) {
                 const nodeDocs = docsProvider.getNodeDocumentation(query);
                 const related = docsProvider.findRelated(nodeDocs[0]?.id || '', 10);
-                
+
                 console.log(JSON.stringify({
                     source: { type: 'node', name: query, displayName: nodeSchema.displayName },
                     documentation: nodeDocs.map((d: any) => ({ id: d.id, title: d.title, url: d.url })),
@@ -321,7 +326,7 @@ program
                     relatedPages: docs.map((d: any) => ({ id: d.id, title: d.title, category: d.category, url: d.url }))
                 }, null, 2));
             }
-            
+
             console.error(chalk.cyan('\n💡 Hints:'));
             console.error(chalk.gray('   - Use \'get <nodeName>\' for complete node information'));
             console.error(chalk.gray('   - Use \'docs <title>\' to read documentation pages'));
@@ -340,13 +345,13 @@ program
         try {
             console.error(chalk.blue('🤖 Updating AI Context...'));
             const projectRoot = process.cwd();
-            
+
             const aiContextGenerator = new AiContextGenerator();
             await aiContextGenerator.generate(projectRoot, options.n8nVersion);
-            
+
             const snippetGen = new SnippetGenerator();
             await snippetGen.generate(projectRoot);
-            
+
             console.error(chalk.green('✅ AI Context updated successfully!'));
         } catch (error: any) {
             console.error(chalk.red(error.message));

@@ -15,10 +15,10 @@ const copyAgentCliAssets = {
                 'dist',
                 'assets'
             );
-            
+
             // Fallback to local workspace for development
             const fallbackAssetsDir = path.join(__dirname, '..', 'agent-cli', 'dist', 'assets');
-            
+
             const sourceDir = fs.existsSync(agentCliAssetsDir) ? agentCliAssetsDir : fallbackAssetsDir;
             const targetDir = path.join(__dirname, 'assets');
 
@@ -44,8 +44,8 @@ const copyAgentCliAssets = {
     }
 };
 
-// Build configuration
-esbuild.build({
+// Build configuration for Extension
+const extensionBuild = esbuild.build({
     entryPoints: ['./src/extension.ts'],
     bundle: true,
     outfile: 'out/extension.js',
@@ -56,4 +56,27 @@ esbuild.build({
         'empty-import-meta': 'silent'
     },
     plugins: [copyAgentCliAssets]
-}).catch(() => process.exit(1));
+});
+
+// Build configuration for Agent CLI (Portable version for VS Code)
+const agentCliEntry = path.join(__dirname, 'node_modules', '@n8n-as-code', 'agent-cli', 'dist', 'cli.js');
+const fallbackAgentCliEntry = path.join(__dirname, '..', 'agent-cli', 'dist', 'cli.js');
+const finalAgentCliEntry = fs.existsSync(agentCliEntry) ? agentCliEntry : fallbackAgentCliEntry;
+
+if (!fs.existsSync(finalAgentCliEntry)) {
+    console.warn('⚠️  agent-cli entry point not found, skipping CLI bundle');
+}
+
+const agentCliBuild = fs.existsSync(finalAgentCliEntry) ? esbuild.build({
+    entryPoints: [finalAgentCliEntry],
+    bundle: true,
+    outfile: 'out/agent-cli/cli.js',
+    external: ['vscode'],
+    format: 'cjs',
+    platform: 'node',
+    logOverride: {
+        'empty-import-meta': 'silent'
+    }
+}) : Promise.resolve();
+
+Promise.all([extensionBuild, agentCliBuild]).catch(() => process.exit(1));

@@ -46,10 +46,13 @@ export class AiContextGenerator {
 
     let extensionCliPathLine = '';
     if (extensionPath) {
-      const absolutePath = path.join(extensionPath, 'dist', 'cli.js');
+      // Updated to use the new bundles path in 'out/agent-cli/cli.js'
+      const absolutePath = path.join(extensionPath, 'out', 'agent-cli', 'cli.js');
+      const assetsPath = path.join(extensionPath, 'assets');
       extensionCliPathLine = `
 # 1. VS Code Extension Context (Explicit absolute path)
 if [ -f "${absolutePath}" ]; then
+  export N8N_AS_CODE_ASSETS_DIR="${assetsPath}"
   node "${absolutePath}" "$@"
   exit $?
 fi`;
@@ -87,9 +90,11 @@ fi`;
     let cmdContent = '@echo off\n';
 
     if (extensionPath) {
-      const absPath = path.join(extensionPath, 'dist', 'cli.js');
+      const absPath = path.join(extensionPath, 'out', 'agent-cli', 'cli.js');
+      const assetsPath = path.join(extensionPath, 'assets');
       cmdContent += `
 IF EXIST "${absPath}" (
+  SET N8N_AS_CODE_ASSETS_DIR=${assetsPath}
   node "${absPath}" %*
   EXIT /B %ERRORLEVEL%
 )

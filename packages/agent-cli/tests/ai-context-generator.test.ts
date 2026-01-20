@@ -124,8 +124,8 @@ describe('AiContextGenerator', () => {
             const shimPath = path.join(tempDir, 'n8n-agent');
             const content = fs.readFileSync(shimPath, 'utf-8');
 
-            // Should contain explicit extension path check
-            expect(content).toContain(`if [ -f "${mockExtPath}/dist/cli.js" ]; then`);
+            // Should contain explicit extension path check with new subpath
+            expect(content).toContain(`if [ -f "${mockExtPath}/out/agent-cli/cli.js" ]; then`);
         });
     });
 });
