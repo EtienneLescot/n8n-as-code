@@ -298,6 +298,7 @@ async function enrichNodesIndex() {
         enrichedNodes[nodeKey] = {
             // Core schema
             name: node.name,
+            type: node.fullType,
             displayName: node.displayName,
             description: node.description,
             version: node.version,

@@ -282,11 +282,12 @@ program
                 const props = Array.isArray(schema.schema?.properties) ? schema.schema.properties : [];
                 const technicalSchema = {
                     name: schema.name,
+                    type: schema.type,
                     displayName: schema.displayName,
                     description: schema.description,
                     version: schema.version,
                     properties: props,
-                    requiredFields: props.filter((p: any) => p.required).map((p: any) => p.name) || []
+                    requiredFields: [...new Set(props.filter((p: any) => p.required).map((p: any) => p.name))]
                 };
                 console.log(JSON.stringify(technicalSchema, null, 2));
                 console.error(chalk.cyan('\n💡 Hint: Use \'get ' + schema.name + '\' for complete documentation and examples'));

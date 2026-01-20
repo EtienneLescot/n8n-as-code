@@ -117,17 +117,14 @@ async function extractNodes() {
 
                     try {
                         const instance = new item();
+
                         // Handle VersionedNodeType
-                        if (instance.nodeVersions && instance.defaultVersion) {
-                            const version = instance.nodeVersions[instance.defaultVersion];
+                        if (instance.nodeVersions) {
+                            const defaultVersion = instance.defaultVersion || Object.keys(instance.nodeVersions)[0];
+                            const version = instance.nodeVersions[defaultVersion];
+
                             if (version && version.description) {
                                 description = version.description;
-                            } else {
-                                // Fallback to first available version if default fails
-                                const firstVersion = Object.values(instance.nodeVersions)[0];
-                                if (firstVersion && firstVersion.description) {
-                                    description = firstVersion.description;
-                                }
                             }
                         } else if (instance.description) {
                             description = instance.description;
@@ -135,7 +132,7 @@ async function extractNodes() {
 
                         if (description) break;
                     } catch (e) {
-                        // ... try with dummy params if needed
+                        if (process.env.DEBUG) console.log(`   ⚠️ Failed to instantiate ${key}: ${e.message}`);
                     }
                 }
 
@@ -150,17 +147,13 @@ async function extractNodes() {
 
             if (description && description.name && description.displayName) {
                 // Determine full type name based on package
-                let fullType = description.name;
+                let prefix = 'n8n-nodes-base';
                 const pathParts = fullPath.split(path.sep);
-                const packageIdx = pathParts.lastIndexOf('packages');
-                if (packageIdx !== -1 && pathParts[packageIdx + 1]) {
-                    let packageName = pathParts[packageIdx + 1];
-                    // Handle scoped packages like @n8n/nodes-langchain
-                    if (packageName.startsWith('@')) {
-                        packageName = packageName + '/' + pathParts[packageIdx + 2];
-                    }
-                    fullType = `${packageName}.${description.name}`;
+                if (pathParts.includes('@n8n') || pathParts.includes('nodes-langchain')) {
+                    prefix = 'n8n-nodes-langchain';
                 }
+
+                const fullType = `${prefix}.${description.name}`;
 
                 results.push({
                     name: description.name,
@@ -170,7 +163,7 @@ async function extractNodes() {
                     icon: description.icon,
                     group: description.group,
                     version: description.version,
-                    properties: description.properties,
+                    properties: description.properties || [],
                     sourcePath: fullPath.replace(ROOT_DIR, '')
                 });
                 successCount++;

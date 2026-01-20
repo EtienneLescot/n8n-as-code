@@ -13,6 +13,7 @@ const _dirname = typeof __dirname !== 'undefined'
 
 export interface INodeSchemaStub {
     name: string;
+    type: string;
     displayName: string;
     description: string;
     version: number | number[];
@@ -24,6 +25,7 @@ export interface INodeSchemaStub {
 
 export interface IEnrichedNode {
     name: string;
+    type: string;
     displayName: string;
     description: string;
     version: number | number[];
@@ -98,7 +100,18 @@ export class NodeSchemaProvider {
 
         // Direct match
         if (this.index.nodes[nodeName]) {
-            return this.index.nodes[nodeName];
+            const node = this.index.nodes[nodeName];
+            return {
+                name: node.name,
+                type: node.type,
+                displayName: node.displayName,
+                description: node.description,
+                version: node.version,
+                group: node.group,
+                icon: node.icon,
+                schema: node.schema,
+                metadata: node.metadata
+            };
         }
 
         // Case insensitive fallback
@@ -206,6 +219,7 @@ export class NodeSchemaProvider {
             if (score > 0) {
                 scoredResults.push({
                     name: node.name || key,
+                    type: node.type || node.name || key,
                     displayName: node.displayName || key,
                     description: node.description || '',
                     version: node.version,
@@ -231,6 +245,7 @@ export class NodeSchemaProvider {
         this.loadIndex();
         return Object.values<any>(this.index.nodes).map(node => ({
             name: node.name,
+            type: node.type || node.name,
             displayName: node.displayName,
             description: node.description || '',
             version: node.version,
