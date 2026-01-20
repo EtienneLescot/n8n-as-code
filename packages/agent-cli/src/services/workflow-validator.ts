@@ -1,4 +1,5 @@
 import { NodeSchemaProvider } from './node-schema-provider.js';
+import { WorkflowSanitizer } from '@n8n-as-code/core';
 
 export interface ValidationResult {
   valid: boolean;
@@ -62,17 +63,18 @@ export class WorkflowValidator {
 
     // 3. Validate each node
     const nodeMap = new Map<string, any>();
-    
+
     for (const node of workflow.nodes) {
       // Store node for connection validation
       nodeMap.set(node.name, node);
 
       // Check required node fields
+      // NOTE: node.id is optional for "as-code" workflows (sanitized)
       if (!node.id) {
-        errors.push({
-          type: 'error',
+        warnings.push({
+          type: 'warning',
           nodeName: node.name || 'unknown',
-          message: 'Node is missing required field: "id"',
+          message: 'Node is missing "id" (this is normal for sanitized workflows)',
         });
       }
 

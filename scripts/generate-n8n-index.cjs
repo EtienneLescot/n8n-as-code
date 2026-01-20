@@ -108,39 +108,38 @@ async function extractNodes() {
             for (const key of moduleKeys) {
                 const item = module[key];
 
-                // Strategy A: Class (AwsS3V2, etc)
+                // Strategy A: Class
                 if (typeof item === 'function' && item.prototype) {
-                    // Check static property first
                     if (item.description) {
                         description = item.description;
                         break;
                     }
 
                     try {
-                        // Try different instantiation signatures
                         const instance = new item();
-                        if (instance.description) {
+                        // Handle VersionedNodeType
+                        if (instance.nodeVersions && instance.defaultVersion) {
+                            const version = instance.nodeVersions[instance.defaultVersion];
+                            if (version && version.description) {
+                                description = version.description;
+                            } else {
+                                // Fallback to first available version if default fails
+                                const firstVersion = Object.values(instance.nodeVersions)[0];
+                                if (firstVersion && firstVersion.description) {
+                                    description = firstVersion.description;
+                                }
+                            }
+                        } else if (instance.description) {
                             description = instance.description;
-                            break;
                         }
+
+                        if (description) break;
                     } catch (e) {
-                        try {
-                            const instance = new item({ properties: [], inputs: [], outputs: [] });
-                            if (instance.description) {
-                                description = instance.description;
-                                break;
-                            }
-                        } catch (e2) {
-                            // If it fails, maybe it's on prototype (rare for fields but possible for getters)
-                            if (item.prototype.description) {
-                                description = item.prototype.description;
-                                break;
-                            }
-                        }
+                        // ... try with dummy params if needed
                     }
                 }
 
-                // Strategy B: Object (Legacy)
+                // Strategy B: Object
                 if (typeof item === 'object' && item !== null) {
                     if (item.description && (item.description.properties || item.description.name)) {
                         description = item.description;
@@ -150,8 +149,22 @@ async function extractNodes() {
             }
 
             if (description && description.name && description.displayName) {
+                // Determine full type name based on package
+                let fullType = description.name;
+                const pathParts = fullPath.split(path.sep);
+                const packageIdx = pathParts.lastIndexOf('packages');
+                if (packageIdx !== -1 && pathParts[packageIdx + 1]) {
+                    let packageName = pathParts[packageIdx + 1];
+                    // Handle scoped packages like @n8n/nodes-langchain
+                    if (packageName.startsWith('@')) {
+                        packageName = packageName + '/' + pathParts[packageIdx + 2];
+                    }
+                    fullType = `${packageName}.${description.name}`;
+                }
+
                 results.push({
                     name: description.name,
+                    fullType: fullType,
                     displayName: description.displayName,
                     description: description.description,
                     icon: description.icon,

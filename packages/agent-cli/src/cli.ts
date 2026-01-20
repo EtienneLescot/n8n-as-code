@@ -268,24 +268,35 @@ program
     .argument('<name>', 'Node name')
     .action((name) => {
         try {
-            const schema = provider.getNodeSchema(name);
+            let schema = provider.getNodeSchema(name);
+
+            // Search fallback if exact match fails
+            if (!schema) {
+                const searchResults = provider.searchNodes(name, 1);
+                if (searchResults.length > 0 && ((searchResults[0].relevanceScore || 0) > 80 || searchResults[0].name.toLowerCase() === name.toLowerCase())) {
+                    schema = provider.getNodeSchema(searchResults[0].name);
+                }
+            }
+
             if (schema) {
-                // Return only technical properties
+                const props = Array.isArray(schema.schema?.properties) ? schema.schema.properties : [];
                 const technicalSchema = {
                     name: schema.name,
                     displayName: schema.displayName,
+                    description: schema.description,
                     version: schema.version,
-                    properties: schema.schema?.properties,
-                    requiredFields: schema.schema?.properties?.filter((p: any) => p.required).map((p: any) => p.name) || []
+                    properties: props,
+                    requiredFields: props.filter((p: any) => p.required).map((p: any) => p.name) || []
                 };
                 console.log(JSON.stringify(technicalSchema, null, 2));
-                console.error(chalk.cyan('\n💡 Hint: Use \'get ' + name + '\' for complete documentation'));
+                console.error(chalk.cyan('\n💡 Hint: Use \'get ' + schema.name + '\' for complete documentation and examples'));
             } else {
                 console.error(chalk.red(`Node '${name}' not found.`));
+                console.error(chalk.yellow(`Try running: './n8n-agent search "${name}"' to find the correct node name.`));
                 process.exit(1);
             }
         } catch (error: any) {
-            console.error(chalk.red(error.message));
+            console.error(chalk.red('Error getting schema: ' + error.message));
             process.exit(1);
         }
     });
