@@ -151,8 +151,10 @@ async function extractNodes() {
                 // Determine full type name based on package
                 let prefix = 'n8n-nodes-base';
                 const pathParts = fullPath.split(path.sep);
-                if (pathParts.includes('@n8n') || pathParts.includes('nodes-langchain')) {
-                    prefix = 'n8n-nodes-langchain';
+                // Only use langchain prefix if specifically in nodes-langchain package
+                // IMPORTANT: n8n requires the @n8n scope for langchain nodes in the type string
+                if (pathParts.includes('nodes-langchain')) {
+                    prefix = '@n8n/n8n-nodes-langchain';
                 }
 
                 const fullType = `${prefix}.${description.name}`;
@@ -166,7 +168,16 @@ async function extractNodes() {
                     const existingHasVersions = Array.isArray(existing.version) && existing.version.length > 1;
                     const newHasVersions = Array.isArray(description.allVersions) && description.allVersions.length > 1;
 
-                    if (newHasVersions && !existingHasVersions) {
+                    // Priority check: Prefer nodes-base over nodes-langchain for same node name
+                    // This prevents core nodes like 'openAi' from being shadowed by langchain implementations
+                    // that might not be available or primary in standard n8n
+                    const isExistingBase = existing.fullType.startsWith('n8n-nodes-base.');
+                    const isNewLangchain = fullType.startsWith('@n8n/n8n-nodes-langchain.');
+
+                    if (isExistingBase && isNewLangchain) {
+                        shouldReplace = false;
+                        if (process.env.DEBUG) console.log(`   🛡️  Keeping base node ${description.name} over langchain variant`);
+                    } else if (newHasVersions && !existingHasVersions) {
                         shouldReplace = true;
                     } else if (newHasVersions === existingHasVersions) {
                         // Tie-break: one with more properties
