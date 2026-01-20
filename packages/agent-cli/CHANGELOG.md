@@ -1,5 +1,11 @@
 # @n8n-as-code/agent-cli
 
+## 0.9.0
+
+### Minor Changes
+
+- feat(agent-cli): enhance node schema lookup with fuzzy search and improve workflow validation
+
 ## 0.8.0
 
 ### Minor Changes
