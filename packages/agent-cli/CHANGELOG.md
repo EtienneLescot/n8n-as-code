@@ -1,5 +1,11 @@
 # @n8n-as-code/agent-cli
 
+## 0.10.0
+
+### Minor Changes
+
+- feat(agent-cli): add type field to node schema and improve schema handling
+
 ## 0.9.0
 
 ### Minor Changes
