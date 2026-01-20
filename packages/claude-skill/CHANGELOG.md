@@ -1,5 +1,12 @@
 # @n8n-as-code/claude-skill
 
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/agent-cli@0.6.0
+
 ## 0.2.6
 
 ### Patch Changes

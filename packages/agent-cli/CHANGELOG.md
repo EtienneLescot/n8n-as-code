@@ -1,5 +1,11 @@
 # @n8n-as-code/agent-cli
 
+## 0.6.0
+
+### Minor Changes
+
+- refactor(agent-cli): improve shim generation with robust path resolution
+
 ## 0.5.2
 
 ### Patch Changes
