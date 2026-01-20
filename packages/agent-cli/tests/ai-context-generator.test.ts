@@ -2,6 +2,10 @@ import { AiContextGenerator } from '../src/services/ai-context-generator.js';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 describe('AiContextGenerator', () => {
     let tempDir: string;
@@ -94,6 +98,34 @@ describe('AiContextGenerator', () => {
 
             const windsurfContent = fs.readFileSync(path.join(tempDir, '.windsurfrules'), 'utf-8');
             expect(windsurfContent).toContain('### n8n Development Rules');
+        });
+    });
+    describe('Shim Generation', () => {
+        test('should generate robust shim checking for local node_modules', async () => {
+            await generator.generate(tempDir);
+
+            const shimPath = path.join(tempDir, 'n8n-agent');
+            expect(fs.existsSync(shimPath)).toBe(true);
+
+            const content = fs.readFileSync(shimPath, 'utf-8');
+
+            // Should contain standard NPM path check
+            expect(content).toContain('CLI_PATH="./node_modules/@n8n-as-code/agent-cli/dist/cli.js"');
+            expect(content).toContain('if [ -f "$CLI_PATH" ]; then');
+
+            // Should NOT contain absolute build paths
+            expect(content).not.toContain(path.resolve(__dirname, '../src/services'));
+        });
+
+        test('should prioritize extension path if provided', async () => {
+            const mockExtPath = '/mock/extension/path';
+            await generator.generate(tempDir, '1.0.0', mockExtPath);
+
+            const shimPath = path.join(tempDir, 'n8n-agent');
+            const content = fs.readFileSync(shimPath, 'utf-8');
+
+            // Should contain explicit extension path check
+            expect(content).toContain(`if [ -f "${mockExtPath}/dist/cli.js" ]; then`);
         });
     });
 });
