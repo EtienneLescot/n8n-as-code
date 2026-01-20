@@ -7,7 +7,7 @@ import { DocsProvider } from './services/docs-provider.js';
 import { KnowledgeSearch } from './services/knowledge-search.js';
 import { AiContextGenerator } from './services/ai-context-generator.js';
 import { SnippetGenerator } from './services/snippet-generator.js';
-import { readFileSync } from 'fs';
+import fs, { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -35,10 +35,10 @@ const getAssetsDir = () => {
         return process.env.N8N_AS_CODE_ASSETS_DIR;
     }
 
-    // Fallback 1: sibling assets (Standard NPM install or dev)
-    const siblingAssets = join(_dirname, '../assets');
-    if (readFileSync(join(siblingAssets, 'n8n-docs-complete.json'), { flag: 'r' }).length > 0) {
-        return siblingAssets;
+    // Fallback 1: subfolder assets (Standard NPM install: dist/cli.js + dist/assets/ OR dev: src/cli.ts + src/assets/)
+    const localAssets = join(_dirname, 'assets');
+    if (fs.existsSync(join(localAssets, 'n8n-docs-complete.json'))) {
+        return localAssets;
     }
 
     // Fallback 2: parent's sibling assets (VS Code Extension: out/agent-cli/cli.js -> assets/)
