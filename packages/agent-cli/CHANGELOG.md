@@ -1,5 +1,11 @@
 # @n8n-as-code/agent-cli
 
+## 0.8.0
+
+### Minor Changes
+
+- fix(agent-cli): update asset path resolution to use local assets directory
+
 ## 0.7.0
 
 ### Minor Changes
