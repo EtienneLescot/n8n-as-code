@@ -1,0 +1,62 @@
+{
+  "flexIndex": {
+    "keywords.1.map": "[[\"a\",[[\"googleGemini\"]]],[\"ai\",[[\"googleGemini\"]]],[\"g\",[null,[\"googleGemini\"]]],[\"ge\",[null,[\"googleGemini\"]]],[\"gen\",[null,[\"googleGemini\"]]],[\"gene\",[null,[\"googleGemini\"]]],[\"gener\",[null,[\"googleGemini\"]]],[\"genera\",[null,[\"googleGemini\"]]],[\"generat\",[null,[\"googleGemini\"]]],[\"generate\",[null,[\"googleGemini\"]]],[\"i\",[null,null,[\"googleGemini\"]]],[\"im\",[null,null,[\"googleGemini\"]]],[\"ima\",[null,null,[\"googleGemini\"]]],[\"imag\",[null,null,[\"googleGemini\"]]],[\"image\",[null,null,[\"googleGemini\"]]],[\"t\",[null,null,null,[\"googleGemini\"]]],[\"te\",[null,null,null,[\"googleGemini\"]]],[\"tex\",[null,null,null,[\"googleGemini\"]]],[\"text\",[null,null,null,[\"googleGemini\"]]],[\"v\",[null,null,null,null,[\"googleGemini\"]]],[\"vi\",[null,null,null,null,[\"googleGemini\"]]],[\"vid\",[null,null,null,null,[\"googleGemini\"]]],[\"vide\",[null,null,null,null,[\"googleGemini\"]]],[\"video\",[null,null,null,null,[\"googleGemini\"]]],[\"l\",[null,null,null,null,null,[\"googleGemini\"]]],[\"lm\",[null,null,null,null,null,[\"googleGemini\"]]],[\"e\",[[\"gmail\"]]],[\"em\",[[\"gmail\"]]],[\"ema\",[[\"gmail\"]]],[\"emai\",[[\"gmail\"]]],[\"email\",[[\"gmail\"]]],[\"m\",[null,[\"gmail\"]]],[\"ma\",[null,[\"gmail\"]]],[\"mai\",[null,[\"gmail\"]]],[\"mail\",[null,[\"gmail\"]]],[\"s\",[null,null,[\"gmail\"]]],[\"se\",[null,null,[\"gmail\"]]],[\"sen\",[null,null,[\"gmail\"]]],[\"send\",[null,null,[\"gmail\"]]],[\"r\",[null,null,null,[\"gmail\"]]],[\"re\",[null,null,null,[\"gmail\"]]],[\"rec\",[null,null,null,[\"gmail\"]]],[\"rece\",[null,null,null,[\"gmail\"]]],[\"recei\",[null,null,null,[\"gmail\"]]],[\"receiv\",[null,null,null,[\"gmail\"]]],[\"receive\",[null,null,null,[\"gmail\"]]]]",
+    "title.1.map": "[[\"g\",[[\"googleGemini\",\"gmail\"]]],[\"go\",[[\"googleGemini\"]]],[\"gog\",[[\"googleGemini\"]]],[\"gogl\",[[\"googleGemini\"]]],[\"gogle\",[[\"googleGemini\"]]],[\"ge\",[null,[\"googleGemini\"]]],[\"gem\",[null,[\"googleGemini\"]]],[\"gemi\",[null,[\"googleGemini\"]]],[\"gemin\",[null,[\"googleGemini\"]]],[\"gemini\",[null,[\"googleGemini\"]]],[\"gm\",[[\"gmail\"]]],[\"gma\",[[\"gmail\"]]],[\"gmai\",[[\"gmail\"]]],[\"gmail\",[[\"gmail\"]]]]",
+    "content.1.map": "[[\"g\",[[\"googleGemini\",\"gmail\"]]],[\"go\",[[\"googleGemini\"]]],[\"gog\",[[\"googleGemini\"]]],[\"gogl\",[[\"googleGemini\"]]],[\"gogle\",[[\"googleGemini\"]]],[\"ge\",[null,[\"googleGemini\"],null,null,null,null,null,[\"gmail\"]]],[\"gem\",[null,[\"googleGemini\"]]],[\"gemi\",[null,[\"googleGemini\"]]],[\"gemin\",[null,[\"googleGemini\"]]],[\"gemini\",[null,[\"googleGemini\"]]],[\"c\",[null,[\"gmail\"],[\"googleGemini\"]]],[\"co\",[null,[\"gmail\"],[\"googleGemini\"]]],[\"con\",[null,[\"gmail\"],[\"googleGemini\"]]],[\"cons\",[null,[\"gmail\"],[\"googleGemini\"]]],[\"consu\",[null,[\"gmail\"],[\"googleGemini\"]]],[\"consum\",[null,[\"gmail\"],[\"googleGemini\"]]],[\"consume\",[null,[\"gmail\"],[\"googleGemini\"]]],[\"a\",[null,null,[\"gmail\"],[\"googleGemini\"]]],[\"ap\",[null,null,[\"gmail\"],[\"googleGemini\"]]],[\"api\",[null,null,[\"gmail\"],[\"googleGemini\"]]],[\"ai\",[null,null,null,[\"googleGemini\"]]],[\"gen\",[null,null,null,null,[\"googleGemini\"]]],[\"gene\",[null,null,null,null,[\"googleGemini\"]]],[\"gener\",[null,null,null,null,[\"googleGemini\"]]],[\"genera\",[null,null,null,null,[\"googleGemini\"]]],[\"generat\",[null,null,null,null,[\"googleGemini\"]]],[\"generate\",[null,null,null,null,[\"googleGemini\"]]],[\"i\",[null,null,null,null,null,[\"googleGemini\"]]],[\"im\",[null,null,null,null,null,[\"googleGemini\"]]],[\"ima\",[null,null,null,null,null,[\"googleGemini\"]]],[\"imag\",[null,null,null,null,null,[\"googleGemini\"]]],[\"image\",[null,null,null,null,null,[\"googleGemini\"]]],[\"t\",[null,null,null,null,null,[\"googleGemini\"]]],[\"te\",[null,null,null,null,null,[\"googleGemini\"]]],[\"tex\",[null,null,null,null,null,[\"googleGemini\"]]],[\"text\",[null,null,null,null,null,[\"googleGemini\"]]],[\"v\",[null,null,null,null,null,null,[\"googleGemini\"]]],[\"vi\",[null,null,null,null,null,null,[\"googleGemini\"]]],[\"vid\",[null,null,null,null,null,null,[\"googleGemini\"]]],[\"vide\",[null,null,null,null,null,null,[\"googleGemini\"]]],[\"video\",[null,null,null,null,null,null,[\"googleGemini\"]]],[\"l\",[null,null,null,null,null,null,null,[\"googleGemini\"]]],[\"lm\",[null,null,null,null,null,null,null,[\"googleGemini\"]]],[\"generatec\",[null,null,null,null,null,null,null,[\"googleGemini\"]]],[\"generateco\",[null,null,null,null,null,null,null,[\"googleGemini\"]]],[\"generatecon\",[null,null,null,null,null,null,null,[\"googleGemini\"]]],[\"generatecont\",[null,null,null,null,null,null,null,[\"googleGemini\"]]],[\"generateconte\",[null,null,null,null,null,null,null,[\"googleGemini\"]]],[\"generateconten\",[null,null,null,null,null,null,null,[\"googleGemini\"]]],[\"generatecontent\",[null,null,null,null,null,null,null,[\"googleGemini\"]]],[\"generati\",[null,null,null,null,null,null,null,null,[\"googleGemini\"]]],[\"generatio\",[null,null,null,null,null,null,null,null,[\"googleGemini\"]]],[\"generation\",[null,null,null,null,null,null,null,null,[\"googleGemini\"]]],[\"gm\",[[\"gmail\"]]],[\"gma\",[[\"gmail\"]]],[\"gmai\",[[\"gmail\"]]],[\"gmail\",[[\"gmail\"]]],[\"e\",[null,null,null,[\"gmail\"]]],[\"em\",[null,null,null,[\"gmail\"]]],[\"ema\",[null,null,null,[\"gmail\"]]],[\"emai\",[null,null,null,[\"gmail\"]]],[\"email\",[null,null,null,[\"gmail\"]]],[\"m\",[null,null,null,null,[\"gmail\"]]],[\"ma\",[null,null,null,null,[\"gmail\"]]],[\"mai\",[null,null,null,null,[\"gmail\"]]],[\"mail\",[null,null,null,null,[\"gmail\"]]],[\"s\",[null,null,null,null,null,[\"gmail\"]]],[\"se\",[null,null,null,null,null,[\"gmail\"]]],[\"sen\",[null,null,null,null,null,[\"gmail\"]]],[\"send\",[null,null,null,null,null,[\"gmail\"]]],[\"r\",[null,null,null,null,null,null,[\"gmail\"]]],[\"re\",[null,null,null,null,null,null,[\"gmail\"]]],[\"rec\",[null,null,null,null,null,null,[\"gmail\"]]],[\"rece\",[null,null,null,null,null,null,[\"gmail\"]]],[\"recei\",[null,null,null,null,null,null,[\"gmail\"]]],[\"receiv\",[null,null,null,null,null,null,[\"gmail\"]]],[\"receive\",[null,null,null,null,null,null,[\"gmail\"]]],[\"get\",[null,null,null,null,null,null,null,[\"gmail\"]]],[\"me\",[null,null,null,null,null,null,null,null,[\"gmail\"]]],[\"mes\",[null,null,null,null,null,null,null,null,[\"gmail\"]]],[\"mesa\",[null,null,null,null,null,null,null,null,[\"gmail\"]]],[\"mesag\",[null,null,null,null,null,null,null,null,[\"gmail\"]]],[\"mesage\",[null,null,null,null,null,null,null,null,[\"gmail\"]]]]",
+    "1.reg": "[\"googleGemini\",\"gmail\"]",
+    "1.doc": "[[\"googleGemini\",{\"id\":\"googleGemini\",\"type\":\"node\",\"title\":\"Google Gemini\",\"displayName\":\"Google Gemini\",\"name\":\"googleGemini\",\"category\":\"integration\",\"excerpt\":\"Consume Google Gemini API\"}],[\"gmail\",{\"id\":\"gmail\",\"type\":\"node\",\"title\":\"Gmail\",\"displayName\":\"Gmail\",\"name\":\"gmail\",\"category\":\"integration\",\"excerpt\":\"Consume Gmail API\"}]]"
+  },
+  "entries": {
+    "nodes": [
+      {
+        "name": "googleGemini",
+        "displayName": "Google Gemini",
+        "type": "n8n-nodes-base.googleGemini",
+        "description": "Consume Google Gemini API",
+        "keywords": [
+          "ai",
+          "generate",
+          "image",
+          "text",
+          "video",
+          "llm"
+        ],
+        "operations": [
+          "generateContent"
+        ],
+        "useCases": [
+          "image generation",
+          "text generation"
+        ]
+      },
+      {
+        "name": "gmail",
+        "displayName": "Gmail",
+        "type": "n8n-nodes-base.gmail",
+        "description": "Consume Gmail API",
+        "keywords": [
+          "email",
+          "mail",
+          "send",
+          "receive"
+        ],
+        "operations": [
+          "send",
+          "get"
+        ],
+        "useCases": [
+          "send message"
+        ]
+      }
+    ],
+    "documentation": []
+  },
+  "keywords": {
+    "generate": [
+      "googleGemini"
+    ],
+    "email": [
+      "gmail"
+    ]
+  }
+}

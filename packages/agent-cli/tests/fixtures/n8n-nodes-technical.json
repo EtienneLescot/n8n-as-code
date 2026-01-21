@@ -1,0 +1,112 @@
+{
+    "generatedAt": "2024-01-01T00:00:00.000Z",
+    "nodes": {
+        "httpRequest": {
+            "name": "httpRequest",
+            "displayName": "HTTP Request",
+            "type": "n8n-nodes-base.httpRequest",
+            "version": 1,
+            "description": "Makes an HTTP request",
+            "icon": "fa:at",
+            "schema": {
+                "properties": [
+                    {
+                        "displayName": "URL",
+                        "name": "url",
+                        "type": "string",
+                        "default": "",
+                        "required": true
+                    }
+                ]
+            },
+            "metadata": {
+                "keywords": [
+                    "http",
+                    "request",
+                    "api",
+                    "fetch"
+                ],
+                "operations": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "DELETE"
+                ],
+                "useCases": [],
+                "keywordScore": 50
+            }
+        },
+        "googleGemini": {
+            "name": "googleGemini",
+            "displayName": "Google Gemini",
+            "type": "n8n-nodes-base.googleGemini",
+            "version": 1,
+            "description": "Consume Google Gemini API",
+            "icon": "fa:google",
+            "schema": {
+                "properties": []
+            },
+            "metadata": {
+                "keywords": [
+                    "ai",
+                    "generate",
+                    "image",
+                    "text",
+                    "video",
+                    "llm"
+                ],
+                "operations": [
+                    "generateContent"
+                ],
+                "useCases": [
+                    "image generation",
+                    "text generation"
+                ],
+                "keywordScore": 100
+            }
+        },
+        "gmail": {
+            "name": "gmail",
+            "displayName": "Gmail",
+            "type": "n8n-nodes-base.gmail",
+            "version": 1,
+            "description": "Consume Gmail API",
+            "icon": "fa:envelope",
+            "schema": {
+                "properties": []
+            },
+            "metadata": {
+                "keywords": [
+                    "email",
+                    "mail",
+                    "send",
+                    "receive"
+                ],
+                "operations": [
+                    "send",
+                    "get"
+                ],
+                "useCases": [
+                    "send message"
+                ],
+                "keywordScore": 80
+            }
+        },
+        "start": {
+            "name": "Start",
+            "displayName": "Start",
+            "type": "n8n-nodes-base.start",
+            "version": 1,
+            "description": "Starts the workflow",
+            "schema": {
+                "properties": []
+            },
+            "metadata": {
+                "keywords": [],
+                "operations": [],
+                "useCases": [],
+                "keywordScore": 0
+            }
+        }
+    }
+}
