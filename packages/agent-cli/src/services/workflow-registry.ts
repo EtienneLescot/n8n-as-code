@@ -21,6 +21,7 @@ export interface WorkflowMetadata {
     createdAt: string | null;
     description: string | null;
     hasWorkflow: boolean;
+    workflowFile: string | null;
 }
 
 interface WorkflowIndex {
@@ -140,7 +141,8 @@ export class WorkflowRegistry {
      */
     getRawUrl(workflow: WorkflowMetadata, branch: string = 'main'): string {
         const baseUrl = 'https://raw.githubusercontent.com/nusquama/n8nworkflows.xyz';
-        return `${baseUrl}/${branch}/workflows/${workflow.slug}/workflow.json`;
+        const filename = workflow.workflowFile || 'workflow.json';
+        return `${baseUrl}/${branch}/workflows/${workflow.slug}/${filename}`;
     }
 
     /**

@@ -140,6 +140,7 @@ function parseMetadata(file) {
             createdAt: null, // Not available in this metadata format
             description: null, // Not available in this metadata format
             hasWorkflow,
+            workflowFile: workflowJsonFile || null,
             url: metadata.url || metadata.url_n8n || null,
             nodeTypes: metadata.nodeTypes ? Object.keys(metadata.nodeTypes) : []
         };
