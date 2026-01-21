@@ -1,5 +1,11 @@
 # @n8n-as-code/agent-cli
 
+## 0.11.1
+
+### Patch Changes
+
+- fix tests
+
 ## 0.11.0
 
 ### Minor Changes
