@@ -83,3 +83,5 @@ packages/agent-cli/src/assets/
 conversation.md
 
 .temp-workflows/
+
+.bin/
