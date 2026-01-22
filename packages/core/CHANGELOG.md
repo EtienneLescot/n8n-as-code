@@ -1,11 +1,16 @@
 # @n8n-as-code/core
 
+## 0.4.3
+
+### Patch Changes
+
+- build process fixed
+
 ## 0.4.2
 
 ### Patch Changes
 
 - just version bump
-
 
 ## 0.4.1
 

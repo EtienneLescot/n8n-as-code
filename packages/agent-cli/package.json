@@ -1,6 +1,6 @@
 {
     "name": "@n8n-as-code/agent-cli",
-    "version": "0.11.1",
+    "version": "0.11.2",
     "description": "AI Agent Tools for n8n-as-code (Search, Get Schema)",
     "type": "module",
     "main": "dist/index.js",
@@ -16,7 +16,7 @@
         "test": "node --experimental-vm-modules ../../node_modules/.bin/jest"
     },
     "dependencies": {
-        "@n8n-as-code/core": "0.4.2",
+        "@n8n-as-code/core": "0.4.3",
         "chalk": "^4.1.2",
         "commander": "^11.1.0",
         "flexsearch": "^0.8.212"

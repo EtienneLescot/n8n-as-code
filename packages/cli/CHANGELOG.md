@@ -1,5 +1,14 @@
 # @n8n-as-code/cli
 
+## 0.4.3
+
+### Patch Changes
+
+- build process fixed
+- Updated dependencies
+  - @n8n-as-code/agent-cli@0.11.2
+  - @n8n-as-code/core@0.4.3
+
 ## 0.4.2
 
 ### Patch Changes
