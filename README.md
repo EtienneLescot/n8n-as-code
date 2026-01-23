@@ -1,190 +1,127 @@
 # 🚀 n8n-as-code
 
-![Tests](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/tests.yml/badge.svg)
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+[![CI](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/ci.yml/badge.svg)](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/ci.yml)
+[![Documentation](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/docs.yml/badge.svg)](https://etiennelescot.github.io/n8n-as-code/)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/etienne-lescot.n8n-as-code?label=VS%20Code&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code)
+[![npm: cli](https://img.shields.io/npm/v/@n8n-as-code/cli?label=cli&logo=npm)](https://www.npmjs.com/package/@n8n-as-code/cli)
+[![npm: agent-cli](https://img.shields.io/npm/v/@n8n-as-code/agent-cli?label=agent-cli&logo=npm)](https://www.npmjs.com/package/@n8n-as-code/agent-cli)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**n8n-as-code** is an ecosystem designed to manage your n8n workflows as code. It transforms your automations into synchronized local JSON files, enabling version control (Git), AI-assisted editing, and seamless integration into VS Code.
+**Manage your n8n workflows as code.** Version control with Git, AI-assisted editing, and seamless VS Code integration.
+
+📖 **[Full Documentation](https://etiennelescot.github.io/n8n-as-code/)** | 🚀 **[Getting Started Guide](https://etiennelescot.github.io/n8n-as-code/docs/getting-started)**
 
 ---
 
 ## ⚡ Quick Start
 
-Ready to sync your workflows in under 2 minutes?
+Choose your interface:
 
-1.  **Installation**:
-    ```bash
-    npm install && npm run build
-    npm link
-    ```
+### 🎨 **Option 1: VS Code Extension** (Visual interface)
 
-    > **Note**: The first `npm run build` will automatically clone the n8n repository (`.n8n-cache`) to generate the node schema. This may take a few minutes.
-    > **Note**: The `npm link` command creates a global link to the CLI, allowing you to use `n8n-as-code` directly from any terminal.
-2.  **Configuration**:
-    ```bash
-    n8n-as-code init
-    ```
-    > **Note**: The assistant will guide you through configuring your n8n instance and will securely store your API key off-project.
-3.  **Initial Sync**: Download your existing workflows:
-    ```bash
-    n8n-as-code pull
-    ```
-4.  **Open VS Code**: Install the local extension (`packages/vscode-extension`) and enjoy automatic synchronization and AI assistance.
+1. Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code)
+2. Click the **n8n** icon in the Activity Bar
+3. Configure your instance (Host + API Key)
+4. Start editing your workflows visually!
 
----
+📖 [Full extension documentation](https://etiennelescot.github.io/n8n-as-code/docs/usage/vscode-extension)
 
-## 🎨 VS Code Extension: The n8n Cockpit
 
-The extension transforms VS Code into a true IDE for n8n.
+### 🖥️ **Option 2: CLI** (Command-line interface)
 
--   **Activity Bar Icon**: Direct access to all your workflows from the left side panel.
--   **Visual Status Indicators**: Color-coded icons show sync status at a glance:
-    - ✅ Green sync icon for workflows in sync
-    - 📝 Orange pencil for local modifications
-    - ☁️ Orange cloud for remote modifications
-    - 🔴 Red alert for conflicts
-    - 🗑️ Grey trash for deletions
--   **Embedded Board**: Open your workflows in an integrated web view for immediate visual feedback.
--   **Split View**: Edit the JSON on the left while keeping the n8n canvas on the right.
--   **Push on Save**: Any local modification is instantly sent to n8n.
--   **Automatic AI Context**: Upon opening, the extension automatically generates AI assistance (`AGENTS.md`, snippets, schemas).
--   **🛡️ Persistent Conflict Resolution**: Workflows in conflict or deleted states become expandable tree items with action buttons:
-    - For conflicts: Show Diff, Keep Local, Keep Remote
-    - For deletions: Confirm Deletion, Restore File
-
----
-
-## ⚙️ Configuration
-
-The CLI uses an interactive and secure configuration system via the `init` command.
-
-### Configuration Files
-- **`n8n-as-code.json`**: Contains project settings (Host, folders, etc.). This file is created at the root and can be shared via Git.
-- **Global Storage**: Your API keys are linked to the host and stored locally on your machine, never committed.
-- **`n8n-as-code-instance.json`**: Manages your instance's unique identifier to isolate files from different environments.
-
----
-
-## 🛠 CLI Commands (`@n8n-as-code/cli`)
-
-For those who prefer the terminal or automation. Commands are accessible via `n8n-as-code`.
-
--   **`init`**: Configures your n8n instance and local project.
--   **`list`**: Displays all workflows with their sync status in a color-coded table.
--   **`pull`**: Retrieves all workflows from n8n (with interactive conflict resolution).
--   **`push`**: Sends new local files to n8n (with interactive conflict resolution).
--   **`start`**: Real-time bi-directional synchronization mode with live monitoring (replaces `watch`).
--   **`init-ai`**: Generates context for your AI agent.
-
-Example usage:
 ```bash
+# Installation from source
+npm install && npm run build && npm link
+
+# Or install from NPM
+npm install -g @n8n-as-code/cli
+
+# Configuration
 n8n-as-code init
-n8n-as-code list          # View all workflow statuses
-n8n-as-code pull          # Download workflows
-n8n-as-code push          # Upload workflows
-n8n-as-code start         # Start watch mode with auto-sync
-n8n-as-code start --manual # Start with interactive prompts
+
+# Sync your workflows
+n8n-as-code pull
+
+# Start real-time sync
+n8n-as-code start
 ```
 
----
-
-## 🤖 AI Context & Superpowers
-
-We inject specific context to make your AI (Cursor, Windsurf, Copilot) an expert in n8n:
-
--   📄 **`AGENTS.md`**: System instructions on n8n structure and best practices.
--   🛡️ **`@n8n-as-code/agent-cli`**: Complete documentation system (1246+ pages) with intelligent search, node schemas, examples, and validation - the ultimate AI assistant for n8n workflows.
--   🧩 **Snippets**: Library of predefined nodes (Webhook, Code, HTTP...) for faster coding.
-
-### 🎭 Claude Agent Skill
-
-Transform Claude AI into an n8n expert with our official **Claude Agent Skill**!
-
-The `@n8n-as-code/claude-skill` package provides a [Claude Agent Skill](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills) that enables Claude to:
-
-- ✅ Search for n8n nodes using exact documentation
-- ✅ Retrieve node schemas to prevent parameter hallucination
-- ✅ Generate valid workflow JSON following best practices
-
-**Quick Start:**
-
-```bash
-# Build the skill package
-cd packages/claude-skill
-npm run build
-
-# Install to Claude.ai (upload ZIP) or Claude Code (copy folder)
-```
-
-📖 [Usage Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill) | [Contribution Guide](https://etiennelescot.github.io/n8n-as-code/docs/contribution/claude-skill)
+📖 [Full CLI documentation](https://etiennelescot.github.io/n8n-as-code/docs/usage/cli)
 
 ---
 
-## 🧪 Tests & Quality
-
-The project includes a suite of unit and integration tests to guarantee synchronization reliability.
-
-### Run Tests
-```bash
-# Unit and integration tests
-npm test
-```
-
-*Note: Integration tests require a `.env.test` file at the root with `N8N_HOST` and `N8N_API_KEY`.*
+📖 [AI features documentation](https://etiennelescot.github.io/n8n-as-code/docs/usage/agent-cli)
 
 ---
 
-## 🛠️ Local Development and Testing
+## 📦 Ecosystem Packages
 
-Debug mode (F5) from `packages/vscode-extension`.
+### 🎯 User Interfaces
 
-Or use the following command at the root to compile, package, and install the extension locally in your main VS Code instance:
+| Package | Description | Links |
+|---------|-------------|-------|
+| **[@n8n-as-code/cli](packages/cli)** | Command-line interface for workflow sync | [📖 Docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/cli) · [📦 NPM](https://www.npmjs.com/package/@n8n-as-code/cli) |
+| **[vscode-extension](packages/vscode-extension)** | Visual interface for VS Code | [📖 Docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/vscode-extension) · [📥 Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) |
 
-```bash
-npm run extension:dev
-npm run extension:install
-```
+### 🧩 Core & AI Packages
 
----
-
-## 🚀 Release & Distribution
-
-This project uses [Changesets](https://github.com/changesets/changesets) for automated versioning and publishing.
-
-### For Developers: Creating a Release
-
-1.  **Document your changes**:
-    ```bash
-    npm run changeset
-    ```
-    Select affected packages and version bump type (patch/minor/major), then provide a changelog message. Commit the generated `.changeset/*.md` file with your code.
-
-2.  **Automatic PR Creation**:
-    When merged to `main`, CI automatically creates a **"Version Packages"** Pull Request that:
-    - Updates all `package.json` versions
-    - Synchronizes internal dependencies
-    - Generates `CHANGELOG.md` entries
-    
-3.  **Merge & Publish**:
-    When the "Version Packages" PR is merged, CI automatically:
-    - Publishes NPM packages (`@n8n-as-code/core`, `@n8n-as-code/cli`, `@n8n-as-code/agent-cli`)
-    - Creates Git tags and GitHub Releases for each published package
-    - Publishes VS Code extension to the Marketplace
-    
-> **Note**: Each package gets its own GitHub Release with independent versioning (e.g., `@n8n-as-code/core@0.3.1`, `@n8n-as-code/cli@0.3.2`). The VS Code extension is marked as `private: true` to prevent NPM publication, but Changeset manages its versioning and dependencies.
+| Package | Description | Links |
+|---------|-------------|-------|
+| **[@n8n-as-code/core](packages/core)** | Synchronization engine & 3-way merge logic | [📖 API](https://etiennelescot.github.io/n8n-as-code/api) |
+| **[@n8n-as-code/agent-cli](packages/agent-cli)** | AI tools (search, schemas, validation) for agents | [📖 Docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/agent-cli) · [📦 NPM](https://www.npmjs.com/package/@n8n-as-code/agent-cli) |
+| **[@n8n-as-code/claude-skill](packages/claude-skill)** | Official Claude AI agent skill | [📖 Docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill) · [📦 NPM](https://www.npmjs.com/package/@n8n-as-code/claude-skill) |
 
 ---
 
-## 🏗 Architecture (Monorepo)
+## ✨ Key Features
 
--   **`packages/core`**: The logical core with **3-way merge architecture**:
-    - **Watcher**: Observes file system and API changes (state observation)
-    - **SyncEngine**: Performs synchronization operations (state mutation)
-    - **ResolutionManager**: Handles conflict and deletion resolution
-    - Uses base-local-remote comparison for deterministic conflict detection
--   **`packages/cli`**: The main command-line interface for manual workflow management.
--   **`packages/agent-cli`**: Specialized tools for AI Agents (Cursor, Cline), providing search and schema retrieval capabilities.
--   **`packages/claude-skill`**: Official Claude Agent Skill package for Anthropic's Claude AI.
--   **`packages/vscode-extension`**: The VS Code plugin for seamless real-time synchronization and AI assistance.
+### 🔄 **Bidirectional Sync**
+Real-time synchronization between local files and your n8n instance with conflict detection and resolution.
+
+### 🎨 **VS Code Integration**
+Visual workflow management with embedded n8n canvas, status indicators, and push-on-save functionality.
+
+### 🤖 **AI Superpowers**
+- **1246+ documentation pages** indexed for AI agents
+- **Node schemas** to prevent parameter hallucination
+- **7000+ community workflows** searchable database
+- **Claude Agent Skill** for Claude AI integration
+
+### 🛡️ **Smart Conflict Resolution**
+3-way merge architecture with interactive conflict resolution UI.
+
+### 🌐 **Multi-Instance Support**
+Isolate workflows from different n8n environments automatically.
+
+---
+
+## 🎯 Common Use Cases
+
+| Use Case | Quick Command | Learn More |
+|----------|---------------|------------|
+| **Sync workflows** | `n8n-as-code start` | [Usage Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/cli) |
+| **AI workflow creation** | `n8n-agent search "google sheets"` | [Agent CLI Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/agent-cli) |
+| **Visual editing** | Install [VS Code Extension](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) | [Extension Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/vscode-extension) |
+| **Version control** | Git commit workflow JSON files | [Getting Started](https://etiennelescot.github.io/n8n-as-code/docs/getting-started) |
+
+---
+
+## 🏗 Architecture
+
+This is a **monorepo** with specialized packages organized in layers:
+
+### 👥 **User Interfaces** (consume core packages)
+- **[`cli`](packages/cli)**: Command-line interface
+- **[`vscode-extension`](packages/vscode-extension)**: Visual editing in VS Code
+
+### ⚙️ **Core Services** (consumed by interfaces)
+- **[`core`](packages/core)**: 3-way merge synchronization engine & state management
+
+### 🤖 **AI Tooling** (for agents & automation)
+- **[`agent-cli`](packages/agent-cli)**: Node search, schemas, validation (consumed by CLI, extension, and AI agents)
+- **[`claude-skill`](packages/claude-skill)**: Packaged skill for Claude AI
+
+Each package has detailed documentation in its README and the [online docs](https://etiennelescot.github.io/n8n-as-code/).
 
 ---
 
