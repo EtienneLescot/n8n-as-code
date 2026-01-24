@@ -25,8 +25,8 @@ const FeatureList: FeatureItem[] = [
     image: require('@site/static/img/sections/section-1.png').default,
     description: (
       <>
-        Get intelligent suggestions, validation, and code completion powered by Tirectly.
-        AI agents have complete access to documentation for all 525 n8n nodes.
+        Empower AI agents with n8n-agent CLI tools to search 640+ nodes, retrieve technical schemas,
+        validate workflows, and access 7000+ community workflow examples.
       </>
     ),
   },
