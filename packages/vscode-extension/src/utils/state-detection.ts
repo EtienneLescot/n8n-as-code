@@ -54,23 +54,28 @@ export function validateN8nConfig(): ConfigValidationResult {
 
 /**
  * Check if a workspace folder was previously initialized with n8n-as-code
- * Only checks for the definitive n8n-as-code-instance.json file
+ * Checks for both n8nac-instance.json (new) and n8n-as-code-instance.json (legacy)
  */
 export function isFolderPreviouslyInitialized(workspaceRoot: string): boolean {
   if (!workspaceRoot) {
     return false;
   }
 
-  // Only check for instance config file at the root directory
-  const instanceConfigPath = path.join(workspaceRoot, 'n8n-as-code-instance.json');
+  // Check for new file name first, then legacy
+  const instanceConfigPaths = [
+    path.join(workspaceRoot, 'n8nac-instance.json')
+  ];
   
-  if (fs.existsSync(instanceConfigPath)) {
-    try {
-      const content = fs.readFileSync(instanceConfigPath, 'utf-8');
-      const json = JSON.parse(content);
-      return !!json.instanceIdentifier;
-    } catch {
-      return false;
+  for (const instanceConfigPath of instanceConfigPaths) {
+    if (fs.existsSync(instanceConfigPath)) {
+      try {
+        const content = fs.readFileSync(instanceConfigPath, 'utf-8');
+        const json = JSON.parse(content);
+        return !!json.instanceIdentifier;
+      } catch {
+        // Continue to next file if this one fails to parse
+        continue;
+      }
     }
   }
 
@@ -163,17 +168,24 @@ export function doesSyncDirectoryExist(): boolean {
 
 /**
  * Get instance identifier from existing configuration
+ * Checks for both n8nac-instance.json (new) and n8n-as-code-instance.json (legacy)
  */
 export function getExistingInstanceIdentifier(workspaceRoot: string): string | undefined {
-  const instanceConfigPath = path.join(workspaceRoot, 'n8n-as-code-instance.json');
+  const instanceConfigPaths = [
+    path.join(workspaceRoot, 'n8nac-instance.json'),
+    path.join(workspaceRoot, 'n8n-as-code-instance.json')
+  ];
   
-  if (fs.existsSync(instanceConfigPath)) {
-    try {
-      const content = fs.readFileSync(instanceConfigPath, 'utf-8');
-      const config = JSON.parse(content);
-      return config.instanceIdentifier;
-    } catch {
-      return undefined;
+  for (const instanceConfigPath of instanceConfigPaths) {
+    if (fs.existsSync(instanceConfigPath)) {
+      try {
+        const content = fs.readFileSync(instanceConfigPath, 'utf-8');
+        const config = JSON.parse(content);
+        return config.instanceIdentifier;
+      } catch {
+        // Continue to next file if this one fails to parse
+        continue;
+      }
     }
   }
   

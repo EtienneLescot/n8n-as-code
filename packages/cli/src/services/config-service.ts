@@ -24,7 +24,7 @@ export class ConfigService {
     }
 
     /**
-     * Get the local configuration from n8n-as-code.json
+     * Get the local configuration from n8nac.json
      */
     getLocalConfig(): Partial<ILocalConfig> {
         if (fs.existsSync(this.localConfigPath)) {
@@ -39,7 +39,7 @@ export class ConfigService {
     }
 
     /**
-     * Save the local configuration to n8n-as-code.json
+     * Save the local configuration to n8nac.json
      */
     saveLocalConfig(config: ILocalConfig): void {
         fs.writeFileSync(this.localConfigPath, JSON.stringify(config, null, 2));
@@ -134,7 +134,7 @@ export class ConfigService {
     }
 
     /**
-     * Get the path for n8n-as-code-instance.json
+     * Get the path for n8nac-instance.json
      */
     getInstanceConfigPath(): string {
         return path.join(process.cwd(), 'n8nac-instance.json');

@@ -85,7 +85,7 @@ describe('ConfigService', () => {
             configService.saveLocalConfig(config);
 
             expect(fs.writeFileSync).toHaveBeenCalledWith(
-                expect.stringContaining('n8n-as-code.json'),
+                expect.stringContaining('n8nac.json'),
                 JSON.stringify(config, null, 2)
             );
         });
@@ -258,7 +258,7 @@ describe('ConfigService', () => {
         it('should return path to instance config file', () => {
             const result = configService.getInstanceConfigPath();
 
-            expect(result).toContain('n8n-as-code-instance.json');
+            expect(result).toContain('n8nac-instance.json');
             expect(path.isAbsolute(result)).toBe(true);
         });
     });

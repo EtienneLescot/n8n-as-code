@@ -133,7 +133,7 @@ export class SyncManager extends EventEmitter {
     }
 
     /**
-     * Create or update the n8n-as-code-instance.json file
+     * Create or update the n8nac-instance.json file
      * This file marks the workspace as initialized and stores the instance identifier
      */
     private ensureInstanceConfigFile() {

@@ -93,14 +93,14 @@ export class InitCommand {
             this.configService.saveApiKey(answers.host, answers.apiKey);
 
             console.log('\n' + chalk.green('✔ Configuration saved successfully!'));
-            console.log(chalk.blue('📁 Project config:') + ' n8n-as-code.json');
+            console.log(chalk.blue('📁 Project config:') + ' n8nac.json');
             console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
 
             // Generate instance identifier (saved to n8n-as-code.json)
             spinner.start('Generating instance identifier...');
             const instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(answers.host);
             spinner.succeed(chalk.green(`Instance identifier: ${instanceIdentifier}`));
-            console.log(chalk.gray('(n8n-as-code-instance.json will be created automatically on first sync)\n'));
+            console.log(chalk.gray('(n8nac-instance.json will be created automatically on first sync)\n'));
 
             // Automatically initialize AI context (AI Bootstrap)
             console.log(chalk.cyan('🤖 Bootstrapping AI Context...'));

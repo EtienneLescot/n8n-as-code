@@ -706,7 +706,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         syncInactive: true,
         ignoredTags: [],
         instanceIdentifier: instanceIdentifier,
-        instanceConfigPath: path.join(workspaceRoot, 'n8n-as-code-instance.json'),
+        instanceConfigPath: path.join(workspaceRoot, 'n8nac-instance.json'),
         syncMode: (config.get<string>('syncMode') || 'auto') as 'auto' | 'manual'
     });
 

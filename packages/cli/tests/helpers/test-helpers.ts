@@ -190,7 +190,7 @@ export class MockConfigService {
     }
 
     getInstanceConfigPath(): string {
-        return '/tmp/n8n-as-code-instance.json';
+        return '/tmp/n8nac-instance.json';
     }
 }
 
