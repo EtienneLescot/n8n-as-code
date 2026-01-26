@@ -16,23 +16,11 @@ export class AiContextGenerator {
 
   async generate(projectRoot: string, n8nVersion: string = "Unknown", extensionPath?: string): Promise<void> {
     const agentsContent = this.getAgentsContent(n8nVersion);
-    const cursorContent = this.getCursorRulesContent();
-    const clineContent = this.getClineRulesContent();
-    const windsurfContent = this.getWindsurfRulesContent();
-    const commonRules = this.getCommonRulesContent();
 
     // 1. AGENTS.md (Central documentation)
     this.injectOrUpdate(path.join(projectRoot, 'AGENTS.md'), agentsContent, true);
 
-    // 2. Specialized Rule Files
-    this.injectOrUpdate(path.join(projectRoot, '.cursorrules'), cursorContent);
-    this.injectOrUpdate(path.join(projectRoot, '.clinerules'), clineContent);
-    this.injectOrUpdate(path.join(projectRoot, '.windsurfrules'), windsurfContent);
-
-    // 3. General AI Context (for Claude, Mistral, etc.)
-    this.injectOrUpdate(path.join(projectRoot, '.ai-rules.md'), commonRules);
-
-    // 4. Local Shim and Gitignore
+    // 2. Local Shim and Gitignore
     this.generateShim(projectRoot, extensionPath);
     this.updateGitignore(projectRoot);
   }

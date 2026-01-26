@@ -70,7 +70,7 @@ if (!fs.existsSync(finalSkillsCliEntry)) {
 const skillsCliBuild = fs.existsSync(finalSkillsCliEntry) ? esbuild.build({
     entryPoints: [finalSkillsCliEntry],
     bundle: true,
-    outfile: 'out/skills/cli.js',
+    outfile: 'packages/skills/dist/cli.js',
     external: ['vscode'],
     format: 'cjs',
     platform: 'node',
