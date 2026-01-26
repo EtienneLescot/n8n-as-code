@@ -429,7 +429,7 @@ n8n-as-code pull
 3. **Documentation:**
    - [Getting Started](/docs/getting-started)
    - [Usage Guides](/docs/usage)
-   - [API Reference](/api/index.html)
+   - [API Reference](/api/)
 
 ## 🚀 Performance Optimization
 

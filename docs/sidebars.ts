@@ -78,7 +78,7 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'doc',
-          id: 'contribution/sync',
+          id: 'contribution/core',
           label: 'Sync Package',
         },
         {

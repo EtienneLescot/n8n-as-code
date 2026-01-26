@@ -415,7 +415,7 @@ npm run docs
 
 ## 📚 Related Documentation
 
-- [Sync Package](/docs/contribution/sync): Sync library details
+- [Sync Package](/docs/contribution/core): Sync library details
 - [Skills CLI](/docs/contribution/skills): AI integration details
 - [Contribution Guide](/docs/contribution): How to contribute
 

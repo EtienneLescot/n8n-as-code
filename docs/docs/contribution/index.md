@@ -244,7 +244,7 @@ Each package maintains its own release history!
 - [Issue Tracker](https://github.com/EtienneLescot/n8n-as-code/issues)
 - [Discussion Forum](https://github.com/EtienneLescot/n8n-as-code/discussions)
 - [Changeset Documentation](https://github.com/changesets/changesets)
-- [Release Workflow](../.github/workflows/release.yml)
+- [Release Workflow](https://github.com/EtienneLescot/n8n-as-code/blob/main/.github/workflows/release.yml)
 
 ## ❓ Need Help?
 

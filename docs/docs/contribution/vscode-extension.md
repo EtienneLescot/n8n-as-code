@@ -365,7 +365,7 @@ code --install-extension n8n-as-code-*.vsix
 
 ## 📚 Related Documentation
 
-- [Sync Package](/docs/contribution/sync): Sync library details
+- [Sync Package](/docs/contribution/core): Sync library details
 - [Architecture Overview](/docs/contribution/architecture): Overall system architecture
 - [Contribution Guide](/docs/contribution): How to contribute
 

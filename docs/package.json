@@ -21,9 +21,12 @@
     "@docusaurus/theme-search-algolia": "3.9.2",
     "@mdx-js/react": "^3.0.0",
     "clsx": "^2.0.0",
+    "core-js-compat": "^3.48.0",
+    "micromark-core-commonmark": "^2.0.3",
     "prism-react-renderer": "^2.3.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "regexpu-core": "^6.4.0"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.9.2",

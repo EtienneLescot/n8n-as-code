@@ -167,7 +167,7 @@ Explore the specific guides for each tool:
 For information about internal components used by developers and AI assistants, see:
 
 - **[Contribution Guide](/docs/contribution)**: Architecture, development setup, and internal packages
-- **[API Reference](/api/index.html)**: Developer documentation for all packages
+- **[API Reference](https://etiennelescot.github.io/n8n-as-code/api/)**: Developer documentation for all packages
 
 ## 🆘 Troubleshooting
 

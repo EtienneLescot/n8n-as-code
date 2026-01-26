@@ -217,7 +217,7 @@ AI coding assistants (like Cursor, Copilot, Claude, etc.) can use these generate
 
 - [CLI Guide](/docs/usage/cli): Learn about command-line automation
 - [Contribution Guide](/docs/contribution): Understand the architecture
-- [API Reference](/api/index.html): Developer documentation
+- [API Reference](/api/): Developer documentation
 
 ---
 
