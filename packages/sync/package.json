@@ -1,7 +1,7 @@
 {
     "name": "@n8n-as-code/sync",
     "version": "0.4.3",
-    "description": "Core library for n8n-as-code ecosystem",
+    "description": "Sync library for n8n-as-code ecosystem",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "type": "module",

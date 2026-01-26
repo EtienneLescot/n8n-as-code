@@ -1,0 +1,17 @@
+#!/bin/bash
+# n8nac-skills local shim for AI context
+
+
+# 2. Standard NPM Dependency Context (Local Project)
+# Check for local node_modules relative to the project root
+CLI_PATH="./node_modules/@n8n-as-code/skills/dist/cli.js"
+
+if [ -f "$CLI_PATH" ]; then
+  node "$CLI_PATH" "$@"
+  exit $?
+fi
+
+# 3. Error if not found
+echo "Error: @n8n-as-code/skills not found in ./node_modules/"
+echo "Please ensure it is installed as a dev dependency in this project."
+exit 1

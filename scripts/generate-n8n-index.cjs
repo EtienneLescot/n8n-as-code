@@ -168,7 +168,7 @@ async function extractNodes() {
                     const newHasVersions = Array.isArray(description.allVersions) && description.allVersions.length > 1;
 
                     // Priority check: Prefer nodes-base over nodes-langchain for same node name
-                    // This prevents core nodes like 'openAi' from being shadowed by langchain implementations
+                    // This prevents sync nodes like 'openAi' from being shadowed by langchain implementations
                     // that might not be available or primary in standard n8n
                     const isExistingBase = existing.fullType.startsWith('n8n-nodes-base.');
                     const isNewLangchain = fullType.startsWith('@n8n/n8n-nodes-langchain.');

@@ -1,8 +1,8 @@
-# ✅ Implémentation Terminée - Agent CLI Enhanced Search
+# ✅ Implémentation Terminée - Skills CLI Enhanced Search
 
 ## 🎉 Résumé de l'Implémentation
 
-L'amélioration complète du système de recherche de nœuds n8n pour le composant **agent-cli** a été implémentée avec succès.
+L'amélioration complète du système de recherche de nœuds n8n pour le composant **skills** a été implémentée avec succès.
 
 ## 🔧 Corrections Apportées
 
@@ -45,26 +45,26 @@ if (encoding === 'gzip') {
 ### Scripts Créés
 1. ✅ `scripts/download-n8n-docs.cjs` - Télécharge et parse la documentation n8n
 2. ✅ `scripts/enrich-nodes-index.cjs` - Enrichit l'index avec métadonnées
-3. ✅ `scripts/build-agent-cli-full.sh` - Script de build complet automatisé
+3. ✅ `scripts/build-skills-full.sh` - Script de build complet automatisé
 
 ### Scripts Modifiés
 1. ✅ `scripts/ensure-n8n-cache.cjs` - Build nodes-langchain en plus de nodes-base
 2. ✅ `scripts/generate-n8n-index.cjs` - Scanne plusieurs répertoires
 
 ### Code Source Modifié
-1. ✅ `packages/agent-cli/src/services/node-schema-provider.ts`
+1. ✅ `packages/skills/src/services/node-schema-provider.ts`
    - Algorithme de scoring multi-critères
    - Support index enrichi avec fallback
    - Nouvelles interfaces (IEnrichedNode, INodeSchemaStub étendu)
 
-2. ✅ `packages/agent-cli/package.json`
+2. ✅ `packages/skills/package.json`
    - Pipeline de build mis à jour avec toutes les étapes
 
 ### Documentation Créée
-1. ✅ `packages/agent-cli/BUILD_SYSTEM.md` - Architecture technique complète
-2. ✅ `packages/agent-cli/QUICKSTART.md` - Guide de démarrage rapide
-3. ✅ `packages/agent-cli/README_UPGRADE.md` - Guide de migration
-4. ✅ `packages/agent-cli/CHANGELOG_NEW.md` - Changelog détaillé
+1. ✅ `packages/skills/BUILD_SYSTEM.md` - Architecture technique complète
+2. ✅ `packages/skills/QUICKSTART.md` - Guide de démarrage rapide
+3. ✅ `packages/skills/README_UPGRADE.md` - Guide de migration
+4. ✅ `packages/skills/CHANGELOG_NEW.md` - Changelog détaillé
 
 ## 📊 Résultats Attendus
 
@@ -92,7 +92,7 @@ if (encoding === 'gzip') {
 ### Option 1: Build Automatique (Recommandé)
 ```bash
 # Utiliser le script tout-en-un
-./scripts/build-agent-cli-full.sh
+./scripts/build-skills-full.sh
 ```
 
 Ce script exécute automatiquement:
@@ -118,13 +118,13 @@ node scripts/download-n8n-docs.cjs
 node scripts/enrich-nodes-index.cjs
 
 # 5. Build TypeScript
-cd packages/agent-cli
+cd packages/skills
 npm run build
 ```
 
 ### Option 3: Build Rapide (Sans Documentation)
 ```bash
-cd packages/agent-cli
+cd packages/skills
 npm run build
 # Note: Le script prebuild inclut maintenant tout
 # Mais vous pouvez éditer package.json pour enlever download-n8n-docs.cjs
@@ -135,20 +135,20 @@ npm run build
 ### 1. Vérifier le Build
 ```bash
 # Vérifier que les fichiers sont créés
-ls -lh packages/agent-cli/src/assets/n8n-nodes-index.json
-ls -lh packages/agent-cli/src/assets/n8n-nodes-enriched.json
-ls -lh packages/agent-cli/dist/assets/
+ls -lh packages/skills/src/assets/n8n-nodes-index.json
+ls -lh packages/skills/src/assets/n8n-nodes-enriched.json
+ls -lh packages/skills/dist/assets/
 
 # Compter les nœuds
-jq '.nodes | length' packages/agent-cli/src/assets/n8n-nodes-index.json
+jq '.nodes | length' packages/skills/src/assets/n8n-nodes-index.json
 
 # Vérifier le nœud Gemini
-jq '.nodes.googleGemini' packages/agent-cli/src/assets/n8n-nodes-enriched.json
+jq '.nodes.googleGemini' packages/skills/src/assets/n8n-nodes-enriched.json
 ```
 
 ### 2. Tester la Recherche
 ```bash
-cd packages/agent-cli
+cd packages/skills
 
 # Test 1: Recherche "gemini"
 node dist/cli.js search "gemini"
@@ -173,7 +173,7 @@ node dist/cli.js list | wc -l
 
 ### 3. Tester depuis le Code
 ```typescript
-import { NodeSchemaProvider } from '@n8n-as-code/agent-cli';
+import { NodeSchemaProvider } from '@n8n-as-code/skills';
 
 const provider = new NodeSchemaProvider();
 
@@ -273,7 +273,7 @@ Tous les objectifs atteints:
 ## 🔄 Prochaines Actions
 
 1. **Attendre la fin du téléchargement** (~5-10 min restant)
-2. **Lancer le build complet** avec `./scripts/build-agent-cli-full.sh`
+2. **Lancer le build complet** avec `./scripts/build-skills-full.sh`
 3. **Tester la recherche** avec les exemples ci-dessus
 4. **Valider les résultats** et profiter de la recherche améliorée ! 🚀
 

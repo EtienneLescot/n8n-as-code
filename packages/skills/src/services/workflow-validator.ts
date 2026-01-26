@@ -129,7 +129,7 @@ export class WorkflowValidator {
             type: 'error',
             nodeId: node.id,
             nodeName: node.name,
-            message: `Unknown node type: "${node.type}". Use "npx @n8n-as-code/agent-cli search" to find correct node names.`,
+            message: `Unknown node type: "${node.type}". Use "npx @n8n-as-code/skills search" to find correct node names.`,
           });
           continue;
         }

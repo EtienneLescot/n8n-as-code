@@ -1,10 +1,10 @@
 # @n8n-as-code/sync
 
-The logical core of the **n8n-as-code** ecosystem.
+The logical sync of the **n8n-as-code** ecosystem.
 
 ## 🛠 Purpose
 
-This package contains the shared logic used by the CLI, the Agent CLI, and the VS Code extension:
+This package contains the shared logic used by the CLI, the Skills CLI, and the VS Code extension:
 - **API Client**: Communication with the n8n REST API.
 - **Synchronization**: Logic for pulling, pushing, and detecting changes.
 - **Sanitization**: Cleaning up n8n JSONs for better Git versioning (removing IDs, timestamps, etc.).

@@ -25,7 +25,7 @@ const FeatureList: FeatureItem[] = [
     image: require('@site/static/img/sections/section-1.png').default,
     description: (
       <>
-        Empower AI agents with n8n-agent CLI tools to search 640+ nodes, retrieve technical schemas,
+        Empower AI agents with n8nac-skills CLI tools to search 640+ nodes, retrieve technical schemas,
         validate workflows, and access 7000+ community workflow examples.
       </>
     ),

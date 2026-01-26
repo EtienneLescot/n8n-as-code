@@ -13,8 +13,8 @@ Welcome to the n8n-as-code API reference documentation. This documentation is au
 
 The n8n-as-code project is organized as a monorepo with the following packages:
 
-### Core Package
-The core package provides the foundational services for managing n8n workflows as code.
+### Sync Package
+The sync package provides the foundational services for managing n8n workflows as code.
 
 **Key Services:**
 - `DirectoryUtils` - File system operations for workflow management
@@ -34,7 +34,7 @@ Command-line interface for managing n8n workflows from the terminal.
 - `sync` - Synchronize workflows between files and n8n
 - `watch` - Watch for changes and auto-sync
 
-### Agent CLI Package
+### Skills CLI Package
 Tools for AI agents to work with n8n workflows.
 
 **Key Services:**

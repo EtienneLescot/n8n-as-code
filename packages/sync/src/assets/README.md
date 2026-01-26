@@ -1,6 +1,6 @@
 # Assets Directory
 
-This directory contains bundled assets for the n8n-as-code core package.
+This directory contains bundled assets for the n8n-as-code sync package.
 
 ## n8n-nodes-index.json
 

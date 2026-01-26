@@ -47,7 +47,7 @@ graph TD
     B --> E[SyncCommand]
     B --> F[WatchCommand]
     
-    C --> G[Core Library]
+    C --> G[Sync Library]
     D --> H[AI Services]
     E --> G
     F --> G
@@ -59,7 +59,7 @@ graph TD
     style E fill:#e74c3c
 ```
 
-## 🧩 Core Components
+## 🧩 Sync Components
 
 ### 1. **CLI Entry Point (`index.ts`)**
 The main entry point that sets up the CLI application.
@@ -224,10 +224,10 @@ Manages CLI configuration.
 3. **Command Line**: CLI arguments
 4. **Defaults**: Built-in default values
 
-## 🔄 Integration with Core Library
+## 🔄 Integration with Sync Library
 
-### Core Library Usage
-The CLI uses the Core library for all n8n operations:
+### Sync Library Usage
+The CLI uses the Sync library for all n8n operations:
 
 ```typescript
 import { SyncManager, StateManager, N8nApiClient } from '@n8n-as-code/sync';
@@ -252,7 +252,7 @@ class SyncCommand extends BaseCommand {
 ```
 
 ### Event Handling
-The CLI listens to Core library events:
+The CLI listens to Sync library events:
 
 ```typescript
 syncManager.on('sync:progress', (progress) => {
@@ -423,7 +423,7 @@ npm publish
 ## 📈 Performance Optimization
 
 ### Command Performance
-- **Lazy Loading**: Load Core library only when needed
+- **Lazy Loading**: Load Sync library only when needed
 - **Caching**: Cache configuration and API responses
 - **Parallel Processing**: Sync multiple workflows in parallel
 
@@ -463,7 +463,7 @@ Check log files in `~/.n8n-as-code/logs/` for detailed error information.
 
 ## 📚 Related Documentation
 
-- [Core Package](/docs/contribution/core): Core library details
+- [Sync Package](/docs/contribution/sync): Sync library details
 - [Architecture Overview](/docs/contribution/architecture): Overall system architecture
 - [VS Code Extension](/docs/contribution/vscode-extension): VS Code extension development
 - [Contribution Guide](/docs/contribution): How to contribute

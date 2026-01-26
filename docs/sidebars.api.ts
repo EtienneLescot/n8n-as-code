@@ -13,30 +13,30 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Core Package',
+      label: 'Sync Package',
       link: {
         type: 'doc',
-        id: 'core/index',
+        id: 'sync/index',
       },
       items: [
         {
           type: 'category',
           label: 'Services',
           items: [
-            'core/services/directory-utils',
-            'core/services/n8n-api-client',
-            'core/services/schema-generator',
-            'core/services/state-manager',
-            'core/services/sync-manager',
-            'core/services/trash-service',
-            'core/services/workflow-sanitizer',
+            'sync/services/directory-utils',
+            'sync/services/n8n-api-client',
+            'sync/services/schema-generator',
+            'sync/services/state-manager',
+            'sync/services/sync-manager',
+            'sync/services/trash-service',
+            'sync/services/workflow-sanitizer',
           ],
         },
         {
           type: 'category',
           label: 'Types',
           items: [
-            'core/types',
+            'sync/types',
           ],
         },
       ],
@@ -71,19 +71,19 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Agent CLI Package',
+      label: 'Skills CLI Package',
       link: {
         type: 'doc',
-        id: 'agent-cli/index',
+        id: 'skills/index',
       },
       items: [
         {
           type: 'category',
           label: 'Services',
           items: [
-            'agent-cli/services/ai-context-generator',
-            'agent-cli/services/node-schema-provider',
-            'agent-cli/services/snippet-generator',
+            'skills/services/ai-context-generator',
+            'skills/services/node-schema-provider',
+            'skills/services/snippet-generator',
           ],
         },
       ],

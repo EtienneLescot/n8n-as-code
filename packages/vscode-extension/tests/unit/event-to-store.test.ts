@@ -6,7 +6,7 @@ import { WorkflowSyncStatus } from '@n8n-as-code/sync';
 /**
  * Event-to-Store Mapping Tests
  * 
- * Verifies the contract between Core events and Redux Store updates.
+ * Verifies the contract between Sync events and Redux Store updates.
  * This simulates what extension.ts does.
  */
 
@@ -14,7 +14,7 @@ test('Extension Integration: Event to Store Mapping', async (t) => {
     // 1. Reset store
     store.dispatch(setWorkflows([]));
 
-    await t.test('Core "change" event should refresh workflows in store', () => {
+    await t.test('Sync "change" event should refresh workflows in store', () => {
         // Simulate event payload from SyncManager
         const eventData = {
             filename: 'Test.json',
@@ -32,7 +32,7 @@ test('Extension Integration: Event to Store Mapping', async (t) => {
         assert.strictEqual(state.workflows.byId['wf-1']?.status, WorkflowSyncStatus.MODIFIED_LOCALLY);
     });
 
-    await t.test('Core "local-deletion" event should update pending deletions', () => {
+    await t.test('Sync "local-deletion" event should update pending deletions', () => {
         const eventData = {
             id: 'wf-1',
             filename: 'Test.json'
@@ -45,7 +45,7 @@ test('Extension Integration: Event to Store Mapping', async (t) => {
         assert.ok(state.pendingDeletions.workflowIds.includes('wf-1'));
     });
 
-    await t.test('Core "conflict" event should update conflicts store', () => {
+    await t.test('Sync "conflict" event should update conflicts store', () => {
         const eventData = {
             id: 'wf-1',
             filename: 'Test.json',

@@ -104,13 +104,13 @@ describe('AiContextGenerator', () => {
         test('should generate robust shim checking for local node_modules', async () => {
             await generator.generate(tempDir);
 
-            const shimPath = path.join(tempDir, 'n8n-agent');
+            const shimPath = path.join(tempDir, 'n8nac-skills');
             expect(fs.existsSync(shimPath)).toBe(true);
 
             const content = fs.readFileSync(shimPath, 'utf-8');
 
             // Should contain standard NPM path check
-            expect(content).toContain('CLI_PATH="./node_modules/@n8n-as-code/agent-cli/dist/cli.js"');
+            expect(content).toContain('CLI_PATH="./node_modules/@n8n-as-code/skills/dist/cli.js"');
             expect(content).toContain('if [ -f "$CLI_PATH" ]; then');
 
             // Should NOT contain absolute build paths
@@ -121,11 +121,11 @@ describe('AiContextGenerator', () => {
             const mockExtPath = '/mock/extension/path';
             await generator.generate(tempDir, '1.0.0', mockExtPath);
 
-            const shimPath = path.join(tempDir, 'n8n-agent');
+            const shimPath = path.join(tempDir, 'n8nac-skills');
             const content = fs.readFileSync(shimPath, 'utf-8');
 
             // Should contain explicit extension path check with new subpath
-            expect(content).toContain(`if [ -f "${mockExtPath}/out/agent-cli/cli.js" ]; then`);
+            expect(content).toContain(`if [ -f "${mockExtPath}/out/skills/cli.js" ]; then`);
         });
     });
 });

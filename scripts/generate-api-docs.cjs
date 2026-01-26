@@ -65,8 +65,8 @@ Welcome to the n8n-as-code API reference documentation. This documentation is au
 
 The n8n-as-code project is organized as a monorepo with the following packages:
 
-### Core Package
-The core package provides the foundational services for managing n8n workflows as code.
+### Sync Package
+The sync package provides the foundational services for managing n8n workflows as code.
 
 **Key Services:**
 - \`DirectoryUtils\` - File system operations for workflow management
@@ -86,7 +86,7 @@ Command-line interface for managing n8n workflows from the terminal.
 - \`sync\` - Synchronize workflows between files and n8n
 - \`watch\` - Watch for changes and auto-sync
 
-### Agent CLI Package
+### Skills CLI Package
 Tools for AI agents to work with n8n workflows.
 
 **Key Services:**
@@ -145,9 +145,9 @@ fs.writeFileSync(path.join(API_OUTPUT_DIR, 'index.md'), apiIndexContent);
 
 // Create package index pages
 const packages = [
-  { name: 'core', description: 'Core services for n8n workflow management' },
+  { name: 'sync', description: 'Sync services for n8n workflow management' },
   { name: 'cli', description: 'Command-line interface for n8n-as-code' },
-  { name: 'agent-cli', description: 'AI agent tools for n8n workflows' },
+  { name: 'skills', description: 'AI agent tools for n8n workflows' },
   { name: 'vscode-extension', description: 'VS Code extension for n8n workflow editing' },
 ];
 
@@ -190,7 +190,7 @@ The API reference for this package is organized by module. Click on a module in 
 
 function getPackageDescription(packageName) {
   const descriptions = {
-    core: `- **Workflow Management**: Load, save, and validate n8n workflows
+    sync: `- **Workflow Management**: Load, save, and validate n8n workflows
 - **API Integration**: Communicate with n8n REST API
 - **State Synchronization**: Keep workflows in sync between files and n8n
 - **Schema Generation**: Generate JSON schemas for n8n nodes
@@ -202,7 +202,7 @@ function getPackageDescription(packageName) {
 - **AI Assistance**: Get AI help for workflow creation
 - **Configuration Management**: Manage project settings and credentials`,
     
-    'agent-cli': `- **AI Context Generation**: Create context for AI assistants working with n8n
+    'skills': `- **AI Context Generation**: Create context for AI assistants working with n8n
 - **Node Schema Provision**: Provide structured schemas of n8n nodes to AI
 - **Snippet Generation**: Generate code snippets for common n8n patterns
 - **Workflow Analysis**: Analyze workflows for AI consumption`,
@@ -239,9 +239,9 @@ node scripts/generate-api-docs.js
 ## Structure
 
 - \`index.md\` - Main API overview page
-- \`core/\` - Core package documentation
+- \`sync/\` - Sync package documentation
 - \`cli/\` - CLI package documentation
-- \`agent-cli/\` - Agent CLI package documentation
+- \`skills/\` - Skills CLI package documentation
 - \`vscode-extension/\` - VS Code extension documentation
 
 ## Integration with Docusaurus

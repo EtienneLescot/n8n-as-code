@@ -11,9 +11,9 @@ Internal documentation for `@n8n-as-code/claude-skill` - the Claude Agent Skill 
 ## 📦 Package Overview
 
 - **Location**: `packages/claude-skill/`
-- **Purpose**: Package `@n8n-as-code/agent-cli` as a [Claude Agent Skill](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills)
+- **Purpose**: Package `@n8n-as-code/skills` as a [Claude Agent Skill](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills)
 - **Type**: Distribution package (not published to NPM, distributed as ZIP)
-- **Dependencies**: `@n8n-as-code/agent-cli`
+- **Dependencies**: `@n8n-as-code/skills`
 
 ## 🏗️ Architecture
 
@@ -27,9 +27,9 @@ packages/claude-skill/
 ├── templates/             # Source files
 │   ├── SKILL.md          # Main skill file (CRITICAL)
 │   └── scripts/
-│       ├── n8n-search.sh # Wrapper for agent-cli search
-│       ├── n8n-get.sh    # Wrapper for agent-cli get
-│       └── n8n-list.sh   # Wrapper for agent-cli list
+│       ├── n8n-search.sh # Wrapper for skills search
+│       ├── n8n-get.sh    # Wrapper for skills get
+│       └── n8n-list.sh   # Wrapper for skills list
 ├── README.md              # User-facing documentation
 └── CHANGELOG.md           # Version history
 ```
@@ -84,7 +84,7 @@ Then test in Claude Code or create ZIP for Claude.ai.
 
 ## 📝 SKILL.md Format
 
-The core file must follow Anthropic's specification:
+The sync file must follow Anthropic's specification:
 
 ```yaml
 ---
@@ -105,7 +105,7 @@ description: Expert assistant... # max 1024 chars, explains WHEN to use
 
 **DO:**
 - Reuse content from `AiContextGenerator.getAgentsContent()`
-- Use `npx -y @n8n-as-code/agent-cli` (the `-y` flag is critical)
+- Use `npx -y @n8n-as-code/skills` (the `-y` flag is critical)
 - Provide concrete examples in bash code blocks
 - Keep instructions imperative and clear
 
@@ -113,14 +113,14 @@ description: Expert assistant... # max 1024 chars, explains WHEN to use
 - Invent parameters or hallucinate capabilities
 - Remove YAML frontmatter
 - Use vague language
-- Add commands not in `@n8n-as-code/agent-cli`
+- Add commands not in `@n8n-as-code/skills`
 
 ## 🔄 Content Consistency
 
-The skill **reuses** content from `agent-cli`'s `AiContextGenerator`:
+The skill **reuses** content from `skills`'s `AiContextGenerator`:
 
 ```typescript
-// packages/agent-cli/src/services/ai-context-generator.ts
+// packages/skills/src/services/ai-context-generator.ts
 private getAgentsContent(n8nVersion: string): string {
   return [
     `## 🎭 Role: Expert n8n Engineer`,
@@ -188,7 +188,7 @@ This package follows the monorepo's Changeset workflow:
 
 ## 📚 Key Dependencies
 
-- **@n8n-as-code/agent-cli**: Provides the CLI commands executed by the skill
+- **@n8n-as-code/skills**: Provides the CLI commands executed by the skill
 - **Node.js**: Required for NPX execution
 - **Bash**: Scripts are bash-based
 
@@ -225,7 +225,7 @@ Implemented in `validate.js`:
 
 - [Anthropic Agent Skills Docs](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills)
 - [Agent Skills Engineering Blog](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
-- [Agent CLI Package](agent-cli.md)
+- [Skills CLI Package](skills.md)
 
 ## 🤝 Contributing
 

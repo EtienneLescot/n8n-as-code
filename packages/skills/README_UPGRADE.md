@@ -1,4 +1,4 @@
-# 🎉 Agent CLI - Upgrade Guide
+# 🎉 Skills CLI - Upgrade Guide
 
 ## What's New in This Release
 
@@ -49,8 +49,8 @@ No breaking changes! The system is backward compatible.
 # 1. Pull latest code
 git pull
 
-# 2. Rebuild agent-cli
-cd packages/agent-cli
+# 2. Rebuild skills
+cd packages/skills
 npm run clean
 npm run build
 
@@ -68,8 +68,8 @@ cd n8n-as-code
 # 2. Install dependencies
 npm install
 
-# 3. Build agent-cli (includes all new features)
-cd packages/agent-cli
+# 3. Build skills (includes all new features)
+cd packages/skills
 npm run build
 
 # 4. Test it
@@ -123,7 +123,7 @@ results.forEach(node => {
 Run these commands to verify everything works:
 
 ```bash
-cd packages/agent-cli
+cd packages/skills
 
 # Test 1: Search for Gemini
 node dist/cli.js search "gemini"
@@ -153,7 +153,7 @@ FORCE_REBUILD_NODES=true node ../../scripts/ensure-n8n-cache.cjs
 ### Q: Search still returns no results for "gemini"
 **A:** Verify enriched index exists:
 ```bash
-ls -lh packages/agent-cli/dist/assets/n8n-nodes-enriched.json
+ls -lh packages/skills/dist/assets/n8n-nodes-enriched.json
 # If missing, rebuild:
 npm run build
 ```

@@ -42,7 +42,7 @@ const getAssetsDir = () => {
         return localAssets;
     }
 
-    // Fallback 2: parent's sibling assets (VS Code Extension: out/agent-cli/cli.js -> assets/)
+    // Fallback 2: parent's sibling assets (VS Code Extension: out/skills/cli.js -> assets/)
     return join(_dirname, '../../assets');
 };
 
@@ -53,7 +53,7 @@ const docsProvider = new DocsProvider(join(assetsDir, 'n8n-docs-complete.json'))
 const knowledgeSearch = new KnowledgeSearch(join(assetsDir, 'n8n-knowledge-index.json'));
 
 program
-    .name('n8n-agent')
+    .name('n8nac-skills')
     .description('AI Agent Tools for accessing n8n documentation')
     .version(getVersion());
 
@@ -294,7 +294,7 @@ program
                 console.error(chalk.cyan('\n💡 Hint: Use \'get ' + schema.name + '\' for complete documentation and guides'));
             } else {
                 console.error(chalk.red(`Node '${name}' not found.`));
-                console.error(chalk.yellow(`Try running: './n8n-agent search "${name}"' to find the correct node name.`));
+                console.error(chalk.yellow(`Try running: './n8nac-skills search "${name}"' to find the correct node name.`));
                 process.exit(1);
             }
         } catch (error: any) {

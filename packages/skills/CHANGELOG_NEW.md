@@ -1,4 +1,4 @@
-# Changelog - Agent CLI Enhanced Search
+# Changelog - Skills CLI Enhanced Search
 
 ## [Unreleased] - Enhanced Search & Complete Node Coverage
 
@@ -122,7 +122,7 @@ const provider = new NodeSchemaProvider(undefined, false);
 
 For existing users:
 ```bash
-cd packages/agent-cli
+cd packages/skills
 npm run clean
 npm run build
 ```
@@ -130,7 +130,7 @@ npm run build
 For new users:
 ```bash
 npm install
-cd packages/agent-cli
+cd packages/skills
 npm run build
 ```
 

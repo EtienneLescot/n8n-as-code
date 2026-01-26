@@ -8,8 +8,8 @@ This section contains documentation for developers and contributors working on n
 - **[Architecture Overview](architecture.md)**: Understand the n8n-as-code monorepo architecture, component interactions, and design decisions.
 
 ### Internal Packages
-- **[Core Package](core.md)**: Internal documentation for the Core package that provides shared business logic for all n8n-as-code components.
-- **[Agent CLI](agent-cli.md)**: Internal documentation for the Agent CLI package used by AI assistants to generate context and snippets.
+- **[Sync Package](sync.md)**: Internal documentation for the Sync package that provides shared business logic for all n8n-as-code components.
+- **[Skills CLI](skills.md)**: Internal documentation for the Skills CLI package used by AI assistants to generate context and snippets.
 - **[Claude Skill](claude-skill.md)**: Internal documentation for the Claude Agent Skill package.
 
 ## 🛠 Development Setup
@@ -31,10 +31,10 @@ n8n-as-code is organized as a monorepo with the following packages:
 
 | Package | Purpose | Primary Users |
 |---------|---------|---------------|
-| **Core** (`@n8n-as-code/sync`) | Shared logic, API client, synchronization | All packages |
+| **Sync** (`@n8n-as-code/sync`) | Shared logic, API client, synchronization | All packages |
 | **CLI** (`@n8n-as-code/cli`) | Command-line interface for workflow management | Terminal users, automation |
 | **VS Code Extension** | Integrated development environment | VS Code users |
-| **Agent CLI** (`@n8n-as-code/agent-cli`) | AI context generation and node schemas | AI assistants, developers |
+| **Skills CLI** (`@n8n-as-code/skills`) | AI context generation and node schemas | AI assistants, developers |
 
 ## 🧪 Testing
 
@@ -50,7 +50,7 @@ npm test
 
 # Run tests for specific package
 cd packages/sync && npm test
-cd packages/agent-cli && npm test
+cd packages/skills && npm test
 ```
 
 ## 🔧 Building
@@ -74,7 +74,7 @@ n8n-as-code uses **Changeset** with independent package versioning. Each package
 Packages evolve **independently** with their own version numbers:
 - **@n8n-as-code/sync**: `0.3.0`
 - **@n8n-as-code/cli**: `0.3.0`
-- **@n8n-as-code/agent-cli**: `0.2.0`
+- **@n8n-as-code/skills**: `0.2.0`
 - **VS Code Extension**: `0.2.0`
 
 > **Note**: Each package has its own version number. Changeset ensures that when a package depends on another internal package, it always references the **current version** of that dependency.
@@ -87,7 +87,7 @@ The project includes different types of packages:
 |---------|-------------|---------------------|
 | `@n8n-as-code/sync` | NPM Registry | ✅ Yes |
 | `@n8n-as-code/cli` | NPM Registry | ✅ Yes |
-| `@n8n-as-code/agent-cli` | NPM Registry | ✅ Yes |
+| `@n8n-as-code/skills` | NPM Registry | ✅ Yes |
 | `n8n-as-code` (VS Code Extension) | VS Code Marketplace | ✅ Yes (versioning only) |
 | `n8n-as-code-monorepo` (root) | Not published | ❌ No (ignored) |
 | `docs` | Not published | ❌ No (private) |
@@ -129,7 +129,7 @@ When the "Version Packages" PR is merged:
 
 1. **NPM Publication**:
    - Builds all packages
-   - Publishes public packages to NPM registry (`@n8n-as-code/sync`, `@n8n-as-code/cli`, `@n8n-as-code/agent-cli`)
+   - Publishes public packages to NPM registry (`@n8n-as-code/sync`, `@n8n-as-code/cli`, `@n8n-as-code/skills`)
    - Skips private packages automatically (monorepo root, VS Code extension, docs)
    - Creates Git tags for each published package (e.g., `@n8n-as-code/sync@0.3.1`)
 
@@ -148,7 +148,7 @@ When the "Version Packages" PR is merged:
 Let's say you fix a bug in `@n8n-as-code/sync`:
 
 ```bash
-# 1. Create a changeset for the core fix
+# 1. Create a changeset for the sync fix
 npm run changeset
 # Select: @n8n-as-code/sync
 # Type: patch (0.3.0 → 0.3.1)
@@ -159,11 +159,11 @@ npm run version-packages
 
 **Result:**
 - `@n8n-as-code/sync`: `0.3.0` → `0.3.1` ✅
-- `@n8n-as-code/cli`: `0.3.0` → `0.3.1` (auto-bumped because it depends on core) ✅
-- `@n8n-as-code/agent-cli`: `0.2.0` (unchanged, no dependency on core) ✅
-- `VS Code Extension`: `0.2.0` → `0.2.1` (auto-bumped because it depends on core) ✅
+- `@n8n-as-code/cli`: `0.3.0` → `0.3.1` (auto-bumped because it depends on sync) ✅
+- `@n8n-as-code/skills`: `0.2.0` (unchanged, no dependency on sync) ✅
+- `VS Code Extension`: `0.2.0` → `0.2.1` (auto-bumped because it depends on sync) ✅
 
-All packages that depend on `core` will have their `package.json` updated to reference `"@n8n-as-code/sync": "0.3.1"`.
+All packages that depend on `sync` will have their `package.json` updated to reference `"@n8n-as-code/sync": "0.3.1"`.
 
 ### Workflow Summary Diagram
 
@@ -213,7 +213,7 @@ When a "Version Packages" PR is merged, Changeset automatically creates:
 Releases
 ├─ @n8n-as-code/sync@0.3.2        (Jan 20, 2024)
 ├─ @n8n-as-code/cli@0.4.1         (Jan 20, 2024)
-├─ @n8n-as-code/agent-cli@0.3.0   (Jan 18, 2024)
+├─ @n8n-as-code/skills@0.3.0   (Jan 18, 2024)
 ├─ @n8n-as-code/sync@0.3.1        (Jan 15, 2024)
 └─ @n8n-as-code/cli@0.4.0         (Jan 15, 2024)
 ```

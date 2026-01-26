@@ -39,8 +39,8 @@ test('Required documentation directories exist', () => {
     'docs/docs/community',
     'docs/docs/usage/vscode-extension',
     'docs/docs/usage/cli',
-    'docs/docs/usage/agent-cli',
-    'docs/docs/usage/core',
+    'docs/docs/usage/skills',
+    'docs/docs/usage/sync',
   ];
 
   for (const dir of requiredDirs) {
@@ -107,7 +107,7 @@ test('Sidebar configurations are valid', () => {
   }
   
   // Check for API sections
-  const requiredApiSections = ['Core Package', 'CLI Package', 'Agent CLI Package', 'VS Code Extension'];
+  const requiredApiSections = ['Sync Package', 'CLI Package', 'Skills CLI Package', 'VS Code Extension'];
   for (const section of requiredApiSections) {
     if (!sidebarsApiContent.includes(section)) {
       throw new Error(`Missing section in API sidebars: ${section}`);

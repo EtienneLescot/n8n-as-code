@@ -1,5 +1,5 @@
 ---
-id: agent-cli-index
+id: skills-index
 title: Agent-cli Package
 sidebar_label: Overview
 ---
@@ -23,7 +23,7 @@ Use the sidebar to navigate through the modules in this package.
 
 ## Usage
 
-For usage examples and guides, see the [main documentation](/docs/usage/agent-cli).
+For usage examples and guides, see the [main documentation](/docs/usage/skills).
 
 ## API Reference
 

@@ -1,4 +1,4 @@
-# Quick Start Guide - Enhanced Agent CLI
+# Quick Start Guide - Enhanced Skills CLI
 
 ## 🚀 Quick Build & Test
 
@@ -6,7 +6,7 @@
 
 ```bash
 # From project root
-cd packages/agent-cli
+cd packages/skills
 npm run build
 ```
 
@@ -22,7 +22,7 @@ This will:
 
 ```bash
 # Skip documentation download (faster)
-cd packages/agent-cli
+cd packages/skills
 node ../../scripts/ensure-n8n-cache.cjs
 node ../../scripts/generate-n8n-index.cjs
 node ../../scripts/enrich-nodes-index.cjs  # Uses schema-only enrichment
@@ -33,7 +33,7 @@ npm run build
 
 ```bash
 # If you already have the index files
-cd packages/agent-cli
+cd packages/skills
 npm run build  # Just TypeScript compilation
 ```
 
@@ -43,7 +43,7 @@ npm run build  # Just TypeScript compilation
 
 ```bash
 # After building
-cd packages/agent-cli
+cd packages/skills
 
 # Test search commands
 node dist/cli.js search "gemini"
@@ -80,7 +80,7 @@ node dist/cli.js list | head -50
 ### From Code
 
 ```typescript
-import { NodeSchemaProvider } from '@n8n-as-code/agent-cli';
+import { NodeSchemaProvider } from '@n8n-as-code/skills';
 
 const provider = new NodeSchemaProvider();
 
@@ -104,21 +104,21 @@ After building, verify:
 
 ```bash
 # Check files exist
-ls -lh packages/agent-cli/src/assets/n8n-nodes-index.json
-ls -lh packages/agent-cli/src/assets/n8n-nodes-enriched.json
-ls -lh packages/agent-cli/dist/assets/
+ls -lh packages/skills/src/assets/n8n-nodes-index.json
+ls -lh packages/skills/src/assets/n8n-nodes-enriched.json
+ls -lh packages/skills/dist/assets/
 
 # Check node count
-jq '.nodes | length' packages/agent-cli/src/assets/n8n-nodes-index.json
+jq '.nodes | length' packages/skills/src/assets/n8n-nodes-index.json
 
 # Check enriched structure
-jq '.nodes | keys | .[0:5]' packages/agent-cli/src/assets/n8n-nodes-enriched.json
+jq '.nodes | keys | .[0:5]' packages/skills/src/assets/n8n-nodes-enriched.json
 
 # Check for Gemini node
-jq '.nodes.googleGemini.metadata' packages/agent-cli/src/assets/n8n-nodes-enriched.json
+jq '.nodes.googleGemini.metadata' packages/skills/src/assets/n8n-nodes-enriched.json
 
 # Test CLI
-cd packages/agent-cli
+cd packages/skills
 node dist/cli.js search "gemini" | jq '.[0].displayName'
 ```
 
@@ -127,7 +127,7 @@ node dist/cli.js search "gemini" | jq '.[0].displayName'
 ### Issue: "n8n-nodes-index.json not found"
 **Solution**: Run the full build pipeline
 ```bash
-cd packages/agent-cli
+cd packages/skills
 npm run prebuild
 npm run build
 ```
@@ -142,7 +142,7 @@ node ../../scripts/generate-n8n-index.cjs
 ### Issue: "No results for 'gemini'"
 **Solution**: Verify enriched index was created
 ```bash
-ls -lh packages/agent-cli/src/assets/n8n-nodes-enriched.json
+ls -lh packages/skills/src/assets/n8n-nodes-enriched.json
 # If missing, run:
 node ../../scripts/enrich-nodes-index.cjs
 ```
@@ -160,7 +160,7 @@ npm run build
 ## 🎯 Find Guides
 
 ```bash
-./n8n-agent guides "gmail to discord"
+./n8nac-skills guides "gmail to discord"
 ```
 Quickly find workflow templates and tutorials matching your use case.
 
@@ -168,10 +168,10 @@ Quickly find workflow templates and tutorials matching your use case.
 
 ### Before (Old System - ❌ Broken)
 ```bash
-$ npx n8n-agent search "gemini"
+$ npx n8nac-skills search "gemini"
 []  # No results!
 
-$ npx n8n-agent search "generate image"
+$ npx n8nac-skills search "generate image"
 []  # No results!
 ```
 
@@ -183,7 +183,7 @@ $ npx n8n-agent search "generate image"
 
 ### After (New System - ✅ Works!)
 ```bash
-$ npx n8n-agent search "gemini"
+$ npx n8nac-skills search "gemini"
 [
   {
     "name": "googleGemini",
@@ -195,7 +195,7 @@ $ npx n8n-agent search "gemini"
   ...
 ]
 
-$ npx n8n-agent search "generate image"
+$ npx n8nac-skills search "generate image"
 [
   {
     "name": "googleGemini",
@@ -229,15 +229,15 @@ Once built, use the CLI:
 
 ```bash
 # Search (most common)
-n8n-agent search "your query"
+n8nac-skills search "your query"
 
 # Get schema (for code generation)
-n8n-agent get "nodeName"
+n8nac-skills get "nodeName"
 
 # List all (for discovery)
-n8n-agent list | grep -i "keyword"
+n8nac-skills list | grep -i "keyword"
 
-# Note: You can also use 'npx @n8n-as-code/agent-cli' if not installed globally
+# Note: You can also use 'npx @n8n-as-code/skills' if not installed globally
 ```
 
 ## 📚 More Info

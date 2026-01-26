@@ -16,7 +16,7 @@ This section is organized by the primary user-facing tools:
 |------|---------|----------|
 | **[VS Code Extension](/docs/usage/vscode-extension)** | Integrated development environment | Visual editing, real-time sync, workflow validation |
 | **[CLI](/docs/usage/cli)** | Command-line interface | Automation, scripting, CI/CD integration |
-| **[Agent CLI](/docs/usage/agent-cli)** | AI tools and node schemas | AI coding assistants, node search, schema retrieval |
+| **[Skills CLI](/docs/usage/skills)** | AI tools and node schemas | AI coding assistants, node search, schema retrieval |
 | **[Claude Skill](/docs/usage/claude-skill)** | Claude Agent Skill package | Using Claude AI to generate n8n workflows |
 
 ## 🎨 Choosing the Right Tool
@@ -101,9 +101,9 @@ n8n-as-code push
 | `n8n-as-code push` | Upload workflows to n8n | CLI |
 | `n8n-as-code watch` | Real-time sync mode | CLI |
 | `n8n-as-code init-ai` | Generate AI context files | CLI |
-| `npx @n8n-as-code/agent-cli search` | Search for n8n nodes | Agent CLI |
-| `npx @n8n-as-code/agent-cli get` | Get node JSON schema | Agent CLI |
-| `npx @n8n-as-code/agent-cli list` | List all available nodes | Agent CLI |
+| `npx @n8n-as-code/skills search` | Search for n8n nodes | Skills CLI |
+| `npx @n8n-as-code/skills get` | Get node JSON schema | Skills CLI |
+| `npx @n8n-as-code/skills list` | List all available nodes | Skills CLI |
 | VS Code: Refresh button | Pull workflows | Extension |
 | VS Code: Save file | Auto-push to n8n | Extension |
 
@@ -128,10 +128,10 @@ n8n-as-code push
 3. Sync workflows: `n8n-as-code pull`
 4. Use commands as needed for automation
 
-### 3. Agent CLI (For AI Tools)
-1. Run with npx: `npx @n8n-as-code/agent-cli --help`
-2. Search for nodes: `npx @n8n-as-code/agent-cli search "query"`
-3. Get node schemas: `npx @n8n-as-code/agent-cli get nodeName`
+### 3. Skills CLI (For AI Tools)
+1. Run with npx: `npx @n8n-as-code/skills --help`
+2. Search for nodes: `npx @n8n-as-code/skills search "query"`
+3. Get node schemas: `npx @n8n-as-code/skills get nodeName`
 4. Use output for AI context or development
 
 ### 4. Claude Skill (For Claude AI)
@@ -160,7 +160,7 @@ Explore the specific guides for each tool:
 
 - **[VS Code Extension Guide](/docs/usage/vscode-extension)**: Learn about visual editing, real-time sync, and advanced features
 - **[CLI Guide](/docs/usage/cli)**: Master command-line usage, automation, and scripting
-- **[Agent CLI Guide](/docs/usage/agent-cli)**: Use AI tools for node search and schema retrieval
+- **[Skills CLI Guide](/docs/usage/skills)**: Use AI tools for node search and schema retrieval
 
 ## 🔍 Internal Components
 

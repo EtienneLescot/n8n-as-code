@@ -1,4 +1,4 @@
-# @n8n-as-code/agent-cli
+# @n8n-as-code/skills
 
 ## 0.12.0
 
@@ -24,37 +24,37 @@
 
 ### Minor Changes
 
-- significant expansion of the agent-cli capabilities, focusing on providing the AI agent with more resources (Community Workflows) and refining the existing CLI interface for better clarity.
+- significant expansion of the skills capabilities, focusing on providing the AI agent with more resources (Community Workflows) and refining the existing CLI interface for better clarity.
 
 ## 0.10.0
 
 ### Minor Changes
 
-- feat(agent-cli): add type field to node schema and improve schema handling
+- feat(skills): add type field to node schema and improve schema handling
 
 ## 0.9.0
 
 ### Minor Changes
 
-- feat(agent-cli): enhance node schema lookup with fuzzy search and improve workflow validation
+- feat(skills): enhance node schema lookup with fuzzy search and improve workflow validation
 
 ## 0.8.0
 
 ### Minor Changes
 
-- fix(agent-cli): update asset path resolution to use local assets directory
+- fix(skills): update asset path resolution to use local assets directory
 
 ## 0.7.0
 
 ### Minor Changes
 
-- fix(agent-cli): improve asset path resolution with fallback logic
+- fix(skills): improve asset path resolution with fallback logic
 
 ## 0.6.0
 
 ### Minor Changes
 
-- refactor(agent-cli): improve shim generation with robust path resolution
+- refactor(skills): improve shim generation with robust path resolution
 
 ## 0.5.2
 
@@ -72,7 +72,7 @@
 
 ### Minor Changes
 
-- Refonte majeure de l'agent-cli :
+- Refonte majeure de l'skills :
 
   ✅ Recherche unifiée avec FlexSearch (500+ nœuds, 1200+ docs)
   ✅ Nouvelles commandes : list, examples, related, validate, update-ai
@@ -91,22 +91,22 @@
 
 ### Minor Changes
 
-- Optimize agent-cli package and enable enriched index in VS Code extension
+- Optimize skills package and enable enriched index in VS Code extension
 
-  - agent-cli: Reduced npm package size by 54% (68 MB → 31 MB) by removing src/assets/ from published files
+  - skills: Reduced npm package size by 54% (68 MB → 31 MB) by removing src/assets/ from published files
   - vscode-extension: Now uses n8n-nodes-enriched.json with enhanced metadata (keywords, operations, use cases)
 
 ## 0.3.0
 
 ### Minor Changes
 
-- -feat(agent-cli): AI-powered node discovery with enriched documentation
+- -feat(skills): AI-powered node discovery with enriched documentation
 
   - Add 119 missing LangChain nodes (Google Gemini, OpenAI, etc.)
   - Integrate n8n official documentation with smart scoring algorithm
   - Improve search with keywords, operations, and use cases
   - 641 nodes indexed (+23%), 911 documentation files (95% coverage)
-  - Update dependencies to use enhanced agent-cli
+  - Update dependencies to use enhanced skills
 
 ## 0.2.1
 

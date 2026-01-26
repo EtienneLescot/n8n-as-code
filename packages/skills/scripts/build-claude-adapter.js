@@ -115,7 +115,7 @@ When installed, Claude becomes an expert n8n developer who can:
 
 ## 🔍 How It Works
 
-The skill uses the \`@n8n-as-code/skills\` package (formerly agent-cli) to access complete n8n node documentation:
+The skill uses the \`@n8n-as-code/skills\` package (formerly skills) to access complete n8n node documentation:
 
 \`\`\`bash
 npx -y @n8n-as-code/skills search "http request"

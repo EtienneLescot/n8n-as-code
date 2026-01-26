@@ -40,14 +40,14 @@ export class StartCommand extends BaseCommand {
             syncConfig.syncMode = 'auto'; // Enable auto-sync in auto mode
         }
         
-        // Suppress Core debug logs to keep output clean
+        // Suppress Sync debug logs to keep output clean
         const originalConsoleLog = console.log;
         console.log = (...args: any[]) => {
             const msg = args.join(' ');
             if (msg.includes('[SyncManager]') || 
                 msg.includes('Auto-sync skipped') ||
                 msg.includes('[N8nApiClient]')) {
-                return; // Suppress internal Core logs
+                return; // Suppress internal Sync logs
             }
             originalConsoleLog.apply(console, args);
         };

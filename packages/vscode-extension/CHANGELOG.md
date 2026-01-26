@@ -5,7 +5,7 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.12.0
+  - @n8n-as-code/skills@0.12.0
 
 ## 0.5.3
 
@@ -13,7 +13,7 @@
 
 - build process fixed
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.11.2
+  - @n8n-as-code/skills@0.11.2
   - @n8n-as-code/sync@0.4.3
 
 ## 0.5.2
@@ -21,53 +21,53 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.11.1
+  - @n8n-as-code/skills@0.11.1
 
 ## 0.5.1
 
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.11.0
+  - @n8n-as-code/skills@0.11.0
 
 ## 0.5.0
 
 ### Minor Changes
 
-- feat(agent-cli): add type field to node schema and improve schema handling
+- feat(skills): add type field to node schema and improve schema handling
 
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.10.0
+  - @n8n-as-code/skills@0.10.0
 
 ## 0.4.9
 
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.9.0
+  - @n8n-as-code/skills@0.9.0
 
 ## 0.4.8
 
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.8.0
+  - @n8n-as-code/skills@0.8.0
 
 ## 0.4.7
 
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.7.0
+  - @n8n-as-code/skills@0.7.0
 
 ## 0.4.6
 
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.6.0
+  - @n8n-as-code/skills@0.6.0
 
 ## 0.4.5
 
@@ -75,21 +75,21 @@
 
 - Fix VSCode Extension path
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.5.2
+  - @n8n-as-code/skills@0.5.2
 
 ## 0.4.4
 
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.5.1
+  - @n8n-as-code/skills@0.5.1
 
 ## 0.4.3
 
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.5.0
+  - @n8n-as-code/skills@0.5.0
   - @n8n-as-code/sync@0.4.2
 
 ## 0.4.2
@@ -105,39 +105,39 @@
 
 - Updated dependencies
   - @n8n-as-code/sync@0.4.0
-  - @n8n-as-code/agent-cli@0.4.1
+  - @n8n-as-code/skills@0.4.1
 
 ## 0.4.0
 
 ### Minor Changes
 
-- Optimize agent-cli package and enable enriched index in VS Code extension
+- Optimize skills package and enable enriched index in VS Code extension
 
-  - agent-cli: Reduced npm package size by 54% (68 MB → 31 MB) by removing src/assets/ from published files
+  - skills: Reduced npm package size by 54% (68 MB → 31 MB) by removing src/assets/ from published files
   - vscode-extension: Now uses n8n-nodes-enriched.json with enhanced metadata (keywords, operations, use cases)
-  - vscode-extension: Added esbuild plugin to automatically copy assets from agent-cli during build
+  - vscode-extension: Added esbuild plugin to automatically copy assets from skills during build
   - Extension size increases to 5.2 MB due to enriched data, providing better search, autocompletion, and documentation for 400+ n8n nodes
 
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.4.0
+  - @n8n-as-code/skills@0.4.0
   - @n8n-as-code/sync@0.3.3
 
 ## 0.3.2
 
 ### Patch Changes
 
-- -feat(agent-cli): AI-powered node discovery with enriched documentation
+- -feat(skills): AI-powered node discovery with enriched documentation
 
   - Add 119 missing LangChain nodes (Google Gemini, OpenAI, etc.)
   - Integrate n8n official documentation with smart scoring algorithm
   - Improve search with keywords, operations, and use cases
   - 641 nodes indexed (+23%), 911 documentation files (95% coverage)
-  - Update dependencies to use enhanced agent-cli
+  - Update dependencies to use enhanced skills
 
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.3.0
+  - @n8n-as-code/skills@0.3.0
   - @n8n-as-code/sync@0.3.2
 
 ## 0.3.1
@@ -146,7 +146,7 @@
 
 - 08b83b5: doc update
 - Updated dependencies [08b83b5]
-  - @n8n-as-code/agent-cli@0.2.1
+  - @n8n-as-code/skills@0.2.1
   - @n8n-as-code/sync@0.3.1
 
 ## 0.3.0
@@ -170,5 +170,5 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/agent-cli@0.2.0
+  - @n8n-as-code/skills@0.2.0
   - @n8n-as-code/sync@0.2.0

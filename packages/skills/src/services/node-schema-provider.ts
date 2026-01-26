@@ -75,7 +75,7 @@ export class NodeSchemaProvider {
         if (!fs.existsSync(this.enrichedIndexPath)) {
             throw new Error(
                 `Technical node index not found at: ${this.enrichedIndexPath}\n` +
-                `Please run the build process: npm run build in packages/agent-cli`
+                `Please run the build process: npm run build in packages/skills`
             );
         }
 
@@ -86,7 +86,7 @@ export class NodeSchemaProvider {
         } catch (error: any) {
             throw new Error(
                 `Failed to load technical node index: ${error.message}\n` +
-                `The index file may be corrupted. Try rebuilding: npm run build in packages/agent-cli`
+                `The index file may be corrupted. Try rebuilding: npm run build in packages/skills`
             );
         }
     }

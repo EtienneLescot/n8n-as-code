@@ -1,6 +1,6 @@
 /**
  * Critical test: Pull command must call refreshState before syncDown
- * This tests the workaround for Core bug where syncDown doesn't refresh state
+ * This tests the workaround for Sync bug where syncDown doesn't refresh state
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';

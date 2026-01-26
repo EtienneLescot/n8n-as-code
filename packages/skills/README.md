@@ -1,10 +1,10 @@
-# @n8n-as-code/agent-cli
+# @n8n-as-code/skills
 
 Specialized tooling for AI Agents (Cursor, Cline, Copilot) to interact with n8n workflows and nodes.
 
 ## 🛠 Purpose
 
-This package provides a dedicated CLI (`n8n-agent`) and programmatic tools designed to:
+This package provides a dedicated CLI (`n8nac-skills`) and programmatic tools designed to:
 1. **Provide Context**: Help AI agents understand n8n node structures.
 2. **Search Nodes**: Find specific n8n nodes and their properties.
 3. **Initialize Context**: Bootstrap developer environments with `AGENTS.md`, JSON schemas, and snippets.
@@ -12,7 +12,7 @@ This package provides a dedicated CLI (`n8n-agent`) and programmatic tools desig
 ## 🚀 Installation
 
 ```bash
-npm install @n8n-as-code/agent-cli
+npm install @n8n-as-code/skills
 ```
 
 ## 📖 CLI Usage
@@ -29,23 +29,23 @@ KEY FEATURES:
 
 ```bash
 # Search nodes, docs, and tutorials
-n8n-agent search "how to generate images"
-n8n-agent search "google sheets"
+n8nac-skills search "how to generate images"
+n8nac-skills search "google sheets"
 
 # Filter by type
-n8n-agent search "authentication" --type documentation
-n8n-agent search "database" --type node
+n8nac-skills search "authentication" --type documentation
+n8nac-skills search "database" --type node
 
 # Filter by category
-n8n-agent search "ai" --category advanced-ai
+n8nac-skills search "ai" --category advanced-ai
 ```
 
 ### `get <nodeName>` - 📚 Complete Node Info
 Get full node information: schema + documentation + examples.
 
 ```bash
-n8n-agent get googleSheets
-n8n-agent get httpRequest
+n8nac-skills get googleSheets
+n8nac-skills get httpRequest
 ```
 
 **Includes hints for next steps!**
@@ -54,7 +54,7 @@ n8n-agent get httpRequest
 Fast access to technical schema (parameters only).
 
 ```bash
-n8n-agent schema googleSheets
+n8nac-skills schema googleSheets
 # Returns only properties and required fields
 ```
 
@@ -63,20 +63,20 @@ Read full documentation pages. Use `search` first to find relevant titles.
 
 ```bash
 # Read a specific page
-n8n-agent docs "Google Gemini"
-n8n-agent docs "Expressions"
+n8nac-skills docs "Google Gemini"
+n8nac-skills docs "Expressions"
 
 # List categories or stats
-n8n-agent docs --list
+n8nac-skills docs --list
 ```
 
 ### `guides [query]` - 🎯 Find Guides
 Find workflow guides, tutorials, and walkthroughs.
 
 ```bash
-n8n-agent guides "email automation"
-n8n-agent guides "ai workflow"
-n8n-agent guides --list
+n8nac-skills guides "email automation"
+n8nac-skills guides "ai workflow"
+n8nac-skills guides --list
 ```
 
 ### `workflows` - 🌐 Search & Download Community Workflows
@@ -86,17 +86,17 @@ Search and download workflows from the **n8nworkflows.xyz** community repository
 Search workflows using FlexSearch for high-relevance results.
 
 ```bash
-n8n-agent workflows search "slack notification"
-n8n-agent workflows search "AI chatbot telegram"
-n8n-agent workflows search "invoice processing" --limit 20
-n8n-agent workflows search "google sheets" --json
+n8nac-skills workflows search "slack notification"
+n8nac-skills workflows search "AI chatbot telegram"
+n8nac-skills workflows search "invoice processing" --limit 20
+n8nac-skills workflows search "google sheets" --json
 ```
 
 #### `workflows info <id>`
 Display detailed information about a specific workflow.
 
 ```bash
-n8n-agent workflows info 916
+n8nac-skills workflows info 916
 # Shows: name, author, tags, download URL
 ```
 
@@ -104,17 +104,17 @@ n8n-agent workflows info 916
 Download a workflow JSON file.
 
 ```bash
-n8n-agent workflows install 916
-n8n-agent workflows install 4365 --output my-chatbot.json
-n8n-agent workflows install 8088 --force  # Overwrite existing
+n8nac-skills workflows install 916
+n8nac-skills workflows install 4365 --output my-chatbot.json
+n8nac-skills workflows install 8088 --force  # Overwrite existing
 ```
 
 #### `workflows list`
 List available workflows (newest first).
 
 ```bash
-n8n-agent workflows list
-n8n-agent workflows list --limit 50
+n8nac-skills workflows list
+n8nac-skills workflows list --limit 50
 ```
 
 **Features:**
@@ -127,10 +127,10 @@ n8n-agent workflows list --limit 50
 Find related nodes and documentation.
 
 ```bash
-n8n-agent related googleSheets
+n8nac-skills related googleSheets
 # Returns: Google Drive, Excel, Airtable, related docs
 
-n8n-agent related "ai agents"
+n8nac-skills related "ai agents"
 # Returns: AI-related concepts, nodes, examples
 ```
 
@@ -139,34 +139,34 @@ List available nodes and documentation categories.
 
 ```bash
 # Summary of nodes and docs
-n8n-agent list
+n8nac-skills list
 
 # List all node names
-n8n-agent list --nodes
+n8nac-skills list --nodes
 
 # List all doc categories
-n8n-agent list --docs
+n8nac-skills list --docs
 ```
 
 ### `validate <file>` - ✅ Validate Workflows
 Validate workflow JSON files.
 
 ```bash
-n8n-agent validate workflow.json
-n8n-agent validate workflow.json --strict
+n8nac-skills validate workflow.json
+n8nac-skills validate workflow.json --strict
 ```
 
 ### `update-ai` - 🤖 Update AI Context
 Update AI Context (AGENTS.md, rule files, snippets).
 
 ```bash
-n8n-agent update-ai
-n8n-agent update-ai --version 1.70.0
+n8nac-skills update-ai
+n8nac-skills update-ai --version 1.70.0
 ```
 
 ## 📁 Data Source
 
-The Agent CLI uses a pre-generated index of n8n nodes from the official n8n source code. The data is stored in `dist/assets/` (generated during build):
+The Skills CLI uses a pre-generated index of n8n nodes from the official n8n source code. The data is stored in `dist/assets/` (generated during build):
 
 - `n8n-knowledge-index.json`: Unified FlexSearch index for the `search` command.
 - `n8n-nodes-technical.json`: Detailed technical schemas for the `get` command.
@@ -178,7 +178,7 @@ The Agent CLI uses a pre-generated index of n8n nodes from the official n8n sour
 The main CLI package (`@n8n-as-code/cli`) uses this package internally for its `init-ai` / `update-ai` commands to generate AI context files.
 
 ### With VS Code Extension
-This package is a core dependency of the `n8n-as-code` VS Code extension, powering its AI features and node indexing.
+This package is a sync dependency of the `n8n-as-code` VS Code extension, powering its AI features and node indexing.
 
 ## 📄 License
 MIT

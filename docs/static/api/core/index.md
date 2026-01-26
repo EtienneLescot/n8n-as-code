@@ -1,12 +1,12 @@
 ---
-id: core-index
-title: Core Package
+id: sync-index
+title: Sync Package
 sidebar_label: Overview
 ---
 
-# Core Package
+# Sync Package
 
-Core services for n8n workflow management
+Sync services for n8n workflow management
 
 ## Overview
 
@@ -24,7 +24,7 @@ Use the sidebar to navigate through the modules in this package.
 
 ## Usage
 
-For usage examples and guides, see the [main documentation](/docs/usage/core).
+For usage examples and guides, see the [main documentation](/docs/usage/sync).
 
 ## API Reference
 

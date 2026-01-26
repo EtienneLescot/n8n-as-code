@@ -230,7 +230,7 @@ describe('ConfigService', () => {
                 'http://localhost:5678': 'test-key'
             });
 
-            // Mock the Core imports
+            // Mock the Sync imports
             const mockCreateInstanceIdentifier = vi.fn().mockReturnValue('local_5678_user');
             const mockN8nApiClient = vi.fn().mockImplementation(() => ({
                 getCurrentUser: vi.fn().mockResolvedValue({

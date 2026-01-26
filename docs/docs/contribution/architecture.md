@@ -13,9 +13,9 @@ n8n-as-code is a monorepo built with a modular architecture that separates conce
 ```
 n8n-as-code/
 ├── packages/
-│   ├── core/           # Core library (shared logic)
+│   ├── sync/           # Sync library (shared logic)
 │   ├── cli/            # Command-line interface
-│   ├── agent-cli/      # AI agent integration
+│   ├── skills/      # AI agent integration
 │   └── vscode-extension/ # VS Code extension
 ├── docs/               # Documentation (Docusaurus)
 ├── scripts/            # Build and utility scripts
@@ -26,9 +26,9 @@ n8n-as-code/
 
 ```mermaid
 graph TD
-    A[VS Code Extension] --> B[Core Library]
+    A[VS Code Extension] --> B[Sync Library]
     C[CLI] --> B
-    D[Agent CLI] --> B
+    D[Skills CLI] --> B
     B --> E[n8n API]
     
     style A fill:#ff6b35
@@ -38,16 +38,16 @@ graph TD
 ```
 
 ### Dependency Flow
-1. **Core Library** (`@n8n-as-code/sync`): Shared business logic
-2. **CLI** (`@n8n-as-code/cli`): Command-line interface using Core
-3. **VS Code Extension**: Visual interface using Core
-4. **Agent CLI** (`@n8n-as-code/agent-cli`): AI integration using Core
+1. **Sync Library** (`@n8n-as-code/sync`): Shared business logic
+2. **CLI** (`@n8n-as-code/cli`): Command-line interface using Sync
+3. **VS Code Extension**: Visual interface using Sync
+4. **Skills CLI** (`@n8n-as-code/skills`): AI integration using Sync
 
-## 🧩 Core Library Architecture
+## 🧩 Sync Library Architecture
 
 ### 3-Way Merge Architecture
 
-The core library implements a **3-way merge architecture** that cleanly separates state observation from state mutation:
+The sync library implements a **3-way merge architecture** that cleanly separates state observation from state mutation:
 
 ```mermaid
 graph TD
@@ -72,7 +72,7 @@ graph TD
 ### Service Layer
 
 ```typescript
-// Core services architecture
+// Sync services architecture
 classDiagram
     class Watcher {
         +startWatching()
@@ -235,7 +235,7 @@ classDiagram
 1. **Tree View**: Displays workflows organized by instance
 2. **Webview**: Renders n8n canvas for visual editing
 3. **Proxy Service**: Bridges VS Code and n8n API
-4. **Sync Integration**: Uses Core library for synchronization
+4. **Sync Integration**: Uses Sync library for synchronization
 
 ## 🖥️ CLI Architecture
 
@@ -281,11 +281,11 @@ classDiagram
 3. **Configuration**: Loads from file, env vars, or args
 4. **Error Handling**: Consistent error reporting
 
-## 🤖 Agent CLI Architecture
+## 🤖 Skills CLI Architecture
 
 ### AI Integration
 ```typescript
-// Agent CLI architecture
+// Skills CLI architecture
 classDiagram
     class AgentCLI {
         +generateContext()
@@ -326,20 +326,20 @@ sequenceDiagram
     participant User
     participant VS Code
     participant CLI
-    participant Core
+    participant Sync
     participant n8n
     
     User->>VS Code: Edit workflow
-    VS Code->>Core: Detect changes
-    Core->>n8n: Push changes
-    n8n-->>Core: Confirm update
-    Core-->>VS Code: Update status
+    VS Code->>Sync: Detect changes
+    Sync->>n8n: Push changes
+    n8n-->>Sync: Confirm update
+    Sync-->>VS Code: Update status
     
     User->>CLI: Run sync command
-    CLI->>Core: Sync workflows
-    Core->>n8n: Pull latest
-    n8n-->>Core: Return workflows
-    Core-->>CLI: Save locally
+    CLI->>Sync: Sync workflows
+    Sync->>n8n: Pull latest
+    n8n-->>Sync: Return workflows
+    Sync-->>CLI: Save locally
 ```
 
 ### Conflict Resolution
@@ -415,8 +415,8 @@ npm run docs
 
 ## 📚 Related Documentation
 
-- [Core Package](/docs/contribution/core): Core library details
-- [Agent CLI](/docs/contribution/agent-cli): AI integration details
+- [Sync Package](/docs/contribution/sync): Sync library details
+- [Skills CLI](/docs/contribution/skills): AI integration details
 - [Contribution Guide](/docs/contribution): How to contribute
 
 ---

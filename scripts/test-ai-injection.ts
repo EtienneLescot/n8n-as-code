@@ -1,4 +1,4 @@
-import { AiContextGenerator } from '../packages/agent-cli/src/services/ai-context-generator.js';
+import { AiContextGenerator } from '../packages/skills/src/services/ai-context-generator.js';
 import fs from 'fs';
 import path from 'path';
 

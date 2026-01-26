@@ -1,19 +1,19 @@
 ---
-sidebar_label: Core Package
-title: Core Package - Shared Library
-description: Documentation for the Core package that provides shared business logic for all n8n-as-code components.
+sidebar_label: Sync Package
+title: Sync Package - Shared Library
+description: Documentation for the Sync package that provides shared business logic for all n8n-as-code components.
 ---
 
-# Core Package - Shared Library Documentation
+# Sync Package - Shared Library Documentation
 
 **Note**: This package is a shared dependency used by all other n8n-as-code packages. It provides the foundational services for workflow management.
 
 ## 🎯 Purpose
 
-The Core package (`@n8n-as-code/sync`) provides the shared business logic and services used by:
+The Sync package (`@n8n-as-code/sync`) provides the shared business logic and services used by:
 - **VS Code Extension**: For workflow synchronization and management
 - **CLI**: For command-line operations
-- **Agent CLI**: For AI context generation
+- **Skills CLI**: For AI context generation
 
 It encapsulates all n8n API interactions, state management, and synchronization logic.
 
@@ -21,7 +21,7 @@ It encapsulates all n8n API interactions, state management, and synchronization 
 
 ### 3-Way Merge Architecture
 
-The Core package implements a **3-way merge architecture** that separates concerns cleanly:
+The Sync package implements a **3-way merge architecture** that separates concerns cleanly:
 
 ```mermaid
 graph TD
@@ -66,7 +66,7 @@ graph TD
 }
 ```
 
-## 🧩 Core Services
+## 🧩 Sync Services
 
 ### 1. **Watcher** (`src/services/watcher.ts`)
 Passive observer service that detects changes without performing synchronization.
@@ -112,7 +112,7 @@ Stateless I/O executor that performs actual synchronization operations.
 - Create backups before destructive operations
 - Never decide what to sync (receives instructions from SyncManager)
 
-**Core Methods:**
+**Sync Methods:**
 ```typescript
 class SyncEngine {
   async push(workflow: IWorkflowStatus): Promise<void>;
@@ -198,7 +198,7 @@ interface IWorkflowState {
 }
 ```
 
-**Core Methods:**
+**Sync Methods:**
 ```typescript
 class StateManager {
   async loadState(): Promise<IInstanceState>;
@@ -458,9 +458,9 @@ npm run dev
 ## 📚 Related Documentation
 
 - [Architecture Overview](/docs/contribution/architecture): Overall system architecture
-- [Agent CLI](/docs/contribution/agent-cli): AI integration details
+- [Skills CLI](/docs/contribution/skills): AI integration details
 - [Contribution Guide](/docs/contribution): How to contribute
 
 ---
 
-*The Core package provides the foundation for all n8n-as-code functionality, ensuring consistent behavior across different interfaces while maintaining security and performance.*
+*The Sync package provides the foundation for all n8n-as-code functionality, ensuring consistent behavior across different interfaces while maintaining security and performance.*

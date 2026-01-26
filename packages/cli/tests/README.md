@@ -7,7 +7,7 @@ Comprehensive test suite for the n8n-as-code CLI package using **Vitest**.
 ### ✅ Integration Tests (4 files, ~40+ tests)
 
 #### 1. `integration/pull-refreshstate.test.ts` (3 tests)
-Tests the **Core bug workaround**: Pull/Push commands must call `refreshState()` before sync operations.
+Tests the **Sync bug workaround**: Pull/Push commands must call `refreshState()` before sync operations.
 
 - ✅ Verifies refreshState is called before syncDown
 - ✅ Verifies refreshState is called before syncUp  
@@ -73,8 +73,8 @@ Tests for CLI utility functions (diff display, log buffering).
 ### Helpers (`helpers/test-helpers.ts`)
 Provides mock implementations for testing:
 
-- **MockN8nApiClient**: Mocks Core's N8nApiClient
-- **MockSyncManager**: Mocks Core's SyncManager
+- **MockN8nApiClient**: Mocks Sync's N8nApiClient
+- **MockSyncManager**: Mocks Sync's SyncManager
 - **MockConfigService**: Mocks ConfigService
 - **createMockWorkflow()**: Factory for test workflows
 - **mockInquirerPrompt()**: Mocks user prompts
@@ -171,5 +171,5 @@ To extend test coverage:
 ## 📚 References
 
 - [Vitest Documentation](https://vitest.dev/)
-- [n8n-as-code Core API](../../../packages/sync/README.md)
+- [n8n-as-code Sync API](../../../packages/sync/README.md)
 - [CLI Specification](../../../SPECS/REFACTO_CLI.md)

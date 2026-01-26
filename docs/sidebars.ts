@@ -78,8 +78,8 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'doc',
-          id: 'contribution/core',
-          label: 'Core Package',
+          id: 'contribution/sync',
+          label: 'Sync Package',
         },
         {
           type: 'doc',
@@ -93,7 +93,7 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'doc',
-          id: 'contribution/agent-cli',
+          id: 'contribution/skills',
           label: 'Skills Package',
         },
         {

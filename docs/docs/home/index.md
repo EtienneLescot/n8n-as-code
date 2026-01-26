@@ -89,7 +89,7 @@ n8n-as-code is built as a monorepo with four main packages:
 
 ```mermaid
 graph TD
-    A[Core Package] --> B[CLI]
+    A[Sync Package] --> B[CLI]
     A --> C[VS Code Extension]
     A --> D[Skills]
     
@@ -106,10 +106,10 @@ graph TD
 
 | Package | Purpose | Primary Users |
 |---------|---------|---------------|
-| **Core** | Shared logic, API client, synchronization | All packages |
+| **Sync** | Shared logic, API client, synchronization | All packages |
 | **CLI** | Command-line interface for workflow management | Terminal users, automation |
 | **VS Code Extension** | Integrated development environment | VS Code users |
-| **Skills** | AI context generation & node schemas (formerly Agent CLI) | AI assistants, developers |
+| **Skills** | AI context generation & node schemas (formerly Skills CLI) | AI assistants, developers |
 
 ## 🏁 Quick Start
 
@@ -140,13 +140,13 @@ For detailed instructions, check out our [Getting Started guide](/docs/getting-s
 This documentation is organized into several sections:
 
 - **Getting Started**: Installation, configuration, and first steps
-- **Usage**: Detailed guides for each package (CLI, VS Code Extension, Skills, Core)
+- **Usage**: Detailed guides for each package (CLI, VS Code Extension, Skills, Sync)
 - **Contribution**: Architecture, development setup, and contribution guidelines
 - **Troubleshooting**: Common issues and solutions
 
 ## 🆕 What's New?
 
-- **Rebranding**: Renamed CLI to `n8nac` and `agent-cli` to `skills` for better developer experience
+- **Rebranding**: Renamed CLI to `n8nac` and `skills` to `skills` for better developer experience
 - **Major Refactor (Latest)**: 3-way merge architecture for reliable conflict detection
   - New CLI commands: `start` (replaces `watch`) and `list` for status overview
   - Persistent conflict resolution UI in VS Code with expandable action buttons
@@ -154,7 +154,7 @@ This documentation is organized into several sections:
   - Enhanced synchronization reliability with atomic operations and backups
   - Separated state observation (Watcher) from state mutation (SyncEngine)
 - **Version 0.2.0**: Multi-instance support, improved conflict resolution, enhanced AI context
-- **Version 0.1.0**: Initial release with core synchronization, VS Code extension, and CLI
+- **Version 0.1.0**: Initial release with sync synchronization, VS Code extension, and CLI
 
 For detailed release information, check the GitHub repository releases.
 

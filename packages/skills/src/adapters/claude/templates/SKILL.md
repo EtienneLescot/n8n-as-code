@@ -232,4 +232,4 @@ When helping users:
 
 ---
 
-**Remember**: The n8n-as-code agent-cli is your source of truth. Never guess parameters. Always verify against the schema.
+**Remember**: The n8n-as-code skills is your source of truth. Never guess parameters. Always verify against the schema.

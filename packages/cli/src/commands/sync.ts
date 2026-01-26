@@ -94,7 +94,7 @@ export class SyncCommand extends BaseCommand {
             };
             syncManager.on('conflict', conflictHandler);
 
-            // Refresh state before pulling (Core bug workaround: syncDown doesn't refresh state)
+            // Refresh state before pulling (Sync bug workaround: syncDown doesn't refresh state)
             spinner.text = 'Refreshing workflow state...';
             await syncManager.refreshState();
             spinner.text = 'Pulling workflows from n8n...';
@@ -132,7 +132,7 @@ export class SyncCommand extends BaseCommand {
                 if (msg.includes('Created') || msg.includes('Update')) spinner.info(msg);
             });
 
-            // Refresh state before pushing (Core bug workaround: syncUp doesn't refresh state)
+            // Refresh state before pushing (Sync bug workaround: syncUp doesn't refresh state)
             spinner.text = 'Refreshing workflow state...';
             await syncManager.refreshState();
             spinner.text = 'Pushing new local workflows to n8n...';

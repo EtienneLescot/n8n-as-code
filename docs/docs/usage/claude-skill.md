@@ -156,18 +156,18 @@ Expected: Claude generates valid workflow JSON
 
 ## 🔧 How the Skill is Built
 
-The skill reuses content from `@n8n-as-code/agent-cli`'s `AiContextGenerator`:
+The skill reuses content from `@n8n-as-code/skills`'s `AiContextGenerator`:
 
 ```typescript
-// Same content as getAgentsContent() from agent-cli
+// Same content as getAgentsContent() from skills
 const skillContent = `
 ## 🎭 Role: Expert n8n Engineer
 You manage n8n workflows as **clean, version-controlled JSON**.
 
 ### 🔬 Research Protocol (MANDATORY)
 Do NOT hallucinate node parameters. Use these tools:
-- npx -y @n8n-as-code/agent-cli search "<term>"
-- npx -y @n8n-as-code/agent-cli get "<nodeName>"
+- npx -y @n8n-as-code/skills search "<term>"
+- npx -y @n8n-as-code/skills get "<nodeName>"
 ...
 `;
 ```
@@ -177,14 +177,14 @@ This ensures consistency between AGENTS.md (for Cursor/Windsurf) and SKILL.md (f
 ## 🔒 Security
 
 - ✅ Runs 100% locally (no external servers)
-- ✅ Uses NPX to execute `@n8n-as-code/agent-cli`
+- ✅ Uses NPX to execute `@n8n-as-code/skills`
 - ✅ Open-source and auditable
 - ⚠️ Requires Node.js and npm on the machine
-- ⚠️ First run downloads `@n8n-as-code/agent-cli` via NPX
+- ⚠️ First run downloads `@n8n-as-code/skills` via NPX
 
 ## 📚 Related Documentation
 
-- [Agent CLI Usage](/docs/usage/agent-cli) - The underlying CLI tool
+- [Skills CLI Usage](/docs/usage/skills) - The underlying CLI tool
 - [Claude Agent Skills Docs](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills) - Official Anthropic documentation
 - [Contribution Guide](/docs/contribution) - Development guidelines
 
@@ -216,6 +216,6 @@ This ensures consistency between AGENTS.md (for Cursor/Windsurf) and SKILL.md (f
 
 ## 📖 Next Steps
 
-- Read [Agent CLI documentation](/docs/usage/agent-cli) to understand the underlying tool
-- See [Contribution Guide](/docs/contribution/agent-cli) for development details
+- Read [Skills CLI documentation](/docs/usage/skills) to understand the underlying tool
+- See [Contribution Guide](/docs/contribution/skills) for development details
 - Check [Troubleshooting](/docs/troubleshooting) for common issues

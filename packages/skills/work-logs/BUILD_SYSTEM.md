@@ -1,8 +1,8 @@
-# Agent CLI - Enhanced Build System Documentation
+# Skills CLI - Enhanced Build System Documentation
 
 ## 🎯 Overview
 
-The agent-cli package now features an **enhanced build system** that creates a rich, searchable index of n8n nodes by combining:
+The skills package now features an **enhanced build system** that creates a rich, searchable index of n8n nodes by combining:
 
 1. **Technical schemas** from n8n source code (nodes-base + nodes-langchain)
 2. **Human-readable documentation** from n8n's public docs (llms.txt)
@@ -15,7 +15,7 @@ This system solves the problem where AI-related nodes (Google Gemini, OpenAI, et
 ### Files Created During Build
 
 ```
-packages/agent-cli/src/assets/
+packages/skills/src/assets/
 ├── n8n-nodes-index.json          # Basic technical schemas (522+ nodes from nodes-base)
 ├── n8n-nodes-enriched.json       # ENHANCED index with metadata (ALL nodes including LangChain)
 └── n8n-docs-cache/
@@ -68,7 +68,7 @@ Each node in `n8n-nodes-enriched.json` contains:
 ### Automatic Build (Recommended)
 
 ```bash
-cd packages/agent-cli
+cd packages/skills
 npm run build
 ```
 
@@ -96,7 +96,7 @@ node scripts/download-n8n-docs.cjs
 node scripts/enrich-nodes-index.cjs
 
 # Step 5: Build TypeScript
-cd packages/agent-cli
+cd packages/skills
 npm run build
 ```
 
@@ -121,7 +121,7 @@ The new `NodeSchemaProvider.searchNodes()` uses relevance scoring:
 ### Usage Examples
 
 ```typescript
-import { NodeSchemaProvider } from '@n8n-as-code/agent-cli';
+import { NodeSchemaProvider } from '@n8n-as-code/skills';
 
 const provider = new NodeSchemaProvider();
 
@@ -140,28 +140,28 @@ const aiResults = provider.searchNodes('ai assistant');
 
 ```bash
 # Search for nodes
-npx @n8n-as-code/agent-cli search "gemini"
-npx @n8n-as-code/agent-cli search "generate image"
-npx @n8n-as-code/agent-cli search "openai"
+npx @n8n-as-code/skills search "gemini"
+npx @n8n-as-code/skills search "generate image"
+npx @n8n-as-code/skills search "openai"
 
 # Get specific node schema
-npx @n8n-as-code/agent-cli get "googleGemini"
+npx @n8n-as-code/skills get "googleGemini"
 
 # List all nodes
-npx @n8n-as-code/agent-cli list
+npx @n8n-as-code/skills list
 ```
 
 ## 🎨 Improved Results
 
 ### Before (Old System)
 ```bash
-$ npx n8n-agent search "gemini"
+$ npx n8nac-skills search "gemini"
 # No results found!
 ```
 
 ### After (Enhanced System)
 ```bash
-$ npx n8n-agent search "gemini"
+$ npx n8nac-skills search "gemini"
 [
   {
     "name": "googleGemini",
@@ -193,7 +193,7 @@ $ npx n8n-agent search "gemini"
 ### "No nodes found"
 ```bash
 # Rebuild the index
-cd packages/agent-cli
+cd packages/skills
 npm run clean
 npm run build
 ```
@@ -233,14 +233,14 @@ const N8N_STABLE_TAG = 'n8n@1.74.2'; // Change this
 
 Then rebuild:
 ```bash
-FORCE_REBUILD_NODES=true npm run build --workspace=@n8n-as-code/agent-cli
+FORCE_REBUILD_NODES=true npm run build --workspace=@n8n-as-code/skills
 ```
 
 ### Refreshing Documentation
 
 ```bash
 # Delete cached docs
-rm -rf packages/agent-cli/src/assets/n8n-docs-cache
+rm -rf packages/skills/src/assets/n8n-docs-cache
 
 # Re-download
 node scripts/download-n8n-docs.cjs
@@ -261,7 +261,7 @@ node scripts/enrich-nodes-index.cjs
 
 To use the enhanced search in your AI agents:
 
-1. **Update agent-cli**: `npm update @n8n-as-code/agent-cli`
+1. **Update skills**: `npm update @n8n-as-code/skills`
 2. **Rebuild your project**: `npm run build`
 3. **Use improved search**: Queries like "generate image", "gemini", "ai assistant" now work!
 

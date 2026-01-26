@@ -4,7 +4,7 @@
 [![Documentation](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/docs.yml/badge.svg)](https://etiennelescot.github.io/n8n-as-code/)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/etienne-lescot.n8n-as-code?label=VS%20Code&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code)
 [![npm: cli](https://img.shields.io/npm/v/@n8n-as-code/cli?label=cli&logo=npm)](https://www.npmjs.com/package/@n8n-as-code/cli)
-[![npm: agent-cli](https://img.shields.io/npm/v/@n8n-as-code/agent-cli?label=agent-cli&logo=npm)](https://www.npmjs.com/package/@n8n-as-code/agent-cli)
+[![npm: skills](https://img.shields.io/npm/v/@n8n-as-code/skills?label=skills&logo=npm)](https://www.npmjs.com/package/@n8n-as-code/skills)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Manage your n8n workflows as code.** Version control with Git, AI-assisted editing, and seamless VS Code integration.
@@ -50,7 +50,7 @@ n8n-as-code start
 
 ---
 
-📖 [AI features documentation](https://etiennelescot.github.io/n8n-as-code/docs/usage/agent-cli)
+📖 [AI features documentation](https://etiennelescot.github.io/n8n-as-code/docs/usage/skills)
 
 ---
 
@@ -68,7 +68,7 @@ n8n-as-code start
 | Package | Description | Links |
 |---------|-------------|-------|
 | **[@n8n-as-code/sync](packages/sync)** | Synchronization engine & 3-way merge logic | [📖 API](https://etiennelescot.github.io/n8n-as-code/api) |
-| **[@n8n-as-code/agent-cli](packages/agent-cli)** | AI tools (search, schemas, validation) for agents | [📖 Docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/agent-cli) · [📦 NPM](https://www.npmjs.com/package/@n8n-as-code/agent-cli) |
+| **[@n8n-as-code/skills](packages/skills)** | AI tools (search, schemas, validation) for agents | [📖 Docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/skills) · [📦 NPM](https://www.npmjs.com/package/@n8n-as-code/skills) |
 | **[@n8n-as-code/claude-skill](packages/claude-skill)** | Official Claude AI agent skill | [📖 Docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill) · [📦 NPM](https://www.npmjs.com/package/@n8n-as-code/claude-skill) |
 
 ---
@@ -100,7 +100,7 @@ Isolate workflows from different n8n environments automatically.
 | Use Case | Quick Command | Learn More |
 |----------|---------------|------------|
 | **Sync workflows** | `n8n-as-code start` | [Usage Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/cli) |
-| **AI workflow creation** | `n8n-agent search "google sheets"` | [Agent CLI Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/agent-cli) |
+| **AI workflow creation** | `n8nac-skills search "google sheets"` | [Skills CLI Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/skills) |
 | **Visual editing** | Install [VS Code Extension](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) | [Extension Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/vscode-extension) |
 | **Version control** | Git commit workflow JSON files | [Getting Started](https://etiennelescot.github.io/n8n-as-code/docs/getting-started) |
 
@@ -110,15 +110,15 @@ Isolate workflows from different n8n environments automatically.
 
 This is a **monorepo** with specialized packages organized in layers:
 
-### 👥 **User Interfaces** (consume core packages)
+### 👥 **User Interfaces** (consume shared packages)
 - **[`cli`](packages/cli)**: Command-line interface
 - **[`vscode-extension`](packages/vscode-extension)**: Visual editing in VS Code
 
 ### ⚙️ **Core Services** (consumed by interfaces)
-- **[`core`](packages/sync)**: 3-way merge synchronization engine & state management
+- **[`sync`](packages/sync)**: 3-way merge synchronization engine & state management
 
 ### 🤖 **AI Tooling** (for agents & automation)
-- **[`agent-cli`](packages/agent-cli)**: Node search, schemas, validation (consumed by CLI, extension, and AI agents)
+- **[`skills`](packages/skills)**: Node search, schemas, validation (consumed by CLI, extension, and AI agents)
 - **[`claude-skill`](packages/claude-skill)**: Packaged skill for Claude AI
 
 Each package has detailed documentation in its README and the [online docs](https://etiennelescot.github.io/n8n-as-code/).

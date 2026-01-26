@@ -10,7 +10,7 @@ description: Development guide for the n8n-as-code VS Code extension, covering a
 
 ## 🎯 Purpose
 
-The VS Code extension (`@n8n-as-code/vscode-extension`) provides a visual interface for managing n8n workflows directly within VS Code. It integrates with the Core library to offer:
+The VS Code extension (`@n8n-as-code/vscode-extension`) provides a visual interface for managing n8n workflows directly within VS Code. It integrates with the Sync library to offer:
 
 - **Workflow Tree View**: Browse workflows organized by n8n instance
 - **Visual Editing**: Webview-based n8n canvas for workflow editing
@@ -42,7 +42,7 @@ graph TD
     A --> D[ProxyService]
     A --> E[StatusBar]
     
-    B --> F[Core Library]
+    B --> F[Sync Library]
     C --> D
     D --> G[n8n API]
     E --> H[VS Code API]
@@ -53,7 +53,7 @@ graph TD
     style D fill:#9b59b6
 ```
 
-## 🧩 Core Components
+## 🧩 Sync Components
 
 ### 1. **Extension Entry Point (`extension.ts`)**
 The main entry point that activates the extension.
@@ -62,7 +62,7 @@ The main entry point that activates the extension.
 - Register all extension components
 - Manage extension lifecycle (activate/deactivate)
 - Handle configuration changes
-- Initialize Core library integration
+- Initialize Sync library integration
 
 **Activation Flow:**
 ```typescript
@@ -87,7 +87,7 @@ export function activate(context: vscode.ExtensionContext) {
 Provides the tree view for browsing workflows.
 
 **Key Responsibilities:**
-- Fetch workflows from Core library
+- Fetch workflows from Sync library
 - Organize workflows by instance
 - Handle tree item interactions
 - Refresh on changes
@@ -157,10 +157,10 @@ Shows sync status and quick actions in VS Code status bar.
 - Provide quick access to common commands
 - Update based on sync events
 
-## 🔄 Integration with Core Library
+## 🔄 Integration with Sync Library
 
 ### Dependency Injection
-The extension uses the Core library through dependency injection:
+The extension uses the Sync library through dependency injection:
 
 ```typescript
 import { SyncManager, StateManager } from '@n8n-as-code/sync';
@@ -177,7 +177,7 @@ class ExtensionServices {
 ```
 
 ### Sync Events
-The extension listens to sync events from Core:
+The extension listens to sync events from Sync:
 
 ```typescript
 syncManager.on('sync:start', () => {
@@ -355,7 +355,7 @@ code --install-extension n8n-as-code-*.vsix
 
 #### Tree View Not Refreshing
 1. Check event subscriptions
-2. Verify Core library connection
+2. Verify Sync library connection
 3. Check for errors in extension host
 
 ### Debugging Tips
@@ -365,7 +365,7 @@ code --install-extension n8n-as-code-*.vsix
 
 ## 📚 Related Documentation
 
-- [Core Package](/docs/contribution/core): Core library details
+- [Sync Package](/docs/contribution/sync): Sync library details
 - [Architecture Overview](/docs/contribution/architecture): Overall system architecture
 - [Contribution Guide](/docs/contribution): How to contribute
 

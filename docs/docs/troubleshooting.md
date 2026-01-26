@@ -249,7 +249,7 @@ cat n8n-as-code.json
 **Solutions:**
 1. **Verify Context Files:**
    - Ensure `AGENTS.md` exists in your project root
-   - Verify `@n8n-as-code/agent-cli` is installed and accessible
+   - Verify `@n8n-as-code/skills` is installed and accessible
    - Verify snippets are in `.vscode/` folder
 
 2. **Update Context:**

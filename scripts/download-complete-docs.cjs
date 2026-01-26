@@ -40,7 +40,7 @@ const CATEGORY_PATTERNS = {
     api: /^api\//,
     integrations: /^integrations\/builtin\/app-nodes\//,
     'trigger-nodes': /^integrations\/builtin\/trigger-nodes\//,
-    'core-nodes': /^integrations\/builtin\/core-nodes\//,
+    'sync-nodes': /^integrations\/builtin\/sync-nodes\//,
     'cluster-nodes': /^integrations\/builtin\/cluster-nodes\//,
     'flow-logic': /^flow-logic\//,
     data: /^data\//,
@@ -123,7 +123,7 @@ function extractSubcategory(urlPath, category) {
     if (category === 'integrations') {
         if (urlPath.includes('/app-nodes/')) return 'app-nodes';
         if (urlPath.includes('/trigger-nodes/')) return 'trigger-nodes';
-        if (urlPath.includes('/core-nodes/')) return 'core-nodes';
+        if (urlPath.includes('/sync-nodes/')) return 'sync-nodes';
         if (urlPath.includes('/credentials/')) return 'credentials';
     }
 

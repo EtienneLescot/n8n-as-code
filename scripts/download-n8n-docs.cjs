@@ -9,7 +9,7 @@ const https = require('https');
 const zlib = require('zlib');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
-const DOCS_CACHE_DIR = path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-docs-cache');
+const DOCS_CACHE_DIR = path.resolve(ROOT_DIR, 'packages/skills/src/assets/n8n-docs-cache');
 const LLMS_TXT_URL = 'https://docs.n8n.io/llms.txt';
 const DOCS_BASE_URL = 'https://docs.n8n.io';
 

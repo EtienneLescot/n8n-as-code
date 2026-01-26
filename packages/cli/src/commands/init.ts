@@ -83,7 +83,7 @@ export class InitCommand {
             const localConfig: ILocalConfig = {
                 host: answers.host,
                 syncFolder: answers.syncFolder,
-                // instanceIdentifier is now handled by SyncManager core, not CLI
+                // instanceIdentifier is now handled by SyncManager sync, not CLI
                 pollInterval: currentLocal.pollInterval || 3000,
                 syncInactive: currentLocal.syncInactive ?? true,
                 ignoredTags: currentLocal.ignoredTags || ['archive']

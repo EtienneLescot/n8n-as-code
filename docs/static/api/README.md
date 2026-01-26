@@ -19,9 +19,9 @@ node scripts/generate-api-docs.js
 ## Structure
 
 - `index.md` - Main API overview page
-- `core/` - Core package documentation
+- `sync/` - Sync package documentation
 - `cli/` - CLI package documentation
-- `agent-cli/` - Agent CLI package documentation
+- `skills/` - Skills CLI package documentation
 - `vscode-extension/` - VS Code extension documentation
 
 ## Integration with Docusaurus

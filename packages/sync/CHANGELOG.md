@@ -44,22 +44,22 @@
 
 ### Patch Changes
 
-- Optimize agent-cli package and enable enriched index in VS Code extension
+- Optimize skills package and enable enriched index in VS Code extension
 
-  - agent-cli: Reduced npm package size by 54% (68 MB → 31 MB) by removing src/assets/ from published files
+  - skills: Reduced npm package size by 54% (68 MB → 31 MB) by removing src/assets/ from published files
   - vscode-extension: Now uses n8n-nodes-enriched.json with enhanced metadata (keywords, operations, use cases)
 
 ## 0.3.2
 
 ### Patch Changes
 
-- -feat(agent-cli): AI-powered node discovery with enriched documentation
+- -feat(skills): AI-powered node discovery with enriched documentation
 
   - Add 119 missing LangChain nodes (Google Gemini, OpenAI, etc.)
   - Integrate n8n official documentation with smart scoring algorithm
   - Improve search with keywords, operations, and use cases
   - 641 nodes indexed (+23%), 911 documentation files (95% coverage)
-  - Update dependencies to use enhanced agent-cli
+  - Update dependencies to use enhanced skills
 
 ## 0.3.1
 
@@ -73,7 +73,7 @@
 
 - refactor: implement 3-way merge architecture & enhanced sync system
 
-  Core:
+  Sync:
 
   - Decoupled state observation (Watcher) from mutation (Sync Engine).
   - Implemented deterministic 3-way merge logic using SHA-256 hashing.

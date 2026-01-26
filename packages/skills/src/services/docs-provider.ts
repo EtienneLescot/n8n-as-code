@@ -110,7 +110,7 @@ export class DocsProvider {
         if (!fs.existsSync(this.docsPath)) {
             throw new Error(
                 `Documentation not found at ${this.docsPath}. ` +
-                `Please run the build process: npm run build in packages/agent-cli`
+                `Please run the build process: npm run build in packages/skills`
             );
         }
 
@@ -120,7 +120,7 @@ export class DocsProvider {
         } catch (error: any) {
             throw new Error(
                 `Failed to load documentation: ${error.message}. ` +
-                `The file may be corrupted. Try rebuilding: npm run build in packages/agent-cli`
+                `The file may be corrupted. Try rebuilding: npm run build in packages/skills`
             );
         }
     }

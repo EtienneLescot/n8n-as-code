@@ -296,7 +296,7 @@ async function enrichNodesIndex() {
 
         // Build enriched entry
         enrichedNodes[nodeKey] = {
-            // Core schema
+            // Sync schema
             name: node.name,
             type: node.fullType,
             displayName: node.displayName,

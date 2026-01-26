@@ -337,7 +337,7 @@ function getCategoryDescription(category) {
         integrations: 'Node integrations and app-specific documentation',
         credentials: 'Authentication and credentials setup guides',
         triggers: 'Trigger nodes for workflow activation',
-        'core-nodes': 'Core n8n nodes (logic, data manipulation, etc.)',
+        'sync-nodes': 'Sync n8n nodes (logic, data manipulation, etc.)',
         'advanced-ai': 'AI agents, chains, RAG, memory, and LangChain integration',
         code: 'Code node, expressions, and built-in methods',
         tutorials: 'Step-by-step guides and learning resources',

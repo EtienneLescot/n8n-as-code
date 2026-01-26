@@ -1,16 +1,16 @@
 ---
-sidebar_label: Agent CLI
-title: Agent CLI - AI Integration
-description: Documentation for the Agent CLI package used by AI assistants to generate context and snippets.
+sidebar_label: Skills CLI
+title: Skills CLI - AI Integration
+description: Documentation for the Skills CLI package used by AI assistants to generate context and snippets.
 ---
 
-# Agent CLI - AI Integration Documentation
+# Skills CLI - AI Integration Documentation
 
 **Note**: This package is used by AI assistants to access n8n node documentation and generate AI context files. It can be used via NPX commands or programmatically.
 
 ## 🎯 Purpose
 
-The Agent CLI (`@n8n-as-code/agent-cli`) provides tools for AI assistants to understand and work with n8n workflows. It offers:
+The Skills CLI (`@n8n-as-code/skills`) provides tools for AI assistants to understand and work with n8n workflows. It offers:
 
 1. **Node Schema Access**: Search and retrieve n8n node schemas
 2. **AI Context Generation**: Create `AGENTS.md` and AI rule files
@@ -21,7 +21,7 @@ The Agent CLI (`@n8n-as-code/agent-cli`) provides tools for AI assistants to und
 ### Component Diagram
 ```mermaid
 graph TD
-    A[Agent CLI] --> B[NodeSchemaProvider]
+    A[Skills CLI] --> B[NodeSchemaProvider]
     A --> C[AIContextGenerator]
     A --> D[SnippetGenerator]
     
@@ -36,7 +36,7 @@ graph TD
     style D fill:#9b59b6
 ```
 
-### Core Components
+### Sync Components
 
 #### 1. **NodeSchemaProvider**
 Provides access to n8n node schemas for AI assistants.
@@ -77,7 +77,7 @@ You manage n8n workflows as **clean, version-controlled JSON**.
 
 ### 🌍 Context
 - **n8n Version**: 2.2.6
-- **Source of Truth**: Use `@n8n-as-code/agent-cli` tools to get accurate node schemas from n8n-nodes-index.json.
+- **Source of Truth**: Use `@n8n-as-code/skills` tools to get accurate node schemas from n8n-nodes-index.json.
 
 ### 🛠 Coding Standards
 1. **Expressions**: Use `{{ $json.field }}` (modern) instead of `{{ $node["Name"].json.field }}` when possible.
@@ -85,7 +85,7 @@ You manage n8n workflows as **clean, version-controlled JSON**.
 3. **Credentials**: NEVER hardcode API keys. Mention needed credentials by name.
 
 ### 🔬 Research Protocol (MANDATORY)
-Do NOT hallucinate node parameters. Use these tools via `npx @n8n-as-code/agent-cli`:
+Do NOT hallucinate node parameters. Use these tools via `npx @n8n-as-code/skills`:
 - `search "<term>"`: Find the correct node named (camelCase).
 - `get "<nodeName>"`: Get the EXACT property definitions for a node.
 - `list`: See all available nodes.
@@ -122,22 +122,22 @@ Apply the Knowledge: Use the `get` tool's output as the absolute source of truth
 ## 🔧 Usage
 
 ### Command Line Interface
-The Agent CLI provides three main commands for AI assistants:
+The Skills CLI provides three main commands for AI assistants:
 
 ```bash
 # Search for nodes by name, display name, or description
-npx @n8n-as-code/agent-cli search "google sheets"
+npx @n8n-as-code/skills search "google sheets"
 
 # Get full JSON schema for a specific node
-npx @n8n-as-code/agent-cli get "httpRequest"
+npx @n8n-as-code/skills get "httpRequest"
 
 # List all available nodes
-npx @n8n-as-code/agent-cli list
+npx @n8n-as-code/skills list
 ```
 
 ### Programmatic API
 ```typescript
-import { NodeSchemaProvider, AiContextGenerator, SnippetGenerator } from '@n8n-as-code/agent-cli';
+import { NodeSchemaProvider, AiContextGenerator, SnippetGenerator } from '@n8n-as-code/skills';
 
 // Access node schemas
 const provider = new NodeSchemaProvider();
@@ -179,13 +179,13 @@ AI assistants use:
 ## 🔄 Integration with Other Packages
 
 ### VS Code Extension
-The VS Code extension can use the Agent CLI programmatically to:
+The VS Code extension can use the Skills CLI programmatically to:
 1. Generate AI context files when initializing projects
 2. Provide node schema access for AI features
 3. Update rule files when n8n version changes
 
 ### Main CLI
-The main CLI's `init-ai` command uses the Agent CLI internally to:
+The main CLI's `init-ai` command uses the Skills CLI internally to:
 ```bash
 n8n-as-code init-ai
 ```
@@ -195,7 +195,7 @@ This generates all AI context files in the current project.
 
 ### Test Structure
 ```
-packages/agent-cli/tests/
+packages/skills/tests/
 ├── ai-context-generator.test.ts
 ├── node-schema-provider.test.ts
 └── snippet-generator.test.ts
@@ -208,7 +208,7 @@ packages/agent-cli/tests/
 
 ### Running Tests
 ```bash
-cd packages/agent-cli
+cd packages/skills
 npm test
 ```
 
@@ -240,13 +240,13 @@ npm test
 
 ### Building
 ```bash
-cd packages/agent-cli
+cd packages/skills
 npm run build
 ```
 
 ### Development Mode
 ```bash
-cd packages/agent-cli
+cd packages/skills
 npm run dev
 ```
 
@@ -261,9 +261,9 @@ npm run dev
 ## 📚 Related Documentation
 
 - [Architecture Overview](/docs/contribution/architecture): Overall system architecture
-- [Core Package](/docs/contribution/core): Shared library details
+- [Sync Package](/docs/contribution/sync): Shared library details
 - [Contribution Guide](/docs/contribution): How to contribute
 
 ---
 
-*The Agent CLI enables AI assistants to work effectively with n8n workflows by providing comprehensive context, validation, and code generation capabilities.*
+*The Skills CLI enables AI assistants to work effectively with n8n workflows by providing comprehensive context, validation, and code generation capabilities.*

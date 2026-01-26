@@ -83,7 +83,7 @@ export class ConfigService {
     }
 
     /**
-     * Generate or retrieve the instance identifier using Core's directory-utils
+     * Generate or retrieve the instance identifier using Sync's directory-utils
      * Format: {hostSlug}_{userSlug} (e.g., "local_5678_etienne_l")
      */
     async getOrCreateInstanceIdentifier(host: string): Promise<string> {
@@ -94,14 +94,14 @@ export class ConfigService {
             return local.instanceIdentifier;
         }
 
-        // Generate new instance identifier using Core's functions
+        // Generate new instance identifier using Sync's functions
         try {
             const apiKey = this.getApiKey(host);
             if (!apiKey) {
                 throw new Error('API key not found');
             }
 
-            // Import Core utilities
+            // Import Sync utilities
             const { N8nApiClient, createInstanceIdentifier, createFallbackInstanceIdentifier } = await import('@n8n-as-code/sync');
 
             // Try to get current user from n8n API
