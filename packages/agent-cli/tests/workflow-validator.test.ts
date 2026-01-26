@@ -84,5 +84,67 @@ describe('WorkflowValidator', () => {
         const result = validator.validateWorkflow(workflow);
         expect(result.valid).toBe(false);
         expect(result.errors.some(e => e.message.includes('url'))).toBe(true);
+
+        // Restore the mock to avoid affecting other tests
+        jest.restoreAllMocks();
+    });
+
+    it('should accept community nodes with warnings', () => {
+        const workflow = {
+            id: "TzEtubhefGzgsw1sPxhRH",
+            name: "My workflow 2",
+            nodes: [
+                {
+                    parameters: {},
+                    type: "n8n-nodes-base.manualTrigger",
+                    typeVersion: 1,
+                    position: [0, 0],
+                    name: "When clicking 'Execute workflow'"
+                },
+                {
+                    parameters: {
+                        options: {}
+                    },
+                    type: "@tavily/n8n-nodes-tavily.tavily",
+                    typeVersion: 1,
+                    position: [320, 16],
+                    name: "Search",
+                    credentials: {
+                        tavilyApi: {
+                            id: "yPJ1hAXQLB3rwHcW",
+                            name: "Tavily account"
+                        }
+                    }
+                }
+            ],
+            connections: {
+                "When clicking 'Execute workflow'": {
+                    main: [
+                        [
+                            {
+                                node: "Search",
+                                type: "main",
+                                index: 0
+                            }
+                        ]
+                    ]
+                }
+            },
+            settings: {},
+            tags: [],
+            active: false
+        };
+
+        const result = validator.validateWorkflow(workflow);
+
+        // Workflow should be VALID
+        expect(result.valid).toBe(true);
+        expect(result.errors.length).toBe(0);
+
+        // But should have warnings about the community node
+        expect(result.warnings.some(w =>
+            w.message.includes('Community node') &&
+            w.message.includes('@tavily/n8n-nodes-tavily.tavily')
+        )).toBe(true);
     });
 });

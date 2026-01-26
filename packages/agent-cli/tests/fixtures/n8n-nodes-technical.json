@@ -107,6 +107,26 @@
                 "useCases": [],
                 "keywordScore": 0
             }
+        },
+        "manualTrigger": {
+            "name": "manualTrigger",
+            "displayName": "Manual Trigger",
+            "type": "n8n-nodes-base.manualTrigger",
+            "version": 1,
+            "description": "Manually trigger workflow execution",
+            "schema": {
+                "properties": []
+            },
+            "metadata": {
+                "keywords": [
+                    "manual",
+                    "trigger",
+                    "execute"
+                ],
+                "operations": [],
+                "useCases": [],
+                "keywordScore": 10
+            }
         }
     }
 }

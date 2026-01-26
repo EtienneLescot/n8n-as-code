@@ -99,16 +99,40 @@ export class WorkflowValidator {
       // Extract node name from type (e.g., "n8n-nodes-base.httpRequest" -> "httpRequest")
       const nodeTypeName = node.type.split('.').pop();
 
+      // Detect if this is a community node
+      // Community nodes formats:
+      // - @scope/n8n-nodes-* (where scope is NOT 'n8n')
+      // - n8n-nodes-* (without base/langchain)
+      // Official n8n nodes:
+      // - n8n-nodes-base.*
+      // - @n8n/n8n-nodes-langchain.*
+      const isCommunityNode =
+        (node.type.startsWith('@') && !node.type.startsWith('@n8n/')) ||
+        (node.type.startsWith('n8n-nodes-') && !node.type.startsWith('n8n-nodes-base.') && !node.type.startsWith('n8n-nodes-langchain.'));
+
       // Check if node type exists
       const nodeSchema = this.provider.getNodeSchema(nodeTypeName);
       if (!nodeSchema) {
-        errors.push({
-          type: 'error',
-          nodeId: node.id,
-          nodeName: node.name,
-          message: `Unknown node type: "${node.type}". Use "npx @n8n-as-code/agent-cli search" to find correct node names.`,
-        });
-        continue;
+        if (isCommunityNode) {
+          // Community nodes: emit a warning but don't fail validation
+          warnings.push({
+            type: 'warning',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: `Community node type "${node.type}" is not in the schema. Parameter validation will be skipped for this node.`,
+          });
+          // Skip further validation for this node (no schema available)
+          continue;
+        } else {
+          // Official n8n nodes: this is an error
+          errors.push({
+            type: 'error',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: `Unknown node type: "${node.type}". Use "npx @n8n-as-code/agent-cli search" to find correct node names.`,
+          });
+          continue;
+        }
       }
 
       // Check typeVersion
