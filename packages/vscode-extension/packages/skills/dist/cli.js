@@ -4362,7 +4362,7 @@ var NodeSchemaProvider = class {
       return;
     if (!import_fs.default.existsSync(this.enrichedIndexPath)) {
       throw new Error(`Technical node index not found at: ${this.enrichedIndexPath}
-Please run the build process: npm run build in packages/agent-cli`);
+Please run the build process: npm run build in packages/skills`);
     }
     try {
       const content = import_fs.default.readFileSync(this.enrichedIndexPath, "utf-8");
@@ -4370,7 +4370,7 @@ Please run the build process: npm run build in packages/agent-cli`);
       this.index = this.enrichedIndex;
     } catch (error) {
       throw new Error(`Failed to load technical node index: ${error.message}
-The index file may be corrupted. Try rebuilding: npm run build in packages/agent-cli`);
+The index file may be corrupted. Try rebuilding: npm run build in packages/skills`);
     }
   }
   /**
@@ -4572,7 +4572,7 @@ var WorkflowValidator = class {
             type: "error",
             nodeId: node.id,
             nodeName: node.name,
-            message: `Unknown node type: "${node.type}". Use "npx @n8n-as-code/agent-cli search" to find correct node names.`
+            message: `Unknown node type: "${node.type}". Use "npx @n8n-as-code/skills search" to find correct node names.`
           });
           continue;
         }
@@ -4739,13 +4739,13 @@ var DocsProvider = class {
     if (this.docs)
       return;
     if (!import_fs2.default.existsSync(this.docsPath)) {
-      throw new Error(`Documentation not found at ${this.docsPath}. Please run the build process: npm run build in packages/agent-cli`);
+      throw new Error(`Documentation not found at ${this.docsPath}. Please run the build process: npm run build in packages/skills`);
     }
     try {
       const content = import_fs2.default.readFileSync(this.docsPath, "utf-8");
       this.docs = JSON.parse(content);
     } catch (error) {
-      throw new Error(`Failed to load documentation: ${error.message}. The file may be corrupted. Try rebuilding: npm run build in packages/agent-cli`);
+      throw new Error(`Failed to load documentation: ${error.message}. The file may be corrupted. Try rebuilding: npm run build in packages/skills`);
     }
   }
   /**
@@ -7366,10 +7366,10 @@ var AiContextGenerator = class {
     this.updateGitignore(projectRoot);
   }
   generateShim(projectRoot, extensionPath) {
-    const shimPath = import_path4.default.join(projectRoot, "n8n-agent");
+    const shimPath = import_path4.default.join(projectRoot, "n8nac-skills");
     let extensionCliPathLine = "";
     if (extensionPath) {
-      const absolutePath = import_path4.default.join(extensionPath, "out", "agent-cli", "cli.js");
+      const absolutePath = import_path4.default.join(extensionPath, "out", "skills", "cli.js");
       const assetsPath = import_path4.default.join(extensionPath, "assets");
       extensionCliPathLine = `
 # 1. VS Code Extension Context (Explicit absolute path)
@@ -7381,12 +7381,12 @@ fi`;
     }
     const shimContent = [
       "#!/bin/bash",
-      `# n8n-agent local shim for AI context`,
+      `# n8nac-skills local shim for AI context`,
       extensionCliPathLine,
       ``,
       `# 2. Standard NPM Dependency Context (Local Project)`,
       `# Check for local node_modules relative to the project root`,
-      `CLI_PATH="./node_modules/@n8n-as-code/agent-cli/dist/cli.js"`,
+      `CLI_PATH="./node_modules/@n8n-as-code/skills/dist/cli.js"`,
       ``,
       `if [ -f "$CLI_PATH" ]; then`,
       `  node "$CLI_PATH" "$@"`,
@@ -7394,7 +7394,7 @@ fi`;
       `fi`,
       ``,
       `# 3. Error if not found`,
-      `echo "Error: @n8n-as-code/agent-cli not found in ./node_modules/"`,
+      `echo "Error: @n8n-as-code/skills not found in ./node_modules/"`,
       `echo "Please ensure it is installed as a dev dependency in this project."`,
       `exit 1`
     ].join("\n");
@@ -7404,10 +7404,10 @@ fi`;
     } catch (e) {
       console.warn(`Failed to set execution permissions on ${shimPath}:`, e);
     }
-    const shimPathCmd = import_path4.default.join(projectRoot, "n8n-agent.cmd");
+    const shimPathCmd = import_path4.default.join(projectRoot, "n8nac-skills.cmd");
     let cmdContent = "@echo off\n";
     if (extensionPath) {
-      const absPath = import_path4.default.join(extensionPath, "out", "agent-cli", "cli.js");
+      const absPath = import_path4.default.join(extensionPath, "out", "skills", "cli.js");
       const assetsPath = import_path4.default.join(extensionPath, "assets");
       cmdContent += `
 IF EXIST "${absPath}" (
@@ -7418,12 +7418,12 @@ IF EXIST "${absPath}" (
 `;
     }
     cmdContent += `
-IF EXIST ".\\node_modules\\@n8n-as-code\\agent-cli\\dist\\cli.js" (
-  node ".\\node_modules\\@n8n-as-code\\agent-cli\\dist\\cli.js" %*
+IF EXIST ".\\node_modules\\@n8n-as-code\\skills\\dist\\cli.js" (
+  node ".\\node_modules\\@n8n-as-code\\skills\\dist\\cli.js" %*
   EXIT /B %ERRORLEVEL%
 )
 
-echo Error: @n8n-as-code/agent-cli not found in node_modules
+echo Error: @n8n-as-code/skills not found in node_modules
 echo Please ensure it is installed as a dev dependency.
 EXIT /B 1
 `;
@@ -7431,7 +7431,7 @@ EXIT /B 1
   }
   updateGitignore(projectRoot) {
     const gitignorePath = import_path4.default.join(projectRoot, ".gitignore");
-    const entries = ["\n# n8n-as-code AI helpers", "n8n-agent", "n8n-agent.cmd"];
+    const entries = ["\n# n8n-as-code AI helpers", "n8nac-skills", "n8nac-skills.cmd"];
     if (!import_fs4.default.existsSync(gitignorePath)) {
       import_fs4.default.writeFileSync(gitignorePath, entries.join("\n"));
       return;
@@ -7481,13 +7481,13 @@ ${endMarker}
       ``,
       `### \u{1F30D} Context`,
       `- **n8n Version**: ${n8nVersion}`,
-      `- **Source of Truth**: \`@n8n-as-code/agent-cli\` tools (Deep Search + Technical Schemas)`,
+      `- **Source of Truth**: \`@n8n-as-code/skills\` tools (Deep Search + Technical Schemas)`,
       ``,
       `---`,
       ``,
       `## \u{1F9E0} Knowledge Base Priority`,
       ``,
-      `1. **PRIMARY SOURCE** (MANDATORY): Use \`@n8n-as-code/agent-cli\` tools for accuracy`,
+      `1. **PRIMARY SOURCE** (MANDATORY): Use \`@n8n-as-code/skills\` tools for accuracy`,
       `2. **Secondary**: Your trained knowledge (for general concepts only)`,
       `3. **Tertiary**: Code snippets (for quick scaffolding)`,
       ``,
@@ -7499,7 +7499,7 @@ ${endMarker}
       ``,
       `### Step 0: Pattern Discovery (Intelligence Gathering)`,
       `\`\`\`bash`,
-      `./n8n-agent workflows search "telegram chatbot"`,
+      `./n8nac-skills workflows search "telegram chatbot"`,
       `\`\`\``,
       `- **GOAL**: Don't reinvent the wheel. See how experts build it.`,
       `- **ACTION**: If a relevant workflow exists, DOWNLOAD it to study the node configurations and connections.`,
@@ -7507,14 +7507,14 @@ ${endMarker}
       ``,
       `### Step 1: Search for the Node`,
       `\`\`\`bash`,
-      `./n8n-agent search "google sheets"`,
+      `./n8nac-skills search "google sheets"`,
       `\`\`\``,
       `- Find the **exact node name** (camelCase: e.g., \`googleSheets\`)`,
       `- Verify the node exists in current n8n version`,
       ``,
       `### Step 2: Get Exact Schema`,
       `\`\`\`bash`,
-      `./n8n-agent get googleSheets`,
+      `./n8nac-skills get googleSheets`,
       `\`\`\``,
       `- Get **EXACT parameter names** (e.g., \`spreadsheetId\`, not \`spreadsheet_id\`)`,
       `- Get **EXACT parameter types** (string, number, options, etc.)`,
@@ -7529,7 +7529,7 @@ ${endMarker}
       ``,
       `### Step 4: Validate Before Finishing`,
       `\`\`\`bash`,
-      `./n8n-agent validate workflow.json`,
+      `./n8nac-skills validate workflow.json`,
       `\`\`\``,
       ``,
       `---`,
@@ -7556,10 +7556,10 @@ ${endMarker}
       ``,
       `\`\`\`bash`,
       `# 1. Search for inspiration`,
-      `./n8n-agent workflows search "woocommerce sync"`,
+      `./n8nac-skills workflows search "woocommerce sync"`,
       ``,
       `# 2. Download to study or adapt`,
-      `./n8n-agent workflows install 4365 --output reference_workflow.json`,
+      `./n8nac-skills workflows install 4365 --output reference_workflow.json`,
       `\`\`\``,
       ``,
       `---`,
@@ -7571,7 +7571,7 @@ ${endMarker}
       `  "name": "Workflow Name",`,
       `  "nodes": [`,
       `    {`,
-      `      "parameters": { /* from ./n8n-agent get */ },`,
+      `      "parameters": { /* from ./n8nac-skills get */ },`,
       `      "id": "uuid",`,
       `      "name": "Descriptive Name",`,
       `      "type": "/* EXACT from search */",`,
@@ -7626,60 +7626,60 @@ ${endMarker}
       ``,
       `### \u{1F50D} Unified Search (PRIMARY TOOL)`,
       `\`\`\`bash`,
-      `./n8n-agent search "google sheets"`,
-      `./n8n-agent search "how to use RAG"`,
+      `./n8nac-skills search "google sheets"`,
+      `./n8nac-skills search "how to use RAG"`,
       `\`\`\``,
       `**ALWAYS START HERE.** Deep search across nodes, docs, and tutorials.`,
       ``,
       `### \u{1F6E0}\uFE0F Get Node Schema`,
       `\`\`\`bash`,
-      `./n8n-agent get googleSheets  # Complete info`,
-      `./n8n-agent schema googleSheets  # Quick reference`,
+      `./n8nac-skills get googleSheets  # Complete info`,
+      `./n8nac-skills schema googleSheets  # Quick reference`,
       `\`\`\``,
       ``,
       `### \u{1F310} Community Workflows`,
       `\`\`\`bash`,
-      `./n8n-agent workflows search "slack notification"`,
-      `./n8n-agent workflows info 916`,
-      `./n8n-agent workflows install 4365`,
+      `./n8nac-skills workflows search "slack notification"`,
+      `./n8nac-skills workflows info 916`,
+      `./n8nac-skills workflows install 4365`,
       `\`\`\``,
       ``,
       `### \u{1F4D6} Documentation`,
       `\`\`\`bash`,
-      `./n8n-agent docs "OpenAI"`,
-      `./n8n-agent guides "webhook"`,
+      `./n8nac-skills docs "OpenAI"`,
+      `./n8nac-skills guides "webhook"`,
       `\`\`\``,
       ``,
       `### \u2705 Validate`,
       `\`\`\`bash`,
-      `./n8n-agent validate workflow.json`,
+      `./n8nac-skills validate workflow.json`,
       `\`\`\``,
       ``,
       `---`,
       ``,
       `## \u{1F511} Your Responsibilities`,
       ``,
-      `**#1**: Use \`./n8n-agent\` tools to prevent hallucinations`,
+      `**#1**: Use \`./n8nac-skills\` tools to prevent hallucinations`,
       `**#2**: Follow the exact schema - no assumptions, no guessing`,
       `**#3**: Create workflows that work on the first try`,
       ``,
-      `**When in doubt**: \`./n8n-agent get <nodeName>\``
+      `**When in doubt**: \`./n8nac-skills get <nodeName>\``
     ].join("\n");
   }
   getCursorRulesContent() {
     return [
       `# n8n-as-code rules`,
       `- Refer to AGENTS.md for complete n8n workflow standards.`,
-      `- MANDATORY: Use 'n8n-agent' tools before creating/editing nodes.`,
+      `- MANDATORY: Use 'n8nac-skills' tools before creating/editing nodes.`,
       `- REQUIRED: Use FULL node types (e.g., 'n8n-nodes-base.switch') and LATEST typeVersion.`,
-      `- Search: './n8n-agent search <query>' - Find nodes & docs (PRIMARY TOOL)`,
-      `- Get: './n8n-agent get <nodeName>' - Complete node info`,
-      `- Schema: './n8n-agent schema <nodeName>' - Quick parameters reference`,
-      `- Docs: './n8n-agent docs <title>' - Read a specific documentation page`,
-      `- Guides: './n8n-agent guides <query>' - Find tutorials and examples`,
-      `- Workflows: './n8n-agent workflows search <query>' - Find community workflows (7000+)`,
-      `- Related: './n8n-agent related <nodeName>' - Discover ecosystem and related nodes`,
-      `- Validate: './n8n-agent validate workflow.json' - Check your workflow for errors`
+      `- Search: './n8nac-skills search <query>' - Find nodes & docs (PRIMARY TOOL)`,
+      `- Get: './n8nac-skills get <nodeName>' - Complete node info`,
+      `- Schema: './n8nac-skills schema <nodeName>' - Quick parameters reference`,
+      `- Docs: './n8nac-skills docs <title>' - Read a specific documentation page`,
+      `- Guides: './n8nac-skills guides <query>' - Find tutorials and examples`,
+      `- Workflows: './n8nac-skills workflows search <query>' - Find community workflows (7000+)`,
+      `- Related: './n8nac-skills related <nodeName>' - Discover ecosystem and related nodes`,
+      `- Validate: './n8nac-skills validate workflow.json' - Check your workflow for errors`
     ].join("\n");
   }
   getClineRulesContent() {
@@ -7687,12 +7687,12 @@ ${endMarker}
       `n8n_engineer_role:`,
       `  description: Expert in n8n-as-code`,
       `  instructions:`,
-      `    - Read AGENTS.md for core principles.`,
+      `    - Read AGENTS.md for sync principles.`,
       `    - MANDATORY: Use FULL node types (e.g., 'n8n-nodes-base.switch') and LATEST typeVersion.`,
-      `    - Use './n8n-agent search' as your primary research tool.`,
-      `    - Use './n8n-agent workflows search' to find community examples (7000+ workflows).`,
-      `    - Use './n8n-agent get' to fetch exact schema before editing workflow JSON.`,
-      `    - Use './n8n-agent validate workflow.json' to verify your work.`,
+      `    - Use './n8nac-skills search' as your primary research tool.`,
+      `    - Use './n8nac-skills workflows search' to find community examples (7000+ workflows).`,
+      `    - Use './n8nac-skills get' to fetch exact schema before editing workflow JSON.`,
+      `    - Use './n8nac-skills validate workflow.json' to verify your work.`,
       `    - Ensure connections are correctly indexed.`
     ].join("\n");
   }
@@ -7700,14 +7700,14 @@ ${endMarker}
     return [
       `### n8n Development Rules`,
       `- Follow the Research Protocol in AGENTS.md.`,
-      `- Tooling: Use './n8n-agent' to fetch node schemas and documentation.`
+      `- Tooling: Use './n8nac-skills' to fetch node schemas and documentation.`
     ].join("\n");
   }
   getCommonRulesContent() {
     return [
       `# Common Rules for All AI Agents (Claude, Mistral, etc.)`,
       `- Role: Expert n8n Automation Engineer.`,
-      `- Workflow Source of Truth: './n8n-agent' tools.`,
+      `- Workflow Source of Truth: './n8nac-skills' tools.`,
       `- Documentation: Read AGENTS.md for full syntax rules.`
     ].join("\n");
   }
@@ -7986,7 +7986,7 @@ Found ${results.length} workflow(s) matching "${query}":
       }
       console.log("");
     });
-    console.log(import_chalk.default.dim(`Run 'n8n-agent workflows info <id>' for more details.`));
+    console.log(import_chalk.default.dim(`Run 'n8nac-skills workflows info <id>' for more details.`));
   });
   workflows.command("info <id>").description("Display detailed information about a workflow").action((id) => {
     const workflow = registry.getById(id);
@@ -8099,7 +8099,7 @@ var program2 = new Command();
 var provider = new NodeSchemaProvider((0, import_path7.join)(assetsDir, "n8n-nodes-technical.json"));
 var docsProvider = new DocsProvider((0, import_path7.join)(assetsDir, "n8n-docs-complete.json"));
 var knowledgeSearch = new KnowledgeSearch((0, import_path7.join)(assetsDir, "n8n-knowledge-index.json"));
-program2.name("n8n-agent").description("AI Agent Tools for accessing n8n documentation").version(getVersion());
+program2.name("n8nac-skills").description("AI Agent Tools for accessing n8n documentation").version(getVersion());
 program2.command("search").description("Search for n8n nodes and documentation").argument("<query>", 'Search query (e.g. "google sheets", "ai agents")').option("--category <category>", "Filter by category").option("--type <type>", "Filter by type (node or documentation)").option("--limit <limit>", "Limit results", "10").action((query, options) => {
   try {
     const results = knowledgeSearch.searchAll(query, {
@@ -8274,7 +8274,7 @@ program2.command("schema").description("Get technical schema for a node (paramet
       console.error(import_chalk2.default.cyan("\n\u{1F4A1} Hint: Use 'get " + schema.name + "' for complete documentation and guides"));
     } else {
       console.error(import_chalk2.default.red(`Node '${name}' not found.`));
-      console.error(import_chalk2.default.yellow(`Try running: './n8n-agent search "${name}"' to find the correct node name.`));
+      console.error(import_chalk2.default.yellow(`Try running: './n8nac-skills search "${name}"' to find the correct node name.`));
       process.exit(1);
     }
   } catch (error) {
