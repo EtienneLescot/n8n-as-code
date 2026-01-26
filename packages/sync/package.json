@@ -1,6 +1,6 @@
 {
     "name": "@n8n-as-code/sync",
-    "version": "0.4.3",
+    "version": "0.5.0",
     "description": "Sync library for n8n-as-code ecosystem",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",

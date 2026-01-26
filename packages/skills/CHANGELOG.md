@@ -4,6 +4,17 @@
 
 ### Minor Changes
 
+- packages naming refacto
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/sync@0.5.0
+
+## 0.12.0
+
+### Minor Changes
+
 - fix validator to accept community nodes
 
 ## 0.11.2

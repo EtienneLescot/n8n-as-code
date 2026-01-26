@@ -1,5 +1,17 @@
 # @n8n-as-code/cli
 
+## 0.5.0
+
+### Minor Changes
+
+- packages naming refacto
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/skills@0.12.0
+  - @n8n-as-code/sync@0.5.0
+
 ## 0.4.4
 
 ### Patch Changes

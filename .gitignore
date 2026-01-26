@@ -78,4 +78,5 @@ conversation.md
 
 .bin/
 
-packages/vscode-extension/packages
+packages/vscode-extension/packages/
+packages/vscode-extension/assets/

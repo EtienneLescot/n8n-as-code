@@ -1,5 +1,11 @@
 # @n8n-as-code/sync
 
+## 0.5.0
+
+### Minor Changes
+
+- packages naming refacto
+
 ## 0.4.3
 
 ### Patch Changes
