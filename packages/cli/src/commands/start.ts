@@ -63,16 +63,16 @@ export class StartCommand extends BaseCommand {
             
             if (!this.manualMode) {
                 // Auto mode: show log stream style messages for sync actions
+                // First render the table, then show the log message
+                await this.renderTable(syncManager);
                 if (msg.includes('PUSHED') || msg.includes('Created')) {
-                    logUpdate.clear();
                     console.log(chalk.green(`[${new Date().toLocaleTimeString()}] 🟢 ${msg}`));
                 } else if (msg.includes('PULLED') || msg.includes('Updated')) {
-                    logUpdate.clear();
                     console.log(chalk.blue(`[${new Date().toLocaleTimeString()}] 🔵 ${msg}`));
                 }
+            } else {
+                await this.renderTable(syncManager);
             }
-            
-            await this.renderTable(syncManager);
         });
 
         syncManager.on('change', async () => {
@@ -83,9 +83,9 @@ export class StartCommand extends BaseCommand {
 
         syncManager.on('error', async (err: string) => {
             if (!this.isPromptActive) {
-                logUpdate.clear();
-                console.error(chalk.red(`\n❌ Error: ${err}`));
+                // Render table first, then show error
                 await this.renderTable(syncManager);
+                console.error(chalk.red(`\n❌ Error: ${err}`));
             }
         });
 
@@ -107,9 +107,10 @@ export class StartCommand extends BaseCommand {
         });
 
         // Notification for remote deletions
-        syncManager.on('change', (data: any) => {
+        syncManager.on('change', async (data: any) => {
             if (data.type === 'remote-deletion' && !this.isPromptActive) {
-                logUpdate.clear();
+                // Render table first, then show notification
+                await this.renderTable(syncManager);
                 console.log(chalk.yellow(`\n🗑️  Remote workflow "${data.filename}" was deleted. Local file moved to _archive.\n`));
             }
         });
@@ -160,7 +161,6 @@ export class StartCommand extends BaseCommand {
         }
         this.pendingConflictIds.add(conflict.id);
         
-        logUpdate.clear();
         this.isPromptActive = true;
         
         console.log(chalk.yellow(`\n⚠️  CONFLICT detected for "${conflict.filename}"`));
@@ -202,7 +202,6 @@ export class StartCommand extends BaseCommand {
      * Handle local deletion with prompt
      */
     private async handleLocalDeletionPrompt(data: { id: string, filename: string }, syncManager: SyncManager) {
-        logUpdate.clear();
         this.isPromptActive = true;
         
         console.log(chalk.yellow(`\n🗑️  LOCAL DELETION detected for "${data.filename}"`));
@@ -263,6 +262,87 @@ export class StartCommand extends BaseCommand {
         this.lastUpdate = new Date();
         const matrix = await syncManager.getWorkflowsStatus();
 
+        // Get terminal width for dynamic column sizing
+        const terminalWidth = process.stdout.columns || 80;
+        
+        // For narrow terminals, use compact layout
+        if (terminalWidth < 100) {
+            // Compact layout for terminals < 100 columns
+            const colWidths = [12, 12, 25, 25];
+            
+            // Create compact table
+            const table = new Table({
+                head: [
+                    chalk.bold('Status'),
+                    chalk.bold('ID'),
+                    chalk.bold('Name'),
+                    chalk.bold('Path')
+                ],
+                colWidths: colWidths,
+                wordWrap: false,
+                wrapOnWordBoundary: false
+            });
+
+            // Sort workflows by status priority, then by name
+            const statusPriority: Record<WorkflowSyncStatus, number> = {
+                [WorkflowSyncStatus.CONFLICT]: 1,
+                [WorkflowSyncStatus.MODIFIED_LOCALLY]: 2,
+                [WorkflowSyncStatus.MODIFIED_REMOTELY]: 3,
+                [WorkflowSyncStatus.EXIST_ONLY_LOCALLY]: 4,
+                [WorkflowSyncStatus.EXIST_ONLY_REMOTELY]: 5,
+                [WorkflowSyncStatus.DELETED_LOCALLY]: 6,
+                [WorkflowSyncStatus.DELETED_REMOTELY]: 7,
+                [WorkflowSyncStatus.IN_SYNC]: 8
+            };
+
+            const sorted = matrix.sort((a: IWorkflowStatus, b: IWorkflowStatus) => {
+                const priorityDiff = statusPriority[a.status] - statusPriority[b.status];
+                if (priorityDiff !== 0) return priorityDiff;
+                return a.name.localeCompare(b.name);
+            });
+
+            // Add rows with color coding
+            for (const workflow of sorted) {
+                const { icon, color } = this.getStatusDisplay(workflow.status);
+                const statusText = `${icon} ${workflow.status.replace(/_/g, ' ').substring(0, 10)}`;
+                
+                // Truncate long names and paths for compact display
+                const truncatedName = workflow.name.length > 20 ? workflow.name.substring(0, 17) + '...' : workflow.name;
+                const truncatedPath = workflow.filename && workflow.filename.length > 20 ?
+                    '...' + workflow.filename.substring(workflow.filename.length - 17) :
+                    workflow.filename || '-';
+                
+                table.push([
+                    color(statusText),
+                    workflow.id ? workflow.id.substring(0, 9) + '…' : '-',
+                    truncatedName,
+                    truncatedPath
+                ]);
+            }
+
+            // Summary
+            const summary = this.getSummary(matrix);
+            const summaryText = [
+                chalk.bold('\nSummary:'),
+                chalk.green(`  ✔ Sync: ${summary.inSync}`),
+                chalk.blue(`  ✏️  Local: ${summary.modifiedLocally}`),
+                chalk.cyan(`  ☁️  Remote: ${summary.modifiedRemotely}`),
+                chalk.red(`  💥 Conflicts: ${summary.conflicts}`),
+                chalk.gray(`  🗑️  Deleted: ${summary.deleted}`),
+                chalk.bold(`  Total: ${matrix.length}`),
+                '',
+                chalk.gray(`⏱️  ${this.lastUpdate.toLocaleTimeString()}`),
+                chalk.cyan('🔄 Watching...')
+            ].join('\n');
+
+            // Use log-update to re-render without flickering
+            logUpdate(table.toString() + '\n' + summaryText);
+            return;
+        }
+        
+        // Standard layout for wider terminals
+        const colWidths = [15, 15, 30, 40];
+
         // Create table
         const table = new Table({
             head: [
@@ -271,8 +351,9 @@ export class StartCommand extends BaseCommand {
                 chalk.bold('Name'),
                 chalk.bold('Local Path')
             ],
-            colWidths: [20, 15, 40, 50],
-            wordWrap: true
+            colWidths: colWidths,
+            wordWrap: false,
+            wrapOnWordBoundary: false
         });
 
         // Sort workflows by status priority, then by name
