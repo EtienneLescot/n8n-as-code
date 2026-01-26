@@ -17,12 +17,21 @@ function run(command, cwd = ROOT_DIR) {
     }
 }
 
+function removeGitDirectory(dir) {
+    const gitDir = path.join(dir, '.git');
+    if (fs.existsSync(gitDir)) {
+        console.log(`🗑️  Removing ${gitDir}...`);
+        fs.rmSync(gitDir, { recursive: true, force: true });
+    }
+}
+
 async function main() {
     console.log('🔍 Checking n8n cache...');
 
     if (!fs.existsSync(CACHE_DIR)) {
         console.log(`🚀 Cache missing. Cloning n8n repository (depth 1, tag ${N8N_STABLE_TAG})...`);
         run(`git clone --depth 1 --branch ${N8N_STABLE_TAG} ${N8N_REPO_URL} .n8n-cache`);
+        removeGitDirectory(CACHE_DIR);
     } else {
         console.log('✅ Cache directory found.');
 
@@ -39,12 +48,18 @@ async function main() {
                     run(`git reset --hard ${N8N_STABLE_TAG}`, CACHE_DIR);
                     // Force rebuild of nodes-base if updated
                     process.env.FORCE_REBUILD_NODES = 'true';
+                    removeGitDirectory(CACHE_DIR);
                 } else {
                     console.log('✨ Cache is already at the correct stable tag.');
+                    removeGitDirectory(CACHE_DIR);
                 }
             } catch (e) {
                 console.warn('⚠️  Could not check for updates. Using existing cache.');
+                // Still remove .git if it exists
+                removeGitDirectory(CACHE_DIR);
             }
+        } else {
+            // .git doesn't exist, nothing to do
         }
     }
 

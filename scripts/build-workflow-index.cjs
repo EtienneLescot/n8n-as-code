@@ -15,6 +15,14 @@ const args = process.argv.slice(2);
 const shallowFlag = args.includes('--shallow');
 const CLONE_DEPTH = shallowFlag ? 1 : undefined; // Full clone by default for complete history
 
+function removeGitDirectory(dir) {
+    const gitDir = path.join(dir, '.git');
+    if (fs.existsSync(gitDir)) {
+        console.log(`   🗑️  Removing ${gitDir}...`);
+        fs.rmSync(gitDir, { recursive: true, force: true });
+    }
+}
+
 /**
  * Clone or update the workflows repository
  */
@@ -25,6 +33,7 @@ function ensureRepository() {
         console.log('   ✓ Repository exists, pulling latest changes...');
         try {
             execSync('git pull', { cwd: TEMP_DIR, stdio: 'inherit' });
+            removeGitDirectory(TEMP_DIR);
         } catch (error) {
             console.warn('   ⚠️  Pull failed, removing and re-cloning...');
             fs.rmSync(TEMP_DIR, { recursive: true, force: true });
@@ -40,6 +49,7 @@ function cloneRepository() {
     const depthArg = CLONE_DEPTH ? `--depth ${CLONE_DEPTH}` : '';
     execSync(`git clone ${depthArg} ${REPO_URL} ${TEMP_DIR}`, { stdio: 'inherit' });
     console.log('   ✓ Clone complete');
+    removeGitDirectory(TEMP_DIR);
 }
 
 /**
