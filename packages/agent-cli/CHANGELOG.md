@@ -1,5 +1,11 @@
 # @n8n-as-code/agent-cli
 
+## 0.12.0
+
+### Minor Changes
+
+- fix validator to accept community nodes
+
 ## 0.11.2
 
 ### Patch Changes
