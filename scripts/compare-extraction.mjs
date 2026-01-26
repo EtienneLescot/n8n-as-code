@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.join(__dirname, '..');
-const INDEX_FILE = path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-nodes-index.json');
+const INDEX_FILE = path.resolve(ROOT_DIR, 'packages/skills/src/assets/n8n-nodes-index.json');
 
 if (!fs.existsSync(INDEX_FILE)) {
   console.error(`❌ Error: Index file not found at ${INDEX_FILE}`);
@@ -91,7 +91,7 @@ async function generateReport() {
   report.push(`- ⚠️ **Partial**: ${partialCount} nodes`);
   report.push(`- ❌ **Empty/Missing**: ${emptyCount} nodes`);
 
-  const reportPath = path.resolve(ROOT_DIR, 'packages/agent-cli/extraction-report.md');
+  const reportPath = path.resolve(ROOT_DIR, 'packages/skills/extraction-report.md');
   fs.writeFileSync(reportPath, report.join('\n'));
   console.log(`📄 Report saved to: ${reportPath}`);
 }

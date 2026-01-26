@@ -9,7 +9,7 @@
     ],
     "references": [
         {
-            "path": "../core"
+            "path": "../sync"
         }
     ]
 }

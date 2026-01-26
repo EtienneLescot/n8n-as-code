@@ -10,7 +10,7 @@
     },
     "references": [
         {
-            "path": "../core"
+            "path": "../sync"
         }
     ],
     "include": [
