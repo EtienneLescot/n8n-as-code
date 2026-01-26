@@ -463,7 +463,7 @@ Check log files in `~/.n8n-as-code/logs/` for detailed error information.
 
 ## 📚 Related Documentation
 
-- [Sync Package](/docs/contribution/core): Sync library details
+- [Sync Package](/docs/contribution/sync): Sync library details
 - [Architecture Overview](/docs/contribution/architecture): Overall system architecture
 - [VS Code Extension](/docs/contribution/vscode-extension): VS Code extension development
 - [Contribution Guide](/docs/contribution): How to contribute

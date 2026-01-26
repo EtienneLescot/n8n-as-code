@@ -67,7 +67,7 @@ n8n-as-code start
 
 | Package | Description | Links |
 |---------|-------------|-------|
-| **[@n8n-as-code/sync](packages/sync)** | Synchronization engine & 3-way merge logic | [📖 API](https://etiennelescot.github.io/n8n-as-code/api) |
+| **[@n8n-as-code/sync](packages/sync)** | Synchronization engine & 3-way merge logic |  |
 | **[@n8n-as-code/skills](packages/skills)** | AI tools (search, schemas, validation) for agents | [📖 Docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/skills) · [📦 NPM](https://www.npmjs.com/package/@n8n-as-code/skills) |
 | **[@n8n-as-code/claude-skill](packages/claude-skill)** | Official Claude AI agent skill | [📖 Docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill) · [📦 NPM](https://www.npmjs.com/package/@n8n-as-code/claude-skill) |
 

@@ -261,7 +261,7 @@ npm run dev
 ## 📚 Related Documentation
 
 - [Architecture Overview](/docs/contribution/architecture): Overall system architecture
-- [Sync Package](/docs/contribution/core): Shared library details
+- [Sync Package](/docs/contribution/sync): Shared library details
 - [Contribution Guide](/docs/contribution): How to contribute
 
 ---

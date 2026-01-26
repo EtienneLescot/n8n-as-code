@@ -273,7 +273,6 @@ For workflow management and automation, use the [Main CLI](/docs/usage/cli).
 - Learn about the [Main CLI](/docs/usage/cli) for workflow management
 - Explore the [VS Code Extension](/docs/usage/vscode-extension) for visual editing
 - Check the [Contribution Guide](/docs/contribution) for development details
-- Review the [API Reference](/api/) for programmatic usage
 
 ## 🆘 Troubleshooting
 
