@@ -11,9 +11,8 @@ import { WorkflowSyncStatus, IWorkflow } from '../types.js';
  * 
  * Responsibilities:
  * 1. Execute PULL/PUSH operations based on status
- * 2. Follow strategy tables from SPECS/REFACTO_CORE.md
- * 3. Call Watcher.finalizeSync after successful operations
- * 4. Handle archive operations
+ * 2. Call Watcher.finalizeSync after successful operations
+ * 3. Handle archive operations
  * 
  * Stateless regarding history - never writes to state file directly
  */

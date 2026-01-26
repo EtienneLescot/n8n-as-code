@@ -558,7 +558,7 @@ export class Watcher extends EventEmitter {
         const baseState = workflowId ? state.workflows[workflowId] : undefined;
         const lastSyncedHash = baseState?.lastSyncedHash;
 
-        // Implementation of 4.2 Status Logic Matrix from SPECS/REFACTO_CORE.md
+        // Implementation of 4.2 Status Logic Matrix
         if (localHash && !lastSyncedHash && !remoteHash) return WorkflowSyncStatus.EXIST_ONLY_LOCALLY;
         if (remoteHash && !lastSyncedHash && !localHash) return WorkflowSyncStatus.EXIST_ONLY_REMOTELY;
 
