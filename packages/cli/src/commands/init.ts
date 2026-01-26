@@ -1,7 +1,7 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import ora from 'ora';
-import { N8nApiClient, createInstanceIdentifier, createFallbackInstanceIdentifier } from '@n8n-as-code/core';
+import { N8nApiClient, createInstanceIdentifier, createFallbackInstanceIdentifier } from '@n8n-as-code/sync';
 import { ConfigService, ILocalConfig } from '../services/config-service.js';
 import { UpdateAiCommand } from './init-ai.js';
 import { Command } from 'commander';

@@ -10,7 +10,7 @@ description: Documentation for the Core package that provides shared business lo
 
 ## 🎯 Purpose
 
-The Core package (`@n8n-as-code/core`) provides the shared business logic and services used by:
+The Core package (`@n8n-as-code/sync`) provides the shared business logic and services used by:
 - **VS Code Extension**: For workflow synchronization and management
 - **CLI**: For command-line operations
 - **Agent CLI**: For AI context generation
@@ -373,7 +373,7 @@ sequenceDiagram
 
 ### Test Structure
 ```
-packages/core/tests/
+packages/sync/tests/
 ├── unit/
 │   ├── state-manager.test.ts
 │   └── workflow-sanitizer.test.ts
@@ -389,7 +389,7 @@ packages/core/tests/
 
 ### Running Tests
 ```bash
-cd packages/core
+cd packages/sync
 npm test
 ```
 
@@ -432,13 +432,13 @@ interface CoreConfig {
 
 ### Building
 ```bash
-cd packages/core
+cd packages/sync
 npm run build
 ```
 
 ### Development Mode
 ```bash
-cd packages/core
+cd packages/sync
 npm run dev
 ```
 

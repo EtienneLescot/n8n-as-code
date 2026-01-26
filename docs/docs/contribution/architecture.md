@@ -38,7 +38,7 @@ graph TD
 ```
 
 ### Dependency Flow
-1. **Core Library** (`@n8n-as-code/core`): Shared business logic
+1. **Core Library** (`@n8n-as-code/sync`): Shared business logic
 2. **CLI** (`@n8n-as-code/cli`): Command-line interface using Core
 3. **VS Code Extension**: Visual interface using Core
 4. **Agent CLI** (`@n8n-as-code/agent-cli`): AI integration using Core

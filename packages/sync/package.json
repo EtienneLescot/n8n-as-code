@@ -1,5 +1,5 @@
 {
-    "name": "@n8n-as-code/core",
+    "name": "@n8n-as-code/sync",
     "version": "0.4.3",
     "description": "Core library for n8n-as-code ecosystem",
     "main": "dist/index.js",

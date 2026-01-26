@@ -14,7 +14,7 @@ const __dirname = dirname(__filename);
 const rootDir = join(__dirname, '..');
 
 const PACKAGES = [
-  'packages/core',
+  'packages/sync',
   'packages/cli',
   'packages/skills',
   'packages/vscode-extension'

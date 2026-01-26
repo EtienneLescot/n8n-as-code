@@ -12,9 +12,9 @@ const isVerbose = process.argv.includes('-v') || process.argv.includes('--verbos
 const testSuites = [
     { section: 'Unit Tests', name: 'skills', pkg: '@n8n-as-code/agent-cli', cmd: 'npm', args: ['test', '--workspace=@n8n-as-code/agent-cli', '--', '--silent', '--reporters', 'default'] },
     { section: 'Unit Tests', name: 'cli', pkg: '@n8n-as-code/cli', cmd: 'npm', args: ['test', '--workspace=@n8n-as-code/cli'] },
-    { section: 'Unit Tests', name: 'core-unit', pkg: '@n8n-as-code/core', cmd: 'npm', args: ['run', 'test:unit', '--workspace=@n8n-as-code/core'] },
+    { section: 'Unit Tests', name: 'core-unit', pkg: '@n8n-as-code/sync', cmd: 'npm', args: ['run', 'test:unit', '--workspace=@n8n-as-code/sync'] },
     { section: 'Unit Tests', name: 'vscode-unit', pkg: 'n8n-as-code', cmd: 'npm', args: ['run', 'test', '--workspace=packages/vscode-extension'] },
-    { section: 'Integration Tests', name: 'core-integration', pkg: '@n8n-as-code/core', cmd: 'npm', args: ['run', 'test:integration', '--workspace=@n8n-as-code/core'] }
+    { section: 'Integration Tests', name: 'core-integration', pkg: '@n8n-as-code/sync', cmd: 'npm', args: ['run', 'test:integration', '--workspace=@n8n-as-code/sync'] }
 ];
 
 const results = [];

@@ -1,5 +1,5 @@
 import { BaseCommand } from './base.js';
-import { SyncManager, WorkflowSyncStatus, IWorkflowStatus } from '@n8n-as-code/core';
+import { SyncManager, WorkflowSyncStatus, IWorkflowStatus } from '@n8n-as-code/sync';
 import chalk from 'chalk';
 import logUpdate from 'log-update';
 import Table from 'cli-table3';

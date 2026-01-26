@@ -1,5 +1,5 @@
 import { BaseCommand } from './base.js';
-import { SyncManager } from '@n8n-as-code/core';
+import { SyncManager } from '@n8n-as-code/sync';
 import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';

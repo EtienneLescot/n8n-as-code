@@ -171,5 +171,5 @@ To extend test coverage:
 ## 📚 References
 
 - [Vitest Documentation](https://vitest.dev/)
-- [n8n-as-code Core API](../../../packages/core/README.md)
+- [n8n-as-code Core API](../../../packages/sync/README.md)
 - [CLI Specification](../../../SPECS/REFACTO_CLI.md)

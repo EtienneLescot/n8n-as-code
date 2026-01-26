@@ -12,7 +12,7 @@
 
 - build process fixed
 - Updated dependencies
-  - @n8n-as-code/core@0.4.3
+  - @n8n-as-code/sync@0.4.3
 
 ## 0.11.1
 

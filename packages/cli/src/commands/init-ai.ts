@@ -5,7 +5,7 @@ import fs from 'fs';
 import {
     N8nApiClient,
     IN8nCredentials
-} from '@n8n-as-code/core';
+} from '@n8n-as-code/sync';
 import {
     AiContextGenerator,
     SnippetGenerator

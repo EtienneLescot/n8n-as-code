@@ -1,4 +1,4 @@
-# @n8n-as-code/core
+# @n8n-as-code/sync
 
 ## 0.4.3
 

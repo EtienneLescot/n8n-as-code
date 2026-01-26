@@ -50,7 +50,7 @@ n8nac update-ai
 
 ## 🏗 Part of the Ecosystem
 This package works alongside:
-- `@n8n-as-code/core`: The synchronization logic.
+- `@n8n-as-code/sync`: The synchronization logic.
 - `@n8n-as-code/skills`: AI-integration tools (formerly `agent-cli`).
 - `vscode-extension`: Enhanced visual experience in VS Code.
 

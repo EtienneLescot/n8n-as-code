@@ -1,4 +1,4 @@
-# @n8n-as-code/core
+# @n8n-as-code/sync
 
 The logical core of the **n8n-as-code** ecosystem.
 
@@ -15,7 +15,7 @@ This package contains the shared logic used by the CLI, the Agent CLI, and the V
 This is internal tooling primarily intended to be consumed by other `@n8n-as-code` packages.
 
 ```bash
-npm install @n8n-as-code/core
+npm install @n8n-as-code/sync
 ```
 
 ## 📄 License

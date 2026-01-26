@@ -20,7 +20,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Default schema path
-const DEFAULT_SCHEMA_PATH = path.join(__dirname, '../packages/core/src/assets/n8n-nodes-index.json');
+const DEFAULT_SCHEMA_PATH = path.join(__dirname, '../packages/sync/src/assets/n8n-nodes-index.json');
 
 // Parse command line arguments
 const args = process.argv.slice(2);

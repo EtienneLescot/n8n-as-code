@@ -14,7 +14,7 @@
 - build process fixed
 - Updated dependencies
   - @n8n-as-code/agent-cli@0.11.2
-  - @n8n-as-code/core@0.4.3
+  - @n8n-as-code/sync@0.4.3
 
 ## 0.4.2
 
@@ -89,21 +89,21 @@
 
 - Updated dependencies
   - @n8n-as-code/agent-cli@0.5.0
-  - @n8n-as-code/core@0.4.2
+  - @n8n-as-code/sync@0.4.2
 
 ## 0.3.5
 
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/core@0.4.1
+  - @n8n-as-code/sync@0.4.1
 
 ## 0.3.4
 
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/core@0.4.0
+  - @n8n-as-code/sync@0.4.0
   - @n8n-as-code/agent-cli@0.4.1
 
 ## 0.3.3
@@ -117,7 +117,7 @@
 
 - Updated dependencies
   - @n8n-as-code/agent-cli@0.4.0
-  - @n8n-as-code/core@0.3.3
+  - @n8n-as-code/sync@0.3.3
 
 ## 0.3.2
 
@@ -133,7 +133,7 @@
 
 - Updated dependencies
   - @n8n-as-code/agent-cli@0.3.0
-  - @n8n-as-code/core@0.3.2
+  - @n8n-as-code/sync@0.3.2
 
 ## 0.3.1
 
@@ -142,7 +142,7 @@
 - 08b83b5: doc update
 - Updated dependencies [08b83b5]
   - @n8n-as-code/agent-cli@0.2.1
-  - @n8n-as-code/core@0.3.1
+  - @n8n-as-code/sync@0.3.1
 
 ## 0.3.0
 
@@ -166,7 +166,7 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @n8n-as-code/core@0.3.0
+  - @n8n-as-code/sync@0.3.0
 
 ## 0.2.0
 
@@ -178,4 +178,4 @@
 
 - Updated dependencies
   - @n8n-as-code/agent-cli@0.2.0
-  - @n8n-as-code/core@0.2.0
+  - @n8n-as-code/sync@0.2.0

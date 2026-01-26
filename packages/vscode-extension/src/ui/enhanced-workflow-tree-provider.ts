@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Store } from '@reduxjs/toolkit';
-import { SyncManager, WorkflowSyncStatus } from '@n8n-as-code/core';
+import { SyncManager, WorkflowSyncStatus } from '@n8n-as-code/sync';
 import { ExtensionState } from '../types.js';
 import { validateN8nConfig } from '../utils/state-detection.js';
 

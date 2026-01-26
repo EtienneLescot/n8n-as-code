@@ -1,4 +1,4 @@
-import { N8nApiClient, IN8nCredentials } from '@n8n-as-code/core';
+import { N8nApiClient, IN8nCredentials } from '@n8n-as-code/sync';
 import chalk from 'chalk';
 import { ConfigService } from '../services/config-service.js';
 

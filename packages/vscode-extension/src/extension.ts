@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { SyncManager, N8nApiClient, IN8nCredentials, WorkflowSyncStatus, createInstanceIdentifier, createFallbackInstanceIdentifier } from '@n8n-as-code/core';
+import { SyncManager, N8nApiClient, IN8nCredentials, WorkflowSyncStatus, createInstanceIdentifier, createFallbackInstanceIdentifier } from '@n8n-as-code/sync';
 import { AiContextGenerator, SnippetGenerator } from '@n8n-as-code/skills';
 
 import { StatusBar } from './ui/status-bar.js';

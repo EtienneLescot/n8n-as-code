@@ -230,7 +230,7 @@ Manages CLI configuration.
 The CLI uses the Core library for all n8n operations:
 
 ```typescript
-import { SyncManager, StateManager, N8nApiClient } from '@n8n-as-code/core';
+import { SyncManager, StateManager, N8nApiClient } from '@n8n-as-code/sync';
 
 class SyncCommand extends BaseCommand {
   private syncManager: SyncManager;

@@ -1,5 +1,5 @@
 import { NodeSchemaProvider } from './node-schema-provider.js';
-import { WorkflowSanitizer } from '@n8n-as-code/core';
+import { WorkflowSanitizer } from '@n8n-as-code/sync';
 
 export interface ValidationResult {
   valid: boolean;

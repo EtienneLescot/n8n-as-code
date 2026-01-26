@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import * as diff from 'diff';
-import { N8nApiClient } from '@n8n-as-code/core';
+import { N8nApiClient } from '@n8n-as-code/sync';
 
 /**
  * CLI Helper utilities for formatting and display

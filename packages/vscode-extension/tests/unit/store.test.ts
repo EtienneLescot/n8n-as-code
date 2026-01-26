@@ -9,7 +9,7 @@ import {
     removeConflict,
     selectAllWorkflows
 } from '../../src/services/workflow-store.js';
-import { WorkflowSyncStatus } from '@n8n-as-code/core';
+import { WorkflowSyncStatus } from '@n8n-as-code/sync';
 
 /**
  * UI State Synchronization Tests (Redux Store)
