@@ -59,15 +59,7 @@ n8nac.json
 n8nac-instance.json
 
 # Generated n8n assets
-packages/skills/src/assets/n8n-nodes-index.json
-packages/skills/src/assets/n8n-nodes-technical.json
-packages/skills/src/assets/n8n-docs-complete.json
-packages/skills/src/assets/n8n-knowledge-index.json
-packages/skills/src/assets/n8n-docs-cache/
-packages/skills/src/assets/workflows-index.json
-packages/skills/extraction-report.md
-packages/vscode-extension/assets/*.json
-packages/vscode-extension/assets/logo.png
+packages/skills/src/assets/
 
 .n8n-cache/
 .local
