@@ -85,3 +85,5 @@ conversation.md
 .temp-workflows/
 
 .bin/
+
+packages/vscode-extension/packages
