@@ -99,7 +99,7 @@ n8n-as-code push
 | `n8n-as-code init` | Initialize project configuration | CLI |
 | `n8n-as-code pull` | Download workflows from n8n | CLI |
 | `n8n-as-code push` | Upload workflows to n8n | CLI |
-| `n8n-as-code watch` | Real-time sync mode | CLI |
+| `n8n-as-code start` | Real-time sync mode | CLI |
 | `n8n-as-code init-ai` | Generate AI context files | CLI |
 | `npx @n8n-as-code/skills search` | Search for n8n nodes | Skills CLI |
 | `npx @n8n-as-code/skills get` | Get node JSON schema | Skills CLI |

@@ -108,10 +108,9 @@ export class InitCommand {
             await updateAi.run({}, { host: answers.host, apiKey: answers.apiKey });
 
             console.log(chalk.yellow('\nNext steps:'));
-            console.log(`1. Run ${chalk.bold('n8n-as-code pull')} to download your workflows`);
-            console.log(`2. Run ${chalk.bold('n8n-as-code watch')} to start passive monitoring`);
-            console.log(`3. Run ${chalk.bold('n8n-as-code auto-sync')} to enable automatic bidirectional sync`);
-            console.log(chalk.gray(`(Instance identifier will be generated automatically on first use)\n`));
+            console.log(`1. Run ${chalk.bold('n8nac pull')} to download your workflows`);
+            console.log(`2. Run ${chalk.bold('n8nac start')} to start real-time monitoring and synchronization`);
+            console.log(chalk.gray(`(Legacy command 'n8n-as-code' is also available but deprecated)\n`));
 
         } catch (error: any) {
             spinner.fail(chalk.red(`An error occurred: ${error.message}`));

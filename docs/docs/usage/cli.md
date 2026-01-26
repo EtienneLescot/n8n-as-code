@@ -243,13 +243,13 @@ n8n-as-code pull
 n8n-as-code push
 
 # 5. Or use real-time sync
-n8n-as-code watch
+n8nac start
 ```
 
-### Real-time Development with Watch Mode
+### Real-time Development with Start Mode
 ```bash
-# Start watch mode for real-time sync
-n8n-as-code watch
+# Start real-time sync mode
+n8nac start
 
 # Now you can:
 # - Edit workflow JSON files locally
@@ -398,11 +398,11 @@ n8n-as-code push
 Enable debug logging for detailed output:
 
 ```bash
-# Debug watch mode
-DEBUG=n8n-as-code:* n8n-as-code watch
+# Debug real-time sync mode
+DEBUG=n8n-as-code:* n8nac start
 
 # Debug specific operations
-DEBUG=axios,n8n-as-code:* n8n-as-code pull
+DEBUG=axios,n8n-as-code:* n8nac pull
 ```
 
 ## 📚 Next Steps

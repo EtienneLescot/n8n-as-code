@@ -372,8 +372,8 @@ cat n8n-as-code.json
 # For CLI operations, check console output
 n8n-as-code pull
 
-# For watch mode, check the terminal output
-n8n-as-code watch
+# For real-time sync mode, check the terminal output
+n8n-as-code start
 ```
 
 ### Check VS Code Output Panel
@@ -444,10 +444,10 @@ n8n-as-code pull
    - Consider archiving unused workflows in n8n
    - Use tags to filter workflows if supported in future versions
 
-3. **Use `watch` Mode:**
+3. **Use `start` Mode:**
    ```bash
    # Real-time sync is more efficient than repeated pull/push
-   n8n-as-code watch
+   n8n-as-code start
    ```
 
 ### High Memory Usage
