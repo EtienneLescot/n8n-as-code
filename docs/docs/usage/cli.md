@@ -1,45 +1,45 @@
 ---
 sidebar_label: CLI
 title: CLI Guide
-description: Learn how to use the n8n-as-code CLI for automation, scripting, and CI/CD integration.
+description: Learn how to use the n8nac CLI for automation, scripting, and CI/CD integration.
 ---
 
 # CLI Guide
 
-The n8n-as-code CLI (`@n8n-as-code/cli`) provides command-line access to all n8n-as-code functionality. It's perfect for automation, scripting, and CI/CD integration.
+The n8nac CLI (`@n8nac/cli`) provides command-line access to all n8nac functionality. It's perfect for automation, scripting, and CI/CD integration.
 
 ## 📦 Installation
 
 ### Global Installation
 ```bash
-npm install -g @n8n-as-code/cli
+npm install -g @n8nac/cli
 ```
 
 ### Project Installation
 ```bash
-npm install --save-dev @n8n-as-code/cli
+npm install --save-dev @n8nac/cli
 ```
 
 ### Verify Installation
 ```bash
-n8n-as-code --version
+n8nac --version
 ```
 
 ## 🚀 Quick Start
 
 ### Initialize a Project
 ```bash
-n8n-as-code init
+n8nac init
 ```
 
 This command:
-1. Creates a configuration file (`n8n-as-code.json`)
+1. Creates a configuration file (`n8nac.json`)
 2. Sets up the project structure
 3. Configures connection to your n8n instance
 
 ### Download Workflows from n8n
 ```bash
-n8n-as-code pull
+n8nac pull
 ```
 
 This command:
@@ -49,7 +49,7 @@ This command:
 
 ### Upload Local Workflows to n8n
 ```bash
-n8n-as-code push
+n8nac push
 ```
 
 This command:
@@ -60,14 +60,14 @@ This command:
 ## 📋 Command Reference
 
 ### `init`
-Initialize a new n8n-as-code project.
+Initialize a new n8nac project.
 
 **Description:**
 Interactive wizard that guides you through setting up your n8n connection and project configuration.
 
 **Example:**
 ```bash
-n8n-as-code init
+n8nac init
 ```
 
 The wizard will ask for:
@@ -83,7 +83,7 @@ Shows a color-coded table of all workflows with their sync status, helping you u
 
 **Example:**
 ```bash
-n8n-as-code list
+n8nac list
 ```
 
 **Output:**
@@ -112,8 +112,8 @@ Downloads workflows from your configured n8n instance. Detects conflicts when bo
 
 **Example:**
 ```bash
-n8n-as-code pull
-n8n-as-code pull --force  # Force overwrite local changes
+n8nac pull
+n8nac pull --force  # Force overwrite local changes
 ```
 
 **Behavior:**
@@ -137,8 +137,8 @@ Uploads workflows that exist locally to n8n. Detects conflicts when both local a
 
 **Example:**
 ```bash
-n8n-as-code push
-n8n-as-code push --force  # Force overwrite remote changes
+n8nac push
+n8nac push --force  # Force overwrite remote changes
 ```
 
 **Behavior:**
@@ -162,8 +162,8 @@ Monitors both local file system and n8n for changes, automatically synchronizing
 
 **Example:**
 ```bash
-n8n-as-code start           # Auto-sync mode
-n8n-as-code start --manual  # Manual mode with prompts
+n8nac start           # Auto-sync mode
+n8nac start --manual  # Manual mode with prompts
 ```
 
 **Features:**
@@ -185,7 +185,7 @@ Generates context files that help AI coding assistants understand n8n workflow s
 
 **Example:**
 ```bash
-n8n-as-code init-ai
+n8nac init-ai
 ```
 
 **Creates:**
@@ -197,7 +197,7 @@ n8n-as-code init-ai
 ## ⚙️ Configuration
 
 ### Configuration File
-The CLI uses a configuration file (`n8n-as-code.json`) with the following structure:
+The CLI uses a configuration file (`n8nac.json`) with the following structure:
 
 ```json
 {

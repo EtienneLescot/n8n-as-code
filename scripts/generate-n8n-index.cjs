@@ -24,9 +24,8 @@ if (sourceArg !== -1 && args[sourceArg + 1]) {
     ];
 }
 
-let OUTPUT_FILE = (outputArg !== -1 && args[outputArg + 1])
-    ? path.resolve(process.cwd(), args[outputArg + 1])
-    : path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-nodes-index.json');
+const OUTPUT_FILE = path.join(__dirname, '../packages/skills/src/assets/n8n-nodes-index.json');
+const REPORT_FILE = path.join(__dirname, '../packages/skills/extraction-report.md');
 
 // Add common node_modules paths for resolution
 const CACHE_ROOT = path.resolve(ROOT_DIR, '.n8n-cache');

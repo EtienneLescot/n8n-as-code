@@ -16,7 +16,7 @@ const rootDir = join(__dirname, '..');
 const PACKAGES = [
   'packages/core',
   'packages/cli',
-  'packages/agent-cli',
+  'packages/skills',
   'packages/vscode-extension'
 ];
 
@@ -47,36 +47,36 @@ function main() {
   log('cyan', '\n=== 🔍 Checking Internal Dependencies Consistency ===\n');
   log('yellow', '📌 Note: Packages have independent versions (as intended).');
   log('yellow', '📌 This script verifies that internal dependencies reference the current versions.\n');
-  
+
   // Step 1: Collect all package versions
   const packageVersions = new Map();
   const packageData = new Map();
-  
+
   for (const pkgPath of PACKAGES) {
     const pkg = readPackageJson(pkgPath);
     if (!pkg) continue;
-    
+
     packageVersions.set(pkg.name, pkg.version);
     packageData.set(pkg.name, { path: pkgPath, pkg });
-    
+
     log('blue', `📦 ${pkg.name}: v${pkg.version}`);
   }
-  
+
   console.log('');
-  
+
   // Step 2: Check internal dependencies
   let hasErrors = false;
   const checkedDeps = [];
-  
+
   for (const [name, { path, pkg }] of packageData) {
     if (!pkg.dependencies) continue;
-    
+
     for (const [depName, depVersion] of Object.entries(pkg.dependencies)) {
       // Check if it's an internal dependency
       if (packageVersions.has(depName)) {
         const actualVersion = packageVersions.get(depName);
         const declaredVersion = depVersion.replace(/[\^~]/, ''); // Remove ^ or ~
-        
+
         checkedDeps.push({
           consumer: name,
           dependency: depName,
@@ -84,7 +84,7 @@ function main() {
           actual: actualVersion,
           ok: actualVersion === declaredVersion
         });
-        
+
         if (actualVersion !== declaredVersion) {
           hasErrors = true;
           log('red', `❌ Outdated dependency in ${name}:`);
@@ -97,7 +97,7 @@ function main() {
       }
     }
   }
-  
+
   // Step 3: Summary
   console.log('');
   if (hasErrors) {
@@ -107,7 +107,7 @@ function main() {
     process.exit(1);
   } else {
     log('green', `✅ All internal dependencies are up-to-date! (${checkedDeps.length} dependencies checked)`);
-    
+
     if (checkedDeps.length > 0) {
       console.log('');
       log('cyan', '✓ Verified dependencies:');
@@ -115,7 +115,7 @@ function main() {
         console.log(`   ${dep.consumer} → ${dep.dependency}@${dep.declared}`);
       }
     }
-    
+
     // Show package publication info
     console.log('');
     log('cyan', '📊 Package Publication Status:');
@@ -125,7 +125,7 @@ function main() {
       console.log(`   ${name}: ${status}`);
     }
   }
-  
+
   console.log('');
 }
 

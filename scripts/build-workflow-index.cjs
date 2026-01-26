@@ -8,7 +8,7 @@ const { execSync } = require('child_process');
 const ROOT_DIR = path.resolve(__dirname, '..');
 const TEMP_DIR = path.join(ROOT_DIR, '.temp-workflows');
 const REPO_URL = 'https://github.com/nusquama/n8nworkflows.xyz.git';
-const OUTPUT_FILE = path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/workflows-index.json');
+const OUTPUT_FILE = path.resolve(ROOT_DIR, 'packages/skills/src/assets/workflows-index.json');
 
 // Argument parsing
 const args = process.argv.slice(2);

@@ -9,7 +9,7 @@ import {
 import {
     AiContextGenerator,
     SnippetGenerator
-} from '@n8n-as-code/agent-cli';
+} from '@n8n-as-code/skills';
 import dotenv from 'dotenv';
 
 export class UpdateAiCommand {
@@ -69,7 +69,7 @@ export class UpdateAiCommand {
             console.log(chalk.gray('   ✔ AGENTS.md: Complete AI agent guidelines'));
             console.log(chalk.gray('   ✔ .cursorrules/.clinerules/.windsurfrules: AI agent rules'));
             console.log(chalk.gray('   ✔ .vscode/n8n.code-snippets: Code completion snippets'));
-            console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/agent-cli)\n'));
+            console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/skills)\n'));
 
         } catch (error: any) {
             console.error(chalk.red(`❌ Error during update-ai: ${error.message}`));
@@ -82,4 +82,4 @@ export class UpdateAiCommand {
 }
 
 // Keep backward compatibility with old command name
-export class InitAiCommand extends UpdateAiCommand {}
+export class InitAiCommand extends UpdateAiCommand { }

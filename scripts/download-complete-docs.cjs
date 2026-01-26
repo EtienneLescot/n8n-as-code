@@ -22,7 +22,7 @@ const mkdir = promisify(fs.mkdir);
 
 // Configuration
 const LLMS_TXT_URL = 'https://docs.n8n.io/llms.txt';
-const OUTPUT_DIR = path.join(__dirname, '../packages/agent-cli/src/assets/n8n-docs-cache');
+const OUTPUT_DIR = path.join(__dirname, '../packages/skills/src/assets/n8n-docs-cache');
 const PAGES_DIR = path.join(OUTPUT_DIR, 'pages');
 const METADATA_FILE = path.join(OUTPUT_DIR, 'metadata.json');
 
@@ -62,13 +62,13 @@ function downloadContent(url) {
                 'Accept': 'text/plain, text/markdown, */*'
             }
         };
-        
+
         https.get(url, options, (res) => {
             // Handle redirects
             if (res.statusCode === 301 || res.statusCode === 302) {
                 return downloadContent(res.headers.location).then(resolve).catch(reject);
             }
-            
+
             if (res.statusCode !== 200) {
                 reject(new Error(`Failed to download ${url}: ${res.statusCode}`));
                 return;
@@ -87,7 +87,7 @@ function downloadContent(url) {
 function parseLlmsTxt(content) {
     const links = [];
     const lines = content.split('\n');
-    
+
     for (const line of lines) {
         // Match markdown links: - [Title](https://docs.n8n.io/path/index.md)
         const match = line.match(/^- \[(.+?)\]\((https:\/\/docs\.n8n\.io\/(.+?))\)$/);
@@ -100,7 +100,7 @@ function parseLlmsTxt(content) {
             });
         }
     }
-    
+
     return links;
 }
 
@@ -126,18 +126,18 @@ function extractSubcategory(urlPath, category) {
         if (urlPath.includes('/core-nodes/')) return 'core-nodes';
         if (urlPath.includes('/credentials/')) return 'credentials';
     }
-    
+
     if (category === 'advanced-ai') {
         if (urlPath.includes('/examples/')) return 'examples';
         if (urlPath.includes('/langchain/')) return 'langchain';
         if (urlPath.includes('/evaluations/')) return 'evaluations';
     }
-    
+
     if (category === 'code') {
         if (urlPath.includes('/builtin/')) return 'builtin';
         if (urlPath.includes('/cookbook/')) return 'cookbook';
     }
-    
+
     return null;
 }
 
@@ -162,13 +162,13 @@ function extractNodeName(urlPath) {
  */
 function extractKeywords(title, content) {
     const keywords = new Set();
-    
+
     // Add words from title
     const titleWords = title.toLowerCase()
         .split(/[\s\-_\.]+/)
         .filter(w => w.length > 3);
     titleWords.forEach(w => keywords.add(w));
-    
+
     // Extract from headers in markdown
     const headerMatches = content.matchAll(/^#+\s+(.+)$/gm);
     for (const match of headerMatches) {
@@ -177,7 +177,7 @@ function extractKeywords(title, content) {
             .filter(w => w.length > 3);
         headerWords.forEach(w => keywords.add(w));
     }
-    
+
     return Array.from(keywords);
 }
 
@@ -186,14 +186,14 @@ function extractKeywords(title, content) {
  */
 function extractUseCases(content) {
     const useCases = [];
-    
+
     // Look for common patterns
     const patterns = [
         /(?:use case|example|scenario):\s*(.+?)(?:\n|$)/gi,
         /you can use (?:this|the .+?) to:\s*(.+?)(?:\n|$)/gi,
         /(?:perfect for|ideal for|great for):\s*(.+?)(?:\n|$)/gi,
     ];
-    
+
     for (const pattern of patterns) {
         const matches = content.matchAll(pattern);
         for (const match of matches) {
@@ -203,7 +203,7 @@ function extractUseCases(content) {
             }
         }
     }
-    
+
     return useCases.slice(0, 10); // Limit to 10
 }
 
@@ -220,7 +220,7 @@ function sleep(ms) {
 async function downloadAllPages(links) {
     const results = [];
     const errors = [];
-    
+
     // Check if cache is sufficient
     if (fs.existsSync(METADATA_FILE)) {
         try {
@@ -235,34 +235,34 @@ async function downloadAllPages(links) {
     }
 
     console.log(`\n📥 Downloading ${links.length} pages...`);
-    
+
     // Process in batches
     for (let i = 0; i < links.length; i += MAX_CONCURRENT_DOWNLOADS) {
         const batch = links.slice(i, i + MAX_CONCURRENT_DOWNLOADS);
-        
+
         const promises = batch.map(async (link, index) => {
             try {
                 await sleep(DELAY_BETWEEN_REQUESTS * index);
-                
+
                 const content = await downloadContent(link.url);
                 const category = detectCategory(link.urlPath);
                 const subcategory = extractSubcategory(link.urlPath, category);
                 const nodeName = extractNodeName(link.urlPath);
                 const keywords = extractKeywords(link.title, content);
                 const useCases = extractUseCases(content);
-                
+
                 // Save page to disk
                 const pageId = `page-${String(results.length + 1).padStart(4, '0')}`;
                 const safePath = link.urlPath.replace(/[^a-zA-Z0-9\/\-_.]/g, '-');
                 const pagePath = path.join(PAGES_DIR, category, `${pageId}.md`);
-                
+
                 await mkdir(path.dirname(pagePath), { recursive: true });
                 await writeFile(pagePath, content);
-                
+
                 if ((results.length + 1) % 50 === 0) {
                     console.log(`   Downloaded ${results.length + 1}/${links.length} pages...`);
                 }
-                
+
                 const result = {
                     id: pageId,
                     title: link.title,
@@ -276,9 +276,9 @@ async function downloadAllPages(links) {
                     contentLength: content.length,
                     filePath: path.relative(OUTPUT_DIR, pagePath)
                 };
-                
+
                 results.push(result);
-                
+
                 return result;
             } catch (error) {
                 errors.push({ link: link.url, error: error.message });
@@ -286,15 +286,15 @@ async function downloadAllPages(links) {
                 return null;
             }
         });
-        
+
         await Promise.all(promises);
     }
-    
+
     console.log(`\n✅ Downloaded ${results.length} pages successfully`);
     if (errors.length > 0) {
         console.log(`⚠️  ${errors.length} errors occurred`);
     }
-    
+
     return { results: results.filter(r => r !== null), errors };
 }
 
@@ -303,17 +303,17 @@ async function downloadAllPages(links) {
  */
 async function generateMetadata(pages, errors) {
     console.log('\n📊 Generating metadata...');
-    
+
     // Group by category
     const byCategory = {};
     const byNodeName = {};
-    
+
     for (const page of pages) {
         if (!byCategory[page.category]) {
             byCategory[page.category] = [];
         }
         byCategory[page.category].push(page.id);
-        
+
         if (page.nodeName) {
             if (!byNodeName[page.nodeName]) {
                 byNodeName[page.nodeName] = [];
@@ -321,7 +321,7 @@ async function generateMetadata(pages, errors) {
             byNodeName[page.nodeName].push(page.id);
         }
     }
-    
+
     const metadata = {
         generatedAt: new Date().toISOString(),
         sourceUrl: LLMS_TXT_URL,
@@ -344,15 +344,15 @@ async function generateMetadata(pages, errors) {
             byNodeName
         }
     };
-    
+
     await writeFile(METADATA_FILE, JSON.stringify(metadata, null, 2));
-    
+
     console.log('✅ Metadata generated');
     console.log(`   Total pages: ${metadata.totalPages}`);
     console.log(`   By category:`, metadata.statistics.byCategory);
     console.log(`   With node names: ${metadata.statistics.withNodeNames}`);
     console.log(`   With use cases: ${metadata.statistics.withUseCases}`);
-    
+
     return metadata;
 }
 
@@ -362,36 +362,36 @@ async function generateMetadata(pages, errors) {
 async function main() {
     console.log('🚀 n8n Complete Documentation Downloader');
     console.log('=========================================\n');
-    
+
     try {
         // Create output directories
         await mkdir(OUTPUT_DIR, { recursive: true });
         await mkdir(PAGES_DIR, { recursive: true });
-        
+
         // Download llms.txt
         console.log(`📥 Downloading ${LLMS_TXT_URL}...`);
         const llmsTxtContent = await downloadContent(LLMS_TXT_URL);
         await writeFile(path.join(OUTPUT_DIR, 'llms.txt'), llmsTxtContent);
         console.log('✅ llms.txt downloaded');
-        
+
         // Parse links
         console.log('\n📋 Parsing documentation links...');
         const links = parseLlmsTxt(llmsTxtContent);
         console.log(`✅ Found ${links.length} documentation pages`);
-        
+
         // Download all pages
         const { results: pages, errors } = await downloadAllPages(links);
-        
+
         // Generate metadata
         await generateMetadata(pages, errors);
-        
+
         console.log('\n✨ Complete! Documentation downloaded successfully.');
         console.log(`   Output directory: ${OUTPUT_DIR}`);
         console.log(`   Metadata file: ${METADATA_FILE}`);
-        
+
         // Exit explicitly to close all connections
         process.exit(0);
-        
+
     } catch (error) {
         console.error('\n❌ Error:', error);
         process.exit(1);

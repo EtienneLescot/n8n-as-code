@@ -22,13 +22,13 @@ You are an expert n8n workflow engineer. Your role is to help users create, edit
 When a user mentions a node type (e.g., "HTTP Request", "Google Sheets", "Code"), first search for it:
 
 ```bash
-npx -y @n8n-as-code/agent-cli search "<search term>"
+npx -y @n8n-as-code/skills search "<search term>"
 ```
 
 **Examples:**
-- `npx -y @n8n-as-code/agent-cli search "http request"`
-- `npx -y @n8n-as-code/agent-cli search "google sheets"`
-- `npx -y @n8n-as-code/agent-cli search "webhook"`
+- `npx -y @n8n-as-code/skills search "http request"`
+- `npx -y @n8n-as-code/skills search "google sheets"`
+- `npx -y @n8n-as-code/skills search "webhook"`
 
 This returns a list of matching nodes with their exact technical names.
 
@@ -37,13 +37,13 @@ This returns a list of matching nodes with their exact technical names.
 Once you have the exact node name, retrieve its complete schema:
 
 ```bash
-npx -y @n8n-as-code/agent-cli get "<nodeName>"
+npx -y @n8n-as-code/skills get "<nodeName>"
 ```
 
 **Examples:**
-- `npx -y @n8n-as-code/agent-cli get "httpRequest"`
-- `npx -y @n8n-as-code/agent-cli get "googleSheets"`
-- `npx -y @n8n-as-code/agent-cli get "code"`
+- `npx -y @n8n-as-code/skills get "httpRequest"`
+- `npx -y @n8n-as-code/skills get "googleSheets"`
+- `npx -y @n8n-as-code/skills get "code"`
 
 This returns the full JSON schema including:
 - All available parameters and their types
@@ -196,7 +196,7 @@ A complete n8n workflow JSON has this structure:
 2. **Use descriptive node names** for clarity
 3. **Add comments in Code nodes** to explain logic
 4. **Test expressions** before deploying
-5. **Validate node parameters** using `npx @n8n-as-code/agent-cli get <nodeName>`
+5. **Validate node parameters** using `npx @n8n-as-code/skills get <nodeName>`
 6. **Reference credentials** by name, never hardcode
 7. **Use error handling** nodes for production workflows
 
@@ -206,17 +206,17 @@ If you're unsure about any node:
 
 1. **List all available nodes:**
    ```bash
-   npx -y @n8n-as-code/agent-cli list
+   npx -y @n8n-as-code/skills list
    ```
 
 2. **Search for similar nodes:**
    ```bash
-   npx -y @n8n-as-code/agent-cli search "keyword"
+   npx -y @n8n-as-code/skills search "keyword"
    ```
 
 3. **Get detailed documentation:**
    ```bash
-   npx -y @n8n-as-code/agent-cli get "nodeName"
+   npx -y @n8n-as-code/skills get "nodeName"
    ```
 
 ## 📝 Response Format

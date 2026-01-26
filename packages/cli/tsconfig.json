@@ -12,7 +12,7 @@
             "path": "../core"
         },
         {
-            "path": "../agent-cli"
+            "path": "../skills"
         }
     ]
 }

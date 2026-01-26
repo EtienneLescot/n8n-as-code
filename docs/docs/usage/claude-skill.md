@@ -22,8 +22,8 @@ This architecture enables **progressive disclosure** - Claude only loads content
 
 When installed, Claude will:
 
-- ✅ Search n8n nodes using `npx @n8n-as-code/agent-cli search`
-- ✅ Retrieve exact node schemas using `npx @n8n-as-code/agent-cli get`
+- ✅ Search n8n nodes using `npx @n8n-as-code/skills search`
+- ✅ Retrieve exact node schemas using `npx @n8n-as-code/skills get`
 - ✅ Generate valid workflow JSON without hallucinating parameters
 - ✅ Follow n8n best practices (modern expressions, Code node, no hardcoded credentials)
 
@@ -36,9 +36,9 @@ Claude detects n8n context (via skill description)
          ↓
 Claude reads SKILL.md instructions
          ↓
-Claude runs: npx -y @n8n-as-code/agent-cli search "http request"
+Claude runs: npx -y @n8n-as-code/skills search "http request"
          ↓
-Claude runs: npx -y @n8n-as-code/agent-cli get "httpRequest"
+Claude runs: npx -y @n8n-as-code/skills get "httpRequest"
          ↓
 Claude generates workflow JSON using real schema
 ```
@@ -48,14 +48,11 @@ Claude generates workflow JSON using real schema
 From the monorepo root:
 
 ```bash
-cd packages/claude-skill
-npm run build
+cd packages/skills
+npm run build:adapters
 ```
 
-This generates `dist/n8n-architect/` containing:
-- `SKILL.md` - Main instructions with YAML frontmatter
-- `scripts/` - Bash helpers for CLI commands
-- `README.md` - Installation guide
+This generates `dist/adapters/claude/n8n-architect/`.
 
 ## 🚀 Installation
 
@@ -63,9 +60,9 @@ This generates `dist/n8n-architect/` containing:
 
 1. **Build and package:**
    ```bash
-   cd packages/claude-skill
-   npm run build
-   cd dist
+   cd packages/skills
+   npm run build:adapters
+   cd dist/adapters/claude
    zip -r n8n-architect-skill.zip n8n-architect/
    ```
 
@@ -84,12 +81,12 @@ This generates `dist/n8n-architect/` containing:
 
 1. **Build and install:**
    ```bash
-   cd packages/claude-skill
-   npm run build
+   cd packages/skills
+   npm run build:adapters
    
    # Install globally
    mkdir -p ~/.claude/skills
-   cp -r dist/n8n-architect ~/.claude/skills/
+   cp -r dist/adapters/claude/n8n-architect ~/.claude/skills/
    ```
 
 2. **Restart Claude Code**

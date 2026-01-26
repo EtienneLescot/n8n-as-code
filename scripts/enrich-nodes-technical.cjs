@@ -7,9 +7,9 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
-const NODES_INDEX_FILE = path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-nodes-index.json');
-const DOCS_METADATA_FILE = path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-docs-cache/metadata.json');
-const OUTPUT_FILE = path.resolve(ROOT_DIR, 'packages/agent-cli/src/assets/n8n-nodes-technical.json');
+const NODES_INDEX_FILE = path.resolve(ROOT_DIR, 'packages/skills/src/assets/n8n-nodes-index.json');
+const DOCS_METADATA_FILE = path.resolve(ROOT_DIR, 'packages/skills/src/assets/n8n-docs-cache/metadata.json');
+const OUTPUT_FILE = path.resolve(ROOT_DIR, 'packages/skills/src/assets/n8n-nodes-technical.json');
 
 /**
  * Normalize node name for matching (remove spaces, lowercase, remove special chars)

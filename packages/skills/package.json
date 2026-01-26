@@ -1,19 +1,20 @@
 {
-    "name": "@n8n-as-code/agent-cli",
-    "version": "0.12.0",
-    "description": "AI Agent Tools for n8n-as-code (Search, Get Schema)",
+    "name": "@n8n-as-code/skills",
+    "version": "0.11.2",
+    "description": "AI Agent Skills for n8n-as-code (Search, Get Schema)",
     "type": "module",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "bin": {
-        "n8n-agent": "./dist/cli.js"
+        "n8nac-skills": "./dist/cli.js"
     },
     "scripts": {
         "prebuild": "node ../../scripts/ensure-n8n-cache.cjs && node ../../scripts/generate-n8n-index.cjs && node ../../scripts/download-complete-docs.cjs && node ../../scripts/build-complete-index.cjs && node ../../scripts/enrich-nodes-technical.cjs && node ../../scripts/build-knowledge-index.cjs && node ../../scripts/build-workflow-index.cjs",
         "build": "tsc -b",
         "postbuild": "mkdir -p dist/assets && cp src/assets/*.json dist/assets/",
         "clean": "rm -rf dist tsconfig.tsbuildinfo",
-        "test": "node --experimental-vm-modules ../../node_modules/.bin/jest"
+        "test": "node --experimental-vm-modules ../../node_modules/.bin/jest",
+        "build:adapters": "node scripts/build-claude-adapter.js"
     },
     "dependencies": {
         "@n8n-as-code/core": "0.4.3",

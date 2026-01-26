@@ -39,7 +39,7 @@ Keep your workflows synchronized between your local files and n8n instance using
 <div className="n8n-card">
 
 ### 🤖 AI Agent Empowerment
-Empower your AI coding assistants with **agent-cli** – a toolkit that provides complete documentation, schemas, and context for all 525 n8n nodes. This enables AI assistants to understand the n8n ecosystem and provide intelligent workflow development support.
+Empower your AI coding assistants with **Skills** (`@n8n-as-code/skills`) – a toolkit that provides complete documentation, schemas, and context for all 525 n8n nodes. This enables AI assistants to understand the n8n ecosystem and provide intelligent workflow development support.
 
 **Key capabilities:**
 - **Complete node documentation**: Structured schemas and documentation for all n8n nodes
@@ -91,7 +91,7 @@ n8n-as-code is built as a monorepo with four main packages:
 graph TD
     A[Core Package] --> B[CLI]
     A --> C[VS Code Extension]
-    A --> D[Agent CLI]
+    A --> D[Skills]
     
     B --> E[Terminal Users]
     C --> F[VS Code Users]
@@ -109,7 +109,7 @@ graph TD
 | **Core** | Shared logic, API client, synchronization | All packages |
 | **CLI** | Command-line interface for workflow management | Terminal users, automation |
 | **VS Code Extension** | Integrated development environment | VS Code users |
-| **Agent CLI** | AI context generation and node schemas | AI assistants, developers |
+| **Skills** | AI context generation & node schemas (formerly Agent CLI) | AI assistants, developers |
 
 ## 🏁 Quick Start
 
@@ -122,12 +122,12 @@ Ready to get started? Here's how to set up n8n-as-code in under 2 minutes:
 
 2. **Initialize your project**:
    ```bash
-   n8n-as-code init
+   n8nac init
    ```
 
 3. **Sync your workflows**:
    ```bash
-   n8n-as-code pull
+   n8nac pull
    ```
 
 4. **Open in VS Code**:
@@ -140,12 +140,13 @@ For detailed instructions, check out our [Getting Started guide](/docs/getting-s
 This documentation is organized into several sections:
 
 - **Getting Started**: Installation, configuration, and first steps
-- **Usage**: Detailed guides for each package (CLI, VS Code Extension, Agent CLI, Core)
+- **Usage**: Detailed guides for each package (CLI, VS Code Extension, Skills, Core)
 - **Contribution**: Architecture, development setup, and contribution guidelines
 - **Troubleshooting**: Common issues and solutions
 
 ## 🆕 What's New?
 
+- **Rebranding**: Renamed CLI to `n8nac` and `agent-cli` to `skills` for better developer experience
 - **Major Refactor (Latest)**: 3-way merge architecture for reliable conflict detection
   - New CLI commands: `start` (replaces `watch`) and `list` for status overview
   - Persistent conflict resolution UI in VS Code with expandable action buttons

@@ -35,65 +35,125 @@ npm install -g @n8n-as-code/agent-cli
 ## 🛠️ Available Commands
 
 ### 1. Search Nodes
+# Skills (AI Tools)
 
-**Deep Full-Text Search with Smart Keyword Matching** across 600+ nodes and 1240+ documentation pages.
-Optimized for natural language queries, technical terms, and capabilities (e.g., "image generation" finds Google Gemini).
+The Skills package (`@n8n-as-code/skills`) provides command-line tools specifically designed for AI coding assistants and developers working with n8n workflows. It allows you to search, retrieve, and list n8n node schemas programmatically.
 
-KEY FEATURES:
-- **Comprehensive Keyword Extraction**: Finds nodes based on operations (e.g., "generate", "transcribe") and resources (e.g., "image", "video").
-- **Smart Prioritization**: Matches on keywords first, then titles, then content.
-- **Fuzzy Matching**: Handles typos and partial terms ("googl shets").
+## 🛠 Purpose
 
-```bash
-npx @n8n-as-code/agent-cli search "<query>"
-```
+This package provides a dedicated CLI (`n8nac-skills`) and programmatic tools designed to:
 
-**Examples:**
-```bash
-# Search for Google Sheets nodes
-npx @n8n-as-code/agent-cli search "google sheets"
-
-# Search for HTTP-related nodes
-npx @n8n-as-code/agent-cli search "http"
-
-# Search for database nodes
-npx @n8n-as-code/agent-cli search "database"
-```
-
-**Output:** Returns a JSON array of matching nodes with their metadata.
-
-### 2. Get Node Schema
-
-Retrieve the complete JSON schema for a specific n8n node.
+## 🚀 Installation
 
 ```bash
-npx @n8n-as-code/agent-cli get <node-name>
+npm install @n8n-as-code/skills
 ```
 
-**Examples:**
-```bash
-# Get schema for HTTP Request node
-npx @n8n-as-code/agent-cli get httpRequest
+## 📖 CLI Usage
 
-# Get schema for Google Sheets node
-npx @n8n-as-code/agent-cli get googleSheets
-
-# Get schema for Code node
-npx @n8n-as-code/agent-cli get code
-```
-
-**Output:** Returns the complete JSON schema for the specified node, including properties, parameters, and type definitions.
-
-### 3. List All Nodes
-
-List all available n8n nodes in a compact format.
+### `search <query>` - 🚀 Deep Unified Search (PRIMARY TOOL)
 
 ```bash
-npx @n8n-as-code/agent-cli list
+# Search nodes, docs, and tutorials
+n8nac-skills search "how to generate images"
+n8nac-skills search "google sheets"
+
+# Filter by type
+n8nac-skills search "authentication" --type documentation
+n8nac-skills search "database" --type node
+
+# Filter by category
+n8nac-skills search "ai" --category advanced-ai
 ```
 
-**Output:** Returns a JSON array of all nodes with basic metadata (name, displayName, description).
+### `get <nodeName>` - 📚 Complete Node Info
+Get full node information: schema + documentation + examples.
 
+```bash
+n8nac-skills get googleSheets
+n8nac-skills get httpRequest
+```
+
+### `schema <nodeName>` - ⚡ Quick Parameter Reference
+
+```bash
+n8nac-skills schema googleSheets
+# Returns only properties and required fields
+```
+
+### `docs <title>` - 📖 Read Documentation
+
+```bash
+# Read a specific page
+n8nac-skills docs "Google Gemini"
+n8nac-skills docs "Expressions"
+
+# List categories or stats
+n8nac-skills docs --list
+```
+
+### `guides [query]` - 🎯 Find Guides
+
+```bash
+n8nac-skills guides "email automation"
+n8nac-skills guides "ai workflow"
+n8nac-skills guides --list
+```
+
+### `workflows` - 🌐 Search & Download Community Workflows
+
+```bash
+n8nac-skills workflows search "slack notification"
+n8nac-skills workflows search "AI chatbot telegram"
+n8nac-skills workflows search "invoice processing" --limit 20
+n8nac-skills workflows search "google sheets" --json
+
+n8nac-skills workflows info 916
+n8nac-skills workflows install 916
+n8nac-skills workflows install 4365 --output my-chatbot.json
+n8nac-skills workflows install 8088 --force
+
+n8nac-skills workflows list
+n8nac-skills workflows list --limit 50
+```
+
+### `related <query>` - 🔗 Discover Resources
+
+```bash
+n8nac-skills related googleSheets
+# Returns: Google Drive, Excel, Airtable, related docs
+
+n8nac-skills related "ai agents"
+# Returns: AI-related concepts, nodes, examples
+```
+
+### `list` - 📋 List Resources
+
+```bash
+# Summary of nodes and docs
+n8nac-skills list
+
+# List all node names
+n8nac-skills list --nodes
+
+# List all doc categories
+n8nac-skills list --docs
+```
+
+### `validate <file>` - ✅ Validate Workflows
+
+```bash
+n8nac-skills validate workflow.json
+n8nac-skills validate workflow.json --strict
+```
+
+### `update-ai` - 🤖 Update AI Context
+Update AI Context (AGENTS.md, rule files, snippets).
+
+```bash
+n8nac-skills update-ai
+n8nac-skills update-ai --version 1.70.0
+```
 ## 📊 Output Format
 
 All commands output JSON for easy parsing by scripts and AI tools:

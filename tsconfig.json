@@ -5,7 +5,7 @@
             "path": "packages/core"
         },
         {
-            "path": "packages/agent-cli"
+            "path": "packages/skills"
         },
         {
             "path": "packages/cli"

@@ -17,10 +17,10 @@ export class ConfigService {
 
     constructor() {
         this.globalStore = new Conf({
-            projectName: 'n8n-as-code',
+            projectName: 'n8nac',
             configName: 'credentials'
         });
-        this.localConfigPath = path.join(process.cwd(), 'n8n-as-code.json');
+        this.localConfigPath = path.join(process.cwd(), 'n8nac.json');
     }
 
     /**
@@ -88,7 +88,7 @@ export class ConfigService {
      */
     async getOrCreateInstanceIdentifier(host: string): Promise<string> {
         const local = this.getLocalConfig();
-        
+
         // If already exists in local config, return it
         if (local.instanceIdentifier) {
             return local.instanceIdentifier;
@@ -100,16 +100,16 @@ export class ConfigService {
             if (!apiKey) {
                 throw new Error('API key not found');
             }
-            
+
             // Import Core utilities
             const { N8nApiClient, createInstanceIdentifier, createFallbackInstanceIdentifier } = await import('@n8n-as-code/core');
-            
+
             // Try to get current user from n8n API
             const client = new N8nApiClient({ host, apiKey });
             const user = await client.getCurrentUser();
-            
+
             let identifier: string;
-            
+
             if (user) {
                 // Use user info to create identifier
                 identifier = createInstanceIdentifier(host, user);
@@ -117,13 +117,13 @@ export class ConfigService {
                 // Fallback to API key hash
                 identifier = createFallbackInstanceIdentifier(host, apiKey);
             }
-            
+
             // Save to local config
             this.saveLocalConfig({
                 ...local as ILocalConfig,
                 instanceIdentifier: identifier
             });
-            
+
             return identifier;
         } catch (error) {
             console.warn('Could not fetch user info, using fallback identifier');
@@ -137,6 +137,6 @@ export class ConfigService {
      * Get the path for n8n-as-code-instance.json
      */
     getInstanceConfigPath(): string {
-        return path.join(process.cwd(), 'n8n-as-code-instance.json');
+        return path.join(process.cwd(), 'n8nac-instance.json');
     }
 }

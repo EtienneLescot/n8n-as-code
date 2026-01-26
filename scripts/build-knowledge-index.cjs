@@ -21,9 +21,9 @@ const readFile = promisify(fs.readFile);
 const writeFile = promisify(fs.writeFile);
 
 // Configuration
-const DOCS_COMPLETE_FILE = path.join(__dirname, '../packages/agent-cli/src/assets/n8n-docs-complete.json');
-const NODES_TECHNICAL_FILE = path.join(__dirname, '../packages/agent-cli/src/assets/n8n-nodes-technical.json');
-const OUTPUT_FILE = path.join(__dirname, '../packages/agent-cli/src/assets/n8n-knowledge-index.json');
+const DOCS_COMPLETE_FILE = path.join(__dirname, '../packages/skills/src/assets/n8n-docs-complete.json');
+const NODES_TECHNICAL_FILE = path.join(__dirname, '../packages/skills/src/assets/n8n-nodes-technical.json');
+const OUTPUT_FILE = path.join(__dirname, '../packages/skills/src/assets/n8n-knowledge-index.json');
 
 /**
  * Build search entry for a documentation page

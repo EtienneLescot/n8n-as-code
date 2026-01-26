@@ -1,18 +1,18 @@
 ---
 sidebar_position: 1
 title: Getting Started
-description: Get up and running with n8n-as-code in minutes. Learn how to install, configure, and start managing your n8n workflows as code.
+description: Get up and running with n8nac in minutes. Learn how to install, configure, and start managing your n8n workflows as code.
 ---
 
-# Getting Started with n8n-as-code
+# Getting Started with n8nac
 
-Welcome to n8n-as-code! This guide will help you set up and start using n8n-as-code to manage your n8n workflows as code.
+Welcome to n8nac! This guide will help you set up and start using n8nac to manage your n8n workflows as code.
 
 ## 🎯 What You'll Learn
 
 In this section, you'll learn how to:
 
-1. Install n8n-as-code VS Code Extension or CLI
+1. Install n8nac VS Code Extension or CLI
 2. Configure your connection to n8n
 3. Sync your existing workflows
 4. Start editing workflows in VS Code
@@ -33,7 +33,7 @@ The VS Code Extension provides the best user experience with visual editing, rea
 
 1. Open VS Code
 2. Go to Extensions (Ctrl+Shift+X)
-3. Search for "n8n-as-code"
+3. Search for "n8nac"
 4. Click Install
 
 ### Step 2: Configure Connection
@@ -58,17 +58,17 @@ If you prefer command-line tools or need automation:
 
 ```bash
 # Install globally
-npm install -g @n8n-as-code/cli
+npm install -g @n8nac/cli
 
 # Verify installation
-n8n-as-code --version
+n8nac --version
 ```
 
 ### Initialize Your Project
 
 ```bash
 # Run initialization wizard
-n8n-as-code init
+n8nac init
 ```
 
 The interactive wizard will guide you through:
@@ -80,17 +80,17 @@ The interactive wizard will guide you through:
 
 ```bash
 # Download all workflows from n8n
-n8n-as-code pull
+n8nac pull
 
 # Enable real-time synchronization
-n8n-as-code watch
+n8nac watch
 ```
 
 ## ⚙️ Configuration Files
 
 After setup, you'll have:
 
-- `n8n-as-code.json`: Project configuration (safe to commit to Git)
+- `n8nac.json`: Project configuration (safe to commit to Git)
 - Global API key storage (not committed, stored securely in your system)
 
 ## 🔄 Syncing Your Workflows
@@ -101,7 +101,7 @@ Download all workflows from your n8n instance:
 
 ```bash
 # Using CLI
-n8n-as-code pull
+n8nac pull
 
 # Or using VS Code Extension
 # Click the refresh button in the n8n panel
@@ -117,14 +117,14 @@ This will:
 Send your local modifications back to n8n:
 
 - **VS Code Extension**: Changes are auto-synced on save when using auto-sync mode
-- **CLI**: Use `n8n-as-code push` command
+- **CLI**: Use `n8nac push` command
 
 ### Watch Mode (Real-time Sync)
 
 Enable real-time synchronization with the CLI:
 
 ```bash
-n8n-as-code watch
+n8nac watch
 ```
 
 In watch mode:
@@ -148,7 +148,7 @@ After setup, your project will look like this:
 
 ```
 your-project/
-├── n8n-as-code.json          # Project configuration
+├── n8nac.json          # Project configuration
 ├── workflows/                # Workflow storage
 │   └── instance-name/       # Organized by instance
 │       ├── workflow-1.json
@@ -156,7 +156,7 @@ your-project/
 │       └── folder/
 │           └── workflow-3.json
 ├── AGENTS.md                # AI assistant instructions (optional)
-├── n8n-as-code-instance.json # Instance configuration
+├── n8nac-instance.json # Instance configuration
 └── .git/                    # Version control (recommended)
 ```
 
@@ -183,8 +183,8 @@ your-project/
 **Problem**: Changes not syncing properly
 **Solution**:
 - Check if watch mode is running (stop it if needed)
-- Use `n8n-as-code pull` to get fresh copy
-- Use `n8n-as-code push` to send local changes
+- Use `n8nac pull` to get fresh copy
+- Use `n8nac push` to send local changes
 - Check network connectivity to n8n instance
 
 ## 📚 Next Steps

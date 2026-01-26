@@ -50,13 +50,13 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'doc',
-          id: 'usage/agent-cli',
-          label: 'Agent CLI (Tools for AI agents)',
+          id: 'usage/skills',
+          label: 'Skills (AI Tools)',
         },
         {
           type: 'doc',
           id: 'usage/claude-skill',
-          label: 'Claude Skill',
+          label: 'Claude Adapter',
         },
       ],
     },
@@ -94,12 +94,12 @@ const sidebars: SidebarsConfig = {
         {
           type: 'doc',
           id: 'contribution/agent-cli',
-          label: 'Agent CLI',
+          label: 'Skills Package',
         },
         {
           type: 'doc',
           id: 'contribution/claude-skill',
-          label: 'Claude Skill',
+          label: 'Claude Adapter',
         },
       ],
     },

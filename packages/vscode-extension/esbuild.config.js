@@ -28,8 +28,8 @@ const copyAgentCliAssets = {
             }
 
             // Create target directory
-            if (!fs.existsSync(targetDir)) {
-                fs.mkdirSync(targetDir, { recursive: true });
+            if (fs.existsSync('packages/skills/dist/assets')) {
+                fs.cpSync('packages/skills/dist/assets', 'out/assets', { recursive: true });
             }
 
             // Copy JSON files
@@ -70,7 +70,7 @@ if (!fs.existsSync(finalAgentCliEntry)) {
 const agentCliBuild = fs.existsSync(finalAgentCliEntry) ? esbuild.build({
     entryPoints: [finalAgentCliEntry],
     bundle: true,
-    outfile: 'out/agent-cli/cli.js',
+    outfile: 'packages/skills/dist/cli.js',
     external: ['vscode'],
     format: 'cjs',
     platform: 'node',

@@ -33,7 +33,7 @@ const getVersion = () => {
 const program = new Command();
 
 program
-    .name('n8n-sync')
+    .name('n8nac')
     .description('N8N Sync Command Line Interface - Manage n8n workflows as code')
     .version(getVersion());
 
