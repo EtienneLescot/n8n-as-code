@@ -1,5 +1,13 @@
 # @n8n-as-code/cli
 
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/sync@0.6.0
+  - @n8n-as-code/skills@0.12.1
+
 ## 0.5.0
 
 ### Minor Changes
