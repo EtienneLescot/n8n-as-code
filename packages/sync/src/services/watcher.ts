@@ -298,48 +298,11 @@ export class Watcher extends EventEmitter {
                 const hash = this.computeHash(clean);
                 this.localHashes.set(filename, hash);
                 if (content.id) {
-                    // Check for ID mismatch: file is already mapped to a different ID
-                    const existingMappedId = this.fileToIdMap.get(filename);
-                    if (existingMappedId && existingMappedId !== content.id) {
-                        // ID mismatch detected: the file contains a different ID than what we have mapped
-                        // This can happen when:
-                        // 1. Workflow was deleted and recreated on remote (new ID)
-                        // 2. Local file still has old ID from previous sync
-                        // We need to migrate state from old ID to new ID to maintain consistency
-                        console.log(`[Watcher] ID mismatch detected for ${filename}: mapped to ${existingMappedId}, file contains ${content.id}`);
-                        await this.handleWorkflowIdMismatch(filename, existingMappedId, content.id);
-                    }
-                    
                     this.fileToIdMap.set(filename, content.id);
                     this.idToFileMap.set(content.id, filename);
                 }
             }
         }
-    }
-
-    /**
-     * Handle workflow ID mismatch by migrating state from old ID to new ID
-     * This prevents sync loops when a workflow is recreated on remote with a new ID
-     */
-    private async handleWorkflowIdMismatch(filename: string, oldId: string, newId: string): Promise<void> {
-        // Only migrate if we have state for the old ID
-        const state = this.loadState();
-        if (!state.workflows[oldId]) {
-            // No state to migrate, just update the mappings
-            return;
-        }
-        
-        console.log(`[Watcher] Migrating state from ${oldId} to ${newId}`);
-        
-        // Migrate state from old ID to new ID
-        state.workflows[newId] = state.workflows[oldId];
-        delete state.workflows[oldId];
-        this.saveState(state);
-        
-        // Update internal mappings
-        this.idToFileMap.delete(oldId);
-        this.remoteHashes.delete(oldId);
-        this.remoteTimestamps.delete(oldId);
     }
 
     /**
@@ -372,15 +335,6 @@ export class Watcher extends EventEmitter {
                 // If still not found, generate filename from name (new remote workflow)
                 if (!filename) {
                     filename = `${this.safeName(wf.name)}.json`;
-                }
-                
-                // Check if this filename is already mapped to a different workflow ID
-                const existingMappedId = this.fileToIdMap.get(filename);
-                if (existingMappedId && existingMappedId !== wf.id) {
-                    // This is a new remote workflow that conflicts with an existing local file
-                    // The local file might have been synced with a different ID before
-                    // We update the mapping but log the conflict - the local state detection will handle migration
-                    console.log(`[Watcher] Remote workflow ${wf.id} conflicts with existing mapping for ${filename} (ID: ${existingMappedId})`);
                 }
                 
                 this.idToFileMap.set(wf.id, filename);
