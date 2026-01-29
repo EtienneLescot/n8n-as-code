@@ -189,9 +189,33 @@ export class Watcher extends EventEmitter {
             return;
         }
 
-        const workflowId = content.id || this.fileToIdMap.get(filename);
+        let workflowId = content.id || this.fileToIdMap.get(filename);
         if (workflowId && (this.isPaused.has(workflowId) || this.syncInProgress.has(workflowId))) {
             return;
+        }
+
+        // Check for duplicate ID (following architectural plan)
+        if (content.id) {
+            const existingFilename = this.idToFileMap.get(content.id);
+            if (existingFilename && existingFilename !== filename) {
+                // DUPLICAT DÉTECTÉ pendant le watch → supprimer l'ID du nouveau fichier
+                console.log(`[Watcher] Duplicate ID ${content.id} detected during watch. Removing ID from ${filename}`);
+                
+                // Remove ID from the new file
+                delete content.id;
+                this.writeWorkflowFile(filename, content);
+                
+                // Re-read the content without ID
+                const newContent = this.readJsonFile(filePath);
+                if (newContent) {
+                    workflowId = this.fileToIdMap.get(filename);
+                    const clean = WorkflowSanitizer.cleanForStorage(newContent);
+                    const hash = this.computeHash(clean);
+                    this.localHashes.set(filename, hash);
+                    this.broadcastStatus(filename, workflowId);
+                }
+                return;
+            }
         }
 
         // IMPORTANT: Hash is calculated on the SANITIZED version
@@ -289,18 +313,84 @@ export class Watcher extends EventEmitter {
             }
         }
         
-        // Add/update entries for existing files
+        // First pass: collect all files and their content
+        const fileContents: Array<{ filename: string; content: any; mtime: number }> = [];
         for (const filename of files) {
             const filePath = path.join(this.directory, filename);
             const content = this.readJsonFile(filePath);
             if (content) {
+                const stat = fs.statSync(filePath);
+                fileContents.push({ filename, content, mtime: stat.mtimeMs });
+                
                 const clean = WorkflowSanitizer.cleanForStorage(content);
                 const hash = this.computeHash(clean);
                 this.localHashes.set(filename, hash);
-                if (content.id) {
-                    this.fileToIdMap.set(filename, content.id);
-                    this.idToFileMap.set(content.id, filename);
+            }
+        }
+        
+        // Detect and resolve duplicate IDs (following architectural plan)
+        this.resolveDuplicateIds(fileContents);
+        
+        // Second pass: update mappings after duplicate resolution
+        for (const { filename, content } of fileContents) {
+            if (content?.id) {
+                this.fileToIdMap.set(filename, content.id);
+                this.idToFileMap.set(content.id, filename);
+            }
+        }
+    }
+    
+    /**
+     * Resolve duplicate IDs in local files (following architectural plan)
+     * Principle: Keep ID only in the oldest file, remove from others
+     */
+    private resolveDuplicateIds(fileContents: Array<{ filename: string; content: any; mtime: number }>) {
+        // Group files by workflow ID
+        const filesById = new Map<string, Array<{ filename: string; mtime: number }>>();
+        
+        for (const { filename, content, mtime } of fileContents) {
+            if (content?.id) {
+                const workflowId = content.id;
+                if (!filesById.has(workflowId)) {
+                    filesById.set(workflowId, []);
                 }
+                filesById.get(workflowId)!.push({ filename, mtime });
+            }
+        }
+        
+        // For each duplicate ID, keep only in oldest file
+        for (const [workflowId, fileList] of filesById.entries()) {
+            if (fileList.length > 1) {
+                // Sort by modification time (oldest first)
+                fileList.sort((a, b) => a.mtime - b.mtime);
+                
+                const oldestFile = fileList[0].filename;
+                const duplicates = fileList.slice(1);
+                
+                console.log(`[Watcher] Duplicate ID ${workflowId} detected. Keeping ID in oldest file: ${oldestFile}`);
+                
+                // Remove ID from duplicate files
+                for (const { filename: dupFilename } of duplicates) {
+                    const filePath = path.join(this.directory, dupFilename);
+                    const content = this.readJsonFile(filePath);
+                    if (content) {
+                        delete content.id;
+                        fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
+                        console.log(`[Watcher] Removed ID from duplicate file: ${dupFilename}`);
+                        
+                        // Update local hash for the modified file
+                        const clean = WorkflowSanitizer.cleanForStorage(content);
+                        const hash = this.computeHash(clean);
+                        this.localHashes.set(dupFilename, hash);
+                    }
+                }
+                
+                // Emit event for UI (if needed)
+                this.emit('duplicateIdResolved', {
+                    workflowId,
+                    keptInFilename: oldestFile,
+                    removedFromFilenames: duplicates.map(d => d.filename)
+                });
             }
         }
     }
@@ -335,6 +425,38 @@ export class Watcher extends EventEmitter {
                 // If still not found, generate filename from name (new remote workflow)
                 if (!filename) {
                     filename = `${this.safeName(wf.name)}.json`;
+                    
+                    // Check if this filename is already mapped to a different workflow ID
+                    // This can happen when multiple remote workflows have the same name
+                    const existingWorkflowId = this.fileToIdMap.get(filename);
+                    if (existingWorkflowId && existingWorkflowId !== wf.id) {
+                        // Check if the existing mapping is valid (workflow exists in that file)
+                        const filePath = path.join(this.directory, filename);
+                        if (fs.existsSync(filePath)) {
+                            const content = this.readJsonFile(filePath);
+                            if (content?.id === existingWorkflowId) {
+                                // The existing mapping is valid - this filename belongs to another workflow
+                                // Generate a unique filename for this workflow
+                                const idSuffix = wf.id.substring(0, 8);
+                                filename = `${this.safeName(wf.name)}_${idSuffix}.json`;
+                                console.log(`[Watcher] Duplicate workflow name detected: "${wf.name}". Using unique filename: ${filename}`);
+                            } else {
+                                // The existing mapping is stale - update it
+                                console.log(`[Watcher] Updating stale filename mapping: ${filename} now maps to ${wf.id} (was ${existingWorkflowId})`);
+                            }
+                        } else {
+                            // File doesn't exist locally, mapping is stale
+                            console.log(`[Watcher] Updating stale filename mapping: ${filename} now maps to ${wf.id} (was ${existingWorkflowId})`);
+                        }
+                    }
+                }
+                
+                // Update mappings
+                const previousFilename = this.idToFileMap.get(wf.id);
+                if (previousFilename && previousFilename !== filename) {
+                    // Workflow ID was previously mapped to a different filename
+                    // This can happen after file rename or if there was a mapping error
+                    this.fileToIdMap.delete(previousFilename);
                 }
                 
                 this.idToFileMap.set(wf.id, filename);
@@ -622,6 +744,11 @@ export class Watcher extends EventEmitter {
         } catch {
             return null;
         }
+    }
+
+    private writeWorkflowFile(filename: string, content: any): void {
+        const filePath = path.join(this.directory, filename);
+        fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
     }
 
     public getFileToIdMap() {
