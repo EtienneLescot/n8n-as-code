@@ -45,7 +45,7 @@ export class ActionItem extends BaseTreeItem {
       case ActionItemType.KEEP_REMOTE:
         return '☁️ Keep Remote Version';
       case ActionItemType.CONFIRM_DELETE:
-        return '🗑️ Confirm Remote Deletion';
+        return '🗑️ Confirm Deletion';
       case ActionItemType.RESTORE_FILE:
         return '↩️ Restore File';
       default:
@@ -93,7 +93,7 @@ export class ActionItem extends BaseTreeItem {
       case ActionItemType.CONFIRM_DELETE:
         return {
           command: 'n8n.confirmDeletion',
-          title: 'Confirm Remote Deletion',
+          title: 'Confirm Deletion',
           arguments: [{ workflow }]
         };
       case ActionItemType.RESTORE_FILE:

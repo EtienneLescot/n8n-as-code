@@ -37,7 +37,7 @@ Workflows in **conflict** or **deleted** states become **expandable tree items**
 - **☁️ Keep Remote Version** - Force pull remote changes to local (overwrite local)
 
 **For Deletions:**
-- **🗑️ Confirm Remote Deletion** - Delete the workflow from n8n
+- **🗑️ Confirm Deletion** - Delete the workflow from n8n
 - **↩️ Restore File** - Restore the local file from remote
 
 These actions remain visible in the tree until resolved, preventing conflicts from being forgotten or lost.
@@ -132,7 +132,7 @@ When a workflow has a conflict (both local and remote modified):
 When a workflow is deleted locally or remotely:
 1. The workflow appears with a **🗑️ grey trash icon** in the tree
 2. Expand the workflow to see actions:
-   - **🗑️ Confirm Remote Deletion** - Delete from n8n
+   - **🗑️ Confirm Deletion** - Delete from n8n
    - **↩️ Restore File** - Restore the local file
 3. Choose an action to resolve the deletion state
 

@@ -14,7 +14,7 @@ This document summarizes the deep refactoring of the VS Code extension according
   - Keep Local Version
   - Keep Remote Version
 - Supports deletion confirmation actions:
-  - Confirm Remote Deletion
+  - Confirm Deletion
   - Restore Local File
 - Each action item has appropriate icons, tooltips, and commands
 
@@ -156,7 +156,7 @@ The following manual testing is recommended:
 2. **Deletion Confirmation Flow**
    - Delete a local workflow file
    - Verify it appears as expandable with deletion options
-   - Test "Confirm Remote Deletion"
+   - Test "Confirm Deletion"
    - Test "Restore File"
 
 3. **Double-Click Behavior**

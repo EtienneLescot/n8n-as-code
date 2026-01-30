@@ -5,6 +5,7 @@ import { IWorkflow } from '../types.js';
 export interface IWorkflowState {
     lastSyncedHash: string;
     lastSyncedAt: string;
+    filename: string; // Persisted filename mapping to prevent ID alternation
 }
 
 export interface IInstanceState {

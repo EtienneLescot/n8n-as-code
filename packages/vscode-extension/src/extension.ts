@@ -337,7 +337,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     await fs.promises.unlink(absPath);
 
                     // 3. Notify
-                    vscode.window.showInformationMessage(`🗑️ Local file "${wf.filename}" deleted. Right-click to confirm remote deletion or restore.`);
+                    vscode.window.showInformationMessage(`🗑️ Local file "${wf.filename}" deleted. Right-click to confirm deletion or restore.`);
                 }
             } catch (e: any) {
                 outputChannel.appendLine(`[n8n] Delete Error: ${e.message}`);
@@ -876,7 +876,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
         // Interactive notification with action buttons
         const choice = await vscode.window.showWarningMessage(
-            `🗑️ Local file "${data.filename}" deleted - Confirm remote deletion?`,
+            `🗑️ Local file "${data.filename}" deleted - Confirm deletion?`,
             'Delete File',
             'Restore File',
             'Show in Sidebar'

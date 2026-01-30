@@ -101,6 +101,11 @@ export class Watcher extends EventEmitter {
         }
         
         await this.refreshLocalState();
+        
+        // Restore persisted ID → filename mappings from state
+        // This ensures stable filename assignment even when remote workflows have duplicate names
+        this.restoreMappingsFromState();
+        
         this.isInitializing = false;
 
         // Local Watch with @parcel/watcher
@@ -281,34 +286,27 @@ export class Watcher extends EventEmitter {
                         timestamp: Date.now()
                     });
                     
-                    // Schedule cleanup of potential rename after 1 second
-                    setTimeout(() => {
-                        if (this.potentialRenames.has(content.id)) {
-                            this.potentialRenames.delete(content.id);
-                            
-                            // Check if file still exists
-                            const stillExists = fs.existsSync(existingFilePath);
-                            if (stillExists) {
-                                // DUPLICAT DÉTECTÉ pendant le watch → supprimer l'ID du nouveau fichier
-                                // Remove ID from the new file
-                                const currentContent = this.readJsonFile(filePath);
-                                if (currentContent && currentContent.id === content.id) {
-                                    delete currentContent.id;
-                                    this.writeWorkflowFile(filename, currentContent);
-                                    
-                                    // Re-read the content without ID
-                                    const newContent = this.readJsonFile(filePath);
-                                    if (newContent) {
-                                        const workflowId = this.fileToIdMap.get(filename);
-                                        const clean = WorkflowSanitizer.cleanForStorage(newContent);
-                                        const hash = this.computeHash(clean);
-                                        this.localHashes.set(filename, hash);
-                                        this.broadcastStatus(filename, workflowId);
-                                    }
-                                }
-                            }
+                    // File exists - this is a DUPLICATE ID (copy-paste)
+                    // Principle: Keep ID only in the oldest file, remove from the new one
+                    // DUPLICAT DÉTECTÉ pendant le watch → supprimer l'ID du nouveau fichier
+                    
+                    // Remove ID from the new file
+                    const currentContent = this.readJsonFile(filePath);
+                    if (currentContent && currentContent.id === content.id) {
+                        delete currentContent.id;
+                        this.writeWorkflowFile(filename, currentContent);
+                        
+                        // Re-read the content without ID
+                        const newContent = this.readJsonFile(filePath);
+                        if (newContent) {
+                            const workflowId = this.fileToIdMap.get(filename);
+                            const clean = WorkflowSanitizer.cleanForStorage(newContent);
+                            const hash = this.computeHash(clean);
+                            this.localHashes.set(filename, hash);
+                            this.broadcastStatus(filename, workflowId);
                         }
-                    }, 1000);
+                    }
+                    return; // Stop processing this file as it's being modified
                     
                     // Don't return - continue processing as normal
                     // The unlink event should come soon and trigger rename detection
@@ -477,17 +475,18 @@ export class Watcher extends EventEmitter {
             }
         }
 
-        // Clean up mappings for deleted file
-        this.localHashes.delete(filename);
-        if (workflowId) {
-            // Check if the workflow ID still maps to this filename (might have been updated by rename)
-            if (this.idToFileMap.get(workflowId) === filename) {
-                this.idToFileMap.delete(workflowId);
-            }
-        }
-        this.fileToIdMap.delete(filename);
-        
+        // IMPORTANT: Broadcast status BEFORE cleaning up mappings
+        // This ensures the UI receives the DELETED_LOCALLY status with the correct workflowId
         this.broadcastStatus(filename, workflowId);
+
+        // Clean up local hash for deleted file
+        this.localHashes.delete(filename);
+        
+        // CRITICAL: DO NOT delete ID→filename mappings for DELETED_LOCALLY workflows
+        // Mappings must persist to:
+        // 1. Allow file restoration with the same filename
+        // 2. Prevent other remote workflows with the same name from taking this filename
+        // Mappings are only deleted when the workflow is completely removed via removeWorkflowState()
     }
 
     private handleRename(workflowId: string, oldFilename: string, newFilename: string) {
@@ -556,10 +555,25 @@ export class Watcher extends EventEmitter {
         this.resolveDuplicateIds(fileContents);
         
         // Second pass: update mappings after duplicate resolution
+        // CRITICAL: Only update mappings if not already set from persisted state
+        // This prevents ID alternation when remote workflows have duplicate names
         for (const { filename, content } of fileContents) {
             if (content?.id) {
-                this.fileToIdMap.set(filename, content.id);
-                this.idToFileMap.set(content.id, filename);
+                // Only update if we don't have a persisted mapping for this ID
+                if (!this.idToFileMap.has(content.id)) {
+                    this.fileToIdMap.set(filename, content.id);
+                    this.idToFileMap.set(content.id, filename);
+                } else {
+                    // We have a persisted mapping - verify it matches the file
+                    const persistedFilename = this.idToFileMap.get(content.id);
+                    if (persistedFilename !== filename) {
+                        // The ID is in a different file than expected
+                        // This can happen if a file was renamed or copied
+                        // We need to decide: keep persisted mapping or update to new file?
+                        // For now, update the reverse mapping but keep ID mapping stable
+                        this.fileToIdMap.set(filename, content.id);
+                    }
+                }
             }
         }
     }
@@ -628,57 +642,71 @@ export class Watcher extends EventEmitter {
             this.isConnected = true;
             const currentRemoteIds = new Set<string>();
             
+            // Build set of already-assigned filenames to prevent collisions
+            // A filename is "assigned" if:
+            // 1. It exists physically on disk, OR
+            // 2. It's mapped to a workflow that still exists remotely (even if DELETED_LOCALLY)
+            const assignedFilenames = new Set<string>();
+            
             for (const wf of remoteWorkflows) {
                 if (this.shouldIgnore(wf)) continue;
                 if (this.isPaused.has(wf.id) || this.syncInProgress.has(wf.id)) continue;
                 
                 currentRemoteIds.add(wf.id);
 
-                // CRITICAL: Use ID-based mapping instead of name-based filename generation
-                // This prevents issues when filename != workflow.name
-                let filename = this.idToFileMap.get(wf.id);
+                // CRITICAL: Use ID-based mapping with PERSISTED state as source of truth
+                // Priority order for finding filename:
+                // 1. Persisted mapping from state (most reliable for stability)
+                // 2. Memory mapping (may differ if file was renamed locally)
+                // 3. Scan local files by ID
+                // 4. Generate from name (new workflow)
                 
-                // If no mapping exists, try to find the file by scanning local files
+                let filename: string | undefined = this.idToFileMap.get(wf.id);
+                
+                // If no valid mapping, scan local files to discover/rediscover the workflow
                 if (!filename) {
                     filename = this.findFilenameByWorkflowId(wf.id);
                 }
                 
-                // If still not found, generate filename from name (new remote workflow)
+                // Reserve this filename BEFORE checking for newworkflows
+                if (filename) {
+                    assignedFilenames.add(filename);
+                }
+                
+                // If still not found, this is a NEW remote workflow - generate filename
                 if (!filename) {
-                    filename = `${this.safeName(wf.name)}.json`;
+                    const baseName = `${this.safeName(wf.name)}.json`;
                     
-                    // Check if this filename is already mapped to a different workflow ID
-                    // This can happen when multiple remote workflows have the same name
-                    const existingWorkflowId = this.fileToIdMap.get(filename);
-                    if (existingWorkflowId && existingWorkflowId !== wf.id) {
-                        // Check if the existing mapping is valid (workflow exists in that file)
-                        const filePath = path.join(this.directory, filename);
-                        if (fs.existsSync(filePath)) {
-                            const content = this.readJsonFile(filePath);
-                            if (content?.id === existingWorkflowId) {
-                                // The existing mapping is valid - this filename belongs to another workflow
-                                // Generate a unique filename for this workflow
-                                const idSuffix = wf.id.substring(0, 8);
-                                filename = `${this.safeName(wf.name)}_${idSuffix}.json`;
-                            } else {
-                                // The existing mapping is stale - update it
-                            }
-                        } else {
-                            // File doesn't exist locally, mapping is stale
-                        }
+                    // Check if this base name is already assigned to another workflow
+                    if (assignedFilenames.has(baseName)) {
+                        // Name collision - generate unique filename with ID suffix
+                        const idSuffix = wf.id.substring(0, 8);
+                        filename = `${this.safeName(wf.name)}_${idSuffix}.json`;
+                    } else {
+                        // Name is free - use it
+                        filename = baseName;
                     }
+                    
+                    // Mark this filename as assigned
+                    assignedFilenames.add(filename);
                 }
                 
-                // Update mappings
+                // Update mappings ONLY if this is a new workflow or filename hasn't changed
                 const previousFilename = this.idToFileMap.get(wf.id);
-                if (previousFilename && previousFilename !== filename) {
-                    // Workflow ID was previously mapped to a different filename
-                    // This can happen after file rename or if there was a mapping error
-                    this.fileToIdMap.delete(previousFilename);
-                }
                 
-                this.idToFileMap.set(wf.id, filename);
-                this.fileToIdMap.set(filename, wf.id);
+                if (!previousFilename) {
+                    // New workflow - establish mapping
+                    this.idToFileMap.set(wf.id, filename);
+                    this.fileToIdMap.set(filename, wf.id);
+                } else if (previousFilename !== filename) {
+                    // Filename changed - this should only happen during explicit rename
+                    // For duplicate name scenarios, we should have generated a unique name above
+                    // Update mappings
+                    this.fileToIdMap.delete(previousFilename);
+                    this.idToFileMap.set(wf.id, filename);
+                    this.fileToIdMap.set(filename, wf.id);
+                }
+                // If previousFilename === filename, mappings are already correct - don't touch them
 
                 // Check if we need to fetch full content
                 const cachedTimestamp = this.remoteTimestamps.get(wf.id);
@@ -808,9 +836,11 @@ export class Watcher extends EventEmitter {
      */
     private async updateWorkflowState(id: string, hash: string) {
         const state = this.loadState();
+        const filename = this.idToFileMap.get(id) || '';
         state.workflows[id] = {
             lastSyncedHash: hash,
-            lastSyncedAt: new Date().toISOString()
+            lastSyncedAt: new Date().toISOString(),
+            filename: filename
         };
         this.saveState(state);
     }
@@ -836,6 +866,7 @@ export class Watcher extends EventEmitter {
 
     /**
      * Load state from .n8n-state.json
+     * Does NOT restore mappings - use restoreMappingsFromState() for that
      */
     private loadState(): IInstanceState {
         if (fs.existsSync(this.stateFilePath)) {
@@ -850,6 +881,24 @@ export class Watcher extends EventEmitter {
             }
         }
         return { workflows: {} };
+    }
+    
+    /**
+     * Restore ID→filename mappings from persisted state
+     * Should only be called once at startup and after state changes
+     */
+    private restoreMappingsFromState() {
+        const state = this.loadState();
+        for (const [id, workflowState] of Object.entries(state.workflows)) {
+            const ws = workflowState as IWorkflowState;
+            if (ws.filename) {
+                // Only set if not already mapped (current session takes precedence)
+                if (!this.idToFileMap.has(id)) {
+                    this.idToFileMap.set(id, ws.filename);
+                    this.fileToIdMap.set(ws.filename, id);
+                }
+            }
+        }
     }
 
     /**
@@ -993,7 +1042,10 @@ export class Watcher extends EventEmitter {
 
         // 2. Process all remote workflows not yet in results
         for (const [workflowId, remoteHash] of this.remoteHashes.entries()) {
-            const filename = this.idToFileMap.get(workflowId) || `${workflowId}.json`;
+            // Use persisted filename from state for stability
+            const persistedFilename = (state.workflows[workflowId] as IWorkflowState)?.filename;
+            const filename = persistedFilename || this.idToFileMap.get(workflowId) || `${workflowId}.json`;
+            
             if (!results.has(filename)) {
                 const status = this.calculateStatus(filename, workflowId);
                 results.set(filename, {
@@ -1008,7 +1060,10 @@ export class Watcher extends EventEmitter {
 
         // 3. Process tracked but deleted workflows
         for (const id of Object.keys(state.workflows)) {
-            const filename = this.idToFileMap.get(id) || `${id}.json`;
+            // Use persisted filename from state for stability
+            const persistedFilename = (state.workflows[id] as IWorkflowState).filename;
+            const filename = persistedFilename || this.idToFileMap.get(id) || `${id}.json`;
+            
             if (!results.has(filename)) {
                 const status = this.calculateStatus(filename, id);
                 results.set(filename, {
