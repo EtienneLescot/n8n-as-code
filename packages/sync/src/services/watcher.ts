@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import EventEmitter from 'events';
-import * as chokidar from 'chokidar';
+import * as watcher from '@parcel/watcher';
 import { N8nApiClient } from './n8n-api-client.js';
 import { WorkflowSanitizer } from './workflow-sanitizer.js';
 import { HashUtils } from './hash-utils.js';
@@ -21,7 +21,7 @@ import { IWorkflowState, IInstanceState } from './state-manager.js';
  * Never performs synchronization actions - only observes reality.
  */
 export class Watcher extends EventEmitter {
-    private watcher: chokidar.FSWatcher | null = null;
+    private watcherSubscription: watcher.AsyncSubscription | null = null;
     private pollInterval: NodeJS.Timeout | null = null;
     private client: N8nApiClient;
     private directory: string;
@@ -43,6 +43,13 @@ export class Watcher extends EventEmitter {
     private isPaused = new Set<string>(); // IDs for which observation is paused
     private syncInProgress = new Set<string>(); // IDs currently being synced
     private pausedFilenames = new Set<string>(); // Filenames for which observation is paused (for workflows without ID yet)
+
+    // Pending operations for rename detection
+    private pendingOperations: Map<string, { type: 'unlink'; filename: string; workflowId: string | undefined; timeout: NodeJS.Timeout }> = new Map();
+    
+    // Potential renames: when we see an add event for a workflow ID that already exists,
+    // we track it here to match with subsequent unlink events
+    private potentialRenames: Map<string, { newFilename: string; timestamp: number }> = new Map();
 
     // Lightweight polling cache
     private remoteTimestamps: Map<string, string> = new Map(); // workflowId -> updatedAt
@@ -66,7 +73,7 @@ export class Watcher extends EventEmitter {
     }
 
     public async start() {
-        if (this.watcher || this.pollInterval) return;
+        if (this.watcherSubscription || this.pollInterval) return;
 
         this.isInitializing = true;
 
@@ -96,22 +103,38 @@ export class Watcher extends EventEmitter {
         await this.refreshLocalState();
         this.isInitializing = false;
 
-        // Local Watch with debounce
-        this.watcher = chokidar.watch(this.directory, {
-            ignored: [
-                /(^|[\/\\])\../, // Hidden files
-                '**/_archive/**', // Archive folder (strictly ignored)
-                '**/.n8n-state.json' // State file
-            ],
-            persistent: true,
-            ignoreInitial: true,
-            awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 } // 500ms debounce
-        });
+        // Local Watch with @parcel/watcher
+        this.watcherSubscription = await watcher.subscribe(this.directory, (err, events) => {
+            if (err) {
+                this.emit('error', err);
+                return;
+            }
 
-        this.watcher
-            .on('add', (p) => this.onLocalChange(p))
-            .on('change', (p) => this.onLocalChange(p))
-            .on('unlink', (p) => this.onLocalDelete(p));
+            for (const event of events) {
+                const filename = path.basename(event.path);
+                
+                // Ignore hidden files, archive, and state file
+                if (filename.startsWith('.') || event.path.includes('_archive')) {
+                    continue;
+                }
+
+                switch (event.type) {
+                    case 'create':
+                    case 'update':
+                        this.onLocalChange(event.path);
+                        break;
+                    case 'delete':
+                        this.onLocalDelete(event.path);
+                        break;
+                }
+            }
+        }, {
+            ignore: [
+                '**/_archive/**',
+                '**/.n8n-state.json',
+                '**/.git/**'
+            ]
+        });
 
         // Remote Poll
         if (this.pollIntervalMs > 0) {
@@ -122,14 +145,20 @@ export class Watcher extends EventEmitter {
     }
 
     public stop() {
-        if (this.watcher) {
-            this.watcher.close();
-            this.watcher = null;
+        if (this.watcherSubscription) {
+            this.watcherSubscription.unsubscribe();
+            this.watcherSubscription = null;
         }
         if (this.pollInterval) {
             clearInterval(this.pollInterval);
             this.pollInterval = null;
         }
+        
+        // Clean up pending operations
+        for (const op of this.pendingOperations.values()) {
+            clearTimeout(op.timeout);
+        }
+        this.pendingOperations.clear();
     }
 
     /**
@@ -182,7 +211,28 @@ export class Watcher extends EventEmitter {
         if (!filename.endsWith('.json')) return;
 
         const content = this.readJsonFile(filePath);
-        if (!content) return;
+        if (!content) {
+            return;
+        }
+
+        // Check if this is a rename operation (following architectural plan)
+        const detectedWorkflowId = content.id || this.fileToIdMap.get(filename);
+        const pendingOpKey = `unlink:${detectedWorkflowId || filename}`;
+        const pendingOp = this.pendingOperations.get(pendingOpKey);
+        
+        if (pendingOp) {
+            // Check if this is a rename based on workflow ID or filename
+            const isRenameByWorkflowId = detectedWorkflowId && pendingOp.workflowId === detectedWorkflowId;
+            const isRenameByFilename = !detectedWorkflowId && pendingOp.filename === filename;
+            
+            if (isRenameByWorkflowId || isRenameByFilename) {
+                // This is a rename! Handle it
+                clearTimeout(pendingOp.timeout); // Cancel the deletion timeout
+                this.handleRename(pendingOp.workflowId || detectedWorkflowId || '', pendingOp.filename, filename);
+                this.pendingOperations.delete(pendingOpKey);
+                return;
+            }
+        }
 
         // Check if filename is paused (for workflows without ID)
         if (this.pausedFilenames.has(filename)) {
@@ -198,23 +248,71 @@ export class Watcher extends EventEmitter {
         if (content.id) {
             const existingFilename = this.idToFileMap.get(content.id);
             if (existingFilename && existingFilename !== filename) {
-                // DUPLICAT DÉTECTÉ pendant le watch → supprimer l'ID du nouveau fichier
-                console.log(`[Watcher] Duplicate ID ${content.id} detected during watch. Removing ID from ${filename}`);
+                // Check if the existing file still exists on disk
+                const existingFilePath = path.join(this.directory, existingFilename);
+                const fileExists = fs.existsSync(existingFilePath);
                 
-                // Remove ID from the new file
-                delete content.id;
-                this.writeWorkflowFile(filename, content);
-                
-                // Re-read the content without ID
-                const newContent = this.readJsonFile(filePath);
-                if (newContent) {
-                    workflowId = this.fileToIdMap.get(filename);
-                    const clean = WorkflowSanitizer.cleanForStorage(newContent);
-                    const hash = this.computeHash(clean);
-                    this.localHashes.set(filename, hash);
-                    this.broadcastStatus(filename, workflowId);
+                if (!fileExists) {
+                    // The existing file doesn't exist - this is likely a rename
+                    // Update mappings to point to the new filename
+                    this.fileToIdMap.delete(existingFilename);
+                    this.fileToIdMap.set(filename, content.id);
+                    this.idToFileMap.set(content.id, filename);
+                    
+                    // Emit rename event
+                    this.emit('fileRenamed', {
+                        workflowId: content.id,
+                        oldFilename: existingFilename,
+                        newFilename: filename
+                    });
+                    
+                    // Also check if there's a pending deletion for this workflow ID
+                    const pendingOpKey = `unlink:${content.id}`;
+                    const pendingOp = this.pendingOperations.get(pendingOpKey);
+                    if (pendingOp) {
+                        clearTimeout(pendingOp.timeout);
+                        this.pendingOperations.delete(pendingOpKey);
+                    }
+                } else {
+                    // File exists - this could be a rename where add happened before unlink
+                    // Track as potential rename and wait for unlink event
+                    this.potentialRenames.set(content.id, {
+                        newFilename: filename,
+                        timestamp: Date.now()
+                    });
+                    
+                    // Schedule cleanup of potential rename after 1 second
+                    setTimeout(() => {
+                        if (this.potentialRenames.has(content.id)) {
+                            this.potentialRenames.delete(content.id);
+                            
+                            // Check if file still exists
+                            const stillExists = fs.existsSync(existingFilePath);
+                            if (stillExists) {
+                                // DUPLICAT DÉTECTÉ pendant le watch → supprimer l'ID du nouveau fichier
+                                // Remove ID from the new file
+                                const currentContent = this.readJsonFile(filePath);
+                                if (currentContent && currentContent.id === content.id) {
+                                    delete currentContent.id;
+                                    this.writeWorkflowFile(filename, currentContent);
+                                    
+                                    // Re-read the content without ID
+                                    const newContent = this.readJsonFile(filePath);
+                                    if (newContent) {
+                                        const workflowId = this.fileToIdMap.get(filename);
+                                        const clean = WorkflowSanitizer.cleanForStorage(newContent);
+                                        const hash = this.computeHash(clean);
+                                        this.localHashes.set(filename, hash);
+                                        this.broadcastStatus(filename, workflowId);
+                                    }
+                                }
+                            }
+                        }
+                    }, 1000);
+                    
+                    // Don't return - continue processing as normal
+                    // The unlink event should come soon and trigger rename detection
                 }
-                return;
             }
         }
 
@@ -249,8 +347,103 @@ export class Watcher extends EventEmitter {
             }
         }
 
+        // Check if this is a potential rename (add happened before unlink)
+        if (workflowId) {
+            const potentialRename = this.potentialRenames.get(workflowId);
+            if (potentialRename) {
+                this.potentialRenames.delete(workflowId);
+                
+                // Handle as rename
+                this.handleRename(workflowId, filename, potentialRename.newFilename);
+                return;
+            }
+        }
+
         if (workflowId && (this.isPaused.has(workflowId) || this.syncInProgress.has(workflowId))) {
             return;
+        }
+
+        // Schedule deletion check to detect renames (following architectural plan)
+        this.scheduleDeletionCheck(filename, workflowId);
+    }
+
+    private scheduleDeletionCheck(filename: string, workflowId: string | undefined) {
+        const key = `unlink:${workflowId || filename}`;
+        const timeout = setTimeout(() => {
+            // After 1000ms, confirm that it's really a deletion (increased for better rename detection)
+            this.confirmDeletion(filename, workflowId);
+            this.pendingOperations.delete(key);
+        }, 1000);
+        
+        this.pendingOperations.set(key, {
+            type: 'unlink',
+            filename,
+            workflowId,
+            timeout
+        });
+    }
+
+    private async onLocalRename(oldPath: string, newPath: string) {
+        const oldFilename = path.basename(oldPath);
+        const newFilename = path.basename(newPath);
+        
+        if (!oldFilename.endsWith('.json') || !newFilename.endsWith('.json')) {
+            return;
+        }
+        
+        // Try to get workflow ID from old filename mapping
+        let workflowId = this.fileToIdMap.get(oldFilename);
+        
+        // If not found, try to read the new file to get the workflow ID
+        if (!workflowId) {
+            const content = this.readJsonFile(newPath);
+            if (content?.id) {
+                workflowId = content.id;
+            }
+        }
+        
+        if (!workflowId) {
+            // No workflow ID found - this is a rename of a file without ID
+            // Just update filename mappings if they exist
+            const oldHash = this.localHashes.get(oldFilename);
+            if (oldHash) {
+                this.localHashes.delete(oldFilename);
+                this.localHashes.set(newFilename, oldHash);
+            }
+            
+            // Update fileToIdMap if old filename had a mapping
+            const mappedWorkflowId = this.fileToIdMap.get(oldFilename);
+            if (mappedWorkflowId) {
+                this.fileToIdMap.delete(oldFilename);
+                this.fileToIdMap.set(newFilename, mappedWorkflowId);
+                this.idToFileMap.set(mappedWorkflowId, newFilename);
+            }
+            
+            // Emit rename event even without workflow ID
+            this.emit('fileRenamed', {
+                workflowId: '',
+                oldFilename,
+                newFilename
+            });
+            
+            this.broadcastStatus(newFilename, workflowId);
+            return;
+        }
+        
+        // We have a workflow ID - handle as a proper rename
+        this.handleRename(workflowId, oldFilename, newFilename);
+    }
+
+    private async confirmDeletion(filename: string, workflowId: string | undefined) {
+        // Final check: is this actually a rename?
+        if (workflowId) {
+            // Check if the workflow ID appears in another file
+            const otherFilename = this.findFilenameByWorkflowId(workflowId);
+            if (otherFilename && otherFilename !== filename) {
+                // This is a rename, not a deletion!
+                this.handleRename(workflowId, filename, otherFilename);
+                return;
+            }
         }
 
         // CRITICAL: Per spec 5.3 DELETED_LOCALLY - Archive Remote to _archive/ IMMEDIATELY
@@ -276,8 +469,6 @@ export class Watcher extends EventEmitter {
                         const clean = WorkflowSanitizer.cleanForStorage(remoteWorkflow);
                         const archivePath = path.join(archiveDir, `${Date.now()}_${filename}`);
                         fs.writeFileSync(archivePath, JSON.stringify(clean, null, 2));
-                        
-                        console.log(`[Watcher] Archived remote workflow to: ${archivePath}`);
                     }
                 } catch (error) {
                     console.warn(`[Watcher] Failed to archive remote workflow ${workflowId}:`, error);
@@ -286,8 +477,41 @@ export class Watcher extends EventEmitter {
             }
         }
 
+        // Clean up mappings for deleted file
         this.localHashes.delete(filename);
+        if (workflowId) {
+            // Check if the workflow ID still maps to this filename (might have been updated by rename)
+            if (this.idToFileMap.get(workflowId) === filename) {
+                this.idToFileMap.delete(workflowId);
+            }
+        }
+        this.fileToIdMap.delete(filename);
+        
         this.broadcastStatus(filename, workflowId);
+    }
+
+    private handleRename(workflowId: string, oldFilename: string, newFilename: string) {
+        // Update mappings
+        this.fileToIdMap.delete(oldFilename);
+        this.fileToIdMap.set(newFilename, workflowId);
+        this.idToFileMap.set(workflowId, newFilename);
+        
+        // Update local hash mapping
+        const oldHash = this.localHashes.get(oldFilename);
+        if (oldHash) {
+            this.localHashes.delete(oldFilename);
+            this.localHashes.set(newFilename, oldHash);
+        }
+        
+        // Emit rename event
+        this.emit('fileRenamed', {
+            workflowId,
+            oldFilename,
+            newFilename
+        });
+        
+        // Broadcast status with new filename
+        this.broadcastStatus(newFilename, workflowId);
     }
 
     public async refreshLocalState() {
@@ -367,8 +591,6 @@ export class Watcher extends EventEmitter {
                 const oldestFile = fileList[0].filename;
                 const duplicates = fileList.slice(1);
                 
-                console.log(`[Watcher] Duplicate ID ${workflowId} detected. Keeping ID in oldest file: ${oldestFile}`);
-                
                 // Remove ID from duplicate files
                 for (const { filename: dupFilename } of duplicates) {
                     const filePath = path.join(this.directory, dupFilename);
@@ -376,7 +598,6 @@ export class Watcher extends EventEmitter {
                     if (content) {
                         delete content.id;
                         fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
-                        console.log(`[Watcher] Removed ID from duplicate file: ${dupFilename}`);
                         
                         // Update local hash for the modified file
                         const clean = WorkflowSanitizer.cleanForStorage(content);
@@ -439,14 +660,11 @@ export class Watcher extends EventEmitter {
                                 // Generate a unique filename for this workflow
                                 const idSuffix = wf.id.substring(0, 8);
                                 filename = `${this.safeName(wf.name)}_${idSuffix}.json`;
-                                console.log(`[Watcher] Duplicate workflow name detected: "${wf.name}". Using unique filename: ${filename}`);
                             } else {
                                 // The existing mapping is stale - update it
-                                console.log(`[Watcher] Updating stale filename mapping: ${filename} now maps to ${wf.id} (was ${existingWorkflowId})`);
                             }
                         } else {
                             // File doesn't exist locally, mapping is stale
-                            console.log(`[Watcher] Updating stale filename mapping: ${filename} now maps to ${wf.id} (was ${existingWorkflowId})`);
                         }
                     }
                 }
