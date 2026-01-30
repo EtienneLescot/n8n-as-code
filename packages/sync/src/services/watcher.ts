@@ -114,7 +114,7 @@ export class Watcher extends EventEmitter {
                 const filename = path.basename(event.path);
                 
                 // Ignore hidden files, archive, and state file
-                if (filename.startsWith('.') || event.path.includes('_archive')) {
+                if (filename.startsWith('.') || event.path.includes('_archive') || event.path.includes('.archive')) {
                     continue;
                 }
 
@@ -522,7 +522,7 @@ export class Watcher extends EventEmitter {
             return;
         }
 
-        const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.json') && !f.startsWith('.'));
+        const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.json') && !f.startsWith('.') && f !== '.archive' && f !== '_archive');
         const currentFiles = new Set(files);
         
         // Remove entries for files that no longer exist
@@ -757,7 +757,7 @@ export class Watcher extends EventEmitter {
         // If workflow not tracked yet (first sync of local-only workflow),
         // scan directory to find the file with this ID
         if (!filename) {
-            const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.json') && !f.startsWith('.'));
+            const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.json') && !f.startsWith('.') && f !== '.archive' && f !== '_archive');
             for (const file of files) {
                 const filePath = path.join(this.directory, file);
                 const content = this.readJsonFile(filePath);
@@ -945,7 +945,7 @@ export class Watcher extends EventEmitter {
         }
         
         const files = fs.readdirSync(this.directory)
-            .filter(f => f.endsWith('.json') && !f.startsWith('.'));
+            .filter(f => f.endsWith('.json') && !f.startsWith('.') && f !== '.archive' && f !== '_archive');
         
         for (const file of files) {
             const content = this.readJsonFile(path.join(this.directory, file));
