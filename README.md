@@ -41,13 +41,16 @@ npm install && npm run build && npm link
 npm install -g @n8n-as-code/cli
 
 # Configuration
-n8n-as-code init
+n8nac init
+
+# Switch project (optional)
+n8nac switch
 
 # Sync your workflows
-n8n-as-code pull
+n8nac pull
 
 # Start real-time sync
-n8n-as-code start
+n8nac start
 ```
 
 📖 [Full CLI documentation](https://etiennelescot.github.io/n8n-as-code/docs/usage/cli)
@@ -103,7 +106,7 @@ Isolate workflows from different n8n environments automatically.
 
 | Use Case | Quick Command | Learn More |
 |----------|---------------|------------|
-| **Sync workflows** | `n8n-as-code start` | [Usage Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/cli) |
+| **Sync workflows** | `n8nac start` | [Usage Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/cli) |
 | **AI workflow creation** | `n8nac-skills search "google sheets"` | [Skills CLI Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/skills) |
 | **Visual editing** | Install [VS Code Extension](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) | [Extension Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/vscode-extension) |
 | **Version control** | Git commit workflow JSON files | [Getting Started](https://etiennelescot.github.io/n8n-as-code/docs/getting-started) |

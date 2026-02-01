@@ -187,7 +187,7 @@ The VS Code extension can use the Skills CLI programmatically to:
 ### Main CLI
 The main CLI's `init-ai` command uses the Skills CLI internally to:
 ```bash
-n8n-as-code init-ai
+n8nac update-ai
 ```
 This generates all AI context files in the current project.
 

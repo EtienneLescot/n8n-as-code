@@ -219,10 +219,7 @@ Manages CLI configuration.
 - Provide typed configuration access
 
 **Configuration Sources:**
-1. **File**: `n8n-as-code.json` or `n8n-as-code.config.js`
-2. **Environment Variables**: `N8N_HOST`, `N8N_API_KEY`, etc.
-3. **Command Line**: CLI arguments
-4. **Defaults**: Built-in default values
+The CLI currently loads local configuration from `n8nac.json` in the current working directory and stores API keys in a secure global credential store.
 
 ## 🔄 Integration with Sync Library
 
@@ -289,7 +286,7 @@ npm run build
 npm link
 
 # Test commands
-n8n-as-code --help
+n8nac --help
 ```
 
 ### Testing with Local n8n
@@ -297,7 +294,7 @@ n8n-as-code --help
 2. Get API key from n8n settings
 3. Configure CLI:
 ```bash
-n8n-as-code init --host http://localhost:5678 --api-key your-key
+n8nac init
 ```
 
 ## 🔧 Adding New Commands
@@ -370,7 +367,7 @@ import nock from 'nock';
 beforeEach(() => {
   mockFs({
     'workflows': {},
-    'n8n-as-code.json': JSON.stringify({ host: 'http://test.n8n' })
+    'n8nac.json': JSON.stringify({ host: 'http://test.n8n' })
   });
   
   nock('http://test.n8n')
@@ -443,9 +440,8 @@ curl -H "X-N8N-API-KEY: your-key" https://your-n8n.com/api/v1/workflows
 ```
 
 #### Configuration Not Found
-1. Check current directory for `n8n-as-code.json`
-2. Verify environment variables are set
-3. Run `n8n-as-code init` to create config
+1. Check current directory for `n8nac.json`
+2. Run `n8nac init` to create config
 
 #### Sync Conflicts
 1. Review conflict details in output
@@ -455,11 +451,11 @@ curl -H "X-N8N-API-KEY: your-key" https://your-n8n.com/api/v1/workflows
 ### Debug Mode
 Enable verbose logging:
 ```bash
-n8n-as-code sync --verbose
+n8nac start
 ```
 
 ### Log Files
-Check log files in `~/.n8n-as-code/logs/` for detailed error information.
+Check the terminal output (and VS Code Output panel when using the extension) for detailed error information.
 
 ## 📚 Related Documentation
 

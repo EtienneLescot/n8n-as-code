@@ -78,7 +78,7 @@ graph LR
 # Example automation script for CI/CD
 
 # Pull workflows from source instance
-n8n-as-code pull
+n8nac pull
 
 # Validate JSON syntax (using jq or other tools)
 find workflows/ -name "*.json" -exec jq . {} >/dev/null 2>&1 \;
@@ -86,8 +86,8 @@ find workflows/ -name "*.json" -exec jq . {} >/dev/null 2>&1 \;
 # Push to target environment
 export N8N_HOST="https://target.n8n.example.com"
 export N8N_API_KEY="$TARGET_API_KEY"
-n8n-as-code init
-n8n-as-code push
+n8nac init
+n8nac push
 ```
 
 ## 📚 Quick Reference
@@ -96,11 +96,12 @@ n8n-as-code push
 
 | Command | Description | Tool |
 |---------|-------------|------|
-| `n8n-as-code init` | Initialize project configuration | CLI |
-| `n8n-as-code pull` | Download workflows from n8n | CLI |
-| `n8n-as-code push` | Upload workflows to n8n | CLI |
-| `n8n-as-code start` | Real-time sync mode | CLI |
-| `n8n-as-code init-ai` | Generate AI context files | CLI |
+| `n8nac init` | Configure host/key and select project | CLI |
+| `n8nac switch` | Switch active project | CLI |
+| `n8nac pull` | Download workflows from n8n | CLI |
+| `n8nac push` | Upload workflows to n8n | CLI |
+| `n8nac start` | Real-time sync mode | CLI |
+| `n8nac update-ai` | Generate AI context files | CLI |
 | `npx @n8n-as-code/skills search` | Search for n8n nodes | Skills CLI |
 | `npx @n8n-as-code/skills get` | Get node JSON schema | Skills CLI |
 | `npx @n8n-as-code/skills list` | List all available nodes | Skills CLI |
@@ -111,7 +112,7 @@ n8n-as-code push
 
 | File | Purpose | Location |
 |------|---------|----------|
-| `n8n-as-code.json` | Project settings | Project root |
+| `n8nac.json` | Project settings | Project root |
 | VS Code Settings | Connection config | VS Code settings |
 
 ## 🚀 Getting Started with Each Tool
@@ -124,8 +125,9 @@ n8n-as-code push
 
 ### 2. CLI
 1. Install globally: `npm install -g @n8n-as-code/cli`
-2. Initialize: `n8n-as-code init`
-3. Sync workflows: `n8n-as-code pull`
+2. Initialize: `n8nac init`
+3. (Optional) Switch project: `n8nac switch`
+4. Sync workflows: `n8nac pull`
 4. Use commands as needed for automation
 
 ### 3. Skills CLI (For AI Tools)
@@ -147,6 +149,8 @@ Work with multiple n8n instances. Workflows are automatically organized by insta
 
 ### Real-time Sync
 Changes made in VS Code are instantly reflected in n8n, and vice versa. No manual push/pull required when using watch mode.
+
+The CLI equivalent of "watch mode" is `n8nac start`.
 
 ### Git Integration
 Store workflows as JSON files in Git for version control, collaboration, and deployment pipelines.

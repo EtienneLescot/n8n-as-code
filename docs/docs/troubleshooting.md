@@ -22,7 +22,7 @@ curl -H "X-N8N-API-KEY: your-api-key" https://your-n8n-instance.com/api/v1/workf
 ### 2. Check Installation
 ```bash
 # Verify CLI installation
-n8n-as-code --version
+n8nac --version
 
 # Verify VS Code extension
 code --list-extensions | grep n8n-as-code
@@ -31,7 +31,7 @@ code --list-extensions | grep n8n-as-code
 ### 3. Check Configuration
 ```bash
 # View current configuration file
-cat n8n-as-code.json
+cat n8nac.json
 ```
 
 ## 📦 Installation Issues
@@ -48,7 +48,7 @@ cat n8n-as-code.json
 2. **Local Installation:**
    ```bash
    npm install --save-dev @n8n-as-code/cli
-   npx n8n-as-code --version
+   npx n8nac --version
    ```
 
 3. **Check PATH:**
@@ -118,13 +118,9 @@ cat n8n-as-code.json
    - Ensure API key has workflow permissions
    - Check if key is expired or revoked
 
-3. **Environment Variables:**
+3. **Re-run init:**
    ```bash
-   # Set environment variable
-   export N8N_API_KEY="your-new-api-key"
-   
-   # Test with new key by running init again
-   n8n-as-code init
+   n8nac init
    ```
 
 ## 🔄 Synchronization Issues
@@ -142,10 +138,10 @@ cat n8n-as-code.json
 2. **Retry Operation:**
    ```bash
    # Pull workflows again
-   n8n-as-code pull
+   n8nac pull
    
    # Or push workflows
-   n8n-as-code push
+   n8nac push
    ```
 
 3. **Check File Permissions:**
@@ -223,12 +219,12 @@ cat n8n-as-code.json
 ## 🤖 AI Integration Issues
 
 ### "AI context not generated"
-**Problem**: `init-ai` command doesn't create files.
+**Problem**: AI context command doesn't create files.
 
 **Solutions:**
-1. **Run init-ai:**
+1. **Run update-ai (init-ai is an alias):**
    ```bash
-   n8n-as-code init-ai
+   n8nac update-ai
    ```
 
 2. **Check Permissions:**
@@ -255,7 +251,7 @@ cat n8n-as-code.json
 2. **Update Context:**
    ```bash
    # Regenerate AI context
-   n8n-as-code init-ai
+   n8nac update-ai
    ```
 
 ## 📁 File System Issues
@@ -310,59 +306,30 @@ cat n8n-as-code.json
 3. **Restore from n8n:**
    ```bash
    # Pull fresh copy
-   n8n-as-code pull
+   n8nac pull
    ```
 
 ## 🔧 Configuration Issues
 
 ### "Configuration not found"
-**Problem**: `n8n-as-code.json` missing or invalid.
+**Problem**: `n8nac.json` missing or invalid.
 
 **Solutions:**
 1. **Create Configuration:**
    ```bash
-   n8n-as-code init
+   n8nac init
    ```
 
 2. **Check File Location:**
    ```bash
    # Default location
-   ls -la n8n-as-code.json
+   ls -la n8nac.json
    ```
 
 3. **Validate Configuration:**
    ```bash
    # Check JSON syntax
-   jq . n8n-as-code.json
-   ```
-
-### "Environment variables not working"
-**Problem**: Environment variables aren't being read.
-
-**Solutions:**
-1. **Check Variable Names:**
-   ```bash
-   # Correct variable names
-   echo $N8N_HOST
-   echo $N8N_API_KEY
-   ```
-
-2. **Export Variables:**
-   ```bash
-   # Export for current session
-   export N8N_HOST="https://n8n.example.com"
-   export N8N_API_KEY="your-key"
-   
-   # Test with init (will use env vars)
-   n8n-as-code init
-   ```
-
-3. **Permanent Setup:**
-   ```bash
-   # Add to ~/.bashrc or ~/.zshrc
-   echo 'export N8N_HOST="https://n8n.example.com"' >> ~/.bashrc
-   echo 'export N8N_API_KEY="your-key"' >> ~/.bashrc
-   source ~/.bashrc
+   jq . n8nac.json
    ```
 
 ## 🐛 Debugging Tips
@@ -370,10 +337,10 @@ cat n8n-as-code.json
 ### Check Console Output
 ```bash
 # For CLI operations, check console output
-n8n-as-code pull
+n8nac pull
 
 # For real-time sync mode, check the terminal output
-n8n-as-code start
+n8nac start
 ```
 
 ### Check VS Code Output Panel
@@ -386,11 +353,8 @@ n8n-as-code start
 # Minimal reproduction
 mkdir test-case
 cd test-case
-# Set environment variables first
-export N8N_HOST="https://your-n8n-instance.com"
-export N8N_API_KEY="your-api-key"
-n8n-as-code init
-n8n-as-code pull
+n8nac init
+n8nac pull
 ```
 
 ## 📞 Getting Help
@@ -399,13 +363,13 @@ n8n-as-code pull
 1. **Collect Information:**
    ```bash
    # System info
-   n8n-as-code --version
+   n8nac --version
    node --version
    npm --version
    code --version
    
    # Configuration (redact sensitive info)
-   cat n8n-as-code.json | jq 'del(.apiKey)'
+   cat n8nac.json
    ```
 
 2. **Reproduction Steps:**
@@ -447,7 +411,7 @@ n8n-as-code pull
 3. **Use `start` Mode:**
    ```bash
    # Real-time sync is more efficient than repeated pull/push
-   n8n-as-code start
+   n8nac start
    ```
 
 ### High Memory Usage
@@ -476,23 +440,23 @@ n8n-as-code pull
 cp -r workflows/ workflows-backup-$(date +%Y%m%d)
 
 # Remove configuration
-rm n8n-as-code.json
+rm n8nac.json
 
 # Reinitialize
-n8n-as-code init
-n8n-as-code pull
+n8nac init
+n8nac pull
 ```
 
 ### Workflow Recovery
 ```bash
 # Get fresh copy of all workflows
-n8n-as-code pull
+n8nac pull
 
 # If specific workflow is missing:
 # 1. Check if it exists in n8n UI
 # 2. If deleted from n8n, restore from backup
 # 3. If local copy exists, push it back
-n8n-as-code push
+n8nac push
 ```
 
 ---

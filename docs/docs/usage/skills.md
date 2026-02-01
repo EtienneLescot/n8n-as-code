@@ -234,10 +234,10 @@ This includes:
 ## 🔄 Related Tools
 
 ### AI Context Generation
-The main CLI (`@n8n-as-code/cli`) includes an `init-ai` command that generates comprehensive context files for AI assistants:
+The main CLI (`@n8n-as-code/cli`) includes an `update-ai` command (with `init-ai` kept as an alias) that generates comprehensive context files for AI assistants:
 
 ```bash
-n8n-as-code init-ai
+n8nac update-ai
 ```
 
 This command creates:

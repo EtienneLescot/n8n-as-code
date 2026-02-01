@@ -6,18 +6,18 @@ description: Learn how to use the n8nac CLI for automation, scripting, and CI/CD
 
 # CLI Guide
 
-The n8nac CLI (`@n8nac/cli`) provides command-line access to all n8nac functionality. It's perfect for automation, scripting, and CI/CD integration.
+The n8nac CLI (`@n8n-as-code/cli`) provides command-line access to all n8nac functionality. It's perfect for automation, scripting, and CI/CD integration.
 
 ## 📦 Installation
 
 ### Global Installation
 ```bash
-npm install -g @n8nac/cli
+npm install -g @n8n-as-code/cli
 ```
 
 ### Project Installation
 ```bash
-npm install --save-dev @n8nac/cli
+npm install --save-dev @n8n-as-code/cli
 ```
 
 ### Verify Installation
@@ -34,8 +34,8 @@ n8nac init
 
 This command:
 1. Creates a configuration file (`n8nac.json`)
-2. Sets up the project structure
-3. Configures connection to your n8n instance
+2. Configures connection to your n8n instance
+3. Prompts you to select which **n8n project** to sync
 
 ### Download Workflows from n8n
 ```bash
@@ -74,6 +74,16 @@ The wizard will ask for:
 - **n8n Host URL**: The URL of your n8n instance (e.g., `http://localhost:5678`)
 - **API Key**: Your n8n API key (found in n8n Settings > API)
 - **Sync Folder**: Local directory for workflow storage (default: `workflows`)
+- **Project**: The n8n project to sync
+
+### `switch`
+Switch to a different n8n project.
+
+```bash
+n8nac switch
+```
+
+After switching projects, run `n8nac pull` to download workflows from the selected project.
 
 ### `list`
 Display all workflows with their current sync status.
@@ -203,6 +213,9 @@ The CLI uses a configuration file (`n8nac.json`) with the following structure:
 {
   "host": "https://n8n.example.com",
   "syncFolder": "workflows",
+  "projectId": "your-project-id",
+  "projectName": "Personal",
+  "instanceIdentifier": "local_5678_user",
   "pollInterval": 3000,
   "syncInactive": true,
   "ignoredTags": ["archive"]
@@ -211,36 +224,21 @@ The CLI uses a configuration file (`n8nac.json`) with the following structure:
 
 **Note:** API keys are stored securely in your system's credential store, not in this file.
 
-### Environment Variables
-You can also configure via environment variables:
-
-| Variable | Description | Example |
-| :--- | :--- | :--- |
-| `N8N_HOST` | n8n instance URL | `https://n8n.example.com` |
-| `N8N_API_KEY` | n8n API key | `my-api-key` |
-| `N8N_SYNC_FOLDER` | Local sync folder | `workflows` |
-
-### Priority Order
-1. Command-line arguments (when supported)
-2. Environment variables
-3. Configuration file (`n8n-as-code.json`)
-4. Default values
-
 ## 🔄 Workflow Management
 
 ### Basic Workflow
 ```bash
 # 1. Initialize project
-n8n-as-code init
+n8nac init
 
 # 2. Download existing workflows
-n8n-as-code pull
+n8nac pull
 
 # 3. Edit workflow files locally
 #    (edit workflows/*.json files)
 
 # 4. Upload changes to n8n
-n8n-as-code push
+n8nac push
 
 # 5. Or use real-time sync
 n8nac start
@@ -276,7 +274,8 @@ mkdir -p "$BACKUP_DIR"
 cp -r workflows/* "$BACKUP_DIR/" 2>/dev/null || true
 
 # Or pull fresh copy to backup directory
-# N8N_SYNC_FOLDER="$BACKUP_DIR" n8n-as-code pull
+# (Run in a separate folder if you want backups isolated)
+# cd "$BACKUP_DIR" && n8nac pull
 
 # Compress backup
 tar -czf "$BACKUP_DIR.tar.gz" "$BACKUP_DIR"
@@ -294,10 +293,10 @@ export N8N_HOST="https://staging.n8n.example.com"
 export N8N_API_KEY="$STAGING_API_KEY"
 
 # Initialize with environment variables
-n8n-as-code init
+n8nac init
 
 # Pull workflows from staging
-n8n-as-code pull
+n8nac pull
 
 # (Make any necessary transformations)
 
@@ -305,8 +304,8 @@ n8n-as-code pull
 if [ "$DEPLOY_TO_PROD" = "true" ]; then
   export N8N_HOST="https://prod.n8n.example.com"
   export N8N_API_KEY="$PROD_API_KEY"
-  n8n-as-code init
-  n8n-as-code push
+  n8nac init
+  n8nac push
 fi
 ```
 
@@ -325,7 +324,7 @@ for workflow in workflows/*.json; do
 done
 
 # Push changes to n8n
-n8n-as-code push
+n8nac push
 ```
 
 ## 🎯 Best Practices
@@ -333,13 +332,11 @@ n8n-as-code push
 ### Project Structure
 ```
 my-project/
-├── n8n-as-code.json          # Project configuration
+├── n8nac.json                # Project configuration
 ├── workflows/                # Workflow storage
-│   ├── instance1/           # Organized by instance
-│   │   ├── workflow1.json
-│   │   └── workflow2.json
-│   └── instance2/
-│       └── workflow3.json
+│   └── instance_identifier/  # Organized by instance
+│       └── project_slug/      # Organized by project
+│           └── workflow1.json
 ├── scripts/                  # Automation scripts
 │   └── backup.sh
 └── README.md
@@ -367,10 +364,10 @@ my-project/
 curl -I https://n8n.example.com
 
 # Verify configuration
-cat n8n-as-code.json
+cat n8nac.json
 
 # Reinitialize connection
-n8n-as-code init
+n8nac init
 ```
 
 **File Permission Issues**
@@ -384,14 +381,14 @@ chmod -R 755 workflows/
 
 **Sync Issues**
 ```bash
-# Check if watch mode is running
-# (Stop any running watch processes first)
+# Check if real-time sync is running
+# (Stop any running `n8nac start` processes first)
 
 # Pull fresh copy
-n8n-as-code pull
+n8nac pull
 
 # Push local changes
-n8n-as-code push
+n8nac push
 ```
 
 ### Debug Mode

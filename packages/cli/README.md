@@ -13,9 +13,19 @@ npm install -g @n8n-as-code/cli
 ## 📖 Usage
 
 ### `init`
-Configure your connection to an n8n instance and initialize your local project.
+Configure your connection to an n8n instance and select the project to sync.
+
 ```bash
 n8nac init
+```
+
+This creates/updates `n8nac.json` in the current folder and stores your API key securely (not in the repo).
+
+### `switch`
+Switch the active n8n project (writes `projectId` / `projectName` in `n8nac.json`).
+
+```bash
+n8nac switch
 ```
 
 ### `pull`
@@ -42,11 +52,20 @@ Start real-time monitoring and synchronization. This command provides a live das
 n8nac start
 ```
 
+Use manual mode for fully interactive prompts:
+
+```bash
+n8nac start --manual
+```
+
 ### `update-ai`
 Generate or update AI context files (`AGENTS.md`, rules, snippets) and the local `n8nac-skills` helper.
 ```bash
 n8nac update-ai
 ```
+
+### Legacy alias
+The legacy `n8n-as-code` command is still available (deprecated). Prefer `n8nac`.
 
 ## 🏗 Part of the Ecosystem
 This package works alongside:

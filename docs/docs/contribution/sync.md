@@ -423,10 +423,7 @@ interface CoreConfig {
 ```
 
 ### Configuration Sources
-1. **File**: `n8n-as-code.json`
-2. **Environment Variables**: `N8N_HOST`, `N8N_API_KEY`, etc.
-3. **Command Line**: CLI arguments
-4. **Defaults**: Built-in default values
+The sync package is a library. Configuration is provided by callers (CLI, VS Code extension, custom scripts).
 
 ## 🚀 Development
 

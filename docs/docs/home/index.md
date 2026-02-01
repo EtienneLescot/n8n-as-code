@@ -125,6 +125,8 @@ Ready to get started? Here's how to set up n8n-as-code in under 2 minutes:
    n8nac init
    ```
 
+   You'll be prompted to select which **n8n project** to sync.
+
 3. **Sync your workflows**:
    ```bash
    n8nac pull
@@ -149,6 +151,7 @@ This documentation is organized into several sections:
 - **Rebranding**: Renamed CLI to `n8nac` and `skills` to `skills` for better developer experience
 - **Major Refactor (Latest)**: 3-way merge architecture for reliable conflict detection
   - New CLI commands: `start` (replaces `watch`) and `list` for status overview
+   - Project-scoped sync: one selected project at a time (`init` / `switch`)
   - Persistent conflict resolution UI in VS Code with expandable action buttons
   - Visual status indicators (color-coded icons) in tree view
   - Enhanced synchronization reliability with atomic operations and backups

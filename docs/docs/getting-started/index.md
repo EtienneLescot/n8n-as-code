@@ -58,7 +58,7 @@ If you prefer command-line tools or need automation:
 
 ```bash
 # Install globally
-npm install -g @n8nac/cli
+npm install -g @n8n-as-code/cli
 
 # Verify installation
 n8nac --version
@@ -74,7 +74,8 @@ n8nac init
 The interactive wizard will guide you through:
 - **n8n Host URL**: The URL of your n8n instance
 - **API Key**: Your n8n API key
-- **Project Directory**: Where to store your workflow files
+- **Sync Folder**: Local folder where workflow files are written
+- **Project**: Which n8n project to sync
 
 ### Sync Workflows
 
@@ -83,7 +84,7 @@ The interactive wizard will guide you through:
 n8nac pull
 
 # Enable real-time synchronization
-n8nac watch
+n8nac start
 ```
 
 ## ⚙️ Configuration Files
@@ -119,15 +120,15 @@ Send your local modifications back to n8n:
 - **VS Code Extension**: Changes are auto-synced on save when using auto-sync mode
 - **CLI**: Use `n8nac push` command
 
-### Watch Mode (Real-time Sync)
+### Real-time Sync (Start Mode)
 
 Enable real-time synchronization with the CLI:
 
 ```bash
-n8nac watch
+n8nac start
 ```
 
-In watch mode:
+In start mode:
 - Local file changes are automatically pushed to n8n
 - Remote changes are pulled automatically
 - You get notifications about sync status
@@ -150,11 +151,12 @@ After setup, your project will look like this:
 your-project/
 ├── n8nac.json          # Project configuration
 ├── workflows/                # Workflow storage
-│   └── instance-name/       # Organized by instance
-│       ├── workflow-1.json
-│       ├── workflow-2.json
-│       └── folder/
-│           └── workflow-3.json
+│   └── instance-name_user/       # Instance identifier (auto-generated)
+│       └── project-slug/         # Project slug (from project name)
+│           ├── workflow-1.json
+│           ├── workflow-2.json
+│           └── folder/
+│               └── workflow-3.json
 ├── AGENTS.md                # AI assistant instructions (optional)
 ├── n8nac-instance.json # Instance configuration
 └── .git/                    # Version control (recommended)
@@ -182,7 +184,7 @@ your-project/
 
 **Problem**: Changes not syncing properly
 **Solution**:
-- Check if watch mode is running (stop it if needed)
+- Check if `n8nac start` is running (stop it if needed)
 - Use `n8nac pull` to get fresh copy
 - Use `n8nac push` to send local changes
 - Check network connectivity to n8n instance

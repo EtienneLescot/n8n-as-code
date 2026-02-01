@@ -67,14 +67,18 @@ Visualize the n8n canvas in real-time using the integrated Webview while editing
 ## 🔧 Configuration
 
 ### Initial Setup
-1. Open VS Code Settings (File > Preferences > Settings or Ctrl+,)
-2. Search for "n8n"
-3. Configure the following settings:
-   - `n8n.host`: URL of your n8n instance (e.g., `https://n8n.yourdomain.com`)
-   - `n8n.apiKey`: Your n8n API key (found in n8n Settings > API)
-   - `n8n.syncFolder`: Local storage folder (default: `workflows`)
-   - `n8n.syncMode`: Sync mode (`auto` or `manual`)
-   - `n8n.pollInterval`: Polling interval in milliseconds (default: 3000)
+1. Click the **n8n** icon in the Activity Bar
+2. Click **n8n: Configure** (or the Configure link shown in the panel)
+3. In the configuration screen, set:
+   - Host + API Key
+   - Sync Folder + Sync Mode
+   - Project to sync
+4. Click **Apply Changes**
+
+The extension writes these values into VS Code workspace settings (`n8n.*`).
+
+### Apply Changes (safety)
+When you change critical settings (host / API key / sync folder / project / sync mode), synchronization is paused and an **Apply Changes** action appears (status bar and n8n panel). This prevents partial or accidental settings edits from triggering unexpected sync behavior.
 
 ### Settings Reference
 
@@ -85,6 +89,8 @@ Visualize the n8n canvas in real-time using the integrated Webview while editing
 | `n8n.syncFolder` | Local storage folder | `workflows` |
 | `n8n.syncMode` | Sync mode: `auto` (watch mode) or `manual` | `auto` |
 | `n8n.pollInterval` | Polling interval for auto mode (ms) | 3000 |
+| `n8n.projectId` | Project ID to sync (selected via Configure) | - |
+| `n8n.projectName` | Project name (selected via Configure) | - |
 
 ## 📖 Usage
 

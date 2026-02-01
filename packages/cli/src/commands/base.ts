@@ -15,7 +15,7 @@ export class BaseCommand {
 
         if (!localConfig.host || !apiKey) {
             console.error(chalk.red('❌ CLI not configured.'));
-            console.error(chalk.yellow('Please run `n8n-as-code init` to set up your environment.'));
+            console.error(chalk.yellow('Please run `n8nac init` to set up your environment.'));
             process.exit(1);
         }
 
