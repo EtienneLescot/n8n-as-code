@@ -79,10 +79,48 @@ export class InitCommand {
 
             spinner.succeed(chalk.green('Successfully connected to n8n!'));
 
+            // Fetch available projects
+            spinner.start('Fetching available projects...');
+            const projects = await client.getProjects();
+            spinner.succeed(chalk.green(`Found ${projects.length} project(s)`));
+
+            if (projects.length === 0) {
+                spinner.fail(chalk.red('No projects found. Please create a project in n8n first.'));
+                return;
+            }
+
+            // Let user select a project
+            // We use 'rawlist' (numeric selection) for robustness across terminals.
+            const { selectedProjectId } = await inquirer.prompt([
+                {
+                    type: 'rawlist',
+                    name: 'selectedProjectId',
+                    message: 'Select a project to sync:',
+                    choices: projects.map((p, i) => {
+                        const displayName = p.type === 'personal' ? `${p.name} (Personal)` : p.name;
+                        return {
+                            name: `[${i + 1}] ${displayName}`,
+                            value: p.id
+                        };
+                    })
+                }
+            ]);
+
+            const selectedProject = projects.find(p => p.id === selectedProjectId);
+            if (!selectedProject) {
+                spinner.fail(chalk.red('Project selection failed.'));
+                return;
+            }
+
+            const selectedProjectDisplayName = selectedProject.type === 'personal' ? 'Personal' : selectedProject.name;
+            console.log(chalk.green(`\n✓ Selected project: ${selectedProjectDisplayName}\n`));
+
             // Save configurations (instance identifier will be handled by SyncManager automatically)
             const localConfig: ILocalConfig = {
                 host: answers.host,
                 syncFolder: answers.syncFolder,
+                projectId: selectedProject.id,
+                projectName: selectedProjectDisplayName,
                 // instanceIdentifier is now handled by SyncManager sync, not CLI
                 pollInterval: currentLocal.pollInterval || 3000,
                 syncInactive: currentLocal.syncInactive ?? true,

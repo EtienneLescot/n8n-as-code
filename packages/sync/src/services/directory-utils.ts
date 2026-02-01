@@ -84,3 +84,17 @@ export function createFallbackInstanceIdentifier(host: string, apiKey: string): 
     
     return `${hostSlug}_${apiKeyHash}`;
 }
+
+/**
+ * Creates a project slug for directory naming
+ * @param projectName The project name or type
+ * @returns Project slug (e.g., "personal", "marketing_project")
+ */
+export function createProjectSlug(projectName: string): string {
+    const slug = projectName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    return slug || 'project';
+}

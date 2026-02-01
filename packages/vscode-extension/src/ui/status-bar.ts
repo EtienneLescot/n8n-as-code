@@ -64,7 +64,14 @@ export class StatusBar {
     showConfiguring() {
         this.item.text = '$(settings) n8n: Configure';
         this.item.tooltip = 'Configure n8n settings to continue';
-        this.item.command = 'n8n.openSettings';
+        this.item.command = 'n8n.configure';
+        this.item.show();
+    }
+
+    showSettingsChanged() {
+        this.item.text = '$(alert) n8n: Apply changes';
+        this.item.tooltip = 'Settings changed. Sync is paused until you apply the new settings.';
+        this.item.command = 'n8n.applySettings';
         this.item.show();
     }
 }

@@ -76,7 +76,7 @@ This runs the complete pipeline:
 1. `ensure-n8n-cache.cjs` - Clones/updates n8n repo and builds both packages
 2. `generate-n8n-index.cjs` - Extracts technical schemas from built packages
 3. `download-n8n-docs.cjs` - Downloads documentation from n8n docs
-4. `enrich-nodes-index.cjs` - Combines everything into enriched index
+4. `enrich-nodes-technical.cjs` - Combines schemas with documentation metadata into the technical index
 5. TypeScript compilation
 6. Asset copying to dist/
 
@@ -93,7 +93,7 @@ node scripts/generate-n8n-index.cjs
 node scripts/download-n8n-docs.cjs
 
 # Step 4: Create enriched index with metadata
-node scripts/enrich-nodes-index.cjs
+node scripts/enrich-nodes-technical.cjs
 
 # Step 5: Build TypeScript
 cd packages/skills
@@ -244,7 +244,7 @@ rm -rf packages/skills/src/assets/n8n-docs-cache
 
 # Re-download
 node scripts/download-n8n-docs.cjs
-node scripts/enrich-nodes-index.cjs
+node scripts/enrich-nodes-technical.cjs
 ```
 
 ## 🎯 Key Improvements

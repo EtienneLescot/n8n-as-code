@@ -25,7 +25,9 @@ This will:
 cd packages/skills
 node ../../scripts/ensure-n8n-cache.cjs
 node ../../scripts/generate-n8n-index.cjs
-node ../../scripts/enrich-nodes-index.cjs  # Uses schema-only enrichment
+node ../../scripts/enrich-nodes-technical.cjs  # Uses schema-only enrichment
+node ../../scripts/build-knowledge-index.cjs
+node ../../scripts/build-workflow-index.cjs
 npm run build
 ```
 
@@ -105,17 +107,19 @@ After building, verify:
 ```bash
 # Check files exist
 ls -lh packages/skills/src/assets/n8n-nodes-index.json
-ls -lh packages/skills/src/assets/n8n-nodes-enriched.json
+ls -lh packages/skills/src/assets/n8n-nodes-technical.json
+ls -lh packages/skills/src/assets/n8n-knowledge-index.json
+ls -lh packages/skills/src/assets/workflows-index.json
 ls -lh packages/skills/dist/assets/
 
 # Check node count
 jq '.nodes | length' packages/skills/src/assets/n8n-nodes-index.json
 
 # Check enriched structure
-jq '.nodes | keys | .[0:5]' packages/skills/src/assets/n8n-nodes-enriched.json
+jq '.nodes | keys | .[0:5]' packages/skills/src/assets/n8n-nodes-technical.json
 
 # Check for Gemini node
-jq '.nodes.googleGemini.metadata' packages/skills/src/assets/n8n-nodes-enriched.json
+jq '.nodes.googleGemini' packages/skills/src/assets/n8n-nodes-technical.json
 
 # Test CLI
 cd packages/skills
@@ -142,9 +146,11 @@ node ../../scripts/generate-n8n-index.cjs
 ### Issue: "No results for 'gemini'"
 **Solution**: Verify enriched index was created
 ```bash
-ls -lh packages/skills/src/assets/n8n-nodes-enriched.json
+ls -lh packages/skills/src/assets/n8n-nodes-technical.json
 # If missing, run:
-node ../../scripts/enrich-nodes-index.cjs
+node ../../scripts/enrich-nodes-technical.cjs
+node ../../scripts/build-knowledge-index.cjs
+node ../../scripts/build-workflow-index.cjs
 ```
 
 ### Issue: Build takes too long
@@ -153,7 +159,9 @@ node ../../scripts/enrich-nodes-index.cjs
 # Skip doc download (still works, just less metadata)
 node ../../scripts/ensure-n8n-cache.cjs
 node ../../scripts/generate-n8n-index.cjs
-node ../../scripts/enrich-nodes-index.cjs  # Works without docs
+node ../../scripts/enrich-nodes-technical.cjs  # Works without docs
+node ../../scripts/build-knowledge-index.cjs
+node ../../scripts/build-workflow-index.cjs
 npm run build
 ```
 

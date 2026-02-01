@@ -53,6 +53,7 @@ export class BaseCommand {
      */
     protected async getSyncConfig(): Promise<any> {
         const instanceIdentifier = await this.ensureInstanceIdentifier();
+        const localConfig = this.configService.getLocalConfig();
         
         return {
             directory: this.config.directory,
@@ -60,7 +61,9 @@ export class BaseCommand {
             syncInactive: this.config.syncInactive,
             ignoredTags: this.config.ignoredTags,
             instanceIdentifier: instanceIdentifier,
-            instanceConfigPath: this.configService.getInstanceConfigPath()
+            instanceConfigPath: this.configService.getInstanceConfigPath(),
+            projectId: localConfig.projectId,
+            projectName: localConfig.projectName
         };
     }
 }

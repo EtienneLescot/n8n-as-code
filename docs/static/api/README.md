@@ -13,7 +13,7 @@ npm run docs:api
 Or manually:
 
 ```bash
-node scripts/generate-api-docs.js
+node scripts/generate-api-docs.cjs
 ```
 
 ## Structure

@@ -76,13 +76,13 @@ export class ResolutionManager {
             throw new Error('Cannot show diff: missing local or remote content');
         }
 
-        // Clean for comparison
+        // Clean for display
         const cleanLocal = WorkflowSanitizer.cleanForStorage(localContent);
         const cleanRemote = WorkflowSanitizer.cleanForStorage(remoteContent);
 
-        // Compute hashes
-        const localHash = HashUtils.computeHash(cleanLocal);
-        const remoteHash = HashUtils.computeHash(cleanRemote);
+        // Compute hashes (must match Watcher semantics)
+        const localHash = HashUtils.computeHash(WorkflowSanitizer.cleanForHash(localContent));
+        const remoteHash = HashUtils.computeHash(WorkflowSanitizer.cleanForHash(remoteContent));
 
         return {
             localContent: cleanLocal,
@@ -160,7 +160,7 @@ export class ResolutionManager {
         const filePath = path.join(this.directory, filename);
         const localContent = this.readJsonFile(filePath);
         const localHash = localContent ? 
-            HashUtils.computeHash(WorkflowSanitizer.cleanForStorage(localContent)) : 
+            HashUtils.computeHash(WorkflowSanitizer.cleanForHash(localContent)) : 
             undefined;
 
         // Get remote hash from watcher cache

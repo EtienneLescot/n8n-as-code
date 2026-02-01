@@ -1,5 +1,5 @@
 import { BaseCommand } from './base.js';
-import { SyncManager, WorkflowSyncStatus, IWorkflowStatus } from '@n8n-as-code/sync';
+import { SyncManager, WorkflowSyncStatus, IWorkflowStatus, formatWorkflowNameWithBadges } from '@n8n-as-code/sync';
 import chalk from 'chalk';
 import logUpdate from 'log-update';
 import Table from 'cli-table3';
@@ -24,16 +24,25 @@ export class StartCommand extends BaseCommand {
     private logBuffer: string[] = [];
     private pendingConflictIds = new Set<string>();
     private manualMode = false;
+    private projectLabel: string | null = null;
 
     async run(options: { manual?: boolean } = {}): Promise<void> {
         this.manualMode = options.manual || false;
         const mode = this.manualMode ? 'Manual' : 'Auto';
+
+        const localConfig = this.configService.getLocalConfig();
+        this.projectLabel = localConfig.projectName || null;
+
         console.log(chalk.blue(`🚀 Starting n8n-as-code (${mode} Mode)...`));
         console.log(chalk.gray(
             this.manualMode 
                 ? 'Monitoring changes with interactive prompts for all actions.\n'
                 : 'Monitoring changes with automatic sync.\n'
         ));
+
+        if (this.projectLabel) {
+            console.log(chalk.cyan(`📁 Project: ${chalk.bold(this.projectLabel)}\n`));
+        }
 
         const syncConfig = await this.getSyncConfig();
         if (!this.manualMode) {
@@ -258,9 +267,21 @@ export class StartCommand extends BaseCommand {
         this.isPromptActive = false;
     }
 
+    private formatWorkflowName(workflow: IWorkflowStatus, maxLength?: number): string {
+        return formatWorkflowNameWithBadges(workflow, {
+            maxLength,
+            showProjectBadge: false,
+            archivedBadgeStyle: (text) => chalk.gray(text)
+        });
+    }
+
     private async renderTable(syncManager: SyncManager) {
         this.lastUpdate = new Date();
         const matrix = await syncManager.getWorkflowsStatus();
+
+        const projectHeader = this.projectLabel
+            ? chalk.cyan(`📁 Project: ${chalk.bold(this.projectLabel)}`) + '\n'
+            : '';
 
         // Get terminal width for dynamic column sizing
         const terminalWidth = process.stdout.columns || 80;
@@ -306,8 +327,8 @@ export class StartCommand extends BaseCommand {
                 const { icon, color } = this.getStatusDisplay(workflow.status);
                 const statusText = `${icon} ${workflow.status.replace(/_/g, ' ').substring(0, 10)}`;
                 
-                // Truncate long names and paths for compact display
-                const truncatedName = workflow.name.length > 20 ? workflow.name.substring(0, 17) + '...' : workflow.name;
+                // Format name with badges and truncate
+                const formattedName = this.formatWorkflowName(workflow, 20);
                 const truncatedPath = workflow.filename && workflow.filename.length > 20 ?
                     '...' + workflow.filename.substring(workflow.filename.length - 17) :
                     workflow.filename || '-';
@@ -315,7 +336,7 @@ export class StartCommand extends BaseCommand {
                 table.push([
                     color(statusText),
                     workflow.id ? workflow.id.substring(0, 9) + '…' : '-',
-                    truncatedName,
+                    formattedName,
                     truncatedPath
                 ]);
             }
@@ -336,7 +357,7 @@ export class StartCommand extends BaseCommand {
             ].join('\n');
 
             // Use log-update to re-render without flickering
-            logUpdate(table.toString() + '\n' + summaryText);
+            logUpdate(projectHeader + table.toString() + '\n' + summaryText);
             return;
         }
         
@@ -378,11 +399,12 @@ export class StartCommand extends BaseCommand {
         for (const workflow of sorted) {
             const { icon, color } = this.getStatusDisplay(workflow.status);
             const statusText = `${icon} ${workflow.status}`;
+            const formattedName = this.formatWorkflowName(workflow, 28);
             
             table.push([
                 color(statusText),
                 workflow.id || '-',
-                workflow.name,
+                formattedName,
                 workflow.filename || '-'
             ]);
         }
@@ -405,7 +427,7 @@ export class StartCommand extends BaseCommand {
         ].join('\n');
 
         // Use log-update to re-render without flickering
-        logUpdate(table.toString() + '\n' + summaryText);
+        logUpdate(projectHeader + table.toString() + '\n' + summaryText);
     }
 
     private getStatusDisplay(status: WorkflowSyncStatus): { icon: string; color: typeof chalk } {

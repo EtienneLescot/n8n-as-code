@@ -7,6 +7,7 @@ import { Watcher } from './watcher.js';
 import { SyncEngine } from './sync-engine.js';
 import { ResolutionManager } from './resolution-manager.js';
 import { ISyncConfig, IWorkflow, WorkflowSyncStatus, IWorkflowStatus } from '../types.js';
+import { createProjectSlug } from './directory-utils.js';
 
 export class SyncManager extends EventEmitter {
     private client: N8nApiClient;
@@ -29,18 +30,25 @@ export class SyncManager extends EventEmitter {
     private async ensureInitialized() {
         if (this.watcher) return;
 
-        // Note: instanceIdentifier logic handling omitted for brevity,
-        // assuming it's handled or using default directory for now
-        // to focus on the 3-way merge integration.
-        const instanceDir = path.join(this.config.directory, this.config.instanceIdentifier || 'default');
-        if (!fs.existsSync(instanceDir)) fs.mkdirSync(instanceDir, { recursive: true });
+        // Build project-scoped directory: baseDir/instanceId/projectSlug
+        const projectSlug = createProjectSlug(this.config.projectName);
+        const instanceDir = path.join(
+            this.config.directory, 
+            this.config.instanceIdentifier || 'default',
+            projectSlug
+        );
+        
+        if (!fs.existsSync(instanceDir)) {
+            fs.mkdirSync(instanceDir, { recursive: true });
+        }
 
         this.stateManager = new StateManager(instanceDir);
         this.watcher = new Watcher(this.client, {
             directory: instanceDir,
             pollIntervalMs: this.config.pollIntervalMs,
             syncInactive: this.config.syncInactive,
-            ignoredTags: this.config.ignoredTags
+            ignoredTags: this.config.ignoredTags,
+            projectId: this.config.projectId
         });
 
         this.syncEngine = new SyncEngine(this.client, this.watcher, instanceDir);
@@ -69,15 +77,11 @@ export class SyncManager extends EventEmitter {
             }
             
             // Auto-sync in auto mode
-            console.log(`[SyncManager] statusChange event: ${data.filename}, status: ${data.status}, syncMode: ${this.config.syncMode}`);
             if (this.config.syncMode === 'auto') {
-                console.log(`[SyncManager] Triggering auto-sync for ${data.filename}`);
                 this.handleAutoSync(data).catch(err => {
                     console.error('[SyncManager] Auto-sync error:', err);
                     this.emit('error', `Auto-sync failed: ${err.message}`);
                 });
-            } else {
-                console.log(`[SyncManager] Auto-sync skipped (mode: ${this.config.syncMode})`);
             }
         });
 
@@ -94,6 +98,15 @@ export class SyncManager extends EventEmitter {
         await this.ensureInitialized();
         // Return status from watcher
         return this.watcher!.getStatusMatrix();
+    }
+    
+    /**
+     * Get full workflows with organization metadata for display purposes.
+     * This returns the actual workflow objects with projectId, isArchived, tags, etc.
+     */
+    async getWorkflowsWithMetadata(): Promise<IWorkflow[]> {
+        await this.ensureInitialized();
+        return this.watcher!.getAllWorkflows();
     }
 
     async syncDown() {
@@ -225,7 +238,12 @@ export class SyncManager extends EventEmitter {
     }
 
     public getInstanceDirectory(): string {
-        return path.join(this.config.directory, this.config.instanceIdentifier || 'default');
+        const projectSlug = createProjectSlug(this.config.projectName);
+        return path.join(
+            this.config.directory, 
+            this.config.instanceIdentifier || 'default',
+            projectSlug
+        );
     }
 
     // Bridge for conflict resolution

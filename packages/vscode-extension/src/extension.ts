@@ -7,6 +7,7 @@ import { AiContextGenerator, SnippetGenerator } from '@n8n-as-code/skills';
 import { StatusBar } from './ui/status-bar.js';
 import { EnhancedWorkflowTreeProvider } from './ui/enhanced-workflow-tree-provider.js';
 import { WorkflowWebview } from './ui/workflow-webview.js';
+import { ConfigurationWebview } from './ui/configuration-webview.js';
 import { WorkflowDecorationProvider } from './ui/workflow-decoration-provider.js';
 import { ProxyService } from './services/proxy-service.js';
 import { ExtensionState } from './types.js';
@@ -72,6 +73,10 @@ export async function activate(context: vscode.ExtensionContext) {
             await handleInitializeCommand(context);
         }),
 
+        vscode.commands.registerCommand('n8n.configure', async () => {
+            ConfigurationWebview.createOrShow(context);
+        }),
+
         vscode.commands.registerCommand('n8n.applySettings', async () => {
             outputChannel.appendLine('[n8n] Applying new settings...');
             await reinitializeSyncManager(context);
@@ -79,6 +84,11 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         vscode.commands.registerCommand('n8n.pull', async () => {
+            if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
+                vscode.window.showWarningMessage('n8n: Settings changed. Click “Apply Changes” to resume syncing.');
+                return;
+            }
+
             if (!syncManager) {
                 vscode.window.showWarningMessage('n8n: Not initialized.');
                 return;
@@ -99,6 +109,11 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         vscode.commands.registerCommand('n8n.push', async () => {
+            if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
+                vscode.window.showWarningMessage('n8n: Settings changed. Click “Apply Changes” to resume syncing.');
+                return;
+            }
+
             if (!syncManager) {
                 vscode.window.showWarningMessage('n8n: Not initialized.');
                 return;
@@ -197,6 +212,10 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         vscode.commands.registerCommand('n8n.pushWorkflow', async (arg: any) => {
+            if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
+                vscode.window.showWarningMessage('n8n: Settings changed. Click “Apply Changes” to resume syncing.');
+                return;
+            }
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf || !syncManager || !wf.filename) return;
 
@@ -222,6 +241,10 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         vscode.commands.registerCommand('n8n.pullWorkflow', async (arg: any) => {
+            if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
+                vscode.window.showWarningMessage('n8n: Settings changed. Click “Apply Changes” to resume syncing.');
+                return;
+            }
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf || !syncManager || !wf.id) return;
 
@@ -312,6 +335,10 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         vscode.commands.registerCommand('n8n.deleteWorkflow', async (arg: any) => {
+            if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
+                vscode.window.showWarningMessage('n8n: Settings changed. Click “Apply Changes” to resume syncing.');
+                return;
+            }
             outputChannel.appendLine(`[n8n] deleteWorkflow command called.`);
             const wf = arg?.workflow ? arg.workflow : arg;
 
@@ -486,16 +513,31 @@ export async function activate(context: vscode.ExtensionContext) {
     // 2b. Listen for Config Changes (but don't auto-initialize)
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration(async (e) => {
+            // If the configuration webview triggers a save+apply, suppress the transient
+            // SETTINGS_CHANGED state to avoid flicker and duplicate "Apply" moments.
+            const suppressOnce = context.workspaceState.get<boolean>('n8n.suppressSettingsChangedOnce');
+            if (suppressOnce) {
+                await context.workspaceState.update('n8n.suppressSettingsChangedOnce', false);
+                return;
+            }
+
             if (
                 e.affectsConfiguration('n8n.host') ||
                 e.affectsConfiguration('n8n.apiKey') ||
-                e.affectsConfiguration('n8n.syncFolder')
+                e.affectsConfiguration('n8n.syncFolder') ||
+                e.affectsConfiguration('n8n.projectId') ||
+                e.affectsConfiguration('n8n.projectName') ||
+                e.affectsConfiguration('n8n.syncMode')
             ) {
-                // Critical settings changed: host, API key, or folder
-                outputChannel.appendLine('[n8n] Critical settings changed (host/apiKey/folder). Pausing sync until applied.');
+                // Critical settings changed: host, API key, folder, project, or syncMode.
+                // Pause watch/sync until the user explicitly applies settings.
+                outputChannel.appendLine('[n8n] Critical settings changed (host/apiKey/folder/project/syncMode). Pausing sync until applied.');
 
                 if (syncManager) {
+                    // Actually pause background activity.
+                    syncManager.stopWatch();
                     enhancedTreeProvider.setExtensionState(ExtensionState.SETTINGS_CHANGED);
+                    statusBar.showSettingsChanged();
                 } else {
                     const configValidation = validateN8nConfig();
                     const workspaceRoot = getWorkspaceRoot();
@@ -514,16 +556,15 @@ export async function activate(context: vscode.ExtensionContext) {
                 }
                 updateContextKeys();
             } else if (
-                e.affectsConfiguration('n8n.syncMode') ||
                 e.affectsConfiguration('n8n.pollInterval')
             ) {
                 // Non-critical settings: syncMode or pollInterval
-                outputChannel.appendLine('[n8n] Non-critical settings changed (syncMode/pollInterval). Auto-applying...');
+                outputChannel.appendLine('[n8n] Non-critical settings changed (pollInterval). Auto-applying...');
 
                 if (syncManager) {
                     try {
                         await reinitializeSyncManager(context);
-                        vscode.window.showInformationMessage('✅ Sync mode / interval updated.');
+                        vscode.window.showInformationMessage('✅ Poll interval updated.');
                     } catch (error: any) {
                         outputChannel.appendLine(`[n8n] Failed to auto-apply settings: ${error.message}`);
                     }
@@ -596,7 +637,7 @@ async function handleInitializeCommand(context: vscode.ExtensionContext) {
 
     if (!configValidation.isValid) {
         vscode.window.showErrorMessage(`Missing configuration: ${configValidation.missing.join(', ')}`);
-        vscode.commands.executeCommand('n8n.openSettings');
+        ConfigurationWebview.createOrShow(context);
         return;
     }
 
@@ -651,12 +692,63 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     const folder = config.get<string>('syncFolder') || 'workflows';
     const pollIntervalMs = config.get<number>('pollInterval') || 3000;
 
+    // Project-scoped sync (required)
+    let projectId = config.get<string>('projectId');
+    let projectName = config.get<string>('projectName');
+
     if (!host || !apiKey) {
         throw new Error('Host/API Key missing. Please check Settings.');
     }
 
     const credentials: IN8nCredentials = { host, apiKey };
     const client = new N8nApiClient(credentials);
+
+    // If project isn't configured yet, try to pick a sensible default and persist it.
+    if (!projectId || !projectName) {
+        const projects = await client.getProjects();
+        if (!projects.length) {
+            throw new Error('No projects found on this n8n instance. Cannot initialize sync.');
+        }
+
+        // Prefer the personal project if available; otherwise, if there is only one project, use it.
+        let selectedProject = projects.find((p: any) => p.type === 'personal');
+        if (!selectedProject && projects.length === 1) {
+            selectedProject = projects[0];
+        }
+
+        // Otherwise, ask the user.
+        if (!selectedProject) {
+            const picked = await vscode.window.showQuickPick(
+                projects.map((p: any) => ({
+                    label: p.type === 'personal' ? 'Personal' : p.name,
+                    description: p.type,
+                    detail: p.id,
+                    project: p,
+                })),
+                {
+                    title: 'Select the n8n project to sync',
+                    ignoreFocusOut: true,
+                }
+            );
+
+            if (!picked) {
+                throw new Error('Project selection cancelled.');
+            }
+
+            selectedProject = (picked as any).project;
+        }
+
+        if (!selectedProject) {
+            throw new Error('No project selected. Cannot initialize sync.');
+        }
+
+        projectId = selectedProject.id;
+        projectName = selectedProject.type === 'personal' ? 'Personal' : selectedProject.name;
+
+        await config.update('projectId', projectId, vscode.ConfigurationTarget.Workspace);
+        await config.update('projectName', projectName, vscode.ConfigurationTarget.Workspace);
+        outputChannel.appendLine(`[n8n] Selected project: ${projectName} (${projectId})`);
+    }
 
     // Resolve Absolute Path
     let workspaceRoot = '';
@@ -707,6 +799,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         ignoredTags: [],
         instanceIdentifier: instanceIdentifier,
         instanceConfigPath: path.join(workspaceRoot, 'n8nac-instance.json'),
+        projectId: projectId!,
+        projectName: projectName!,
         syncMode: (config.get<string>('syncMode') || 'auto') as 'auto' | 'manual'
     });
 

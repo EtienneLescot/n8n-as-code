@@ -42,14 +42,25 @@ test('Robust Integration Suite', { skip: !apiKey }, async (t) => {
     let client: N8nApiClient;
     let tempDir: string;
     let syncManager: SyncManager;
+    let projectId: string;
+    let projectName: string;
 
     before(async () => {
         client = new N8nApiClient({ host, apiKey });
         tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8n-robust-suite-'));
+
+        // Pick a stable project scope for tests (prefer Personal).
+        const projects = await client.getProjects();
+        const selectedProject = projects.find((p: any) => p.type === 'personal') || projects[0];
+        if (!selectedProject) {
+            throw new Error('No projects found on this n8n instance. Cannot run integration tests.');
+        }
+        projectId = selectedProject.id;
+        projectName = selectedProject.type === 'personal' ? 'Personal' : selectedProject.name;
         
         // Cleanup
         try {
-            const all = await client.getAllWorkflows();
+            const all = await client.getAllWorkflows(projectId);
             for (const wf of all) {
                 if (wf.name === TEST_WORKFLOW_NAME) {
                     await client.deleteWorkflow(wf.id);
@@ -72,7 +83,9 @@ test('Robust Integration Suite', { skip: !apiKey }, async (t) => {
             pollIntervalMs: 0,
             syncInactive: true,
             ignoredTags: [],
-            instanceIdentifier: 'e2e-test'
+            instanceIdentifier: 'e2e-test',
+            projectId,
+            projectName
         });
 
         await syncManager.startWatch();

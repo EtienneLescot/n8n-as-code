@@ -7,6 +7,7 @@ export * from './services/watcher.js';
 export * from './services/resolution-manager.js';
 export * from './services/state-manager.js';
 export * from './services/directory-utils.js';
+export * from './helpers/index.js';
 
 
 

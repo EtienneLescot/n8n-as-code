@@ -285,7 +285,7 @@ export class SyncEngine {
 
         // Update Watcher's remote hash cache since we just fetched the workflow
         // This ensures finalizeSync has the remote hash
-        const hash = HashUtils.computeHash(clean);
+        const hash = HashUtils.computeHash(WorkflowSanitizer.cleanForHash(fullWf));
         this.watcher.setRemoteHash(workflowId, hash);
     }
 
@@ -311,7 +311,7 @@ export class SyncEngine {
         fs.writeFileSync(filePath, JSON.stringify(clean, null, 2));
 
         // Update Watcher's remote hash cache with the updated workflow
-        const hash = HashUtils.computeHash(clean);
+        const hash = HashUtils.computeHash(WorkflowSanitizer.cleanForHash(updatedWf));
         this.watcher.setRemoteHash(workflowId, hash);
     }
 

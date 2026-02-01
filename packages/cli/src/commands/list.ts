@@ -1,5 +1,5 @@
 import { BaseCommand } from './base.js';
-import { SyncManager, WorkflowSyncStatus, IWorkflowStatus } from '@n8n-as-code/sync';
+import { SyncManager, WorkflowSyncStatus, IWorkflowStatus, formatWorkflowNameWithBadges } from '@n8n-as-code/sync';
 import chalk from 'chalk';
 import ora from 'ora';
 import Table from 'cli-table3';
@@ -21,6 +21,11 @@ export class ListCommand extends BaseCommand {
 
             spinner.stop();
 
+            const localConfig = this.configService.getLocalConfig();
+            if (localConfig.projectName) {
+                console.log(chalk.cyan(`\n📁 Project: ${chalk.bold(localConfig.projectName)}`));
+            }
+
             // Create table
             const table = new Table({
                 head: [
@@ -29,7 +34,7 @@ export class ListCommand extends BaseCommand {
                     chalk.bold('Name'),
                     chalk.bold('Local Path')
                 ],
-                colWidths: [20, 15, 40, 50],
+                colWidths: [20, 15, 50, 50],
                 wordWrap: true
             });
 
@@ -56,10 +61,17 @@ export class ListCommand extends BaseCommand {
                 const { icon, color } = this.getStatusDisplay(workflow.status);
                 const statusText = `${icon} ${workflow.status}`;
                 
+                // Format name with badges
+                const workflowName = formatWorkflowNameWithBadges(workflow, {
+                    showProjectBadge: false,
+                    showArchivedBadge: true,
+                    archivedBadgeStyle: (text) => chalk.gray(text)
+                });
+                
                 table.push([
                     color(statusText),
                     workflow.id || '-',
-                    workflow.name,
+                    workflowName,
                     workflow.filename || '-'
                 ]);
             }

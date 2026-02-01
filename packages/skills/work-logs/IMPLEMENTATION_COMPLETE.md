@@ -44,8 +44,7 @@ if (encoding === 'gzip') {
 
 ### Scripts Créés
 1. ✅ `scripts/download-n8n-docs.cjs` - Télécharge et parse la documentation n8n
-2. ✅ `scripts/enrich-nodes-index.cjs` - Enrichit l'index avec métadonnées
-3. ✅ `scripts/build-skills-full.sh` - Script de build complet automatisé
+2. ✅ `scripts/enrich-nodes-technical.cjs` - Enrichit l'index avec métadonnées (index technique)
 
 ### Scripts Modifiés
 1. ✅ `scripts/ensure-n8n-cache.cjs` - Build nodes-langchain en plus de nodes-base
@@ -92,7 +91,7 @@ if (encoding === 'gzip') {
 ### Option 1: Build Automatique (Recommandé)
 ```bash
 # Utiliser le script tout-en-un
-./scripts/build-skills-full.sh
+npm -w packages/skills run build
 ```
 
 Ce script exécute automatiquement:
@@ -115,7 +114,7 @@ node scripts/generate-n8n-index.cjs
 node scripts/download-n8n-docs.cjs
 
 # 4. Enrich index
-node scripts/enrich-nodes-index.cjs
+node scripts/enrich-nodes-technical.cjs
 
 # 5. Build TypeScript
 cd packages/skills
@@ -273,7 +272,7 @@ Tous les objectifs atteints:
 ## 🔄 Prochaines Actions
 
 1. **Attendre la fin du téléchargement** (~5-10 min restant)
-2. **Lancer le build complet** avec `./scripts/build-skills-full.sh`
+2. **Lancer le build complet** avec `npm -w packages/skills run build`
 3. **Tester la recherche** avec les exemples ci-dessus
 4. **Valider les résultats** et profiter de la recherche améliorée ! 🚀
 

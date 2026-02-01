@@ -45,7 +45,7 @@
     "viewsWelcome": [
       {
         "view": "n8n-explorer.workflows",
-        "contents": "Welcome to n8n as code!\n\nTo get started, you need to configure your n8n instance details.\n\n[Open Settings](command:n8n.openSettings)",
+        "contents": "Welcome to n8n as code!\n\nTo get started, you need to configure your n8n instance details.\n\n[Configure](command:n8n.configure)",
         "when": "n8n.state == configuring"
       },
       {
@@ -60,6 +60,11 @@
       }
     ],
     "commands": [
+      {
+        "command": "n8n.configure",
+        "title": "n8n: Configure",
+        "icon": "$(settings-gear)"
+      },
       {
         "command": "n8n.init",
         "title": "n8n: Initialize n8n as code",
@@ -149,14 +154,19 @@
     "menus": {
       "view/title": [
         {
+          "command": "n8n.applySettings",
+          "group": "navigation@0",
+          "when": "view == n8n-explorer.workflows && n8n.state == settings-changed"
+        },
+        {
           "command": "n8n.push",
           "group": "navigation@1",
-          "when": "view == n8n-explorer.workflows && config.n8n.syncMode == manual"
+          "when": "view == n8n-explorer.workflows && n8n.state == initialized && config.n8n.syncMode == manual"
         },
         {
           "command": "n8n.pull",
           "group": "navigation@2",
-          "when": "view == n8n-explorer.workflows && config.n8n.syncMode == manual"
+          "when": "view == n8n-explorer.workflows && n8n.state == initialized && config.n8n.syncMode == manual"
         },
         {
           "command": "n8n.spacer",
@@ -164,7 +174,7 @@
           "when": "view == n8n-explorer.workflows"
         },
         {
-          "command": "n8n.openSettings",
+          "command": "n8n.configure",
           "group": "navigation@4",
           "when": "view == n8n-explorer.workflows"
         }
@@ -265,6 +275,14 @@
           "type": "number",
           "default": 3000,
           "description": "Polling interval in milliseconds for Auto Mode (default 3s)"
+        },
+        "n8n.projectId": {
+          "type": "string",
+          "description": "Project ID to sync (managed by the extension; use the Configure command to select)"
+        },
+        "n8n.projectName": {
+          "type": "string",
+          "description": "Project name to display (managed by the extension; use the Configure command to select)"
         }
       }
     }

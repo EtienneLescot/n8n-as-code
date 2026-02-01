@@ -28,6 +28,7 @@ export class Watcher extends EventEmitter {
     private pollIntervalMs: number;
     private syncInactive: boolean;
     private ignoredTags: string[];
+    private projectId: string;
     private stateFilePath: string;
     private isConnected: boolean = true;
     private isInitializing: boolean = false;
@@ -61,6 +62,7 @@ export class Watcher extends EventEmitter {
             pollIntervalMs: number;
             syncInactive: boolean;
             ignoredTags: string[];
+            projectId: string;      // Project scope filter
         }
     ) {
         super();
@@ -69,6 +71,7 @@ export class Watcher extends EventEmitter {
         this.pollIntervalMs = options.pollIntervalMs;
         this.syncInactive = options.syncInactive;
         this.ignoredTags = options.ignoredTags;
+        this.projectId = options.projectId;
         this.stateFilePath = path.join(this.directory, '.n8n-state.json');
     }
 
@@ -300,7 +303,7 @@ export class Watcher extends EventEmitter {
                         const newContent = this.readJsonFile(filePath);
                         if (newContent) {
                             const workflowId = this.fileToIdMap.get(filename);
-                            const clean = WorkflowSanitizer.cleanForStorage(newContent);
+                                const clean = WorkflowSanitizer.cleanForHash(newContent);
                             const hash = this.computeHash(clean);
                             this.localHashes.set(filename, hash);
                             this.broadcastStatus(filename, workflowId);
@@ -317,7 +320,7 @@ export class Watcher extends EventEmitter {
         // IMPORTANT: Hash is calculated on the SANITIZED version
         // This means versionId, versionCounter, pinData, etc. are ignored
         // The file on disk can contain these fields, but they won't affect the hash
-        const clean = WorkflowSanitizer.cleanForStorage(content);
+            const clean = WorkflowSanitizer.cleanForHash(content);
         const hash = this.computeHash(clean);
 
         this.localHashes.set(filename, hash);
@@ -464,7 +467,7 @@ export class Watcher extends EventEmitter {
                         }
                         
                         // Save to archive with timestamp
-                        const clean = WorkflowSanitizer.cleanForStorage(remoteWorkflow);
+                            const clean = WorkflowSanitizer.cleanForHash(remoteWorkflow);
                         const archivePath = path.join(archiveDir, `${Date.now()}_${filename}`);
                         fs.writeFileSync(archivePath, JSON.stringify(clean, null, 2));
                     }
@@ -545,7 +548,7 @@ export class Watcher extends EventEmitter {
                 const stat = fs.statSync(filePath);
                 fileContents.push({ filename, content, mtime: stat.mtimeMs });
                 
-                const clean = WorkflowSanitizer.cleanForStorage(content);
+                const clean = WorkflowSanitizer.cleanForHash(content);
                 const hash = this.computeHash(clean);
                 this.localHashes.set(filename, hash);
             }
@@ -614,7 +617,7 @@ export class Watcher extends EventEmitter {
                         fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
                         
                         // Update local hash for the modified file
-                        const clean = WorkflowSanitizer.cleanForStorage(content);
+                        const clean = WorkflowSanitizer.cleanForHash(content);
                         const hash = this.computeHash(clean);
                         this.localHashes.set(dupFilename, hash);
                     }
@@ -638,7 +641,7 @@ export class Watcher extends EventEmitter {
      */
     public async refreshRemoteState() {
         try {
-            const remoteWorkflows = await this.client.getAllWorkflows();
+            const remoteWorkflows = await this.client.getAllWorkflows(this.projectId);
             this.isConnected = true;
             const currentRemoteIds = new Set<string>();
             
@@ -717,7 +720,7 @@ export class Watcher extends EventEmitter {
                     try {
                         const fullWf = await this.client.getWorkflow(wf.id);
                         if (fullWf) {
-                            const clean = WorkflowSanitizer.cleanForStorage(fullWf);
+                            const clean = WorkflowSanitizer.cleanForHash(fullWf);
                             const hash = this.computeHash(clean);
 
                             this.remoteHashes.set(wf.id, hash);
@@ -811,7 +814,7 @@ export class Watcher extends EventEmitter {
             throw new Error(`Cannot finalize sync: local file not found for ${workflowId}`);
         }
 
-        const clean = WorkflowSanitizer.cleanForStorage(content);
+        const clean = WorkflowSanitizer.cleanForHash(content);
         const computedHash = this.computeHash(clean);
         
         // After a successful sync, local and remote should be identical
@@ -1026,17 +1029,40 @@ export class Watcher extends EventEmitter {
         const results: Map<string, IWorkflowStatus> = new Map();
         const state = this.loadState();
 
+        // Get workflows with metadata for project info
+        const workflowsMap = new Map<string, IWorkflow>();
+        try {
+            // Read local workflows
+            for (const [filename] of this.localHashes.entries()) {
+                const filePath = path.join(this.directory, filename);
+                if (fs.existsSync(filePath)) {
+                    const content = fs.readFileSync(filePath, 'utf8');
+                    const workflow = JSON.parse(content);
+                    if (workflow.id) {
+                        workflowsMap.set(workflow.id, workflow);
+                    }
+                }
+            }
+        } catch (error) {
+            console.debug('[Watcher] Failed to load workflow metadata for status matrix:', error);
+        }
+
         // 1. Process all local files
         for (const [filename, hash] of this.localHashes.entries()) {
             const workflowId = this.fileToIdMap.get(filename);
             const status = this.calculateStatus(filename, workflowId);
+            const workflow = workflowId ? workflowsMap.get(workflowId) : undefined;
 
             results.set(filename, {
                 id: workflowId || '',
                 name: filename.replace('.json', ''),
                 filename: filename,
                 status: status,
-                active: true
+                active: workflow?.active ?? true,
+                projectId: workflow?.projectId,
+                projectName: workflow?.projectName,
+                homeProject: workflow?.homeProject,
+                isArchived: workflow?.isArchived ?? false
             });
         }
 
@@ -1048,12 +1074,18 @@ export class Watcher extends EventEmitter {
             
             if (!results.has(filename)) {
                 const status = this.calculateStatus(filename, workflowId);
+                const workflow = workflowsMap.get(workflowId);
+                
                 results.set(filename, {
                     id: workflowId,
                     name: filename.replace('.json', ''),
                     filename: filename,
                     status: status,
-                    active: true
+                    active: workflow?.active ?? true,
+                    projectId: workflow?.projectId,
+                    projectName: workflow?.projectName,
+                    homeProject: workflow?.homeProject,
+                    isArchived: workflow?.isArchived ?? false
                 });
             }
         }
@@ -1066,12 +1098,18 @@ export class Watcher extends EventEmitter {
             
             if (!results.has(filename)) {
                 const status = this.calculateStatus(filename, id);
+                const workflow = workflowsMap.get(id);
+                
                 results.set(filename, {
                     id,
                     name: filename.replace('.json', ''),
                     filename,
                     status,
-                    active: true
+                    active: workflow?.active ?? true,
+                    projectId: workflow?.projectId,
+                    projectName: workflow?.projectName,
+                    homeProject: workflow?.homeProject,
+                    isArchived: workflow?.isArchived ?? false
                 });
             }
         }
@@ -1101,6 +1139,44 @@ export class Watcher extends EventEmitter {
     public getTrackedWorkflowIds(): string[] {
         const state = this.loadState();
         return Object.keys(state.workflows);
+    }
+    
+    /**
+     * Get all workflows with their full content including organization metadata.
+     * This reads from local files first, falls back to remote for remote-only workflows.
+     * Useful for display purposes where we need project info, archived status, etc.
+     */
+    public async getAllWorkflows(): Promise<IWorkflow[]> {
+        const workflows: IWorkflow[] = [];
+        
+        // 1. Get all local workflows
+        for (const [filename, _] of this.localHashes.entries()) {
+            const filepath = path.join(this.directory, filename);
+            try {
+                const content = fs.readFileSync(filepath, 'utf-8');
+                const workflow: IWorkflow = JSON.parse(content);
+                workflows.push(workflow);
+            } catch (error) {
+                console.warn(`[Watcher] Failed to read local workflow ${filename}:`, error);
+            }
+        }
+        
+        // 2. For remote-only workflows, fetch from API
+        const localIds = new Set(workflows.map(w => w.id));
+        for (const [workflowId, _] of this.remoteHashes.entries()) {
+            if (!localIds.has(workflowId)) {
+                try {
+                    const workflow = await this.client.getWorkflow(workflowId);
+                    if (workflow) {
+                        workflows.push(workflow);
+                    }
+                } catch (error) {
+                    console.warn(`[Watcher] Failed to fetch remote workflow ${workflowId}:`, error);
+                }
+            }
+        }
+        
+        return workflows;
     }
 
     /**

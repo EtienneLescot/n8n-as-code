@@ -8,7 +8,7 @@ on:
       - 'packages/**/*.ts'
       - 'packages/**/*.tsx'
       - 'typedoc.json'
-      - 'scripts/generate-api-docs.js'
+      - 'scripts/generate-api-docs.cjs'
       - '.github/workflows/docs.yml'
   pull_request:
     branches: [ main ]
@@ -17,7 +17,7 @@ on:
       - 'packages/**/*.ts'
       - 'packages/**/*.tsx'
       - 'typedoc.json'
-      - 'scripts/generate-api-docs.js'
+      - 'scripts/generate-api-docs.cjs'
   # Allow manual triggering
   workflow_dispatch:
 

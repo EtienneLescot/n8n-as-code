@@ -288,11 +288,11 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
       items.push(retryItem);
     }
 
-    // 5. Action: Settings
-    const settingsItem = new InfoItem('Open Settings', '', new vscode.ThemeIcon('settings-gear'));
+    // 5. Action: Configure
+    const settingsItem = new InfoItem('Configure', '', new vscode.ThemeIcon('settings-gear'));
     settingsItem.command = {
-      command: 'n8n.openSettings',
-      title: 'Open Settings'
+      command: 'n8n.configure',
+      title: 'Configure'
     };
     items.push(settingsItem);
     

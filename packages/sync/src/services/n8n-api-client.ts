@@ -1,9 +1,10 @@
 import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
-import { IN8nCredentials, IWorkflow } from '../types.js';
+import { IN8nCredentials, IWorkflow, IProject } from '../types.js';
 
 export class N8nApiClient {
     private client: AxiosInstance;
+    private projectsCache: Map<string, IProject> | null = null;
 
     constructor(credentials: IN8nCredentials) {
         let host = credentials.host;
@@ -78,10 +79,92 @@ export class N8nApiClient {
         return null;
     }
 
-    async getAllWorkflows(): Promise<IWorkflow[]> {
+    /**
+     * Fetches all projects from n8n.
+     * Public method for CLI/UI to show project selection.
+     * 
+     * @returns Array of IProject
+     */
+    async getProjects(): Promise<IProject[]> {
+        try {
+            const res = await this.client.get('/api/v1/projects');
+            const projects = res.data.data || [];
+            return projects.map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                type: p.type,
+                createdAt: p.createdAt,
+                updatedAt: p.updatedAt
+            }));
+        } catch (error: any) {
+            console.error(`[N8nApiClient] Failed to fetch projects: ${error.message}`);
+            return [];
+        }
+    }
+
+    /**
+     * Fetches all projects from n8n and caches them.
+     * Returns a Map of projectId -> IProject for quick lookups.
+     * 
+     * The cache is populated on first call and reused for subsequent calls.
+     * If the API call fails, returns an empty cache to allow graceful degradation.
+     * 
+     * @returns Map of projectId to IProject
+     */
+    private async getProjectsCache(): Promise<Map<string, IProject>> {
+        if (this.projectsCache !== null) {
+            return this.projectsCache;
+        }
+
+        try {
+            const res = await this.client.get('/api/v1/projects');
+            const projects = res.data.data || [];
+            
+            this.projectsCache = new Map();
+            for (const project of projects) {
+                this.projectsCache.set(project.id, {
+                    id: project.id,
+                    name: project.name,
+                    type: project.type,
+                    createdAt: project.createdAt,
+                    updatedAt: project.updatedAt
+                });
+            }
+            
+            // Only log in debug mode to avoid noise
+            if (process.env.DEBUG) {
+                console.debug(`[N8nApiClient] Cached ${this.projectsCache.size} projects`);
+            }
+            return this.projectsCache;
+        } catch (error: any) {
+            // Graceful degradation: workflows will have projectId but no homeProject/projectName
+            console.warn(`[N8nApiClient] Failed to fetch projects: ${error.message}. Workflows will not have project names.`);
+            this.projectsCache = new Map();
+            return this.projectsCache;
+        }
+    }
+
+    async getAllWorkflows(projectId?: string): Promise<IWorkflow[]> {
         try {
             const res = await this.client.get('/api/v1/workflows');
-            return res.data.data;
+            let workflows = res.data.data;
+            
+            // Filter by project if specified
+            if (projectId) {
+                workflows = workflows.filter((wf: any) => {
+                    if (!wf.shared || !Array.isArray(wf.shared) || wf.shared.length === 0) {
+                        return false;
+                    }
+                    return wf.shared[0].projectId === projectId;
+                });
+            }
+            
+            // Enrich workflows with organization metadata
+            const enriched = await Promise.all(
+                workflows.map((wf: any) => this.enrichWorkflowMetadata(wf))
+            );
+            
+            return enriched;
         } catch (error: any) {
             console.error('Failed to get workflows:', error.message);
             // Re-throw so the caller (Watcher) can distinguish between "no workflows" and "connection error"
@@ -92,7 +175,8 @@ export class N8nApiClient {
     async getWorkflow(id: string): Promise<IWorkflow | null> {
         try {
             const res = await this.client.get(`/api/v1/workflows/${id}`);
-            return res.data;
+            // Enrich with organization metadata
+            return await this.enrichWorkflowMetadata(res.data);
         } catch (error: any) {
             // 404 is expected if workflow deleted remotely
             if (error.response && error.response.status === 404) {
@@ -101,6 +185,46 @@ export class N8nApiClient {
             // Re-throw other errors (connection, 500, etc.)
             throw error;
         }
+    }
+    
+    /**
+     * Enriches a workflow with organization metadata extracted from the API response.
+     * This metadata includes project information and archived status.
+     * 
+     * @param workflow Raw workflow from n8n API
+     * @returns Workflow with organization metadata
+     */
+    private async enrichWorkflowMetadata(workflow: any): Promise<IWorkflow> {
+        const enriched: IWorkflow = { ...workflow };
+        
+        // Get projects cache
+        const projectsCache = await this.getProjectsCache();
+        
+        // Extract project information from shared array
+        // n8n stores projectId in workflow.shared[0].projectId
+        if (workflow.shared && Array.isArray(workflow.shared) && workflow.shared.length > 0) {
+            const firstShare = workflow.shared[0];
+            
+            if (firstShare.projectId) {
+                enriched.projectId = firstShare.projectId;
+                
+                // Look up project details in cache
+                const project = projectsCache.get(firstShare.projectId);
+                if (project) {
+                    enriched.homeProject = project;
+                    enriched.projectName = project.name;
+                } else {
+                    console.debug(`[N8nApiClient] Project ${firstShare.projectId} not found in cache`);
+                }
+            }
+        }
+        
+        // Extract archived status (direct property)
+        if (workflow.isArchived !== undefined) {
+            enriched.isArchived = workflow.isArchived;
+        }
+        
+        return enriched;
     }
 
     async createWorkflow(payload: Partial<IWorkflow>): Promise<IWorkflow> {

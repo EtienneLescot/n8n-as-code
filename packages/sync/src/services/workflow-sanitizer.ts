@@ -55,10 +55,37 @@ export class WorkflowSanitizer {
             connections: workflow.connections || {},
             settings: settings,
             tags: workflow.tags || [],
-            active: !!workflow.active
+            active: !!workflow.active,
+            
+            // Organization metadata (kept for local display, removed before API push)
+            ...(workflow.projectId && { projectId: workflow.projectId }),
+            ...(workflow.projectName && { projectName: workflow.projectName }),
+            ...(workflow.homeProject && {
+                homeProject: {
+                    id: workflow.homeProject.id,
+                    name: workflow.homeProject.name,
+                    type: workflow.homeProject.type
+                }
+            }),
+            ...(workflow.isArchived !== undefined && { isArchived: workflow.isArchived })
         };
 
         return cleaned;
+    }
+
+    /**
+     * Prepares a workflow for hashing / change detection.
+     *
+     * We intentionally exclude organization metadata (project, archived, etc.)
+     * so that changes in those fields do not trigger sync conflicts.
+     */
+    static cleanForHash(workflow: IWorkflow): Partial<IWorkflow> {
+        const clean = { ...(this.cleanForStorage(workflow) as any) };
+        delete clean.projectId;
+        delete clean.projectName;
+        delete clean.homeProject;
+        delete clean.isArchived;
+        return clean;
     }
 
     /**
@@ -73,6 +100,10 @@ export class WorkflowSanitizer {
      * - settings (object, optional but with strict schema)
      * - staticData (object, optional)
      * - triggerCount (number, optional)
+     * 
+     * IMPORTANT: Organization metadata (projectId, projectName, homeProject, isArchived)
+     * is explicitly EXCLUDED here as it's read-only API information stored locally
+     * for display purposes only.
      */
     static cleanForPush(workflow: Partial<IWorkflow>): Partial<IWorkflow> {
         // Start with cleanForStorage to get basic structure
@@ -80,6 +111,7 @@ export class WorkflowSanitizer {
 
         // Remove all fields that are not in the n8n API v1 PUT schema
         // Keep only: name, nodes, connections, settings, staticData, triggerCount
+        // Explicitly exclude: projectId, projectName, homeProject, isArchived (read-only metadata)
         const allowedFields = ['name', 'nodes', 'connections', 'settings', 'staticData', 'triggerCount'];
         const result: any = {};
         

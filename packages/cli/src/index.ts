@@ -5,6 +5,7 @@ import { ListCommand } from './commands/list.js';
 import { SyncCommand } from './commands/sync.js';
 import { UpdateAiCommand, InitAiCommand } from './commands/init-ai.js';
 import { InitCommand } from './commands/init.js';
+import { SwitchCommand } from './commands/switch.js';
 import chalk from 'chalk';
 
 import { readFileSync } from 'fs';
@@ -43,6 +44,9 @@ program.command('init')
     .action(async () => {
         await new InitCommand().run();
     });
+
+// switch - Switch between projects
+new SwitchCommand(program);
 
 // list - Snapshot view of all workflows and their sync status
 program.command('list')

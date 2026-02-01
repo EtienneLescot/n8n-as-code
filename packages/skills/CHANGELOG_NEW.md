@@ -45,7 +45,7 @@
 #### Build System
 - **New scripts**:
   - `download-n8n-docs.cjs` - Downloads and parses n8n documentation
-  - `enrich-nodes-index.cjs` - Combines schemas with documentation metadata
+  - `enrich-nodes-technical.cjs` - Combines schemas with documentation metadata (technical index)
 - **Updated scripts**:
   - `ensure-n8n-cache.cjs` - Now builds nodes-langchain package
   - `generate-n8n-index.cjs` - Scans multiple directories (nodes-base + nodes-langchain)
