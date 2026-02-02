@@ -2,10 +2,10 @@ import fs from 'fs';
 import path from 'path';
 
 export class TrashService {
-    private archiveDir: string;
+    private trashDir: string;
 
     constructor(baseDir: string) {
-        this.archiveDir = path.join(baseDir, '.archive');
+        this.trashDir = path.join(baseDir, '.trash');
     }
 
     /**
@@ -14,13 +14,13 @@ export class TrashService {
      * @param filename Name to use in the archive
      */
     async archiveFile(filePath: string, filename: string): Promise<string> {
-        if (!fs.existsSync(this.archiveDir)) {
-            fs.mkdirSync(this.archiveDir, { recursive: true });
+        if (!fs.existsSync(this.trashDir)) {
+            fs.mkdirSync(this.trashDir, { recursive: true });
         }
 
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const archivedName = `${timestamp}_${filename}`;
-        const targetPath = path.join(this.archiveDir, archivedName);
+        const targetPath = path.join(this.trashDir, archivedName);
 
         if (fs.existsSync(filePath)) {
             fs.renameSync(filePath, targetPath);
@@ -35,13 +35,13 @@ export class TrashService {
      * @param filename Base filename
      */
     async archiveWorkflow(workflow: any, filename: string): Promise<string> {
-        if (!fs.existsSync(this.archiveDir)) {
-            fs.mkdirSync(this.archiveDir, { recursive: true });
+        if (!fs.existsSync(this.trashDir)) {
+            fs.mkdirSync(this.trashDir, { recursive: true });
         }
 
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const archivedName = `${timestamp}_${filename}`;
-        const targetPath = path.join(this.archiveDir, archivedName);
+        const targetPath = path.join(this.trashDir, archivedName);
 
         fs.writeFileSync(targetPath, JSON.stringify(workflow, null, 2));
 

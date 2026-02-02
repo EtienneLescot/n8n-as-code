@@ -96,7 +96,7 @@ export class ResolutionManager {
      * 6.2 Deletion Validation - CONFIRM DELETION
      *
      * Case Deleted Locally: Send DELETE to API -> Remove from state
-     * Case Deleted Remotely: Move local file to _archive/ -> Remove from state
+     * Case Deleted Remotely: Move local file to .trash/ -> Remove from state
      */
     public async confirmDeletion(
         workflowId: string,
@@ -119,7 +119,7 @@ export class ResolutionManager {
     /**
      * 6.2 Deletion Validation - RESTORE WORKFLOW
      *
-     * Case Deleted Locally: Move file from _archive/ to workflows/
+     * Case Deleted Locally: Move file from .trash/ to workflows/
      * Case Deleted Remotely: Force PUSH (Re-create on Remote)
      */
     public async restoreWorkflow(

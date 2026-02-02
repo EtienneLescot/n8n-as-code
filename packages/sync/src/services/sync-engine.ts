@@ -20,7 +20,7 @@ export class SyncEngine {
     private client: N8nApiClient;
     private watcher: Watcher;
     private directory: string;
-    private archiveDirectory: string;
+    private trashDirectory: string;
 
     constructor(
         client: N8nApiClient,
@@ -30,10 +30,10 @@ export class SyncEngine {
         this.client = client;
         this.watcher = watcher;
         this.directory = directory;
-        this.archiveDirectory = path.join(directory, '.archive');
+        this.trashDirectory = path.join(directory, '.trash');
 
-        if (!fs.existsSync(this.archiveDirectory)) {
-            fs.mkdirSync(this.archiveDirectory, { recursive: true });
+        if (!fs.existsSync(this.trashDirectory)) {
+            fs.mkdirSync(this.trashDirectory, { recursive: true });
         }
     }
 
@@ -127,7 +127,7 @@ export class SyncEngine {
                     return workflowId;
 
                 case WorkflowSyncStatus.DELETED_LOCALLY:
-                    // Step 1: Archive Remote to _archive/
+                    // Step 1: Archive Remote to .trash/
                     await this.archive(filename);
                     // Step 2: Trigger Deletion Validation (caller should handle)
                     // Note: Actual API deletion happens in ResolutionManager
@@ -241,7 +241,7 @@ export class SyncEngine {
      * Then DELETES the archive file (no need to keep it after restoration)
      */
     public async restoreFromArchive(filename: string): Promise<boolean> {
-        const archiveFiles = fs.readdirSync(this.archiveDirectory);
+        const archiveFiles = fs.readdirSync(this.trashDirectory);
         const matchingArchives = archiveFiles.filter(f => f.includes(filename));
         
         if (matchingArchives.length === 0) {
@@ -250,7 +250,7 @@ export class SyncEngine {
 
         // Get most recent archive
         const mostRecent = matchingArchives.sort().reverse()[0];
-        const archivePath = path.join(this.archiveDirectory, mostRecent);
+        const archivePath = path.join(this.trashDirectory, mostRecent);
         const targetPath = path.join(this.directory, filename);
 
         // Read content from archive
@@ -343,7 +343,7 @@ export class SyncEngine {
     public async archive(filename: string): Promise<void> {
         const filePath = path.join(this.directory, filename);
         if (fs.existsSync(filePath)) {
-            const archivePath = path.join(this.archiveDirectory, `${Date.now()}_${filename}`);
+            const archivePath = path.join(this.trashDirectory, `${Date.now()}_${filename}`);
             fs.renameSync(filePath, archivePath);
         }
     }

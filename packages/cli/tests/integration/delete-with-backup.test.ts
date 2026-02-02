@@ -23,7 +23,7 @@ describe('Delete with Backup', () => {
 
     it('should ensure file is in archive before deletion', async () => {
         const instanceDir = mockSyncManager.getInstanceDirectory();
-        const archiveDir = path.join(instanceDir, '_archive');
+        const archiveDir = path.join(instanceDir, '.trash');
         const filename = 'test.json';
 
         // Mock file system operations
@@ -53,7 +53,7 @@ describe('Delete with Backup', () => {
         existsSyncSpy.mockReturnValue(false);
 
         const instanceDir = mockSyncManager.getInstanceDirectory();
-        const archiveDir = path.join(instanceDir, '_archive');
+        const archiveDir = path.join(instanceDir, '.trash');
         const backupPath = path.join(archiveDir, 'test.json');
 
         const backupExists = fs.existsSync(backupPath);

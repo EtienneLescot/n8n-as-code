@@ -121,8 +121,8 @@ export class Watcher extends EventEmitter {
             for (const event of events) {
                 const filename = path.basename(event.path);
                 
-                // Ignore hidden files, archive, and state file
-                if (filename.startsWith('.') || event.path.includes('_archive') || event.path.includes('.archive')) {
+                // Ignore hidden files, trash, and state file
+                if (filename.startsWith('.') || event.path.includes('.trash')) {
                     continue;
                 }
 
@@ -138,7 +138,7 @@ export class Watcher extends EventEmitter {
             }
         }, {
             ignore: [
-                '**/_archive/**',
+                '**/.trash/**',
                 '**/.n8n-state.json',
                 '**/.git/**'
             ]
@@ -447,7 +447,7 @@ export class Watcher extends EventEmitter {
             }
         }
 
-        // CRITICAL: Per spec 5.3 DELETED_LOCALLY - Archive Remote to _archive/ IMMEDIATELY
+        // CRITICAL: Per spec 5.3 DELETED_LOCALLY - Archive Remote to .trash/ IMMEDIATELY
         // This happens BEFORE user confirmation, to ensure we have a backup
         if (workflowId) {
             const remoteHash = this.remoteHashes.get(workflowId);
@@ -461,14 +461,14 @@ export class Watcher extends EventEmitter {
                     
                     if (remoteWorkflow) {
                         // Create archive directory if it doesn't exist
-                        const archiveDir = path.join(this.directory, '.archive');
-                        if (!fs.existsSync(archiveDir)) {
-                            fs.mkdirSync(archiveDir, { recursive: true });
+                        const trashDir = path.join(this.directory, '.trash');
+                        if (!fs.existsSync(trashDir)) {
+                            fs.mkdirSync(trashDir, { recursive: true });
                         }
                         
                         // Save to archive with timestamp
                             const clean = WorkflowSanitizer.cleanForHash(remoteWorkflow);
-                        const archivePath = path.join(archiveDir, `${Date.now()}_${filename}`);
+                        const archivePath = path.join(trashDir, `${Date.now()}_${filename}`);
                         fs.writeFileSync(archivePath, JSON.stringify(clean, null, 2));
                     }
                 } catch (error) {
@@ -524,7 +524,7 @@ export class Watcher extends EventEmitter {
             return;
         }
 
-        const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.json') && !f.startsWith('.') && f !== '.archive' && f !== '_archive');
+        const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.json') && !f.startsWith('.'));
         const currentFiles = new Set(files);
         
         // Remove entries for files that no longer exist
@@ -788,7 +788,7 @@ export class Watcher extends EventEmitter {
         // If workflow not tracked yet (first sync of local-only workflow),
         // scan directory to find the file with this ID
         if (!filename) {
-            const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.json') && !f.startsWith('.') && f !== '.archive' && f !== '_archive');
+            const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.json') && !f.startsWith('.'));
             for (const file of files) {
                 const filePath = path.join(this.directory, file);
                 const content = this.readJsonFile(filePath);
@@ -997,7 +997,7 @@ export class Watcher extends EventEmitter {
         }
         
         const files = fs.readdirSync(this.directory)
-            .filter(f => f.endsWith('.json') && !f.startsWith('.') && f !== '.archive' && f !== '_archive');
+            .filter(f => f.endsWith('.json') && !f.startsWith('.'));
         
         for (const file of files) {
             const content = this.readJsonFile(path.join(this.directory, file));

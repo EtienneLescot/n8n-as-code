@@ -120,7 +120,7 @@ export class StartCommand extends BaseCommand {
             if (data.type === 'remote-deletion' && !this.isPromptActive) {
                 // Render table first, then show notification
                 await this.renderTable(syncManager);
-                console.log(chalk.yellow(`\n🗑️  Remote workflow "${data.filename}" was deleted. Local file moved to _archive.\n`));
+                console.log(chalk.yellow(`\n🗑️  Remote workflow "${data.filename}" was deleted. Local file moved to .trash.\n`));
             }
         });
 
@@ -247,13 +247,13 @@ export class StartCommand extends BaseCommand {
             // Now delete on remote
             const success = await syncManager.deleteRemoteWorkflow(data.id, data.filename);
             if (success) {
-                console.log(chalk.green(`✅ Remote workflow deleted and backed up to _archive.\n`));
+                console.log(chalk.green(`✅ Remote workflow deleted and backed up to .trash.\n`));
             } else {
                 console.log(chalk.red(`❌ Failed to delete remote workflow.\n`));
             }
         } else if (action === 'restore') {
             // Use resolveConflict with 'remote' to force pull from n8n
-            // This works even if file is not in _archive (manual deletion case)
+            // This works even if file is not in .trash (manual deletion case)
             try {
                 await syncManager.resolveConflict(data.id, data.filename, 'remote');
                 console.log(chalk.blue(`🔄 Local file restored from n8n.\n`));
