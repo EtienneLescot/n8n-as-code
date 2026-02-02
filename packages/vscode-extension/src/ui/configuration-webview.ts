@@ -236,64 +236,101 @@ export class ConfigurationWebview {
     body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); padding: 16px; }
     h2 { margin: 0 0 8px; }
     .muted { color: var(--vscode-descriptionForeground); }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; }
-    .field { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; flex: 1; min-width: 280px; }
+    .container { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .card { border: 1px solid var(--vscode-input-border); border-radius: 8px; padding: 12px; background: var(--vscode-panel-background); }
+    .card-header { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+    .card-title { font-weight: 600; }
+    .grid { display: flex; gap: 12px; flex-wrap: wrap; }
+    .field { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; flex: 1; min-width: 240px; }
     label { font-size: 12px; color: var(--vscode-descriptionForeground); }
     input, select { padding: 8px; border-radius: 4px; border: 1px solid var(--vscode-input-border); background: var(--vscode-input-background); color: var(--vscode-input-foreground); }
     input[type=password] { font-family: var(--vscode-editor-font-family); }
-    .buttons { display: flex; gap: 8px; margin-top: 16px; }
+    .actions { display: flex; gap: 8px; margin-top: 12px; justify-content:flex-end; }
     button { padding: 8px 10px; border-radius: 4px; border: 1px solid var(--vscode-button-border, transparent); background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; }
     button.secondary { background: transparent; color: var(--vscode-foreground); border: 1px solid var(--vscode-input-border); }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
     .error { margin-top: 12px; color: var(--vscode-errorForeground); white-space: pre-wrap; }
     .ok { margin-top: 12px; color: var(--vscode-charts-green); }
+    .muted.small { font-size: 12px; }
+    .accordion { margin-top: 8px; }
+    .accordion-toggle { background: transparent; border: none; color: var(--vscode-button-foreground); cursor: pointer; padding: 4px; display:flex; gap:8px; align-items:center; }
+    .accordion-content { margin-top: 6px; display:none; border-top:1px dashed var(--vscode-input-border); padding-top:8px; }
   </style>
 </head>
 <body>
   <h2>n8n as code</h2>
   <div class="muted">Configure your n8n instance and choose which project to sync (default: Personal).</div>
 
-  <div class="row">
-    <div class="field">
-      <label for="host">n8n Host URL</label>
-      <input id="host" type="text" placeholder="https://my-instance.app.n8n.cloud" />
+  <div class="container">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Connection</div>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label for="host">n8n Host URL</label>
+          <input id="host" type="text" placeholder="https://my-instance.app.n8n.cloud" />
+          <div class="muted small">Include protocol (https://) and omit trailing slash.</div>
+        </div>
+        <div class="field">
+          <label for="apiKey">API Key</label>
+          <input id="apiKey" type="password" placeholder="n8n API Key" />
+        </div>
+      </div>
+      <div style="margin-top:8px; display:flex; gap:8px;">
+        <button id="loadProjects" class="secondary">Load projects</button>
+        <div style="flex:1"></div>
+      </div>
     </div>
-    <div class="field">
-      <label for="apiKey">API Key</label>
-      <input id="apiKey" type="password" placeholder="n8n API Key" />
-    </div>
-  </div>
 
-  <div class="row">
-    <div class="field">
-      <label for="project">Project</label>
-      <select id="project" disabled>
-        <option value="">Load projects to select…</option>
-      </select>
-      <div class="muted" style="font-size: 12px;">Projects list is loaded from the n8n API once host + API key are valid.</div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Project</div>
+      </div>
+      <div class="field">
+        <label for="project">Select project to sync</label>
+        <select id="project" disabled>
+          <option value="">Load projects to select…</option>
+        </select>
+        <div class="muted small">Projects list is loaded from the n8n API once host + API key are valid.</div>
+      </div>
     </div>
-  </div>
 
-  <div class="row">
-    <div class="field">
-      <label for="syncFolder">Sync Folder (relative to workspace)</label>
-      <input id="syncFolder" type="text" placeholder="workflows" />
-      <div class="muted" style="font-size: 12px;">Example: <code>workflows</code> or <code>n8n/workflows</code></div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Sync settings</div>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label for="syncFolder">Sync Folder (relative to workspace)</label>
+          <input id="syncFolder" type="text" placeholder="workflows" />
+          <div class="muted small">Example: <code>workflows</code> or <code>n8n/workflows</code></div>
+        </div>
+        <div class="field">
+          <label for="syncMode">Sync Mode</label>
+          <select id="syncMode">
+            <option value="auto">Auto (Watch)</option>
+            <option value="manual">Manual</option>
+          </select>
+          <div class="muted small">Auto enables watch mode; Manual shows Push/Pull buttons.</div>
+        </div>
+      </div>
     </div>
-    <div class="field">
-      <label for="syncMode">Sync Mode</label>
-      <select id="syncMode">
-        <option value="auto">Auto (Watch)</option>
-        <option value="manual">Manual</option>
-      </select>
-      <div class="muted" style="font-size: 12px;">Auto enables watch mode; Manual shows Push/Pull buttons.</div>
-    </div>
-  </div>
 
-  <div class="buttons">
-    <button id="loadProjects" class="secondary">Load projects</button>
-    <button id="save">Apply Changes</button>
-    <button id="advanced" class="secondary">Advanced: open VS Code settings</button>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Actions</div>
+      </div>
+      <div class="actions">
+        <button id="save">Save settings</button>
+      </div>
+      <div class="accordion">
+        <button id="accordionToggle" class="accordion-toggle">Show advanced options</button>
+        <div id="accordionContent" class="accordion-content">
+          <div class="muted small">Advanced settings are available in VS Code settings. Use the button above to jump there.</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="message" class="error" style="display:none;"></div>
@@ -309,7 +346,8 @@ export class ConfigurationWebview {
     const syncModeEl = document.getElementById('syncMode');
     const loadBtn = document.getElementById('loadProjects');
     const saveBtn = document.getElementById('save');
-    const advancedBtn = document.getElementById('advanced');
+    const accordionToggle = document.getElementById('accordionToggle');
+    const accordionContent = document.getElementById('accordionContent');
     const messageEl = document.getElementById('message');
     const savedEl = document.getElementById('saved');
 
@@ -397,9 +435,15 @@ export class ConfigurationWebview {
       vscode.postMessage({ type: 'saveSettings', host, apiKey, projectId, projectName, syncFolder, syncMode });
     });
 
-    advancedBtn.addEventListener('click', () => {
-      vscode.postMessage({ type: 'openSettings' });
-    });
+    if (accordionToggle) {
+      accordionToggle.addEventListener('click', () => {
+        vscode.postMessage({ type: 'openSettings' });
+        if (!accordionContent) return;
+        const isHidden = !accordionContent.style.display || accordionContent.style.display === 'none';
+        accordionContent.style.display = isHidden ? 'block' : 'none';
+        accordionToggle.textContent = isHidden ? 'Open VS Code settings' : 'Show advanced options';
+      });
+    }
 
     window.addEventListener('message', (event) => {
       const message = event.data;
