@@ -160,6 +160,14 @@ export class ConfigurationWebview {
 
     // Send initial config state.
     void this.postInitialState();
+
+    // When the webview becomes visible again (for example after opening Settings),
+    // re-post the initial state so the form is repopulated.
+    this._panel.onDidChangeViewState(() => {
+      if (this._panel.visible) {
+        void this.postInitialState();
+      }
+    });
   }
 
   public static createOrShow(context: vscode.ExtensionContext) {
