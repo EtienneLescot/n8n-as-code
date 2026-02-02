@@ -1,5 +1,17 @@
 # n8n-as-code
 
+## 0.7.0
+
+### Minor Changes
+
+- cleaning, renaming, ui
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/skills@0.13.0
+  - @n8n-as-code/sync@0.7.0
+
 ## 0.6.1
 
 ### Patch Changes

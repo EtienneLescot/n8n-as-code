@@ -1,5 +1,11 @@
 # @n8n-as-code/sync
 
+## 0.7.0
+
+### Minor Changes
+
+- cleaning, renaming, ui
+
 ## 0.6.0
 
 ### Minor Changes
