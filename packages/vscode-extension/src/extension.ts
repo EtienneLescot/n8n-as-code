@@ -1046,9 +1046,6 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     // Start Internal Watcher (Always active now, logic inside determines behavior)
     const mode = config.get<string>('syncMode') || 'auto';
     statusBar.setWatchMode(mode === 'auto');
-    // Start Internal Watcher (Always active now, logic inside determines behavior)
-    const mode = config.get<string>('syncMode') || 'auto';
-    statusBar.setWatchMode(mode === 'auto');
     
     // Use a timeout for startWatch to prevent blocking activation indefinitely
     try {
