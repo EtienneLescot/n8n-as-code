@@ -47,7 +47,9 @@ function ensureRepository() {
 function cloneRepository() {
     console.log(`   📥 Cloning ${REPO_URL}...`);
     const depthArg = CLONE_DEPTH ? `--depth ${CLONE_DEPTH}` : '';
-    execSync(`git clone ${depthArg} ${REPO_URL} ${TEMP_DIR}`, { stdio: 'inherit' });
+    // On Windows, disable NTFS protection to allow paths with reserved characters
+    const configArg = process.platform === 'win32' ? '--config core.protectNTFS=false' : '';
+    execSync(`git clone ${depthArg} ${configArg} ${REPO_URL} ${TEMP_DIR}`, { stdio: 'inherit' });
     console.log('   ✓ Clone complete');
     removeGitDirectory(TEMP_DIR);
 }
