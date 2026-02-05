@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import EventEmitter from 'events';
-import * as watcher from '@parcel/watcher';
+import * as chokidar from 'chokidar';
 import { N8nApiClient } from './n8n-api-client.js';
 import { WorkflowSanitizer } from './workflow-sanitizer.js';
 import { HashUtils } from './hash-utils.js';
@@ -21,7 +21,7 @@ import { IWorkflowState, IInstanceState } from './state-manager.js';
  * Never performs synchronization actions - only observes reality.
  */
 export class Watcher extends EventEmitter {
-    private watcherSubscription: watcher.AsyncSubscription | null = null;
+    private watcher: chokidar.FSWatcher | null = null;
     private pollInterval: NodeJS.Timeout | null = null;
     private client: N8nApiClient;
     private directory: string;
@@ -76,7 +76,7 @@ export class Watcher extends EventEmitter {
     }
 
     public async start() {
-        if (this.watcherSubscription || this.pollInterval) return;
+        if (this.watcher || this.pollInterval) return;
 
         this.isInitializing = true;
 
@@ -111,46 +111,25 @@ export class Watcher extends EventEmitter {
         
         this.isInitializing = false;
 
-        // Local Watch with @parcel/watcher
-        try {
-            this.watcherSubscription = await watcher.subscribe(this.directory, (err, events) => {
-                if (err) {
-                    this.emit('error', err);
-                    return;
-                }
+        // Local Watch with chokidar (with rename detection support)
+        this.watcher = chokidar.watch(this.directory, {
+            ignored: [
+                /(^|[\/\\])\../, // Hidden files
+                '**/_archive/**', // Archive folder (strictly ignored)
+                '**/.n8n-state.json' // State file
+            ],
+            persistent: true,
+            ignoreInitial: true,
+            awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 }, // 500ms debounce
+            usePolling: process.platform === 'win32', // Use polling on Windows for better rename detection
+            atomic: 100 // Treat atomic renames as single events
+        });
 
-                for (const event of events) {
-                    // Normalize path for Windows (replace backslashes with forward slashes)
-                    const normalizedPath = event.path.replace(/\\/g, '/');
-                    const filename = path.basename(normalizedPath);
-                    
-                    // Ignore hidden files, trash, and state file
-                    if (filename.startsWith('.') || normalizedPath.includes('.trash')) {
-                        continue;
-                    }
-    
-                    switch (event.type) {
-                        case 'create':
-                        case 'update':
-                            this.onLocalChange(normalizedPath);
-                            break;
-                        case 'delete':
-                            this.onLocalDelete(normalizedPath);
-                            break;
-                    }
-                }
-            }, {
-                ignore: [
-                    '**/.trash/**',
-                    '**/.n8n-state.json',
-                    '**/.git/**'
-                ],
-                backend: process.platform === 'win32' ? 'windows' : undefined
-            });
-        } catch (error: any) {
-            console.warn(`[Watcher] Failed to initialize @parcel/watcher: ${error.message}. Falling back to polling only.`);
-            this.emit('error', new Error(`File watcher could not be started: ${error.message}. Changes will only be detected via polling.`));
-        }
+        this.watcher
+            .on('add', (p) => this.onLocalChange(p))
+            .on('change', (p) => this.onLocalChange(p))
+            .on('unlink', (p) => this.onLocalDelete(p))
+            .on('rename', (oldPath, newPath) => this.onLocalRename(oldPath, newPath));
 
         // Remote Poll
         if (this.pollIntervalMs > 0) {
@@ -161,9 +140,9 @@ export class Watcher extends EventEmitter {
     }
 
     public stop() {
-        if (this.watcherSubscription) {
-            this.watcherSubscription.unsubscribe();
-            this.watcherSubscription = null;
+        if (this.watcher) {
+            this.watcher.close();
+            this.watcher = null;
         }
         if (this.pollInterval) {
             clearInterval(this.pollInterval);
