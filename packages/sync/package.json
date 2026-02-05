@@ -16,7 +16,7 @@
         "validate-schema": "node ../../scripts/validate-schema.js --schema ./src/assets/n8n-nodes-index.json"
     },
     "dependencies": {
-        "@parcel/watcher": "^2.5.6",
+        "chokidar": "^3.5.3",
         "@types/json-stable-stringify": "^1.1.0",
         "axios": "^1.6.0",
         "deep-equal": "^2.2.3",

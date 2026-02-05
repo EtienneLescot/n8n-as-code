@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import EventEmitter from 'events';
-import * as watcher from '@parcel/watcher';
+import chokidar, { FSWatcher } from 'chokidar';
 import { N8nApiClient } from './n8n-api-client.js';
 import { WorkflowSanitizer } from './workflow-sanitizer.js';
 import { HashUtils } from './hash-utils.js';
@@ -21,7 +21,7 @@ import { IWorkflowState, IInstanceState } from './state-manager.js';
  * Never performs synchronization actions - only observes reality.
  */
 export class Watcher extends EventEmitter {
-    private watcherSubscription: watcher.AsyncSubscription | null = null;
+    private watcherSubscription: FSWatcher | null = null;
     private pollInterval: NodeJS.Timeout | null = null;
     private client: N8nApiClient;
     private directory: string;
@@ -111,38 +111,46 @@ export class Watcher extends EventEmitter {
         
         this.isInitializing = false;
 
-        // Local Watch with @parcel/watcher
-        this.watcherSubscription = await watcher.subscribe(this.directory, (err, events) => {
-            if (err) {
-                this.emit('error', err);
-                return;
-            }
-
-            for (const event of events) {
-                const filename = path.basename(event.path);
-                
-                // Ignore hidden files, trash, and state file
-                if (filename.startsWith('.') || event.path.includes('.trash')) {
-                    continue;
-                }
-
-                switch (event.type) {
-                    case 'create':
-                    case 'update':
-                        this.onLocalChange(event.path);
-                        break;
-                    case 'delete':
-                        this.onLocalDelete(event.path);
-                        break;
-                }
-            }
-        }, {
-            ignore: [
+        // Local Watch with Chokidar
+        this.watcherSubscription = chokidar.watch(this.directory, {
+            ignored: [
                 '**/.trash/**',
                 '**/.n8n-state.json',
-                '**/.git/**'
-            ]
+                '**/.git/**',
+                /(^|[\/\\])\../  // ignore dotfiles
+            ],
+            ignoreInitial: true,
+            persistent: true,
+            awaitWriteFinish: {
+                stabilityThreshold: 100,
+                pollInterval: 50
+            }
         });
+
+        // Wait for watcher to be ready
+        await new Promise<void>((resolve) => {
+            this.watcherSubscription?.once('ready', resolve);
+        });
+
+        this.watcherSubscription
+            .on('add', (filePath: string) => {
+                const filename = path.basename(filePath);
+                if (filename.startsWith('.') || filePath.includes('.trash')) return;
+                this.onLocalChange(filePath);
+            })
+            .on('change', (filePath: string) => {
+                const filename = path.basename(filePath);
+                if (filename.startsWith('.') || filePath.includes('.trash')) return;
+                this.onLocalChange(filePath);
+            })
+            .on('unlink', (filePath: string) => {
+                const filename = path.basename(filePath);
+                if (filename.startsWith('.') || filePath.includes('.trash')) return;
+                this.onLocalDelete(filePath);
+            })
+            .on('error', (error: unknown) => {
+                this.emit('error', error);
+            });
 
         // Remote Poll
         if (this.pollIntervalMs > 0) {
@@ -152,9 +160,9 @@ export class Watcher extends EventEmitter {
         this.emit('ready');
     }
 
-    public stop() {
+    public async stop() {
         if (this.watcherSubscription) {
-            this.watcherSubscription.unsubscribe();
+            await this.watcherSubscription.close();
             this.watcherSubscription = null;
         }
         if (this.pollInterval) {

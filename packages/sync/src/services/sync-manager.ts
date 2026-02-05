@@ -225,8 +225,8 @@ export class SyncManager extends EventEmitter {
         }
     }
 
-    stopWatch() {
-        this.watcher?.stop();
+    async stopWatch() {
+        await this.watcher?.stop();
         this.emit('log', 'Watcher stopped.');
     }
 
