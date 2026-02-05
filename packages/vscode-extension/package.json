@@ -147,7 +147,7 @@
       },
       {
         "command": "n8n.spacer",
-        "title": " ",
+        "title": "n8n Spacer",
         "icon": "assets/spacer.png"
       }
     ],
