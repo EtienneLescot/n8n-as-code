@@ -112,37 +112,45 @@ export class Watcher extends EventEmitter {
         this.isInitializing = false;
 
         // Local Watch with @parcel/watcher
-        this.watcherSubscription = await watcher.subscribe(this.directory, (err, events) => {
-            if (err) {
-                this.emit('error', err);
-                return;
-            }
-
-            for (const event of events) {
-                const filename = path.basename(event.path);
-                
-                // Ignore hidden files, trash, and state file
-                if (filename.startsWith('.') || event.path.includes('.trash')) {
-                    continue;
+        try {
+            this.watcherSubscription = await watcher.subscribe(this.directory, (err, events) => {
+                if (err) {
+                    this.emit('error', err);
+                    return;
                 }
 
-                switch (event.type) {
-                    case 'create':
-                    case 'update':
-                        this.onLocalChange(event.path);
-                        break;
-                    case 'delete':
-                        this.onLocalDelete(event.path);
-                        break;
+                for (const event of events) {
+                    // Normalize path for Windows (replace backslashes with forward slashes)
+                    const normalizedPath = event.path.replace(/\\/g, '/');
+                    const filename = path.basename(normalizedPath);
+                    
+                    // Ignore hidden files, trash, and state file
+                    if (filename.startsWith('.') || normalizedPath.includes('.trash')) {
+                        continue;
+                    }
+    
+                    switch (event.type) {
+                        case 'create':
+                        case 'update':
+                            this.onLocalChange(normalizedPath);
+                            break;
+                        case 'delete':
+                            this.onLocalDelete(normalizedPath);
+                            break;
+                    }
                 }
-            }
-        }, {
-            ignore: [
-                '**/.trash/**',
-                '**/.n8n-state.json',
-                '**/.git/**'
-            ]
-        });
+            }, {
+                ignore: [
+                    '**/.trash/**',
+                    '**/.n8n-state.json',
+                    '**/.git/**'
+                ],
+                backend: process.platform === 'win32' ? 'windows' : undefined
+            });
+        } catch (error: any) {
+            console.warn(`[Watcher] Failed to initialize @parcel/watcher: ${error.message}. Falling back to polling only.`);
+            this.emit('error', new Error(`File watcher could not be started: ${error.message}. Changes will only be detected via polling.`));
+        }
 
         // Remote Poll
         if (this.pollIntervalMs > 0) {

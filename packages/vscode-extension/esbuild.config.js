@@ -49,7 +49,7 @@ const extensionBuild = esbuild.build({
     entryPoints: ['./src/extension.ts'],
     bundle: true,
     outfile: 'out/extension.js',
-    external: ['vscode'],
+    external: ['vscode', '@parcel/watcher'],
     format: 'cjs',
     platform: 'node',
     logOverride: {
