@@ -1,5 +1,11 @@
 # @n8n-as-code/sync
 
+## 0.9.0
+
+### Minor Changes
+
+- switch to chokidar to fix windows compatibility
+
 ## 0.8.0
 
 ### Minor Changes

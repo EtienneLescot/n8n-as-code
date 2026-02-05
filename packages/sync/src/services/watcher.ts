@@ -274,6 +274,13 @@ export class Watcher extends EventEmitter {
                     this.fileToIdMap.delete(existingFilename);
                     this.fileToIdMap.set(filename, content.id);
                     this.idToFileMap.set(content.id, filename);
+
+                    // PERSIST: Update filename in state to prevent "ghost" workflows after restart
+                    const state = this.loadState();
+                    if (state.workflows[content.id]) {
+                        (state.workflows[content.id] as IWorkflowState).filename = filename;
+                        this.saveState(state);
+                    }
                     
                     // Emit rename event
                     this.emit('fileRenamed', {
@@ -512,6 +519,15 @@ export class Watcher extends EventEmitter {
             this.localHashes.delete(oldFilename);
             this.localHashes.set(newFilename, oldHash);
         }
+
+        // PERSIST: Update filename in state to prevent "ghost" workflows after restart
+        if (workflowId) {
+            const state = this.loadState();
+            if (state.workflows[workflowId]) {
+                (state.workflows[workflowId] as IWorkflowState).filename = newFilename;
+                this.saveState(state);
+            }
+        }
         
         // Emit rename event
         this.emit('fileRenamed', {
@@ -522,6 +538,10 @@ export class Watcher extends EventEmitter {
         
         // Broadcast status with new filename
         this.broadcastStatus(newFilename, workflowId);
+        
+        // Also broadcast status for old filename to clear it from UI
+        // Since it's no longer in localHashes or mappings, it will be handled correctly
+        this.broadcastStatus(oldFilename, undefined);
     }
 
     public async refreshLocalState() {
@@ -1044,10 +1064,15 @@ export class Watcher extends EventEmitter {
             for (const [filename] of this.localHashes.entries()) {
                 const filePath = path.join(this.directory, filename);
                 if (fs.existsSync(filePath)) {
-                    const content = fs.readFileSync(filePath, 'utf8');
-                    const workflow = JSON.parse(content);
-                    if (workflow.id) {
-                        workflowsMap.set(workflow.id, workflow);
+                    try {
+                        const content = fs.readFileSync(filePath, 'utf8');
+                        const workflow = JSON.parse(content);
+                        const workflowId = workflow.id || this.fileToIdMap.get(filename);
+                        if (workflowId) {
+                            workflowsMap.set(workflowId, workflow);
+                        }
+                    } catch (e) {
+                        console.warn(`[Watcher] Failed to parse local workflow ${filename}:`, e);
                     }
                 }
             }
@@ -1063,7 +1088,7 @@ export class Watcher extends EventEmitter {
 
             results.set(filename, {
                 id: workflowId || '',
-                name: filename.replace('.json', ''),
+                name: workflow?.name || filename.replace('.json', ''),
                 filename: filename,
                 status: status,
                 active: workflow?.active ?? true,
@@ -1086,7 +1111,7 @@ export class Watcher extends EventEmitter {
                 
                 results.set(filename, {
                     id: workflowId,
-                    name: filename.replace('.json', ''),
+                    name: workflow?.name || filename.replace('.json', ''),
                     filename: filename,
                     status: status,
                     active: workflow?.active ?? true,
@@ -1110,7 +1135,7 @@ export class Watcher extends EventEmitter {
                 
                 results.set(filename, {
                     id,
-                    name: filename.replace('.json', ''),
+                    name: workflow?.name || filename.replace('.json', ''),
                     filename,
                     status,
                     active: workflow?.active ?? true,

@@ -1,5 +1,17 @@
 # n8n-as-code
 
+## 0.8.0
+
+### Minor Changes
+
+- switch to chokidar to fix windows compatibility
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/sync@0.9.0
+  - @n8n-as-code/skills@0.13.2
+
 ## 0.7.1
 
 ### Patch Changes
