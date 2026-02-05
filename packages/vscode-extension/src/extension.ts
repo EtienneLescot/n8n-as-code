@@ -705,7 +705,10 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
     // If project isn't configured yet, try to pick a sensible default and persist it.
     if (!projectId || !projectName) {
-        const projects = await client.getProjects();
+        const projects = await Promise.race([
+            client.getProjects(),
+            new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('Get projects timeout')), 5000))
+        ]);
         if (!projects.length) {
             throw new Error('No projects found on this n8n instance. Cannot initialize sync.');
         }
@@ -764,7 +767,10 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     // Try to get user info for a more stable identifier, but don't fail if unavailable
     let instanceIdentifier: string;
     try {
-        const user = await client.getCurrentUser();
+        const user = await Promise.race([
+            client.getCurrentUser(),
+            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Get current user timeout')), 5000))
+        ]);
         if (user) {
             instanceIdentifier = createInstanceIdentifier(host, user);
             outputChannel.appendLine(`[n8n] Instance identifier: ${instanceIdentifier} (user: ${user.firstName || user.email})`);
@@ -1040,11 +1046,27 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     // Start Internal Watcher (Always active now, logic inside determines behavior)
     const mode = config.get<string>('syncMode') || 'auto';
     statusBar.setWatchMode(mode === 'auto');
-    await syncManager.startWatch();
+    // Start Internal Watcher (Always active now, logic inside determines behavior)
+    const mode = config.get<string>('syncMode') || 'auto';
+    statusBar.setWatchMode(mode === 'auto');
+    
+    // Use a timeout for startWatch to prevent blocking activation indefinitely
+    try {
+        await Promise.race([
+            syncManager.startWatch(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Watcher start timeout')), 10000))
+        ]);
+    } catch (error: any) {
+        outputChannel.appendLine(`[n8n] Watcher start failed or timed out: ${error.message}`);
+        // Continue anyway, extension can still work with manual refresh
+    }
 
     // Load workflows for store
     try {
-        const workflows = await syncManager.getWorkflowsStatus();
+        const workflows = await Promise.race([
+            syncManager.getWorkflowsStatus(),
+            new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('Get workflows status timeout')), 10000))
+        ]);
         store.dispatch(setWorkflows(workflows));
 
         // Sync pending actions state with store

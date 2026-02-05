@@ -14,14 +14,15 @@ export class N8nApiClient {
 
         this.client = axios.create({
             baseURL: host,
+            timeout: 5000, // 5s default timeout for all requests
             headers: {
                 'X-N8N-API-KEY': credentials.apiKey,
                 'Content-Type': 'application/json',
                 'User-Agent': 'n8n-as-code'
             },
             // Allow self-signed certificates by default to avoid issues in local environments
-            httpsAgent: new https.Agent({  
-                rejectUnauthorized: false 
+            httpsAgent: new https.Agent({
+                rejectUnauthorized: false
             })
         });
     }
@@ -367,13 +368,13 @@ export class N8nApiClient {
         try {
             // 1. Try public endpoint if available (some versions)
             try {
-                const res = await this.client.get('/healthz');
+                const res = await this.client.get('/healthz', { timeout: 2000 });
                 if (res.data && res.data.version) return { version: res.data.version };
             } catch { }
 
             // 2. Scraping Root Page as fallback (Using raw axios to avoid API headers)
             const baseURL = this.client.defaults.baseURL;
-            const res = await axios.get(`${baseURL}/`);
+            const res = await axios.get(`${baseURL}/`, { timeout: 2000 });
             const html = res.data;
 
             // Look for "release":"n8n@X.Y.Z" probably inside n8n:config:sentry meta (Base64 encoded)
