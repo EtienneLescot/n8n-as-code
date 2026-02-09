@@ -12,7 +12,7 @@
         "clean": "rm -rf dist tsconfig.tsbuildinfo",
         "test": "npm run test:unit && npm run test:integration",
         "test:unit": "npx tsx --test tests/unit/*.test.ts",
-        "test:integration": "npx tsx --test tests/integration/*.test.ts",
+        "test:integration": "npx tsx --test --test-concurrency=1 tests/integration/*.test.ts",
         "validate-schema": "node ../../scripts/validate-schema.js --schema ./src/assets/n8n-nodes-index.json"
     },
     "dependencies": {

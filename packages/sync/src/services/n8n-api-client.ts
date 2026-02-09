@@ -238,28 +238,150 @@ export class N8nApiClient {
 
     async getAllWorkflows(projectId?: string): Promise<IWorkflow[]> {
         try {
-            const res = await this.client.get('/api/v1/workflows');
-            let workflows = res.data.data;
-            
-            // Filter by project if specified
-            if (projectId) {
-                workflows = workflows.filter((wf: any) => {
-                    if (!wf.shared || !Array.isArray(wf.shared) || wf.shared.length === 0) {
-                        return false;
-                    }
-                    return wf.shared[0].projectId === projectId;
-                });
+            const collected: any[] = [];
+            const seenIds = new Set<string>();
+
+            const addItems = (items: any[]) => {
+                for (const it of items) {
+                    if (!it || !it.id) continue;
+                    if (seenIds.has(it.id)) continue;
+                    seenIds.add(it.id);
+                    collected.push(it);
+                }
+            };
+
+            const normalize = (res: any) => {
+                const data = res.data && res.data.data ? res.data.data : (Array.isArray(res.data) ? res.data : (res.data || []));
+                const total = res.data && res.data.meta && (res.data.meta.total || res.data.meta.count) ? (res.data.meta.total || res.data.meta.count) :
+                    (res.headers && (res.headers['x-total-count'] || res.headers['x-total']) ? parseInt(res.headers['x-total-count'] || res.headers['x-total'], 10) : undefined);
+                const nextCursor = res.data?.nextCursor;
+                return { items: Array.isArray(data) ? data : [], total, nextCursor };
+            };
+
+            const log = (...args: unknown[]) => {
+                if (process.env.DEBUG) {
+                    console.debug('[N8nApiClient:getAllWorkflows]', ...args);
+                }
+            };
+
+            const firstRes = await this.client.get('/api/v1/workflows');
+            const first = normalize(firstRes);
+            log('initial-fetch', {
+                items: first.items.length,
+                total: first.total,
+                nextCursor: first.nextCursor,
+                projectId,
+            });
+            addItems(first.items);
+
+            const pageSizeGuess = first.items.length || 100;
+
+            if (first.total && seenIds.size >= first.total) {
+                const workflows = collected.slice();
+                const filtered = projectId ? workflows.filter((wf: any) => wf.shared && Array.isArray(wf.shared) && wf.shared.length > 0 && wf.shared[0].projectId === projectId) : workflows;
+                const enriched = await Promise.all(filtered.map((wf: any) => this.enrichWorkflowMetadata(wf)));
+                return enriched;
             }
-            
-            // Enrich workflows with organization metadata
+
+            const paginateWithCursor = async (initialCursor: string) => {
+                let cursor: string | undefined = initialCursor;
+                const CURSOR_MAX = 1000;
+                let iterations = 0;
+
+                while (cursor && iterations++ < CURSOR_MAX) {
+                    const res = await this.client.get('/api/v1/workflows', { params: { cursor } });
+                    const cursorResult = normalize(res);
+                    log('cursor-page', {
+                        cursor,
+                        items: cursorResult.items.length,
+                        nextCursor: cursorResult.nextCursor
+                    });
+                    addItems(cursorResult.items);
+                    cursor = cursorResult.nextCursor;
+                }
+            };
+
+            if (first.nextCursor) {
+                await paginateWithCursor(first.nextCursor);
+            } else {
+                const strategies: Array<{ name: string; probeParams: (opts: any) => any; buildParams: (opts: any) => any; }> = [
+                    { name: 'limit-offset', probeParams: (opts: any) => ({ limit: 1, offset: opts.offset }), buildParams: (opts: any) => ({ limit: opts.pageSize, offset: opts.offset }) },
+                    { name: 'page-per_page', probeParams: (opts: any) => ({ page: opts.page, per_page: opts.pageSize }), buildParams: (opts: any) => ({ page: opts.page, per_page: opts.pageSize }) },
+                    { name: 'page-perPage', probeParams: (opts: any) => ({ page: opts.page, perPage: opts.pageSize }), buildParams: (opts: any) => ({ page: opts.page, perPage: opts.pageSize }) },
+                    { name: 'page-limit', probeParams: (opts: any) => ({ page: opts.page, limit: opts.pageSize }), buildParams: (opts: any) => ({ page: opts.page, limit: opts.pageSize }) }
+                ];
+
+                const pageSize = Math.max(100, pageSizeGuess);
+                let selectedStrategy: typeof strategies[number] | null = null;
+
+                for (const strat of strategies) {
+                    const offset = collected.length;
+                    const page = Math.floor(collected.length / pageSize) + 1;
+                    const probeParams = strat.probeParams({ offset, page, pageSize });
+                    try {
+                        const probeRes = await this.client.get('/api/v1/workflows', { params: probeParams });
+                        const probeNorm = normalize(probeRes);
+                        log('probe-result', strat.name, {
+                            params: probeParams,
+                            total: probeNorm.total,
+                            items: probeNorm.items.length
+                        });
+                        if (probeNorm.items && probeNorm.items.length > 0) {
+                            selectedStrategy = strat;
+                            log('selected-strategy', strat.name, probeParams);
+                            break;
+                        }
+                    } catch (e) {
+                        log('probe-failed', strat.name, (e && (e as Error).message) || e);
+                    }
+                }
+
+                log('selected-strategy', selectedStrategy?.name || 'none', { collected: collected.length });
+
+                if (selectedStrategy) {
+                    const MAX_ITER = 10000;
+                    let iterations = 0;
+                    let page = 1;
+                    let offset = 0;
+
+                    while (iterations++ < MAX_ITER) {
+                        const params = selectedStrategy.buildParams({ page, offset, pageSize });
+                        let res: any;
+                        try {
+                            res = await this.client.get('/api/v1/workflows', { params });
+                        } catch (e) {
+                            log('pagination-fetch-failed', selectedStrategy.name, {
+                                params,
+                                error: (e && (e as Error).message) || e
+                            });
+                            break;
+                        }
+                        const n = normalize(res);
+                        log('paginate', selectedStrategy.name, {
+                            page,
+                            offset,
+                            items: n.items.length,
+                            total: n.total
+                        });
+                        if (!n.items || n.items.length === 0) break;
+                        addItems(n.items);
+                        if (n.total && seenIds.size >= n.total) break;
+                        if (n.items.length < pageSize) break;
+                        page += 1;
+                        offset += pageSize;
+                    }
+                }
+            }
+
+            const workflows = collected.slice();
+            const filtered = projectId ? workflows.filter((wf: any) => wf.shared && Array.isArray(wf.shared) && wf.shared.length > 0 && wf.shared[0].projectId === projectId) : workflows;
             const enriched = await Promise.all(
-                workflows.map((wf: any) => this.enrichWorkflowMetadata(wf))
+                filtered.map((wf: any) => this.enrichWorkflowMetadata(wf))
             );
-            
+
             return enriched;
         } catch (error: any) {
             console.error('Failed to get workflows:', error.message);
-            // Re-throw so the caller (Watcher) can distinguish between "no workflows" and "connection error"
             throw error;
         }
     }
