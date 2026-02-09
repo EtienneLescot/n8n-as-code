@@ -362,6 +362,9 @@ export class ConfigurationWebview {
     let projects = [];
     let currentConfig = { host: '', apiKey: '', projectId: '', projectName: '', syncFolder: 'workflows', syncMode: 'auto' };
 
+    let autoLoadTimer = null;
+    let lastLoadRequest = { host: '', apiKey: '' };
+
     function normalizeHost(host) {
       const trimmed = (host || '').trim();
       return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
@@ -382,6 +385,42 @@ export class ConfigurationWebview {
       if (visible) {
         setTimeout(() => { savedEl.style.display = 'none'; }, 1500);
       }
+    }
+
+    function resetProjectsUi() {
+      projects = [];
+      projectEl.disabled = true;
+      projectEl.innerHTML = '';
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'Load projects to select…';
+      projectEl.appendChild(opt);
+    }
+
+    function requestProjectsLoad(force = false) {
+      const host = normalizeHost(hostEl.value);
+      const apiKey = (apiKeyEl.value || '').trim();
+
+      if (!host || !apiKey) {
+        lastLoadRequest = { host: '', apiKey: '' };
+        resetProjectsUi();
+        return;
+      }
+
+      if (!force && lastLoadRequest.host === host && lastLoadRequest.apiKey === apiKey) {
+        return;
+      }
+
+      lastLoadRequest = { host, apiKey };
+      setError('');
+      vscode.postMessage({ type: 'loadProjects', host, apiKey });
+    }
+
+    function scheduleAutoLoadProjects() {
+      if (autoLoadTimer) clearTimeout(autoLoadTimer);
+      autoLoadTimer = setTimeout(() => {
+        requestProjectsLoad(false);
+      }, 500);
     }
 
     function renderProjects(selectedId) {
@@ -414,14 +453,24 @@ export class ConfigurationWebview {
       }
 
       projectEl.value = defaultId;
+
+      // Keep webview local state in sync (helps when the user saves right after auto-load).
+      const selected = projects.find(p => p.id === defaultId);
+      if (selected) {
+        currentConfig.projectId = selected.id;
+        currentConfig.projectName = selected.type === 'personal' ? 'Personal' : selected.name;
+      }
     }
 
     loadBtn.addEventListener('click', () => {
-      setError('');
-      const host = normalizeHost(hostEl.value);
-      const apiKey = (apiKeyEl.value || '').trim();
-      vscode.postMessage({ type: 'loadProjects', host, apiKey });
+      requestProjectsLoad(true);
     });
+
+    // Auto-load projects as soon as host + api key are present.
+    hostEl.addEventListener('input', scheduleAutoLoadProjects);
+    apiKeyEl.addEventListener('input', scheduleAutoLoadProjects);
+    hostEl.addEventListener('blur', () => requestProjectsLoad(false));
+    apiKeyEl.addEventListener('blur', () => requestProjectsLoad(false));
 
     saveBtn.addEventListener('click', () => {
       setError('');

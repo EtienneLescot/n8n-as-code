@@ -1,5 +1,23 @@
 # n8n-as-code
 
+## 0.10.0
+
+### Minor Changes
+
+- improve VS Code extension configuration UX with automatic project loading and pre-selection
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/skills@0.15.0
+  - @n8n-as-code/sync@0.11.0
+
+## Unreleased
+
+### Patch Changes
+
+- **Configuration UX improvement**: Projects now load automatically as soon as Host and API Key are entered (debounced), eliminating the need to manually click "Load projects". The Personal project is automatically pre-selected by default if no previous selection exists.
+
 ## 0.9.0
 
 ### Minor Changes

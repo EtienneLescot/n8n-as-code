@@ -9,7 +9,7 @@
 ## ⚡ Quick Start
 
 1.  **Installation**: Install the extension from the Marketplace.
-2.  **Connection**: Click the **n8n** icon in the Activity Bar, then click the **Gear (⚙️)** to configure your `Host` and `API Key`.
+2.  **Connection**: Click the **n8n** icon in the Activity Bar, then click the **Gear (⚙️)** to configure your `Host` and `API Key`. Your projects load automatically, with the Personal project pre-selected by default.
 3.  **Import**: Use the refresh button (**Pull Workflows**) to bring in your existing workflows.
 
 ---

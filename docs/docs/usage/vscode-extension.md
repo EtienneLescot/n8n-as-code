@@ -69,11 +69,14 @@ Visualize the n8n canvas in real-time using the integrated Webview while editing
 ### Initial Setup
 1. Click the **n8n** icon in the Activity Bar
 2. Click **n8n: Configure** (or the Configure link shown in the panel)
-3. In the configuration screen, set:
-   - Host + API Key
-   - Sync Folder + Sync Mode
-   - Project to sync
-4. Click **Apply Changes**
+3. Enter your **Host** and **API Key**:
+   - The extension automatically loads available projects as you type
+   - Your **Personal** project is pre-selected by default
+4. Configure:
+   - Sync Folder (default: `workflows`)
+   - Sync Mode: `auto` (watch mode) or `manual`
+5. Click **Save settings**
+6. Click **Initialize n8n as code** in the n8n view to start syncing
 
 The extension writes these values into VS Code workspace settings (`n8n.*`).
 

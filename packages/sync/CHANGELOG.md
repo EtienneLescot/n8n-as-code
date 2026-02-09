@@ -1,5 +1,11 @@
 # @n8n-as-code/sync
 
+## 0.11.0
+
+### Minor Changes
+
+- improve VS Code extension configuration UX with automatic project loading and pre-selection
+
 ## 0.10.0
 
 ### Minor Changes

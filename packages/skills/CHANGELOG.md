@@ -1,5 +1,16 @@
 # @n8n-as-code/skills
 
+## 0.15.0
+
+### Minor Changes
+
+- improve VS Code extension configuration UX with automatic project loading and pre-selection
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/sync@0.11.0
+
 ## 0.14.0
 
 ### Minor Changes

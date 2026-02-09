@@ -42,7 +42,8 @@ The VS Code Extension provides the best user experience with visual editing, rea
 2. Click the gear icon (⚙️) to open settings
 3. Enter your n8n host URL (e.g., `https://n8n.yourdomain.com`)
 4. Enter your n8n API key
-5. Click "Connect"
+5. The extension automatically loads your projects and pre-selects your Personal project
+6. Verify your settings and click "Save settings"
 
 ### Step 3: Sync Your Workflows
 
