@@ -1,5 +1,11 @@
 # @n8n-as-code/sync
 
+## 0.10.0
+
+### Minor Changes
+
+- Implement robust pagination for n8n API retrieval and add supporting tests and scripts.
+
 ## 0.9.0
 
 ### Minor Changes

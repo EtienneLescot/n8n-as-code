@@ -2,7 +2,7 @@
   "name": "n8n-as-code",
   "displayName": "n8n as code",
   "description": "Edit your n8n workflows directly in VS Code with AI assistance.",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "publisher": "etienne-lescot",
   "files": [
@@ -291,8 +291,8 @@
     "Other"
   ],
   "dependencies": {
-    "@n8n-as-code/skills": "0.13.2",
-    "@n8n-as-code/sync": "0.9.0",
+    "@n8n-as-code/skills": "0.14.0",
+    "@n8n-as-code/sync": "0.10.0",
     "@reduxjs/toolkit": "^2.11.2",
     "http-proxy": "^1.18.1"
   },

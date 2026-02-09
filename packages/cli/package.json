@@ -1,6 +1,6 @@
 {
     "name": "@n8n-as-code/cli",
-    "version": "0.6.2",
+    "version": "0.7.0",
     "description": "CLI for n8n-as-code ecosystem",
     "bin": {
         "n8nac": "./dist/index.js",
@@ -16,8 +16,8 @@
         "test:coverage": "vitest run --coverage"
     },
     "dependencies": {
-        "@n8n-as-code/skills": "0.13.2",
-        "@n8n-as-code/sync": "0.9.0",
+        "@n8n-as-code/skills": "0.14.0",
+        "@n8n-as-code/sync": "0.10.0",
         "chalk": "^5.3.0",
         "chokidar": "^3.5.3",
         "cli-table3": "^0.6.3",

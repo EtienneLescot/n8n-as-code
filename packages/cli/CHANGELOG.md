@@ -1,5 +1,17 @@
 # @n8n-as-code/cli
 
+## 0.7.0
+
+### Minor Changes
+
+- Implement robust pagination for n8n API retrieval and add supporting tests and scripts.
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/skills@0.14.0
+  - @n8n-as-code/sync@0.10.0
+
 ## 0.6.2
 
 ### Patch Changes
