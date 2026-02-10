@@ -1,0 +1,2491 @@
+{
+  "id": "qlIYYXHtNzqirIgd",
+  "name": "Social Post Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "discord-bot-intelligent",
+        "options": {}
+      },
+      "name": "🎯 Webhook: Message Reçu",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -608,
+        -544
+      ],
+      "webhookId": "discord-intelligent"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAndWait",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "list",
+          "cachedResultName": "général",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624/1451176311484846264"
+        },
+        "message": "Bienvenue, cliquez sur le lien pour accéder au formulaire de création de post",
+        "responseType": "customForm",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Social post brief",
+              "fieldType": "textarea",
+              "placeholder": "📌 **Sujet:**  🎭 **Ton:**  👥 **Audience:**  🎯 **Objectif:**  📱 **Plateforme:**"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "💬 Discord: Accusé",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        -544
+      ],
+      "webhookId": "6f31e3a6-1160-4ebf-8076-d9fce319f254",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.data['Social post brief'] }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are the Orchestrator Agent.\n\n## Task\nAnalyze the user’s message and the conversation history. Determine whether you have enough information to deduce the following five elements:\n- **Topic** (main subject of the post)\n- **Platform** (social media platform: LinkedIn, X/Twitter, Facebook, Instagram, Reddit, YouTube, etc.)\n- **Audience** (target audience demographics/interests)\n- **Tone** (professional, casual, humorous, persuasive, etc.)\n- **Objective** (educate, promote, engage, sell, inform, etc.)\n\n## Decision Rules\n- If you can deduce **a majority (3 or more)** of the elements, you may infer the missing ones based on context.\n- If the user explicitly asks you to find elements yourself, do so (e.g., “find a good topic about X”).\n- If you have **all five elements** (either provided or deduced), set needs_details to false.\n- Otherwise, set needs_details to true and await clarification.\n\n## Output\nReturn a JSON object with the five elements (filled or empty) and the needs_details boolean.",
+          "maxIterations": 5
+        }
+      },
+      "name": "🧠 Agent Orchestrateur",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -112,
+        -544
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $execution.id }}",
+        "contextWindowLength": 15
+      },
+      "name": "💾 Mémoire",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -32,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.needs_details }}",
+                    "rightValue": "f",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    },
+                    "id": "cc7e24a5-bb1a-4c6c-a6f2-798b8d0f88df"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "e72887f2-51f1-4546-91e4-b703d13b84ab",
+                    "leftValue": "={{ $json.output.needs_details }}",
+                    "rightValue": "true",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 1
+        }
+      },
+      "name": "✅ Infos Complètes ?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        464,
+        -608
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAndWait",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "message": "=✅ **Infos collectées !**\n\n📌 **Sujet:** {{ $json.output.Sujet }}\n🎭 **Ton:** {{ $json.output.Ton }}\n👥 **Audience:** {{ $json.output.Audience }}\n🎯 **Objectif:** {{ $json.output.Objectif }}\n📱 **Plateforme:** {{ $json.output.Plateforme }}\n\n👍 **Confirmez-vous ?** (répondez oui pour générer)",
+        "options": {}
+      },
+      "name": "📋 Discord: Demander Validation",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        688,
+        -656
+      ],
+      "webhookId": "02e2f7e0-928a-43ea-a9e7-1324da03ce49",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAndWait",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "message": "=✅ **Merci de donner des informations supplémentaires !**\n\n📌 **Sujet:** \n🎭 **Ton:** \n👥 **Audience:** \n🎯 **Objectif:** \n📱 **Plateforme:**",
+        "responseType": "customForm",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Social post brief",
+              "fieldType": "textarea",
+              "placeholder": "📌 **Sujet:**  🎭 **Ton:**  👥 **Audience:**  🎯 **Objectif:**  📱 **Plateforme:**"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "❓ Discord: Poser Question",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        688,
+        -448
+      ],
+      "webhookId": "c8b6d92d-53b8-47c9-845d-8cb736301d33",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "content": "⏳ Génération du post en cours...",
+        "options": {}
+      },
+      "name": "💭 Discord: Génération",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        912,
+        -656
+      ],
+      "webhookId": "e5a92c57-223a-459d-a525-7fba6af6c496",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Crée un post selon le brief suivant :\n\n{{ $json.output }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are the Writer Agent. Create high-quality social media posts by orchestrating three specialized agents.\n\n## Available Tools\n- **NewsTool'**: Finds facts, statistics, trends (makes 1 web search)\n- **CreativityTool'**: Generates creative angles and hooks\n- **FactCheckerTool'**: Verifies claims (makes 1 verification search)\n\n## WORKFLOW (Follow Strictly)\n\n1. **Research**: Ask NewsTool for facts/data on the topic\n2. **Creativity**: Ask CreativityTool for creative hooks and angles\n3. **Write**: Draft the post using research + creativity\n4. **Fact Check**: Submit all claims to FactCheckerTool\n5. **Finalize**: Correct any inaccuracies and output final post\n\n## Rules\n- Complete workflow in ONE pass (avoid iterations)\n- Never skip tool using and fact-checking\n- Always use the results of your tools to get up to date data.\n- Don't invent data - use Research Agent results\n- Make only ONE revision after fact-checking\n\n## Output Format\n- **Title**: Platform-appropriate\n- **Body**: Platform-appropriate tone and length\n- **Hashtags**: Platform-appropriate\n- **Sources**: Cite when using statistics",
+          "maxIterations": 12
+        }
+      },
+      "name": "✍️ Agent Rédacteur",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1552,
+        -656
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAndWait",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "message": "=Votre post est prêt :\n\n{{ $json.output }}",
+        "responseType": "customForm",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Que pensez-vous de ce post ?",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "🎉 Discord: Post Final",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        -784
+      ],
+      "webhookId": "36bf8326-b667-48ad-9150-699e7ca6dc64",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $execution.id }}",
+        "contextWindowLength": 15
+      },
+      "name": "💾 Mémoire2",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        1488,
+        -432
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.approved }}",
+                    "rightValue": "f",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "cc7e24a5-bb1a-4c6c-a6f2-798b8d0f88df"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "e72887f2-51f1-4546-91e4-b703d13b84ab",
+                    "leftValue": "={{ $json.output.approved }}",
+                    "rightValue": "true",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "name": "✅ Infos Complètes ?1",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2656,
+        -784
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAndWait",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "message": "Votre post a été validé ! Souhaitez-vous une illustration pour celui-ci ?\nrépondez par oui ou non ou indiquez vos instructions pour la création de cette image si vous en avez.",
+        "responseType": "customForm",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "image answer",
+              "fieldType": "textarea",
+              "placeholder": "Répondez par oui, non, ou donnez vos instructions pour l'image désirée."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "🎉 Discord: Post Final1",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        -544
+      ],
+      "webhookId": "36bf8326-b667-48ad-9150-699e7ca6dc64",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.data['image answer'] }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You analyze the user's response regarding the illustration request. Return STRICTLY a JSON conforming to the schema with:\n- illustration: true if the user wants an illustration, otherwise false\n- illustration_instructions: string with any instructions they provide, otherwise an empty string"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        3104,
+        -544
+      ],
+      "name": "🧠 Agent: Illustration Decision"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.illustration }}",
+                    "rightValue": "f",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "illustration-true"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.illustration }}",
+                    "rightValue": "true",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    },
+                    "id": "illustration-false"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "name": "🧭 Illustration Routing",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3456,
+        -368
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"illustration\": {\n      \"type\": \"boolean\",\n      \"description\": \"Indique si l'utilisateur souhaite une illustration\"\n    },\n    \"illustration_instructions\": {\n      \"type\": \"string\",\n      \"description\": \"Instructions supplémentaires pour l'illustration\"\n    }\n  },\n  \"required\": [\n    \"illustration\",\n    \"illustration_instructions\"\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        3184,
+        -320
+      ],
+      "name": "Structured Output Parser5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "935670f7-34a5-4a3d-986d-2a96ea96e03b",
+              "leftValue": "={{ $json.output.comments }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "9973e046-a95e-484c-b025-12db6d60c008",
+              "leftValue": "={{ $json.output.comments }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2880,
+        -928
+      ],
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"approved\": {\n      \"type\": \"boolean\",\n      \"description\": \"Indique si l'utilisateur a validé le post\"\n    },\n    \"comments\": {\n      \"type\": \"string\",\n      \"description\": \"Les demandes de modifications éventuelles de l'utilisateur\"\n    }\n  },\n  \"required\": [\n    \"approved\",\n    \"comments\"\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2448,
+        -560
+      ],
+      "name": "Structured Output Parser2"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.data['Que pensez-vous de ce post ?'] }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You analyze the user's response. You must determine based on their response whether the item in question is approved, rejected, or if the user has comments."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        2304,
+        -784
+      ],
+      "name": "User decision analyst"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Construire une phrase lisible à partir des champs du brief\n\nconst sujet = $('🧠 Agent Orchestrateur').first().json.output.Sujet || '';\nconst ton = $('🧠 Agent Orchestrateur').first().json.output.Ton || '';\nconst audience = $('🧠 Agent Orchestrateur').first().json.output.Audience || '';\nconst objectif = $('🧠 Agent Orchestrateur').first().json.output.Objectif || '';\nconst plateforme = $('🧠 Agent Orchestrateur').first().json.output.Plateforme || '';\nconst parts = [];\nif (sujet) parts.push(`le sujet du post est «${sujet}»`);\nif (ton) parts.push(`le ton du post est «${ton}»`);\nif (audience) parts.push(`l'audience du post est «${audience}»`);\nif (objectif) parts.push(`l'objectif du post est «${objectif}»`);\nif (plateforme) parts.push(`la plateforme cible du post est «${plateforme}»`);\nconst output = parts.length ? parts.join(', ') : 'Aucune information de brief fournie.';\n\nreturn [{ json: { output: output } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        -656
+      ],
+      "name": "post brief"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "content": "⏳ Modification du post en cours...",
+        "options": {}
+      },
+      "name": "💭 Discord: Génération1",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        3168,
+        -832
+      ],
+      "webhookId": "e5a92c57-223a-459d-a525-7fba6af6c496",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Post:\n\n{{ $('✍️ Agent Rédacteur').item.json.output }}\n\nInstructions utilisateur (si présentes): {{ $('🧠 Agent: Illustration Decision').item.json.output.illustration_instructions || '' }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an expert in generating prompts for DALL-E.\n\nAnalyze the provided post and generate a creative, detailed prompt to create an image that perfectly accompanies this post.\n\nYour prompt must:\n- Be in English\n- Be descriptive and visual\n- Capture the essence and tone of the post\n- Be optimized for DALL-E (style, composition, details)\n- Have a maximum of 1000 characters",
+          "maxIterations": 3
+        }
+      },
+      "name": "🎨 Agent: Prompt Image",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        3680,
+        -496
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"image_prompt\": {\n      \"type\": \"string\",\n      \"description\": \"Le prompt optimisé pour DALL-E en anglais\"\n    }\n  },\n  \"required\": [\n    \"image_prompt\"\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        3760,
+        -272
+      ],
+      "name": "Structured Output Parser3"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash-image",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash-image (Nano Banana)"
+        },
+        "prompt": "={{ $json.output.image_prompt }}",
+        "options": {}
+      },
+      "name": "🖼️ Gemini: Generate Image",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        4032,
+        -496
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "DunK9FvUJHIlLybd",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "options": {},
+        "files": {
+          "values": [
+            {}
+          ]
+        }
+      },
+      "name": "📤 Discord: Send Image",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        4256,
+        -560
+      ],
+      "webhookId": "34470626-63ee-4e0b-b7ff-9c15542424fb",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAndWait",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "message": "Que pensez-vous de cette image ?",
+        "responseType": "customForm",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Validation de l'image",
+              "fieldType": "textarea",
+              "placeholder": "Approuvez-vous cette image ou souhaitez-vous des modifications ?"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "🎨 Discord: Image Validation",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        4480,
+        -560
+      ],
+      "webhookId": "image-validation-webhook",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.data['Validation de l\\'image'] }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You analyze the user's response regarding the generated image. You must determine whether the user approves the image, rejects it, or has comments for modifications."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        4704,
+        -560
+      ],
+      "name": "Image Decision Analyst"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"approved\": {\n      \"type\": \"boolean\",\n      \"description\": \"Indique si l'utilisateur a validé l'image\"\n    },\n    \"comments\": {\n      \"type\": \"string\",\n      \"description\": \"Les demandes de modifications éventuelles de l'utilisateur pour l'image\"\n    }\n  },\n  \"required\": [\n    \"approved\",\n    \"comments\"\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        4784,
+        -336
+      ],
+      "name": "Structured Output Parser4"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.approved }}",
+                    "rightValue": "f",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "image-approved-check"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "image-rejected-check",
+                    "leftValue": "={{ $json.output.approved }}",
+                    "rightValue": "true",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "name": "✅ Image Approved?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        5056,
+        -560
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "image-comments-empty",
+              "leftValue": "={{ $json.output.comments }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "image-comments-notexists",
+              "leftValue": "={{ $json.output.comments }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        5280,
+        -656
+      ],
+      "name": "If Image Comments"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "content": "✅ Parfait ! Votre image a été validée !",
+        "options": {}
+      },
+      "name": "✅ Discord: Image Approved",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        5504,
+        -368
+      ],
+      "webhookId": "image-approved-webhook",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAndWait",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "message": "❌ Image non approuvée. Aucune modification demandée.",
+        "responseType": "customForm",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Souhaitez-vous continuer ?"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "❌ Discord: Image Rejected",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        5504,
+        -752
+      ],
+      "webhookId": "image-rejected-webhook",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "content": "⏳ Régénération de l'image en cours avec vos modifications...",
+        "options": {}
+      },
+      "name": "🔄 Discord: Regenerating Image",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        5504,
+        -560
+      ],
+      "webhookId": "image-regenerating-webhook",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Modifie le prompt d'image précédent en tenant compte des commentaires suivants:\n\n{{ $('Image Decision Analyst').first().json.output.comments }}\n\nPrompt précédent: {{ $('🎨 Agent: Prompt Image').first().json.output.image_prompt }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an expert in generating prompts for DALL-E.\n\nUpdate the existing prompt taking into account the user's comments.\n\nYour prompt must:\n- Be in English\n- Be descriptive and visual\n- Incorporate the requested modifications\n- Be optimized for DALL-E (style, composition, details)\n- Have a maximum of 1000 characters",
+          "maxIterations": 3
+        }
+      },
+      "name": "🔄 Agent: Update Image Prompt",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        5728,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-3-flash-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        2320,
+        -560
+      ],
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "GoUHMO5ztQiNeJQM",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Construire une phrase lisible à partir des champs du brief\n\nconst comments = $('User decision analyst').first().json.output.comments || '';\n\nreturn [{ json: { output: comments } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3456,
+        -672
+      ],
+      "name": "post brief1"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"needs_details\": {\n      \"type\": \"boolean\",\n      \"description\": \"Indique si des informations manquantes empêchent la génération du contenu.\"\n    },\n    \"Sujet\": {\n      \"type\": \"string\",\n      \"description\": \"Le sujet principal du contenu à rédiger.\"\n    },\n    \"Ton\": {\n      \"type\": \"string\",\n      \"description\": \"Le style ou ton employé (ex: professionnel, humoristique, persuasif).\"\n    },\n    \"Audience\": {\n      \"type\": \"string\",\n      \"description\": \"Le public cible visé par le message.\"\n    },\n    \"Objectif\": {\n      \"type\": \"string\",\n      \"description\": \"Le but recherché (ex: vendre, informer, engager).\"\n    },\n    \"Plateforme\": {\n      \"type\": \"string\",\n      \"description\": \"Le canal de diffusion (ex: LinkedIn, Instagram, Email).\"\n    }\n  },\n  \"required\": [\n    \"needs_details\",\n    \"Sujet\",\n    \"Ton\",\n    \"Audience\",\n    \"Objectif\",\n    \"Platform\"\n  ]\n}",
+        "autoFix": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        96,
+        -320
+      ],
+      "name": "Brief formating"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAndWait",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "message": "Souhaitez-vous publier ce post ?",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double"
+          }
+        },
+        "options": {}
+      },
+      "name": "post action request",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        5792,
+        -352
+      ],
+      "webhookId": "image-approved-webhook",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Decision: {{ $json.data.approved }}\nPlatform: {{ $('🧠 Agent Orchestrateur').item.json.output.Plateforme }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You analyze the publication decision and retrieve the platform already determined upstream. Return STRICTLY a JSON conforming to the schema:\n- post: true if Decision is true/approved, otherwise false\n- platform: canonical value derived from Platform. Map synonyms: linkedin->linkedin, x|twitter->x, facebook->facebook, instagram->instagram, reddit->reddit, youtube->youtube. If post=false or platform missing, return an empty string."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        6080,
+        -352
+      ],
+      "name": "🧠 Agent: Post Action Decision"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"post\": {\n      \"type\": \"boolean\",\n      \"description\": \"Indique si l'utilisateur veut publier\"\n    },\n    \"platform\": {\n      \"type\": \"string\",\n      \"description\": \"Plateforme cible canonique\"\n    }\n  },\n  \"required\": [\n    \"post\",\n    \"platform\"\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        6160,
+        -128
+      ],
+      "name": "Structured Output Parser6"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.post ? 'yes' : 'no' }}",
+                    "rightValue": "no",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "singleValue": true
+                    },
+                    "id": "post-declined"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.post ? 'yes' : 'no' }}",
+                    "rightValue": "yes",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "singleValue": true
+                    },
+                    "id": "post-accepted"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "name": "🧭 Post Action Routing",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        6432,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.platform }}",
+                    "rightValue": "linkedin",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "singleValue": true
+                    },
+                    "id": "platform-linkedin"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.platform }}",
+                    "rightValue": "x",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "singleValue": true
+                    },
+                    "id": "platform-x"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.platform }}",
+                    "rightValue": "facebook",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "singleValue": true
+                    },
+                    "id": "platform-facebook"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.platform }}",
+                    "rightValue": "instagram",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "singleValue": true
+                    },
+                    "id": "platform-instagram"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.platform }}",
+                    "rightValue": "reddit",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "singleValue": true
+                    },
+                    "id": "platform-reddit"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.platform }}",
+                    "rightValue": "youtube",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "singleValue": true
+                    },
+                    "id": "platform-youtube"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "name": "🧭 Platform Routing",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        6656,
+        -256
+      ]
+    },
+    {
+      "parameters": {
+        "postAs": "organization",
+        "organization": "110149792",
+        "text": "={{ $('✍️ Agent Rédacteur').item.json.output.final_post }}",
+        "additionalFields": {}
+      },
+      "name": "📣 LinkedIn: Create Post",
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [
+        6880,
+        -464
+      ],
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "uaT0xHl72rwxthwS",
+          "name": "LinkedIn account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "={{ $('✍️ Agent Rédacteur').item.json.output.final_post }}",
+        "additionalFields": {}
+      },
+      "name": "📣 X: Create Tweet",
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 2,
+      "position": [
+        6880,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v23.0",
+        "node": "={{ $json.facebookNodeId || 'me' }}",
+        "edge": "feed",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "message",
+                "value": "={{ $('✍️ Agent Rédacteur').item.json.output.final_post }}"
+              }
+            ]
+          }
+        }
+      },
+      "name": "📣 Facebook/Instagram: Publish",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        6880,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "subreddit": "={{ $json.redditSubreddit }}",
+        "title": "={{ $('🧠 Agent Orchestrateur').item.json.output.Sujet || 'Nouveau post' }}",
+        "text": "={{ $('✍️ Agent Rédacteur').item.json.output.final_post }}"
+      },
+      "name": "📣 Reddit: Create Post",
+      "type": "n8n-nodes-base.reddit",
+      "typeVersion": 1,
+      "position": [
+        6880,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $json.youtubeTitle || $('🧠 Agent Orchestrateur').item.json.output.Sujet || 'Social Post' }}",
+        "options": {
+          "description": "={{ $('✍️ Agent Rédacteur').item.json.output.final_post }}"
+        }
+      },
+      "name": "📣 YouTube: Upload Video",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        6880,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "content": "✅ Ok, pas besoin d'image",
+        "options": {}
+      },
+      "name": "✅ Discord: no Image",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        5504,
+        32
+      ],
+      "webhookId": "image-approved-webhook",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "content": "Vous n'avez pas approuvé ce post",
+        "options": {}
+      },
+      "name": "🎉 Discord: Rejected Post",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        3168,
+        -1024
+      ],
+      "webhookId": "36bf8326-b667-48ad-9150-699e7ca6dc64",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "content": "Vous n'avez pas approuvé ce post",
+        "options": {}
+      },
+      "name": "🎉 Discord: Cancelled publication",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        6656,
+        -448
+      ],
+      "webhookId": "36bf8326-b667-48ad-9150-699e7ca6dc64",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1451176310788460624",
+          "mode": "list",
+          "cachedResultName": "Stimm",
+          "cachedResultUrl": "https://discord.com/channels/1451176310788460624"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1451176311484846264",
+          "mode": "id"
+        },
+        "content": "Nous ne pouvons pas encore publier sur cette plate-forme.",
+        "options": {}
+      },
+      "name": "🎉 Discord: Cancelled publication1",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        6880,
+        -656
+      ],
+      "webhookId": "36bf8326-b667-48ad-9150-699e7ca6dc64",
+      "credentials": {
+        "discordBotApi": {
+          "id": "YssgTWUIvCzBECMT",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-3-flash-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -192,
+        -96
+      ],
+      "name": "OpenRouter Chat Model2",
+      "credentials": {
+        "openRouterApi": {
+          "id": "GoUHMO5ztQiNeJQM",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-3-flash-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1376,
+        -432
+      ],
+      "name": "OpenRouter Chat Model3",
+      "credentials": {
+        "openRouterApi": {
+          "id": "GoUHMO5ztQiNeJQM",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "News agent that you must use to get latest news about a given subject",
+        "workflowId": {
+          "__rl": true,
+          "value": "KZ76pqxk7pJ5cZbU",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/KZ76pqxk7pJ5cZbU",
+          "cachedResultName": "SubAgent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('query', ``, 'string') }}",
+            "systemprompt": "You are the Research Agent. Find facts, statistics, trends, and data for social media content.  ## Tool (MANDATORY) **ResearchAgent**: Searches the web and aggregates multiple sources automatically.  ## Workflow 1. Receive research request 2. Craft ONE comprehensive search query covering all aspects 3. Call ResearchAgent tool Tool ONCE 4. Synthesize results  ## Output - **Key Facts**: Facts with numbers - **Main Insights**: Key takeaways - **Sources**: URLs - **Confidence**: High/Medium/Low  **Rule**: Make only ONE search call."
+          },
+          "matchingColumns": [
+            "query"
+          ],
+          "schema": [
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "systemprompt",
+              "displayName": "systemprompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1616,
+        -432
+      ],
+      "name": "NewsTool"
+    },
+    {
+      "parameters": {
+        "description": "creativity agent that you must use to get latest trends on how to make a successfull post on a given platform",
+        "workflowId": {
+          "__rl": true,
+          "value": "KZ76pqxk7pJ5cZbU",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/KZ76pqxk7pJ5cZbU",
+          "cachedResultName": "SubAgent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('query', ``, 'string') }}",
+            "systemprompt": "You are the Creativity Agent. Generate creative angles, viral hooks, and engaging content ideas.  ## Tool (MANDATORY) **ResearchAgent**: Research trends. Use ONCE.  ## Workflow 1. Receive creative brief 2. search trends with ResearchAgent tool (ONE call) 3. Brainstorm angles: emotional, data-driven, storytelling, viral 4. Provide hooks and platform-specific ideas  ## Output - **Hook Options**: 3-5 creative opening lines - **Angles**: 2-3 creative approaches - **Why It Works**: Brief reasoning - **Platform Tips**: Formatting advice  **Rule**: Think unique. Max ONE search."
+          },
+          "matchingColumns": [
+            "query"
+          ],
+          "schema": [
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "systemprompt",
+              "displayName": "systemprompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1744,
+        -432
+      ],
+      "name": "CreativityTool"
+    },
+    {
+      "parameters": {
+        "description": "Fact Checker agent that you must use to fact check your post draft",
+        "workflowId": {
+          "__rl": true,
+          "value": "KZ76pqxk7pJ5cZbU",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/KZ76pqxk7pJ5cZbU",
+          "cachedResultName": "SubAgent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('query', ``, 'string') }}",
+            "systemprompt": "You are the Fact Checker Agent. Verify accuracy of claims, statistics, and factual statements. **ResearchAgent**: Verifies claims against multiple sources automatically. USE ONCE 1. Receive claims to verify 2. Formulate ONE query listing all claims 3. Call ResearchAgent ONCE 4. Analyze results Output (For Each Claim) - **Claim**: Original statement - **Status**: ✓ Verified / ⚠ Needs revision / ✗ Incorrect - **Verification**: Source info - **Sources**: URLs - **Confidence**: High/Medium/Low - **Correction**: If needed **Rule**: Make only ONE search call with all claims."
+          },
+          "matchingColumns": [
+            "query"
+          ],
+          "schema": [
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "systemprompt",
+              "displayName": "systemprompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1872,
+        -432
+      ],
+      "name": "FactCheckerTool"
+    }
+  ],
+  "connections": {
+    "🎯 Webhook: Message Reçu": {
+      "main": [
+        [
+          {
+            "node": "💬 Discord: Accusé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💬 Discord: Accusé": {
+      "main": [
+        [
+          {
+            "node": "🧠 Agent Orchestrateur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Agent Orchestrateur": {
+      "main": [
+        [
+          {
+            "node": "✅ Infos Complètes ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Mémoire": {
+      "ai_memory": [
+        [
+          {
+            "node": "🧠 Agent Orchestrateur",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Infos Complètes ?": {
+      "main": [
+        [
+          {
+            "node": "📋 Discord: Demander Validation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❓ Discord: Poser Question",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "📋 Discord: Demander Validation": {
+      "main": [
+        [
+          {
+            "node": "💭 Discord: Génération",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❓ Discord: Poser Question": {
+      "main": [
+        [
+          {
+            "node": "🧠 Agent Orchestrateur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💭 Discord: Génération": {
+      "main": [
+        [
+          {
+            "node": "post brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✍️ Agent Rédacteur": {
+      "main": [
+        [
+          {
+            "node": "🎉 Discord: Post Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎉 Discord: Post Final": {
+      "main": [
+        [
+          {
+            "node": "User decision analyst",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Mémoire2": {
+      "ai_memory": [
+        [
+          {
+            "node": "✍️ Agent Rédacteur",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Infos Complètes ?1": {
+      "main": [
+        [
+          {
+            "node": "🎉 Discord: Post Final1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "🎉 Discord: Rejected Post",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💭 Discord: Génération1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser2": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "User decision analyst",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User decision analyst": {
+      "main": [
+        [
+          {
+            "node": "✅ Infos Complètes ?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "post brief": {
+      "main": [
+        [
+          {
+            "node": "✍️ Agent Rédacteur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💭 Discord: Génération1": {
+      "main": [
+        [
+          {
+            "node": "post brief1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎉 Discord: Post Final1": {
+      "main": [
+        [
+          {
+            "node": "🧠 Agent: Illustration Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Agent: Illustration Decision": {
+      "main": [
+        [
+          {
+            "node": "🧭 Illustration Routing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧭 Illustration Routing": {
+      "main": [
+        [
+          {
+            "node": "🎨 Agent: Prompt Image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "✅ Discord: no Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎨 Agent: Prompt Image": {
+      "main": [
+        [
+          {
+            "node": "🖼️ Gemini: Generate Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🖼️ Gemini: Generate Image": {
+      "main": [
+        [
+          {
+            "node": "📤 Discord: Send Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 Discord: Send Image": {
+      "main": [
+        [
+          {
+            "node": "🎨 Discord: Image Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎨 Discord: Image Validation": {
+      "main": [
+        [
+          {
+            "node": "Image Decision Analyst",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image Decision Analyst": {
+      "main": [
+        [
+          {
+            "node": "✅ Image Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Image Approved?": {
+      "main": [
+        [
+          {
+            "node": "✅ Discord: Image Approved",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If Image Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Image Comments": {
+      "main": [
+        [
+          {
+            "node": "❌ Discord: Image Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔄 Discord: Regenerating Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 Discord: Regenerating Image": {
+      "main": [
+        [
+          {
+            "node": "🔄 Agent: Update Image Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 Agent: Update Image Prompt": {
+      "main": [
+        [
+          {
+            "node": "🖼️ Gemini: Generate Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser3": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "🎨 Agent: Prompt Image",
+            "type": "ai_outputParser",
+            "index": 0
+          },
+          {
+            "node": "🔄 Agent: Update Image Prompt",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser4": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Image Decision Analyst",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser5": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "🧠 Agent: Illustration Decision",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "🔄 Agent: Update Image Prompt",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Image Decision Analyst",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "🎨 Agent: Prompt Image",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "🧠 Agent: Illustration Decision",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "User decision analyst",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "🧠 Agent: Post Action Decision",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "post brief1": {
+      "main": [
+        [
+          {
+            "node": "✍️ Agent Rédacteur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Brief formating": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "🧠 Agent Orchestrateur",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Discord: Image Approved": {
+      "main": [
+        [
+          {
+            "node": "post action request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❌ Discord: Image Rejected": {
+      "main": [
+        [
+          {
+            "node": "post action request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Discord: no Image": {
+      "main": [
+        [
+          {
+            "node": "post action request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "post action request": {
+      "main": [
+        [
+          {
+            "node": "🧠 Agent: Post Action Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Agent: Post Action Decision": {
+      "main": [
+        [
+          {
+            "node": "🧭 Post Action Routing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser6": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "🧠 Agent: Post Action Decision",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧭 Post Action Routing": {
+      "main": [
+        [
+          {
+            "node": "🎉 Discord: Cancelled publication",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🧭 Platform Routing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧭 Platform Routing": {
+      "main": [
+        [
+          {
+            "node": "📣 LinkedIn: Create Post",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📣 X: Create Tweet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📣 Facebook/Instagram: Publish",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📣 Facebook/Instagram: Publish",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📣 Reddit: Create Post",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📣 YouTube: Upload Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🎉 Discord: Cancelled publication1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Brief formating",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "🧠 Agent Orchestrateur",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "✍️ Agent Rédacteur",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NewsTool": {
+      "ai_tool": [
+        [
+          {
+            "node": "✍️ Agent Rédacteur",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CreativityTool": {
+      "ai_tool": [
+        [
+          {
+            "node": "✍️ Agent Rédacteur",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FactCheckerTool": {
+      "ai_tool": [
+        [
+          {
+            "node": "✍️ Agent Rédacteur",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "tags": [],
+  "active": false,
+  "projectId": "qL5Mq7XU9jjEcSqn",
+  "projectName": "Personal",
+  "homeProject": {
+    "id": "qL5Mq7XU9jjEcSqn",
+    "name": "Personal",
+    "type": "personal"
+  },
+  "isArchived": false
+}
