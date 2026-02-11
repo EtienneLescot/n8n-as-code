@@ -1,5 +1,13 @@
 # n8n-as-code
 
+## 0.10.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/sync@0.12.0
+  - @n8n-as-code/skills@0.15.1
+
 ## 0.10.0
 
 ### Minor Changes

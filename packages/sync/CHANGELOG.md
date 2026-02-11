@@ -1,5 +1,11 @@
 # @n8n-as-code/sync
 
+## 0.12.0
+
+### Minor Changes
+
+- fix execution order issue
+
 ## 0.11.0
 
 ### Minor Changes
