@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import { SyncManager } from '../../src/services/sync-manager.js';
 import { N8nApiClient } from '../../src/services/n8n-api-client.js';
 import { WorkflowSyncStatus } from '../../src/types.js';
+import { cleanupTestWorkflows } from '../helpers/test-cleanup.js';
 
 /**
  * Robust Synchronization Integration Tests
@@ -58,18 +59,14 @@ test('Robust Integration Suite', { skip: !apiKey }, async (t) => {
         projectId = selectedProject.id;
         projectName = selectedProject.type === 'personal' ? 'Personal' : selectedProject.name;
         
-        // Cleanup
-        try {
-            const all = await client.getAllWorkflows(projectId);
-            for (const wf of all) {
-                if (wf.name === TEST_WORKFLOW_NAME) {
-                    await client.deleteWorkflow(wf.id);
-                }
-            }
-        } catch (e) {}
+        // Cleanup any existing test workflows before starting
+        await cleanupTestWorkflows(client, [TEST_WORKFLOW_NAME], projectId);
     });
 
     after(async () => {
+        // Cleanup: Delete test workflows from n8n instance
+        await cleanupTestWorkflows(client, [TEST_WORKFLOW_NAME], projectId);
+        
         if (syncManager) {
             syncManager.stopWatch();
             await (syncManager as any).watcher?.watcher?.close();

@@ -47,3 +47,112 @@ test('WorkflowSanitizer: cleanForPush should remove read-only fields (active, ta
     assert.strictEqual(pushPayload.tags, undefined);
     assert.strictEqual(pushPayload.name, 'Test');
 });
+
+test('WorkflowSanitizer: cleanForStorage should preserve executionOrder', () => {
+    const mockWorkflow: any = {
+        name: 'Test',
+        nodes: [],
+        connections: {},
+        settings: {
+            executionOrder: 'v1',
+            timezone: 'Europe/Paris',
+            availableInMCP: true,
+            executionUrl: 'http://deleted.com'
+        }
+    };
+
+    const cleaned = WorkflowSanitizer.cleanForStorage(mockWorkflow as IWorkflow);
+
+    // executionOrder should be preserved (not stripped)
+    assert.strictEqual(cleaned.settings.executionOrder, 'v1');
+    
+    // But instance-specific fields should be removed
+    assert.strictEqual(cleaned.settings.availableInMCP, undefined);
+    assert.strictEqual(cleaned.settings.executionUrl, undefined);
+    
+    // Other settings preserved
+    assert.strictEqual(cleaned.settings.timezone, 'Europe/Paris');
+});
+
+test('WorkflowSanitizer: cleanForPush should add executionOrder v1 if missing', () => {
+    const mockWorkflow: any = {
+        name: 'Test',
+        nodes: [],
+        connections: {},
+        settings: {}
+    };
+
+    const pushPayload = WorkflowSanitizer.cleanForPush(mockWorkflow as IWorkflow);
+
+    // executionOrder should be added with default "v1"
+    assert.strictEqual(pushPayload.settings.executionOrder, 'v1');
+});
+
+test('WorkflowSanitizer: cleanForPush should preserve existing executionOrder', () => {
+    const mockWorkflow: any = {
+        name: 'Test',
+        nodes: [],
+        connections: {},
+        settings: {
+            executionOrder: 'v2',
+            timezone: 'Europe/Paris'
+        }
+    };
+
+    const pushPayload = WorkflowSanitizer.cleanForPush(mockWorkflow as IWorkflow);
+
+    // Existing executionOrder should be preserved
+    assert.strictEqual(pushPayload.settings.executionOrder, 'v2');
+    assert.strictEqual(pushPayload.settings.timezone, 'Europe/Paris');
+});
+
+test('WorkflowSanitizer: cleanForPush should add executionOrder even without settings', () => {
+    const mockWorkflow: any = {
+        name: 'Test',
+        nodes: [],
+        connections: {}
+        // No settings at all
+    };
+
+    const pushPayload = WorkflowSanitizer.cleanForPush(mockWorkflow as IWorkflow);
+
+    // Settings should be created with executionOrder
+    assert.ok(pushPayload.settings);
+    assert.strictEqual(pushPayload.settings.executionOrder, 'v1');
+});
+
+test('WorkflowSanitizer: cleanForPush should preserve explicit v0 (user choice)', () => {
+    const mockWorkflow: any = {
+        name: 'Legacy Workflow',
+        nodes: [],
+        connections: {},
+        settings: {
+            executionOrder: 'v0',  // Explicit user choice
+            timezone: 'Europe/Paris'
+        }
+    };
+
+    const pushPayload = WorkflowSanitizer.cleanForPush(mockWorkflow as IWorkflow);
+
+    // Explicit v0 should be preserved (respect user choice)
+    assert.strictEqual(pushPayload.settings.executionOrder, 'v0');
+    // Other settings preserved
+    assert.strictEqual(pushPayload.settings.timezone, 'Europe/Paris');
+});
+
+test('WorkflowSanitizer: cleanForPush should preserve any explicit executionOrder value', () => {
+    const mockWorkflow: any = {
+        name: 'Test',
+        nodes: [],
+        connections: {},
+        settings: {
+            executionOrder: 'v2',  // Future version
+            timezone: 'Europe/Paris'
+        }
+    };
+
+    const pushPayload = WorkflowSanitizer.cleanForPush(mockWorkflow as IWorkflow);
+
+    // Any explicit executionOrder value should be preserved
+    assert.strictEqual(pushPayload.settings.executionOrder, 'v2');
+});

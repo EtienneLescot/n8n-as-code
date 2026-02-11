@@ -8,7 +8,8 @@ export class WorkflowSanitizer {
     static cleanForStorage(workflow: IWorkflow): Partial<IWorkflow> {
         const settings = { ...(workflow.settings || {}) };
 
-        // Remove instance-specific settings
+        // Remove instance-specific settings that should not be version-controlled
+        // IMPORTANT: executionOrder is PRESERVED because it affects workflow behavior
         const keysToRemove = [
             'executionUrl',
             'availableInMCP',
@@ -16,7 +17,7 @@ export class WorkflowSanitizer {
             'saveDataErrorExecution',
             'saveManualExecutions',
             'saveExecutionProgress',
-            'executionOrder',
+            // 'executionOrder', // ✅ KEPT - this affects execution behavior and must be preserved
             'trialStartedAt'
         ];
 
@@ -104,9 +105,17 @@ export class WorkflowSanitizer {
      * IMPORTANT: Organization metadata (projectId, projectName, homeProject, isArchived)
      * is explicitly EXCLUDED here as it's read-only API information stored locally
      * for display purposes only.
+     * 
+     * CRITICAL: We must preserve executionOrder from the original workflow if present,
+     * or default to "v1" if not specified. Without this, workflows may execute in the
+     * wrong order, causing agents to produce output before calling their tools.
      */
     static cleanForPush(workflow: Partial<IWorkflow>): Partial<IWorkflow> {
-        // Start with cleanForStorage to get basic structure
+        // IMPORTANT: Preserve executionOrder from original workflow BEFORE calling cleanForStorage
+        // because cleanForStorage strips it out
+        const originalExecutionOrder = workflow.settings?.executionOrder;
+        
+        // Start with cleanForStorage to get basic structure (but it removes executionOrder!)
         const clean = this.cleanForStorage(workflow as IWorkflow);
 
         // Remove all fields that are not in the n8n API v1 PUT schema
@@ -121,24 +130,50 @@ export class WorkflowSanitizer {
             }
         }
 
-        // Ensure settings is properly filtered
+        // Ensure settings is properly filtered and executionOrder is always set
+        // This runs for all workflows to guarantee executionOrder is present
+        const allowedSettings = [
+            'errorWorkflow',
+            'timezone',
+            'saveManualExecutions',
+            'saveDataErrorExecution',
+            'saveExecutionProgress',
+            'executionOrder'
+        ];
+        const filteredSettings: any = {};
+        
+        // If we have settings from clean, filter them
         if (result.settings) {
-            const allowedSettings = [
-                'errorWorkflow',
-                'timezone',
-                'saveManualExecutions',
-                'saveDataErrorExecution',
-                'saveExecutionProgress',
-                'executionOrder'
-            ];
-            const filteredSettings: any = {};
             for (const settingKey of allowedSettings) {
                 if (result.settings[settingKey] !== undefined) {
                     filteredSettings[settingKey] = result.settings[settingKey];
                 }
             }
-            result.settings = filteredSettings;
         }
+        
+        // CRITICAL: Always ensure executionOrder is set
+        // 
+        // Background: When n8n API receives a workflow without executionOrder,
+        // it defaults to "v0" (legacy mode) which can cause execution order issues,
+        // especially with AI agents that need tools to execute before the final response.
+        //
+        // Strategy:
+        // - If workflow has EXPLICIT executionOrder (any value) → preserve it (respect user choice)
+        // - If workflow has NO executionOrder → default to "v1" (recommended by n8n)
+        //
+        // This ensures workflows created via n8n-as-code use proper execution order by default,
+        // while respecting explicit user choices (including v0 if they specifically want it).
+        const currentExecutionOrder = originalExecutionOrder || filteredSettings.executionOrder;
+        
+        if (!currentExecutionOrder) {
+            // No executionOrder specified → default to v1 (recommended)
+            filteredSettings.executionOrder = 'v1';
+        } else {
+            // Explicit executionOrder (v0, v1, v2, etc.) → preserve user choice
+            filteredSettings.executionOrder = currentExecutionOrder;
+        }
+        
+        result.settings = filteredSettings;
 
         return result;
     }
