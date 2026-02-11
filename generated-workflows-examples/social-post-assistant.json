@@ -1,5 +1,5 @@
 {
-  "id": "qlIYYXHtNzqirIgd",
+  "id": "Sf2QL3dOmki36AUn",
   "name": "Social Post Assistant",
   "nodes": [
     {
@@ -12,7 +12,7 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        -608,
+        -2320,
         -544
       ],
       "webhookId": "discord-intelligent"
@@ -52,7 +52,7 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        -384,
+        -2096,
         -544
       ],
       "webhookId": "6f31e3a6-1160-4ebf-8076-d9fce319f254",
@@ -77,21 +77,21 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3,
       "position": [
-        -112,
+        -1872,
         -544
       ]
     },
     {
       "parameters": {
         "sessionIdType": "customKey",
-        "sessionKey": "={{ $execution.id }}",
+        "sessionKey": "=orch_{{ $execution.id }}",
         "contextWindowLength": 15
       },
       "name": "💾 Mémoire",
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "typeVersion": 1.3,
       "position": [
-        -32,
+        -1792,
         -320
       ]
     },
@@ -155,7 +155,7 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        464,
+        -1296,
         -608
       ]
     },
@@ -182,7 +182,7 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        688,
+        -1072,
         -656
       ],
       "webhookId": "02e2f7e0-928a-43ea-a9e7-1324da03ce49",
@@ -226,7 +226,7 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        688,
+        -1072,
         -448
       ],
       "webhookId": "c8b6d92d-53b8-47c9-845d-8cb736301d33",
@@ -259,7 +259,7 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        912,
+        -848,
         -656
       ],
       "webhookId": "e5a92c57-223a-459d-a525-7fba6af6c496",
@@ -276,7 +276,7 @@
         "text": "=Crée un post selon le brief suivant :\n\n{{ $json.output }}",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "You are the Writer Agent. Create high-quality social media posts by orchestrating three specialized agents.\n\n## Available Tools\n- **NewsTool'**: Finds facts, statistics, trends (makes 1 web search)\n- **CreativityTool'**: Generates creative angles and hooks\n- **FactCheckerTool'**: Verifies claims (makes 1 verification search)\n\n## WORKFLOW (Follow Strictly)\n\n1. **Research**: Ask NewsTool for facts/data on the topic\n2. **Creativity**: Ask CreativityTool for creative hooks and angles\n3. **Write**: Draft the post using research + creativity\n4. **Fact Check**: Submit all claims to FactCheckerTool\n5. **Finalize**: Correct any inaccuracies and output final post\n\n## Rules\n- Complete workflow in ONE pass (avoid iterations)\n- Never skip tool using and fact-checking\n- Always use the results of your tools to get up to date data.\n- Don't invent data - use Research Agent results\n- Make only ONE revision after fact-checking\n\n## Output Format\n- **Title**: Platform-appropriate\n- **Body**: Platform-appropriate tone and length\n- **Hashtags**: Platform-appropriate\n- **Sources**: Cite when using statistics",
+          "systemMessage": "=You are a social media writer. Current date: {{ $now.format('DDD') }}. Follow this workflow: (1) Use NewsTool to research current facts and data, (2) Use CreativityTool to generate hooks and angles, (3) Draft the post combining research and creativity, (4) Use FactCheckerTool to verify all claims, (5) Finalize the post with any corrections. Create engaging, accurate content matching the platform, tone, and audience. MANDATORY: Always use the context and only the context written by your tools to redact the post. Never invent facts or sources. At the end of your final post, include a 'Sources:' section with ALL URLs collected from NewsTool, CreativityTool, and FactCheckerTool. Use clickable markdown links format [Source Name](URL).",
           "maxIterations": 12
         }
       },
@@ -284,7 +284,7 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3,
       "position": [
-        1552,
+        -288,
         -656
       ]
     },
@@ -320,7 +320,7 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        2080,
+        1008,
         -784
       ],
       "webhookId": "36bf8326-b667-48ad-9150-699e7ca6dc64",
@@ -334,14 +334,14 @@
     {
       "parameters": {
         "sessionIdType": "customKey",
-        "sessionKey": "={{ $execution.id }}",
+        "sessionKey": "=redac_{{ $execution.id }}",
         "contextWindowLength": 15
       },
       "name": "💾 Mémoire2",
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "typeVersion": 1.3,
       "position": [
-        1488,
+        -256,
         -432
       ]
     },
@@ -405,7 +405,7 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        2656,
+        1584,
         -784
       ]
     },
@@ -442,7 +442,7 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        2880,
+        1808,
         -544
       ],
       "webhookId": "36bf8326-b667-48ad-9150-699e7ca6dc64",
@@ -459,13 +459,13 @@
         "text": "={{ $json.data['image answer'] }}",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "You analyze the user's response regarding the illustration request. Return STRICTLY a JSON conforming to the schema with:\n- illustration: true if the user wants an illustration, otherwise false\n- illustration_instructions: string with any instructions they provide, otherwise an empty string"
+          "systemMessage": "Analyze the user's response about the illustration request. Return a JSON with illustration (boolean) and illustration_instructions (string)."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
       "position": [
-        3104,
+        2032,
         -544
       ],
       "name": "🧠 Agent: Illustration Decision"
@@ -530,8 +530,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        3456,
-        -368
+        2384,
+        -320
       ]
     },
     {
@@ -542,7 +542,7 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        3184,
+        2112,
         -320
       ],
       "name": "Structured Output Parser5"
@@ -585,7 +585,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2880,
+        1808,
         -928
       ],
       "name": "If"
@@ -598,7 +598,7 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        2448,
+        1376,
         -560
       ],
       "name": "Structured Output Parser2"
@@ -615,7 +615,7 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
       "position": [
-        2304,
+        1232,
         -784
       ],
       "name": "User decision analyst"
@@ -627,7 +627,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1136,
+        -608,
         -656
       ],
       "name": "post brief"
@@ -654,7 +654,7 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        3168,
+        2096,
         -832
       ],
       "webhookId": "e5a92c57-223a-459d-a525-7fba6af6c496",
@@ -671,7 +671,7 @@
         "text": "=Post:\n\n{{ $('✍️ Agent Rédacteur').item.json.output }}\n\nInstructions utilisateur (si présentes): {{ $('🧠 Agent: Illustration Decision').item.json.output.illustration_instructions || '' }}",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "You are an expert in generating prompts for DALL-E.\n\nAnalyze the provided post and generate a creative, detailed prompt to create an image that perfectly accompanies this post.\n\nYour prompt must:\n- Be in English\n- Be descriptive and visual\n- Capture the essence and tone of the post\n- Be optimized for DALL-E (style, composition, details)\n- Have a maximum of 1000 characters",
+          "systemMessage": "Generate a creative DALL-E prompt (max 1000 chars) that visually captures the essence and tone of the post. Be descriptive, use English, and optimize for DALL-E (style, composition, details).",
           "maxIterations": 3
         }
       },
@@ -679,8 +679,8 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3,
       "position": [
-        3680,
-        -496
+        2608,
+        -448
       ]
     },
     {
@@ -691,8 +691,8 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        3760,
-        -272
+        2688,
+        -224
       ],
       "name": "Structured Output Parser3"
     },
@@ -712,8 +712,8 @@
       "type": "@n8n/n8n-nodes-langchain.googleGemini",
       "typeVersion": 1.1,
       "position": [
-        4032,
-        -496
+        2960,
+        -448
       ],
       "credentials": {
         "googlePalmApi": {
@@ -748,8 +748,8 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        4256,
-        -560
+        3184,
+        -544
       ],
       "webhookId": "34470626-63ee-4e0b-b7ff-9c15542424fb",
       "credentials": {
@@ -792,8 +792,8 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        4480,
-        -560
+        3408,
+        -544
       ],
       "webhookId": "image-validation-webhook",
       "credentials": {
@@ -815,8 +815,8 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
       "position": [
-        4704,
-        -560
+        3632,
+        -544
       ],
       "name": "Image Decision Analyst"
     },
@@ -828,8 +828,8 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        4784,
-        -336
+        3712,
+        -320
       ],
       "name": "Structured Output Parser4"
     },
@@ -893,8 +893,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        5056,
-        -560
+        3984,
+        -544
       ]
     },
     {
@@ -935,8 +935,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        5280,
-        -656
+        4208,
+        -592
       ],
       "name": "If Image Comments"
     },
@@ -962,8 +962,8 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        5504,
-        -368
+        4432,
+        -304
       ],
       "webhookId": "image-approved-webhook",
       "credentials": {
@@ -1004,8 +1004,8 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        5504,
-        -752
+        4432,
+        -688
       ],
       "webhookId": "image-rejected-webhook",
       "credentials": {
@@ -1037,8 +1037,8 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        5504,
-        -560
+        4432,
+        -496
       ],
       "webhookId": "image-regenerating-webhook",
       "credentials": {
@@ -1054,7 +1054,7 @@
         "text": "=Modifie le prompt d'image précédent en tenant compte des commentaires suivants:\n\n{{ $('Image Decision Analyst').first().json.output.comments }}\n\nPrompt précédent: {{ $('🎨 Agent: Prompt Image').first().json.output.image_prompt }}",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "You are an expert in generating prompts for DALL-E.\n\nUpdate the existing prompt taking into account the user's comments.\n\nYour prompt must:\n- Be in English\n- Be descriptive and visual\n- Incorporate the requested modifications\n- Be optimized for DALL-E (style, composition, details)\n- Have a maximum of 1000 characters",
+          "systemMessage": "Update the DALL-E prompt based on the user's comments. Keep it descriptive, visual, in English, under 1000 characters, and optimized for DALL-E.",
           "maxIterations": 3
         }
       },
@@ -1062,8 +1062,8 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3,
       "position": [
-        5728,
-        -160
+        4656,
+        -80
       ]
     },
     {
@@ -1074,7 +1074,7 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
       "typeVersion": 1,
       "position": [
-        2320,
+        1248,
         -560
       ],
       "name": "OpenRouter Chat Model",
@@ -1092,8 +1092,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3456,
-        -672
+        2384,
+        -560
       ],
       "name": "post brief1"
     },
@@ -1106,7 +1106,7 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        96,
+        -1664,
         -320
       ],
       "name": "Brief formating"
@@ -1139,8 +1139,8 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        5792,
-        -352
+        4720,
+        -304
       ],
       "webhookId": "image-approved-webhook",
       "credentials": {
@@ -1156,14 +1156,14 @@
         "text": "=Decision: {{ $json.data.approved }}\nPlatform: {{ $('🧠 Agent Orchestrateur').item.json.output.Plateforme }}",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "You analyze the publication decision and retrieve the platform already determined upstream. Return STRICTLY a JSON conforming to the schema:\n- post: true if Decision is true/approved, otherwise false\n- platform: canonical value derived from Platform. Map synonyms: linkedin->linkedin, x|twitter->x, facebook->facebook, instagram->instagram, reddit->reddit, youtube->youtube. If post=false or platform missing, return an empty string."
+          "systemMessage": "Analyze the publication decision and return JSON with post (boolean) and platform (canonical value: linkedin, x, facebook, instagram, reddit, or youtube). Map synonyms appropriately."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
       "position": [
-        6080,
-        -352
+        5008,
+        -304
       ],
       "name": "🧠 Agent: Post Action Decision"
     },
@@ -1175,8 +1175,8 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        6160,
-        -128
+        5088,
+        -80
       ],
       "name": "Structured Output Parser6"
     },
@@ -1240,8 +1240,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        6432,
-        -352
+        5360,
+        -304
       ]
     },
     {
@@ -1396,7 +1396,7 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        6656,
+        5584,
         -256
       ]
     },
@@ -1411,7 +1411,7 @@
       "type": "n8n-nodes-base.linkedIn",
       "typeVersion": 1,
       "position": [
-        6880,
+        5808,
         -464
       ],
       "credentials": {
@@ -1430,7 +1430,7 @@
       "type": "n8n-nodes-base.twitter",
       "typeVersion": 2,
       "position": [
-        6880,
+        5808,
         -272
       ]
     },
@@ -1455,7 +1455,7 @@
       "type": "n8n-nodes-base.facebookGraphApi",
       "typeVersion": 1,
       "position": [
-        6880,
+        5808,
         -80
       ]
     },
@@ -1469,7 +1469,7 @@
       "type": "n8n-nodes-base.reddit",
       "typeVersion": 1,
       "position": [
-        6880,
+        5808,
         112
       ]
     },
@@ -1486,7 +1486,7 @@
       "type": "n8n-nodes-base.youTube",
       "typeVersion": 1,
       "position": [
-        6880,
+        5808,
         304
       ]
     },
@@ -1512,8 +1512,8 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        5504,
-        32
+        4432,
+        96
       ],
       "webhookId": "image-approved-webhook",
       "credentials": {
@@ -1545,7 +1545,7 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        3168,
+        2096,
         -1024
       ],
       "webhookId": "36bf8326-b667-48ad-9150-699e7ca6dc64",
@@ -1578,7 +1578,7 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        6656,
+        5584,
         -448
       ],
       "webhookId": "36bf8326-b667-48ad-9150-699e7ca6dc64",
@@ -1611,7 +1611,7 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        6880,
+        5808,
         -656
       ],
       "webhookId": "36bf8326-b667-48ad-9150-699e7ca6dc64",
@@ -1630,8 +1630,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
       "typeVersion": 1,
       "position": [
-        -192,
-        -96
+        -1728,
+        -112
       ],
       "name": "OpenRouter Chat Model2",
       "credentials": {
@@ -1649,7 +1649,7 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
       "typeVersion": 1,
       "position": [
-        1376,
+        -384,
         -432
       ],
       "name": "OpenRouter Chat Model3",
@@ -1662,159 +1662,166 @@
     },
     {
       "parameters": {
-        "description": "News agent that you must use to get latest news about a given subject",
-        "workflowId": {
-          "__rl": true,
-          "value": "KZ76pqxk7pJ5cZbU",
-          "mode": "list",
-          "cachedResultUrl": "/workflow/KZ76pqxk7pJ5cZbU",
-          "cachedResultName": "SubAgent"
-        },
-        "workflowInputs": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('query', ``, 'string') }}",
-            "systemprompt": "You are the Research Agent. Find facts, statistics, trends, and data for social media content.  ## Tool (MANDATORY) **ResearchAgent**: Searches the web and aggregates multiple sources automatically.  ## Workflow 1. Receive research request 2. Craft ONE comprehensive search query covering all aspects 3. Call ResearchAgent tool Tool ONCE 4. Synthesize results  ## Output - **Key Facts**: Facts with numbers - **Main Insights**: Key takeaways - **Sources**: URLs - **Confidence**: High/Medium/Low  **Rule**: Make only ONE search call."
-          },
-          "matchingColumns": [
-            "query"
-          ],
-          "schema": [
-            {
-              "id": "query",
-              "displayName": "query",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            },
-            {
-              "id": "systemprompt",
-              "displayName": "systemprompt",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
+        "q": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Search_Query__q_', ``, 'string') }}",
+        "location": "585069a6ee19ad271e9b5e0e",
+        "additionalFields": {},
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-serpapi.serpApiTool",
+      "typeVersion": 1,
+      "position": [
+        112,
+        -224
+      ],
+      "name": "Google search in SerpApi",
+      "credentials": {
+        "serpApi": {
+          "id": "lcQXp2UA6WQF6FkU",
+          "name": "SerpApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('URL', ``, 'string') }}",
+        "options": {},
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.jinaAiTool",
+      "typeVersion": 1,
+      "position": [
+        240,
+        -224
+      ],
+      "name": "Fetch Page Content",
+      "credentials": {
+        "jinaAiApi": {
+          "id": "YmIMq9jd5lNUfwOe",
+          "name": "Jina AI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"query\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"The original search query\"\n\t\t},\n\t\t\"searchResults\": {\n\t\t\t\"type\": \"array\",\n\t\t\t\"description\": \"List of web pages fetched and their content\",\n\t\t\t\"items\": {\n\t\t\t\t\"type\": \"object\",\n\t\t\t\t\"properties\": {\n\t\t\t\t\t\"url\": {\n\t\t\t\t\t\t\"type\": \"string\",\n\t\t\t\t\t\t\"description\": \"The URL of the source page\"\n\t\t\t\t\t},\n\t\t\t\t\t\"title\": {\n\t\t\t\t\t\t\"type\": \"string\",\n\t\t\t\t\t\t\"description\": \"The title of the page from search results\"\n\t\t\t\t\t},\n\t\t\t\t\t\"content\": {\n\t\t\t\t\t\t\"type\": \"string\",\n\t\t\t\t\t\t\"description\": \"The full extracted content from the page\"\n\t\t\t\t\t}\n\t\t\t\t},\n\t\t\t\t\"required\": [\"url\", \"content\"]\n\t\t\t}\n\t\t}\n\t},\n\t\"required\": [\"query\", \"searchResults\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        368,
+        -224
+      ],
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-3-flash-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        -224
+      ],
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "GoUHMO5ztQiNeJQM",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=tool1_{{ $execution.id }}",
+        "contextWindowLength": 15
+      },
+      "name": "💾 Mémoire3",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -32,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=tool2_{{ $execution.id }}",
+        "contextWindowLength": 15
+      },
+      "name": "💾 Mémoire4",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        496,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=tool3_{{ $execution.id }}",
+        "contextWindowLength": 15
+      },
+      "name": "💾 Mémoire5",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        704,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "News agent that you must use to get latest news about a given subject",
+        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Prompt__User_Message_', ``, 'string') }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a web research data collector. Current date: {{ $now.format('DDD') }}. Your role is to fetch and return raw research data, NOT to summarize or synthesize. Process: (1) Use 'Google search in SerpApi' to find relevant sources, (2) Use 'Fetch Page Content' on 2-3 of the most relevant URLs to extract full page content, (3) Return the original query alongside each fetched page's URL and its complete extracted content. DO NOT summarize, simplify, or interpret the content - return it as-is from the fetching tool."
         }
       },
-      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
-      "typeVersion": 2.2,
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
       "position": [
-        1616,
+        -128,
         -432
       ],
       "name": "NewsTool"
     },
     {
       "parameters": {
-        "description": "creativity agent that you must use to get latest trends on how to make a successfull post on a given platform",
-        "workflowId": {
-          "__rl": true,
-          "value": "KZ76pqxk7pJ5cZbU",
-          "mode": "list",
-          "cachedResultUrl": "/workflow/KZ76pqxk7pJ5cZbU",
-          "cachedResultName": "SubAgent"
-        },
-        "workflowInputs": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('query', ``, 'string') }}",
-            "systemprompt": "You are the Creativity Agent. Generate creative angles, viral hooks, and engaging content ideas.  ## Tool (MANDATORY) **ResearchAgent**: Research trends. Use ONCE.  ## Workflow 1. Receive creative brief 2. search trends with ResearchAgent tool (ONE call) 3. Brainstorm angles: emotional, data-driven, storytelling, viral 4. Provide hooks and platform-specific ideas  ## Output - **Hook Options**: 3-5 creative opening lines - **Angles**: 2-3 creative approaches - **Why It Works**: Brief reasoning - **Platform Tips**: Formatting advice  **Rule**: Think unique. Max ONE search."
-          },
-          "matchingColumns": [
-            "query"
-          ],
-          "schema": [
-            {
-              "id": "query",
-              "displayName": "query",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            },
-            {
-              "id": "systemprompt",
-              "displayName": "systemprompt",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
+        "toolDescription": "creativity agent that you must use to get latest trends on how to make a successfull post on a given platform",
+        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Prompt__User_Message_', ``, 'string') }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a web research data collector. Current date: {{ $now.format('DDD') }}. Your role is to fetch and return raw research data, NOT to summarize or synthesize. Process: (1) Use 'Google search in SerpApi' to find relevant sources, (2) Use 'Fetch Page Content' on 2-3 of the most relevant URLs to extract full page content, (3) Return the original query alongside each fetched page's URL and its complete extracted content. DO NOT summarize, simplify, or interpret the content - return it as-is from the fetching tool."
         }
       },
-      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
-      "typeVersion": 2.2,
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
       "position": [
-        1744,
+        240,
         -432
       ],
       "name": "CreativityTool"
     },
     {
       "parameters": {
-        "description": "Fact Checker agent that you must use to fact check your post draft",
-        "workflowId": {
-          "__rl": true,
-          "value": "KZ76pqxk7pJ5cZbU",
-          "mode": "list",
-          "cachedResultUrl": "/workflow/KZ76pqxk7pJ5cZbU",
-          "cachedResultName": "SubAgent"
-        },
-        "workflowInputs": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('query', ``, 'string') }}",
-            "systemprompt": "You are the Fact Checker Agent. Verify accuracy of claims, statistics, and factual statements. **ResearchAgent**: Verifies claims against multiple sources automatically. USE ONCE 1. Receive claims to verify 2. Formulate ONE query listing all claims 3. Call ResearchAgent ONCE 4. Analyze results Output (For Each Claim) - **Claim**: Original statement - **Status**: ✓ Verified / ⚠ Needs revision / ✗ Incorrect - **Verification**: Source info - **Sources**: URLs - **Confidence**: High/Medium/Low - **Correction**: If needed **Rule**: Make only ONE search call with all claims."
-          },
-          "matchingColumns": [
-            "query"
-          ],
-          "schema": [
-            {
-              "id": "query",
-              "displayName": "query",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            },
-            {
-              "id": "systemprompt",
-              "displayName": "systemprompt",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "canBeUsedToMatch": true,
-              "type": "string",
-              "removed": false
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
+        "toolDescription": "Fact Checker agent that you must use to fact check your post draft",
+        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Prompt__User_Message_', ``, 'string') }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a web research data collector. Current date: {{ $now.format('DDD') }}. Your role is to fetch and return raw research data, NOT to summarize or synthesize. Process: (1) Use 'Google search in SerpApi' to find relevant sources, (2) Use 'Fetch Page Content' on 2-3 of the most relevant URLs to extract full page content, (3) Return the original query alongside each fetched page's URL and its complete extracted content. DO NOT summarize, simplify, or interpret the content - return it as-is from the fetching tool."
         }
       },
-      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
-      "typeVersion": 2.2,
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
       "position": [
-        1872,
+        640,
         -432
       ],
       "name": "FactCheckerTool"
@@ -1908,13 +1915,7 @@
     },
     "💭 Discord: Génération": {
       "main": [
-        [
-          {
-            "node": "post brief",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "✍️ Agent Rédacteur": {
@@ -2443,6 +2444,123 @@
         ]
       ]
     },
+    "Google search in SerpApi": {
+      "ai_tool": [
+        [
+          {
+            "node": "FactCheckerTool",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "CreativityTool",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "NewsTool",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Page Content": {
+      "ai_tool": [
+        [
+          {
+            "node": "FactCheckerTool",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "CreativityTool",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "NewsTool",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "FactCheckerTool",
+            "type": "ai_outputParser",
+            "index": 0
+          },
+          {
+            "node": "CreativityTool",
+            "type": "ai_outputParser",
+            "index": 0
+          },
+          {
+            "node": "NewsTool",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "NewsTool",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "CreativityTool",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "FactCheckerTool",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Mémoire3": {
+      "ai_memory": [
+        [
+          {
+            "node": "NewsTool",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Mémoire4": {
+      "ai_memory": [
+        [
+          {
+            "node": "CreativityTool",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Mémoire5": {
+      "ai_memory": [
+        [
+          {
+            "node": "FactCheckerTool",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "NewsTool": {
       "ai_tool": [
         [
@@ -2477,7 +2595,9 @@
       ]
     }
   },
-  "settings": {},
+  "settings": {
+    "timeSavedMode": "fixed"
+  },
   "tags": [],
   "active": false,
   "projectId": "qL5Mq7XU9jjEcSqn",
