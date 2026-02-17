@@ -6,6 +6,7 @@ import { SyncCommand } from './commands/sync.js';
 import { UpdateAiCommand, InitAiCommand } from './commands/init-ai.js';
 import { InitCommand } from './commands/init.js';
 import { SwitchCommand } from './commands/switch.js';
+import { ConvertCommand } from './commands/convert.js';
 import chalk from 'chalk';
 
 import { readFileSync } from 'fs';
@@ -77,6 +78,31 @@ program.command('push')
     .option('--force', 'Skip conflict checks, overwrite remote workflows')
     .action(async (options) => {
         await new SyncCommand().push(options.force || false);
+    });
+
+// convert - Convert workflows between JSON and TypeScript formats
+program.command('convert')
+    .description('Convert workflows between JSON and TypeScript formats')
+    .argument('<file>', 'Path to workflow file (.json or .workflow.ts)')
+    .option('-o, --output <path>', 'Output file path')
+    .option('-f, --force', 'Overwrite existing output file')
+    .option('--format <format>', 'Target format: "json" or "typescript" (auto-detected if not specified)')
+    .action(async (file, options) => {
+        await new ConvertCommand().run(file, options);
+    });
+
+// convert-batch - Batch convert all workflows in a directory
+program.command('convert-batch')
+    .description('Batch convert all workflows in a directory')
+    .argument('<directory>', 'Directory containing workflow files')
+    .requiredOption('--format <format>', 'Target format: "json" or "typescript"')
+    .option('-f, --force', 'Overwrite existing files')
+    .action(async (directory, options) => {
+        if (options.format !== 'json' && options.format !== 'typescript') {
+            console.error(chalk.red('❌ Invalid format. Use "json" or "typescript"'));
+            process.exit(1);
+        }
+        await new ConvertCommand().batch(directory, options);
     });
 
 // update-ai - Maintenance command to refresh AI Context files

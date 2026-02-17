@@ -100,6 +100,63 @@ Visual workflow management with embedded n8n canvas, status indicators, and push
 ### 🌐 **Multi-Instance Support**
 Isolate workflows from different n8n environments automatically.
 
+### 📝 **TypeScript Workflows** (New!)
+Transform your workflows into type-safe, readable TypeScript with decorators:
+
+```typescript
+import { workflow, node, links } from '@n8n-as-code/transformer';
+
+@workflow({ 
+  id: 'abc123', 
+  name: 'My Workflow', 
+  active: true 
+})
+export class MyWorkflowWorkflow {
+  @node()
+  Start = {
+    type: 'n8n-nodes-base.manualTrigger',
+    parameters: {},
+    position: [250, 300]
+  };
+
+  @node()
+  HttpRequest = {
+    type: 'n8n-nodes-base.httpRequest',
+    parameters: {
+      url: 'https://api.example.com/data',
+      method: 'GET'
+    },
+    position: [450, 300]
+  };
+
+  @links([
+    { from: 'Start', to: 'HttpRequest' }
+  ])
+  connections = {};
+}
+```
+
+**Benefits:**
+- ✨ **Better readability** - Clean, maintainable structure with decorators
+- 🔒 **Type safety** - TypeScript catches errors before deployment  
+- 🎨 **IDE support** - IntelliSense, autocomplete, and refactoring
+- 🔄 **Bidirectional** - Convert JSON ↔ TypeScript seamlessly
+- 🤖 **AI-friendly** - Easier for LLMs to understand and edit
+
+**Quick Commands:**
+```bash
+# Convert JSON workflow to TypeScript
+n8nac convert workflow.json
+
+# Convert directory of workflows
+n8nac convert-batch workflows/
+
+# Pull workflows as TypeScript (requires sync package update)
+n8nac pull --format typescript
+```
+
+📖 [Full TypeScript Workflows Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/typescript-workflows)
+
 ---
 
 ## 🎯 Common Use Cases
