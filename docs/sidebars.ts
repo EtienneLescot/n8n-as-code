@@ -55,6 +55,11 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'doc',
+          id: 'usage/typescript-workflows',
+          label: 'TypeScript Workflows',
+        },
+        {
+          type: 'doc',
           id: 'usage/claude-skill',
           label: 'Claude Adapter',
         },

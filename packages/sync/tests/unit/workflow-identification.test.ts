@@ -16,7 +16,7 @@ test('Case 1: Filename != workflow.name - should correctly identify workflow', a
     
     try {
         // Create local file with mismatched filename and name
-        const filename = 'Toto.json';
+        const filename = 'Toto.workflow.ts';
         const workflow = {
             id: '123',
             name: 'tutu',
@@ -57,7 +57,7 @@ test('Case 1: Filename != workflow.name - should correctly identify workflow', a
         // Should find the workflow by ID, not by name
         const foundWorkflow = statuses.find(s => s.id === '123');
         assert.ok(foundWorkflow, 'Workflow should be found');
-        assert.strictEqual(foundWorkflow?.filename, 'Toto.json', 'Should use actual filename, not generate from name');
+        assert.strictEqual(foundWorkflow?.filename, 'Toto.workflow.ts', 'Should use actual filename, not generate from name');
         
         watcher.stop();
     } finally {
@@ -70,7 +70,7 @@ test('Case 2: Workflow created without ID - should detect as EXIST_ONLY_LOCALLY'
     
     try {
         // Create local file WITHOUT id (as AI would do)
-        const filename = 'NewWorkflow.json';
+        const filename = 'NewWorkflow.workflow.ts';
         const workflowWithoutId = {
             name: 'NewWorkflow',
             active: true,
@@ -120,7 +120,7 @@ test('Case 3: Workflow renamed in n8n UI - should find by ID', async () => {
     
     try {
         // Create local file with original name
-        const filename = 'OldName.json';
+        const filename = 'OldName.workflow.ts';
         const workflow = {
             id: '789',
             name: 'OldName',
@@ -180,7 +180,7 @@ test('Case 3: Workflow renamed in n8n UI - should find by ID', async () => {
         
         // Should still find the workflow by ID, using the existing filename
         assert.ok(foundWorkflow, 'Workflow should be found by ID');
-        assert.strictEqual(foundWorkflow?.filename, 'OldName.json', 'Should NOT try to use NewName.json');
+        assert.strictEqual(foundWorkflow?.filename, 'OldName.workflow.ts', 'Should NOT try to use NewName.workflow.ts');
         
         watcher.stop();
     } finally {
@@ -204,7 +204,7 @@ test('Case 4: File renamed locally - should find workflow by ID scan', async () 
         }));
 
         // Create file with NEW name but OLD id
-        const newFilename = 'RenamedFile.json';
+        const newFilename = 'RenamedFile.workflow.ts';
         const workflow = {
             id: 'abc123',
             name: 'SomeName',
@@ -244,7 +244,7 @@ test('Case 4: File renamed locally - should find workflow by ID scan', async () 
         
         // Should find workflow and update mapping to new filename
         assert.ok(foundWorkflow, 'Workflow should be found by scanning for ID');
-        assert.strictEqual(foundWorkflow?.filename, 'RenamedFile.json', 'Should use the new filename');
+        assert.strictEqual(foundWorkflow?.filename, 'RenamedFile.workflow.ts', 'Should use the new filename');
         
         watcher.stop();
     } finally {
@@ -256,7 +256,7 @@ test('Case 5: Pause observation by filename for workflows without ID', async () 
     const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8n-test-'));
     
     try {
-        const filename = 'TestWorkflow.json';
+        const filename = 'TestWorkflow.workflow.ts';
         const workflow = {
             name: 'TestWorkflow',
             active: true,
@@ -317,7 +317,7 @@ test('Case 6: File rename detection during watch - should not trigger delete/cre
     
     try {
         // Create initial file with workflow ID
-        const oldFilename = 'OldName.json';
+        const oldFilename = 'OldName.workflow.ts';
         const workflow = {
             id: 'test123',
             name: 'Test Workflow',
@@ -378,7 +378,7 @@ test('Case 6: File rename detection during watch - should not trigger delete/cre
         });
 
         // Simulate file rename (delete old file, create new file)
-        const newFilename = 'NewName.json';
+        const newFilename = 'NewName.workflow.ts';
         console.log(`[Test] Deleting file: ${oldFilename}`);
         fs.unlinkSync(path.join(testDir, oldFilename));
         
@@ -424,7 +424,7 @@ test('Case 7: File rename with fs.renameSync - should detect rename event', asyn
     
     try {
         // Create initial file with workflow ID
-        const oldFilename = 'OldName.json';
+        const oldFilename = 'OldName.workflow.ts';
         const workflow = {
             id: 'test456',
             name: 'Test Workflow',
@@ -485,7 +485,7 @@ test('Case 7: File rename with fs.renameSync - should detect rename event', asyn
         });
 
         // Simulate file rename using fs.renameSync (real rename operation)
-        const newFilename = 'NewName.json';
+        const newFilename = 'NewName.workflow.ts';
         console.log(`[Test] Renaming file with fs.renameSync: ${oldFilename} -> ${newFilename}`);
         fs.renameSync(
             path.join(testDir, oldFilename),

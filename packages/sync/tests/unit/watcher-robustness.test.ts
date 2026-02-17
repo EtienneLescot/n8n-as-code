@@ -172,13 +172,13 @@ test('Watcher Robustness: Local Delete Detection (State Fallback)', async (t) =>
         // Simulate memory loss (e.g. extension restart) - no internal mapping yet
         // but remote hash is known
         (watcher as any).remoteHashes.set('wf-1', lastSyncedHash);
-        (watcher as any).idToFileMap.set('wf-1', 'Test.json');
+        (watcher as any).idToFileMap.set('wf-1', 'Test.workflow.ts');
 
         // Trigger local delete on a file that wasn't in memory mapping but is in state
-        await (watcher as any).onLocalDelete(path.join(tempDir, 'Test.json'));
+        await (watcher as any).onLocalDelete(path.join(tempDir, 'Test.workflow.ts'));
 
         // Verify status
-        const status = watcher.calculateStatus('Test.json', 'wf-1');
+        const status = watcher.calculateStatus('Test.workflow.ts', 'wf-1');
         assert.strictEqual(status, WorkflowSyncStatus.DELETED_LOCALLY, 'Should detect deletion via state fallback');
     } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
