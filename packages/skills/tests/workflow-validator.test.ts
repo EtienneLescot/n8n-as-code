@@ -16,7 +16,7 @@ describe('WorkflowValidator', () => {
         validator = new WorkflowValidator(indexPath);
     });
 
-    it('should validate a simple valid workflow', () => {
+    it('should validate a simple valid workflow', async () => {
         const workflow = {
             nodes: [
                 {
@@ -31,12 +31,12 @@ describe('WorkflowValidator', () => {
             connections: {}
         };
 
-        const result = validator.validateWorkflow(workflow);
+        const result = await validator.validateWorkflow(workflow);
         expect(result.valid).toBe(true);
         expect(result.errors.length).toBe(0);
     });
 
-    it('should NOT fail if node ID is missing (Warning only)', () => {
+    it('should NOT fail if node ID is missing (Warning only)', async () => {
         const workflow = {
             nodes: [
                 {
@@ -52,13 +52,13 @@ describe('WorkflowValidator', () => {
             connections: {}
         };
 
-        const result = validator.validateWorkflow(workflow);
+        const result = await validator.validateWorkflow(workflow);
         expect(result.valid).toBe(true); // Should still be valid!
         expect(result.errors.length).toBe(0);
         expect(result.warnings.some(w => w.message.includes('id'))).toBe(true);
     });
 
-    it('should fail if required parameters are missing', () => {
+    it('should fail if required parameters are missing', async () => {
         const workflow = {
             nodes: [
                 {
@@ -81,7 +81,7 @@ describe('WorkflowValidator', () => {
             properties: originalNodeSchema?.schema?.properties
         });
 
-        const result = validator.validateWorkflow(workflow);
+        const result = await validator.validateWorkflow(workflow);
         expect(result.valid).toBe(false);
         expect(result.errors.some(e => e.message.includes('url'))).toBe(true);
 
@@ -89,7 +89,7 @@ describe('WorkflowValidator', () => {
         jest.restoreAllMocks();
     });
 
-    it('should accept community nodes with warnings', () => {
+    it('should accept community nodes with warnings', async () => {
         const workflow = {
             id: "TzEtubhefGzgsw1sPxhRH",
             name: "My workflow 2",
@@ -135,7 +135,7 @@ describe('WorkflowValidator', () => {
             active: false
         };
 
-        const result = validator.validateWorkflow(workflow);
+        const result = await validator.validateWorkflow(workflow);
 
         // Workflow should be VALID
         expect(result.valid).toBe(true);

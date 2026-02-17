@@ -1049,6 +1049,15 @@ export class Watcher extends EventEmitter {
                 if (idMatch) {
                     return { id: idMatch[1] };
                 }
+                // Fallback: If file contains JSON (for tests/transition), parse it
+                try {
+                    const jsonData = JSON.parse(content);
+                    // Return workflow data even if it doesn't have an ID
+                    // (workflows without ID should be detected as EXIST_ONLY_LOCALLY)
+                    return jsonData;
+                } catch {
+                    // Not JSON, and no decorator match - invalid file
+                }
                 return null;
             } else {
                 // Legacy JSON files

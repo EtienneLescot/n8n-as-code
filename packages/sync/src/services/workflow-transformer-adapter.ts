@@ -93,8 +93,17 @@ export class WorkflowTransformerAdapter {
      * This ensures consistent hashing across transformations
      */
     static async hashWorkflow(tsContent: string): Promise<string> {
-        // Compile to JSON
-        const workflow = await this.compileToJson(tsContent);
+        // Auto-detect format: if it starts with '{', it's JSON (for tests/compatibility)
+        const trimmed = tsContent.trim();
+        let workflow;
+        
+        if (trimmed.startsWith('{')) {
+            // JSON format (for tests/legacy)
+            workflow = JSON.parse(tsContent);
+        } else {
+            // TypeScript format - compile to JSON
+            workflow = await this.compileToJson(tsContent);
+        }
         
         // Normalize for hashing
         const normalized = this.normalizeForHash(workflow);
