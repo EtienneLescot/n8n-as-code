@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { WorkflowRegistry, WorkflowMetadata } from '../services/workflow-registry.js';
+import { JsonToAstParser, AstToTypeScriptGenerator } from '@n8n-as-code/transformer';
 import { writeFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 
@@ -82,10 +83,12 @@ export function registerWorkflowsCommand(program: Command) {
     // Install command
     workflows
         .command('install <id>')
-        .description('Download a workflow JSON file')
+        .description('Download a workflow file')
         .option('-o, --output <path>', 'Output file path')
         .option('-f, --force', 'Overwrite existing file')
-        .action(async (id: string, options: { output?: string; force?: boolean }) => {
+        .option('--typescript', 'Convert to TypeScript format (.workflow.ts)')
+        .option('--json', 'Keep as JSON format (default unless --typescript)')
+        .action(async (id: string, options: { output?: string; force?: boolean; typescript?: boolean; json?: boolean }) => {
             const workflow = registry.getById(id);
 
             if (!workflow) {
@@ -94,13 +97,17 @@ export function registerWorkflowsCommand(program: Command) {
             }
 
             if (!workflow.hasWorkflow) {
-                console.error(chalk.red(`❌ Workflow "${workflow.name}" does not have a workflow.json file.`));
+                console.error(chalk.red(`❌ Workflow "${workflow.name}" does not have a workflow file.`));
                 process.exit(1);
             }
 
+            // Determine output format
+            const useTypeScript = options.typescript || false;
+            const extension = useTypeScript ? '.workflow.ts' : '.json';
+            
             const outputPath = options.output
                 ? resolve(process.cwd(), options.output)
-                : resolve(process.cwd(), `${workflow.slug}.json`);
+                : resolve(process.cwd(), `${workflow.slug}${extension}`);
 
             if (existsSync(outputPath) && !options.force) {
                 console.error(chalk.red(`❌ File already exists: ${outputPath}`));
@@ -119,7 +126,28 @@ export function registerWorkflowsCommand(program: Command) {
                 }
 
                 const data = await response.text();
-                writeFileSync(outputPath, data, 'utf-8');
+                
+                let outputContent = data;
+                
+                // Convert to TypeScript if requested
+                if (useTypeScript) {
+                    try {
+                        const workflowJson = JSON.parse(data);
+                        const parser = new JsonToAstParser();
+                        const ast = parser.parse(workflowJson);
+                        const generator = new AstToTypeScriptGenerator();
+                        outputContent = await generator.generate(ast, {
+                            format: true,
+                            commentStyle: 'verbose'
+                        });
+                        console.log(chalk.cyan(`🔄 Converted to TypeScript format`));
+                    } catch (error) {
+                        console.error(chalk.red(`❌ TypeScript conversion failed: ${error instanceof Error ? error.message : String(error)}`));
+                        process.exit(1);
+                    }
+                }
+                
+                writeFileSync(outputPath, outputContent, 'utf-8');
 
                 console.log(chalk.green(`✅ Workflow saved to: ${outputPath}`));
             } catch (error) {

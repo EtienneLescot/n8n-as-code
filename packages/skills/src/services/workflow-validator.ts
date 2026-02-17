@@ -1,5 +1,5 @@
 import { NodeSchemaProvider } from './node-schema-provider.js';
-import { WorkflowSanitizer } from '@n8n-as-code/sync';
+import { TypeScriptParser, WorkflowBuilder } from '@n8n-as-code/transformer';
 
 export interface ValidationResult {
   valid: boolean;
@@ -31,9 +31,50 @@ export class WorkflowValidator {
   }
 
   /**
-   * Validate a workflow JSON
+   * Validate a workflow (JSON or TypeScript)
+   * 
+   * @param workflowInput - Either JSON workflow object or TypeScript code string
+   * @param isTypeScript - Whether the input is TypeScript code (default: false)
    */
-  validateWorkflow(workflow: any): ValidationResult {
+  async validateWorkflow(workflowInput: any | string, isTypeScript: boolean = false): Promise<ValidationResult> {
+    let workflow: any;
+    
+    if (isTypeScript) {
+      // Compile TypeScript to JSON
+      try {
+        if (typeof workflowInput !== 'string') {
+          return {
+            valid: false,
+            errors: [{ type: 'error', message: 'TypeScript workflow must be a string' }],
+            warnings: []
+          };
+        }
+        
+        const parser = new TypeScriptParser();
+        const ast = await parser.parseCode(workflowInput);
+        const builder = new WorkflowBuilder();
+        workflow = builder.build(ast);
+      } catch (error: any) {
+        return {
+          valid: false,
+          errors: [{
+            type: 'error',
+            message: `Failed to compile TypeScript workflow: ${error.message}`
+          }],
+          warnings: []
+        };
+      }
+    } else {
+      workflow = workflowInput;
+    }
+    
+    return this.validateWorkflowJson(workflow);
+  }
+
+  /**
+   * Validate a workflow JSON (internal method)
+   */
+  private validateWorkflowJson(workflow: any): ValidationResult {
     const errors: ValidationError[] = [];
     const warnings: ValidationWarning[] = [];
 

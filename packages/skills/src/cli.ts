@@ -151,16 +151,19 @@ program
 // 4. Validate Workflow
 program
     .command('validate')
-    .description('Validate a workflow JSON file')
-    .argument('<file>', 'Path to workflow JSON file')
+    .description('Validate a workflow file (JSON or TypeScript)')
+    .argument('<file>', 'Path to workflow file (.json or .workflow.ts)')
     .option('--strict', 'Treat warnings as errors')
-    .action((file, options) => {
+    .action(async (file, options) => {
         try {
             const workflowContent = readFileSync(file, 'utf8');
-            const workflow = JSON.parse(workflowContent);
-
+            const isTypeScript = file.endsWith('.workflow.ts') || file.endsWith('.ts');
+            
             const validator = new WorkflowValidator();
-            const result = validator.validateWorkflow(workflow);
+            const result = await validator.validateWorkflow(
+                isTypeScript ? workflowContent : JSON.parse(workflowContent),
+                isTypeScript
+            );
 
             // Print errors
             if (result.errors.length > 0) {
