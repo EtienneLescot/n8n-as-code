@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { N8nApiClient } from './n8n-api-client.js';
-import { WorkflowSanitizer } from './workflow-sanitizer.js';
+import { WorkflowTransformerAdapter } from './workflow-transformer-adapter.js';
 import { HashUtils } from './hash-utils.js';
 import { Watcher } from './watcher.js';
 import { WorkflowSyncStatus, IWorkflow } from '../types.js';
@@ -279,25 +279,31 @@ export class SyncEngine {
             throw new Error(`Remote workflow ${workflowId} not found during pull`);
         }
 
-        const clean = WorkflowSanitizer.cleanForStorage(fullWf);
+        // Convert to TypeScript
+        const tsCode = await WorkflowTransformerAdapter.convertToTypeScript(fullWf, {
+            format: true,
+            commentStyle: 'verbose'
+        });
+        
         const filePath = path.join(this.directory, filename);
-        fs.writeFileSync(filePath, JSON.stringify(clean, null, 2));
+        fs.writeFileSync(filePath, tsCode, 'utf-8');
 
         // Update Watcher's remote hash cache since we just fetched the workflow
         // This ensures finalizeSync has the remote hash
-        const hash = HashUtils.computeHash(WorkflowSanitizer.cleanForHash(fullWf));
+        const hash = await WorkflowTransformerAdapter.hashWorkflow(tsCode);
         this.watcher.setRemoteHash(workflowId, hash);
     }
 
     private async executeUpdate(workflowId: string, filename: string): Promise<void> {
         const filePath = path.join(this.directory, filename);
-        const localWf = this.readJsonFile(filePath);
-        if (!localWf) {
+        const tsContent = this.readTypeScriptFile(filePath);
+        if (!tsContent) {
             throw new Error('Local file not found during push');
         }
 
-        const payload = WorkflowSanitizer.cleanForPush(localWf);
-        const updatedWf = await this.client.updateWorkflow(workflowId, payload);
+        // Compile TypeScript to JSON for API
+        const localWf = await WorkflowTransformerAdapter.compileToJson(tsContent);
+        const updatedWf = await this.client.updateWorkflow(workflowId, localWf);
 
         if (!updatedWf) {
             throw new Error('Failed to update remote workflow');
@@ -305,37 +311,43 @@ export class SyncEngine {
 
         // CRITICAL: Write the API response back to local file to ensure consistency
         // This ensures local and remote have identical content after push
-        // IMPORTANT: We use cleanForStorage to remove dynamic metadata (versionId, etc.)
-        // This prevents the watcher from detecting a change and triggering another sync
-        const clean = WorkflowSanitizer.cleanForStorage(updatedWf);
-        fs.writeFileSync(filePath, JSON.stringify(clean, null, 2));
+        // Convert the updated workflow back to TypeScript
+        const tsCode = await WorkflowTransformerAdapter.convertToTypeScript(updatedWf, {
+            format: true,
+            commentStyle: 'verbose'
+        });
+        fs.writeFileSync(filePath, tsCode, 'utf-8');
 
         // Update Watcher's remote hash cache with the updated workflow
-        const hash = HashUtils.computeHash(WorkflowSanitizer.cleanForHash(updatedWf));
+        const hash = await WorkflowTransformerAdapter.hashWorkflow(tsCode);
         this.watcher.setRemoteHash(workflowId, hash);
     }
 
     private async executeCreate(filename: string): Promise<string> {
         const filePath = path.join(this.directory, filename);
-        const localWf = this.readJsonFile(filePath);
-        if (!localWf) {
+        const tsContent = this.readTypeScriptFile(filePath);
+        if (!tsContent) {
             throw new Error('Local file not found during creation');
         }
 
-        const payload = WorkflowSanitizer.cleanForPush(localWf);
-        if (!payload.name) {
-            payload.name = path.parse(filename).name;
+        // Compile TypeScript to JSON for API
+        const localWf = await WorkflowTransformerAdapter.compileToJson(tsContent);
+        if (!localWf.name) {
+            localWf.name = path.parse(filename).name.replace('.workflow', '');
         }
 
-        const newWf = await this.client.createWorkflow(payload);
+        const newWf = await this.client.createWorkflow(localWf);
         if (!newWf || !newWf.id) {
             throw new Error('Failed to create remote workflow');
         }
 
         // Update local file with new ID and clean metadata
-        // IMPORTANT: Use cleanForStorage to prevent watcher from detecting metadata changes
-        const clean = WorkflowSanitizer.cleanForStorage(newWf);
-        fs.writeFileSync(filePath, JSON.stringify(clean, null, 2));
+        // Convert the new workflow back to TypeScript
+        const tsCode = await WorkflowTransformerAdapter.convertToTypeScript(newWf, {
+            format: true,
+            commentStyle: 'verbose'
+        });
+        fs.writeFileSync(filePath, tsCode, 'utf-8');
 
         return newWf.id;
     }
@@ -348,9 +360,9 @@ export class SyncEngine {
         }
     }
 
-    private readJsonFile(filePath: string): any {
+    private readTypeScriptFile(filePath: string): string | null {
         try {
-            return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            return fs.readFileSync(filePath, 'utf8');
         } catch {
             return null;
         }

@@ -16,6 +16,7 @@
         "validate-schema": "node ../../scripts/validate-schema.js --schema ./src/assets/n8n-nodes-index.json"
     },
     "dependencies": {
+        "@n8n-as-code/transformer": "0.1.0",
         "chokidar": "^3.5.3",
         "@types/json-stable-stringify": "^1.1.0",
         "axios": "^1.6.0",

@@ -3,7 +3,7 @@ import path from 'path';
 import EventEmitter from 'events';
 import chokidar, { FSWatcher } from 'chokidar';
 import { N8nApiClient } from './n8n-api-client.js';
-import { WorkflowSanitizer } from './workflow-sanitizer.js';
+import { WorkflowTransformerAdapter } from './workflow-transformer-adapter.js';
 import { HashUtils } from './hash-utils.js';
 import { WorkflowSyncStatus, IWorkflowStatus, IWorkflow } from '../types.js';
 import { IWorkflowState, IInstanceState } from './state-manager.js';
@@ -224,7 +224,7 @@ export class Watcher extends EventEmitter {
 
     private async onLocalChange(filePath: string) {
         const filename = path.basename(filePath);
-        if (!filename.endsWith('.json')) return;
+        if (!filename.endsWith('.workflow.ts')) return;
 
         const content = this.readJsonFile(filePath);
         if (!content) {
@@ -312,17 +312,14 @@ export class Watcher extends EventEmitter {
                     const currentContent = this.readJsonFile(filePath);
                     if (currentContent && currentContent.id === content.id) {
                         delete currentContent.id;
-                        this.writeWorkflowFile(filename, currentContent);
+                        await this.writeWorkflowFile(filename, currentContent);
                         
-                        // Re-read the content without ID
-                        const newContent = this.readJsonFile(filePath);
-                        if (newContent) {
-                            const workflowId = this.fileToIdMap.get(filename);
-                                const clean = WorkflowSanitizer.cleanForHash(newContent);
-                            const hash = this.computeHash(clean);
-                            this.localHashes.set(filename, hash);
-                            this.broadcastStatus(filename, workflowId);
-                        }
+                        // Re-read the TypeScript content and compute hash
+                        const tsContent = fs.readFileSync(filePath, 'utf-8');
+                        const hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
+                        const workflowId = this.fileToIdMap.get(filename);
+                        this.localHashes.set(filename, hash);
+                        this.broadcastStatus(filename, workflowId);
                     }
                     return; // Stop processing this file as it's being modified
                     
@@ -335,8 +332,8 @@ export class Watcher extends EventEmitter {
         // IMPORTANT: Hash is calculated on the SANITIZED version
         // This means versionId, versionCounter, pinData, etc. are ignored
         // The file on disk can contain these fields, but they won't affect the hash
-            const clean = WorkflowSanitizer.cleanForHash(content);
-        const hash = this.computeHash(clean);
+        const tsContent = fs.readFileSync(filePath, 'utf-8');
+        const hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
 
         this.localHashes.set(filename, hash);
         if (workflowId) {
@@ -403,7 +400,7 @@ export class Watcher extends EventEmitter {
         const oldFilename = path.basename(oldPath);
         const newFilename = path.basename(newPath);
         
-        if (!oldFilename.endsWith('.json') || !newFilename.endsWith('.json')) {
+        if (!oldFilename.endsWith('.workflow.ts') || !newFilename.endsWith('.workflow.ts')) {
             return;
         }
         
@@ -481,10 +478,13 @@ export class Watcher extends EventEmitter {
                             fs.mkdirSync(trashDir, { recursive: true });
                         }
                         
-                        // Save to archive with timestamp
-                            const clean = WorkflowSanitizer.cleanForHash(remoteWorkflow);
+                        // Convert to TypeScript and save to archive with timestamp
+                        const tsCode = await WorkflowTransformerAdapter.convertToTypeScript(remoteWorkflow, {
+                            format: true,
+                            commentStyle: 'verbose'
+                        });
                         const archivePath = path.join(trashDir, `${Date.now()}_${filename}`);
-                        fs.writeFileSync(archivePath, JSON.stringify(clean, null, 2));
+                        fs.writeFileSync(archivePath, tsCode, 'utf-8');
                     }
                 } catch (error) {
                     console.warn(`[Watcher] Failed to archive remote workflow ${workflowId}:`, error);
@@ -552,7 +552,7 @@ export class Watcher extends EventEmitter {
             return;
         }
 
-        const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.json') && !f.startsWith('.'));
+        const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.workflow.ts') && !f.startsWith('.'));
         const currentFiles = new Set(files);
         
         // Remove entries for files that no longer exist
@@ -571,19 +571,20 @@ export class Watcher extends EventEmitter {
         const fileContents: Array<{ filename: string; content: any; mtime: number }> = [];
         for (const filename of files) {
             const filePath = path.join(this.directory, filename);
-            const content = this.readJsonFile(filePath);
+            const content = this.readJsonFile(filePath); // Quick ID extraction
             if (content) {
                 const stat = fs.statSync(filePath);
                 fileContents.push({ filename, content, mtime: stat.mtimeMs });
                 
-                const clean = WorkflowSanitizer.cleanForHash(content);
-                const hash = this.computeHash(clean);
+                // Compute hash from TypeScript file directly
+                const tsContent = fs.readFileSync(filePath, 'utf-8');
+                const hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
                 this.localHashes.set(filename, hash);
             }
         }
         
         // Detect and resolve duplicate IDs (following architectural plan)
-        this.resolveDuplicateIds(fileContents);
+        await this.resolveDuplicateIds(fileContents);
         
         // Second pass: update mappings after duplicate resolution
         // CRITICAL: Only update mappings if not already set from persisted state
@@ -613,7 +614,7 @@ export class Watcher extends EventEmitter {
      * Resolve duplicate IDs in local files (following architectural plan)
      * Principle: Keep ID only in the oldest file, remove from others
      */
-    private resolveDuplicateIds(fileContents: Array<{ filename: string; content: any; mtime: number }>) {
+    private async resolveDuplicateIds(fileContents: Array<{ filename: string; content: any; mtime: number }>) {
         // Group files by workflow ID
         const filesById = new Map<string, Array<{ filename: string; mtime: number }>>();
         
@@ -642,11 +643,11 @@ export class Watcher extends EventEmitter {
                     const content = this.readJsonFile(filePath);
                     if (content) {
                         delete content.id;
-                        fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
+                        await this.writeWorkflowFile(dupFilename, content);
                         
                         // Update local hash for the modified file
-                        const clean = WorkflowSanitizer.cleanForHash(content);
-                        const hash = this.computeHash(clean);
+                        const tsContent = fs.readFileSync(filePath, 'utf-8');
+                        const hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
                         this.localHashes.set(dupFilename, hash);
                     }
                 }
@@ -706,13 +707,13 @@ export class Watcher extends EventEmitter {
                 
                 // If still not found, this is a NEW remote workflow - generate filename
                 if (!filename) {
-                    const baseName = `${this.safeName(wf.name)}.json`;
+                    const baseName = `${this.safeName(wf.name)}.workflow.ts`;
                     
                     // Check if this base name is already assigned to another workflow
                     if (assignedFilenames.has(baseName)) {
                         // Name collision - generate unique filename with ID suffix
                         const idSuffix = wf.id.substring(0, 8);
-                        filename = `${this.safeName(wf.name)}_${idSuffix}.json`;
+                        filename = `${this.safeName(wf.name)}_${idSuffix}.workflow.ts`;
                     } else {
                         // Name is free - use it
                         filename = baseName;
@@ -748,8 +749,7 @@ export class Watcher extends EventEmitter {
                     try {
                         const fullWf = await this.client.getWorkflow(wf.id);
                         if (fullWf) {
-                            const clean = WorkflowSanitizer.cleanForHash(fullWf);
-                            const hash = this.computeHash(clean);
+                            const hash = await WorkflowTransformerAdapter.hashWorkflowFromJson(fullWf);
 
                             this.remoteHashes.set(wf.id, hash);
                             if (wf.updatedAt) {
@@ -816,7 +816,7 @@ export class Watcher extends EventEmitter {
         // If workflow not tracked yet (first sync of local-only workflow),
         // scan directory to find the file with this ID
         if (!filename) {
-            const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.json') && !f.startsWith('.'));
+            const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.workflow.ts') && !f.startsWith('.'));
             for (const file of files) {
                 const filePath = path.join(this.directory, file);
                 const content = this.readJsonFile(filePath);
@@ -842,8 +842,8 @@ export class Watcher extends EventEmitter {
             throw new Error(`Cannot finalize sync: local file not found for ${workflowId}`);
         }
 
-        const clean = WorkflowSanitizer.cleanForHash(content);
-        const computedHash = this.computeHash(clean);
+        const tsContent = fs.readFileSync(filePath, 'utf-8');
+        const computedHash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
         
         // After a successful sync, local and remote should be identical
         // Use the computed hash for both
@@ -1025,7 +1025,7 @@ export class Watcher extends EventEmitter {
         }
         
         const files = fs.readdirSync(this.directory)
-            .filter(f => f.endsWith('.json') && !f.startsWith('.'));
+            .filter(f => f.endsWith('.workflow.ts') && !f.startsWith('.'));
         
         for (const file of files) {
             const content = this.readJsonFile(path.join(this.directory, file));
@@ -1038,15 +1038,49 @@ export class Watcher extends EventEmitter {
 
     private readJsonFile(filePath: string): any {
         try {
-            return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            // For TypeScript workflow files, we need async parsing
+            // This method should only be called for extracting workflow ID
+            // For full workflow data, use readWorkflowFile (async)
+            const content = fs.readFileSync(filePath, 'utf8');
+            if (filePath.endsWith('.workflow.ts')) {
+                // Quick extraction of workflow ID from TypeScript decorator
+                // Look for: @workflow({ id: "..." })
+                const idMatch = content.match(/@workflow\s*\(\s*{\s*id:\s*["']([^"']+)["']/);
+                if (idMatch) {
+                    return { id: idMatch[1] };
+                }
+                return null;
+            } else {
+                // Legacy JSON files
+                return JSON.parse(content);
+            }
         } catch {
             return null;
         }
     }
 
-    private writeWorkflowFile(filename: string, content: any): void {
+    private async readWorkflowFile(filePath: string): Promise<any> {
+        try {
+            const content = fs.readFileSync(filePath, 'utf8');
+            if (filePath.endsWith('.workflow.ts')) {
+                return await WorkflowTransformerAdapter.compileToJson(content);
+            } else {
+                // Legacy JSON files
+                return JSON.parse(content);
+            }
+        } catch {
+            return null;
+        }
+    }
+
+    private async writeWorkflowFile(filename: string, workflow: any): Promise<void> {
         const filePath = path.join(this.directory, filename);
-        fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
+        // Always write as TypeScript
+        const tsCode = await WorkflowTransformerAdapter.convertToTypeScript(workflow, {
+            format: true,
+            commentStyle: 'verbose'
+        });
+        fs.writeFileSync(filePath, tsCode, 'utf-8');
     }
 
     public getFileToIdMap() {
@@ -1088,7 +1122,7 @@ export class Watcher extends EventEmitter {
 
             results.set(filename, {
                 id: workflowId || '',
-                name: workflow?.name || filename.replace('.json', ''),
+                name: workflow?.name || filename.replace('.workflow.ts', ''),
                 filename: filename,
                 status: status,
                 active: workflow?.active ?? true,
@@ -1103,7 +1137,7 @@ export class Watcher extends EventEmitter {
         for (const [workflowId, remoteHash] of this.remoteHashes.entries()) {
             // Use persisted filename from state for stability
             const persistedFilename = (state.workflows[workflowId] as IWorkflowState)?.filename;
-            const filename = persistedFilename || this.idToFileMap.get(workflowId) || `${workflowId}.json`;
+            const filename = persistedFilename || this.idToFileMap.get(workflowId) || `${workflowId}.workflow.ts`;
             
             if (!results.has(filename)) {
                 const status = this.calculateStatus(filename, workflowId);
@@ -1111,7 +1145,7 @@ export class Watcher extends EventEmitter {
                 
                 results.set(filename, {
                     id: workflowId,
-                    name: workflow?.name || filename.replace('.json', ''),
+                    name: workflow?.name || filename.replace('.workflow.ts', ''),
                     filename: filename,
                     status: status,
                     active: workflow?.active ?? true,
@@ -1127,7 +1161,7 @@ export class Watcher extends EventEmitter {
         for (const id of Object.keys(state.workflows)) {
             // Use persisted filename from state for stability
             const persistedFilename = (state.workflows[id] as IWorkflowState).filename;
-            const filename = persistedFilename || this.idToFileMap.get(id) || `${id}.json`;
+            const filename = persistedFilename || this.idToFileMap.get(id) || `${id}.workflow.ts`;
             
             if (!results.has(filename)) {
                 const status = this.calculateStatus(filename, id);
@@ -1135,7 +1169,7 @@ export class Watcher extends EventEmitter {
                 
                 results.set(filename, {
                     id,
-                    name: workflow?.name || filename.replace('.json', ''),
+                    name: workflow?.name || filename.replace('.workflow.ts', ''),
                     filename,
                     status,
                     active: workflow?.active ?? true,
