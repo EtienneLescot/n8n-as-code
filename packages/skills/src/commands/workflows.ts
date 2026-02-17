@@ -83,12 +83,10 @@ export function registerWorkflowsCommand(program: Command) {
     // Install command
     workflows
         .command('install <id>')
-        .description('Download a workflow file')
+        .description('Download a workflow file as TypeScript')
         .option('-o, --output <path>', 'Output file path')
         .option('-f, --force', 'Overwrite existing file')
-        .option('--typescript', 'Convert to TypeScript format (.workflow.ts)')
-        .option('--json', 'Keep as JSON format (default unless --typescript)')
-        .action(async (id: string, options: { output?: string; force?: boolean; typescript?: boolean; json?: boolean }) => {
+        .action(async (id: string, options: { output?: string; force?: boolean }) => {
             const workflow = registry.getById(id);
 
             if (!workflow) {
@@ -101,13 +99,9 @@ export function registerWorkflowsCommand(program: Command) {
                 process.exit(1);
             }
 
-            // Determine output format
-            const useTypeScript = options.typescript || false;
-            const extension = useTypeScript ? '.workflow.ts' : '.json';
-            
             const outputPath = options.output
                 ? resolve(process.cwd(), options.output)
-                : resolve(process.cwd(), `${workflow.slug}${extension}`);
+                : resolve(process.cwd(), `${workflow.slug}.workflow.ts`);
 
             if (existsSync(outputPath) && !options.force) {
                 console.error(chalk.red(`❌ File already exists: ${outputPath}`));
@@ -127,29 +121,24 @@ export function registerWorkflowsCommand(program: Command) {
 
                 const data = await response.text();
                 
-                let outputContent = data;
-                
-                // Convert to TypeScript if requested
-                if (useTypeScript) {
-                    try {
-                        const workflowJson = JSON.parse(data);
-                        const parser = new JsonToAstParser();
-                        const ast = parser.parse(workflowJson);
-                        const generator = new AstToTypeScriptGenerator();
-                        outputContent = await generator.generate(ast, {
-                            format: true,
-                            commentStyle: 'verbose'
-                        });
-                        console.log(chalk.cyan(`🔄 Converted to TypeScript format`));
-                    } catch (error) {
-                        console.error(chalk.red(`❌ TypeScript conversion failed: ${error instanceof Error ? error.message : String(error)}`));
-                        process.exit(1);
-                    }
+                // Always convert to TypeScript
+                try {
+                    const workflowJson = JSON.parse(data);
+                    const parser = new JsonToAstParser();
+                    const ast = parser.parse(workflowJson);
+                    const generator = new AstToTypeScriptGenerator();
+                    const outputContent = await generator.generate(ast, {
+                        format: true,
+                        commentStyle: 'verbose'
+                    });
+                    console.log(chalk.cyan(`🔄 Converted to TypeScript format`));
+                    
+                    writeFileSync(outputPath, outputContent, 'utf-8');
+                    console.log(chalk.green(`✅ Workflow saved to: ${outputPath}`));
+                } catch (error) {
+                    console.error(chalk.red(`❌ TypeScript conversion failed: ${error instanceof Error ? error.message : String(error)}`));
+                    process.exit(1);
                 }
-                
-                writeFileSync(outputPath, outputContent, 'utf-8');
-
-                console.log(chalk.green(`✅ Workflow saved to: ${outputPath}`));
             } catch (error) {
                 console.error(chalk.red(`❌ Download failed: ${error instanceof Error ? error.message : String(error)}`));
                 process.exit(1);

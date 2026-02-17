@@ -21,23 +21,31 @@ export class TypeScriptFormatter {
             ? Math.max(...schema.version) 
             : schema.version;
 
-        const requiredParams = schema.properties?.filter((p: any) => p.required) || [];
-        
-        // Get unique top parameters (avoid duplicates by name)
+        // Get unique parameters with smart prioritization
         const seenNames = new Set<string>();
         const uniqueParams: any[] = [];
+        const allProps = schema.properties || [];
         
-        // First add required params
-        for (const prop of requiredParams) {
-            if (!seenNames.has(prop.name)) {
+        // Priority 1: resource and operation (essential for most nodes)
+        for (const prop of allProps) {
+            if ((prop.name === 'resource' || prop.name === 'operation') && !seenNames.has(prop.name)) {
                 seenNames.add(prop.name);
                 uniqueParams.push(prop);
             }
         }
         
-        // Then add other common parameters (up to 5 total)
-        for (const prop of schema.properties || []) {
-            if (uniqueParams.length >= 5) break;
+        // Priority 2: Required params (up to 7 total including resource/operation)
+        for (const prop of allProps) {
+            if (uniqueParams.length >= 7) break;
+            if (prop.required && !seenNames.has(prop.name)) {
+                seenNames.add(prop.name);
+                uniqueParams.push(prop);
+            }
+        }
+        
+        // Priority 3: Common optional params (to reach ~7 total)
+        for (const prop of allProps) {
+            if (uniqueParams.length >= 7) break;
             if (!seenNames.has(prop.name)) {
                 seenNames.add(prop.name);
                 uniqueParams.push(prop);
@@ -49,7 +57,7 @@ export class TypeScriptFormatter {
         
         for (const prop of uniqueParams) {
             const comment = prop.description ? `  // ${prop.description}` : '';
-            const required = prop.required ? ' (required)' : ' (optional)';
+            const requiredLabel = prop.required ? ' (required)' : ' (optional)';
             const typeHint = prop.type ? ` // type: ${prop.type}` : '';
             
             if (comment) {
@@ -57,7 +65,7 @@ export class TypeScriptFormatter {
             }
             
             const value = this.generateDefaultValue(prop);
-            paramLines.push(`  ${prop.name}: ${value},${typeHint}${required}`);
+            paramLines.push(`  ${prop.name}: ${value},${typeHint}${requiredLabel}`);
         }
 
         const paramsStr = paramLines.length > 0 
@@ -168,7 +176,7 @@ ${interfaceBody}
         doc += '\n';
 
         // Add usage example
-        doc += `// Example usage:\n`;
+        doc += `// Example usage (showing key parameters - see interface above for all options):\n`;
         doc += this.generateNodeSnippet(schema);
 
         // Add use cases if available
