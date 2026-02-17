@@ -49,7 +49,7 @@ const extensionBuild = esbuild.build({
     entryPoints: ['./src/extension.ts'],
     bundle: true,
     outfile: 'out/extension.js',
-    external: ['vscode'],
+    external: ['vscode', 'prettier'],
     format: 'cjs',
     platform: 'node',
     logOverride: {
@@ -71,7 +71,7 @@ const skillsCliBuild = fs.existsSync(finalSkillsCliEntry) ? esbuild.build({
     entryPoints: [finalSkillsCliEntry],
     bundle: true,
     outfile: 'out/skills/cli.js',
-    external: ['vscode'],
+    external: ['vscode', 'prettier'],
     format: 'cjs',
     platform: 'node',
     logOverride: {
