@@ -5,6 +5,7 @@ export { SnippetGenerator } from './services/snippet-generator.js';
 export { WorkflowValidator } from './services/workflow-validator.js';
 export { DocsProvider } from './services/docs-provider.js';
 export { KnowledgeSearch } from './services/knowledge-search.js';
+export { TypeScriptFormatter } from './services/typescript-formatter.js';
 
 // Type Exports
 export type { ValidationResult, ValidationError, ValidationWarning } from './services/workflow-validator.js';

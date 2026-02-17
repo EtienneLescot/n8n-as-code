@@ -7,6 +7,7 @@ import { DocsProvider } from './services/docs-provider.js';
 import { KnowledgeSearch } from './services/knowledge-search.js';
 import { AiContextGenerator } from './services/ai-context-generator.js';
 import { SnippetGenerator } from './services/snippet-generator.js';
+import { TypeScriptFormatter } from './services/typescript-formatter.js';
 import { registerWorkflowsCommand } from './commands/workflows.js';
 import fs, { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -57,7 +58,7 @@ program
     .description('AI Agent Tools for accessing n8n documentation')
     .version(getVersion());
 
-// 1. Search - Unified search with hints
+// 1. Search - Unified search with TypeScript examples
 program
     .command('search')
     .description('Search for n8n nodes and documentation')
@@ -65,6 +66,8 @@ program
     .option('--category <category>', 'Filter by category')
     .option('--type <type>', 'Filter by type (node or documentation)')
     .option('--limit <limit>', 'Limit results', '10')
+    .option('--json', 'Output as JSON instead of TypeScript')
+    .option('--typescript', 'Output TypeScript snippets for nodes (default)', true)
     .action((query, options) => {
         try {
             const results = knowledgeSearch.searchAll(query, {
@@ -73,9 +76,39 @@ program
                 limit: parseInt(options.limit)
             });
 
-            console.log(JSON.stringify(results, null, 2));
+            if (options.json) {
+                // Legacy JSON output
+                console.log(JSON.stringify(results, null, 2));
+            } else {
+                // TypeScript-enhanced output for AI agents
+                const nodeResults = results.results.filter(r => r.type === 'node');
+                const docResults = results.results.filter(r => r.type !== 'node');
 
-            // Print hints to stderr so they don't interfere with JSON parsing
+                if (nodeResults.length > 0) {
+                    console.log('// === NODE RESULTS ===\n');
+                    console.log(TypeScriptFormatter.formatSearchResults(nodeResults.map(r => ({
+                        name: r.name || r.id,
+                        type: r.id,
+                        displayName: r.displayName || r.title || r.name || '',
+                        description: r.description || r.excerpt || '',
+                        version: 1 // Default version for search results
+                    }))));
+                }
+
+                if (docResults.length > 0) {
+                    console.log('\n// === DOCUMENTATION & EXAMPLES ===\n');
+                    docResults.forEach((result, index) => {
+                        console.log(`// ${index + 1}. ${result.title || result.displayName}`);
+                        console.log(`//    ${result.description || result.excerpt || ''}`);
+                        if (result.url) {
+                            console.log(`//    URL: ${result.url}`);
+                        }
+                        console.log('');
+                    });
+                }
+            }
+
+            // Print hints to stderr so they don't interfere with parsing
             if (results.hints && results.hints.length > 0) {
                 console.error(chalk.cyan('\n💡 Hints:'));
                 results.hints.forEach(hint => console.error(chalk.gray(`   ${hint}`)));
@@ -86,23 +119,38 @@ program
         }
     });
 
-// 2. Get Full Details - With hints
+// 2. Get Full Details - TypeScript Documentation
 program
     .command('get')
-    .description('Get complete node information (schema + documentation + guides)')
+    .description('Get complete node information as TypeScript code')
     .argument('<name>', 'Node name (exact, e.g. "googleSheets")')
-    .action((name) => {
+    .option('--json', 'Output as JSON instead of TypeScript')
+    .action((name, options) => {
         try {
             const schema = provider.getNodeSchema(name);
             if (schema) {
-                console.log(JSON.stringify(schema, null, 2));
+                if (options.json) {
+                    // Legacy JSON output
+                    console.log(JSON.stringify(schema, null, 2));
+                } else {
+                    // TypeScript documentation (default for AI agents)
+                    const tsDoc = TypeScriptFormatter.generateCompleteNodeDoc({
+                        name: schema.name,
+                        type: schema.type,
+                        displayName: schema.displayName,
+                        description: schema.description,
+                        version: schema.version,
+                        properties: schema.schema?.properties || [],
+                        metadata: schema.metadata
+                    });
+                    console.log(tsDoc);
+                }
 
                 // Add helpful hints to stderr
                 console.error(chalk.cyan('\n💡 Next steps:'));
-                console.error(chalk.gray(`   - 'schema ${name}' for quick parameter reference`));
+                console.error(chalk.gray(`   - 'schema ${name}' for quick TypeScript snippet`));
                 console.error(chalk.gray(`   - 'guides ${name}' to find usage guides`));
                 console.error(chalk.gray(`   - 'related ${name}' to discover similar nodes`));
-                console.error(chalk.gray(`   - 'docs <title>' to read full documentation`));
             } else {
                 console.error(chalk.red(`Node '${name}' not found.`));
                 process.exit(1);
@@ -265,12 +313,13 @@ program
         }
     });
 
-// 6. Schema - Get technical schema only (fast)
+// 6. Schema - Get TypeScript snippet (fast)
 program
     .command('schema')
-    .description('Get technical schema for a node (parameters only)')
+    .description('Get TypeScript code snippet for a node (quick reference)')
     .argument('<name>', 'Node name')
-    .action((name) => {
+    .option('--json', 'Output as JSON instead of TypeScript')
+    .action((name, options) => {
         try {
             let schema = provider.getNodeSchema(name);
 
@@ -283,18 +332,32 @@ program
             }
 
             if (schema) {
-                const props = Array.isArray(schema.schema?.properties) ? schema.schema.properties : [];
-                const technicalSchema = {
-                    name: schema.name,
-                    type: schema.type,
-                    displayName: schema.displayName,
-                    description: schema.description,
-                    version: schema.version,
-                    properties: props,
-                    requiredFields: [...new Set(props.filter((p: any) => p.required).map((p: any) => p.name))]
-                };
-                console.log(JSON.stringify(technicalSchema, null, 2));
-                console.error(chalk.cyan('\n💡 Hint: Use \'get ' + schema.name + '\' for complete documentation and guides'));
+                if (options.json) {
+                    // Legacy JSON output
+                    const props = Array.isArray(schema.schema?.properties) ? schema.schema.properties : [];
+                    const technicalSchema = {
+                        name: schema.name,
+                        type: schema.type,
+                        displayName: schema.displayName,
+                        description: schema.description,
+                        version: schema.version,
+                        properties: props,
+                        requiredFields: [...new Set(props.filter((p: any) => p.required).map((p: any) => p.name))]
+                    };
+                    console.log(JSON.stringify(technicalSchema, null, 2));
+                } else {
+                    // TypeScript snippet (default for AI agents)
+                    const tsSnippet = TypeScriptFormatter.generateNodeSnippet({
+                        name: schema.name,
+                        type: schema.type,
+                        displayName: schema.displayName,
+                        description: schema.description,
+                        version: schema.version,
+                        properties: schema.schema?.properties || []
+                    });
+                    console.log(tsSnippet);
+                }
+                console.error(chalk.cyan('\n💡 Hint: Use \'get ' + schema.name + '\' for complete documentation and examples'));
             } else {
                 console.error(chalk.red(`Node '${name}' not found.`));
                 console.error(chalk.yellow(`Try running: './n8nac-skills search "${name}"' to find the correct node name.`));
