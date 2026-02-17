@@ -1,0 +1,78 @@
+{
+    "id": "test-workflow-123",
+    "name": "Simple Test Workflow",
+    "active": true,
+    "nodes": [
+        {
+            "name": "Schedule Trigger",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.2,
+            "position": [100, 200],
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "cronExpression",
+                            "expression": "0 9 * * *"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "HTTP Request",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4,
+            "position": [300, 200],
+            "parameters": {
+                "url": "https://api.example.com/data",
+                "method": "GET"
+            }
+        },
+        {
+            "name": "Set Variables",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3,
+            "position": [500, 200],
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "name": "result",
+                            "value": "={{ $json.data }}",
+                            "type": "string"
+                        }
+                    ]
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Schedule Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "HTTP Request",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "HTTP Request": {
+            "main": [
+                [
+                    {
+                        "node": "Set Variables",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "tags": []
+}
