@@ -224,12 +224,15 @@ export class Watcher extends EventEmitter {
 
     private async onLocalChange(filePath: string) {
         const filename = path.basename(filePath);
+        console.log(`[Watcher] onLocalChange: ${filename}`);
         if (!filename.endsWith('.workflow.ts')) return;
 
         const content = this.readJsonFile(filePath);
         if (!content) {
+            console.log(`[Watcher] ❌ Cannot read file content for ${filename} - readJsonFile returned null`);
             return;
         }
+        console.log(`[Watcher] ✅ File content read for ${filename}, ID=${content.id}`);
 
         // Check if this is a rename operation (following architectural plan)
         const detectedWorkflowId = content.id || this.fileToIdMap.get(filename);
@@ -252,11 +255,13 @@ export class Watcher extends EventEmitter {
 
         // Check if filename is paused (for workflows without ID)
         if (this.pausedFilenames.has(filename)) {
+            console.log(`[Watcher] ⏸️  Filename ${filename} is paused, ignoring change`);
             return;
         }
 
         let workflowId = content.id || this.fileToIdMap.get(filename);
         if (workflowId && (this.isPaused.has(workflowId) || this.syncInProgress.has(workflowId))) {
+            console.log(`[Watcher] ⏸️  Workflow ${workflowId} is paused or sync in progress, ignoring change`);
             return;
         }
 
@@ -334,6 +339,8 @@ export class Watcher extends EventEmitter {
         // The file on disk can contain these fields, but they won't affect the hash
         const tsContent = fs.readFileSync(filePath, 'utf-8');
         const hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
+        
+        console.log(`[Watcher] 🔢 Hash computed for ${filename}: ${hash.substring(0, 8)}...`);
 
         this.localHashes.set(filename, hash);
         if (workflowId) {
@@ -341,6 +348,7 @@ export class Watcher extends EventEmitter {
             this.idToFileMap.set(workflowId, filename);
         }
 
+        console.log(`[Watcher] 📡 Broadcasting status for ${filename}...`);
         this.broadcastStatus(filename, workflowId);
     }
 
@@ -952,14 +960,19 @@ export class Watcher extends EventEmitter {
         const status = this.calculateStatus(filename, workflowId);
         const key = workflowId || filename;
         const lastStatus = this.lastKnownStatuses.get(key);
+        
+        console.log(`[Watcher] Status for ${filename}: ${status} (last: ${lastStatus || 'none'})`);
 
         if (status !== lastStatus) {
+            console.log(`[Watcher] 🔔 Status changed! Emitting statusChange event`);
             this.lastKnownStatuses.set(key, status);
             this.emit('statusChange', {
                 filename,
                 workflowId,
                 status
             });
+        } else {
+            console.log(`[Watcher] Status unchanged, not emitting event`);
         }
     }
 
@@ -1096,7 +1109,7 @@ export class Watcher extends EventEmitter {
         return this.fileToIdMap;
     }
 
-    public getStatusMatrix(): IWorkflowStatus[] {
+    public async getStatusMatrix(): Promise<IWorkflowStatus[]> {
         const results: Map<string, IWorkflowStatus> = new Map();
         const state = this.loadState();
 
@@ -1108,11 +1121,12 @@ export class Watcher extends EventEmitter {
                 const filePath = path.join(this.directory, filename);
                 if (fs.existsSync(filePath)) {
                     try {
-                        const content = fs.readFileSync(filePath, 'utf8');
-                        const workflow = JSON.parse(content);
-                        const workflowId = workflow.id || this.fileToIdMap.get(filename);
-                        if (workflowId) {
-                            workflowsMap.set(workflowId, workflow);
+                        const workflow = await this.readWorkflowFile(filePath);
+                        if (workflow) {
+                            const workflowId = workflow.id || this.fileToIdMap.get(filename);
+                            if (workflowId) {
+                                workflowsMap.set(workflowId, workflow);
+                            }
                         }
                     } catch (e) {
                         console.warn(`[Watcher] Failed to parse local workflow ${filename}:`, e);
@@ -1229,9 +1243,10 @@ export class Watcher extends EventEmitter {
         for (const [filename, _] of this.localHashes.entries()) {
             const filepath = path.join(this.directory, filename);
             try {
-                const content = fs.readFileSync(filepath, 'utf-8');
-                const workflow: IWorkflow = JSON.parse(content);
-                workflows.push(workflow);
+                const workflow = await this.readWorkflowFile(filepath);
+                if (workflow) {
+                    workflows.push(workflow);
+                }
             } catch (error) {
                 console.warn(`[Watcher] Failed to read local workflow ${filename}:`, error);
             }

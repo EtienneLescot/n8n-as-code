@@ -29,8 +29,9 @@ export class JsonToAstParser {
             return this.parseNode(node, propertyName);
         });
         
-        // Parse connections
+        // Parse connections (main/error) and AI dependencies
         const connections = this.parseConnections(workflow.connections, nodeNameMap);
+        this.extractAIDependencies(workflow.connections, nodeNameMap, nodes);
         
         // Build AST
         return {
@@ -73,6 +74,9 @@ export class JsonToAstParser {
      *   "Node A": {
      *     "main": [
      *       [{ node: "Node B", type: "main", index: 0 }]
+     *     ],
+     *     "ai_languageModel": [
+     *       [{ node: "Agent", type: "ai_languageModel", index: 0 }]
      *     ]
      *   }
      * }
@@ -81,6 +85,8 @@ export class JsonToAstParser {
      * [
      *   { from: { node: "NodeA", output: 0 }, to: { node: "NodeB", input: 0 } }
      * ]
+     * 
+     * NOTE: AI connections (ai_*) are extracted separately via extractAIDependencies()
      */
     private parseConnections(
         connections: any,
@@ -92,6 +98,9 @@ export class JsonToAstParser {
             return result;
         }
         
+        // AI connection types (these are handled separately)
+        const AI_CONNECTION_TYPES = ['ai_languageModel', 'ai_memory', 'ai_outputParser', 'ai_tool'];
+        
         for (const [sourceNodeName, outputs] of Object.entries(connections)) {
             const sourcePropertyName = nodeNameMap.get(sourceNodeName);
             
@@ -100,8 +109,13 @@ export class JsonToAstParser {
                 continue;
             }
             
-            // Iterate output types (usually "main")
+            // Iterate output types (usually "main", "error", or ai_*)
             for (const [outputType, outputGroups] of Object.entries(outputs as any)) {
+                // Skip AI connection types (handled by extractAIDependencies)
+                if (AI_CONNECTION_TYPES.includes(outputType)) {
+                    continue;
+                }
+                
                 // For each output index
                 (outputGroups as any[]).forEach((group, outputIndex) => {
                     // For each target in this output
@@ -117,8 +131,7 @@ export class JsonToAstParser {
                             from: {
                                 node: sourcePropertyName,
                                 output: outputIndex,
-                                // TODO: Detect error outputs
-                                isError: false
+                                isError: outputType === 'error'
                             },
                             to: {
                                 node: targetPropertyName,
@@ -131,5 +144,80 @@ export class JsonToAstParser {
         }
         
         return result;
+    }
+    
+    /**
+     * Extract AI dependencies from connections and populate node aiDependencies
+     * 
+     * AI dependencies are connections like:
+     * - ai_languageModel: The LLM model for an agent
+     * - ai_memory: Memory buffer for an agent
+     * - ai_outputParser: Output parser for structured responses
+     * - ai_tool: Tools available to an agent
+     */
+    private extractAIDependencies(
+        connections: any,
+        nodeNameMap: Map<string, string>,
+        nodes: NodeAST[]
+    ): void {
+        if (!connections) {
+            return;
+        }
+        
+        // Create map for quick node lookup
+        const nodesByPropertyName = new Map<string, NodeAST>();
+        nodes.forEach(node => nodesByPropertyName.set(node.propertyName, node));
+        
+        for (const [sourceNodeName, outputs] of Object.entries(connections)) {
+            const sourcePropertyName = nodeNameMap.get(sourceNodeName);
+            
+            if (!sourcePropertyName) {
+                continue;
+            }
+            
+            // Check each output type for AI connections
+            for (const [outputType, outputGroups] of Object.entries(outputs as any)) {
+                if (!outputType.startsWith('ai_')) {
+                    continue;
+                }
+                
+                // For each output index
+                (outputGroups as any[]).forEach((group: any[]) => {
+                    // For each target in this output
+                    group.forEach((target: any) => {
+                        const targetPropertyName = nodeNameMap.get(target.node);
+                        
+                        if (!targetPropertyName) {
+                            return;
+                        }
+                        
+                        // Get the target node
+                        const targetNode = nodesByPropertyName.get(targetPropertyName);
+                        if (!targetNode) {
+                            return;
+                        }
+                        
+                        // Initialize aiDependencies if not exists
+                        if (!targetNode.aiDependencies) {
+                            targetNode.aiDependencies = {};
+                        }
+                        
+                        // Add dependency based on type
+                        if (outputType === 'ai_languageModel') {
+                            targetNode.aiDependencies.ai_languageModel = sourcePropertyName;
+                        } else if (outputType === 'ai_memory') {
+                            targetNode.aiDependencies.ai_memory = sourcePropertyName;
+                        } else if (outputType === 'ai_outputParser') {
+                            targetNode.aiDependencies.ai_outputParser = sourcePropertyName;
+                        } else if (outputType === 'ai_tool') {
+                            if (!targetNode.aiDependencies.ai_tool) {
+                                targetNode.aiDependencies.ai_tool = [];
+                            }
+                            targetNode.aiDependencies.ai_tool.push(sourcePropertyName);
+                        }
+                    });
+                });
+            }
+        }
     }
 }

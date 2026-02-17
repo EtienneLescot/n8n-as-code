@@ -101,6 +101,9 @@ export class WorkflowBuilder {
      *   "NodeA": {
      *     "main": [
      *       [{ node: "NodeB", type: "main", index: 0 }]
+     *     ],
+     *     "ai_languageModel": [
+     *       [{ node: "Agent", type: "ai_languageModel", index: 0 }]
      *     ]
      *   }
      * }
@@ -153,6 +156,81 @@ export class WorkflowBuilder {
                 type: 'main',
                 index: conn.to.input
             });
+        }
+        
+        // Add AI dependencies from nodes
+        for (const node of nodes) {
+            if (!node.aiDependencies) {
+                continue;
+            }
+            
+            const deps = node.aiDependencies;
+            const targetDisplayName = node.displayName;
+            
+            // Process each AI dependency type
+            const aiDepTypes: Array<{ key: keyof typeof deps; connectionType: string }> = [
+                { key: 'ai_languageModel', connectionType: 'ai_languageModel' },
+                { key: 'ai_memory', connectionType: 'ai_memory' },
+                { key: 'ai_outputParser', connectionType: 'ai_outputParser' }
+            ];
+            
+            for (const { key, connectionType } of aiDepTypes) {
+                const sourcePropertyName = deps[key];
+                if (sourcePropertyName && typeof sourcePropertyName === 'string') {
+                    const sourceDisplayName = displayNameMap.get(sourcePropertyName);
+                    
+                    if (!sourceDisplayName) {
+                        console.warn(`Warning: Unknown AI dependency node "${sourcePropertyName}"`);
+                        continue;
+                    }
+                    
+                    // Initialize source node connections if not exists
+                    if (!result[sourceDisplayName]) {
+                        result[sourceDisplayName] = {};
+                    }
+                    
+                    // Initialize connection type array
+                    if (!result[sourceDisplayName][connectionType]) {
+                        result[sourceDisplayName][connectionType] = [[]];
+                    }
+                    
+                    // Add AI connection
+                    result[sourceDisplayName][connectionType][0].push({
+                        node: targetDisplayName,
+                        type: connectionType,
+                        index: 0
+                    });
+                }
+            }
+            
+            // Handle ai_tool (array of tools)
+            if (deps.ai_tool && Array.isArray(deps.ai_tool)) {
+                for (const toolPropertyName of deps.ai_tool) {
+                    const sourceDisplayName = displayNameMap.get(toolPropertyName);
+                    
+                    if (!sourceDisplayName) {
+                        console.warn(`Warning: Unknown AI tool node "${toolPropertyName}"`);
+                        continue;
+                    }
+                    
+                    // Initialize source node connections if not exists
+                    if (!result[sourceDisplayName]) {
+                        result[sourceDisplayName] = {};
+                    }
+                    
+                    // Initialize connection type array
+                    if (!result[sourceDisplayName]['ai_tool']) {
+                        result[sourceDisplayName]['ai_tool'] = [[]];
+                    }
+                    
+                    // Add AI tool connection
+                    result[sourceDisplayName]['ai_tool'][0].push({
+                        node: targetDisplayName,
+                        type: 'ai_tool',
+                        index: 0
+                    });
+                }
+            }
         }
         
         return result;

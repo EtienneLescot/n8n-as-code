@@ -194,14 +194,53 @@ export class AstToTypeScriptGenerator {
         lines.push('    @links()');
         lines.push('    defineRouting() {');
         
-        // Generate connections
+        // Generate regular connections (main/error)
         if (ast.connections.length > 0) {
             ast.connections.forEach(conn => {
                 const fromMethod = conn.from.isError ? 'error()' : `out(${conn.from.output})`;
                 const line = `        this.${conn.from.node}.${fromMethod}.to(this.${conn.to.node}.in(${conn.to.input}));`;
                 lines.push(line);
             });
-        } else {
+        }
+        
+        // Generate AI dependency injections (.uses() calls)
+        const nodesWithAIDeps = ast.nodes.filter(node => node.aiDependencies && Object.keys(node.aiDependencies).length > 0);
+        if (nodesWithAIDeps.length > 0) {
+            if (ast.connections.length > 0) {
+                lines.push(''); // Blank line separator
+            }
+            
+            nodesWithAIDeps.forEach(node => {
+                const deps = node.aiDependencies!;
+                const depLines: string[] = [];
+                
+                if (deps.ai_languageModel) {
+                    depLines.push(`ai_languageModel: this.${deps.ai_languageModel}.output`);
+                }
+                if (deps.ai_memory) {
+                    depLines.push(`ai_memory: this.${deps.ai_memory}.output`);
+                }
+                if (deps.ai_outputParser) {
+                    depLines.push(`ai_outputParser: this.${deps.ai_outputParser}.output`);
+                }
+                if (deps.ai_tool && deps.ai_tool.length > 0) {
+                    const tools = deps.ai_tool.map(t => `this.${t}.output`).join(', ');
+                    depLines.push(`ai_tool: [${tools}]`);
+                }
+                
+                if (depLines.length > 0) {
+                    lines.push(`        this.${node.propertyName}.uses({`);
+                    depLines.forEach((depLine, idx) => {
+                        const comma = idx < depLines.length - 1 ? ',' : '';
+                        lines.push(`            ${depLine}${comma}`);
+                    });
+                    lines.push('        });');
+                }
+            });
+        }
+        
+        // If no connections or AI deps
+        if (ast.connections.length === 0 && nodesWithAIDeps.length === 0) {
             lines.push('        // No connections defined');
         }
         

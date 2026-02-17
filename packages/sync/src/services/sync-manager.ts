@@ -55,6 +55,7 @@ export class SyncManager extends EventEmitter {
         this.resolutionManager = new ResolutionManager(this.syncEngine, this.watcher, this.client);
 
         this.watcher.on('statusChange', (data) => {
+            console.log(`[SyncManager] 📨 Received statusChange event:`, data);
             this.emit('change', data);
             
             // Emit specific events for deletions and conflicts
@@ -78,10 +79,13 @@ export class SyncManager extends EventEmitter {
             
             // Auto-sync in auto mode
             if (this.config.syncMode === 'auto') {
+                console.log(`[SyncManager] Auto mode enabled, calling handleAutoSync...`);
                 this.handleAutoSync(data).catch(err => {
                     console.error('[SyncManager] Auto-sync error:', err);
                     this.emit('error', `Auto-sync failed: ${err.message}`);
                 });
+            } else {
+                console.log(`[SyncManager] Manual mode, skipping auto-sync`);
             }
         });
 
@@ -97,7 +101,7 @@ export class SyncManager extends EventEmitter {
     async getWorkflowsStatus(): Promise<IWorkflowStatus[]> {
         await this.ensureInitialized();
         // Return status from watcher
-        return this.watcher!.getStatusMatrix();
+        return await this.watcher!.getStatusMatrix();
     }
     
     /**
@@ -178,14 +182,18 @@ export class SyncManager extends EventEmitter {
     private async handleAutoSync(data: { filename: string; workflowId?: string; status: WorkflowSyncStatus }) {
         const { filename, workflowId, status } = data;
         
+        console.log(`[SyncManager] 🤖 handleAutoSync called for ${filename}, status: ${status}`);
+        
         try {
             switch (status) {
                 case WorkflowSyncStatus.MODIFIED_LOCALLY:
                 case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
                     // Auto-push local changes
                     this.emit('log', `🔄 Auto-sync: Pushing "${filename}"...`);
+                    console.log(`[SyncManager] Pushing ${filename}...`);
                     await this.syncEngine!.push(filename, workflowId, status);
                     this.emit('log', `✅ Auto-sync: Pushed "${filename}"`);
+                    console.log(`[SyncManager] ✅ Push complete for ${filename}`);
                     // Emit event to notify that remote was updated (for webview reload)
                     if (workflowId) {
                         this.emit('remote-updated', { workflowId, filename });
