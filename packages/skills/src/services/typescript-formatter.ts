@@ -61,21 +61,35 @@ export class TypeScriptFormatter {
         }
 
         const paramsStr = paramLines.length > 0 
-            ? '\n' + paramLines.join('\n') + '\n'
-            : '';
+            ? '\n' + paramLines.join('\n') + '\n  '
+            : ' ';
+
+        const className = this.toPascalCase(schema.name);
+        const nodeProp = schema.name.charAt(0).toUpperCase() + schema.name.slice(1);
 
         return `// ${schema.displayName}
 // ${schema.description}
 
-import { node } from '@n8n-as-code/transformer';
+import { workflow, node, links } from '@n8n-as-code/transformer';
 
-@node({
-  name: '${schema.displayName}',
-  type: '${schema.type}',
-  typeVersion: ${latestVersion},
-  parameters: {${paramsStr}}
+@workflow({
+  name: 'My Workflow',
+  active: false
 })
-class ${this.toPascalCase(schema.name)}Node {}
+export class MyWorkflow {
+  @node({
+    name: '${schema.displayName}',
+    type: '${schema.type}',
+    version: ${latestVersion}
+  })
+  ${nodeProp} = {${paramsStr}};
+
+  @links()
+  defineRouting() {
+    // Connect your nodes here
+    // Example: this.${nodeProp}.out(0).to(this.NextNode.in(0));
+  }
+}
 `;
     }
 
@@ -181,12 +195,14 @@ ${interfaceBody}
             ? Math.max(...schema.version) 
             : schema.version;
 
+        const nodeProp = schema.name.charAt(0).toUpperCase() + schema.name.slice(1);
+
         return `@node({
   name: '${schema.displayName}',
   type: '${schema.type}',
-  typeVersion: ${latestVersion},
-  parameters: {}
-})`;
+  version: ${latestVersion}
+})
+${nodeProp} = { /* parameters */ };`;
     }
 
     /**
