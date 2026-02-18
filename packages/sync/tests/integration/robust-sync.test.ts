@@ -8,6 +8,7 @@ import { SyncManager } from '../../src/services/sync-manager.js';
 import { N8nApiClient } from '../../src/services/n8n-api-client.js';
 import { WorkflowSyncStatus } from '../../src/types.js';
 import { cleanupTestWorkflows } from '../helpers/test-cleanup.js';
+import { WorkflowTransformerAdapter } from '../../src/services/workflow-transformer-adapter.js';
 
 /**
  * Robust Synchronization Integration Tests
@@ -103,7 +104,7 @@ test('Robust Integration Suite', { skip: !apiKey }, async (t) => {
         // Pull
         await syncManager.syncDown();
         
-        const filePath = path.join(syncManager.getInstanceDirectory(), `${TEST_WORKFLOW_NAME}.json`);
+        const filePath = path.join(syncManager.getInstanceDirectory(), `${TEST_WORKFLOW_NAME}.workflow.ts`);
         assert.ok(fs.existsSync(filePath), 'File should be downloaded');
         
         await syncManager.refreshState();
@@ -113,16 +114,19 @@ test('Robust Integration Suite', { skip: !apiKey }, async (t) => {
 
     await t.test('2. PUSH Strategy - MODIFIED_LOCALLY', async () => {
         const instanceDir = syncManager.getInstanceDirectory();
-        const filePath = path.join(instanceDir, `${TEST_WORKFLOW_NAME}.json`);
+        const filePath = path.join(instanceDir, `${TEST_WORKFLOW_NAME}.workflow.ts`);
         
-        const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        content.nodes = [{ id: '1', name: 'New Node', type: 'n8n-nodes-base.noOp', typeVersion: 1, position: [0,0], parameters: {} }];
-        content.connections = {};
-        content.settings = { timezone: 'Europe/Paris' };
+        // Compile .workflow.ts → JSON, mutate, then reconvert to TypeScript
+        const tsContent = fs.readFileSync(filePath, 'utf-8');
+        const content = await WorkflowTransformerAdapter.compileToJson(tsContent);
+        content.nodes = [{ id: '1', name: 'New Node', type: 'n8n-nodes-base.noOp', typeVersion: 1, position: [0,0], parameters: {} } as any];
+        (content as any).connections = {};
+        (content as any).settings = { timezone: 'Europe/Paris' };
+        const updatedTs = await WorkflowTransformerAdapter.convertToTypeScript(content, { format: true, commentStyle: 'verbose' });
         
         // Wait to ensure timestamp change
         await new Promise(resolve => setTimeout(resolve, 1100));
-        fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
+        fs.writeFileSync(filePath, updatedTs);
 
         await syncManager.refreshState();
         const statuses = await syncManager.getWorkflowsStatus();
@@ -144,7 +148,7 @@ test('Robust Integration Suite', { skip: !apiKey }, async (t) => {
         const statuses = await syncManager.getWorkflowsStatus();
         const testWf = statuses.find(s => s.name === TEST_WORKFLOW_NAME);
         const instanceDir = syncManager.getInstanceDirectory();
-        const filePath = path.join(instanceDir, `${TEST_WORKFLOW_NAME}.json`);
+        const filePath = path.join(instanceDir, `${TEST_WORKFLOW_NAME}.workflow.ts`);
 
         await new Promise(resolve => setTimeout(resolve, 1100));
 
@@ -156,20 +160,24 @@ test('Robust Integration Suite', { skip: !apiKey }, async (t) => {
             settings: { timezone: 'Europe/Paris' }
         });
 
-        // Modify local
-        const localContent = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        localContent.nodes = [{ id: '1', name: 'Local', type: 'n8n-nodes-base.noOp', typeVersion: 1, position: [0,0], parameters: {} }];
-        fs.writeFileSync(filePath, JSON.stringify(localContent, null, 2));
+        // Modify local: compile → mutate → reconvert
+        const localTs = fs.readFileSync(filePath, 'utf-8');
+        const localContent = await WorkflowTransformerAdapter.compileToJson(localTs);
+        localContent.nodes = [{ id: '1', name: 'Local', type: 'n8n-nodes-base.noOp', typeVersion: 1, position: [0,0], parameters: {} } as any];
+        const localUpdatedTs = await WorkflowTransformerAdapter.convertToTypeScript(localContent, { format: true, commentStyle: 'verbose' });
+        fs.writeFileSync(filePath, localUpdatedTs);
 
         await syncManager.refreshState();
         const statusesConflict = await syncManager.getWorkflowsStatus();
         assert.strictEqual(statusesConflict.find(s => s.id === testWf!.id)?.status, WorkflowSyncStatus.CONFLICT);
 
         // Resolve KEEP_REMOTE
-        await syncManager.resolveConflict(testWf!.id, `${TEST_WORKFLOW_NAME}.json`, 'remote');
+        await syncManager.resolveConflict(testWf!.id, `${TEST_WORKFLOW_NAME}.workflow.ts`, 'remote');
 
-        const updatedLocal = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        assert.strictEqual(updatedLocal.nodes[0].name, 'Remote', 'Local should be overwritten by remote content');
+        // After remote resolution, file is rewritten as .workflow.ts — compile to check node name
+        const resolvedTs = fs.readFileSync(filePath, 'utf-8');
+        const resolvedContent = await WorkflowTransformerAdapter.compileToJson(resolvedTs);
+        assert.strictEqual(resolvedContent.nodes[0].name, 'Remote', 'Local should be overwritten by remote content');
         
         await syncManager.refreshState();
         assert.strictEqual((await syncManager.getWorkflowsStatus()).find(s => s.id === testWf!.id)?.status, WorkflowSyncStatus.IN_SYNC);
@@ -179,7 +187,7 @@ test('Robust Integration Suite', { skip: !apiKey }, async (t) => {
         const statuses = await syncManager.getWorkflowsStatus();
         const testWf = statuses.find(s => s.name === TEST_WORKFLOW_NAME);
         const instanceDir = syncManager.getInstanceDirectory();
-        const filePath = path.join(instanceDir, `${TEST_WORKFLOW_NAME}.json`);
+        const filePath = path.join(instanceDir, `${TEST_WORKFLOW_NAME}.workflow.ts`);
 
         // Delete local
         fs.unlinkSync(filePath);
@@ -188,7 +196,7 @@ test('Robust Integration Suite', { skip: !apiKey }, async (t) => {
         assert.strictEqual((await syncManager.getWorkflowsStatus()).find(s => s.id === testWf!.id)?.status, WorkflowSyncStatus.DELETED_LOCALLY);
 
         // Restore (using force pull since archive might not have settled in test)
-        await syncManager.resolveConflict(testWf!.id, `${TEST_WORKFLOW_NAME}.json`, 'remote');
+        await syncManager.resolveConflict(testWf!.id, `${TEST_WORKFLOW_NAME}.workflow.ts`, 'remote');
 
         assert.ok(fs.existsSync(filePath), 'File should be restored');
         await syncManager.refreshState();
@@ -203,7 +211,7 @@ test('Robust Integration Suite', { skip: !apiKey }, async (t) => {
         assert.ok(testWf, 'Workflow should exist');
         
         const instanceDir = syncManager.getInstanceDirectory();
-        const filePath = path.join(instanceDir, `${TEST_WORKFLOW_NAME}.json`);
+        const filePath = path.join(instanceDir, `${TEST_WORKFLOW_NAME}.workflow.ts`);
 
         // 1. Delete remote
         await client.deleteWorkflow(testWf.id);
@@ -217,7 +225,7 @@ test('Robust Integration Suite', { skip: !apiKey }, async (t) => {
         assert.strictEqual(statusObj?.status, WorkflowSyncStatus.DELETED_REMOTELY);
 
         // 3. Confirm (should archive local and remove from state)
-        await syncManager.confirmDeletion(testWf.id, `${TEST_WORKFLOW_NAME}.json`);
+        await syncManager.confirmDeletion(testWf.id, `${TEST_WORKFLOW_NAME}.workflow.ts`);
 
         assert.ok(!fs.existsSync(filePath), 'Local file should be removed');
         await syncManager.refreshState();

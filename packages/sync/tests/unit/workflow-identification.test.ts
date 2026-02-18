@@ -52,7 +52,7 @@ test('Case 1: Filename != workflow.name - should correctly identify workflow', a
         await watcher.refreshLocalState();
         await watcher.refreshRemoteState();
 
-        const statuses = watcher.getStatusMatrix();
+        const statuses = await watcher.getStatusMatrix();
         
         // Should find the workflow by ID, not by name
         const foundWorkflow = statuses.find(s => s.id === '123');
@@ -102,7 +102,7 @@ test('Case 2: Workflow created without ID - should detect as EXIST_ONLY_LOCALLY'
         await watcher.start();
         await watcher.refreshLocalState();
 
-        const statuses = watcher.getStatusMatrix();
+        const statuses = await watcher.getStatusMatrix();
         
         // Should be detected as EXIST_ONLY_LOCALLY
         const foundWorkflow = statuses.find(s => s.filename === filename);
@@ -175,7 +175,7 @@ test('Case 3: Workflow renamed in n8n UI - should find by ID', async () => {
         await watcher.refreshLocalState();
         await watcher.refreshRemoteState();
 
-        const statuses = watcher.getStatusMatrix();
+        const statuses = await watcher.getStatusMatrix();
         const foundWorkflow = statuses.find(s => s.id === '789');
         
         // Should still find the workflow by ID, using the existing filename
@@ -239,7 +239,7 @@ test('Case 4: File renamed locally - should find workflow by ID scan', async () 
         await watcher.refreshLocalState();
         await watcher.refreshRemoteState();
 
-        const statuses = watcher.getStatusMatrix();
+        const statuses = await watcher.getStatusMatrix();
         const foundWorkflow = statuses.find(s => s.id === 'abc123');
         
         // Should find workflow and update mapping to new filename
