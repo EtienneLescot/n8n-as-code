@@ -4,7 +4,7 @@
  * Generates TypeScript code from AST representation
  */
 
-import { WorkflowAST, JsonToTypeScriptOptions } from '../types.js';
+import { WorkflowAST, NodeAST, ConnectionAST, JsonToTypeScriptOptions } from '../types.js';
 import {
     formatTypeScript,
     generateSectionComment,
@@ -30,6 +30,7 @@ export class AstToTypeScriptGenerator {
         
         // Generate code sections
         const imports = this.generateImports();
+        const workflowMap = this.generateWorkflowMap(ast);
         const classHeader = this.generateClassHeader(ast, className, commentStyle);
         const nodes = this.generateNodes(ast, commentStyle);
         const routing = this.generateRouting(ast, commentStyle);
@@ -38,6 +39,8 @@ export class AstToTypeScriptGenerator {
         // Combine sections
         let code = [
             imports,
+            '',
+            workflowMap,
             '',
             classHeader,
             '',
@@ -53,6 +56,124 @@ export class AstToTypeScriptGenerator {
         }
         
         return code;
+    }
+
+    /**
+     * Generate the workflow-map comment block.
+     * This block is ignored by TypeScriptParser (it is a plain comment) but
+     * provides a fast orientation index for AI agents and human developers:
+     *   1. NODE INDEX  — property name, line hint (approximate), short node type
+     *   2. ROUTING MAP — ASCII flow of main + AI connections
+     *
+     * Agents should read this block first (between <workflow-map> tags) before
+     * opening the full file, to quickly locate the sections they need to edit.
+     */
+    private generateWorkflowMap(ast: WorkflowAST): string {
+        const lines: string[] = [];
+        lines.push('// <workflow-map>');
+        lines.push(`// Workflow : ${ast.metadata.name}`);
+        lines.push(`// Nodes   : ${ast.nodes.length}  |  Connections: ${ast.connections.length}`);
+        lines.push('//');
+
+        // ── NODE INDEX ────────────────────────────────────────────────────────
+        lines.push('// NODE INDEX');
+        lines.push('// ──────────────────────────────────────────────────────────────────');
+        lines.push('// Property name                    Node type (short)         Flags');
+
+        const shortType = (type: string) => type.split('.').pop() ?? type;
+
+        for (const n of ast.nodes) {
+            const prop = n.propertyName.padEnd(34);
+            const t = shortType(n.type).padEnd(26);
+            const flags: string[] = [];
+            if (n.aiDependencies && Object.keys(n.aiDependencies).length > 0) flags.push('[AI]');
+            if (n.onError === 'continueErrorOutput') flags.push('[onError→out(1)]');
+            if (n.onError === 'continueRegularOutput') flags.push('[onError→regular]');
+            if (n.credentials && Object.keys(n.credentials).length > 0) flags.push('[creds]');
+            lines.push(`// ${prop} ${t} ${flags.join(' ')}`);
+        }
+
+        lines.push('//');
+
+        // ── ROUTING MAP ───────────────────────────────────────────────────────
+        lines.push('// ROUTING MAP');
+        lines.push('// ──────────────────────────────────────────────────────────────────');
+
+        // Build adjacency: from-node → [{to, fromOutput}]
+        const adj = new Map<string, Array<{ to: string; out: number; in: number }>>();
+        for (const conn of ast.connections) {
+            if (!adj.has(conn.from.node)) adj.set(conn.from.node, []);
+            adj.get(conn.from.node)!.push({ to: conn.to.node, out: conn.from.output, in: conn.to.input });
+        }
+
+        // Find root nodes (no incoming main connections)
+        const hasIncoming = new Set(ast.connections.map(c => c.to.node));
+        const roots = ast.nodes
+            .filter(n => !hasIncoming.has(n.propertyName))
+            .filter(n => adj.has(n.propertyName)); // Only nodes that have outgoing connections
+
+        // If no clear roots, just list all connections flat
+        if (roots.length === 0) {
+            for (const conn of ast.connections) {
+                const outLabel = conn.from.output > 0 ? `.out(${conn.from.output})` : '';
+                const inLabel = conn.to.input > 0 ? `.in(${conn.to.input})` : '';
+                lines.push(`// ${conn.from.node}${outLabel} → ${conn.to.node}${inLabel}`);
+            }
+        } else {
+            // DFS from each root, tracking visited to handle loops
+            const visited = new Set<string>();
+            const renderNode = (name: string, indent: string, parentIndent: string) => {
+                const children = adj.get(name) ?? [];
+                // Sort by output index so out(0) comes before out(1)
+                const sorted = [...children].sort((a, b) => a.out - b.out);
+                for (const child of sorted) {
+                    const outLabel = child.out > 0 ? `.out(${child.out})` : '';
+                    const inLabel = child.in > 0 ? `.in(${child.in})` : '';
+                    const arrow = `${outLabel} → ${child.to}${inLabel}`;
+                    if (visited.has(child.to)) {
+                        lines.push(`// ${indent}${arrow} (↩ loop)`);
+                    } else {
+                        lines.push(`// ${indent}${arrow}`);
+                        visited.add(child.to);
+                        renderNode(child.to, indent + '  ', indent);
+                    }
+                }
+            };
+
+            for (const root of roots) {
+                lines.push(`// ${root.propertyName}`);
+                visited.add(root.propertyName);
+                renderNode(root.propertyName, '  ', '');
+            }
+        }
+
+        // AI connections — group by consumer (agent node), aiDeps are stored on the sub-node
+        // e.g. OpenaiChatModel.aiDependencies = { ai_languageModel: "AgentIa" }
+        // means: AgentIa.uses({ ai_languageModel: OpenaiChatModel })
+        const aiSubNodes = ast.nodes.filter(n => n.aiDependencies && Object.keys(n.aiDependencies).length > 0);
+        if (aiSubNodes.length > 0) {
+            // Invert: group { consumer → { role → subNode } }
+            const consumers = new Map<string, string[]>();
+            for (const subNode of aiSubNodes) {
+                for (const [role, consumer] of Object.entries(subNode.aiDependencies!)) {
+                    const consumerName = Array.isArray(consumer) ? consumer[0] : consumer as string;
+                    if (!consumerName) continue;
+                    if (!consumers.has(consumerName)) consumers.set(consumerName, []);
+                    const val = Array.isArray(consumer)
+                        ? `${role}: [${(consumer as string[]).join(', ')}]`
+                        : `${role}: ${subNode.propertyName}`;
+                    consumers.get(consumerName)!.push(val);
+                }
+            }
+            lines.push('//');
+            lines.push('// AI CONNECTIONS');
+            for (const [consumer, deps] of consumers) {
+                lines.push(`// ${consumer}.uses({ ${deps.join(', ')} })`);
+            }
+        }
+
+        lines.push('// </workflow-map>');
+        return lines.join('\n');
     }
     
     /**
