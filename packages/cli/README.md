@@ -1,5 +1,7 @@
 # <img src="https://raw.githubusercontent.com/EtienneLescot/n8n-as-code/main/res/logo.png" alt="n8n-as-code logo" width="32" height="32"> @n8n-as-code/cli
 
+> **⚠️ BREAKING CHANGE (v0.9.0)**: Workflows are now stored as **TypeScript files** (`.workflow.ts`) instead of JSON. Use `n8nac convert` to migrate existing JSON workflows.
+
 The main command-line interface for the **n8n-as-code** ecosystem. Manage, synchronize, and version control your n8n workflows locally.
 
 ## Installation

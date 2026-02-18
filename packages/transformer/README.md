@@ -1,5 +1,7 @@
 # @n8n-as-code/transformer
 
+> **✨ NEW in v0.2.0**: This package enables the new **TypeScript workflow format** (`.workflow.ts`) that replaces JSON as the default storage format across n8n-as-code.
+
 Bidirectional transformer for n8n workflows: JSON ↔ TypeScript
 
 ## Overview

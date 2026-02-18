@@ -1,5 +1,7 @@
 # <img src="https://raw.githubusercontent.com/EtienneLescot/n8n-as-code/main/res/logo.png" alt="n8n-as-code logo" width="32" height="32"> n8n-as-code : VS Code Extension
 
+> **⚠️ BREAKING CHANGE (v0.11.0)**: Workflows are now stored as **TypeScript files** (`.workflow.ts`) instead of JSON. This provides better IntelliSense, type safety, and AI-assisted editing.
+
 **n8n-as-code** transforms VS Code into a powerful IDE for your n8n workflows. Your automations become code: Git versioning, AI-assisted editing, and seamless synchronization.
 
 ![n8n-as-code demo](https://raw.githubusercontent.com/EtienneLescot/n8n-as-code/main/res/n8n-as-code.gif)

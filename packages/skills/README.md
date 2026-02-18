@@ -1,5 +1,7 @@
 # <img src="https://raw.githubusercontent.com/EtienneLescot/n8n-as-code/main/res/logo.png" alt="n8n-as-code logo" width="32" height="32"> @n8n-as-code/skills
 
+> **⚠️ BREAKING CHANGE (v0.16.0)**: Workflows are now generated and documented in **TypeScript format** (`.workflow.ts`) instead of JSON for better AI compatibility and readability.
+
 Specialized tooling for AI Agents (Cursor, Cline, Copilot) to interact with n8n workflows and nodes.
 
 ## 🛠 Purpose

@@ -7,6 +7,8 @@
 [![npm: skills](https://img.shields.io/npm/v/@n8n-as-code/skills?label=skills&logo=npm)](https://www.npmjs.com/package/@n8n-as-code/skills)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+> **⚠️ BREAKING CHANGE**: Local workflows are now stored as **TypeScript files** (`.workflow.ts`) instead of JSON. This provides better readability, type safety, and AI compatibility. See the [TypeScript Workflows Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/typescript-workflows) for details.
+
 <div align="center">
   <img src="res/n8n-as-code.gif" alt="n8n-as-code demo" width="800">
 </div>
