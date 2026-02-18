@@ -55,6 +55,14 @@ describe('Naming Utilities', () => {
             const result = generatePropertyName('🎯', context);
             expect(result).toBe('Node');
         });
+
+        it('should transliterate accented characters to ASCII', () => {
+            const context = createPropertyNameContext();
+            expect(generatePropertyName('Mémoire', context)).toBe('Memoire');
+            expect(generatePropertyName('Données', context)).toBe('Donnees');
+            expect(generatePropertyName('Ärger', context)).toBe('Arger');
+            expect(generatePropertyName('naïve résumé', context)).toBe('NaiveResume');
+        });
     });
     
     describe('generateClassName', () => {

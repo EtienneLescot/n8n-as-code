@@ -112,6 +112,19 @@ function toPascalCase(str: string): string {
 }
 
 /**
+ * Transliterate accented/diacritic characters to their ASCII base equivalent
+ *
+ * @example
+ * "Mémoire" → "Memoire"
+ * "Ärger" → "Arger"
+ * "naïve" → "naive"
+ */
+function transliterate(str: string): string {
+    // NFD decomposes accented chars into base + combining diacritic, then strip diacritics
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/**
  * Ensure string is a valid JavaScript identifier
  * 
  * - Must start with letter, $, or _
@@ -119,8 +132,8 @@ function toPascalCase(str: string): string {
  * - Cannot be a reserved word
  */
 function ensureValidIdentifier(name: string): string {
-    // Remove invalid characters
-    let cleaned = name.replace(/[^a-zA-Z0-9_$]/g, '');
+    // Transliterate accented characters before stripping (é→e, à→a, ü→u, …)
+    let cleaned = transliterate(name).replace(/[^a-zA-Z0-9_$]/g, '');
     
     // If starts with number, prefix with underscore
     if (/^\d/.test(cleaned)) {
