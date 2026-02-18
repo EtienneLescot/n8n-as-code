@@ -7,7 +7,8 @@
     "type": "module",
     "scripts": {
         "prebuild": "node ../../scripts/compare-extraction.mjs || echo 'Warning: Report generation skipped/failed'",
-        "build": "tsc -b",
+        "copy-assets": "mkdir -p dist/assets && cp src/assets/n8n-workflows.d.ts dist/assets/",
+        "build": "tsc -b && npm run copy-assets",
         "watch": "tsc -b -w",
         "clean": "rm -rf dist tsconfig.tsbuildinfo",
         "test": "npm run test:unit && npm run test:integration",

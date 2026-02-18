@@ -171,7 +171,14 @@ export class WorkflowBuilder {
             const aiDepTypes: Array<{ key: keyof typeof deps; connectionType: string }> = [
                 { key: 'ai_languageModel', connectionType: 'ai_languageModel' },
                 { key: 'ai_memory', connectionType: 'ai_memory' },
-                { key: 'ai_outputParser', connectionType: 'ai_outputParser' }
+                { key: 'ai_outputParser', connectionType: 'ai_outputParser' },
+                { key: 'ai_agent', connectionType: 'ai_agent' },
+                { key: 'ai_chain', connectionType: 'ai_chain' },
+                { key: 'ai_textSplitter', connectionType: 'ai_textSplitter' },
+                { key: 'ai_embedding', connectionType: 'ai_embedding' },
+                { key: 'ai_retriever', connectionType: 'ai_retriever' },
+                { key: 'ai_reranker', connectionType: 'ai_reranker' },
+                { key: 'ai_vectorStore', connectionType: 'ai_vectorStore' }
             ];
             
             for (const { key, connectionType } of aiDepTypes) {
@@ -203,32 +210,39 @@ export class WorkflowBuilder {
                 }
             }
             
-            // Handle ai_tool (array of tools)
-            if (deps.ai_tool && Array.isArray(deps.ai_tool)) {
-                for (const toolPropertyName of deps.ai_tool) {
-                    const sourceDisplayName = displayNameMap.get(toolPropertyName);
-                    
-                    if (!sourceDisplayName) {
-                        console.warn(`Warning: Unknown AI tool node "${toolPropertyName}"`);
-                        continue;
+            // Handle ai_tool and ai_document (arrays)
+            const arrayTypes: Array<{ key: 'ai_tool' | 'ai_document'; connectionType: 'ai_tool' | 'ai_document' }> = [
+                { key: 'ai_tool', connectionType: 'ai_tool' },
+                { key: 'ai_document', connectionType: 'ai_document' }
+            ];
+            
+            for (const { key, connectionType } of arrayTypes) {
+                if (deps[key] && Array.isArray(deps[key])) {
+                    for (const itemPropertyName of deps[key] as string[]) {
+                        const sourceDisplayName = displayNameMap.get(itemPropertyName);
+                        
+                        if (!sourceDisplayName) {
+                            console.warn(`Warning: Unknown AI ${connectionType} node "${itemPropertyName}"`);
+                            continue;
+                        }
+                        
+                        // Initialize source node connections if not exists
+                        if (!result[sourceDisplayName]) {
+                            result[sourceDisplayName] = {};
+                        }
+                        
+                        // Initialize connection type array
+                        if (!result[sourceDisplayName][connectionType]) {
+                            result[sourceDisplayName][connectionType] = [[]];
+                        }
+                        
+                        // Add AI connection
+                        result[sourceDisplayName][connectionType][0].push({
+                            node: targetDisplayName,
+                            type: connectionType,
+                            index: 0
+                        });
                     }
-                    
-                    // Initialize source node connections if not exists
-                    if (!result[sourceDisplayName]) {
-                        result[sourceDisplayName] = {};
-                    }
-                    
-                    // Initialize connection type array
-                    if (!result[sourceDisplayName]['ai_tool']) {
-                        result[sourceDisplayName]['ai_tool'] = [[]];
-                    }
-                    
-                    // Add AI tool connection
-                    result[sourceDisplayName]['ai_tool'][0].push({
-                        node: targetDisplayName,
-                        type: 'ai_tool',
-                        index: 0
-                    });
                 }
             }
         }

@@ -8,6 +8,7 @@ import { SyncEngine } from './sync-engine.js';
 import { ResolutionManager } from './resolution-manager.js';
 import { ISyncConfig, IWorkflow, WorkflowSyncStatus, IWorkflowStatus } from '../types.js';
 import { createProjectSlug } from './directory-utils.js';
+import { WorkspaceSetupService } from './workspace-setup-service.js';
 
 export class SyncManager extends EventEmitter {
     private client: N8nApiClient;
@@ -40,6 +41,14 @@ export class SyncManager extends EventEmitter {
         
         if (!fs.existsSync(instanceDir)) {
             fs.mkdirSync(instanceDir, { recursive: true });
+        }
+
+        // Write TypeScript support files (.d.ts + tsconfig.json) so .workflow.ts
+        // files have no red errors without requiring a local npm install.
+        try {
+            WorkspaceSetupService.ensureWorkspaceFiles(instanceDir);
+        } catch (err: any) {
+            console.warn('[SyncManager] Could not write workspace TypeScript stubs:', err.message);
         }
 
         this.stateManager = new StateManager(instanceDir);

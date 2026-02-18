@@ -91,6 +91,14 @@ export interface AIDependencies {
     ai_memory?: string;             // Property name of memory node
     ai_outputParser?: string;       // Property name of parser node
     ai_tool?: string[];             // Property names of tool nodes
+    ai_agent?: string;              // Property name of agent node
+    ai_chain?: string;              // Property name of chain node
+    ai_document?: string[];         // Property names of document nodes
+    ai_textSplitter?: string;       // Property name of text splitter node
+    ai_embedding?: string;          // Property name of embedding node
+    ai_retriever?: string;          // Property name of retriever node
+    ai_reranker?: string;           // Property name of reranker node
+    ai_vectorStore?: string;        // Property name of vector store node
 }
 
 /**

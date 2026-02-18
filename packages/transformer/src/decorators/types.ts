@@ -107,6 +107,14 @@ export interface AIDependencyMap {
     ai_memory?: { output: any };
     ai_outputParser?: { output: any };
     ai_tool?: Array<{ output: any }>;
+    ai_agent?: { output: any };
+    ai_chain?: { output: any };
+    ai_document?: Array<{ output: any }>;
+    ai_textSplitter?: { output: any };
+    ai_embedding?: { output: any };
+    ai_retriever?: { output: any };
+    ai_reranker?: { output: any };
+    ai_vectorStore?: { output: any };
 }
 
 // =====================================================================

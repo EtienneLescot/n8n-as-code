@@ -307,12 +307,12 @@ export class TypeScriptParser {
             const key = trimmed.substring(0, colonIndex).trim();
             const value = trimmed.substring(colonIndex + 1).trim();
             
-            // Check if it's ai_tool (array)
-            if (key === 'ai_tool' && value.startsWith('[')) {
+            // Check if it's an array type (ai_tool or ai_document)
+            if ((key === 'ai_tool' || key === 'ai_document') && value.startsWith('[')) {
                 // Parse array: [this.Tool1.output, this.Tool2.output]
-                const toolNames = this.parseToolArray(value);
-                if (toolNames.length > 0) {
-                    result[key] = toolNames;
+                const itemNames = this.parseToolArray(value);
+                if (itemNames.length > 0) {
+                    result[key] = itemNames;
                 }
             } else {
                 // Parse single reference: this.NodeName.output

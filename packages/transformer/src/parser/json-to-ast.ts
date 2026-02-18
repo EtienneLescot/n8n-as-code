@@ -153,7 +153,15 @@ export class JsonToAstParser {
      * - ai_languageModel: The LLM model for an agent
      * - ai_memory: Memory buffer for an agent
      * - ai_outputParser: Output parser for structured responses
-     * - ai_tool: Tools available to an agent
+     * - ai_tool: Tools available to an agent (array)
+     * - ai_agent: Agent sub-node
+     * - ai_chain: Chain sub-node
+     * - ai_document: Document loaders (array)
+     * - ai_textSplitter: Text splitter sub-node
+     * - ai_embedding: Embedding model sub-node
+     * - ai_retriever: Retriever sub-node for RAG
+     * - ai_reranker: Reranker sub-node
+     * - ai_vectorStore: Vector store sub-node
      */
     private extractAIDependencies(
         connections: any,
@@ -209,11 +217,27 @@ export class JsonToAstParser {
                             targetNode.aiDependencies.ai_memory = sourcePropertyName;
                         } else if (outputType === 'ai_outputParser') {
                             targetNode.aiDependencies.ai_outputParser = sourcePropertyName;
-                        } else if (outputType === 'ai_tool') {
-                            if (!targetNode.aiDependencies.ai_tool) {
-                                targetNode.aiDependencies.ai_tool = [];
+                        } else if (outputType === 'ai_agent') {
+                            targetNode.aiDependencies.ai_agent = sourcePropertyName;
+                        } else if (outputType === 'ai_chain') {
+                            targetNode.aiDependencies.ai_chain = sourcePropertyName;
+                        } else if (outputType === 'ai_textSplitter') {
+                            targetNode.aiDependencies.ai_textSplitter = sourcePropertyName;
+                        } else if (outputType === 'ai_embedding') {
+                            targetNode.aiDependencies.ai_embedding = sourcePropertyName;
+                        } else if (outputType === 'ai_retriever') {
+                            targetNode.aiDependencies.ai_retriever = sourcePropertyName;
+                        } else if (outputType === 'ai_reranker') {
+                            targetNode.aiDependencies.ai_reranker = sourcePropertyName;
+                        } else if (outputType === 'ai_vectorStore') {
+                            targetNode.aiDependencies.ai_vectorStore = sourcePropertyName;
+                        } else if (outputType === 'ai_tool' || outputType === 'ai_document') {
+                            // ai_tool and ai_document are arrays
+                            const arrayKey = outputType as 'ai_tool' | 'ai_document';
+                            if (!targetNode.aiDependencies[arrayKey]) {
+                                (targetNode.aiDependencies as any)[arrayKey] = [];
                             }
-                            targetNode.aiDependencies.ai_tool.push(sourcePropertyName);
+                            (targetNode.aiDependencies[arrayKey] as string[]).push(sourcePropertyName);
                         }
                     });
                 });

@@ -214,6 +214,7 @@ export class AstToTypeScriptGenerator {
                 const deps = node.aiDependencies!;
                 const depLines: string[] = [];
                 
+                // Single AI dependencies
                 if (deps.ai_languageModel) {
                     depLines.push(`ai_languageModel: this.${deps.ai_languageModel}.output`);
                 }
@@ -223,9 +224,36 @@ export class AstToTypeScriptGenerator {
                 if (deps.ai_outputParser) {
                     depLines.push(`ai_outputParser: this.${deps.ai_outputParser}.output`);
                 }
+                if (deps.ai_agent) {
+                    depLines.push(`ai_agent: this.${deps.ai_agent}.output`);
+                }
+                if (deps.ai_chain) {
+                    depLines.push(`ai_chain: this.${deps.ai_chain}.output`);
+                }
+                if (deps.ai_textSplitter) {
+                    depLines.push(`ai_textSplitter: this.${deps.ai_textSplitter}.output`);
+                }
+                if (deps.ai_embedding) {
+                    depLines.push(`ai_embedding: this.${deps.ai_embedding}.output`);
+                }
+                if (deps.ai_retriever) {
+                    depLines.push(`ai_retriever: this.${deps.ai_retriever}.output`);
+                }
+                if (deps.ai_reranker) {
+                    depLines.push(`ai_reranker: this.${deps.ai_reranker}.output`);
+                }
+                if (deps.ai_vectorStore) {
+                    depLines.push(`ai_vectorStore: this.${deps.ai_vectorStore}.output`);
+                }
+                
+                // Array AI dependencies
                 if (deps.ai_tool && deps.ai_tool.length > 0) {
                     const tools = deps.ai_tool.map(t => `this.${t}.output`).join(', ');
                     depLines.push(`ai_tool: [${tools}]`);
+                }
+                if (deps.ai_document && deps.ai_document.length > 0) {
+                    const documents = deps.ai_document.map(d => `this.${d}.output`).join(', ');
+                    depLines.push(`ai_document: [${documents}]`);
                 }
                 
                 if (depLines.length > 0) {
