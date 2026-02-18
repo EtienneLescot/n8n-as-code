@@ -1,5 +1,17 @@
 # n8n-as-code
 
+## 0.11.0
+
+### Minor Changes
+
+- feat: transform n8n workflows from JSON to TypeScript with decorators and bidirectional conversion
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/skills@0.16.0
+  - @n8n-as-code/sync@0.13.0
+
 ## 0.10.1
 
 ### Patch Changes
