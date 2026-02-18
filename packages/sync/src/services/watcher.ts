@@ -991,6 +991,14 @@ export class Watcher extends EventEmitter {
         const baseState = workflowId ? state.workflows[workflowId] : undefined;
         const lastSyncedHash = baseState?.lastSyncedHash;
 
+        // Debug logging for new files
+        if (!workflowId && localHash) {
+            console.log(`[Watcher] 🆕 calculateStatus for NEW file: ${filename}`);
+            console.log(`  localHash: ${localHash ? localHash.substring(0, 8) : 'none'}`);
+            console.log(`  lastSyncedHash: ${lastSyncedHash ? lastSyncedHash.substring(0, 8) : 'none'}`);
+            console.log(`  remoteHash: ${remoteHash ? remoteHash.substring(0, 8) : 'none'}`);
+        }
+
         // Implementation of 4.2 Status Logic Matrix
         if (localHash && !lastSyncedHash && !remoteHash) return WorkflowSyncStatus.EXIST_ONLY_LOCALLY;
         if (remoteHash && !lastSyncedHash && !localHash) return WorkflowSyncStatus.EXIST_ONLY_REMOTELY;
@@ -1012,6 +1020,7 @@ export class Watcher extends EventEmitter {
         }
 
         // Fallback for edge cases
+        console.warn(`[Watcher] ⚠️  CONFLICT fallback for ${filename}:`, { localHash: !!localHash, remoteHash: !!remoteHash, lastSyncedHash: !!lastSyncedHash, workflowId });
         return WorkflowSyncStatus.CONFLICT;
     }
 
@@ -1056,12 +1065,30 @@ export class Watcher extends EventEmitter {
             // For full workflow data, use readWorkflowFile (async)
             const content = fs.readFileSync(filePath, 'utf8');
             if (filePath.endsWith('.workflow.ts')) {
-                // Quick extraction of workflow ID from TypeScript decorator
-                // Look for: @workflow({ id: "..." })
-                const idMatch = content.match(/@workflow\s*\(\s*{\s*id:\s*["']([^"']+)["']/);
-                if (idMatch) {
-                    return { id: idMatch[1] };
+                // Quick extraction of workflow ID and name from TypeScript decorator
+                // Look for: @workflow({ id: "...", name: "..." })
+                const decoratorMatch = content.match(/@workflow\s*\(\s*\{([^}]+)\}/);
+                if (decoratorMatch) {
+                    const decoratorContent = decoratorMatch[1];
+                    const result: any = {};
+                    
+                    // Extract id if present
+                    const idMatch = decoratorContent.match(/id:\s*["']([^"']+)["']/);
+                    if (idMatch) {
+                        result.id = idMatch[1];
+                    }
+                    
+                    // Extract name if present
+                    const nameMatch = decoratorContent.match(/name:\s*["']([^"']+)["']/);
+                    if (nameMatch) {
+                        result.name = nameMatch[1];
+                    }
+                    
+                    // Return at least the extracted data (even if no id)
+                    // This allows EXIST_ONLY_LOCALLY workflows to be detected
+                    return Object.keys(result).length > 0 ? result : {};
                 }
+                
                 // Fallback: If file contains JSON (for tests/transition), parse it
                 try {
                     const jsonData = JSON.parse(content);
@@ -1069,9 +1096,10 @@ export class Watcher extends EventEmitter {
                     // (workflows without ID should be detected as EXIST_ONLY_LOCALLY)
                     return jsonData;
                 } catch {
-                    // Not JSON, and no decorator match - invalid file
+                    // Not JSON, and no decorator match - but still valid .workflow.ts file
+                    // Return empty object to allow detection
                 }
-                return null;
+                return {};
             } else {
                 // Legacy JSON files
                 return JSON.parse(content);

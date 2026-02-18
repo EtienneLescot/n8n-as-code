@@ -54,8 +54,10 @@ const workflowsSlice = createSlice({
             state.byId = {};
             state.allIds = [];
             action.payload.forEach(wf => {
-                state.byId[wf.id] = wf;
-                state.allIds.push(wf.id);
+                // Use filename as key for workflows without ID (newly created locally)
+                const key = wf.id || `file:${wf.filename}`;
+                state.byId[key] = wf;
+                state.allIds.push(key);
             });
             state.lastSync = Date.now();
         },
@@ -63,25 +65,32 @@ const workflowsSlice = createSlice({
         // Update single workflow
         updateWorkflow: (state, action: PayloadAction<{ id: string; updates: Partial<IWorkflowStatus> }>) => {
             const { id, updates } = action.payload;
-            if (state.byId[id]) {
-                state.byId[id] = { ...state.byId[id], ...updates };
+            // Try both ID and filename-based keys
+            const key = id || (updates.filename ? `file:${updates.filename}` : id);
+            if (state.byId[key]) {
+                state.byId[key] = { ...state.byId[key], ...updates };
             }
         },
 
         // Add or replace workflow
         upsertWorkflow: (state, action: PayloadAction<IWorkflowStatus>) => {
             const wf = action.payload;
-            if (!state.byId[wf.id]) {
-                state.allIds.push(wf.id);
+            const key = wf.id || `file:${wf.filename}`;
+            if (!state.byId[key]) {
+                state.allIds.push(key);
             }
-            state.byId[wf.id] = wf;
+            state.byId[key] = wf;
         },
 
         // Remove workflow
         removeWorkflow: (state, action: PayloadAction<string>) => {
             const id = action.payload;
+            // Try to find by ID or filename-based key
             delete state.byId[id];
-            state.allIds = state.allIds.filter(wfId => wfId !== id);
+            // Also try filename-based key pattern
+            const fileKey = Object.keys(state.byId).find(k => k.startsWith('file:') && state.byId[k].id === id);
+            if (fileKey) delete state.byId[fileKey];
+            state.allIds = state.allIds.filter(wfId => wfId !== id && wfId !== fileKey);
         },
     },
 });
@@ -264,10 +273,13 @@ export const {
 
 // Selectors
 export const selectAllWorkflows = (state: RootState): IWorkflowStatus[] =>
-    state.workflows.allIds.map(id => state.workflows.byId[id]);
+    state.workflows.allIds.map(key => state.workflows.byId[key]).filter(Boolean);
 
-export const selectWorkflowById = (state: RootState, id: string): IWorkflowStatus | undefined =>
-    state.workflows.byId[id];
+export const selectWorkflowById = (state: RootState, id: string): IWorkflowStatus | undefined => {
+    // Try direct ID first, then try filename-based key
+    return state.workflows.byId[id] || 
+           Object.values(state.workflows.byId).find(wf => wf.id === id);
+};
 
 export const selectConflicts = (state: RootState) =>
     state.conflicts.byWorkflowId;

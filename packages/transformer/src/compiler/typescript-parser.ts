@@ -61,6 +61,9 @@ export class TypeScriptParser {
         // Extract connections
         const connections = this.extractConnections(workflowClass);
         
+        // Extract AI dependencies and add them to nodes
+        this.extractAIDependencies(workflowClass, nodes);
+        
         return {
             metadata,
             nodes,
@@ -153,6 +156,7 @@ export class TypeScriptParser {
                 credentials: metadata.credentials,
                 onError: metadata.onError,
                 parameters
+                // aiDependencies will be added by extractAIDependencies()
             });
         }
         
@@ -196,10 +200,9 @@ export class TypeScriptParser {
             // Parse connection statements
             // Format: this.NodeA.out(0).to(this.NodeB.in(0));
             // Format: this.NodeA.error().to(this.NodeB.in(0));
-            // Format: this.NodeA.uses({ ... }); // Skip uses() calls
+            // Skip .uses() calls (handled by extractAIDependencies)
             
             if (text.includes('.uses(')) {
-                // Skip AI dependency injection (handled separately if needed)
                 continue;
             }
             
@@ -210,6 +213,170 @@ export class TypeScriptParser {
         }
         
         return connections;
+    }
+    
+    /**
+     * Extract AI dependencies from .uses() calls in @links method
+     * 
+     * Example:
+     *   this.AgentIa.uses({
+     *     ai_languageModel: this.OpenaiChatModel.output,
+     *     ai_memory: this.Mmoire.output,
+     *     ai_tool: [this.Tool1.output, this.Tool2.output]
+     *   });
+     */
+    private extractAIDependencies(workflowClass: ClassDeclaration, nodes: NodeAST[]): void {
+        // Find method with @links decorator
+        const methods = workflowClass.getMethods();
+        let linksMethod: MethodDeclaration | null = null;
+        
+        for (const method of methods) {
+            const decorator = method.getDecorator('links');
+            if (decorator) {
+                linksMethod = method;
+                break;
+            }
+        }
+        
+        if (!linksMethod) {
+            return; // No links method
+        }
+        
+        // Parse method body
+        const body = linksMethod.getBody();
+        if (!body || !body.isKind(SyntaxKind.Block)) {
+            return;
+        }
+        
+        const statements = body.getStatements();
+        
+        for (const statement of statements) {
+            const text = statement.getText();
+            
+            // Only process .uses() calls
+            if (!text.includes('.uses(')) {
+                continue;
+            }
+            
+            // Parse: this.NodeName.uses({ ... });
+            const usesMatch = text.match(/this\.(\w+)\.uses\s*\(\s*\{([^}]+)\}\s*\)/);
+            if (!usesMatch) {
+                continue;
+            }
+            
+            const targetNodeProperty = usesMatch[1];
+            const depsObjectText = usesMatch[2];
+            
+            // Find the corresponding node
+            const node = nodes.find(n => n.propertyName === targetNodeProperty);
+            if (!node) {
+                console.warn(`Warning: .uses() called on unknown node: ${targetNodeProperty}`);
+                continue;
+            }
+            
+            // Parse dependencies object
+            const aiDependencies = this.parseAIDependencies(depsObjectText);
+            
+            // Add to node
+            if (Object.keys(aiDependencies).length > 0) {
+                node.aiDependencies = aiDependencies;
+            }
+        }
+    }
+    
+    /**
+     * Parse AI dependencies object from .uses() call
+     * 
+     * Input: "ai_languageModel: this.Model.output, ai_memory: this.Memory.output"
+     * Output: { ai_languageModel: "Model", ai_memory: "Memory" }
+     */
+    private parseAIDependencies(depsText: string): Record<string, string | string[]> {
+        const result: Record<string, string | string[]> = {};
+        
+        // Split by comma (but not inside brackets)
+        const entries = this.splitByTopLevelCommas(depsText);
+        
+        for (const entry of entries) {
+            const trimmed = entry.trim();
+            if (!trimmed) continue;
+            
+            // Parse: key: value
+            const colonIndex = trimmed.indexOf(':');
+            if (colonIndex === -1) continue;
+            
+            const key = trimmed.substring(0, colonIndex).trim();
+            const value = trimmed.substring(colonIndex + 1).trim();
+            
+            // Check if it's ai_tool (array)
+            if (key === 'ai_tool' && value.startsWith('[')) {
+                // Parse array: [this.Tool1.output, this.Tool2.output]
+                const toolNames = this.parseToolArray(value);
+                if (toolNames.length > 0) {
+                    result[key] = toolNames;
+                }
+            } else {
+                // Parse single reference: this.NodeName.output
+                const nodeMatch = value.match(/this\.(\w+)\.output/);
+                if (nodeMatch) {
+                    result[key] = nodeMatch[1];
+                }
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Split string by commas, but not inside brackets
+     */
+    private splitByTopLevelCommas(text: string): string[] {
+        const result: string[] = [];
+        let current = '';
+        let bracketDepth = 0;
+        
+        for (const char of text) {
+            if (char === '[') {
+                bracketDepth++;
+            } else if (char === ']') {
+                bracketDepth--;
+            } else if (char === ',' && bracketDepth === 0) {
+                result.push(current);
+                current = '';
+                continue;
+            }
+            current += char;
+        }
+        
+        if (current.trim()) {
+            result.push(current);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Parse tool array
+     * 
+     * Input: "[this.Tool1.output, this.Tool2.output]"
+     * Output: ["Tool1", "Tool2"]
+     */
+    private parseToolArray(arrayText: string): string[] {
+        const result: string[] = [];
+        
+        // Remove brackets
+        const content = arrayText.replace(/^\[|\]$/g, '').trim();
+        
+        // Split by comma
+        const items = content.split(',');
+        
+        for (const item of items) {
+            const nodeMatch = item.trim().match(/this\.(\w+)\.output/);
+            if (nodeMatch) {
+                result.push(nodeMatch[1]);
+            }
+        }
+        
+        return result;
     }
     
     /**
