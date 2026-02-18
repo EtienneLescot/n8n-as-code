@@ -116,9 +116,15 @@ test('Robust Integration Suite', { skip: !apiKey }, async (t) => {
         const instanceDir = syncManager.getInstanceDirectory();
         const filePath = path.join(instanceDir, `${TEST_WORKFLOW_NAME}.workflow.ts`);
         
-        // Compile .workflow.ts → JSON, mutate, then reconvert to TypeScript
+        // Get the workflow ID from the current status before modifying
+        const currentStatuses = await syncManager.getWorkflowsStatus();
+        const currentWf = currentStatuses.find(s => s.name === TEST_WORKFLOW_NAME);
+        const workflowId = currentWf!.id;
+
+        // Compile .workflow.ts → JSON, mutate (preserving id), then reconvert to TypeScript
         const tsContent = fs.readFileSync(filePath, 'utf-8');
         const content = await WorkflowTransformerAdapter.compileToJson(tsContent);
+        content.id = workflowId; // restore id stripped by cleanForPush
         content.nodes = [{ id: '1', name: 'New Node', type: 'n8n-nodes-base.noOp', typeVersion: 1, position: [0,0], parameters: {} } as any];
         (content as any).connections = {};
         (content as any).settings = { timezone: 'Europe/Paris' };
@@ -160,9 +166,10 @@ test('Robust Integration Suite', { skip: !apiKey }, async (t) => {
             settings: { timezone: 'Europe/Paris' }
         });
 
-        // Modify local: compile → mutate → reconvert
+        // Modify local: compile → mutate (preserving id) → reconvert
         const localTs = fs.readFileSync(filePath, 'utf-8');
         const localContent = await WorkflowTransformerAdapter.compileToJson(localTs);
+        localContent.id = testWf!.id; // restore id stripped by cleanForPush
         localContent.nodes = [{ id: '1', name: 'Local', type: 'n8n-nodes-base.noOp', typeVersion: 1, position: [0,0], parameters: {} } as any];
         const localUpdatedTs = await WorkflowTransformerAdapter.convertToTypeScript(localContent, { format: true, commentStyle: 'verbose' });
         fs.writeFileSync(filePath, localUpdatedTs);

@@ -114,13 +114,18 @@ export class WorkflowTransformerAdapter {
     
     /**
      * Compute hash from a JSON workflow (for remote workflows not yet saved as TypeScript)
+     * 
+     * Strategy: convert to TypeScript and back to JSON first, so that the same
+     * normalisation path is used as in hashWorkflow(tsContent).  This guarantees
+     * that hashWorkflowFromJson(w) === hashWorkflow(convertToTypeScript(w)) for any
+     * workflow, regardless of volatile fields (webhookId, node id, active, tags …).
      */
     static async hashWorkflowFromJson(workflow: IWorkflow): Promise<string> {
-        // Normalize for hashing
-        const normalized = this.normalizeForHash(workflow);
-        
-        // Compute hash
-        return HashUtils.computeHash(normalized);
+        // Round-trip through TypeScript to apply the exact same normalisation as
+        // hashWorkflow(tsContent) does.  Restore the id so convertToTypeScript can
+        // emit the @WorkflowId decorator.
+        const tsCode = await this.convertToTypeScript(workflow, { format: false, commentStyle: 'minimal' });
+        return this.hashWorkflow(tsCode);
     }
     
     /**
@@ -131,22 +136,54 @@ export class WorkflowTransformerAdapter {
      * - Node IDs (generated during compilation)
      * - Version fields (versionId, activeVersionId, versionCounter)
      * - Execution data (pinData)
+     * - Non-round-trippable settings fields (callerPolicy, availableInMCP, etc.)
+     *
+     * Settings are filtered to the same allowed set as cleanForPush so that
+     * hashFromJson and hashWorkflow(convertToTypeScript(sameJson)) always match.
      */
     private static normalizeForHash(workflow: IWorkflow): any {
+        // Filter settings to only the fields that survive a TS round-trip
+        // (must mirror the allowedSettings list in cleanForPush)
+        const allowedSettings = [
+            'errorWorkflow',
+            'timezone',
+            'saveManualExecutions',
+            'saveDataErrorExecution',
+            'saveExecutionProgress',
+            'executionOrder'
+        ];
+        const filteredSettings: any = {};
+        const rawSettings: any = (workflow as any).settings || {};
+        for (const key of allowedSettings) {
+            if (rawSettings[key] !== undefined) {
+                filteredSettings[key] = rawSettings[key];
+            }
+        }
+        // Always include executionOrder (default v1) — mirrors cleanForPush behaviour
+        if (!filteredSettings.executionOrder) {
+            filteredSettings.executionOrder = 'v1';
+        }
+
+        // NOTE: 'active' and 'tags' are intentionally excluded — they are
+        // stripped by cleanForPush and managed separately by n8n (activation
+        // endpoint, tags endpoint). Including them would cause a mismatch
+        // between hashFromJson (has the real values) and hashWorkflow (sees
+        // undefined after cleanForPush strips them).
+        //
+        // NOTE: 'id' is intentionally excluded — cleanForPush strips it, so
+        // hashWorkflow (TS → compileToJson → cleanForPush) would see id=undefined
+        // while hashWorkflowFromJson would see the real id, causing mismatch.
         const clean: any = {
-            id: workflow.id,
             name: workflow.name,
             nodes: workflow.nodes || [],
             connections: workflow.connections || {},
-            settings: workflow.settings || {},
-            tags: workflow.tags || [],
-            active: !!workflow.active
+            settings: filteredSettings
         };
-        
-        // Remove node IDs (generated during compilation)
+
+        // Remove node IDs and webhookIds (generated/auto-assigned during compilation)
         if (clean.nodes) {
             clean.nodes = clean.nodes.map((node: any) => {
-                const { id, ...rest } = node;
+                const { id, webhookId, ...rest } = node;
                 return rest;
             });
         }
