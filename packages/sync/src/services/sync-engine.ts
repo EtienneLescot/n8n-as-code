@@ -303,6 +303,19 @@ export class SyncEngine {
 
         // Compile TypeScript to JSON for API
         const localWf = await WorkflowTransformerAdapter.compileToJson(tsContent);
+
+        // Guard against empty compile result caused by parse errors (e.g. non-ASCII
+        // characters like → in the class name cause ts-morph to silently drop the
+        // class body, resulting in a 0-node workflow that would wipe the remote).
+        if (!localWf.nodes || localWf.nodes.length === 0) {
+            throw new Error(
+                `Refusing to push "${filename}": the compiled workflow has 0 nodes. ` +
+                `This usually means the TypeScript class name contains an invalid character ` +
+                `(e.g. → U+2192 is not a valid identifier). ` +
+                `Rename the class to a plain ASCII identifier and try again.`
+            );
+        }
+
         const updatedWf = await this.client.updateWorkflow(workflowId, localWf);
 
         if (!updatedWf) {
@@ -332,6 +345,17 @@ export class SyncEngine {
 
         // Compile TypeScript to JSON for API
         const localWf = await WorkflowTransformerAdapter.compileToJson(tsContent);
+
+        // Guard: refuse to create a workflow with 0 nodes (parse error protection)
+        if (!localWf.nodes || localWf.nodes.length === 0) {
+            throw new Error(
+                `Refusing to create "${filename}": the compiled workflow has 0 nodes. ` +
+                `This usually means the TypeScript class name contains an invalid character ` +
+                `(e.g. → U+2192 is not a valid identifier). ` +
+                `Rename the class to a plain ASCII identifier and try again.`
+            );
+        }
+
         if (!localWf.name) {
             localWf.name = path.parse(filename).name.replace('.workflow', '');
         }

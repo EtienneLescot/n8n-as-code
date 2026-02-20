@@ -321,10 +321,14 @@ export class Watcher extends EventEmitter {
                         
                         // Re-read the TypeScript content and compute hash
                         const tsContent = fs.readFileSync(filePath, 'utf-8');
-                        const hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
-                        const workflowId = this.fileToIdMap.get(filename);
-                        this.localHashes.set(filename, hash);
-                        this.broadcastStatus(filename, workflowId);
+                        try {
+                            const hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
+                            const workflowId = this.fileToIdMap.get(filename);
+                            this.localHashes.set(filename, hash);
+                            this.broadcastStatus(filename, workflowId);
+                        } catch (parseErr: any) {
+                            console.error(`[Watcher] ❌ Cannot parse "${filename}" after duplicate-ID removal: ${parseErr.message}`);
+                        }
                     }
                     return; // Stop processing this file as it's being modified
                     
@@ -338,8 +342,23 @@ export class Watcher extends EventEmitter {
         // This means versionId, versionCounter, pinData, etc. are ignored
         // The file on disk can contain these fields, but they won't affect the hash
         const tsContent = fs.readFileSync(filePath, 'utf-8');
-        const hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
-        
+        let hash: string;
+        try {
+            hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
+        } catch (parseErr: any) {
+            // Parsing failed (e.g. invalid identifier characters like → in the class name
+            // cause ts-morph to silently drop the class body, resulting in a 0-node compile
+            // which would be mistaken as a local modification and pushed, wiping the remote).
+            // Log the problem and abort – do NOT update localHashes so the file is not pushed.
+            console.error(
+                `[Watcher] ❌ Cannot parse "${filename}" – skipping hash/status update to prevent data loss.\n` +
+                `  Cause: ${parseErr.message}\n` +
+                `  Tip: Make sure the class name contains only valid ASCII/identifier characters ` +
+                `(→ U+2192 and similar symbols are not allowed in TypeScript identifiers).`
+            );
+            return;
+        }
+
         console.log(`[Watcher] 🔢 Hash computed for ${filename}: ${hash.substring(0, 8)}...`);
 
         this.localHashes.set(filename, hash);
@@ -586,8 +605,18 @@ export class Watcher extends EventEmitter {
                 
                 // Compute hash from TypeScript file directly
                 const tsContent = fs.readFileSync(filePath, 'utf-8');
-                const hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
-                this.localHashes.set(filename, hash);
+                try {
+                    const hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
+                    this.localHashes.set(filename, hash);
+                } catch (parseErr: any) {
+                    console.error(
+                        `[Watcher] ❌ Cannot parse "${filename}" during local scan – skipping.\n` +
+                        `  Cause: ${parseErr.message}\n` +
+                        `  Tip: Make sure the class name contains only valid identifier characters ` +
+                        `(→ U+2192 and similar symbols are not allowed in TypeScript identifiers).`
+                    );
+                    // Do NOT add to localHashes so this file stays invisible to auto-sync
+                }
             }
         }
         
