@@ -61,13 +61,9 @@ export async function activate(context: vscode.ExtensionContext) {
     proxyService.setOutputChannel(outputChannel);
     proxyService.setSecrets(context.secrets);
 
-    // 1. Determine initial state
-    await determineInitialState(context);
-
-    // Initial context keys update
-    updateContextKeys();
-
-    // 2. Register Commands
+    // 1. Register Commands (must happen before any async work so commands are always available)
+    // Note: determineInitialState is called below and may hang on network I/O; registering
+    // commands first ensures e.g. "Configure" works even while the extension is still activating.
     context.subscriptions.push(
         vscode.commands.registerCommand('n8n.init', async () => {
             await handleInitializeCommand(context);
@@ -510,7 +506,18 @@ export async function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // 2b. Listen for Config Changes (but don't auto-initialize)
+    // 2. Determine initial state – fire-and-forget so activate() returns immediately.
+    // determineInitialState may perform network I/O (connecting to the n8n instance) which
+    // would otherwise keep the extension stuck in "activating..." indefinitely. Commands are
+    // already registered above so they work regardless of how long initialization takes.
+    determineInitialState(context).then(() => {
+        updateContextKeys();
+    }).catch((err) => {
+        outputChannel.appendLine(`[n8n] Background initialization error: ${err?.message}`);
+        updateContextKeys();
+    });
+
+    // 3. Listen for Config Changes (but don't auto-initialize)
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration(async (e) => {
             // If the configuration webview triggers a save+apply, suppress the transient
