@@ -1,5 +1,16 @@
 # @n8n-as-code/cli
 
+## [0.9.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/cli@0.9.1...@n8n-as-code/cli@v0.9.2) (2026-02-21)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.1 to 0.16.2
+    * @n8n-as-code/sync bumped from 0.14.0 to 0.14.1
+    * @n8n-as-code/transformer bumped from 0.2.0 to 0.2.1
+
 ## 0.9.1
 
 ### Patch Changes
