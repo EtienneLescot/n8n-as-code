@@ -1,5 +1,17 @@
 # n8n-as-code
 
+## 0.12.0
+
+### Minor Changes
+
+- fix: improve activation flow by registering commands before async initialization to prevent delays
+
+### Patch Changes
+
+- Updated dependencies
+  - @n8n-as-code/sync@0.14.0
+  - @n8n-as-code/skills@0.16.1
+
 ## 0.11.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @n8n-as-code/sync
 
+## 0.14.0
+
+### Minor Changes
+
+- fix: improve activation flow by registering commands before async initialization to prevent delays
+
 ## 0.13.0
 
 ### Minor Changes
