@@ -1,5 +1,11 @@
 # n8n-as-code
 
+## 0.13.0
+
+### Minor Changes
+
+- fix: resolve race condition during initialization by managing async state
+
 ## 0.12.0
 
 ### Minor Changes
