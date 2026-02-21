@@ -1,5 +1,58 @@
 # @n8n-as-code/cli
 
+## [0.10.0](https://github.com/EtienneLescot/n8n-as-code/compare/cli-v0.9.1...cli-v0.10.0) (2026-02-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* The 'n8n-as-code watch' command is deprecated in favor of 'n8nac start'. Users should update their scripts and workflows accordingly.
+* **agent-cli:** This update introduces a new type field to node schemas and improves schema handling, which may require adjustments in dependent packages. The version has been bumped to 0.10.0 to reflect these changes.
+* **agent-cli:** Test expectations for empty search results now use more flexible assertions
+* **agent-cli:** Search behavior completely overhauled with new unified approach
+* **agent-cli:** Extension size increases to 5.2 MB due to enriched data
+* **agent-cli:** This update introduces significant changes to the agent-cli package and requires all dependent packages to update to version 0.3.0 or higher.
+
+### Features
+
+* Add AI context, schema, and snippet generation for n8n via CLI and VS Code extension. ([3fe0655](https://github.com/EtienneLescot/n8n-as-code/commit/3fe0655af328337468bad8d34e4c66ce581f556d))
+* add TypeScript workflows support and conversion CLI commands ([0583c59](https://github.com/EtienneLescot/n8n-as-code/commit/0583c59a51ded27987802f030a3a6730bd59aacf))
+* **agent-cli:** add AI-powered node discovery with enriched documentation ([6de05ed](https://github.com/EtienneLescot/n8n-as-code/commit/6de05ed9b73ea0d8578e17ba2d69e7be8a794cf7))
+* **agent-cli:** add search intelligence integration and improve path resolution ([f636f4e](https://github.com/EtienneLescot/n8n-as-code/commit/f636f4e60d3b39759aa3eb739b2fdc7e0d77a286))
+* **agent-cli:** add type field to node schema and improve schema handling ([a48185a](https://github.com/EtienneLescot/n8n-as-code/commit/a48185a1bf9fb69da602fd773ba0a00514ba246e))
+* **agent-cli:** expand capabilities with community workflows and refined CLI ([5766e0c](https://github.com/EtienneLescot/n8n-as-code/commit/5766e0c7c7082a0bf4a82762f903de6ac437d8db))
+* **agent-cli:** major refactor with unified FlexSearch integration ([37fa447](https://github.com/EtienneLescot/n8n-as-code/commit/37fa447eb776b823cd9c8faba553fc657c808d42))
+* **agent-cli:** optimize package size and enable enriched index ([0d668db](https://github.com/EtienneLescot/n8n-as-code/commit/0d668db0e2d6e8aa464496b11c0ebf99a231bc12))
+* **agent-cli:** support community nodes with validation warnings ([b98887f](https://github.com/EtienneLescot/n8n-as-code/commit/b98887fefff207964a0d704c5b50287f36418ee9))
+* enhance VS Code extension resolution logic for better remote environment support ([f65f8aa](https://github.com/EtienneLescot/n8n-as-code/commit/f65f8aa3689a6e31b7519629c141ccd7ea9d9cb0))
+* improve VS Code extension configuration UX with automatic project loading and pre-selection ([91fcee5](https://github.com/EtienneLescot/n8n-as-code/commit/91fcee5d5eb3abfc57b66386c1b846ce4703ac01))
+* restructure project as monorepo with workspaces ([68e9333](https://github.com/EtienneLescot/n8n-as-code/commit/68e9333896439e65bb971eed1da6fa8823312283))
+* **skills:** integrate skills CLI into VS Code extension ([6ec2302](https://github.com/EtienneLescot/n8n-as-code/commit/6ec230280ab5c265c32b02c0406645ba7cabf2a0))
+* update documentation to reflect breaking changes for TypeScript workflow format across all packages ([48062d1](https://github.com/EtienneLescot/n8n-as-code/commit/48062d1c2f38e2d018e5e8da3fcec46a38f6d441))
+* update package versions and changelogs for n8n-as-code ecosystem ([986996b](https://github.com/EtienneLescot/n8n-as-code/commit/986996b38dbaec5cc525d6d0aafbbd00f52959a6))
+* update TypeScript configuration files to include transformer references and ensure composite builds ([53a2451](https://github.com/EtienneLescot/n8n-as-code/commit/53a2451ebd75fb0e1b40e2dd3a53a3c575ba696a))
+* update version numbers and changelogs for dependencies across packages ([10dd3b3](https://github.com/EtienneLescot/n8n-as-code/commit/10dd3b325f6ecbf1ee8fb5c20e77f472c619e74e))
+* update version numbers and changelogs for pagination implementation across packages ([f4b3b29](https://github.com/EtienneLescot/n8n-as-code/commit/f4b3b29f64520657673f373aef6396e7c579c950))
+
+
+### Bug Fixes
+
+* update package versions and changelogs for [@n8n-as-code](https://github.com/n8n-as-code) ecosystem ([02d7fbd](https://github.com/EtienneLescot/n8n-as-code/commit/02d7fbd8fd0f214c3f73726c5d4e14b49ee0a152))
+* update package versions and changelogs for @n8n-as-code/cli, @n8n-as-code/skills, and @n8n-as-code/sync ([e8b7b7e](https://github.com/EtienneLescot/n8n-as-code/commit/e8b7b7e38fd2908c51d5ecf023d4376e34f286eb))
+
+
+### Documentation
+
+* rename 'watch' command to 'start' in documentation ([018ac2b](https://github.com/EtienneLescot/n8n-as-code/commit/018ac2ba8cd73590d1e909d0cff4c366d411854d))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.1 to 0.16.2
+    * @n8n-as-code/sync bumped from 0.14.0 to 0.14.1
+    * @n8n-as-code/transformer bumped from 0.2.0 to 0.2.1
+
 ## 0.9.1
 
 ### Patch Changes
