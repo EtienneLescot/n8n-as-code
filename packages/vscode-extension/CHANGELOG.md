@@ -1,5 +1,11 @@
 # n8n-as-code
 
+## 0.13.1
+
+### Patch Changes
+
+- fix: bundle prettier instead of externalizing it to prevent activation failure when installed from store
+
 ## 0.13.0
 
 ### Minor Changes
