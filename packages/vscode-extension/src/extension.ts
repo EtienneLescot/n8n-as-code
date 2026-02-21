@@ -28,6 +28,7 @@ import {
 } from './services/workflow-store.js';
 
 let syncManager: SyncManager | undefined;
+let initializingPromise: Promise<void> | undefined;
 const statusBar = new StatusBar();
 const proxyService = new ProxyService();
 const enhancedTreeProvider = new EnhancedWorkflowTreeProvider();
@@ -616,13 +617,16 @@ async function determineInitialState(context: vscode.ExtensionContext) {
         statusBar.showLoading();
 
         try {
-            await initializeSyncManager(context);
+            initializingPromise = initializeSyncManager(context);
+            await initializingPromise;
             enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZED);
             statusBar.showSynced();
         } catch (error: any) {
             outputChannel.appendLine(`[n8n] Auto-load failed: ${error.message}`);
             enhancedTreeProvider.setExtensionState(ExtensionState.ERROR, error.message);
             statusBar.showError(error.message);
+        } finally {
+            initializingPromise = undefined;
         }
     } else if (!configValidation.isValid) {
         // Configuration missing or invalid
@@ -640,6 +644,18 @@ async function determineInitialState(context: vscode.ExtensionContext) {
  * Handle initialization command (when user clicks "Init N8N as code")
  */
 async function handleInitializeCommand(context: vscode.ExtensionContext) {
+    // If auto-load from determineInitialState is already running, wait for it instead of starting a second one
+    if (initializingPromise) {
+        outputChannel.appendLine('[n8n] Initialization already in progress, waiting...');
+        try {
+            await initializingPromise;
+            vscode.window.showInformationMessage('✅ n8n as code initialized successfully!');
+        } catch (error: any) {
+            vscode.window.showErrorMessage(`Initialization failed: ${error.message}`);
+        }
+        return;
+    }
+
     const configValidation = validateN8nConfig();
 
     if (!configValidation.isValid) {
