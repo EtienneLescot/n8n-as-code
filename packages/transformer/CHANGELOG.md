@@ -1,5 +1,12 @@
 # @n8n-as-code/transformer
 
+## [0.2.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.1...@n8n-as-code/transformer@v0.2.2) (2026-02-22)
+
+
+### Bug Fixes
+
+* enhance name cleaning logic and add tests for special character handling in naming utilities ([815782b](https://github.com/EtienneLescot/n8n-as-code/commit/815782bd18bc44e8118bcf6e3972a826803c0d29))
+
 ## [0.2.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@0.2.0...@n8n-as-code/transformer@v0.2.1) (2026-02-21)
 
 

@@ -1,5 +1,15 @@
 # @n8n-as-code/skills
 
+## [0.16.3](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.2...@n8n-as-code/skills@v0.16.3) (2026-02-22)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/sync bumped from 0.14.1 to 0.14.2
+    * @n8n-as-code/transformer bumped from 0.2.1 to 0.2.2
+
 ## [0.16.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@0.16.1...@n8n-as-code/skills@v0.16.2) (2026-02-21)
 
 

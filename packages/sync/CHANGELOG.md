@@ -1,5 +1,14 @@
 # @n8n-as-code/sync
 
+## [0.14.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/sync@v0.14.1...@n8n-as-code/sync@v0.14.2) (2026-02-22)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/transformer bumped from 0.2.1 to 0.2.2
+
 ## [0.14.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/sync@0.14.0...@n8n-as-code/sync@v0.14.1) (2026-02-21)
 
 

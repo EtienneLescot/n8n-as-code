@@ -1,7 +1,7 @@
 {
-  "packages/transformer": "0.2.1",
-  "packages/sync": "0.14.1",
-  "packages/skills": "0.16.2",
-  "packages/cli": "0.9.2",
-  "packages/vscode-extension": "0.14.0"
+  "packages/transformer": "0.2.2",
+  "packages/sync": "0.14.2",
+  "packages/skills": "0.16.3",
+  "packages/cli": "0.9.3",
+  "packages/vscode-extension": "0.14.1"
 }
