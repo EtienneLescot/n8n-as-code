@@ -54,7 +54,6 @@ export class SyncManager extends EventEmitter {
         this.stateManager = new StateManager(instanceDir);
         this.watcher = new Watcher(this.client, {
             directory: instanceDir,
-            pollIntervalMs: this.config.pollIntervalMs,
             syncInactive: this.config.syncInactive,
             ignoredTags: this.config.ignoredTags,
             projectId: this.config.projectId
@@ -242,111 +241,160 @@ export class SyncManager extends EventEmitter {
         }
     }
 
-    async stopWatch() {
+    public async stop() {
         await this.watcher?.stop();
         this.emit('log', 'Watcher stopped.');
     }
 
-    async refreshState() {
-        await this.ensureInitialized();
-        // Run sequentially to avoid potential race conditions during state loading
+    public async forceRefresh() {
         await this.watcher!.refreshRemoteState();
-        await this.watcher!.refreshLocalState();
     }
 
     public getInstanceDirectory(): string {
-        const projectSlug = createProjectSlug(this.config.projectName);
-        return path.join(
-            this.config.directory, 
-            this.config.instanceIdentifier || 'default',
-            projectSlug
-        );
-    }
-
-    // Bridge for conflict resolution
-    async resolveConflict(id: string, filename: string, choice: 'local' | 'remote') {
-        await this.ensureInitialized();
-        if (choice === 'local') {
-            await this.resolutionManager!.keepLocal(id, filename);
-        } else {
-            await this.resolutionManager!.keepRemote(id, filename);
+        if (!this.watcher) {
+            throw new Error('SyncManager not initialized');
         }
+        return this.watcher.getDirectory();
     }
 
-    async handleLocalFileChange(filePath: string): Promise<'updated' | 'created' | 'up-to-date' | 'conflict' | 'skipped'> {
-        await this.ensureInitialized();
-        const filename = path.basename(filePath);
-        console.log(`[DEBUG] handleLocalFileChange: ${filename}`);
+    /**
+     * Fetches a specific workflow from the remote instance and pulls it locally
+     * ONLY IF the local file has not been modified since the last sync.
+     * This is used for the "Pull-on-Focus" feature to keep the local code in sync
+     * with UI changes without overwriting local work.
+     */
+    public async fetchAndPullIfSafe(workflowId: string): Promise<boolean> {
+        if (!this.watcher || !this.syncEngine) return false;
 
-        // Ensure we have the latest from both worlds
-        await this.refreshState();
-
-        const status = this.watcher!.calculateStatus(filename);
-
-        switch (status) {
-            case WorkflowSyncStatus.IN_SYNC: return 'updated'; // If it's in-sync, we return updated for legacy compatibility in tests
-            case WorkflowSyncStatus.CONFLICT: return 'conflict';
-            case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
-                await this.syncEngine!.push(filename);
-                return 'created';
-            case WorkflowSyncStatus.MODIFIED_LOCALLY:
-                const wfId = this.watcher!.getFileToIdMap().get(filename);
-                await this.syncEngine!.push(filename, wfId, status);
-                return 'updated';
-            default: return 'skipped';
-        }
-    }
-
-    async restoreLocalFile(id: string, filename: string): Promise<boolean> {
-        await this.ensureInitialized();
         try {
-            // Determine the deletion type based on current status
-            const statuses = await this.getWorkflowsStatus();
-            const workflow = statuses.find(s => s.id === id);
-            
-            if (!workflow) {
-                throw new Error(`Workflow ${id} not found in state`);
+            // 1. Fetch the latest remote state for this specific workflow
+            const remoteWf = await this.client.getWorkflow(workflowId);
+            if (!remoteWf) {
+                this.emit('log', `[SyncManager] Workflow ${workflowId} not found on remote.`);
+                return false;
             }
-            
-            const deletionType = workflow.status === WorkflowSyncStatus.DELETED_LOCALLY ? 'local' : 'remote';
-            await this.resolutionManager!.restoreWorkflow(id, filename, deletionType);
-            return true;
-        } catch {
+
+            // 2. Update the watcher's remote state cache for this workflow
+            // This is a targeted version of refreshRemoteState
+            await this.watcher.updateSingleRemoteState(remoteWf);
+
+            // 3. Get the current status matrix to check for conflicts
+            const statuses = await this.watcher.getStatusMatrix();
+            const status = statuses.find(s => s.id === workflowId);
+
+            if (!status) return false;
+
+            // 4. Decide whether to pull based on status
+            if (status.status === WorkflowSyncStatus.MODIFIED_REMOTELY) {
+                this.emit('log', `[SyncManager] Auto-pulling ${workflowId} (modified remotely, local is safe).`);
+                await this.syncEngine.pull(workflowId, status.filename, status.status);
+                return true;
+            } else if (status.status === WorkflowSyncStatus.CONFLICT) {
+                this.emit('log', `[SyncManager] Conflict detected for ${workflowId} on focus. Auto-pull aborted.`);
+                // We don't pull, but we might want to emit an event so the UI can show a warning
+                this.emit('conflict-detected', { workflowId, name: remoteWf.name });
+                return false;
+            }
+
+            return false; // Was already in sync or other state
+        } catch (error) {
+            this.emit('error', new Error(`Failed to fetch and pull workflow ${workflowId}: ${error}`));
             return false;
         }
     }
 
-    async deleteRemoteWorkflow(id: string, filename: string): Promise<boolean> {
-        await this.ensureInitialized();
-        try {
-            // Step 1: Archive local file (if exists)
-            await this.syncEngine!.archive(filename);
-            // Step 2: Delete from API
-            await this.client.deleteWorkflow(id);
-            // Step 3: Remove from state (workflow is completely deleted)
-            await this.watcher!.removeWorkflowState(id);
-            return true;
-        } catch {
-            return false;
-        }
-    }
-
-    // Deletion Validation Methods (6.2 from spec)
-    async confirmDeletion(id: string, filename: string): Promise<void> {
+    public async pullAll() {
         await this.ensureInitialized();
         const statuses = await this.getWorkflowsStatus();
-        const workflow = statuses.find(s => s.id === id);
-        
-        if (!workflow) {
-            throw new Error(`Workflow ${id} not found in state`);
+        for (const s of statuses) {
+            if (s.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY ||
+                s.status === WorkflowSyncStatus.MODIFIED_REMOTELY) {
+                await this.syncEngine!.pull(s.id, s.filename, s.status);
+            }
         }
-
-        const deletionType = workflow.status === WorkflowSyncStatus.DELETED_LOCALLY ? 'local' : 'remote';
-        await this.resolutionManager!.confirmDeletion(id, filename, deletionType);
     }
 
-    async restoreRemoteWorkflow(id: string, filename: string): Promise<string> {
+    public async pushAll() {
         await this.ensureInitialized();
-        return await this.resolutionManager!.restoreWorkflow(id, filename, 'remote');
+        const statuses = await this.getWorkflowsStatus();
+        for (const s of statuses) {
+            if (s.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY || s.status === WorkflowSyncStatus.MODIFIED_LOCALLY) {
+                await this.syncEngine!.push(s.filename, s.id, s.status);
+            }
+        }
+    }
+
+    public async resolveConflict(workflowId: string, filename: string, resolution: 'local' | 'remote') {
+        await this.ensureInitialized();
+        if (resolution === 'local') {
+            await this.syncEngine!.forcePush(workflowId, filename);
+        } else {
+            await this.syncEngine!.forcePull(workflowId, filename);
+        }
+    }
+
+    async deleteRemoteWorkflows(ids: string[]): Promise<void> {
+        await this.ensureInitialized();
+        for (const id of ids) {
+            try {
+                const filename = this.watcher!.getFilenameForId(id);
+                if (filename) {
+                    await this.syncEngine!.deleteRemote(id, filename);
+                    await this.watcher!.removeWorkflowState(id);
+                }
+            } catch (error: any) {
+                this.emit('error', new Error(`Failed to delete remote workflow ${id}: ${error.message}`));
+            }
+        }
+    }
+
+    public async deleteRemoteWorkflow(workflowId: string, filename: string): Promise<boolean> {
+        await this.ensureInitialized();
+        try {
+            await this.syncEngine!.deleteRemote(workflowId, filename);
+            await this.watcher!.removeWorkflowState(workflowId);
+            return true;
+        } catch (error: any) {
+            this.emit('error', new Error(`Failed to delete remote workflow ${workflowId}: ${error.message}`));
+            return false;
+        }
+    }
+
+    public async confirmDeletion(workflowId: string, filename: string): Promise<boolean> {
+        return this.deleteRemoteWorkflow(workflowId, filename);
+    }
+
+    public async restoreRemoteWorkflow(workflowId: string, filename: string): Promise<boolean> {
+        await this.ensureInitialized();
+        try {
+            await this.syncEngine!.forcePush(workflowId, filename);
+            return true;
+        } catch (error: any) {
+            this.emit('error', new Error(`Failed to restore remote workflow ${workflowId}: ${error.message}`));
+            return false;
+        }
+    }
+
+    public async restoreLocalFile(workflowId: string, filename: string): Promise<boolean> {
+        await this.ensureInitialized();
+        try {
+            return await this.syncEngine!.restoreFromArchive(filename);
+        } catch (error: any) {
+            this.emit('error', new Error(`Failed to restore local file ${filename}: ${error.message}`));
+            return false;
+        }
+    }
+
+    public async handleLocalFileChange(filePath: string): Promise<void> {
+        await this.ensureInitialized();
+        // The watcher handles local file changes automatically via chokidar
+        // This method is kept for compatibility with the VS Code extension
+        // which might want to explicitly trigger a check
+    }
+
+    public stopWatch() {
+        if (this.watcher) {
+            this.watcher.stop();
+        }
     }
 }

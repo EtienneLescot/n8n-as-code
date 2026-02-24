@@ -96,7 +96,7 @@ export class SyncCommand extends BaseCommand {
 
             // Refresh state before pulling (Sync bug workaround: syncDown doesn't refresh state)
             spinner.text = 'Refreshing workflow state...';
-            await syncManager.refreshState();
+            await syncManager.forceRefresh();
             spinner.text = 'Pulling workflows from n8n...';
             
             await syncManager.syncDown();
@@ -134,7 +134,7 @@ export class SyncCommand extends BaseCommand {
 
             // Refresh state before pushing (Sync bug workaround: syncUp doesn't refresh state)
             spinner.text = 'Refreshing workflow state...';
-            await syncManager.refreshState();
+            await syncManager.forceRefresh();
             spinner.text = 'Pushing new local workflows to n8n...';
 
             // Collect conflict resolution promises

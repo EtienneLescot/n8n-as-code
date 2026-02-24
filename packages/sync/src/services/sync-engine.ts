@@ -50,16 +50,16 @@ export class SyncEngine {
             switch (status) {
                 case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
                     // Download Remote JSON -> Write to disk
-                    await this.executePull(workflowId, filename);
+                    const pullUpdatedAt1 = await this.executePull(workflowId, filename);
                     // Initialize lastSyncedHash via finalizeSync
-                    await this.watcher.finalizeSync(workflowId);
+                    await this.watcher.finalizeSync(workflowId, pullUpdatedAt1);
                     break;
 
                 case WorkflowSyncStatus.MODIFIED_REMOTELY:
                     // Download Remote JSON -> Overwrite local file
-                    await this.executePull(workflowId, filename);
+                    const pullUpdatedAt2 = await this.executePull(workflowId, filename);
                     // Update lastSyncedHash via finalizeSync
-                    await this.watcher.finalizeSync(workflowId);
+                    await this.watcher.finalizeSync(workflowId, pullUpdatedAt2);
                     break;
 
                 case WorkflowSyncStatus.DELETED_REMOTELY:
@@ -111,9 +111,9 @@ export class SyncEngine {
             // If no workflowId, treat as EXIST_ONLY_LOCALLY
             if (!workflowId || status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY) {
                 // POST to API (Create)
-                const newWorkflowId = await this.executeCreate(filename);
+                const { id: newWorkflowId, updatedAt } = await this.executeCreate(filename);
                 // Initialize lastSyncedHash via finalizeSync
-                await this.watcher.finalizeSync(newWorkflowId);
+                await this.watcher.finalizeSync(newWorkflowId, updatedAt);
                 return newWorkflowId;
             }
 
@@ -121,9 +121,9 @@ export class SyncEngine {
             switch (status) {
                 case WorkflowSyncStatus.MODIFIED_LOCALLY:
                     // PUT to API (Update)
-                    await this.executeUpdate(workflowId, filename);
+                    const updateUpdatedAt = await this.executeUpdate(workflowId, filename);
                     // Update lastSyncedHash via finalizeSync
-                    await this.watcher.finalizeSync(workflowId);
+                    await this.watcher.finalizeSync(workflowId, updateUpdatedAt);
                     return workflowId;
 
                 case WorkflowSyncStatus.DELETED_LOCALLY:
@@ -167,8 +167,8 @@ export class SyncEngine {
         this.watcher.pauseObservation(workflowId);
         
         try {
-            await this.executePull(workflowId, filename);
-            await this.watcher.finalizeSync(workflowId);
+            const updatedAt = await this.executePull(workflowId, filename);
+            await this.watcher.finalizeSync(workflowId, updatedAt);
         } finally {
             this.watcher.markSyncComplete(workflowId);
             this.watcher.resumeObservation(workflowId);
@@ -184,16 +184,18 @@ export class SyncEngine {
         this.watcher.pauseObservation(workflowId);
         
         let finalWorkflowId = workflowId;
+        let finalUpdatedAt: string | undefined;
         
         try {
             // Try to update first
             try {
-                await this.executeUpdate(workflowId, filename);
+                finalUpdatedAt = await this.executeUpdate(workflowId, filename);
             } catch (error: any) {
                 // If update fails with 404, create the workflow instead
                 if (error.response?.status === 404 || error.message?.includes('404') || error.message?.includes('Not Found')) {
                     console.log(`[SyncEngine] Workflow ${workflowId} not found, creating new workflow`);
-                    const newWorkflowId = await this.executeCreate(filename);
+                    const { id: newWorkflowId, updatedAt } = await this.executeCreate(filename);
+                    finalUpdatedAt = updatedAt;
                     
                     // Migrate state from old ID to new ID
                     if (newWorkflowId !== workflowId) {
@@ -205,7 +207,7 @@ export class SyncEngine {
                 }
             }
             
-            await this.watcher.finalizeSync(finalWorkflowId);
+            await this.watcher.finalizeSync(finalWorkflowId, finalUpdatedAt);
             return finalWorkflowId;
         } finally {
             this.watcher.markSyncComplete(finalWorkflowId);
@@ -265,7 +267,7 @@ export class SyncEngine {
         return true;
     }
 
-    private async executePull(workflowId: string, filename: string): Promise<void> {
+    private async executePull(workflowId: string, filename: string): Promise<string | undefined> {
         const fullWf = await this.client.getWorkflow(workflowId);
         if (!fullWf) {
             // Workflow might have been deleted (DELETED_REMOTELY case)
@@ -292,13 +294,32 @@ export class SyncEngine {
         // This ensures finalizeSync has the remote hash
         const hash = await WorkflowTransformerAdapter.hashWorkflow(tsCode);
         this.watcher.setRemoteHash(workflowId, hash);
+        
+        // Return the updatedAt timestamp so finalizeSync can store it
+        return fullWf.updatedAt;
     }
 
-    private async executeUpdate(workflowId: string, filename: string): Promise<void> {
+    private async executeUpdate(workflowId: string, filename: string): Promise<string | undefined> {
         const filePath = path.join(this.directory, filename);
         const tsContent = this.readTypeScriptFile(filePath);
         if (!tsContent) {
             throw new Error('Local file not found during push');
+        }
+
+        // Optimistic Concurrency Control (OCC)
+        // 1. Fetch the current remote workflow to check its updatedAt timestamp
+        const currentRemoteWf = await this.client.getWorkflow(workflowId);
+        if (currentRemoteWf && currentRemoteWf.updatedAt) {
+            // 2. Get the last synced timestamp from our local state
+            const lastSyncedAt = this.watcher.getLastSyncedAt(workflowId);
+            
+            // 3. Compare timestamps
+            if (lastSyncedAt && new Date(currentRemoteWf.updatedAt) > new Date(lastSyncedAt)) {
+                throw new Error(
+                    `Push rejected for "${filename}": The workflow was modified in the n8n UI ` +
+                    `since your last sync. Please run 'pull' to merge the remote changes first.`
+                );
+            }
         }
 
         // Compile TypeScript to JSON for API
@@ -334,9 +355,11 @@ export class SyncEngine {
         // Update Watcher's remote hash cache with the updated workflow
         const hash = await WorkflowTransformerAdapter.hashWorkflow(tsCode);
         this.watcher.setRemoteHash(workflowId, hash);
+        
+        return updatedWf.updatedAt;
     }
 
-    private async executeCreate(filename: string): Promise<string> {
+    private async executeCreate(filename: string): Promise<{ id: string, updatedAt?: string }> {
         const filePath = path.join(this.directory, filename);
         const tsContent = this.readTypeScriptFile(filePath);
         if (!tsContent) {
@@ -373,7 +396,7 @@ export class SyncEngine {
         });
         fs.writeFileSync(filePath, tsCode, 'utf-8');
 
-        return newWf.id;
+        return { id: newWf.id, updatedAt: newWf.updatedAt };
     }
 
     public async archive(filename: string): Promise<void> {

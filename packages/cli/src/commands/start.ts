@@ -125,7 +125,7 @@ export class StartCommand extends BaseCommand {
         });
 
         // Initial render and capture issues BEFORE starting watch
-        await syncManager.refreshState();
+        await syncManager.forceRefresh();
         await this.renderTable(syncManager);
 
         // Capture issues that exist at startup (before watch changes them)

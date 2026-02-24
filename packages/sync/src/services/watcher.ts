@@ -22,10 +22,8 @@ import { IWorkflowState, IInstanceState } from './state-manager.js';
  */
 export class Watcher extends EventEmitter {
     private watcherSubscription: FSWatcher | null = null;
-    private pollInterval: NodeJS.Timeout | null = null;
     private client: N8nApiClient;
     private directory: string;
-    private pollIntervalMs: number;
     private syncInactive: boolean;
     private ignoredTags: string[];
     private projectId: string;
@@ -44,9 +42,6 @@ export class Watcher extends EventEmitter {
     private isPaused = new Set<string>(); // IDs for which observation is paused
     private syncInProgress = new Set<string>(); // IDs currently being synced
     private pausedFilenames = new Set<string>(); // Filenames for which observation is paused (for workflows without ID yet)
-
-    // Pending operations for rename detection
-    private pendingOperations: Map<string, { type: 'unlink'; filename: string; workflowId: string | undefined; timeout: NodeJS.Timeout }> = new Map();
     
     // Potential renames: when we see an add event for a workflow ID that already exists,
     // we track it here to match with subsequent unlink events
@@ -59,7 +54,6 @@ export class Watcher extends EventEmitter {
         client: N8nApiClient,
         options: {
             directory: string;
-            pollIntervalMs: number;
             syncInactive: boolean;
             ignoredTags: string[];
             projectId: string;      // Project scope filter
@@ -68,7 +62,6 @@ export class Watcher extends EventEmitter {
         super();
         this.client = client;
         this.directory = options.directory;
-        this.pollIntervalMs = options.pollIntervalMs;
         this.syncInactive = options.syncInactive;
         this.ignoredTags = options.ignoredTags;
         this.projectId = options.projectId;
@@ -76,7 +69,7 @@ export class Watcher extends EventEmitter {
     }
 
     public async start() {
-        if (this.watcherSubscription || this.pollInterval) return;
+        if (this.watcherSubscription) return;
 
         this.isInitializing = true;
 
@@ -152,11 +145,6 @@ export class Watcher extends EventEmitter {
                 this.emit('error', error);
             });
 
-        // Remote Poll
-        if (this.pollIntervalMs > 0) {
-            this.pollInterval = setInterval(() => this.refreshRemoteState(), this.pollIntervalMs);
-        }
-
         this.emit('ready');
     }
 
@@ -165,16 +153,14 @@ export class Watcher extends EventEmitter {
             await this.watcherSubscription.close();
             this.watcherSubscription = null;
         }
-        if (this.pollInterval) {
-            clearInterval(this.pollInterval);
-            this.pollInterval = null;
-        }
-        
-        // Clean up pending operations
-        for (const op of this.pendingOperations.values()) {
-            clearTimeout(op.timeout);
-        }
-        this.pendingOperations.clear();
+    }
+
+    public getDirectory(): string {
+        return this.directory;
+    }
+
+    public getFilenameForId(id: string): string | undefined {
+        return this.idToFileMap.get(id);
     }
 
     /**
@@ -234,25 +220,6 @@ export class Watcher extends EventEmitter {
         }
         console.log(`[Watcher] ✅ File content read for ${filename}, ID=${content.id}`);
 
-        // Check if this is a rename operation (following architectural plan)
-        const detectedWorkflowId = content.id || this.fileToIdMap.get(filename);
-        const pendingOpKey = `unlink:${detectedWorkflowId || filename}`;
-        const pendingOp = this.pendingOperations.get(pendingOpKey);
-        
-        if (pendingOp) {
-            // Check if this is a rename based on workflow ID or filename
-            const isRenameByWorkflowId = detectedWorkflowId && pendingOp.workflowId === detectedWorkflowId;
-            const isRenameByFilename = !detectedWorkflowId && pendingOp.filename === filename;
-            
-            if (isRenameByWorkflowId || isRenameByFilename) {
-                // This is a rename! Handle it
-                clearTimeout(pendingOp.timeout); // Cancel the deletion timeout
-                this.handleRename(pendingOp.workflowId || detectedWorkflowId || '', pendingOp.filename, filename);
-                this.pendingOperations.delete(pendingOpKey);
-                return;
-            }
-        }
-
         // Check if filename is paused (for workflows without ID)
         if (this.pausedFilenames.has(filename)) {
             console.log(`[Watcher] ⏸️  Filename ${filename} is paused, ignoring change`);
@@ -293,14 +260,6 @@ export class Watcher extends EventEmitter {
                         oldFilename: existingFilename,
                         newFilename: filename
                     });
-                    
-                    // Also check if there's a pending deletion for this workflow ID
-                    const pendingOpKey = `unlink:${content.id}`;
-                    const pendingOp = this.pendingOperations.get(pendingOpKey);
-                    if (pendingOp) {
-                        clearTimeout(pendingOp.timeout);
-                        this.pendingOperations.delete(pendingOpKey);
-                    }
                 } else {
                     // File exists - this could be a rename where add happened before unlink
                     // Track as potential rename and wait for unlink event
@@ -403,78 +362,11 @@ export class Watcher extends EventEmitter {
             return;
         }
 
-        // Schedule deletion check to detect renames (following architectural plan)
-        this.scheduleDeletionCheck(filename, workflowId);
+        // Handle deletion directly
+        await this.handleLocalDelete(filename, workflowId);
     }
 
-    private scheduleDeletionCheck(filename: string, workflowId: string | undefined) {
-        const key = `unlink:${workflowId || filename}`;
-        const timeout = setTimeout(() => {
-            // After 1000ms, confirm that it's really a deletion (increased for better rename detection)
-            this.confirmDeletion(filename, workflowId);
-            this.pendingOperations.delete(key);
-        }, 1000);
-        
-        this.pendingOperations.set(key, {
-            type: 'unlink',
-            filename,
-            workflowId,
-            timeout
-        });
-    }
-
-    private async onLocalRename(oldPath: string, newPath: string) {
-        const oldFilename = path.basename(oldPath);
-        const newFilename = path.basename(newPath);
-        
-        if (!oldFilename.endsWith('.workflow.ts') || !newFilename.endsWith('.workflow.ts')) {
-            return;
-        }
-        
-        // Try to get workflow ID from old filename mapping
-        let workflowId = this.fileToIdMap.get(oldFilename);
-        
-        // If not found, try to read the new file to get the workflow ID
-        if (!workflowId) {
-            const content = this.readJsonFile(newPath);
-            if (content?.id) {
-                workflowId = content.id;
-            }
-        }
-        
-        if (!workflowId) {
-            // No workflow ID found - this is a rename of a file without ID
-            // Just update filename mappings if they exist
-            const oldHash = this.localHashes.get(oldFilename);
-            if (oldHash) {
-                this.localHashes.delete(oldFilename);
-                this.localHashes.set(newFilename, oldHash);
-            }
-            
-            // Update fileToIdMap if old filename had a mapping
-            const mappedWorkflowId = this.fileToIdMap.get(oldFilename);
-            if (mappedWorkflowId) {
-                this.fileToIdMap.delete(oldFilename);
-                this.fileToIdMap.set(newFilename, mappedWorkflowId);
-                this.idToFileMap.set(mappedWorkflowId, newFilename);
-            }
-            
-            // Emit rename event even without workflow ID
-            this.emit('fileRenamed', {
-                workflowId: '',
-                oldFilename,
-                newFilename
-            });
-            
-            this.broadcastStatus(newFilename, workflowId);
-            return;
-        }
-        
-        // We have a workflow ID - handle as a proper rename
-        this.handleRename(workflowId, oldFilename, newFilename);
-    }
-
-    private async confirmDeletion(filename: string, workflowId: string | undefined) {
+    private async handleLocalDelete(filename: string, workflowId: string | undefined) {
         // Final check: is this actually a rename?
         if (workflowId) {
             // Check if the workflow ID appears in another file
@@ -612,7 +504,7 @@ export class Watcher extends EventEmitter {
                     console.error(
                         `[Watcher] ❌ Cannot parse "${filename}" during local scan – skipping.\n` +
                         `  Cause: ${parseErr.message}\n` +
-                        `  Tip: Make sure the class name contains only valid identifier characters ` +
+                        `  Tip: Make sure the class name contains only valid ASCII/identifier characters ` +
                         `(→ U+2192 and similar symbols are not allowed in TypeScript identifiers).`
                     );
                     // Do NOT add to localHashes so this file stays invisible to auto-sync
@@ -827,11 +719,6 @@ export class Watcher extends EventEmitter {
             
             if (isConnectionError) {
                 this.isConnected = false;
-                // Stop polling to avoid spamming errors
-                if (this.pollInterval) {
-                    clearInterval(this.pollInterval);
-                    this.pollInterval = null;
-                }
                 // Emit a specific connection error
                 this.emit('connection-lost', new Error('Lost connection to n8n instance. Please check if n8n is running.'));
             } else {
@@ -847,7 +734,7 @@ export class Watcher extends EventEmitter {
      * Finalize sync - update base state after successful sync operation
      * Called by SyncEngine after PULL/PUSH completes
      */
-    public async finalizeSync(workflowId: string): Promise<void> {
+    public async finalizeSync(workflowId: string, remoteUpdatedAt?: string): Promise<void> {
         let filename = this.idToFileMap.get(workflowId);
         
         // If workflow not tracked yet (first sync of local-only workflow),
@@ -892,7 +779,7 @@ export class Watcher extends EventEmitter {
         this.remoteHashes.set(workflowId, remoteHash);
 
         // Update base state
-        await this.updateWorkflowState(workflowId, localHash);
+        await this.updateWorkflowState(workflowId, localHash, remoteUpdatedAt);
         
         // Broadcast new IN_SYNC status
         this.broadcastStatus(filename, workflowId);
@@ -902,12 +789,12 @@ export class Watcher extends EventEmitter {
      * Update workflow state in .n8n-state.json
      * Only this component writes to the state file
      */
-    private async updateWorkflowState(id: string, hash: string) {
+    private async updateWorkflowState(id: string, hash: string, remoteUpdatedAt?: string) {
         const state = this.loadState();
         const filename = this.idToFileMap.get(id) || '';
         state.workflows[id] = {
             lastSyncedHash: hash,
-            lastSyncedAt: new Date().toISOString(),
+            lastSyncedAt: remoteUpdatedAt || new Date().toISOString(),
             filename: filename
         };
         this.saveState(state);
@@ -1265,6 +1152,14 @@ export class Watcher extends EventEmitter {
     }
 
     /**
+     * Get last synced timestamp for a workflow
+     */
+    public getLastSyncedAt(workflowId: string): string | undefined {
+        const state = this.loadState();
+        return state.workflows[workflowId]?.lastSyncedAt;
+    }
+
+    /**
      * Get last synced hash for a workflow
      */
     public getLastSyncedHash(workflowId: string): string | undefined {
@@ -1359,6 +1254,35 @@ export class Watcher extends EventEmitter {
         if (timestamp) {
             this.remoteTimestamps.delete(oldId);
             this.remoteTimestamps.set(newId, timestamp);
+        }
+    }
+
+    /**
+     * Update the remote state cache for a single workflow
+     * Used by Pull-on-Focus to avoid full state refreshes
+     */
+    public async updateSingleRemoteState(remoteWf: IWorkflow) {
+        if (!remoteWf.id) return;
+        
+        try {
+            const tsCode = await WorkflowTransformerAdapter.convertToTypeScript(remoteWf, {
+                format: true,
+                commentStyle: 'verbose'
+            });
+            const hash = await WorkflowTransformerAdapter.hashWorkflow(tsCode);
+            
+            this.remoteHashes.set(remoteWf.id, hash);
+            if (remoteWf.updatedAt) {
+                this.remoteTimestamps.set(remoteWf.id, remoteWf.updatedAt);
+            }
+            
+            // Broadcast status update
+            const filename = this.idToFileMap.get(remoteWf.id);
+            if (filename) {
+                this.broadcastStatus(filename, remoteWf.id);
+            }
+        } catch (error) {
+            console.error(`[Watcher] Failed to update single remote state for ${remoteWf.id}:`, error);
         }
     }
 }

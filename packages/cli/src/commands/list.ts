@@ -14,7 +14,7 @@ export class ListCommand extends BaseCommand {
             const syncManager = new SyncManager(this.client, syncConfig);
 
             // Force refresh (poll + scan)
-            await syncManager.refreshState();
+            await syncManager.forceRefresh();
 
             // Get workflow status matrix
             const matrix = await syncManager.getWorkflowsStatus();

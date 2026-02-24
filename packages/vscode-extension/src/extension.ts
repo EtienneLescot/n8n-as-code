@@ -62,6 +62,36 @@ export async function activate(context: vscode.ExtensionContext) {
     proxyService.setOutputChannel(outputChannel);
     proxyService.setSecrets(context.secrets);
 
+    // Listen for active editor changes to trigger Pull-on-Focus
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTextEditor(async (editor) => {
+            if (!editor || !syncManager) return;
+            
+            const document = editor.document;
+            if (document.languageId === 'typescript' && document.fileName.endsWith('.workflow.ts')) {
+                const filename = path.basename(document.fileName);
+                
+                // Find the workflow ID for this filename
+                const workflowsState = store.getState().workflows;
+                const workflows = workflowsState.allIds.map(id => workflowsState.byId[id]);
+                const wf = workflows.find(w => w.filename === filename);
+                
+                if (wf && wf.id) {
+                    outputChannel.appendLine(`[n8n] Focus detected on ${filename}. Checking for remote changes...`);
+                    try {
+                        const pulled = await syncManager.fetchAndPullIfSafe(wf.id);
+                        if (pulled) {
+                            outputChannel.appendLine(`[n8n] Auto-pulled remote changes for ${filename}`);
+                            vscode.window.showInformationMessage(`n8n: Auto-pulled remote changes for ${wf.name}`);
+                        }
+                    } catch (e: any) {
+                        outputChannel.appendLine(`[n8n] Error during auto-pull for ${filename}: ${e.message}`);
+                    }
+                }
+            }
+        })
+    );
+
     // 1. Register Commands (must happen before any async work so commands are always available)
     // Note: determineInitialState is called below and may hang on network I/O; registering
     // commands first ensures e.g. "Configure" works even while the extension is still activating.
