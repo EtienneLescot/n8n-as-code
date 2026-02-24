@@ -43,9 +43,9 @@ test('Case 1: Filename != workflow.name - should correctly identify workflow', a
 
         const watcher = new Watcher(mockClient as any, {
             directory: testDir,
-            pollIntervalMs: 0,
+            
             syncInactive: true,
-            ignoredTags: []
+            ignoredTags: [], projectId: ""
         });
 
         await watcher.start();
@@ -94,9 +94,9 @@ test('Case 2: Workflow created without ID - should detect as EXIST_ONLY_LOCALLY'
 
         const watcher = new Watcher(mockClient as any, {
             directory: testDir,
-            pollIntervalMs: 0,
+            
             syncInactive: true,
-            ignoredTags: []
+            ignoredTags: [], projectId: ""
         });
 
         await watcher.start();
@@ -166,9 +166,9 @@ test('Case 3: Workflow renamed in n8n UI - should find by ID', async () => {
 
         const watcher = new Watcher(mockClient as any, {
             directory: testDir,
-            pollIntervalMs: 0,
+            
             syncInactive: true,
-            ignoredTags: []
+            ignoredTags: [], projectId: ""
         });
 
         await watcher.start();
@@ -230,9 +230,9 @@ test('Case 4: File renamed locally - should find workflow by ID scan', async () 
 
         const watcher = new Watcher(mockClient as any, {
             directory: testDir,
-            pollIntervalMs: 0,
+            
             syncInactive: true,
-            ignoredTags: []
+            ignoredTags: [], projectId: ""
         });
 
         await watcher.start();
@@ -279,9 +279,9 @@ test('Case 5: Pause observation by filename for workflows without ID', async () 
 
         const watcher = new Watcher(mockClient as any, {
             directory: testDir,
-            pollIntervalMs: 0,
+            
             syncInactive: true,
-            ignoredTags: []
+            ignoredTags: [], projectId: ""
         });
 
         await watcher.start();
@@ -354,9 +354,9 @@ test('Case 6: File rename detection during watch - should not trigger delete/cre
 
         const watcher = new Watcher(mockClient as any, {
             directory: testDir,
-            pollIntervalMs: 0,
+            
             syncInactive: true,
-            ignoredTags: []
+            ignoredTags: [], projectId: ""
         });
 
         await watcher.start();
@@ -461,9 +461,9 @@ test('Case 7: File rename with fs.renameSync - should detect rename event', asyn
 
         const watcher = new Watcher(mockClient as any, {
             directory: testDir,
-            pollIntervalMs: 0,
+            
             syncInactive: true,
-            ignoredTags: []
+            ignoredTags: [], projectId: ""
         });
 
         await watcher.start();

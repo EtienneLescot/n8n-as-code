@@ -35,9 +35,9 @@ test('Watcher Robustness: Initialization Silence', async (t) => {
 
         const watcher = new Watcher(mockClient, {
             directory: tempDir,
-            pollIntervalMs: 0,
+            
             syncInactive: true,
-            ignoredTags: []
+            ignoredTags: [], projectId: ""
         });
 
         let eventsCount = 0;
@@ -71,9 +71,9 @@ test('Watcher Robustness: Event Stability', async (t) => {
 
         const watcher = new Watcher(mockClient, {
             directory: tempDir,
-            pollIntervalMs: 0,
+            
             syncInactive: true,
-            ignoredTags: []
+            ignoredTags: [], projectId: ""
         });
 
         // Manually set as initialized (as start() would do)
@@ -117,9 +117,9 @@ test('Watcher Robustness: Connection Loss Handling', async (t) => {
 
         const watcher = new Watcher(mockClient, {
             directory: tempDir,
-            pollIntervalMs: 0,
+            
             syncInactive: true,
-            ignoredTags: []
+            ignoredTags: [], projectId: ""
         });
 
         // Manually set as initialized
@@ -155,9 +155,9 @@ test('Watcher Robustness: Local Delete Detection (State Fallback)', async (t) =>
 
         const watcher = new Watcher(mockClient, {
             directory: tempDir,
-            pollIntervalMs: 0,
+            
             syncInactive: true,
-            ignoredTags: []
+            ignoredTags: [], projectId: ""
         });
 
         // Manually setup state file (simulating existing sync history)
