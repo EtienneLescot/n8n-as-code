@@ -8,8 +8,6 @@ type UiProject = {
   type?: string;
 };
 
-type UiSyncMode = 'auto' | 'manual';
-
 function normalizeHost(host: string): string {
   const trimmed = (host || '').trim();
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
@@ -90,7 +88,6 @@ export class ConfigurationWebview {
             const apiKey = (message.apiKey || '').trim();
 
             const syncFolder = (message.syncFolder || '').trim();
-            const syncMode = ((message.syncMode || '').trim() || 'auto') as UiSyncMode;
 
             const config = vscode.workspace.getConfiguration('n8n');
 
@@ -108,7 +105,6 @@ export class ConfigurationWebview {
             if (syncFolder) {
               await config.update('syncFolder', syncFolder, vscode.ConfigurationTarget.Workspace);
             }
-            await config.update('syncMode', syncMode, vscode.ConfigurationTarget.Workspace);
 
             // Project can be picked from the dropdown, but if missing, we’ll default to Personal.
             let projectId = (message.projectId || '').trim();
@@ -195,11 +191,10 @@ export class ConfigurationWebview {
     const projectId = (config.get<string>('projectId') || '').trim();
     const projectName = (config.get<string>('projectName') || '').trim();
     const syncFolder = (config.get<string>('syncFolder') || 'workflows').trim();
-    const syncMode = ((config.get<string>('syncMode') || 'auto').trim() || 'auto') as UiSyncMode;
 
     this._panel.webview.postMessage({
       type: 'init',
-      config: { host, apiKey, projectId, projectName, syncFolder, syncMode },
+      config: { host, apiKey, projectId, projectName, syncFolder },
     });
 
     // If we already have host + apiKey, proactively load projects.
@@ -314,14 +309,6 @@ export class ConfigurationWebview {
           <input id="syncFolder" type="text" placeholder="workflows" />
           <div class="muted small">Example: <code>workflows</code> or <code>n8n/workflows</code></div>
         </div>
-        <div class="field">
-          <label for="syncMode">Sync Mode</label>
-          <select id="syncMode">
-            <option value="auto">Auto (Watch)</option>
-            <option value="manual">Manual</option>
-          </select>
-          <div class="muted small">Auto enables watch mode; Manual shows Push/Pull buttons.</div>
-        </div>
       </div>
     </div>
 
@@ -351,7 +338,6 @@ export class ConfigurationWebview {
     const apiKeyEl = document.getElementById('apiKey');
     const projectEl = document.getElementById('project');
     const syncFolderEl = document.getElementById('syncFolder');
-    const syncModeEl = document.getElementById('syncMode');
     const loadBtn = document.getElementById('loadProjects');
     const saveBtn = document.getElementById('save');
     const accordionToggle = document.getElementById('accordionToggle');
@@ -360,7 +346,7 @@ export class ConfigurationWebview {
     const savedEl = document.getElementById('saved');
 
     let projects = [];
-    let currentConfig = { host: '', apiKey: '', projectId: '', projectName: '', syncFolder: 'workflows', syncMode: 'auto' };
+    let currentConfig = { host: '', apiKey: '', projectId: '', projectName: '', syncFolder: 'workflows' };
 
     let autoLoadTimer = null;
     let lastLoadRequest = { host: '', apiKey: '' };
@@ -478,9 +464,7 @@ export class ConfigurationWebview {
       const apiKey = (apiKeyEl.value || '').trim();
 
       const syncFolderEl = document.getElementById('syncFolder');
-      const syncModeEl = document.getElementById('syncMode');
       const syncFolder = syncFolderEl ? (syncFolderEl.value || '').trim() : '';
-      const syncMode = syncModeEl ? (syncModeEl.value || '').trim() : 'auto';
 
       let projectId = projectEl.value || '';
       let projectName = '';
@@ -489,7 +473,7 @@ export class ConfigurationWebview {
         projectName = selectedOption.dataset.projectName;
       }
 
-      vscode.postMessage({ type: 'saveSettings', host, apiKey, projectId, projectName, syncFolder, syncMode });
+      vscode.postMessage({ type: 'saveSettings', host, apiKey, projectId, projectName, syncFolder });
     });
 
     if (accordionToggle) {
@@ -512,9 +496,7 @@ export class ConfigurationWebview {
         apiKeyEl.value = currentConfig.apiKey || '';
 
         const syncFolderEl = document.getElementById('syncFolder');
-        const syncModeEl = document.getElementById('syncMode');
         if (syncFolderEl) syncFolderEl.value = currentConfig.syncFolder || 'workflows';
-        if (syncModeEl) syncModeEl.value = currentConfig.syncMode || 'auto';
         return;
       }
 

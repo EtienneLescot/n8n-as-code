@@ -119,12 +119,33 @@ try {
     fs.symlinkSync(extensionSrcDir, targetLinkPath, linkType);
     console.log(`✅ Success! Created ${isWindows ? 'junction' : 'symlink'}:`);
     console.log(`   ${targetLinkPath} -> ${extensionSrcDir}`);
-    console.log(`\n🚀 NEW WORKFLOW:`);
-    console.log(`   1. Run: npm run build`);
-    console.log(`   2. In VS Code: Press F1 → "Reload Window"`);
-    console.log(`\nNo more VSIX packaging needed for dev!`);
 } catch (error) {
     console.error(`❌ Failed to create symlink: ${error.message}`);
     console.error(`💡 On Windows, ensure Developer Mode is enabled or run as administrator.`);
     process.exit(1);
 }
+
+// 3. Fix VS Code storage.json to ensure the extension development host
+//    window uses `packages/vscode-extension` as its extensionDevelopmentPath,
+//    not the monorepo root (which lacks an `engines` field and causes the
+//    "property `engines` is mandatory" error on startup).
+const vscodeStoragePath = path.join(homeDir, '.config', 'Code', 'User', 'globalStorage', 'storage.json');
+try {
+    if (fs.existsSync(vscodeStoragePath)) {
+        const storageData = JSON.parse(fs.readFileSync(vscodeStoragePath, 'utf8'));
+        const windowsState = storageData.windowsState || {};
+        if (windowsState.lastPluginDevelopmentHostWindow) {
+            windowsState.lastPluginDevelopmentHostWindow.extensionDevelopmentPath = [extensionSrcDir];
+            storageData.windowsState = windowsState;
+            fs.writeFileSync(vscodeStoragePath, JSON.stringify(storageData, null, 2), 'utf8');
+            console.log(`🔧 Fixed VS Code extensionDevelopmentPath → ${extensionSrcDir}`);
+        }
+    }
+} catch (err) {
+    console.warn(`⚠️  Could not update VS Code storage.json: ${err.message}`);
+}
+
+console.log(`\n🚀 NEW WORKFLOW:`);
+console.log(`   1. Run: npm run build`);
+console.log(`   2. In VS Code: Press F1 → "Reload Window"`);
+console.log(`\nNo more VSIX packaging needed for dev!`);

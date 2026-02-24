@@ -20,10 +20,8 @@ test('SyncManager initializes project-scoped directory and watcher projectId', a
 
         const manager = new SyncManager({} as any, {
             directory: baseDir,
-            pollIntervalMs: 1000,
             syncInactive: true,
             ignoredTags: [],
-            syncMode: 'manual',
             instanceIdentifier,
             projectId,
             projectName,

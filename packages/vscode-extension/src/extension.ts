@@ -156,13 +156,43 @@ export async function activate(context: vscode.ExtensionContext) {
                         wf.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY
                 );
 
-                // Use Redux Thunk
-                await store.dispatch(syncUp()).unwrap();
+                // Push each workflow individually so OCC conflicts don't abort the whole batch
+                const occConflicts: typeof modifiedWorkflows = [];
+                const errors: string[] = [];
 
-                // Reload webviews for pushed workflows (remote was modified)
                 for (const wf of modifiedWorkflows) {
-                    if (wf.id) {
-                        WorkflowWebview.reloadIfMatching(wf.id, outputChannel);
+                    try {
+                        await syncManager.pushOne(wf.id, wf.filename);
+                        if (wf.id) WorkflowWebview.reloadIfMatching(wf.id, outputChannel);
+                    } catch (e: any) {
+                        const isOcc = e.message?.includes('Push rejected') && e.message?.includes('modified in the n8n UI');
+                        if (isOcc) {
+                            occConflicts.push(wf);
+                        } else {
+                            errors.push(`"${wf.filename}": ${e.message}`);
+                        }
+                    }
+                }
+
+                // Refresh state after batch
+                const updatedWorkflows = await syncManager.getWorkflowsStatus();
+                store.dispatch(setWorkflows(updatedWorkflows));
+                enhancedTreeProvider.refresh();
+
+                if (errors.length > 0) {
+                    vscode.window.showErrorMessage(`Push errors:\n${errors.join('\n')}`);
+                }
+
+                if (occConflicts.length > 0) {
+                    const names = occConflicts.map(w => `"${w.name}"`).join(', ');
+                    const choice = await vscode.window.showWarningMessage(
+                        `⚠️ ${occConflicts.length} workflow(s) were modified in n8n since your last sync: ${names}`,
+                        'Review Each Conflict'
+                    );
+                    if (choice === 'Review Each Conflict') {
+                        for (const wf of occConflicts) {
+                            await vscode.commands.executeCommand('n8n.resolveConflict', { workflow: wf });
+                        }
                     }
                 }
 
@@ -248,22 +278,50 @@ export async function activate(context: vscode.ExtensionContext) {
 
             statusBar.showSyncing();
             try {
-                const instanceDirectory = syncManager.getInstanceDirectory();
-                const absPath = path.join(instanceDirectory, wf.filename);
-                await syncManager.handleLocalFileChange(absPath);
+                await syncManager.pushOne(wf.id, wf.filename);
 
-                // Reload webview if open
                 if (wf.id) {
                     WorkflowWebview.reloadIfMatching(wf.id, outputChannel);
                 }
-
                 outputChannel.appendLine(`[n8n] Push successful for: ${wf.name} (${wf.id})`);
                 enhancedTreeProvider.refresh();
                 statusBar.showSynced();
                 vscode.window.showInformationMessage(`✅ Pushed "${wf.name}"`);
             } catch (e: any) {
                 statusBar.showError(e.message);
-                vscode.window.showErrorMessage(`Push Error: ${e.message}`);
+
+                // OCC conflict: remote was modified in the UI since last sync
+                const isOccConflict = e.message?.includes('Push rejected') && e.message?.includes('modified in the n8n UI');
+                if (isOccConflict) {
+                    const choice = await vscode.window.showWarningMessage(
+                        `⚠️ "${wf.name}" was modified in n8n since your last sync.`,
+                        'Show Diff',
+                        'Force Push (overwrite remote)',
+                        'Pull (discard local changes)'
+                    );
+                    if (choice === 'Show Diff') {
+                        await vscode.commands.executeCommand('n8n.resolveConflict', { workflow: wf, choice: 'Show Diff' });
+                    } else if (choice === 'Force Push (overwrite remote)') {
+                        await syncManager.resolveConflict(wf.id, wf.filename, 'local');
+                        const workflows = await syncManager.getWorkflowsStatus();
+                        store.dispatch(setWorkflows(workflows));
+                        WorkflowWebview.reloadIfMatching(wf.id, outputChannel);
+                        enhancedTreeProvider.refresh();
+                        statusBar.showSynced();
+                        vscode.window.showInformationMessage(`✅ Force pushed "${wf.name}"`);
+                    } else if (choice === 'Pull (discard local changes)') {
+                        await syncManager.pullOne(wf.id);
+                        const workflows = await syncManager.getWorkflowsStatus();
+                        store.dispatch(setWorkflows(workflows));
+                        enhancedTreeProvider.refresh();
+                        statusBar.showSynced();
+                        vscode.window.showInformationMessage(`✅ Pulled "${wf.name}" (local changes discarded)`);
+                    } else {
+                        statusBar.showSynced();
+                    }
+                } else {
+                    vscode.window.showErrorMessage(`Push Error: ${e.message}`);
+                }
             }
         }),
 
@@ -277,11 +335,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
             statusBar.showSyncing();
             try {
-                // Use syncDown to pull all workflows, which will update this one
-                await syncManager.syncDown();
-
-                // No need to reload webview on pull - we're just updating local to match remote
-                // The webview already shows the remote version
+                // Pull only this specific workflow (not all)
+                const pulled = await syncManager.fetchAndPullIfSafe(wf.id);
+                if (!pulled) {
+                    // fetchAndPullIfSafe only pulls when MODIFIED_REMOTELY.
+                    // If already in sync, force-pull anyway (explicit user action).
+                    await syncManager.pullOne(wf.id);
+                }
 
                 enhancedTreeProvider.refresh();
                 statusBar.showSynced();
@@ -564,12 +624,11 @@ export async function activate(context: vscode.ExtensionContext) {
                 e.affectsConfiguration('n8n.apiKey') ||
                 e.affectsConfiguration('n8n.syncFolder') ||
                 e.affectsConfiguration('n8n.projectId') ||
-                e.affectsConfiguration('n8n.projectName') ||
-                e.affectsConfiguration('n8n.syncMode')
+                e.affectsConfiguration('n8n.projectName')
             ) {
-                // Critical settings changed: host, API key, folder, project, or syncMode.
+                // Critical settings changed: host, API key, folder, or project.
                 // Pause watch/sync until the user explicitly applies settings.
-                outputChannel.appendLine('[n8n] Critical settings changed (host/apiKey/folder/project/syncMode). Pausing sync until applied.');
+                outputChannel.appendLine('[n8n] Critical settings changed (host/apiKey/folder/project). Pausing sync until applied.');
 
                 if (syncManager) {
                     // Actually pause background activity.
@@ -593,21 +652,6 @@ export async function activate(context: vscode.ExtensionContext) {
                     }
                 }
                 updateContextKeys();
-            } else if (
-                e.affectsConfiguration('n8n.pollInterval')
-            ) {
-                // Non-critical settings: syncMode or pollInterval
-                outputChannel.appendLine('[n8n] Non-critical settings changed (pollInterval). Auto-applying...');
-
-                if (syncManager) {
-                    try {
-                        await reinitializeSyncManager(context);
-                        vscode.window.showInformationMessage('✅ Poll interval updated.');
-                    } catch (error: any) {
-                        outputChannel.appendLine(`[n8n] Failed to auto-apply settings: ${error.message}`);
-                    }
-                }
-                // No UI state change needed
             }
         })
     );
@@ -743,7 +787,6 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     const { host, apiKey } = getN8nConfig();
     const config = vscode.workspace.getConfiguration('n8n');
     const folder = config.get<string>('syncFolder') || 'workflows';
-    const pollIntervalMs = config.get<number>('pollInterval') || 3000;
 
     // Project-scoped sync (required)
     let projectId = config.get<string>('projectId');
@@ -847,14 +890,12 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
     syncManager = new SyncManager(client, {
         directory: absDirectory,
-        pollIntervalMs: pollIntervalMs,
         syncInactive: true,
         ignoredTags: [],
         instanceIdentifier: instanceIdentifier,
         instanceConfigPath: path.join(workspaceRoot, 'n8nac-instance.json'),
         projectId: projectId!,
-        projectName: projectName!,
-        syncMode: (config.get<string>('syncMode') || 'auto') as 'auto' | 'manual'
+        projectName: projectName!
     });
 
     // Pass syncManager to enhanced tree provider
@@ -1062,6 +1103,64 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         WorkflowWebview.reloadIfMatching(data.workflowId, outputChannel);
     });
 
+    // Auto-push on save (triggered by SyncManager when chokidar detects MODIFIED_LOCALLY)
+    syncManager.on('auto-push-success', async (data: { workflowId: string, filename: string }) => {
+        outputChannel.appendLine(`[n8n] ✅ Auto-pushed: ${data.filename}`);
+        WorkflowWebview.reloadIfMatching(data.workflowId, outputChannel);
+        try {
+            const workflows = await syncManager!.getWorkflowsStatus();
+            store.dispatch(setWorkflows(workflows));
+            enhancedTreeProvider.refresh();
+        } catch { /* best-effort */ }
+        statusBar.showSynced();
+    });
+
+    syncManager.on('auto-push-conflict', async (data: { workflowId: string, filename: string, message: string }) => {
+        outputChannel.appendLine(`[n8n] ⚠️ Auto-push OCC conflict for: ${data.filename}`);
+        statusBar.showError('Conflict');
+
+        // Resolve workflow name for display
+        const workflowsState = store.getState().workflows;
+        const wf = workflowsState.byId[data.workflowId];
+        const label = wf?.name ?? data.filename;
+
+        const choice = await vscode.window.showWarningMessage(
+            `⚠️ "${label}" was modified in n8n since your last sync.`,
+            'Show Diff',
+            'Force Push (overwrite remote)',
+            'Pull (discard local changes)'
+        );
+        if (choice === 'Show Diff') {
+            await vscode.commands.executeCommand('n8n.resolveConflict', {
+                workflow: wf ?? { id: data.workflowId, filename: data.filename, name: data.filename },
+                choice: 'Show Diff'
+            });
+        } else if (choice === 'Force Push (overwrite remote)') {
+            await syncManager!.resolveConflict(data.workflowId, data.filename, 'local');
+            const workflows = await syncManager!.getWorkflowsStatus();
+            store.dispatch(setWorkflows(workflows));
+            WorkflowWebview.reloadIfMatching(data.workflowId, outputChannel);
+            enhancedTreeProvider.refresh();
+            statusBar.showSynced();
+            vscode.window.showInformationMessage(`✅ Force pushed "${label}"`);
+        } else if (choice === 'Pull (discard local changes)') {
+            await syncManager!.pullOne(data.workflowId);
+            const workflows = await syncManager!.getWorkflowsStatus();
+            store.dispatch(setWorkflows(workflows));
+            enhancedTreeProvider.refresh();
+            statusBar.showSynced();
+            vscode.window.showInformationMessage(`✅ Pulled "${label}" (local changes discarded)`);
+        } else {
+            statusBar.showSynced();
+        }
+    });
+
+    syncManager.on('auto-push-error', (data: { workflowId: string, filename: string, message: string }) => {
+        outputChannel.appendLine(`[n8n] ❌ Auto-push failed for ${data.filename}: ${data.message}`);
+        statusBar.showError(data.message);
+        vscode.window.showErrorMessage(`n8n Auto-push failed for "${data.filename}": ${data.message}`);
+    });
+
     // Global File System Watcher (VS Code side) for Real-Time UI Updates
     // Triggers refresh on Create, Delete, Change in sync folder
     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
@@ -1090,9 +1189,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         context.subscriptions.push(fileWatcher);
     }
 
-    // Start Internal Watcher (Always active now, logic inside determines behavior)
-    const mode = config.get<string>('syncMode') || 'auto';
-    statusBar.setWatchMode(mode === 'auto');
+    // Start Internal Watcher
+    statusBar.setWatchMode(false);
     await syncManager.startWatch();
 
     // Load workflows for store

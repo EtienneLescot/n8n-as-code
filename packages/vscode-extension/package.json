@@ -161,12 +161,12 @@
         {
           "command": "n8n.push",
           "group": "navigation@1",
-          "when": "view == n8n-explorer.workflows && n8n.state == initialized && config.n8n.syncMode == manual"
+          "when": "view == n8n-explorer.workflows && n8n.state == initialized"
         },
         {
           "command": "n8n.pull",
           "group": "navigation@2",
-          "when": "view == n8n-explorer.workflows && n8n.state == initialized && config.n8n.syncMode == manual"
+          "when": "view == n8n-explorer.workflows && n8n.state == initialized"
         },
         {
           "command": "n8n.spacer",
@@ -257,24 +257,6 @@
           "type": "string",
           "default": "workflows",
           "description": "Local folder to sync workflows"
-        },
-        "n8n.syncMode": {
-          "type": "string",
-          "default": "auto",
-          "enum": [
-            "auto",
-            "manual"
-          ],
-          "enumDescriptions": [
-            "Automatic sync (Watch Mode) - Buttons hidden",
-            "Manual sync - Buttons visible"
-          ],
-          "description": "Synchronization mode. Auto enables Watch Mode and hides manual sync buttons."
-        },
-        "n8n.pollInterval": {
-          "type": "number",
-          "default": 3000,
-          "description": "Polling interval in milliseconds for Auto Mode (default 3s)"
         },
         "n8n.projectId": {
           "type": "string",

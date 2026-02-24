@@ -45,9 +45,6 @@ export class StartCommand extends BaseCommand {
         }
 
         const syncConfig = await this.getSyncConfig();
-        if (!this.manualMode) {
-            syncConfig.syncMode = 'auto'; // Enable auto-sync in auto mode
-        }
         
         // Suppress Sync debug logs to keep output clean
         const originalConsoleLog = console.log;
@@ -115,6 +112,29 @@ export class StartCommand extends BaseCommand {
             await this.renderTable(syncManager);
         });
 
+        // Auto-push events (triggered by SyncManager when chokidar detects MODIFIED_LOCALLY)
+        syncManager.on('auto-push-success', async (data: { workflowId: string, filename: string }) => {
+            if (!watchStarted) return;
+            if (!this.isPromptActive) {
+                await this.renderTable(syncManager);
+                console.log(chalk.green(`[${new Date().toLocaleTimeString()}] ✅ Auto-pushed: ${data.filename}`));
+            }
+        });
+
+        syncManager.on('auto-push-conflict', async (data: { workflowId: string, filename: string, message: string }) => {
+            if (!watchStarted) return;
+            await this.handleAutoPushConflictPrompt(data, syncManager);
+            await this.renderTable(syncManager);
+        });
+
+        syncManager.on('auto-push-error', async (data: { workflowId: string, filename: string, message: string }) => {
+            if (!watchStarted) return;
+            if (!this.isPromptActive) {
+                await this.renderTable(syncManager);
+                console.error(chalk.red(`\n❌ Auto-push failed for "${data.filename}": ${data.message}\n`));
+            }
+        });
+
         // Notification for remote deletions
         syncManager.on('change', async (data: any) => {
             if (data.type === 'remote-deletion' && !this.isPromptActive) {
@@ -160,6 +180,44 @@ export class StartCommand extends BaseCommand {
         watchStarted = true;
     }
 
+
+    /**
+     * Handle OCC conflict from auto-push (triggered by SyncManager on file save)
+     */
+    private async handleAutoPushConflictPrompt(data: { workflowId: string, filename: string, message: string }, syncManager: SyncManager) {
+        if (this.pendingConflictIds.has(data.workflowId)) {
+            return;
+        }
+        this.pendingConflictIds.add(data.workflowId);
+        this.isPromptActive = true;
+
+        console.log(chalk.yellow(`\n⚠️  PUSH REJECTED (OCC) for "${data.filename}"`));
+        console.log(chalk.gray('The workflow was modified in n8n since your last sync.\n'));
+
+        const { action } = await inquirer.prompt([{
+            type: 'rawlist',
+            name: 'action',
+            message: 'How do you want to resolve this?',
+            choices: [
+                { name: '[1] Force Push (overwrite remote with local)', value: 'push' },
+                { name: '[2] Pull (discard local changes, keep remote)', value: 'pull' },
+                { name: '[3] Skip', value: 'skip' }
+            ]
+        }]);
+
+        if (action === 'push') {
+            await syncManager.resolveConflict(data.workflowId, data.filename, 'local');
+            console.log(chalk.green(`✅ Force pushed "${data.filename}".\n`));
+        } else if (action === 'pull') {
+            await syncManager.pullOne(data.workflowId);
+            console.log(chalk.green(`✅ Pulled "${data.filename}" from n8n.\n`));
+        } else {
+            console.log(chalk.gray(`⏭️  Skipped. Local file has unsaved conflict with remote.\n`));
+        }
+
+        this.pendingConflictIds.delete(data.workflowId);
+        this.isPromptActive = false;
+    }
 
     /**
      * Handle conflict with prompt

@@ -60,12 +60,10 @@ export interface IWorkflowStatus {
 
 export interface ISyncConfig {
     directory: string;
-    pollIntervalMs: number;
     syncInactive: boolean;
     ignoredTags: string[];
     instanceIdentifier?: string; // Optional: auto-generated if not provided
     instanceConfigPath?: string; // Optional: explicit path for n8nac-instance.json
-    syncMode?: 'auto' | 'manual';
     projectId: string;           // REQUIRED: Project scope for sync
     projectName: string;         // REQUIRED: Project display name
 }

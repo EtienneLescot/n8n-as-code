@@ -83,17 +83,34 @@ export class SyncManager extends EventEmitter {
                 }).catch(err => {
                     console.error(`[SyncManager] Failed to fetch remote content for conflict: ${err.message}`);
                 });
-            }
-            
-            // Auto-sync in auto mode
-            if (this.config.syncMode === 'auto') {
-                console.log(`[SyncManager] Auto mode enabled, calling handleAutoSync...`);
-                this.handleAutoSync(data).catch(err => {
-                    console.error('[SyncManager] Auto-sync error:', err);
-                    this.emit('error', `Auto-sync failed: ${err.message}`);
-                });
-            } else {
-                console.log(`[SyncManager] Manual mode, skipping auto-sync`);
+            } else if (
+                (data.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
+                 data.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY) &&
+                data.workflowId
+            ) {
+                // Auto-push on local save: triggered by chokidar detecting the file change.
+                // OCC is enforced inside pushOne — if remote was modified concurrently, 
+                // we emit 'auto-push-conflict' so the UI layer (VS Code / CLI) can prompt the user.
+                this.pushOne(data.workflowId, data.filename)
+                    .then(() => {
+                        this.emit('auto-push-success', { workflowId: data.workflowId!, filename: data.filename });
+                    })
+                    .catch((err: Error) => {
+                        const isOcc = err.message?.includes('Push rejected') && err.message?.includes('modified in the n8n UI');
+                        if (isOcc) {
+                            this.emit('auto-push-conflict', {
+                                workflowId: data.workflowId!,
+                                filename: data.filename,
+                                message: err.message
+                            });
+                        } else {
+                            this.emit('auto-push-error', {
+                                workflowId: data.workflowId!,
+                                filename: data.filename,
+                                message: err.message
+                            });
+                        }
+                    });
             }
         });
 
@@ -314,17 +331,30 @@ export class SyncManager extends EventEmitter {
         }
     }
 
-    public async pushAll() {
+    /**
+     * Explicit single-workflow pull (user-triggered).
+     * Always overwrites local with the latest remote version, regardless of status.
+     */
+    public async pullOne(workflowId: string): Promise<void> {
         await this.ensureInitialized();
         const statuses = await this.getWorkflowsStatus();
-        for (const s of statuses) {
-            if (s.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY || s.status === WorkflowSyncStatus.MODIFIED_LOCALLY) {
-                await this.syncEngine!.push(s.filename, s.id, s.status);
-            }
+        const s = statuses.find(status => status.id === workflowId);
+        if (!s) {
+            throw new Error(`Workflow ${workflowId} not found in local state`);
         }
+        await this.syncEngine!.pull(s.id, s.filename, s.status);
     }
 
-    public async resolveConflict(workflowId: string, filename: string, resolution: 'local' | 'remote') {
+    /**
+     * Explicit single-workflow push (user-triggered).
+     * Runs OCC check — throws OccConflictError if remote was modified since last sync.
+     */
+    public async pushOne(workflowId: string, filename: string): Promise<void> {
+        await this.ensureInitialized();
+        await this.syncEngine!.push(filename, workflowId, WorkflowSyncStatus.MODIFIED_LOCALLY);
+    }
+
+    public async resolveConflict(workflowId: string, filename: string, resolution: 'local' | 'remote'): Promise<void> {
         await this.ensureInitialized();
         if (resolution === 'local') {
             await this.syncEngine!.forcePush(workflowId, filename);
