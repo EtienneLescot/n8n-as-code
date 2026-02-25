@@ -38,12 +38,12 @@ graph TD
 ```
 
 ### Dependency Flow
-1. **Sync Library** (`@n8n-as-code/sync`): Shared business logic
-2. **CLI** (`@n8n-as-code/cli`): Command-line interface using Sync
-3. **VS Code Extension**: Visual interface using Sync
-4. **Skills CLI** (`@n8n-as-code/skills`): AI integration using Sync
+1. **Sync Engine** (embedded in `@n8n-as-code/cli`, `cli/src/core`): Shared business logic
+2. **CLI** (`@n8n-as-code/cli`): Command-line interface
+3. **VS Code Extension**: Visual interface using `@n8n-as-code/cli`
+4. **Skills CLI** (`@n8n-as-code/skills`): AI integration
 
-## 🧩 Sync Library Architecture
+## 🧩 Sync Engine Architecture (inside `cli`)
 
 ### 3-Way Merge Architecture
 

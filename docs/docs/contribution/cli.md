@@ -227,7 +227,7 @@ The CLI currently loads local configuration from `n8nac.json` in the current wor
 The CLI uses the Sync library for all n8n operations:
 
 ```typescript
-import { SyncManager, StateManager, N8nApiClient } from '@n8n-as-code/sync';
+import { SyncManager, StateManager, N8nApiClient } from '@n8n-as-code/cli';
 
 class SyncCommand extends BaseCommand {
   private syncManager: SyncManager;

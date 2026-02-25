@@ -14,11 +14,6 @@
       "component": "@n8n-as-code/transformer",
       "changelog-path": "CHANGELOG.md"
     },
-    "packages/sync": {
-      "package-name": "@n8n-as-code/sync",
-      "component": "@n8n-as-code/sync",
-      "changelog-path": "CHANGELOG.md"
-    },
     "packages/skills": {
       "package-name": "@n8n-as-code/skills",
       "component": "@n8n-as-code/skills",

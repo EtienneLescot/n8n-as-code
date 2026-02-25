@@ -1,19 +1,18 @@
 ---
-sidebar_label: Sync Package
-title: Sync Package - Shared Library
-description: Documentation for the Sync package that provides shared business logic for all n8n-as-code components.
+sidebar_label: Sync Engine
+title: Sync Engine - Core Library
+description: Documentation for the sync engine embedded in @n8n-as-code/cli that provides shared business logic for all n8n-as-code components.
 ---
 
-# Sync Package - Shared Library Documentation
+# Sync Engine - Core Library Documentation
 
-**Note**: This package is a shared dependency used by all other n8n-as-code packages. It provides the foundational services for workflow management.
+**Note**: The sync engine is embedded in `@n8n-as-code/cli` (under `src/core/`) and exposed via `@n8n-as-code/cli`'s public lib surface. It was previously a standalone `@n8n-as-code/sync` package.
 
 ## 🎯 Purpose
 
-The Sync package (`@n8n-as-code/sync`) provides the shared business logic and services used by:
+The sync engine (`packages/cli/src/core`) provides the shared business logic and services used by:
 - **VS Code Extension**: For workflow synchronization and management
 - **CLI**: For command-line operations
-- **Skills CLI**: For AI context generation
 
 It encapsulates all n8n API interactions, state management, and synchronization logic.
 
@@ -373,7 +372,7 @@ sequenceDiagram
 
 ### Test Structure
 ```
-packages/sync/tests/
+packages/cli/tests/
 ├── unit/
 │   ├── state-manager.test.ts
 │   └── workflow-sanitizer.test.ts
@@ -389,7 +388,7 @@ packages/sync/tests/
 
 ### Running Tests
 ```bash
-cd packages/sync
+cd packages/cli
 npm test
 ```
 
@@ -429,14 +428,14 @@ The sync package is a library. Configuration is provided by callers (CLI, VS Cod
 
 ### Building
 ```bash
-cd packages/sync
+cd packages/cli
 npm run build
 ```
 
 ### Development Mode
 ```bash
-cd packages/sync
-npm run dev
+cd packages/cli
+npm run watch
 ```
 
 ### TypeScript Configuration

@@ -31,8 +31,7 @@ n8n-as-code is organized as a monorepo with the following packages:
 
 | Package | Purpose | Primary Users |
 |---------|---------|---------------|
-| **Sync** (`@n8n-as-code/sync`) | Shared logic, API client, synchronization | All packages |
-| **CLI** (`@n8n-as-code/cli`) | Command-line interface for workflow management | Terminal users, automation |
+| **CLI** (`@n8n-as-code/cli`) | Command-line interface + embedded sync engine | Terminal users, automation |
 | **VS Code Extension** | Integrated development environment | VS Code users |
 | **Skills CLI** (`@n8n-as-code/skills`) | AI context generation and node schemas | AI assistants, developers |
 
@@ -49,8 +48,8 @@ n8n-as-code is organized as a monorepo with the following packages:
 npm test
 
 # Run tests for specific package
-cd packages/sync && npm test
 cd packages/skills && npm test
+cd packages/cli && npm test
 ```
 
 ## 🔧 Building
@@ -72,8 +71,7 @@ n8n-as-code uses **Changeset** with independent package versioning. Each package
 ### Current Package Versions
 
 Packages evolve **independently** with their own version numbers:
-- **@n8n-as-code/sync**: `0.3.0`
-- **@n8n-as-code/cli**: `0.3.0`
+- **@n8n-as-code/cli**: `0.9.3` (embeds sync engine)
 - **@n8n-as-code/skills**: `0.2.0`
 - **VS Code Extension**: `0.2.0`
 
@@ -85,7 +83,6 @@ The project includes different types of packages:
 
 | Package | Published To | Managed By Changeset |
 |---------|-------------|---------------------|
-| `@n8n-as-code/sync` | NPM Registry | ✅ Yes |
 | `@n8n-as-code/cli` | NPM Registry | ✅ Yes |
 | `@n8n-as-code/skills` | NPM Registry | ✅ Yes |
 | `n8n-as-code` (VS Code Extension) | VS Code Marketplace | ✅ Yes (versioning only) |
@@ -129,9 +126,9 @@ When the "Version Packages" PR is merged:
 
 1. **NPM Publication**:
    - Builds all packages
-   - Publishes public packages to NPM registry (`@n8n-as-code/sync`, `@n8n-as-code/cli`, `@n8n-as-code/skills`)
+   - Publishes public packages to NPM registry (`@n8n-as-code/cli`, `@n8n-as-code/skills`)
    - Skips private packages automatically (monorepo root, VS Code extension, docs)
-   - Creates Git tags for each published package (e.g., `@n8n-as-code/sync@0.3.1`)
+   - Creates Git tags for each published package (e.g., `@n8n-as-code/cli@0.9.3`)
 
 2. **VS Code Extension**:
    - Separately publishes to VS Code Marketplace using the version from package.json
@@ -139,31 +136,30 @@ When the "Version Packages" PR is merged:
 
 3. **GitHub Releases**:
    - **ENABLED** - One GitHub Release is created per published package
-   - Each package has its own release timeline (e.g., `@n8n-as-code/sync@0.3.1`, `@n8n-as-code/cli@0.3.2`)
+   - Each package has its own release timeline (e.g., `@n8n-as-code/cli@0.9.4`, `@n8n-as-code/skills@0.3.0`)
    - Release notes are automatically extracted from each package's CHANGELOG.md
    - Private packages (VS Code extension) do not get GitHub Releases automatically
 
 ### Example: How Internal Dependencies Stay Synchronized
 
-Let's say you fix a bug in `@n8n-as-code/sync`:
+Let's say you fix a bug in the sync engine (`@n8n-as-code/cli`):
 
 ```bash
-# 1. Create a changeset for the sync fix
+# 1. Create a changeset for the fix
 npm run changeset
-# Select: @n8n-as-code/sync
-# Type: patch (0.3.0 → 0.3.1)
+# Select: @n8n-as-code/cli
+# Type: patch (0.9.3 → 0.9.4)
 
 # 2. Apply versions
 npm run version-packages
 ```
 
 **Result:**
-- `@n8n-as-code/sync`: `0.3.0` → `0.3.1` ✅
-- `@n8n-as-code/cli`: `0.3.0` → `0.3.1` (auto-bumped because it depends on sync) ✅
-- `@n8n-as-code/skills`: `0.2.0` (unchanged, no dependency on sync) ✅
-- `VS Code Extension`: `0.2.0` → `0.2.1` (auto-bumped because it depends on sync) ✅
+- `@n8n-as-code/cli`: `0.9.3` → `0.9.4` ✅
+- `@n8n-as-code/skills`: (unchanged, no dependency on cli) ✅
+- `VS Code Extension`: `0.14.1` → `0.14.2` (auto-bumped because it depends on cli) ✅
 
-All packages that depend on `sync` will have their `package.json` updated to reference `"@n8n-as-code/sync": "0.3.1"`.
+All packages that depend on `cli` will have their `package.json` updated to reference `"@n8n-as-code/cli": "0.9.4"`.
 
 ### Workflow Summary Diagram
 
@@ -200,7 +196,7 @@ CI automatically:
 When a "Version Packages" PR is merged, Changeset automatically creates:
 
 **For each published NPM package:**
-- ✅ GitHub Release (e.g., `@n8n-as-code/sync@0.3.1`)
+- ✅ GitHub Release (e.g., `@n8n-as-code/cli@0.9.4`)
 - ✅ Git Tag with the same name
 - ✅ Release notes extracted from the package's CHANGELOG.md
 
@@ -211,11 +207,9 @@ When a "Version Packages" PR is merged, Changeset automatically creates:
 **Example timeline on GitHub:**
 ```
 Releases
-├─ @n8n-as-code/sync@0.3.2        (Jan 20, 2024)
-├─ @n8n-as-code/cli@0.4.1         (Jan 20, 2024)
-├─ @n8n-as-code/skills@0.3.0   (Jan 18, 2024)
-├─ @n8n-as-code/sync@0.3.1        (Jan 15, 2024)
-└─ @n8n-as-code/cli@0.4.0         (Jan 15, 2024)
+├─ @n8n-as-code/cli@0.9.4          (Jan 20, 2024)
+├─ @n8n-as-code/skills@0.3.0      (Jan 18, 2024)
+└─ @n8n-as-code/cli@0.9.3          (Jan 15, 2024)
 ```
 
 Each package maintains its own release history!

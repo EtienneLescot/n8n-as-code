@@ -14,7 +14,7 @@
  * The .d.ts is always overwritten so it stays up-to-date with new extension/CLI releases.
  * The tsconfig.json is only written once and never overwritten (respects user edits).
  *
- * Responsibility: @n8n-as-code/sync — called by both the VS Code extension
+ * Responsibility: embedded in `@n8n-as-code/cli` — called by both the VS Code extension
  * and the CLI so the experience is identical regardless of how the workspace
  * was initialised.
  */
@@ -37,8 +37,8 @@ const _dirname = path.dirname(_filename);
 function resolveAssetPath(filename: string): string {
     // Try sibling assets/ dir (built layout: dist/services/workspace-setup-service.js)
     const candidates = [
-        path.join(_dirname, '..', 'assets', filename),   // packages/sync/dist/assets/
-        path.join(_dirname, 'assets', filename),          // packages/sync/dist/services/assets/ (fallback)
+        path.join(_dirname, '..', 'assets', filename),   // dist/core/assets/ (built layout)
+        path.join(_dirname, 'assets', filename),          // dist/core/services/assets/ (fallback)
     ];
     for (const candidate of candidates) {
         if (fs.existsSync(candidate)) return candidate;
