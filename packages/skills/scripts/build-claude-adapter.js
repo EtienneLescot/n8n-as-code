@@ -16,11 +16,17 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Dynamically import AiContextGenerator from compiled dist
+async function getAiContextGenerator() {
+    const distPath = path.resolve(__dirname, '..', 'dist', 'services', 'ai-context-generator.js');
+    const mod = await import(distPath);
+    return new mod.AiContextGenerator();
+}
+
 // Root of the skills package
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
 const DIST_DIR = path.join(PACKAGE_ROOT, 'dist', 'adapters', 'claude');
 const SKILL_OUTPUT_DIR = path.join(DIST_DIR, 'n8n-architect');
-const TEMPLATES_DIR = path.join(PACKAGE_ROOT, 'src', 'adapters', 'claude', 'templates');
 
 // Colors for terminal output
 const colors = {
@@ -58,19 +64,14 @@ function createSkillStructure() {
     log('   ✓ Structure created', 'green');
 }
 
-function copySkillFiles() {
-    log('\n📄 Copying SKILL.md...', 'blue');
+async function generateSkillMd() {
+    log('\n📄 Generating SKILL.md from AiContextGenerator...', 'blue');
 
-    const sourcePath = path.join(TEMPLATES_DIR, 'SKILL.md');
+    const generator = await getAiContextGenerator();
     const destPath = path.join(SKILL_OUTPUT_DIR, 'SKILL.md');
 
-    if (fs.existsSync(sourcePath)) {
-        fs.copyFileSync(sourcePath, destPath);
-        log('   ✓ SKILL.md copied', 'green');
-    } else {
-        log(`   ❌ Source SKILL.md not found at ${sourcePath}`, 'red');
-        throw new Error('SKILL.md template missing');
-    }
+    fs.writeFileSync(destPath, generator.getSkillContent());
+    log('   ✓ SKILL.md generated', 'green');
 }
 
 function generateReadme() {
@@ -201,20 +202,22 @@ function printSummary() {
 }
 
 // Main build process
-try {
-    log('\n🏗️  Building Claude Adapter...', 'blue');
-    log(`   Root: ${PACKAGE_ROOT}`, 'gray');
+(async () => {
+    try {
+        log('\n🏗️  Building Claude Adapter...', 'blue');
+        log(`   Root: ${PACKAGE_ROOT}`, 'gray');
 
-    cleanDist();
-    createSkillStructure();
-    copySkillFiles();
-    generateReadme();
-    generateInstallScript();
-    printSummary();
+        cleanDist();
+        createSkillStructure();
+        await generateSkillMd();
+        generateReadme();
+        generateInstallScript();
+        printSummary();
 
-    process.exit(0);
-} catch (error) {
-    log('\n❌ Build failed:', 'red');
-    console.error(error);
-    process.exit(1);
-}
+        process.exit(0);
+    } catch (error) {
+        log('\n❌ Build failed:', 'red');
+        console.error(error);
+        process.exit(1);
+    }
+})();
