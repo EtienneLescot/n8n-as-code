@@ -259,7 +259,7 @@
   ],
   "dependencies": {
     "@n8n-as-code/skills": "0.16.3",
-    "@n8n-as-code/sync": "0.14.2",
+    "@n8n-as-code/cli": "0.9.3",
     "@reduxjs/toolkit": "^2.11.2",
     "http-proxy": "^1.18.1"
   },

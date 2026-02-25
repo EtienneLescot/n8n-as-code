@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { ConfigService, ILocalConfig } from '../services/config-service.js';
-import { N8nApiClient } from '@n8n-as-code/sync';
+import { N8nApiClient } from '../core/index.js';
 import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';

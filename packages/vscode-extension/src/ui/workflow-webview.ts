@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { IWorkflowStatus } from '@n8n-as-code/sync';
+import { IWorkflowStatus } from '@n8n-as-code/cli';
 
 export class WorkflowWebview {
     public static currentPanel: WorkflowWebview | undefined;

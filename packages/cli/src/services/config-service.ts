@@ -104,7 +104,7 @@ export class ConfigService {
             }
 
             // Import Sync utilities
-            const { N8nApiClient, createInstanceIdentifier, createFallbackInstanceIdentifier } = await import('@n8n-as-code/sync');
+            const { N8nApiClient, createInstanceIdentifier, createFallbackInstanceIdentifier } = await import('../core/index.js');
 
             // Try to get current user from n8n API
             const client = new N8nApiClient({ host, apiKey });
@@ -130,7 +130,7 @@ export class ConfigService {
         } catch (error) {
             console.warn('Could not fetch user info, using fallback identifier');
             const apiKey = this.getApiKey(host)!;
-            const { createFallbackInstanceIdentifier } = await import('@n8n-as-code/sync');
+            const { createFallbackInstanceIdentifier } = await import('../core/index.js');
             return createFallbackInstanceIdentifier(host, apiKey);
         }
     }

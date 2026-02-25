@@ -5,9 +5,6 @@
             "path": "packages/transformer"
         },
         {
-            "path": "packages/sync"
-        },
-        {
             "path": "packages/skills"
         },
         {

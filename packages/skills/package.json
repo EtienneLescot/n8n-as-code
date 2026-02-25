@@ -17,7 +17,6 @@
         "build:adapters": "node scripts/build-claude-adapter.js"
     },
     "dependencies": {
-        "@n8n-as-code/sync": "0.14.2",
         "@n8n-as-code/transformer": "0.2.2",
         "chalk": "^4.1.2",
         "commander": "^11.1.0",

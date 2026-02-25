@@ -1,5 +1,5 @@
 import { BaseCommand } from './base.js';
-import { SyncManager, WorkflowSyncStatus, IWorkflowStatus, formatWorkflowNameWithBadges } from '@n8n-as-code/sync';
+import { SyncManager, WorkflowSyncStatus, IWorkflowStatus, formatWorkflowNameWithBadges } from '../core/index.js';
 import chalk from 'chalk';
 import ora from 'ora';
 import Table from 'cli-table3';

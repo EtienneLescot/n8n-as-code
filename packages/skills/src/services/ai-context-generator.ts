@@ -101,11 +101,79 @@ EXIT /B 1
 `;
 
     fs.writeFileSync(shimPathCmd, cmdContent);
+
+    // ── n8nac shim (sync/deploy CLI) ──────────────────────────────────────────
+    const cliShimPath = path.join(projectRoot, 'n8nac');
+
+    let cliExtensionLine = '';
+    if (extensionPath) {
+      // The extension bundles @n8n-as-code/cli as out/cli/index.js
+      const absCliPath = path.join(extensionPath, 'out', 'cli', 'index.js');
+      cliExtensionLine = `
+# 1. VS Code Extension Context (Explicit absolute path)
+if [ -f "${absCliPath}" ]; then
+  node "${absCliPath}" "$@"
+  exit $?
+fi`;
+    }
+
+    const cliShimContent = [
+      '#!/bin/bash',
+      `# n8nac local shim for sync/deploy operations`,
+      cliExtensionLine,
+      ``,
+      `# 2. Standard NPM Dependency Context (Local Project)`,
+      `CLI_PATH="./node_modules/@n8n-as-code/cli/dist/index.js"`,
+      ``,
+      `if [ -f "$CLI_PATH" ]; then`,
+      `  node "$CLI_PATH" "$@"`,
+      `  exit $?`,
+      `fi`,
+      ``,
+      `# 3. Error if not found`,
+      `echo "Error: @n8n-as-code/cli not found in ./node_modules/"`,
+      `echo "Please ensure it is installed as a dev dependency in this project."`,
+      `exit 1`
+    ].join('\n');
+
+    fs.writeFileSync(cliShimPath, cliShimContent);
+    try {
+      fs.chmodSync(cliShimPath, '755');
+    } catch (e) {
+      console.warn(`Failed to set execution permissions on ${cliShimPath}:`, e);
+    }
+
+    // Windows shim for n8nac
+    const cliShimPathCmd = path.join(projectRoot, 'n8nac.cmd');
+    let cliCmdContent = '@echo off\n';
+
+    if (extensionPath) {
+      const absCliPath = path.join(extensionPath, 'out', 'cli', 'index.js');
+      cliCmdContent += `
+IF EXIST "${absCliPath}" (
+  node "${absCliPath}" %*
+  EXIT /B %ERRORLEVEL%
+)
+`;
+    }
+
+    cliCmdContent += `
+IF EXIST ".\\node_modules\\@n8n-as-code\\cli\\dist\\index.js" (
+  node ".\\node_modules\\@n8n-as-code\\cli\\dist\\index.js" %*
+  EXIT /B %ERRORLEVEL%
+)
+
+echo Error: @n8n-as-code/cli not found in node_modules
+echo Please ensure it is installed as a dev dependency.
+EXIT /B 1
+`;
+
+    fs.writeFileSync(cliShimPathCmd, cliCmdContent);
   }
 
   private updateGitignore(projectRoot: string): void {
     const gitignorePath = path.join(projectRoot, '.gitignore');
-    const entries = ['\n# n8n-as-code AI helpers', 'n8nac-skills', 'n8nac-skills.cmd'];
+    const entries = ['\n# n8n-as-code AI helpers', 'n8nac-skills', 'n8nac-skills.cmd', 'n8nac', 'n8nac.cmd'];
 
     if (!fs.existsSync(gitignorePath)) {
       fs.writeFileSync(gitignorePath, entries.join('\n'));

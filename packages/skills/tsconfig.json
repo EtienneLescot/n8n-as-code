@@ -11,9 +11,6 @@
     "references": [
         {
             "path": "../transformer"
-        },
-        {
-            "path": "../sync"
         }
     ],
     "include": [
