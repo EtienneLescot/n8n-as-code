@@ -10,11 +10,6 @@ import { showDiff, flushLogBuffer } from '../utils/cli-helpers.js';
  * StartCommand - Main monitoring command
  * Monitors file changes and polls API
  * Displays a live updating table + interactive prompts for conflict/deletion resolution
- * 
- * Modes:
- * - Auto (default): Automatic bidirectional sync with prompts for conflicts
- * - Manual (--manual): Interactive prompts for all actions
- * 
  * Equivalent to VS Code Extension's TreeView with action buttons
  */
 export class StartCommand extends BaseCommand {
@@ -23,31 +18,20 @@ export class StartCommand extends BaseCommand {
     private isPromptActive = false;
     private logBuffer: string[] = [];
     private pendingConflictIds = new Set<string>();
-    private manualMode = false;
     private projectLabel: string | null = null;
 
-    async run(options: { manual?: boolean } = {}): Promise<void> {
-        this.manualMode = options.manual || false;
-        const mode = this.manualMode ? 'Manual' : 'Auto';
-
+    async run(): Promise<void> {
         const localConfig = this.configService.getLocalConfig();
         this.projectLabel = localConfig.projectName || null;
 
-        console.log(chalk.blue(`🚀 Starting n8n-as-code (${mode} Mode)...`));
-        console.log(chalk.gray(
-            this.manualMode 
-                ? 'Monitoring changes with interactive prompts for all actions.\n'
-                : 'Monitoring changes with automatic sync.\n'
-        ));
+        console.log(chalk.blue(`🚀 Starting n8n-as-code...`));
+        console.log(chalk.gray('Monitoring changes. Conflicts and deletions require your input.\n'));
 
         if (this.projectLabel) {
             console.log(chalk.cyan(`📁 Project: ${chalk.bold(this.projectLabel)}\n`));
         }
 
         const syncConfig = await this.getSyncConfig();
-        if (!this.manualMode) {
-            syncConfig.syncMode = 'auto'; // Enable auto-sync in auto mode
-        }
         
         // Suppress Sync debug logs to keep output clean
         const originalConsoleLog = console.log;
@@ -69,19 +53,7 @@ export class StartCommand extends BaseCommand {
                 this.logBuffer.push(msg);
                 return;
             }
-            
-            if (!this.manualMode) {
-                // Auto mode: show log stream style messages for sync actions
-                // First render the table, then show the log message
-                await this.renderTable(syncManager);
-                if (msg.includes('PUSHED') || msg.includes('Created')) {
-                    console.log(chalk.green(`[${new Date().toLocaleTimeString()}] 🟢 ${msg}`));
-                } else if (msg.includes('PULLED') || msg.includes('Updated')) {
-                    console.log(chalk.blue(`[${new Date().toLocaleTimeString()}] 🔵 ${msg}`));
-                }
-            } else {
-                await this.renderTable(syncManager);
-            }
+            await this.renderTable(syncManager);
         });
 
         syncManager.on('change', async () => {
@@ -180,9 +152,9 @@ export class StartCommand extends BaseCommand {
             name: 'action',
             message: 'How do you want to resolve this?',
             choices: [
-                { name: '[1] Keep Local Version (Force Push)', value: 'push' },
-                { name: '[2] Keep Remote Version (Force Pull)', value: 'pull' },
-                { name: '[3] Show Diff (Display colored diff)', value: 'diff' },
+                { name: '[1] Show Diff', value: 'diff' },
+                { name: '[2] Force Push (keep local)', value: 'push' },
+                { name: '[3] Pull (keep remote)', value: 'pull' },
                 { name: '[4] Skip', value: 'skip' }
             ]
         }]);
@@ -195,10 +167,10 @@ export class StartCommand extends BaseCommand {
             return;
         } else if (action === 'push') {
             await syncManager.resolveConflict(conflict.id, conflict.filename, 'local');
-            console.log(chalk.green(`✅ Remote overwritten by local.\n`));
+            console.log(chalk.green(`✅ Pushed — remote overwritten with local version.\n`));
         } else if (action === 'pull') {
             await syncManager.resolveConflict(conflict.id, conflict.filename, 'remote');
-            console.log(chalk.green(`✅ Local file updated from n8n.\n`));
+            console.log(chalk.green(`✅ Pulled — local file updated from n8n.\n`));
         } else {
             console.log(chalk.gray(`⏭️  Conflict skipped.\n`));
         }

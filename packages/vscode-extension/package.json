@@ -71,24 +71,14 @@
         "icon": "$(rocket)"
       },
       {
-        "command": "n8n.pull",
-        "title": "n8n: Pull Workflows",
-        "icon": "$(cloud-download)"
-      },
-      {
-        "command": "n8n.push",
-        "title": "n8n: Push Workflows",
-        "icon": "$(cloud-upload)"
-      },
-      {
         "command": "n8n.openBoard",
-        "title": "Open Board (Webview)",
+        "title": "Open in n8n",
         "icon": "$(browser)"
       },
       {
         "command": "n8n.openJson",
-        "title": "Open JSON",
-        "icon": "$(json)"
+        "title": "Open File",
+        "icon": "$(go-to-file)"
       },
       {
         "command": "n8n.openSplit",
@@ -97,12 +87,12 @@
       },
       {
         "command": "n8n.pushWorkflow",
-        "title": "Push (Sync Up)",
+        "title": "Push",
         "icon": "$(cloud-upload)"
       },
       {
         "command": "n8n.pullWorkflow",
-        "title": "Pull (Sync Down)",
+        "title": "Pull",
         "icon": "$(cloud-download)"
       },
       {
@@ -127,7 +117,7 @@
       },
       {
         "command": "n8n.deleteWorkflow",
-        "title": "Delete Local JSON",
+        "title": "Delete Workflow",
         "icon": "$(trash)"
       },
       {
@@ -159,23 +149,18 @@
           "when": "view == n8n-explorer.workflows && n8n.state == settings-changed"
         },
         {
-          "command": "n8n.push",
+          "command": "n8n.refresh",
           "group": "navigation@1",
           "when": "view == n8n-explorer.workflows && n8n.state == initialized"
         },
         {
-          "command": "n8n.pull",
-          "group": "navigation@2",
-          "when": "view == n8n-explorer.workflows && n8n.state == initialized"
-        },
-        {
           "command": "n8n.spacer",
-          "group": "navigation@3",
+          "group": "navigation@2",
           "when": "view == n8n-explorer.workflows"
         },
         {
           "command": "n8n.configure",
-          "group": "navigation@4",
+          "group": "navigation@3",
           "when": "view == n8n-explorer.workflows"
         }
       ],
@@ -183,52 +168,52 @@
         {
           "command": "n8n.openJson",
           "group": "inline@1",
-          "when": "viewItem =~ /workflow-(synced|local-only|modified-local)/ && viewItem != workflow-conflict && viewItem != workflow-pending-deletion"
+          "when": "viewItem =~ /workflow-(local|local-only|modified-local|modified-remote)/ && viewItem != workflow-conflict && viewItem != workflow-pending-deletion"
         },
         {
           "command": "n8n.openBoard",
           "group": "inline@2",
-          "when": "viewItem =~ /workflow-(synced|cloud-only|modified-remote)/ && viewItem != workflow-conflict && viewItem != workflow-pending-deletion"
-        },
-        {
-          "command": "n8n.openSplit",
-          "group": "inline@3",
-          "when": "viewItem =~ /workflow-(synced|modified-local|modified-remote)/ && viewItem != workflow-conflict && viewItem != workflow-pending-deletion"
+          "when": "viewItem =~ /workflow-(local|cloud-only|modified-remote)/ && viewItem != workflow-conflict && viewItem != workflow-pending-deletion"
         },
         {
           "command": "n8n.pushWorkflow",
-          "group": "inline@4",
-          "when": "viewItem =~ /workflow-(modified-local|local-only)/ && viewItem != workflow-conflict"
+          "group": "inline@3",
+          "when": "viewItem =~ /workflow-(local|local-only|modified-local)/ && viewItem != workflow-conflict && viewItem != workflow-pending-deletion"
         },
         {
           "command": "n8n.pullWorkflow",
-          "group": "inline@5",
-          "when": "viewItem =~ /workflow-(modified-remote|cloud-only)/ && viewItem != workflow-conflict"
+          "group": "inline@4",
+          "when": "viewItem =~ /workflow-(local|local-only|cloud-only|modified-local|modified-remote)/ && viewItem != workflow-conflict && viewItem != workflow-pending-deletion"
         },
         {
           "command": "n8n.deleteWorkflow",
-          "group": "inline@6",
+          "group": "inline@5",
           "when": "viewItem =~ /workflow-/ && viewItem != workflow-pending-deletion && viewItem != workflow-deleted && viewItem != workflow-conflict"
         },
         {
           "command": "n8n.openBoard",
           "group": "1_open@1",
-          "when": "viewItem =~ /workflow-(synced|cloud-only|modified-remote)/"
+          "when": "viewItem =~ /workflow-(local|cloud-only|modified-remote)/"
         },
         {
           "command": "n8n.openJson",
           "group": "1_open@2",
-          "when": "viewItem =~ /workflow-(synced|local-only|modified-local)/"
+          "when": "viewItem =~ /workflow-(local|local-only|modified-local)/"
+        },
+        {
+          "command": "n8n.openSplit",
+          "group": "1_open@3",
+          "when": "viewItem =~ /workflow-(local|modified-local|modified-remote)/"
         },
         {
           "command": "n8n.pushWorkflow",
           "group": "2_sync@1",
-          "when": "viewItem =~ /workflow-(synced|local-only|modified-local)/ && viewItem != workflow-conflict"
+          "when": "viewItem =~ /workflow-(local|local-only|modified-local)/ && viewItem != workflow-conflict"
         },
         {
           "command": "n8n.pullWorkflow",
           "group": "2_sync@2",
-          "when": "viewItem =~ /workflow-(synced|cloud-only|modified-remote)/ && viewItem != workflow-conflict"
+          "when": "viewItem =~ /workflow-(local|local-only|cloud-only|modified-local|modified-remote)/ && viewItem != workflow-conflict"
         },
         {
           "command": "n8n.confirmDeletion",

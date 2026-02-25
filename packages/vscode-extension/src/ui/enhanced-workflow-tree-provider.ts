@@ -184,8 +184,9 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     if (pendingAction === 'conflict' || workflow.status === WorkflowSyncStatus.CONFLICT) {
       actions.push(
         new ActionItem(ActionItemType.SHOW_DIFF, workflow.id, workflow),
-        new ActionItem(ActionItemType.KEEP_LOCAL, workflow.id, workflow),
-        new ActionItem(ActionItemType.KEEP_REMOTE, workflow.id, workflow)
+        new ActionItem(ActionItemType.FORCE_PUSH, workflow.id, workflow),
+        new ActionItem(ActionItemType.PULL_REMOTE, workflow.id, workflow),
+        new ActionItem(ActionItemType.MARK_RESOLVED, workflow.id, workflow)
       );
     }
 

@@ -317,7 +317,8 @@ export class SyncManager extends EventEmitter {
         if (!s) {
             throw new Error(`Workflow ${workflowId} not found in local state`);
         }
-        await this.syncEngine!.pull(s.id, s.filename, s.status);
+        // User-triggered pull always force-pulls (overwrites local regardless of status)
+        await this.syncEngine!.forcePull(workflowId, s.filename);
     }
 
     /**

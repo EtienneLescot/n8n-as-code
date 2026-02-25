@@ -6,11 +6,12 @@ import { TreeItemType } from '../../types.js';
  * Action item types for child actions under workflows
  */
 export enum ActionItemType {
-  // Conflict resolution actions
+  // Conflict resolution actions (OCC)
   SHOW_DIFF = 'show-diff',
-  KEEP_LOCAL = 'keep-local',
-  KEEP_REMOTE = 'keep-remote',
-  
+  FORCE_PUSH = 'force-push',
+  PULL_REMOTE = 'pull-remote',
+  MARK_RESOLVED = 'mark-resolved',
+
   // Deletion confirmation actions
   CONFIRM_DELETE = 'confirm-delete',
   RESTORE_FILE = 'restore-file',
@@ -40,10 +41,12 @@ export class ActionItem extends BaseTreeItem {
     switch (actionType) {
       case ActionItemType.SHOW_DIFF:
         return '📄 Show Diff';
-      case ActionItemType.KEEP_LOCAL:
-        return '✅ Keep Local Version';
-      case ActionItemType.KEEP_REMOTE:
-        return '☁️ Keep Remote Version';
+      case ActionItemType.FORCE_PUSH:
+        return '⬆️ Keep Current (local)';
+      case ActionItemType.PULL_REMOTE:
+        return '⬇️ Keep Incoming (remote)';
+      case ActionItemType.MARK_RESOLVED:
+        return '✅ Mark as Resolved';
       case ActionItemType.CONFIRM_DELETE:
         return '🗑️ Confirm Deletion';
       case ActionItemType.RESTORE_FILE:
@@ -52,15 +55,17 @@ export class ActionItem extends BaseTreeItem {
         return 'Unknown Action';
     }
   }
-  
+
   private static getIconForAction(actionType: ActionItemType): vscode.ThemeIcon {
     switch (actionType) {
       case ActionItemType.SHOW_DIFF:
         return new vscode.ThemeIcon('git-compare');
-      case ActionItemType.KEEP_LOCAL:
-        return new vscode.ThemeIcon('arrow-right');
-      case ActionItemType.KEEP_REMOTE:
-        return new vscode.ThemeIcon('arrow-left');
+      case ActionItemType.FORCE_PUSH:
+        return new vscode.ThemeIcon('cloud-upload');
+      case ActionItemType.PULL_REMOTE:
+        return new vscode.ThemeIcon('cloud-download');
+      case ActionItemType.MARK_RESOLVED:
+        return new vscode.ThemeIcon('pass');
       case ActionItemType.CONFIRM_DELETE:
         return new vscode.ThemeIcon('trash');
       case ActionItemType.RESTORE_FILE:
@@ -69,7 +74,7 @@ export class ActionItem extends BaseTreeItem {
         return new vscode.ThemeIcon('question');
     }
   }
-  
+
   private static getCommandForAction(actionType: ActionItemType, workflow: any): vscode.Command {
     switch (actionType) {
       case ActionItemType.SHOW_DIFF:
@@ -78,17 +83,23 @@ export class ActionItem extends BaseTreeItem {
           title: 'Show Diff',
           arguments: [{ workflow, choice: 'Show Diff' }]
         };
-      case ActionItemType.KEEP_LOCAL:
+      case ActionItemType.FORCE_PUSH:
         return {
           command: 'n8n.resolveConflict',
-          title: 'Keep Local Version',
-          arguments: [{ workflow, choice: 'Overwrite Remote (Use Local)' }]
+          title: 'Keep Current (local)',
+          arguments: [{ workflow, choice: 'Keep Current (local)' }]
         };
-      case ActionItemType.KEEP_REMOTE:
+      case ActionItemType.PULL_REMOTE:
         return {
           command: 'n8n.resolveConflict',
-          title: 'Keep Remote Version',
-          arguments: [{ workflow, choice: 'Overwrite Local (Use Remote)' }]
+          title: 'Keep Incoming (remote)',
+          arguments: [{ workflow, choice: 'Keep Incoming (remote)' }]
+        };
+      case ActionItemType.MARK_RESOLVED:
+        return {
+          command: 'n8n.resolveConflict',
+          title: 'Mark as Resolved',
+          arguments: [{ workflow, choice: 'Mark as Resolved' }]
         };
       case ActionItemType.CONFIRM_DELETE:
         return {
@@ -103,25 +114,24 @@ export class ActionItem extends BaseTreeItem {
           arguments: [{ workflow }]
         };
       default:
-        return {
-          command: 'n8n.refresh',
-          title: 'Refresh'
-        };
+        return { command: 'n8n.refresh', title: 'Refresh' };
     }
   }
-  
+
   private static getTooltipForAction(actionType: ActionItemType): string {
     switch (actionType) {
       case ActionItemType.SHOW_DIFF:
         return 'Open a diff view comparing local and remote versions';
-      case ActionItemType.KEEP_LOCAL:
-        return 'Push local version to remote (overwrite remote)';
-      case ActionItemType.KEEP_REMOTE:
-        return 'Pull remote version to local (overwrite local)';
+      case ActionItemType.FORCE_PUSH:
+        return 'Keep your current local version — push it to n8n';
+      case ActionItemType.PULL_REMOTE:
+        return 'Keep the incoming remote version — overwrite local file';
+      case ActionItemType.MARK_RESOLVED:
+        return 'Mark your manual merge as resolved and push local file to n8n';
       case ActionItemType.CONFIRM_DELETE:
         return 'Delete this workflow from the remote n8n instance';
       case ActionItemType.RESTORE_FILE:
-        return 'Restore the local file from remote or archive';
+        return 'Restore the local file from the remote n8n instance';
       default:
         return '';
     }

@@ -134,12 +134,16 @@ try {
     if (fs.existsSync(vscodeStoragePath)) {
         const storageData = JSON.parse(fs.readFileSync(vscodeStoragePath, 'utf8'));
         const windowsState = storageData.windowsState || {};
-        if (windowsState.lastPluginDevelopmentHostWindow) {
-            windowsState.lastPluginDevelopmentHostWindow.extensionDevelopmentPath = [extensionSrcDir];
-            storageData.windowsState = windowsState;
-            fs.writeFileSync(vscodeStoragePath, JSON.stringify(storageData, null, 2), 'utf8');
-            console.log(`🔧 Fixed VS Code extensionDevelopmentPath → ${extensionSrcDir}`);
+        // Create or update the entry — don't require it to pre-exist
+        windowsState.lastPluginDevelopmentHostWindow = windowsState.lastPluginDevelopmentHostWindow || {};
+        windowsState.lastPluginDevelopmentHostWindow.extensionDevelopmentPath = [extensionSrcDir];
+        // Keep the folder pointing to the n8n-workflows workspace if set, otherwise leave it
+        if (!windowsState.lastPluginDevelopmentHostWindow.folder) {
+            windowsState.lastPluginDevelopmentHostWindow.folder = 'file:///home/etienne/Documents/repos/n8n-workflows';
         }
+        storageData.windowsState = windowsState;
+        fs.writeFileSync(vscodeStoragePath, JSON.stringify(storageData, null, 2), 'utf8');
+        console.log(`🔧 Fixed VS Code extensionDevelopmentPath → ${extensionSrcDir}`);
     }
 } catch (err) {
     console.warn(`⚠️  Could not update VS Code storage.json: ${err.message}`);

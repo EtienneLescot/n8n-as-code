@@ -29,9 +29,9 @@ export class SyncCommand extends BaseCommand {
             name: 'action',
             message: 'How do you want to resolve this?',
             choices: [
-                { name: '[1] Keep Local Version (Force Push)', value: 'push' },
-                { name: '[2] Keep Remote Version (Force Pull)', value: 'pull' },
-                { name: '[3] Show Diff (Display colored diff)', value: 'diff' },
+                { name: '[1] Show Diff', value: 'diff' },
+                { name: '[2] Force Push (keep local)', value: 'push' },
+                { name: '[3] Pull (keep remote)', value: 'pull' },
                 { name: '[4] Skip', value: 'skip' }
             ]
         }]);
@@ -49,10 +49,10 @@ export class SyncCommand extends BaseCommand {
             return;
         } else if (action === 'push') {
             await syncManager.resolveConflict(conflict.id, conflict.filename, 'local');
-            console.log(chalk.green(`✅ Remote overwritten by local.`));
+            console.log(chalk.green(`✅ Pushed — remote overwritten with local version.`));
         } else if (action === 'pull') {
             await syncManager.resolveConflict(conflict.id, conflict.filename, 'remote');
-            console.log(chalk.green(`✅ Local file updated from n8n.`));
+            console.log(chalk.green(`✅ Pulled — local file updated from n8n.`));
         } else {
             console.log(chalk.gray('Skipped. Conflict remains.'));
         }

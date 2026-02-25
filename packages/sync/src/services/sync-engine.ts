@@ -187,9 +187,9 @@ export class SyncEngine {
         let finalUpdatedAt: string | undefined;
         
         try {
-            // Try to update first
+            // Try to update first, bypassing OCC (this is an explicit force operation)
             try {
-                finalUpdatedAt = await this.executeUpdate(workflowId, filename);
+                finalUpdatedAt = await this.executeUpdate(workflowId, filename, true);
             } catch (error: any) {
                 // If update fails with 404, create the workflow instead
                 if (error.response?.status === 404 || error.message?.includes('404') || error.message?.includes('Not Found')) {
@@ -299,26 +299,24 @@ export class SyncEngine {
         return fullWf.updatedAt;
     }
 
-    private async executeUpdate(workflowId: string, filename: string): Promise<string | undefined> {
+    private async executeUpdate(workflowId: string, filename: string, skipOcc = false): Promise<string | undefined> {
         const filePath = path.join(this.directory, filename);
         const tsContent = this.readTypeScriptFile(filePath);
         if (!tsContent) {
             throw new Error('Local file not found during push');
         }
 
-        // Optimistic Concurrency Control (OCC)
-        // 1. Fetch the current remote workflow to check its updatedAt timestamp
-        const currentRemoteWf = await this.client.getWorkflow(workflowId);
-        if (currentRemoteWf && currentRemoteWf.updatedAt) {
-            // 2. Get the last synced timestamp from our local state
-            const lastSyncedAt = this.watcher.getLastSyncedAt(workflowId);
-            
-            // 3. Compare timestamps
-            if (lastSyncedAt && new Date(currentRemoteWf.updatedAt) > new Date(lastSyncedAt)) {
-                throw new Error(
-                    `Push rejected for "${filename}": The workflow was modified in the n8n UI ` +
-                    `since your last sync. Please run 'pull' to merge the remote changes first.`
-                );
+        // Optimistic Concurrency Control (OCC) — skipped for force operations
+        if (!skipOcc) {
+            const currentRemoteWf = await this.client.getWorkflow(workflowId);
+            if (currentRemoteWf && currentRemoteWf.updatedAt) {
+                const lastSyncedAt = this.watcher.getLastSyncedAt(workflowId);
+                if (lastSyncedAt && new Date(currentRemoteWf.updatedAt) > new Date(lastSyncedAt)) {
+                    throw new Error(
+                        `Push rejected for "${filename}": The workflow was modified in the n8n UI ` +
+                        `since your last sync. Please run 'pull' to merge the remote changes first.`
+                    );
+                }
             }
         }
 

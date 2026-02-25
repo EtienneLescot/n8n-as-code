@@ -16,8 +16,6 @@ import { validateN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } fr
 import {
     store,
     setSyncManager,
-    syncDown,
-    syncUp,
     setWorkflows,
     updateWorkflow,
     removeWorkflow,
@@ -78,99 +76,6 @@ export async function activate(context: vscode.ExtensionContext) {
             outputChannel.appendLine('[n8n] Applying new settings...');
             await reinitializeSyncManager(context);
             updateContextKeys();
-        }),
-
-        vscode.commands.registerCommand('n8n.pull', async () => {
-            if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
-                vscode.window.showWarningMessage('n8n: Settings changed. Click “Apply Changes” to resume syncing.');
-                return;
-            }
-
-            if (!syncManager) {
-                vscode.window.showWarningMessage('n8n: Not initialized.');
-                return;
-            }
-
-            statusBar.showSyncing();
-
-            try {
-                // Use Redux Thunk
-                await store.dispatch(syncDown()).unwrap();
-
-                // UI updates automatically via store subscription
-                statusBar.showSynced();
-            } catch (e: any) {
-                statusBar.showError(e.message);
-                vscode.window.showErrorMessage(`n8n Pull Error: ${e.message}`);
-            }
-        }),
-
-        vscode.commands.registerCommand('n8n.push', async () => {
-            if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
-                vscode.window.showWarningMessage('n8n: Settings changed. Click “Apply Changes” to resume syncing.');
-                return;
-            }
-
-            if (!syncManager) {
-                vscode.window.showWarningMessage('n8n: Not initialized.');
-                return;
-            }
-
-            statusBar.showSyncing();
-
-            try {
-                // Get workflows before push to know which ones were modified
-                const workflowsBefore = await syncManager.getWorkflowsStatus();
-                const modifiedWorkflows = workflowsBefore.filter(
-                    wf => wf.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
-                        wf.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY
-                );
-
-                // Push each workflow individually so OCC conflicts don't abort the whole batch
-                const occConflicts: typeof modifiedWorkflows = [];
-                const errors: string[] = [];
-
-                for (const wf of modifiedWorkflows) {
-                    try {
-                        await syncManager.pushOne(wf.id, wf.filename);
-                        if (wf.id) WorkflowWebview.reloadIfMatching(wf.id, outputChannel);
-                    } catch (e: any) {
-                        const isOcc = e.message?.includes('Push rejected') && e.message?.includes('modified in the n8n UI');
-                        if (isOcc) {
-                            occConflicts.push(wf);
-                        } else {
-                            errors.push(`"${wf.filename}": ${e.message}`);
-                        }
-                    }
-                }
-
-                // Refresh state after batch
-                const updatedWorkflows = await syncManager.getWorkflowsStatus();
-                store.dispatch(setWorkflows(updatedWorkflows));
-                enhancedTreeProvider.refresh();
-
-                if (errors.length > 0) {
-                    vscode.window.showErrorMessage(`Push errors:\n${errors.join('\n')}`);
-                }
-
-                if (occConflicts.length > 0) {
-                    const names = occConflicts.map(w => `"${w.name}"`).join(', ');
-                    const choice = await vscode.window.showWarningMessage(
-                        `⚠️ ${occConflicts.length} workflow(s) were modified in n8n since your last sync: ${names}`,
-                        'Review Each Conflict'
-                    );
-                    if (choice === 'Review Each Conflict') {
-                        for (const wf of occConflicts) {
-                            await vscode.commands.executeCommand('n8n.resolveConflict', { workflow: wf });
-                        }
-                    }
-                }
-
-                statusBar.showSynced();
-            } catch (e: any) {
-                statusBar.showError(e.message);
-                vscode.window.showErrorMessage(`n8n Push Error: ${e.message}`);
-            }
         }),
 
         vscode.commands.registerCommand('n8n.openBoard', async (arg: any) => {
@@ -240,7 +145,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         vscode.commands.registerCommand('n8n.pushWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
-                vscode.window.showWarningMessage('n8n: Settings changed. Click “Apply Changes” to resume syncing.');
+                vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
                 return;
             }
             const wf = arg?.workflow ? arg.workflow : arg;
@@ -249,70 +154,59 @@ export async function activate(context: vscode.ExtensionContext) {
             statusBar.showSyncing();
             try {
                 await syncManager.pushOne(wf.id, wf.filename);
-
-                if (wf.id) {
-                    WorkflowWebview.reloadIfMatching(wf.id, outputChannel);
-                }
+                if (wf.id) { WorkflowWebview.reloadIfMatching(wf.id, outputChannel); }
                 outputChannel.appendLine(`[n8n] Push successful for: ${wf.name} (${wf.id})`);
+                const workflows = await syncManager.getWorkflowsStatus();
+                store.dispatch(setWorkflows(workflows));
                 enhancedTreeProvider.refresh();
                 statusBar.showSynced();
                 vscode.window.showInformationMessage(`✅ Pushed "${wf.name}"`);
             } catch (e: any) {
-                statusBar.showError(e.message);
-
-                // OCC conflict: remote was modified in the UI since last sync
-                const isOccConflict = e.message?.includes('Push rejected') && e.message?.includes('modified in the n8n UI');
-                if (isOccConflict) {
-                    const choice = await vscode.window.showWarningMessage(
-                        `⚠️ "${wf.name}" was modified in n8n since your last sync.`,
-                        'Show Diff',
-                        'Force Push (overwrite remote)',
-                        'Pull (discard local changes)'
-                    );
-                    if (choice === 'Show Diff') {
-                        await vscode.commands.executeCommand('n8n.resolveConflict', { workflow: wf, choice: 'Show Diff' });
-                    } else if (choice === 'Force Push (overwrite remote)') {
-                        await syncManager.resolveConflict(wf.id, wf.filename, 'local');
-                        const workflows = await syncManager.getWorkflowsStatus();
-                        store.dispatch(setWorkflows(workflows));
-                        WorkflowWebview.reloadIfMatching(wf.id, outputChannel);
-                        enhancedTreeProvider.refresh();
-                        statusBar.showSynced();
-                        vscode.window.showInformationMessage(`✅ Force pushed "${wf.name}"`);
-                    } else if (choice === 'Pull (discard local changes)') {
-                        await syncManager.pullOne(wf.id);
-                        const workflows = await syncManager.getWorkflowsStatus();
-                        store.dispatch(setWorkflows(workflows));
-                        enhancedTreeProvider.refresh();
-                        statusBar.showSynced();
-                        vscode.window.showInformationMessage(`✅ Pulled "${wf.name}" (local changes discarded)`);
-                    } else {
-                        statusBar.showSynced();
-                    }
+                const isOcc = e.message?.includes('Push rejected') || e.message?.includes('modified in the n8n UI');
+                if (isOcc) {
+                    // Remote was changed since last sync — offer conflict resolution
+                    statusBar.showError('Conflict');
+                    await vscode.commands.executeCommand('n8n.resolveConflict', { workflow: wf, choice: undefined });
+                    const workflows = await syncManager.getWorkflowsStatus();
+                    store.dispatch(setWorkflows(workflows));
+                    enhancedTreeProvider.refresh();
+                    statusBar.showSynced();
                 } else {
+                    statusBar.showError(e.message);
                     vscode.window.showErrorMessage(`Push Error: ${e.message}`);
                 }
             }
         }),
-
         vscode.commands.registerCommand('n8n.pullWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
-                vscode.window.showWarningMessage('n8n: Settings changed. Click “Apply Changes” to resume syncing.');
+                vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
                 return;
             }
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf || !syncManager || !wf.id) return;
 
+            // Warn if the workflow has local modifications that will be discarded
+            const currentStatuses = await syncManager.getWorkflowsStatus();
+            const currentStatus = currentStatuses.find(s => s.id === wf.id);
+            const hasLocalChanges = currentStatus?.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
+                                    currentStatus?.status === WorkflowSyncStatus.CONFLICT;
+            if (hasLocalChanges) {
+                const confirm = await vscode.window.showWarningMessage(
+                    `"${wf.name}" has local changes. Pulling will overwrite them with the remote version.`,
+                    { modal: true },
+                    'Pull (discard local changes)'
+                );
+                if (confirm !== 'Pull (discard local changes)') {
+                    statusBar.showSynced();
+                    return;
+                }
+            }
+
             statusBar.showSyncing();
             try {
-                // Pull only this specific workflow (not all)
-                const pulled = await syncManager.fetchAndPullIfSafe(wf.id);
-                if (!pulled) {
-                    // fetchAndPullIfSafe only pulls when MODIFIED_REMOTELY.
-                    // If already in sync, force-pull anyway (explicit user action).
-                    await syncManager.pullOne(wf.id);
-                }
-
+                await syncManager.pullOne(wf.id);
+                const workflows = await syncManager.getWorkflowsStatus();
+                store.dispatch(setWorkflows(workflows));
                 enhancedTreeProvider.refresh();
                 statusBar.showSynced();
                 vscode.window.showInformationMessage(`✅ Pulled "${wf.name}"`);
@@ -447,14 +341,11 @@ export async function activate(context: vscode.ExtensionContext) {
                     outputChannel.appendLine(`[n8n] Fetching remote content for conflict resolution: ${wf.id}`);
                     const client = new N8nApiClient(getN8nConfig());
                     const remoteWorkflow = await client.getWorkflow(wf.id);
-
                     conflict = {
                         id: wf.id,
                         filename: wf.filename,
                         remoteContent: remoteWorkflow
                     };
-
-                    // Store it for future use
                     store.dispatch(addConflict(conflict));
                 } catch (e: any) {
                     outputChannel.appendLine(`[n8n] Failed to fetch remote content: ${e.message}`);
@@ -470,14 +361,16 @@ export async function activate(context: vscode.ExtensionContext) {
 
             const { id, filename, remoteContent } = conflict;
 
+            // Allow pre-selecting a choice (e.g. from action item buttons), or prompt the user
             let choice = arg?.choice;
 
             if (!choice) {
                 choice = await vscode.window.showWarningMessage(
-                    `Resolve conflict for "${filename}"?`,
+                    `⚠️ Conflict on "${filename}": both local and remote versions changed.`,
                     'Show Diff',
-                    'Overwrite Remote (Use Local)',
-                    'Overwrite Local (Use Remote)'
+                    'Keep Current (local)',
+                    'Keep Incoming (remote)',
+                    'Mark as Resolved'
                 );
             }
 
@@ -485,44 +378,34 @@ export async function activate(context: vscode.ExtensionContext) {
                 const remoteUri = vscode.Uri.parse(`n8n-remote:${filename}?id=${id}`);
                 const localUri = vscode.Uri.file(path.join(syncManager.getInstanceDirectory(), filename));
                 conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
-                await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
-            } else if (choice === 'Overwrite Remote (Use Local)') {
-                // Use resolveConflict to force push local to remote
+                await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} ← n8n Remote (read-only)`);
+                // Don't resolve yet — user may still want to pick Keep Current/Keep Incoming/Mark as Resolved
+            } else if (choice === 'Keep Current (local)') {
                 await syncManager.resolveConflict(id, filename, 'local');
-
-                // Wait a bit for the sync to complete
                 await new Promise(resolve => setTimeout(resolve, 500));
-
-                // Reload workflows to get updated state
                 const workflows = await syncManager.getWorkflowsStatus();
                 store.dispatch(setWorkflows(workflows));
-
-                // Remove conflict
                 store.dispatch(removeConflict(id));
-
-                // Reload webview if open
                 WorkflowWebview.reloadIfMatching(id, outputChannel);
-
-                vscode.window.showInformationMessage(`✅ Resolved: Remote overwritten by Local.`);
+                vscode.window.showInformationMessage(`✅ Pushed — remote overwritten with your local version.`);
                 enhancedTreeProvider.refresh();
-            } else if (choice === 'Overwrite Local (Use Remote)') {
-                // Use resolveConflict to force pull remote to local
+            } else if (choice === 'Keep Incoming (remote)') {
                 await syncManager.resolveConflict(id, filename, 'remote');
-
-                // Wait a bit for the state to be updated
                 await new Promise(resolve => setTimeout(resolve, 500));
-
-                // Reload workflows to get updated state
                 const workflows = await syncManager.getWorkflowsStatus();
                 store.dispatch(setWorkflows(workflows));
-
-                // Remove conflict
                 store.dispatch(removeConflict(id));
-
-                // No need to reload webview - we're just updating local to match remote
-                // The webview already shows the remote version
-
-                vscode.window.showInformationMessage(`✅ Resolved: Local overwritten by Remote.`);
+                vscode.window.showInformationMessage(`✅ Pulled — local file updated from n8n.`);
+                enhancedTreeProvider.refresh();
+            } else if (choice === 'Mark as Resolved') {
+                // User merged manually in the editor — force-push the current local file
+                await syncManager.resolveConflict(id, filename, 'local');
+                await new Promise(resolve => setTimeout(resolve, 500));
+                const workflows = await syncManager.getWorkflowsStatus();
+                store.dispatch(setWorkflows(workflows));
+                store.dispatch(removeConflict(id));
+                WorkflowWebview.reloadIfMatching(id, outputChannel);
+                vscode.window.showInformationMessage(`✅ Resolved — merged local version pushed to n8n.`);
                 enhancedTreeProvider.refresh();
             }
         }),
@@ -985,44 +868,21 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             filename: conflict.filename,
             remoteContent: conflict.remoteContent
         }));
+        enhancedTreeProvider.refresh();
 
-        // Interactive notification with action buttons
         const choice = await vscode.window.showWarningMessage(
-            `⚠️ Conflict: "${filename}" - Local and remote versions differ`,
-            'Use Local Version',
-            'Use Remote Version',
+            `⚠️ Conflict: "${filename}" — local and remote versions differ.`,
             'Show Diff',
-            'Show in Sidebar'
+            'Keep Current (local)',
+            'Keep Incoming (remote)',
+            'Mark as Resolved'
         );
 
-        if (choice === 'Use Local Version') {
-            // Resolve conflict by pushing local to remote
-            await syncManager!.resolveConflict(id, filename, 'local');
-            await new Promise(resolve => setTimeout(resolve, 500));
-            const workflows = await syncManager!.getWorkflowsStatus();
-            store.dispatch(setWorkflows(workflows));
-            store.dispatch(removeConflict(id));
-            WorkflowWebview.reloadIfMatching(id, outputChannel);
-            vscode.window.showInformationMessage(`✅ Conflict resolved: Remote overwritten by local`);
-            enhancedTreeProvider.refresh();
-        } else if (choice === 'Use Remote Version') {
-            // Resolve conflict by pulling remote to local
-            await syncManager!.resolveConflict(id, filename, 'remote');
-            await new Promise(resolve => setTimeout(resolve, 500));
-            const workflows = await syncManager!.getWorkflowsStatus();
-            store.dispatch(setWorkflows(workflows));
-            store.dispatch(removeConflict(id));
-            vscode.window.showInformationMessage(`✅ Conflict resolved: Local overwritten by remote`);
-            enhancedTreeProvider.refresh();
-        } else if (choice === 'Show Diff') {
-            // Show diff view
-            const remoteUri = vscode.Uri.parse(`n8n-remote:${filename}?id=${id}`);
-            const localUri = vscode.Uri.file(path.join(syncManager!.getInstanceDirectory(), filename));
-            conflictStore.set(remoteUri.toString(), JSON.stringify(conflict.remoteContent, null, 2));
-            await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} (Local ↔ n8n Remote)`);
-        } else if (choice === 'Show in Sidebar') {
-            // Focus on n8n explorer view
-            await vscode.commands.executeCommand('n8n-explorer.workflows.focus');
+        if (choice) {
+            await vscode.commands.executeCommand('n8n.resolveConflict', {
+                workflow: { id, filename: filename, name: filename },
+                choice
+            });
         }
     });
 

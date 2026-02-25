@@ -26,12 +26,18 @@ export class WorkflowItem extends BaseTreeItem {
     );
     
     this.contextValue = this.getContextValueForStatus(workflow.status, pendingAction);
-    this.tooltip = `${workflow.name} (${workflow.status})`;
-    
-    let statusDesc = workflow.active ? 'Active' : 'Inactive';
-    if (pendingAction === 'delete') statusDesc = 'Pending Deletion';
-    if (pendingAction === 'conflict') statusDesc = 'Conflict';
-    this.description = `(${statusDesc})`;
+    this.tooltip = workflow.name;
+
+    // Only show status description when something requires attention
+    if (pendingAction === 'delete') {
+      this.description = '(pending deletion)';
+    } else if (pendingAction === 'conflict' || workflow.status === WorkflowSyncStatus.CONFLICT) {
+      this.description = '(conflict)';
+    } else if (workflow.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY) {
+      this.description = workflow.active ? '(active)' : '(inactive)';
+    } else {
+      this.description = undefined;
+    }
 
     this.iconPath = this.getIcon(workflow.status, pendingAction);
     
@@ -87,7 +93,8 @@ export class WorkflowItem extends BaseTreeItem {
       case WorkflowSyncStatus.MODIFIED_REMOTELY:
         return 'workflow-modified-remote';
       default:
-        return 'workflow-synced';
+        // IN_SYNC: just a local workflow, push/pull available
+        return 'workflow-local';
     }
   }
 
@@ -96,30 +103,25 @@ export class WorkflowItem extends BaseTreeItem {
     if (pendingAction === 'conflict') return new vscode.ThemeIcon('alert', new vscode.ThemeColor('charts.red'));
 
     switch (status) {
-      case WorkflowSyncStatus.IN_SYNC:
-        return new vscode.ThemeIcon('sync', new vscode.ThemeColor('charts.green'));
       case WorkflowSyncStatus.CONFLICT:
         return new vscode.ThemeIcon('alert', new vscode.ThemeColor('charts.red'));
-      
-      // All other "unsynced" states use Orange
+      case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
+        // Remote-only: cloud icon (like a remote git branch not yet checked out)
+        return new vscode.ThemeIcon('cloud', new vscode.ThemeColor('charts.blue'));
       case WorkflowSyncStatus.MODIFIED_LOCALLY:
         return new vscode.ThemeIcon('pencil', new vscode.ThemeColor('charts.orange'));
       case WorkflowSyncStatus.MODIFIED_REMOTELY:
         return new vscode.ThemeIcon('cloud-download', new vscode.ThemeColor('charts.orange'));
-      case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
-        return new vscode.ThemeIcon('cloud', new vscode.ThemeColor('charts.orange'));
       case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
-        return new vscode.ThemeIcon('file', new vscode.ThemeColor('charts.orange'));
+        return new vscode.ThemeIcon('file-add', new vscode.ThemeColor('charts.orange'));
       case WorkflowSyncStatus.DELETED_LOCALLY:
       case WorkflowSyncStatus.DELETED_REMOTELY:
         return new vscode.ThemeIcon('trash', new vscode.ThemeColor('charts.gray'));
-      
       default:
-        return new vscode.ThemeIcon('question');
+        // IN_SYNC: plain file icon, no color noise
+        return new vscode.ThemeIcon('file');
     }
-  }
-  
-  override getContextValue(): string {
+  }  override getContextValue(): string {
     return this.contextValue || 'workflow';
   }
   
