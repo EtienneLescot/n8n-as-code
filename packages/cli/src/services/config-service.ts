@@ -131,7 +131,15 @@ export class ConfigService {
             console.warn('Could not fetch user info, using fallback identifier');
             const apiKey = this.getApiKey(host)!;
             const { createFallbackInstanceIdentifier } = await import('../core/index.js');
-            return createFallbackInstanceIdentifier(host, apiKey);
+            const fallbackIdentifier = createFallbackInstanceIdentifier(host, apiKey);
+
+            // Save fallback identifier to local config
+            this.saveLocalConfig({
+                ...local as ILocalConfig,
+                instanceIdentifier: fallbackIdentifier
+            });
+
+            return fallbackIdentifier;
         }
     }
 
