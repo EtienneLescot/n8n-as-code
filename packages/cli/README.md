@@ -70,9 +70,8 @@ n8nac update-ai
 The legacy `n8n-as-code` command is still available (deprecated). Prefer `n8nac`.
 
 ## 🏗 Part of the Ecosystem
-This package works alongside:
-- `@n8n-as-code/sync`: The synchronization logic.
-- `@n8n-as-code/skills`: AI-integration tools (formerly `skills`).
+This package embeds the synchronization engine (formerly `@n8n-as-code/sync`) and works alongside:
+- `@n8n-as-code/skills`: AI-integration tools.
 - `vscode-extension`: Enhanced visual experience in VS Code.
 
 ## 📄 License

@@ -241,7 +241,7 @@ describe('ConfigService', () => {
                 })
             }));
 
-            vi.doMock('@n8n-as-code/sync', () => ({
+            vi.doMock('../../../src/core/index.js', () => ({
                 N8nApiClient: mockN8nApiClient,
                 createInstanceIdentifier: mockCreateInstanceIdentifier,
                 createFallbackInstanceIdentifier: vi.fn()

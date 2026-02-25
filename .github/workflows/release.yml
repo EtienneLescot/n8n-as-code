@@ -20,7 +20,6 @@ jobs:
       # Per-package outputs
       cli_release_created: ${{ steps.release.outputs['packages/cli--release_created'] }}
       skills_release_created: ${{ steps.release.outputs['packages/skills--release_created'] }}
-      sync_release_created: ${{ steps.release.outputs['packages/sync--release_created'] }}
       transformer_release_created: ${{ steps.release.outputs['packages/transformer--release_created'] }}
       vscode_release_created: ${{ steps.release.outputs['packages/vscode-extension--release_created'] }}
     steps:
@@ -71,16 +70,10 @@ jobs:
           echo "registry=https://registry.npmjs.org/" >> ~/.npmrc
           echo "@n8n-as-code:registry=https://registry.npmjs.org/" >> ~/.npmrc
 
-      # Publish in dependency order: transformer → sync → skills → cli
+      # Publish in dependency order: transformer → skills → cli
       - name: Publish @n8n-as-code/transformer
         if: ${{ needs.release-please.outputs.transformer_release_created == 'true' }}
         run: cd packages/transformer && npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish @n8n-as-code/sync
-        if: ${{ needs.release-please.outputs.sync_release_created == 'true' }}
-        run: cd packages/sync && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

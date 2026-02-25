@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { store, setWorkflows, addPendingDeletion, addConflict } from '../../src/services/workflow-store.js';
-import { WorkflowSyncStatus } from '@n8n-as-code/sync';
+import { WorkflowSyncStatus } from '@n8n-as-code/cli';
 
 /**
  * Event-to-Store Mapping Tests

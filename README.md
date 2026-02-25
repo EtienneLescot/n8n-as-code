@@ -76,7 +76,6 @@ n8nac start
 
 | Package | Description | Links |
 |---------|-------------|-------|
-| **[@n8n-as-code/sync](packages/sync)** | Synchronization engine & 3-way merge logic |  |
 | **[@n8n-as-code/skills](packages/skills)** | AI tools (search, schemas, validation) for agents | [📖 Docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/skills) · [📦 NPM](https://www.npmjs.com/package/@n8n-as-code/skills) |
 | **[@n8n-as-code/claude-skill](packages/claude-skill)** | Official Claude AI agent skill | [📖 Docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill) · [📦 NPM](https://www.npmjs.com/package/@n8n-as-code/claude-skill) |
 
@@ -180,8 +179,8 @@ This is a **monorepo** with specialized packages organized in layers:
 - **[`cli`](packages/cli)**: Command-line interface
 - **[`vscode-extension`](packages/vscode-extension)**: Visual editing in VS Code
 
-### ⚙️ **Core Services** (consumed by interfaces)
-- **[`sync`](packages/sync)**: 3-way merge synchronization engine & state management
+### ⚙️ **Core Services** (embedded in `cli`)
+- **sync engine** (in `cli/src/core`): 3-way merge synchronization engine & state management
 
 ### 🤖 **AI Tooling** (for agents & automation)
 - **[`skills`](packages/skills)**: Node search, schemas, validation (consumed by CLI, extension, and AI agents)
