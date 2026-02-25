@@ -83,35 +83,10 @@ export class SyncManager extends EventEmitter {
                 }).catch(err => {
                     console.error(`[SyncManager] Failed to fetch remote content for conflict: ${err.message}`);
                 });
-            } else if (
-                (data.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
-                 data.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY) &&
-                data.workflowId
-            ) {
-                // Auto-push on local save: triggered by chokidar detecting the file change.
-                // OCC is enforced inside pushOne — if remote was modified concurrently, 
-                // we emit 'auto-push-conflict' so the UI layer (VS Code / CLI) can prompt the user.
-                this.pushOne(data.workflowId, data.filename)
-                    .then(() => {
-                        this.emit('auto-push-success', { workflowId: data.workflowId!, filename: data.filename });
-                    })
-                    .catch((err: Error) => {
-                        const isOcc = err.message?.includes('Push rejected') && err.message?.includes('modified in the n8n UI');
-                        if (isOcc) {
-                            this.emit('auto-push-conflict', {
-                                workflowId: data.workflowId!,
-                                filename: data.filename,
-                                message: err.message
-                            });
-                        } else {
-                            this.emit('auto-push-error', {
-                                workflowId: data.workflowId!,
-                                filename: data.filename,
-                                message: err.message
-                            });
-                        }
-                    });
             }
+            
+            // In the new Git-like architecture, local changes are never auto-pushed.
+            // The user must explicitly trigger a Push.
         });
 
         this.watcher.on('error', (err) => {
