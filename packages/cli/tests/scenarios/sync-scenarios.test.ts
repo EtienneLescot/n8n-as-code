@@ -25,8 +25,7 @@ describe('Synchronization Scenarios', () => {
     beforeEach(() => {
         mockClient = new MockN8nApiClient();
         mockSyncManager = new MockSyncManager(mockClient, {
-            directory: '/tmp/test-workflows',
-            pollIntervalMs: 0
+            directory: '/tmp/test-workflows'
         });
     });
 

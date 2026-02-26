@@ -13,8 +13,7 @@ describe('Pull with refreshState', () => {
     beforeEach(() => {
         mockClient = new MockN8nApiClient();
         mockSyncManager = new MockSyncManager(mockClient, {
-            directory: '/tmp/test',
-            pollIntervalMs: 0
+            directory: '/tmp/test'
         });
     });
 

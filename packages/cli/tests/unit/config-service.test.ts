@@ -32,7 +32,8 @@ describe('ConfigService', () => {
                 host: 'http://localhost:5678',
                 syncFolder: 'workflows',
                 instanceIdentifier: 'test-id',
-                pollInterval: 3000,
+                projectId: 'test-project-id',
+                projectName: 'Test Project',
                 syncInactive: true,
                 ignoredTags: ['archive']
             };
@@ -77,7 +78,8 @@ describe('ConfigService', () => {
             const config: ILocalConfig = {
                 host: 'http://localhost:5678',
                 syncFolder: 'workflows',
-                pollInterval: 3000,
+                projectId: 'test-project-id',
+                projectName: 'Test Project',
                 syncInactive: true,
                 ignoredTags: ['archive']
             };

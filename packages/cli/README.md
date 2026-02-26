@@ -33,10 +33,12 @@ n8nac switch
 ---
 
 ### `list`
-Fetch the current state from the n8n API, scan local files, and display the full status matrix.
+Display workflow status in a git-like model. By default shows combined local and remote workflows.
 
 ```bash
-n8nac list
+n8nac list                    # Combined view (default)
+n8nac list --local            # Show only local workflows
+n8nac list --remote           # Show only remote workflows (alias: --distant)
 ```
 
 Output columns: `Status` · `ID` · `Name` · `Local Path`
@@ -51,7 +53,22 @@ Status values:
 | `EXIST_ONLY_LOCALLY`  | New local file not yet in n8n (or remote was deleted) | `push --id` to create in n8n |
 | `EXIST_ONLY_REMOTELY` | Remote workflow not yet local (or local was deleted) | `pull --id` to download |
 
+> **Git-like sync**: Status is a point-in-time observation. Use `fetch` to update remote state cache.
 > **For agents**: always run `n8nac list` first to get workflow IDs and their current status before pulling or pushing.
+
+---
+
+### `fetch <workflowId>`
+Update remote state cache for a specific workflow (internal reference for comparison).
+
+```bash
+n8nac fetch <workflowId>          # Fetch specific workflow's remote state
+```
+
+- Updates internal comparison cache for the specified workflow only
+- Use before `list` to ensure status reflects latest remote state for that workflow
+- Required for accurate conflict detection
+- For heavy instances, fetch individual workflows rather than all at once
 
 ---
 

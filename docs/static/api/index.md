@@ -31,8 +31,10 @@ Command-line interface for managing n8n workflows from the terminal.
 **Key Commands:**
 - `init` - Initialize a new n8n-as-code project
 - `init-ai` - Initialize with AI-assisted configuration
-- `sync` - Synchronize workflows between files and n8n
-- `watch` - Watch for changes and auto-sync
+- `list` - Show workflow status with filtering options
+- `fetch` - Update remote state cache
+- `pull` - Download workflows from n8n
+- `push` - Upload workflows to n8n
 
 ### Skills CLI Package
 Tools for AI agents to work with n8n workflows.

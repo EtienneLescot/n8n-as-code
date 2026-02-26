@@ -29,7 +29,6 @@ export class BaseCommand {
         // Basic config defaults from local config
         this.config = {
             directory: localConfig.syncFolder || './workflows',
-            pollInterval: localConfig.pollInterval || 3000,
             syncInactive: localConfig.syncInactive ?? true,
             ignoredTags: localConfig.ignoredTags || ['archive'],
             host: localConfig.host
@@ -57,7 +56,6 @@ export class BaseCommand {
         
         return {
             directory: this.config.directory,
-            pollIntervalMs: this.config.pollInterval,
             syncInactive: this.config.syncInactive,
             ignoredTags: this.config.ignoredTags,
             instanceIdentifier: instanceIdentifier,

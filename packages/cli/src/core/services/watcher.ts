@@ -174,9 +174,8 @@ export class Watcher extends EventEmitter {
      */
     public resumeObservation(workflowId: string) {
         this.isPaused.delete(workflowId);
-        // Don't force refresh here - let the normal polling cycle handle it
-        // Forcing a refresh after every sync can cause loops in auto-sync mode
-        // because the remote state might not be immediately consistent with local state
+        // Don't force refresh here to avoid unnecessary API calls
+        // In git-like sync, remote state is updated explicitly via fetch command
     }
 
     /**
@@ -484,7 +483,7 @@ export class Watcher extends EventEmitter {
                         `  Tip: Make sure the class name contains only valid ASCII/identifier characters ` +
                         `(→ U+2192 and similar symbols are not allowed in TypeScript identifiers).`
                     );
-                    // Do NOT add to localHashes so this file stays invisible to auto-sync
+                    // Do NOT add to localHashes so this file stays invisible to sync operations
                 }
             }
         }

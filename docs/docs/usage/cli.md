@@ -89,11 +89,17 @@ After switching projects, run `n8nac pull` to download workflows from the select
 Display all workflows with their current sync status.
 
 **Description:**
-Shows a color-coded table of all workflows with their sync status, helping you understand the current state of your workflow synchronization.
+Shows a color-coded table of all workflows with their sync status, helping you understand the current state of your workflow synchronization. Supports filtering to show only local or remote workflows.
+
+**Options:**
+- `--local`: Show only workflows that exist locally (including EXIST_ONLY_LOCALLY, MODIFIED_LOCALLY, etc.)
+- `--remote`: Show only workflows that exist remotely (including EXIST_ONLY_REMOTELY, MODIFIED_REMOTELY, etc.)
 
 **Example:**
 ```bash
-n8nac list
+n8nac list                    # Show all workflows
+n8nac list --local           # Show only local workflows
+n8nac list --remote          # Show only remote workflows
 ```
 
 **Output:**
@@ -161,28 +167,24 @@ n8nac push --force  # Force overwrite remote changes
    - Skip
 4. Updates `.n8n-state.json` after successful operations
 
-### `start`
-Start real-time bi-directional synchronization (replaces `watch`).
+### `fetch`
+Update remote state cache for a specific workflow.
 
 **Description:**
-Monitors both local file system and n8n for changes, automatically synchronizing in both directions with live status updates.
+Fetches the latest remote state for a specific workflow without performing any sync operations. This updates the local cache of remote workflow versions, which helps you see accurate status in `n8nac list` before deciding to pull or push.
 
-**Options:**
-- `--manual`: Enable manual mode with interactive prompts for all actions (default is auto-sync)
+**Arguments:**
+- `<workflowId>`: Required workflow ID to fetch
 
 **Example:**
 ```bash
-n8nac start           # Auto-sync mode
-n8nac start --manual  # Manual mode with prompts
+n8nac fetch abc123          # Fetch remote state for workflow abc123
 ```
 
-**Features:**
-- **Auto-sync mode (default)**: Automatically syncs changes without prompts (except for conflicts)
-- **Manual mode**: Prompts for confirmation on every change
-- **Live monitoring**: Real-time status display with workflow counts
-- **Conflict resolution**: Interactive prompts for conflicts with diff viewing
-- **Deletion handling**: Prompts to confirm deletions or restore files
-- **3-way merge detection**: Uses base-local-remote comparison for accurate conflict detection
+**Use Cases:**
+- Before running `n8nac list` to get accurate status for a specific workflow
+- After making remote changes in n8n UI to update local cache for that workflow
+- As a lightweight check for remote changes without downloading files
 
 ### `init-ai`
 Initialize AI Context (AGENTS.md, rule files, code snippets).
@@ -216,7 +218,6 @@ The CLI uses a configuration file (`n8nac.json`) with the following structure:
   "projectId": "your-project-id",
   "projectName": "Personal",
   "instanceIdentifier": "local_5678_user",
-  "pollInterval": 3000,
   "syncInactive": true,
   "ignoredTags": ["archive"]
 }
@@ -226,34 +227,42 @@ The CLI uses a configuration file (`n8nac.json`) with the following structure:
 
 ## 🔄 Workflow Management
 
-### Basic Workflow
+### Git-like Sync Workflow
 ```bash
 # 1. Initialize project
 n8nac init
 
-# 2. Download existing workflows
-n8nac pull
+# 2. List workflows to see current status
+n8nac list
 
-# 3. Edit workflow files locally
-#    (edit workflows/*.json files)
+# 3. Fetch remote state to update status
+n8nac fetch --all
 
-# 4. Upload changes to n8n
-n8nac push
+# 4. Pull remote changes you want
+n8nac pull --id abc123
 
-# 5. Or use real-time sync
-n8nac start
+# 5. Edit workflow files locally
+#    (edit workflows/*.workflow.ts files)
+
+# 6. Check status before pushing
+n8nac list
+
+# 7. Push local changes to n8n
+n8nac push --id abc123
 ```
 
-### Real-time Development with Start Mode
+### Git-like Development Pattern
 ```bash
-# Start real-time sync mode
-n8nac start
+# Git-like workflow management
+n8nac list                    # See what's changed
+n8nac fetch abc123           # Update remote state for specific workflow
+n8nac pull --id abc123       # Pull remote changes
+# ... edit workflow ...
+n8nac push --id abc123       # Push local changes
 
-# Now you can:
-# - Edit workflow JSON files locally
-# - Changes are automatically pushed to n8n on save
-# - Remote changes in n8n are pulled automatically
-# - Get notifications about sync status
+# View local-only or remote-only workflows
+n8nac list --local           # Show only local workflows
+n8nac list --remote          # Show only remote workflows
 ```
 
 ## 📊 Scripting Examples

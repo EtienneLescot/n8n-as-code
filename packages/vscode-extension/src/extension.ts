@@ -213,6 +213,39 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
+        vscode.commands.registerCommand('n8n.fetchWorkflow', async (arg: any) => {
+            if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
+                vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
+                return;
+            }
+            const wf = arg?.workflow ? arg.workflow : arg;
+            if (!wf || !syncManager || !wf.id) return;
+
+            statusBar.showSyncing();
+            try {
+                // Fetch the latest remote state for this workflow
+                const { host, apiKey } = getN8nConfig();
+                const client = new N8nApiClient({ host, apiKey });
+                const remoteWf = await client.getWorkflow(wf.id);
+                
+                if (remoteWf) {
+                    // Update watcher's remote state cache
+                    await syncManager.forceRefresh(); // This will refresh remote state
+                    outputChannel.appendLine(`[n8n] Fetched remote state for: ${wf.name} (${wf.id})`);
+                    
+                    // Refresh workflows status to show updated state
+                    const workflows = await syncManager.getWorkflowsStatus();
+                    store.dispatch(setWorkflows(workflows));
+                    enhancedTreeProvider.refresh();
+                    statusBar.showSynced();
+                    vscode.window.showInformationMessage(`✅ Fetched "${wf.name}"`);
+                }
+            } catch (e: any) {
+                statusBar.showError(e.message);
+                vscode.window.showErrorMessage(`Fetch Error: ${e.message}`);
+            }
+        }),
+
         vscode.commands.registerCommand('n8n.refresh', () => {
             outputChannel.appendLine('[n8n] Manual refresh command triggered.');
             enhancedTreeProvider.refresh();

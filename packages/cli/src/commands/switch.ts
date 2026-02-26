@@ -89,7 +89,6 @@ export class SwitchCommand {
             const updatedConfig: ILocalConfig = {
                 host: localConfig.host,
                 syncFolder: localConfig.syncFolder || 'workflows',
-                pollInterval: localConfig.pollInterval || 3000,
                 syncInactive: localConfig.syncInactive ?? true,
                 ignoredTags: localConfig.ignoredTags || [],
                 instanceIdentifier: localConfig.instanceIdentifier,

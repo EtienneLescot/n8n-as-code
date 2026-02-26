@@ -6,12 +6,12 @@ description: Learn how to use the n8n-as-code VS Code Extension for visual workf
 
 # VS Code Extension Guide
 
-The n8n-as-code VS Code Extension transforms VS Code into a powerful IDE for your n8n workflows. It provides visual editing, real-time synchronization, and workflow validation.
+The n8n-as-code VS Code Extension transforms VS Code into a powerful IDE for your n8n workflows. It provides visual editing, git-like synchronization, and workflow validation.
 
 ## 🎨 Features
 
-### 🔄 Native Synchronization
-The extension synchronizes your modifications in real-time. By default, every JSON file save (`Ctrl+S`) instantly sends changes to your n8n instance when auto-sync is enabled.
+### 🔄 Git-like Synchronization
+The extension follows a git-like workflow with explicit commands. View workflow status, fetch remote state, pull changes, and push local changes using the context menu. No automatic polling - you control when to sync.
 
 ### 🗂️ Multi-Instance Support
 Your workflows are automatically organized by instance to avoid mixing files from different environments:
@@ -74,14 +74,13 @@ Visualize the n8n canvas in real-time using the integrated Webview while editing
    - Your **Personal** project is pre-selected by default
 4. Configure:
    - Sync Folder (default: `workflows`)
-   - Sync Mode: `auto` (watch mode) or `manual`
 5. Click **Save settings**
 6. Click **Initialize n8n as code** in the n8n view to start syncing
 
 The extension writes these values into VS Code workspace settings (`n8n.*`).
 
 ### Apply Changes (safety)
-When you change critical settings (host / API key / sync folder / project / sync mode), synchronization is paused and an **Apply Changes** action appears (status bar and n8n panel). This prevents partial or accidental settings edits from triggering unexpected sync behavior.
+When you change critical settings (host / API key / sync folder / project), synchronization is paused and an **Apply Changes** action appears (status bar and n8n panel). This prevents partial or accidental settings edits from triggering unexpected sync behavior.
 
 ### Settings Reference
 
@@ -90,8 +89,6 @@ When you change critical settings (host / API key / sync folder / project / sync
 | `n8n.host` | URL of your n8n instance | - |
 | `n8n.apiKey` | Your n8n API Key | - |
 | `n8n.syncFolder` | Local storage folder | `workflows` |
-| `n8n.syncMode` | Sync mode: `auto` (watch mode) or `manual` | `auto` |
-| `n8n.pollInterval` | Polling interval for auto mode (ms) | 3000 |
 | `n8n.projectId` | Project ID to sync (selected via Configure) | - |
 | `n8n.projectName` | Project name (selected via Configure) | - |
 

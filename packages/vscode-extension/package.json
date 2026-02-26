@@ -121,6 +121,11 @@
         "icon": "$(trash)"
       },
       {
+        "command": "n8n.fetchWorkflow",
+        "title": "Fetch",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "n8n.resolveConflict",
         "title": "Resolve Conflict",
         "icon": "$(warning)"
@@ -176,7 +181,7 @@
           "when": "viewItem =~ /workflow-(local|local-only|cloud-only|modified-local|modified-remote)/ && viewItem != workflow-conflict"
         },
         {
-          "command": "n8n.deleteWorkflow",
+          "command": "n8n.fetchWorkflow",
           "group": "inline@5",
           "when": "viewItem =~ /workflow-/ && viewItem != workflow-deleted && viewItem != workflow-conflict"
         },

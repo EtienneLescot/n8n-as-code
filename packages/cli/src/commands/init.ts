@@ -122,7 +122,6 @@ export class InitCommand {
                 projectId: selectedProject.id,
                 projectName: selectedProjectDisplayName,
                 // instanceIdentifier is now handled by SyncManager sync, not CLI
-                pollInterval: currentLocal.pollInterval || 3000,
                 syncInactive: currentLocal.syncInactive ?? true,
                 ignoredTags: currentLocal.ignoredTags || ['archive']
             };

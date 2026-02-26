@@ -8,7 +8,6 @@ export interface ILocalConfig {
     instanceIdentifier?: string;
     projectId: string;          // REQUIRED: Active project scope
     projectName: string;        // REQUIRED: Project display name
-    pollInterval: number;
     syncInactive: boolean;
     ignoredTags: string[];
 }

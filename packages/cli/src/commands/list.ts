@@ -5,19 +5,30 @@ import ora from 'ora';
 import Table from 'cli-table3';
 
 export class ListCommand extends BaseCommand {
-    async run(): Promise<void> {
+    async run(options?: { local?: boolean; remote?: boolean }): Promise<void> {
         const spinner = ora('Refreshing workflow status...').start();
 
         try {
             const syncConfig = await this.getSyncConfig();
-            syncConfig.pollIntervalMs = 0; // Not used for one-off
             const syncManager = new SyncManager(this.client, syncConfig);
 
-            // Force refresh (poll + scan)
+            // Force refresh to get current state
             await syncManager.forceRefresh();
 
             // Get workflow status matrix
-            const matrix = await syncManager.getWorkflowsStatus();
+            let matrix = await syncManager.getWorkflowsStatus();
+            
+            // Apply filters based on options
+            if (options?.local) {
+                matrix = matrix.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY ||
+                                           w.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
+                                           w.status === WorkflowSyncStatus.TRACKED ||
+                                           w.status === WorkflowSyncStatus.CONFLICT);
+            } else if (options?.remote) {
+                matrix = matrix.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY ||
+                                           w.status === WorkflowSyncStatus.TRACKED ||
+                                           w.status === WorkflowSyncStatus.CONFLICT);
+            }
 
             spinner.stop();
 

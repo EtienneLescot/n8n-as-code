@@ -51,8 +51,13 @@ new SwitchCommand(program);
 // list - Snapshot view of all workflows and their sync status
 program.command('list')
     .description('Display a static table of all workflows and their current sync status')
-    .action(async () => {
-        await new ListCommand().run();
+    .option('--local', 'Show only local workflows')
+    .option('--remote', 'Show only remote workflows')
+    .option('--distant', 'Alias for --remote')
+    .action(async (options) => {
+        // Combine remote and distant flags
+        const remote = options.remote || options.distant;
+        await new ListCommand().run({ local: options.local, remote });
     });
 
 // pull - Download a single workflow by ID
@@ -69,6 +74,14 @@ program.command('push')
     .requiredOption('--id <workflowId>', 'Workflow ID to push')
     .action(async (options) => {
         await new SyncCommand().pushOne(options.id);
+    });
+
+// fetch - Update remote state cache for a specific workflow
+program.command('fetch <workflowId>')
+    .description('Fetch remote state for a specific workflow (update internal cache for comparison)')
+    .action(async (workflowId) => {
+        const syncCommand = new SyncCommand();
+        await syncCommand.fetchOne(workflowId);
     });
 
 // convert - Convert workflows between JSON and TypeScript formats

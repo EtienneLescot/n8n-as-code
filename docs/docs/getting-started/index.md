@@ -78,14 +78,20 @@ The interactive wizard will guide you through:
 - **Sync Folder**: Local folder where workflow files are written
 - **Project**: Which n8n project to sync
 
-### Sync Workflows
+### Sync Workflows (Git-like Pattern)
 
 ```bash
-# Download all workflows from n8n
-n8nac pull
+# List workflows to see current status
+n8nac list
 
-# Enable real-time synchronization
-n8nac start
+# Fetch remote state for specific workflows you want to update
+n8nac fetch <workflowId>
+
+# Pull workflows you want to work on
+n8nac pull --id <workflowId>
+
+# After editing, push changes back
+n8nac push --id <workflowId>
 ```
 
 ## ⚙️ Configuration Files
@@ -118,29 +124,39 @@ This will:
 
 Send your local modifications back to n8n:
 
-- **VS Code Extension**: Changes are auto-synced on save when using auto-sync mode
-- **CLI**: Use `n8nac push` command
+- **VS Code Extension**: Use the context menu on workflow items (right-click → Push)
+- **CLI**: Use `n8nac push --id <workflowId>` command
 
-### Real-time Sync (Start Mode)
+### Git-like Sync Workflow
 
-Enable real-time synchronization with the CLI:
+Follow this git-like pattern for synchronization:
 
 ```bash
-n8nac start
+# 1. Check status
+n8nac list
+
+# 2. Fetch remote state for specific workflows
+n8nac fetch <workflowId>
+
+# 3. Pull remote changes
+n8nac pull --id <workflowId>
+
+# 4. Edit workflow locally
+# ... make changes ...
+
+# 5. Push local changes
+n8nac push --id <workflowId>
 ```
 
-In start mode:
-- Local file changes are automatically pushed to n8n
-- Remote changes are pulled automatically
-- You get notifications about sync status
+This explicit command pattern gives you full control over when to sync, similar to git workflow. For heavy instances, fetch individual workflows rather than all at once.
 
 ## 🎨 VS Code Extension Features
 
 Once configured, you'll have access to:
 
-- **Workflow Tree View**: Browse all your workflows in the sidebar
+- **Workflow Tree View**: Browse all your workflows in the sidebar with status indicators
 - **Split View Editing**: Edit JSON while viewing the n8n canvas
-- **Auto-sync**: Changes are synchronized automatically on save (when enabled)
+- **Git-like Sync**: Context menu actions for fetch, pull, and push operations
 - **Validation & Snippets**: JSON validation and code snippets
 - **AI Context Generation**: Files to help AI assistants understand n8n workflows
 
@@ -185,9 +201,10 @@ your-project/
 
 **Problem**: Changes not syncing properly
 **Solution**:
-- Check if `n8nac start` is running (stop it if needed)
-- Use `n8nac pull` to get fresh copy
-- Use `n8nac push` to send local changes
+- Use `n8nac list` to check workflow status
+- Use `n8nac fetch <workflowId>` to update remote state cache for specific workflows
+- Use `n8nac pull --id <workflowId>` to get fresh copy
+- Use `n8nac push --id <workflowId>` to send local changes
 - Check network connectivity to n8n instance
 
 ## 📚 Next Steps

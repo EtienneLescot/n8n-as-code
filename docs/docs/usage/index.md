@@ -98,15 +98,16 @@ n8nac push
 |---------|-------------|------|
 | `n8nac init` | Configure host/key and select project | CLI |
 | `n8nac switch` | Switch active project | CLI |
+| `n8nac list` | Show workflow status with filtering | CLI |
+| `n8nac fetch` | Update remote state cache | CLI |
 | `n8nac pull` | Download workflows from n8n | CLI |
 | `n8nac push` | Upload workflows to n8n | CLI |
-| `n8nac start` | Real-time sync mode | CLI |
 | `n8nac update-ai` | Generate AI context files | CLI |
 | `npx @n8n-as-code/skills search` | Search for n8n nodes | Skills CLI |
 | `npx @n8n-as-code/skills get` | Get node JSON schema | Skills CLI |
 | `npx @n8n-as-code/skills list` | List all available nodes | Skills CLI |
 | VS Code: Refresh button | Pull workflows | Extension |
-| VS Code: Save file | Auto-push to n8n | Extension |
+| VS Code: Context menu | Fetch, pull, push workflows | Extension |
 
 ### Configuration Files
 
@@ -121,7 +122,7 @@ n8nac push
 1. Install from VS Code Marketplace
 2. Configure connection in extension settings
 3. Open workflow tree view from Activity Bar
-4. Start editing with auto-sync enabled
+4. Use context menu actions (right-click) for fetch, pull, push operations
 
 ### 2. CLI
 1. Install globally: `npm install -g @n8n-as-code/cli`
@@ -147,10 +148,10 @@ n8nac push
 ### Multi-Instance Management
 Work with multiple n8n instances. Workflows are automatically organized by instance to avoid mixing files from different environments.
 
-### Real-time Sync
-Changes made in VS Code are instantly reflected in n8n, and vice versa. No manual push/pull required when using watch mode.
+### Git-like Sync Workflow
+Follow a git-like pattern for synchronization: list workflows to see status, fetch remote state, pull changes you want, edit locally, then push changes back.
 
-The CLI equivalent of "watch mode" is `n8nac start`.
+Use `n8nac list` to check status, `n8nac fetch` to update remote state, and `n8nac pull`/`n8nac push` for explicit sync operations.
 
 ### Git Integration
 Store workflows as JSON files in Git for version control, collaboration, and deployment pipelines.

@@ -51,8 +51,11 @@ n8nac switch
 # Sync your workflows
 n8nac pull
 
-# Start real-time sync
-n8nac start
+# Git-like sync workflow
+n8nac list                    # See all workflows and their status
+n8nac fetch <workflowId>      # Update remote state for a workflow
+n8nac pull --id <workflowId>  # Pull remote changes
+n8nac push --id <workflowId>  # Push local changes
 ```
 
 📖 [Full CLI documentation](https://etiennelescot.github.io/n8n-as-code/docs/usage/cli)
@@ -83,8 +86,8 @@ n8nac start
 
 ## ✨ Key Features
 
-### 🔄 **Bidirectional Sync**
-Real-time synchronization between local files and your n8n instance with conflict detection and resolution.
+### 🔄 **Git-like Sync**
+Explicit, command-driven synchronization with git-like workflow: list, fetch, pull, push. No automatic polling - you control when to sync with clear status visibility.
 
 ### 🎨 **VS Code Integration**
 Visual workflow management with embedded n8n canvas, status indicators, and push-on-save functionality.
@@ -164,7 +167,7 @@ n8nac pull --format typescript
 
 | Use Case | Quick Command | Learn More |
 |----------|---------------|------------|
-| **Sync workflows** | `n8nac start` | [Usage Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/cli) |
+| **Sync workflows** | `n8nac list` → `fetch` → `pull`/`push` | [Usage Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/cli) |
 | **AI workflow creation** | `n8nac-skills search "google sheets"` | [Skills CLI Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/skills) |
 | **Visual editing** | Install [VS Code Extension](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) | [Extension Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/vscode-extension) |
 | **Version control** | Git commit workflow JSON files | [Getting Started](https://etiennelescot.github.io/n8n-as-code/docs/getting-started) |
