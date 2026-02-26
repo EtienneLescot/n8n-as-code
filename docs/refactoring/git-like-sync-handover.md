@@ -37,7 +37,6 @@ Move to per-workflow and lightweight listing:
 - Keep `fetch` as an explicit, useful operation.
 - Recommended semantics:
   - `fetch <workflowId>` updates local remote-reference/status cache for one workflow.
-  - optional `fetch --all` for explicit bulk remote refresh.
 - `pullone`/`pushone` remain sufficient for correctness and final conflict checks.
 
 ### 2.4 Local-only visibility
@@ -117,13 +116,7 @@ Deletion policy:
 
 ## 5) Migration / deprecation plan
 
-1. Soft deprecate `sync status`:
-   - keep command temporarily with warning pointing to `list`.
-2. Update docs and extension labels to stop using old “sync status / in sync” vocabulary.
-3. After one release cycle, remove or alias old command depending on compatibility goals.
-
-Suggested warning text:
-> `sync status` is deprecated in git-like mode. Use `n8nac list`, `n8nac list --local`, or `n8nac list --remote`.
+DELETE ALL DEPRECATED CODE
 
 ## 6) Implementation checklist
 
@@ -133,7 +126,6 @@ CLI:
 - [ ] Ensure no TS transform in list path.
 - [ ] Keep/adjust `fetch <id>` semantics and help text.
 - [ ] Add/update tests for listing modes and local-only coverage.
-- [ ] Add deprecation warning path for `sync status`.
 
 VSCode extension:
 - [ ] Update workflow store/provider to consume new list semantics.
@@ -164,9 +156,9 @@ Scalability:
   - bounded API pagination and stable memory.
 
 Extension UX:
-- Tree shows local-only entries.
+- Tree shows all workflows.
 - Fetch button works per item.
-- Global refresh triggers list.
+- Global refresh triggers list to refresh workflows.
 - No trash icon in workflow rows.
 
 ## 8) Risks and mitigations
@@ -180,18 +172,12 @@ Mitigation: clear wording: status is snapshot-at-command-time; encourage explici
 Risk: Performance regressions on large instances.  
 Mitigation: enforce lightweight metadata-only list path and tests guarding against full content fetches.
 
-## 9) Open questions (to confirm)
-
-1. Should `--remote` be the canonical flag and `--distant` alias, or vice versa?
-2. Should `fetch --all` be part of initial delivery or a follow-up?
-3. Do we keep `sync status` as alias for one release or remove immediately?
-4. What exact fields should default `list` show in human table output?
 
 ## 10) Acceptance criteria
 
 - `list` commands are lightweight and scalable.
-- Local-only workflows are visible in CLI and VSCode extension.
-- Fetch is available per workflow (CLI + extension action).
+- "Local-only", "remote-only" and "both" workflows are visible in CLI and VSCode extension.
+- Fetch is available per workflow (CLI + extension actionvia CLI).
 - Global refresh in extension maps to list refresh.
 - Workflow-row trash action is removed.
 - Documentation consistently reflects git-like paradigm and deprecated concepts.
