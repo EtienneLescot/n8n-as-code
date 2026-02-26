@@ -157,7 +157,7 @@ export const loadWorkflows = createAsyncThunk(
     'workflows/load',
     async () => {
         if (!syncManagerRef) throw new Error('SyncManager not initialized');
-        return await syncManagerRef.getWorkflowsStatus();
+        return await syncManagerRef.getWorkflowsLightweight();
     }
 );
 

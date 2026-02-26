@@ -1044,6 +1044,91 @@ export class Watcher extends EventEmitter {
         return this.fileToIdMap;
     }
 
+    /**
+     * Lightweight list of workflows with basic status (local only, remote only, both)
+     * Does NOT compute hashes, compile TypeScript, or determine detailed status (MODIFIED_LOCALLY, CONFLICT)
+     */
+    public async getLightweightList(): Promise<IWorkflowStatus[]> {
+        const results: Map<string, IWorkflowStatus> = new Map();
+        const state = this.loadState();
+
+        // 1. Process all local files (just check existence, no hash computation)
+        for (const filename of this.getLocalWorkflowFilenames()) {
+            const workflowId = this.fileToIdMap.get(filename);
+            const remoteExists = workflowId ? this.remoteHashes.has(workflowId) : false;
+            
+            // Determine basic status
+            let status: WorkflowSyncStatus;
+            if (workflowId && remoteExists) {
+                status = WorkflowSyncStatus.TRACKED; // Both exist
+            } else if (workflowId && !remoteExists) {
+                status = WorkflowSyncStatus.EXIST_ONLY_LOCALLY; // Local only (but has ID)
+            } else {
+                status = WorkflowSyncStatus.EXIST_ONLY_LOCALLY; // New file without ID
+            }
+
+            // Get workflow name from state or filename
+            const workflowState = workflowId ? state.workflows[workflowId] as IWorkflowState : undefined;
+            const workflowName = workflowState?.name || filename.replace('.workflow.ts', '');
+
+            results.set(filename, {
+                id: workflowId || '',
+                name: workflowName,
+                filename: filename,
+                status: status,
+                active: true, // Default
+                projectId: workflowState?.projectId,
+                projectName: workflowState?.projectName,
+                homeProject: workflowState?.homeProject,
+                isArchived: workflowState?.isArchived ?? false
+            });
+        }
+
+        // 2. Process all remote workflows not yet in results
+        for (const [workflowId, remoteHash] of this.remoteHashes.entries()) {
+            // Use persisted filename from state for stability
+            const persistedFilename = (state.workflows[workflowId] as IWorkflowState)?.filename;
+            const filename = persistedFilename || this.idToFileMap.get(workflowId) || `${workflowId}.workflow.ts`;
+            
+            if (!results.has(filename)) {
+                const workflowState = state.workflows[workflowId] as IWorkflowState;
+                const workflowName = workflowState?.name || filename.replace('.workflow.ts', '');
+                
+                results.set(filename, {
+                    id: workflowId,
+                    name: workflowName,
+                    filename: filename,
+                    status: WorkflowSyncStatus.EXIST_ONLY_REMOTELY, // Remote only
+                    active: true, // Default
+                    projectId: workflowState?.projectId,
+                    projectName: workflowState?.projectName,
+                    homeProject: workflowState?.homeProject,
+                    isArchived: workflowState?.isArchived ?? false
+                });
+            }
+        }
+
+        return Array.from(results.values());
+    }
+
+    /**
+     * Get list of local workflow filenames (just checks file system, no parsing)
+     */
+    private getLocalWorkflowFilenames(): string[] {
+        const filenames: string[] = [];
+        try {
+            const files = fs.readdirSync(this.directory);
+            for (const file of files) {
+                if (file.endsWith('.workflow.ts') || file.endsWith('.json')) {
+                    filenames.push(file);
+                }
+            }
+        } catch (error) {
+            console.debug('[Watcher] Failed to read local directory:', error);
+        }
+        return filenames;
+    }
+
     public async getStatusMatrix(): Promise<IWorkflowStatus[]> {
         const results: Map<string, IWorkflowStatus> = new Map();
         const state = this.loadState();

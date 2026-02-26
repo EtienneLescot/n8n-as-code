@@ -152,7 +152,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 await syncManager.pushOne(wf.id, wf.filename);
                 if (wf.id) { WorkflowWebview.reloadIfMatching(wf.id, outputChannel); }
                 outputChannel.appendLine(`[n8n] Push successful for: ${wf.name} (${wf.id})`);
-                const workflows = await syncManager.getWorkflowsStatus();
+                const workflows = await syncManager.getWorkflowsLightweight();
                 store.dispatch(setWorkflows(workflows));
                 enhancedTreeProvider.refresh();
                 statusBar.showSynced();
@@ -163,7 +163,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     // Remote was changed since last sync — offer conflict resolution
                     statusBar.showError('Conflict');
                     await vscode.commands.executeCommand('n8n.resolveConflict', { workflow: wf, choice: undefined });
-                    const workflows = await syncManager.getWorkflowsStatus();
+                    const workflows = await syncManager.getWorkflowsLightweight();
                     store.dispatch(setWorkflows(workflows));
                     enhancedTreeProvider.refresh();
                     statusBar.showSynced();
@@ -182,10 +182,10 @@ export async function activate(context: vscode.ExtensionContext) {
             if (!wf || !syncManager || !wf.id) return;
 
             // Warn if the workflow has local modifications that will be discarded
-            const currentStatuses = await syncManager.getWorkflowsStatus();
-            const currentStatus = currentStatuses.find(s => s.id === wf.id);
-            const hasLocalChanges = currentStatus?.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
-                                    currentStatus?.status === WorkflowSyncStatus.CONFLICT;
+            // Use single-workflow status check instead of batch calculation
+            const workflowStatus = await syncManager.getWorkflowStatus(wf.id, wf.filename);
+            const hasLocalChanges = workflowStatus.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
+                                    workflowStatus.status === WorkflowSyncStatus.CONFLICT;
             if (hasLocalChanges) {
                 const confirm = await vscode.window.showWarningMessage(
                     `"${wf.name}" has local changes. Pulling will overwrite them with the remote version.`,
@@ -201,7 +201,7 @@ export async function activate(context: vscode.ExtensionContext) {
             statusBar.showSyncing();
             try {
                 await syncManager.pullOne(wf.id);
-                const workflows = await syncManager.getWorkflowsStatus();
+                const workflows = await syncManager.getWorkflowsLightweight();
                 store.dispatch(setWorkflows(workflows));
                 enhancedTreeProvider.refresh();
                 statusBar.showSynced();
@@ -230,7 +230,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     outputChannel.appendLine(`[n8n] Fetched remote state for: ${wf.name} (${wf.id})`);
                     
                     // Refresh workflows status to show updated state
-                    const workflows = await syncManager.getWorkflowsStatus();
+                    const workflows = await syncManager.getWorkflowsLightweight();
                     store.dispatch(setWorkflows(workflows));
                     enhancedTreeProvider.refresh();
                     statusBar.showSynced();
@@ -252,13 +252,21 @@ export async function activate(context: vscode.ExtensionContext) {
             // Trigger a list operation to refresh workflow status
             if (syncManager) {
                 try {
-                    const workflows = await syncManager.getWorkflowsStatus();
+                    // Match what CLI "n8nac list" command does: force refresh then get lightweight list
+                    outputChannel.appendLine('[n8n] Force refreshing remote state...');
+                    await syncManager.forceRefresh();
+                    
+                    const workflows = await syncManager.getWorkflowsLightweight();
                     store.dispatch(setWorkflows(workflows));
-                    outputChannel.appendLine('[n8n] Workflow status refreshed.');
+                    outputChannel.appendLine(`[n8n] Workflow status refreshed. Found ${workflows.length} workflows.`);
+                    vscode.window.showInformationMessage(`Refreshed workflow list (${workflows.length} workflows)`);
                 } catch (error: any) {
                     outputChannel.appendLine(`[n8n] Failed to refresh workflow status: ${error.message}`);
                     vscode.window.showErrorMessage(`Refresh failed: ${error.message}`);
                 }
+            } else {
+                outputChannel.appendLine('[n8n] Cannot refresh: syncManager not initialized.');
+                vscode.window.showErrorMessage('Cannot refresh: n8n as code is not initialized. Please configure and initialize first.');
             }
             
             // Also refresh the UI
@@ -412,7 +420,7 @@ export async function activate(context: vscode.ExtensionContext) {
             } else if (choice === 'Keep Current (local)') {
                 await syncManager.resolveConflict(id, filename, 'local');
                 await new Promise(resolve => setTimeout(resolve, 500));
-                const workflows = await syncManager.getWorkflowsStatus();
+                const workflows = await syncManager.getWorkflowsLightweight();
                 store.dispatch(setWorkflows(workflows));
                 store.dispatch(removeConflict(id));
                 WorkflowWebview.reloadIfMatching(id, outputChannel);
@@ -421,7 +429,7 @@ export async function activate(context: vscode.ExtensionContext) {
             } else if (choice === 'Keep Incoming (remote)') {
                 await syncManager.resolveConflict(id, filename, 'remote');
                 await new Promise(resolve => setTimeout(resolve, 500));
-                const workflows = await syncManager.getWorkflowsStatus();
+                const workflows = await syncManager.getWorkflowsLightweight();
                 store.dispatch(setWorkflows(workflows));
                 store.dispatch(removeConflict(id));
                 vscode.window.showInformationMessage(`✅ Pulled — local file updated from n8n.`);
@@ -430,7 +438,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 // User merged manually in the editor — force-push the current local file
                 await syncManager.resolveConflict(id, filename, 'local');
                 await new Promise(resolve => setTimeout(resolve, 500));
-                const workflows = await syncManager.getWorkflowsStatus();
+                const workflows = await syncManager.getWorkflowsLightweight();
                 store.dispatch(setWorkflows(workflows));
                 store.dispatch(removeConflict(id));
                 WorkflowWebview.reloadIfMatching(id, outputChannel);
@@ -798,7 +806,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
         // Reload workflows into store
         try {
-            const workflows = await syncManager!.getWorkflowsStatus();
+            const workflows = await syncManager!.getWorkflowsLightweight();
             store.dispatch(setWorkflows(workflows));
         } catch (error) {
             console.error('Failed to reload workflows:', error);
@@ -877,7 +885,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
     // Load workflows for store
     try {
-        const workflows = await syncManager.getWorkflowsStatus();
+        const workflows = await syncManager.getWorkflowsLightweight();
         store.dispatch(setWorkflows(workflows));
 
     } catch (error: any) {

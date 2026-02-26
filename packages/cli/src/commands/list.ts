@@ -15,8 +15,8 @@ export class ListCommand extends BaseCommand {
             // Force refresh to get current state
             await syncManager.forceRefresh();
 
-            // Get workflow status matrix
-            let matrix = await syncManager.getWorkflowsStatus();
+            // Get lightweight workflow list (no hash computation, no TypeScript compilation)
+            let matrix = await syncManager.getWorkflowsLightweight();
             
             // Apply filters based on options
             if (options?.local) {

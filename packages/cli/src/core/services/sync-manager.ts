@@ -93,10 +93,32 @@ export class SyncManager extends EventEmitter {
         });
     }
 
-    async getWorkflowsStatus(): Promise<IWorkflowStatus[]> {
+    /**
+     * Lightweight list of workflows with basic status (local only, remote only, both)
+     * Does NOT compute hashes, compile TypeScript, or determine detailed status (MODIFIED_LOCALLY, CONFLICT)
+     */
+    async getWorkflowsLightweight(): Promise<IWorkflowStatus[]> {
         await this.ensureInitialized();
-        // Return status from watcher
-        return await this.watcher!.getStatusMatrix();
+        return await this.watcher!.getLightweightList();
+    }
+
+    /**
+     * Get status for a single workflow (computes hash and detailed status for this workflow only)
+     * Used by pull command to check for local modifications before overwriting
+     */
+    async getWorkflowStatus(workflowId: string, filename: string): Promise<{
+        status: WorkflowSyncStatus;
+        localExists: boolean;
+        remoteExists: boolean;
+        lastSyncedHash?: string;
+        localHash?: string;
+        remoteHash?: string;
+    }> {
+        await this.ensureInitialized();
+        if (!this.resolutionManager) {
+            throw new Error('Resolution manager not initialized');
+        }
+        return await this.resolutionManager.getWorkflowStatus(workflowId, filename);
     }
     
     /**
@@ -194,13 +216,12 @@ export class SyncManager extends EventEmitter {
      */
     public async pullOne(workflowId: string): Promise<void> {
         await this.ensureInitialized();
-        const statuses = await this.getWorkflowsStatus();
-        const s = statuses.find(status => status.id === workflowId);
-        if (!s) {
+        const filename = this.watcher!.getFilenameForId(workflowId);
+        if (!filename) {
             throw new Error(`Workflow ${workflowId} not found in local state`);
         }
         // User-triggered pull always force-pulls (overwrites local regardless of status)
-        await this.syncEngine!.forcePull(workflowId, s.filename);
+        await this.syncEngine!.forcePull(workflowId, filename);
     }
 
     /**
