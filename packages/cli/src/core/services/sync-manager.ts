@@ -161,48 +161,29 @@ export class SyncManager extends EventEmitter {
     }
 
     /**
-     * Fetches a specific workflow from the remote instance and pulls it locally
-     * ONLY IF the local file has not been modified since the last sync.
-     * This is used for the "Pull-on-Focus" feature to keep the local code in sync
-     * with UI changes without overwriting local work.
+     * Fetch remote state for a specific workflow (update internal cache for comparison).
+     * This is the manual fetch command that just updates the remote state cache
+     * without attempting to pull. Returns true if the workflow exists on remote
+     * and cache was updated, false if workflow doesn't exist on remote.
      */
-    public async fetchAndPullIfSafe(workflowId: string): Promise<boolean> {
-        if (!this.watcher || !this.syncEngine) return false;
+    public async fetch(workflowId: string): Promise<boolean> {
+        if (!this.watcher) return false;
 
         try {
-            // 1. Fetch the latest remote state for this specific workflow
+            // Fetch the latest remote state for this specific workflow
             const remoteWf = await this.client.getWorkflow(workflowId);
             if (!remoteWf) {
                 this.emit('log', `[SyncManager] Workflow ${workflowId} not found on remote.`);
                 return false;
             }
 
-            // 2. Update the watcher's remote state cache for this workflow
-            // This is a targeted version of refreshRemoteState
+            // Update the watcher's remote state cache for this workflow
             await this.watcher.updateSingleRemoteState(remoteWf);
-
-            // 3. Get the current status matrix to check for conflicts
-            const statuses = await this.watcher.getStatusMatrix();
-            const status = statuses.find(s => s.id === workflowId);
-
-            if (!status) return false;
-
-            // 4. Decide whether to pull based on status
-            // TRACKED: local untouched, safe to pull
-            if (status.status === WorkflowSyncStatus.TRACKED) {
-                this.emit('log', `[SyncManager] Auto-pulling ${workflowId} (remote updated, local is safe).`);
-                await this.syncEngine.pull(workflowId, status.filename, WorkflowSyncStatus.EXIST_ONLY_REMOTELY);
-                return true;
-            } else if (status.status === WorkflowSyncStatus.CONFLICT) {
-                this.emit('log', `[SyncManager] Conflict detected for ${workflowId} on focus. Auto-pull aborted.`);
-                // We don't pull, but we might want to emit an event so the UI can show a warning
-                this.emit('conflict-detected', { workflowId, name: remoteWf.name });
-                return false;
-            }
-
-            return false; // Was already in sync or other state
+            
+            this.emit('log', `[SyncManager] Fetched remote state for workflow ${workflowId}.`);
+            return true;
         } catch (error) {
-            this.emit('error', new Error(`Failed to fetch and pull workflow ${workflowId}: ${error}`));
+            this.emit('error', new Error(`Failed to fetch workflow ${workflowId}: ${error}`));
             return false;
         }
     }

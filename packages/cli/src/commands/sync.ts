@@ -45,16 +45,13 @@ export class SyncCommand extends BaseCommand {
             const syncConfig = await this.getSyncConfig();
             const syncManager = new SyncManager(this.client, syncConfig);
             
-            // Fetch the specific workflow from remote
-            const remoteWf = await this.client.getWorkflow(workflowId);
-            if (!remoteWf) {
+            // Fetch remote state for this specific workflow (update internal cache for comparison)
+            const success = await syncManager.fetch(workflowId);
+            if (!success) {
                 spinner.fail(`Workflow ${workflowId} not found on remote.`);
                 process.exit(1);
             }
             
-            // Update watcher's remote state cache for this specific workflow only
-            // This calls watcher.updateSingleRemoteState() instead of forceRefresh()
-            await syncManager.fetchAndPullIfSafe(workflowId);
             spinner.succeed(chalk.green(`✔ Fetched remote state for workflow ${workflowId}.`));
         } catch (e: any) {
             spinner.fail(`Fetch failed: ${e.message}`);

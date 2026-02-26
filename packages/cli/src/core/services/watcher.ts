@@ -1250,7 +1250,7 @@ export class Watcher extends EventEmitter {
 
     /**
      * Update the remote state cache for a single workflow
-     * Used by Pull-on-Focus to avoid full state refreshes
+     * Used by the fetch command to update remote state without full refresh
      */
     public async updateSingleRemoteState(remoteWf: IWorkflow) {
         if (!remoteWf.id) return;

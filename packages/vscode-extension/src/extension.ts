@@ -17,7 +17,6 @@ import {
     store,
     setSyncManager,
     setWorkflows,
-    removeWorkflow,
     addConflict,
     removeConflict
 } from './services/workflow-store.js';
@@ -223,10 +222,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
             statusBar.showSyncing();
             try {
-                // Fetch and update remote state cache for this specific workflow only
-                // Uses fetchAndPullIfSafe which calls watcher.updateSingleRemoteState()
-                // instead of forceRefresh() which fetches ALL remote workflows
-                const success = await syncManager.fetchAndPullIfSafe(wf.id);
+                // Fetch remote state for this specific workflow (update internal cache for comparison)
+                // Uses the new fetch() method which just updates remote state cache without pulling
+                const success = await syncManager.fetch(wf.id);
                 
                 if (success) {
                     outputChannel.appendLine(`[n8n] Fetched remote state for: ${wf.name} (${wf.id})`);
@@ -238,9 +236,9 @@ export async function activate(context: vscode.ExtensionContext) {
                     statusBar.showSynced();
                     vscode.window.showInformationMessage(`✅ Fetched "${wf.name}"`);
                 } else {
-                    outputChannel.appendLine(`[n8n] Failed to fetch remote state for: ${wf.name} (${wf.id})`);
+                    outputChannel.appendLine(`[n8n] Workflow not found on remote: ${wf.name} (${wf.id})`);
                     statusBar.showSynced();
-                    vscode.window.showWarningMessage(`⚠️ Could not fetch "${wf.name}" - workflow may not exist on remote`);
+                    vscode.window.showWarningMessage(`⚠️ "${wf.name}" not found on remote - workflow may have been deleted`);
                 }
             } catch (e: any) {
                 statusBar.showError(e.message);
@@ -248,8 +246,22 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
-        vscode.commands.registerCommand('n8n.refresh', () => {
+        vscode.commands.registerCommand('n8n.refresh', async () => {
             outputChannel.appendLine('[n8n] Manual refresh command triggered.');
+            
+            // Trigger a list operation to refresh workflow status
+            if (syncManager) {
+                try {
+                    const workflows = await syncManager.getWorkflowsStatus();
+                    store.dispatch(setWorkflows(workflows));
+                    outputChannel.appendLine('[n8n] Workflow status refreshed.');
+                } catch (error: any) {
+                    outputChannel.appendLine(`[n8n] Failed to refresh workflow status: ${error.message}`);
+                    vscode.window.showErrorMessage(`Refresh failed: ${error.message}`);
+                }
+            }
+            
+            // Also refresh the UI
             enhancedTreeProvider.refresh();
         }),
 
