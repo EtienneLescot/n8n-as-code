@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { store, setWorkflows, addPendingDeletion, addConflict } from '../../src/services/workflow-store.js';
+import { store, setWorkflows, addConflict } from '../../src/services/workflow-store.js';
 import { WorkflowSyncStatus } from '@n8n-as-code/cli';
 
 /**
@@ -32,18 +32,7 @@ test('Extension Integration: Event to Store Mapping', async (t) => {
         assert.strictEqual(state.workflows.byId['wf-1']?.status, WorkflowSyncStatus.MODIFIED_LOCALLY);
     });
 
-    await t.test('Sync "local-deletion" event should update pending deletions', () => {
-        const eventData = {
-            id: 'wf-1',
-            filename: 'Test.json'
-        };
-
-        // This is what the listener in extension.ts does:
-        store.dispatch(addPendingDeletion(eventData.id));
-
-        const state = store.getState();
-        assert.ok(state.pendingDeletions.workflowIds.includes('wf-1'));
-    });
+    // Note: "local-deletion" event test removed as deletion tracking is no longer part of the git-like sync pattern
 
     await t.test('Sync "conflict" event should update conflicts store', () => {
         const eventData = {
