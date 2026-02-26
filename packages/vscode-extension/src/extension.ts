@@ -223,14 +223,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
             statusBar.showSyncing();
             try {
-                // Fetch the latest remote state for this workflow
-                const { host, apiKey } = getN8nConfig();
-                const client = new N8nApiClient({ host, apiKey });
-                const remoteWf = await client.getWorkflow(wf.id);
+                // Fetch and update remote state cache for this specific workflow only
+                // Uses fetchAndPullIfSafe which calls watcher.updateSingleRemoteState()
+                // instead of forceRefresh() which fetches ALL remote workflows
+                const success = await syncManager.fetchAndPullIfSafe(wf.id);
                 
-                if (remoteWf) {
-                    // Update watcher's remote state cache
-                    await syncManager.forceRefresh(); // This will refresh remote state
+                if (success) {
                     outputChannel.appendLine(`[n8n] Fetched remote state for: ${wf.name} (${wf.id})`);
                     
                     // Refresh workflows status to show updated state
@@ -239,6 +237,10 @@ export async function activate(context: vscode.ExtensionContext) {
                     enhancedTreeProvider.refresh();
                     statusBar.showSynced();
                     vscode.window.showInformationMessage(`✅ Fetched "${wf.name}"`);
+                } else {
+                    outputChannel.appendLine(`[n8n] Failed to fetch remote state for: ${wf.name} (${wf.id})`);
+                    statusBar.showSynced();
+                    vscode.window.showWarningMessage(`⚠️ Could not fetch "${wf.name}" - workflow may not exist on remote`);
                 }
             } catch (e: any) {
                 statusBar.showError(e.message);
