@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { SyncManager, N8nApiClient, IN8nCredentials, WorkflowSyncStatus, createInstanceIdentifier, createFallbackInstanceIdentifier } from '@n8n-as-code/cli';
+import {
+    SyncManager, CliApi, N8nApiClient, IN8nCredentials, WorkflowSyncStatus,
+    createInstanceIdentifier, createFallbackInstanceIdentifier
+} from '@n8n-as-code/cli';
 import { AiContextGenerator, SnippetGenerator } from '@n8n-as-code/skills';
 
 import { StatusBar } from './ui/status-bar.js';
@@ -21,8 +24,13 @@ import {
     removeConflict
 } from './services/workflow-store.js';
 
+// ------- Module-level singletons -------
 let syncManager: SyncManager | undefined;
+/** CliApi wraps SyncManager and exposes the same four commands as the CLI binary:
+ *  list, fetch, pull, push. This is the only object the command handlers touch. */
+let cli: CliApi | undefined;
 let initializingPromise: Promise<void> | undefined;
+
 const statusBar = new StatusBar();
 const proxyService = new ProxyService();
 const enhancedTreeProvider = new EnhancedWorkflowTreeProvider();
@@ -44,19 +52,19 @@ export async function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // Register Enhanced Tree View
     vscode.window.registerTreeDataProvider('n8n-explorer.workflows', enhancedTreeProvider);
 
-    // Register File Decoration Provider for visual colorization
     context.subscriptions.push(
         vscode.window.registerFileDecorationProvider(decorationProvider)
     );
 
-    // Pass output channel to proxy service
     proxyService.setOutputChannel(outputChannel);
     proxyService.setSecrets(context.secrets);
 
-    // 1. Register Commands (before any async work so commands are always available)
+    // ── Register Commands ──────────────────────────────────────────────────────
+    // Commands are registered early so they are available during activation.
+    // Handlers that need `cli` guard against it being undefined.
+
     context.subscriptions.push(
         vscode.commands.registerCommand('n8n.init', async () => {
             await handleInitializeCommand(context);
@@ -75,17 +83,12 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('n8n.openBoard', async (arg: any) => {
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf) return;
-
             const { host } = getN8nConfig();
-
             if (host) {
                 try {
                     const proxyUrl = await proxyService.start(host);
-                    const targetUrl = `${proxyUrl}/workflow/${wf.id}`;
-                    outputChannel.appendLine(`[n8n] Opening board: ${wf.name} (${wf.id})`);
-                    WorkflowWebview.createOrShow(wf, targetUrl);
+                    WorkflowWebview.createOrShow(wf, `${proxyUrl}/workflow/${wf.id}`);
                 } catch (e: any) {
-                    outputChannel.appendLine(`[n8n] ERROR: Failed to start proxy: ${e.message}`);
                     vscode.window.showErrorMessage(`Failed to start proxy: ${e.message}`);
                 }
             } else {
@@ -96,10 +99,8 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('n8n.openJson', async (arg: any) => {
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf || !syncManager) return;
-
             if (wf.filename) {
-                const instanceDirectory = syncManager.getInstanceDirectory();
-                const uri = vscode.Uri.file(path.join(instanceDirectory, wf.filename));
+                const uri = vscode.Uri.file(path.join(syncManager.getInstanceDirectory(), wf.filename));
                 try {
                     const doc = await vscode.workspace.openTextDocument(uri);
                     await vscode.window.showTextDocument(doc);
@@ -112,12 +113,9 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('n8n.openSplit', async (arg: any) => {
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf || !syncManager) return;
-
             const { host } = getN8nConfig();
-
             if (wf.filename) {
-                const instanceDirectory = syncManager.getInstanceDirectory();
-                const uri = vscode.Uri.file(path.join(instanceDirectory, wf.filename));
+                const uri = vscode.Uri.file(path.join(syncManager.getInstanceDirectory(), wf.filename));
                 try {
                     const doc = await vscode.workspace.openTextDocument(uri);
                     await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One });
@@ -125,32 +123,31 @@ export async function activate(context: vscode.ExtensionContext) {
                     vscode.window.showErrorMessage(`Could not open file: ${e.message}`);
                 }
             }
-
             if (host) {
                 try {
                     const proxyUrl = await proxyService.start(host);
-                    const targetUrl = `${proxyUrl}/workflow/${wf.id}`;
-                    WorkflowWebview.createOrShow(wf, targetUrl, vscode.ViewColumn.Two);
+                    WorkflowWebview.createOrShow(wf, `${proxyUrl}/workflow/${wf.id}`, vscode.ViewColumn.Two);
                 } catch (e: any) {
                     vscode.window.showErrorMessage(`Failed to start proxy: ${e.message}`);
                 }
             }
         }),
 
+        // n8nac push --workflowsid <id>
         vscode.commands.registerCommand('n8n.pushWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
                 vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
                 return;
             }
             const wf = arg?.workflow ? arg.workflow : arg;
-            if (!wf || !syncManager || !wf.filename) return;
+            if (!wf || !cli || !syncManager) return;
 
             statusBar.showSyncing();
             try {
-                await syncManager.push(wf.id, wf.filename);
-                if (wf.id) { WorkflowWebview.reloadIfMatching(wf.id, outputChannel); }
-                outputChannel.appendLine(`[n8n] Push successful for: ${wf.name} (${wf.id})`);
-                const workflows = await syncManager.listWorkflows();
+                await cli.push(wf.id);
+                if (wf.id) WorkflowWebview.reloadIfMatching(wf.id, outputChannel);
+                outputChannel.appendLine(`[n8n] Push successful: ${wf.name} (${wf.id})`);
+                const workflows = await cli.list();
                 store.dispatch(setWorkflows(workflows));
                 enhancedTreeProvider.refresh();
                 statusBar.showSynced();
@@ -158,10 +155,9 @@ export async function activate(context: vscode.ExtensionContext) {
             } catch (e: any) {
                 const isOcc = e.message?.includes('Push rejected') || e.message?.includes('modified in the n8n UI');
                 if (isOcc) {
-                    // Remote was changed since last sync — offer conflict resolution
                     statusBar.showError('Conflict');
                     await vscode.commands.executeCommand('n8n.resolveConflict', { workflow: wf, choice: undefined });
-                    const workflows = await syncManager.listWorkflows();
+                    const workflows = await cli.list();
                     store.dispatch(setWorkflows(workflows));
                     enhancedTreeProvider.refresh();
                     statusBar.showSynced();
@@ -172,18 +168,19 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
+        // n8nac pull --workflowsid <id>
         vscode.commands.registerCommand('n8n.pullWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
                 vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
                 return;
             }
             const wf = arg?.workflow ? arg.workflow : arg;
-            if (!wf || !syncManager || !wf.id) return;
+            if (!wf || !cli || !syncManager || !wf.id) return;
 
-            // Warn if the workflow has local modifications that will be discarded
             if (wf.filename) {
-                const workflowStatus = await syncManager.getSingleWorkflowDetailedStatus(wf.id, wf.filename);
-                const hasLocalChanges = workflowStatus.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
+                const workflowStatus = await cli.getSingleWorkflowDetailedStatus(wf.id, wf.filename);
+                const hasLocalChanges =
+                    workflowStatus.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
                     workflowStatus.status === WorkflowSyncStatus.CONFLICT;
                 if (hasLocalChanges) {
                     const confirm = await vscode.window.showWarningMessage(
@@ -200,8 +197,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
             statusBar.showSyncing();
             try {
-                await syncManager.pull(wf.id);
-                const workflows = await syncManager.listWorkflows();
+                await cli.pull(wf.id);
+                const workflows = await cli.list();
                 store.dispatch(setWorkflows(workflows));
                 enhancedTreeProvider.refresh();
                 statusBar.showSynced();
@@ -212,29 +209,28 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
+        // n8nac fetch --workflowsid <id>
         vscode.commands.registerCommand('n8n.fetchWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
                 vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
                 return;
             }
             const wf = arg?.workflow ? arg.workflow : arg;
-            if (!wf || !syncManager || !wf.id) return;
+            if (!wf || !cli || !wf.id) return;
 
             statusBar.showSyncing();
             try {
-                const success = await syncManager.fetch(wf.id);
-
-                if (success) {
+                const found = await cli.fetch(wf.id);
+                if (found) {
                     outputChannel.appendLine(`[n8n] Fetched remote state for: ${wf.name} (${wf.id})`);
-                    const workflows = await syncManager.listWorkflows();
+                    const workflows = await cli.list();
                     store.dispatch(setWorkflows(workflows));
                     enhancedTreeProvider.refresh();
                     statusBar.showSynced();
                     vscode.window.showInformationMessage(`✅ Fetched "${wf.name}"`);
                 } else {
-                    outputChannel.appendLine(`[n8n] Workflow not found on remote: ${wf.name} (${wf.id})`);
                     statusBar.showSynced();
-                    vscode.window.showWarningMessage(`⚠️ "${wf.name}" not found on remote - workflow may have been deleted`);
+                    vscode.window.showWarningMessage(`⚠️ "${wf.name}" not found on remote — may have been deleted`);
                 }
             } catch (e: any) {
                 statusBar.showError(e.message);
@@ -242,89 +238,66 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
-        // Global Refresh — re-runs list with a fresh remote fetch (mirrors `n8nac list`)
+        // n8nac list (global refresh — calls list with fresh remote fetch)
         vscode.commands.registerCommand('n8n.refresh', async () => {
-            outputChannel.appendLine('[n8n] Manual refresh triggered — running list...');
-
-            if (!syncManager) {
-                outputChannel.appendLine('[n8n] Cannot refresh: not initialized.');
-                vscode.window.showErrorMessage('Cannot refresh: n8n as code is not initialized. Please configure and initialize first.');
+            outputChannel.appendLine('[n8n] Manual refresh — running list...');
+            if (!cli) {
+                vscode.window.showErrorMessage('n8n as code is not initialized. Please configure and initialize first.');
                 enhancedTreeProvider.refresh();
                 return;
             }
-
             statusBar.showSyncing();
             try {
-                // fetchRemote: true mirrors what `n8nac list` does — fresh remote metadata fetch
-                const workflows = await syncManager.listWorkflows({ fetchRemote: true });
+                const workflows = await cli.list({ fetchRemote: true });
                 store.dispatch(setWorkflows(workflows));
-                outputChannel.appendLine(`[n8n] List refreshed. Found ${workflows.length} workflows.`);
+                outputChannel.appendLine(`[n8n] List refreshed. ${workflows.length} workflows.`);
                 vscode.window.showInformationMessage(`Refreshed workflow list (${workflows.length} workflows)`);
                 statusBar.showSynced();
             } catch (error: any) {
-                outputChannel.appendLine(`[n8n] Refresh failed: ${error.message}`);
                 statusBar.showError(error.message);
                 vscode.window.showErrorMessage(`Refresh failed: ${error.message}`);
             }
-
             enhancedTreeProvider.refresh();
         }),
 
         vscode.commands.registerCommand('n8n.initializeAI', async (options?: { silent?: boolean }) => {
-            if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+            if (!vscode.workspace.workspaceFolders?.length) {
                 if (!options?.silent) vscode.window.showErrorMessage('No workspace open.');
                 return;
             }
-
             if (!syncManager) {
-                if (!options?.silent) vscode.window.showWarningMessage('n8n: Not initialized. Please click "Init N8N as code" first.');
+                if (!options?.silent) vscode.window.showWarningMessage('n8n: Not initialized.');
                 return;
             }
-
             const { host, apiKey } = getN8nConfig();
-
             if (!host || !apiKey) {
-                if (!options?.silent) vscode.window.showErrorMessage('n8n: Host/API Key missing. Cannot initialize AI context.');
+                if (!options?.silent) vscode.window.showErrorMessage('n8n: Host/API Key missing.');
                 return;
             }
-
             const client = new N8nApiClient({ host, apiKey });
             const rootPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-
-            const runInit = async (progress?: vscode.Progress<{ message?: string; increment?: number }>) => {
+            const runInit = async (progress?: vscode.Progress<{ message?: string }>) => {
                 try {
                     const health = await client.getHealth();
                     const version = health.version;
-
-                    progress?.report({ message: "Generating AGENTS.md..." });
-                    const contextGen = new AiContextGenerator();
-                    await contextGen.generate(rootPath, version, context.extensionPath);
-
-                    progress?.report({ message: "Generating Snippets..." });
-                    const snippetGen = new SnippetGenerator();
-                    await snippetGen.generate(rootPath);
-
+                    progress?.report({ message: 'Generating AGENTS.md...' });
+                    await new AiContextGenerator().generate(rootPath, version, context.extensionPath);
+                    progress?.report({ message: 'Generating Snippets...' });
+                    await new SnippetGenerator().generate(rootPath);
                     context.workspaceState.update('n8n.lastInitVersion', version);
                     enhancedTreeProvider.setAIContextInfo(version, false);
-
-                    if (!options?.silent) {
-                        vscode.window.showInformationMessage(`✨ n8n AI Context Initialized! (v${version})`);
-                    }
+                    if (!options?.silent) vscode.window.showInformationMessage(`✨ n8n AI Context Initialized! (v${version})`);
                 } catch (e: any) {
-                    if (!options?.silent) {
-                        vscode.window.showErrorMessage(`AI Init Failed: ${e.message}`);
-                    } else {
-                        outputChannel.appendLine(`[n8n] Silent AI Init failed: ${e.message}`);
-                    }
+                    if (!options?.silent) vscode.window.showErrorMessage(`AI Init Failed: ${e.message}`);
+                    else outputChannel.appendLine(`[n8n] Silent AI Init failed: ${e.message}`);
                 }
             };
-
             if (options?.silent) {
                 await runInit();
             } else {
                 await vscode.window.withProgress({
                     location: vscode.ProgressLocation.Notification,
-                    title: "n8n: Initializing AI Context...",
+                    title: 'n8n: Initializing AI Context...',
                     cancellable: false
                 }, runInit);
             }
@@ -334,53 +307,35 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand('workbench.action.openSettings', 'n8n');
         }),
 
-        vscode.commands.registerCommand('n8n.spacer', () => {
-            // Dummy command for spacing
-        }),
+        vscode.commands.registerCommand('n8n.spacer', () => { /* spacing dummy */ }),
 
         vscode.commands.registerCommand('n8n.resolveConflict', async (arg: any) => {
             const wf = arg?.workflow ? arg.workflow : arg;
-            if (!wf || !syncManager) return;
+            if (!wf || !cli || !syncManager) return;
 
-            // Try to get conflict data from store first
             let conflict = enhancedTreeProvider.getConflict(wf.id);
-
-            // If not in store, fetch remote content to create conflict data
             if (!conflict && wf.filename) {
                 try {
-                    outputChannel.appendLine(`[n8n] Fetching remote content for conflict resolution: ${wf.id}`);
                     const client = new N8nApiClient(getN8nConfig());
                     const remoteWorkflow = await client.getWorkflow(wf.id);
-                    conflict = {
-                        id: wf.id,
-                        filename: wf.filename,
-                        remoteContent: remoteWorkflow
-                    };
+                    conflict = { id: wf.id, filename: wf.filename, remoteContent: remoteWorkflow };
                     store.dispatch(addConflict(conflict));
                 } catch (e: any) {
-                    outputChannel.appendLine(`[n8n] Failed to fetch remote content: ${e.message}`);
                     vscode.window.showErrorMessage(`Failed to fetch remote workflow: ${e.message}`);
                     return;
                 }
             }
-
             if (!conflict) {
                 vscode.window.showInformationMessage('No conflict data found for this workflow.');
                 return;
             }
 
             const { id, filename, remoteContent } = conflict;
-
-            // Allow pre-selecting a choice (e.g. from action item buttons), or prompt the user
             let choice = arg?.choice;
-
             if (!choice) {
                 choice = await vscode.window.showWarningMessage(
                     `⚠️ Conflict on "${filename}": both local and remote versions changed.`,
-                    'Show Diff',
-                    'Keep Current (local)',
-                    'Keep Incoming (remote)',
-                    'Mark as Resolved'
+                    'Show Diff', 'Keep Current (local)', 'Keep Incoming (remote)', 'Mark as Resolved'
                 );
             }
 
@@ -390,53 +345,48 @@ export async function activate(context: vscode.ExtensionContext) {
                 conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
                 await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} ← n8n Remote (read-only)`);
             } else if (choice === 'Keep Current (local)') {
-                await syncManager.resolveConflict(id, filename, 'local');
-                await new Promise(resolve => setTimeout(resolve, 500));
-                const workflows = await syncManager.listWorkflows();
-                store.dispatch(setWorkflows(workflows));
+                await cli.resolveConflict(id, filename, 'local');
+                await new Promise(r => setTimeout(r, 500));
+                store.dispatch(setWorkflows(await cli.list()));
                 store.dispatch(removeConflict(id));
                 WorkflowWebview.reloadIfMatching(id, outputChannel);
-                vscode.window.showInformationMessage(`✅ Pushed — remote overwritten with your local version.`);
+                vscode.window.showInformationMessage('✅ Pushed — remote overwritten with your local version.');
                 enhancedTreeProvider.refresh();
             } else if (choice === 'Keep Incoming (remote)') {
-                await syncManager.resolveConflict(id, filename, 'remote');
-                await new Promise(resolve => setTimeout(resolve, 500));
-                const workflows = await syncManager.listWorkflows();
-                store.dispatch(setWorkflows(workflows));
+                await cli.resolveConflict(id, filename, 'remote');
+                await new Promise(r => setTimeout(r, 500));
+                store.dispatch(setWorkflows(await cli.list()));
                 store.dispatch(removeConflict(id));
-                vscode.window.showInformationMessage(`✅ Pulled — local file updated from n8n.`);
+                vscode.window.showInformationMessage('✅ Pulled — local file updated from n8n.');
                 enhancedTreeProvider.refresh();
             } else if (choice === 'Mark as Resolved') {
-                await syncManager.resolveConflict(id, filename, 'local');
-                await new Promise(resolve => setTimeout(resolve, 500));
-                const workflows = await syncManager.listWorkflows();
-                store.dispatch(setWorkflows(workflows));
+                await cli.resolveConflict(id, filename, 'local');
+                await new Promise(r => setTimeout(r, 500));
+                store.dispatch(setWorkflows(await cli.list()));
                 store.dispatch(removeConflict(id));
                 WorkflowWebview.reloadIfMatching(id, outputChannel);
-                vscode.window.showInformationMessage(`✅ Resolved — merged local version pushed to n8n.`);
+                vscode.window.showInformationMessage('✅ Resolved — merged local version pushed to n8n.');
                 enhancedTreeProvider.refresh();
             }
         }),
-
     );
 
-    // 2. Determine initial state — fire-and-forget so activate() returns immediately.
+    // ── Background initialization (fire-and-forget) ────────────────────────
     determineInitialState(context).then(() => {
         updateContextKeys();
-    }).catch((err) => {
+    }).catch(err => {
         outputChannel.appendLine(`[n8n] Background initialization error: ${err?.message}`);
         updateContextKeys();
     });
 
-    // 3. Listen for Config Changes (but don't auto-initialize)
+    // ── Settings change listener ───────────────────────────────────────────
     context.subscriptions.push(
-        vscode.workspace.onDidChangeConfiguration(async (e) => {
+        vscode.workspace.onDidChangeConfiguration(async e => {
             const suppressOnce = context.workspaceState.get<boolean>('n8n.suppressSettingsChangedOnce');
             if (suppressOnce) {
                 await context.workspaceState.update('n8n.suppressSettingsChangedOnce', false);
                 return;
             }
-
             if (
                 e.affectsConfiguration('n8n.host') ||
                 e.affectsConfiguration('n8n.apiKey') ||
@@ -445,20 +395,18 @@ export async function activate(context: vscode.ExtensionContext) {
                 e.affectsConfiguration('n8n.projectName')
             ) {
                 outputChannel.appendLine('[n8n] Critical settings changed. Pausing until applied.');
-
                 if (syncManager) {
                     syncManager.stopWatch();
                     enhancedTreeProvider.setExtensionState(ExtensionState.SETTINGS_CHANGED);
                     statusBar.showSettingsChanged();
                 } else {
-                    const configValidation = validateN8nConfig();
-                    const workspaceRoot = getWorkspaceRoot();
-                    const previouslyInitialized = workspaceRoot ? isFolderPreviouslyInitialized(workspaceRoot) : false;
-
-                    if (configValidation.isValid && previouslyInitialized) {
+                    const valid = validateN8nConfig().isValid;
+                    const root = getWorkspaceRoot();
+                    const wasInit = root ? isFolderPreviouslyInitialized(root) : false;
+                    if (valid && wasInit) {
                         enhancedTreeProvider.setExtensionState(ExtensionState.UNINITIALIZED);
                         statusBar.showNotInitialized();
-                    } else if (!configValidation.isValid) {
+                    } else if (!valid) {
                         enhancedTreeProvider.setExtensionState(ExtensionState.CONFIGURING);
                         statusBar.showConfiguring();
                     } else {
@@ -472,18 +420,12 @@ export async function activate(context: vscode.ExtensionContext) {
     );
 }
 
-/**
- * Update VS Code context keys for use in package.json 'when' clauses
- */
 function updateContextKeys() {
     const state = enhancedTreeProvider.getExtensionState();
     vscode.commands.executeCommand('setContext', 'n8n.state', state);
     vscode.commands.executeCommand('setContext', 'n8n.initialized', state === ExtensionState.INITIALIZED);
 }
 
-/**
- * Determine initial state based on configuration and folder status
- */
 async function determineInitialState(context: vscode.ExtensionContext) {
     const configValidation = validateN8nConfig();
     const workspaceRoot = getWorkspaceRoot();
@@ -502,7 +444,6 @@ async function determineInitialState(context: vscode.ExtensionContext) {
         enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZING);
         updateContextKeys();
         statusBar.showLoading();
-
         try {
             initializingPromise = initializeSyncManager(context);
             await initializingPromise;
@@ -525,9 +466,6 @@ async function determineInitialState(context: vscode.ExtensionContext) {
     updateContextKeys();
 }
 
-/**
- * Handle initialization command (when user clicks "Init N8N as code")
- */
 async function handleInitializeCommand(context: vscode.ExtensionContext) {
     if (initializingPromise) {
         outputChannel.appendLine('[n8n] Initialization already in progress, waiting...');
@@ -541,7 +479,6 @@ async function handleInitializeCommand(context: vscode.ExtensionContext) {
     }
 
     const configValidation = validateN8nConfig();
-
     if (!configValidation.isValid) {
         vscode.window.showErrorMessage(`Missing configuration: ${configValidation.missing.join(', ')}`);
         ConfigurationWebview.createOrShow(context);
@@ -557,11 +494,8 @@ async function handleInitializeCommand(context: vscode.ExtensionContext) {
         enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZED);
         updateContextKeys();
         statusBar.showSynced();
-
-        // Auto-initialize AI context
         outputChannel.appendLine('[n8n] Auto-initializing AI context...');
         await vscode.commands.executeCommand('n8n.initializeAI', { silent: true });
-
         vscode.window.showInformationMessage('✅ n8n as code initialized successfully!');
     } catch (error: any) {
         outputChannel.appendLine(`[n8n] Initialization failed: ${error.message}`);
@@ -571,23 +505,15 @@ async function handleInitializeCommand(context: vscode.ExtensionContext) {
     }
 }
 
-/**
- * Helper to get normalized n8n configuration
- */
-function getN8nConfig(): { host: string, apiKey: string } {
+function getN8nConfig(): { host: string; apiKey: string } {
     const config = vscode.workspace.getConfiguration('n8n');
     let host = config.get<string>('host') || process.env.N8N_HOST || '';
     const apiKey = config.get<string>('apiKey') || process.env.N8N_API_KEY || '';
-
-    if (host.endsWith('/')) {
-        host = host.slice(0, -1);
-    }
-
+    if (host.endsWith('/')) host = host.slice(0, -1);
     return { host, apiKey };
 }
 
 async function initializeSyncManager(context: vscode.ExtensionContext) {
-    // Cleanup old instance if exists
     if (syncManager) {
         syncManager.stopWatch();
         syncManager.removeAllListeners();
@@ -596,28 +522,20 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     const { host, apiKey } = getN8nConfig();
     const config = vscode.workspace.getConfiguration('n8n');
     const folder = config.get<string>('syncFolder') || 'workflows';
-
     let projectId = config.get<string>('projectId');
     let projectName = config.get<string>('projectName');
 
-    if (!host || !apiKey) {
-        throw new Error('Host/API Key missing. Please check Settings.');
-    }
+    if (!host || !apiKey) throw new Error('Host/API Key missing. Please check Settings.');
 
     const credentials: IN8nCredentials = { host, apiKey };
     const client = new N8nApiClient(credentials);
 
-    // If project isn't configured yet, try to pick a sensible default and persist it.
     if (!projectId || !projectName) {
         const projects = await client.getProjects();
-        if (!projects.length) {
-            throw new Error('No projects found on this n8n instance. Cannot initialize sync.');
-        }
+        if (!projects.length) throw new Error('No projects found. Cannot initialize sync.');
 
         let selectedProject = projects.find((p: any) => p.type === 'personal');
-        if (!selectedProject && projects.length === 1) {
-            selectedProject = projects[0];
-        }
+        if (!selectedProject && projects.length === 1) selectedProject = projects[0];
 
         if (!selectedProject) {
             const picked = await vscode.window.showQuickPick(
@@ -625,263 +543,191 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
                     label: p.type === 'personal' ? 'Personal' : p.name,
                     description: p.type,
                     detail: p.id,
-                    project: p,
+                    project: p
                 })),
-                {
-                    title: 'Select the n8n project to sync',
-                    ignoreFocusOut: true,
-                }
+                { title: 'Select the n8n project to sync', ignoreFocusOut: true }
             );
-
-            if (!picked) {
-                throw new Error('Project selection cancelled.');
-            }
-
+            if (!picked) throw new Error('Project selection cancelled.');
             selectedProject = (picked as any).project;
         }
 
-        if (!selectedProject) {
-            throw new Error('No project selected. Cannot initialize sync.');
-        }
-
+        if (!selectedProject) throw new Error('No project selected.');
         projectId = selectedProject.id;
         projectName = selectedProject.type === 'personal' ? 'Personal' : selectedProject.name;
-
         await config.update('projectId', projectId, vscode.ConfigurationTarget.Workspace);
         await config.update('projectName', projectName, vscode.ConfigurationTarget.Workspace);
         outputChannel.appendLine(`[n8n] Selected project: ${projectName} (${projectId})`);
     }
 
-    let workspaceRoot = '';
-    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-        workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
-    } else {
-        throw new Error('No workspace open');
-    }
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+    if (!workspaceRoot) throw new Error('No workspace open');
 
     const absDirectory = path.join(workspaceRoot, folder);
 
-    // Generate instance identifier
     let instanceIdentifier: string;
     try {
         const user = await client.getCurrentUser();
         if (user) {
             instanceIdentifier = createInstanceIdentifier(host, user);
-            outputChannel.appendLine(`[n8n] Instance identifier: ${instanceIdentifier} (user: ${user.firstName || user.email})`);
+            outputChannel.appendLine(`[n8n] Instance identifier: ${instanceIdentifier}`);
         } else {
             instanceIdentifier = createFallbackInstanceIdentifier(host, apiKey);
-            outputChannel.appendLine(`[n8n] Instance identifier: ${instanceIdentifier} (fallback)`);
         }
     } catch (error: any) {
         const isConnectionError = !error.response ||
-            error.code === 'ECONNREFUSED' ||
-            error.code === 'ENOTFOUND' ||
-            error.code === 'ETIMEDOUT';
-
+            error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT';
         if (isConnectionError) {
-            throw new Error(`Cannot connect to n8n instance at "${host}". Please check if n8n is running and the host URL is correct.`);
+            throw new Error(`Cannot connect to n8n instance at "${host}". Please check if n8n is running.`);
         }
-
         instanceIdentifier = createFallbackInstanceIdentifier(host, apiKey);
-        outputChannel.appendLine(`[n8n] Instance identifier: ${instanceIdentifier} (fallback - API error: ${error.message})`);
+        outputChannel.appendLine(`[n8n] Instance identifier (fallback): ${instanceIdentifier}`);
     }
 
+    // Create SyncManager (the stateful engine: Watcher, events, etc.)
     syncManager = new SyncManager(client, {
         directory: absDirectory,
         syncInactive: true,
         ignoredTags: [],
-        instanceIdentifier: instanceIdentifier,
+        instanceIdentifier,
         instanceConfigPath: path.join(workspaceRoot, 'n8nac-instance.json'),
         projectId: projectId!,
         projectName: projectName!
     });
 
-    // Pass syncManager to enhanced tree provider
-    enhancedTreeProvider.setSyncManager(syncManager);
+    // Create CliApi — the thin facade that all command handlers use.
+    // This mirrors exactly: n8nac list / fetch / pull / push
+    cli = new CliApi(syncManager);
 
-    // Initialize Redux store with SyncManager
+    enhancedTreeProvider.setSyncManager(syncManager);
     setSyncManager(syncManager);
     enhancedTreeProvider.subscribeToStore(store);
 
-    // Wire up event handlers BEFORE starting watch
-
+    // ── Event wiring ─────────────────────────────────────────────────────────
     syncManager.on('connection-lost', (error: Error) => {
         outputChannel.appendLine(`[n8n] CONNECTION LOST: ${error.message}`);
-
         syncManager!.stopWatch();
-
         enhancedTreeProvider.setExtensionState(ExtensionState.ERROR, error.message);
         statusBar.showError('Connection lost');
-
         vscode.window.showErrorMessage(
-            `Lost connection to n8n instance. The instance may have stopped.`,
-            'Retry Connection',
-            'Open Settings'
+            'Lost connection to n8n instance.',
+            'Retry Connection', 'Open Settings'
         ).then(choice => {
-            if (choice === 'Retry Connection') {
-                reinitializeSyncManager(context);
-            } else if (choice === 'Open Settings') {
-                vscode.commands.executeCommand('n8n.openSettings');
-            }
+            if (choice === 'Retry Connection') reinitializeSyncManager(context);
+            else if (choice === 'Open Settings') vscode.commands.executeCommand('n8n.openSettings');
         });
     });
 
-    syncManager.on('error', (msg) => {
-        console.error(msg);
+    syncManager.on('error', (msg: any) => {
+        outputChannel.appendLine(`[n8n] Error: ${msg}`);
         vscode.window.showErrorMessage(`n8n Error: ${msg}`);
     });
 
-    syncManager.on('log', (msg) => {
-        console.log(msg);
+    syncManager.on('log', (msg: string) => {
         outputChannel.appendLine(msg);
-
         if (msg.includes('Sync complete') || msg.includes('Push complete')) {
             vscode.window.showInformationMessage(msg.replace(/^📥 |^📤 |^🔄 |^✅ /, ''));
         }
     });
 
-    // Auto-refresh tree when a real (user-triggered) status change occurs
+    // Real (user-triggered) status change — refresh the list via cli.list()
     syncManager.on('change', async (ev: any) => {
         outputChannel.appendLine(`[n8n] Status change: ${ev.status} (${ev.filename})`);
-
+        if (!cli) return;
         try {
-            const workflows = await syncManager!.listWorkflows();
-            store.dispatch(setWorkflows(workflows));
-        } catch (error) {
-            console.error('Failed to reload workflows:', error);
+            store.dispatch(setWorkflows(await cli.list()));
+        } catch (err) {
+            console.error('Failed to reload workflows:', err);
         }
     });
 
-    // Handle Conflicts
     syncManager.on('conflict', async (conflict: any) => {
         const { filename, id } = conflict;
-        outputChannel.appendLine(`[n8n] CONFLICT detected for: ${filename}`);
-
-        store.dispatch(addConflict({
-            id: conflict.id,
-            filename: conflict.filename,
-            remoteContent: conflict.remoteContent
-        }));
+        outputChannel.appendLine(`[n8n] CONFLICT detected: ${filename}`);
+        store.dispatch(addConflict({ id: conflict.id, filename: conflict.filename, remoteContent: conflict.remoteContent }));
         enhancedTreeProvider.refresh();
-
         const choice = await vscode.window.showWarningMessage(
             `⚠️ Conflict: "${filename}" — local and remote versions differ.`,
-            'Show Diff',
-            'Keep Current (local)',
-            'Keep Incoming (remote)',
-            'Mark as Resolved'
+            'Show Diff', 'Keep Current (local)', 'Keep Incoming (remote)', 'Mark as Resolved'
         );
-
         if (choice) {
             await vscode.commands.executeCommand('n8n.resolveConflict', {
-                workflow: { id, filename: filename, name: filename },
+                workflow: { id, filename, name: filename },
                 choice
             });
         }
     });
 
-    // Handle Remote Updated (after explicit push) - reload webview
-    syncManager.on('remote-updated', (data: { workflowId: string, filename: string }) => {
-        outputChannel.appendLine(`[n8n] Remote updated for: ${data.filename} (explicit push)`);
+    syncManager.on('remote-updated', (data: { workflowId: string; filename: string }) => {
         WorkflowWebview.reloadIfMatching(data.workflowId, outputChannel);
     });
 
-    // Global File System Watcher for Real-Time UI Updates
-    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+    // VS Code file-system watcher for immediate tree refresh on local edits
+    if (vscode.workspace.workspaceFolders?.length) {
         const syncFolder = config.get<string>('syncFolder') || 'workflows';
-        const pattern = new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], `${syncFolder}/*.workflow.ts`);
-
-        outputChannel.appendLine(`[n8n] Starting file watcher. Pattern: ${pattern.pattern}`);
+        const pattern = new vscode.RelativePattern(
+            vscode.workspace.workspaceFolders[0],
+            `${syncFolder}/*.workflow.ts`
+        );
         const fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
-
         let refreshTimeout: NodeJS.Timeout | undefined;
-        const debouncedRefresh = (e: vscode.Uri) => {
-            outputChannel.appendLine(`[n8n] File changed: ${e.fsPath}`);
+        const debouncedRefresh = () => {
             if (refreshTimeout) clearTimeout(refreshTimeout);
-            refreshTimeout = setTimeout(() => {
-                enhancedTreeProvider.refresh();
-            }, 500);
+            refreshTimeout = setTimeout(() => enhancedTreeProvider.refresh(), 500);
         };
-
         fileWatcher.onDidCreate(debouncedRefresh);
         fileWatcher.onDidDelete(debouncedRefresh);
         fileWatcher.onDidChange(debouncedRefresh);
-
         context.subscriptions.push(fileWatcher);
     }
 
-    // Start Internal Watcher
     statusBar.setWatchMode(false);
     await syncManager.startWatch();
 
-    // Load initial workflow list — refreshes remote state silently (no "Change detected" noise)
+    // Initial list — uses cli.list(fetchRemote: true) which mirrors `n8nac list`
+    outputChannel.appendLine('[n8n] Loading workflow list...');
     try {
-        outputChannel.appendLine('[n8n] Loading workflow list...');
-        const workflows = await syncManager.listWorkflows({ fetchRemote: true });
+        const workflows = await cli.list({ fetchRemote: true });
         store.dispatch(setWorkflows(workflows));
         outputChannel.appendLine(`[n8n] Found ${workflows.length} workflows.`);
     } catch (error: any) {
         outputChannel.appendLine(`[n8n] Failed to load workflows: ${error.message}`);
     }
 
-    // Check AI context
+    // AI context check
     const aiFiles = [
         path.join(workspaceRoot, 'AGENTS.md'),
         path.join(workspaceRoot, '.vscode', 'n8n.code-snippets')
     ];
-
     const missingAny = aiFiles.some(f => !fs.existsSync(f));
     const lastVersion = context.workspaceState.get<string>('n8n.lastInitVersion');
     let currentVersion: string | undefined;
+    try { currentVersion = (await client.getHealth()).version; } catch { }
 
-    try {
-        const health = await client.getHealth();
-        currentVersion = health.version;
-    } catch { }
+    const needsUpdate = missingAny || (currentVersion && lastVersion && currentVersion !== lastVersion);
+    enhancedTreeProvider.setAIContextInfo(currentVersion, !!needsUpdate);
 
-    const versionMismatch = currentVersion && lastVersion && currentVersion !== lastVersion;
-    const needsUpdate = missingAny || versionMismatch;
-
-    enhancedTreeProvider.setAIContextInfo(currentVersion || undefined, !!needsUpdate);
-
-    if (needsUpdate) {
-        outputChannel.appendLine(`[n8n] AI Context out of date or missing.`);
-
-        if (missingAny && !lastVersion) {
-            outputChannel.appendLine(`[n8n] Auto-generating AI context for first-time setup...`);
-            try {
-                await vscode.commands.executeCommand('n8n.initializeAI', { silent: true });
-                outputChannel.appendLine(`[n8n] AI context auto-generated successfully.`);
-
-                const newVersion = context.workspaceState.get<string>('n8n.lastInitVersion');
-                enhancedTreeProvider.setAIContextInfo(newVersion || currentVersion, false);
-            } catch (error: any) {
-                outputChannel.appendLine(`[n8n] Failed to auto-generate AI context: ${error.message}`);
-            }
+    if (needsUpdate && missingAny && !lastVersion) {
+        try {
+            await vscode.commands.executeCommand('n8n.initializeAI', { silent: true });
+            enhancedTreeProvider.setAIContextInfo(
+                context.workspaceState.get<string>('n8n.lastInitVersion') || currentVersion,
+                false
+            );
+        } catch (error: any) {
+            outputChannel.appendLine(`[n8n] Failed to auto-generate AI context: ${error.message}`);
         }
     }
 }
 
-/**
- * Reinitialize sync manager when settings change
- */
 async function reinitializeSyncManager(context: vscode.ExtensionContext) {
-    if (!syncManager) {
-        return;
-    }
-
-    outputChannel.appendLine('[n8n] Reinitializing sync manager with new settings...');
-
+    if (!syncManager) return;
+    outputChannel.appendLine('[n8n] Reinitializing with new settings...');
     try {
-        const oldManager = syncManager;
-        oldManager.stopWatch();
-        oldManager.removeAllListeners();
-
+        syncManager.stopWatch();
+        syncManager.removeAllListeners();
         await initializeSyncManager(context);
-
         enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZED);
         updateContextKeys();
-
         enhancedTreeProvider.refresh();
         vscode.window.showInformationMessage('✅ n8n settings updated successfully.');
     } catch (error: any) {
