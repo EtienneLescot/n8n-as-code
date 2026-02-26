@@ -8,14 +8,11 @@ import { MockN8nApiClient, MockSyncManager, createMockWorkflow } from '../helper
 
 // Define WorkflowSyncStatus enum locally since we're using mocks
 enum WorkflowSyncStatus {
-    IN_SYNC = 'IN_SYNC',
+    TRACKED = 'TRACKED',
     MODIFIED_LOCALLY = 'MODIFIED_LOCALLY',
-    MODIFIED_REMOTELY = 'MODIFIED_REMOTELY',
     CONFLICT = 'CONFLICT',
     EXIST_ONLY_LOCALLY = 'EXIST_ONLY_LOCALLY',
-    EXIST_ONLY_REMOTELY = 'EXIST_ONLY_REMOTELY',
-    DELETED_LOCALLY = 'DELETED_LOCALLY',
-    DELETED_REMOTELY = 'DELETED_REMOTELY'
+    EXIST_ONLY_REMOTELY = 'EXIST_ONLY_REMOTELY'
 }
 
 describe('Synchronization Scenarios', () => {
@@ -91,18 +88,18 @@ describe('Synchronization Scenarios', () => {
     });
 
     describe('Status Detection', () => {
-        it('should detect IN_SYNC workflows', async () => {
+        it('should detect TRACKED workflows', async () => {
             mockSyncManager.setMockWorkflowsStatus([
                 {
                     id: '1',
-                    name: 'Synced Workflow',
-                    status: WorkflowSyncStatus.IN_SYNC,
+                    name: 'Tracked Workflow',
+                    status: WorkflowSyncStatus.TRACKED,
                     filename: 'workflow.json'
                 }
             ]);
 
             const status = await mockSyncManager.getWorkflowsStatus();
-            expect(status[0].status).toBe(WorkflowSyncStatus.IN_SYNC);
+            expect(status[0].status).toBe(WorkflowSyncStatus.TRACKED);
         });
 
         it('should detect MODIFIED_LOCALLY', async () => {
@@ -117,48 +114,6 @@ describe('Synchronization Scenarios', () => {
 
             const status = await mockSyncManager.getWorkflowsStatus();
             expect(status[0].status).toBe(WorkflowSyncStatus.MODIFIED_LOCALLY);
-        });
-
-        it('should detect MODIFIED_REMOTELY', async () => {
-            mockSyncManager.setMockWorkflowsStatus([
-                {
-                    id: '1',
-                    name: 'Modified Remote',
-                    status: WorkflowSyncStatus.MODIFIED_REMOTELY,
-                    filename: 'workflow.json'
-                }
-            ]);
-
-            const status = await mockSyncManager.getWorkflowsStatus();
-            expect(status[0].status).toBe(WorkflowSyncStatus.MODIFIED_REMOTELY);
-        });
-
-        it('should detect DELETED_LOCALLY', async () => {
-            mockSyncManager.setMockWorkflowsStatus([
-                {
-                    id: '1',
-                    name: 'Deleted Local',
-                    status: WorkflowSyncStatus.DELETED_LOCALLY,
-                    filename: 'workflow.json'
-                }
-            ]);
-
-            const status = await mockSyncManager.getWorkflowsStatus();
-            expect(status[0].status).toBe(WorkflowSyncStatus.DELETED_LOCALLY);
-        });
-
-        it('should detect DELETED_REMOTELY', async () => {
-            mockSyncManager.setMockWorkflowsStatus([
-                {
-                    id: '1',
-                    name: 'Deleted Remote',
-                    status: WorkflowSyncStatus.DELETED_REMOTELY,
-                    filename: 'workflow.json'
-                }
-            ]);
-
-            const status = await mockSyncManager.getWorkflowsStatus();
-            expect(status[0].status).toBe(WorkflowSyncStatus.DELETED_REMOTELY);
         });
 
         it('should detect EXIST_ONLY_LOCALLY', async () => {
@@ -211,9 +166,9 @@ describe('Synchronization Scenarios', () => {
             mockSyncManager.setMockWorkflowsStatus([
                 {
                     id: '1',
-                    name: 'Modified',
-                    status: WorkflowSyncStatus.MODIFIED_REMOTELY,
-                    filename: 'workflow.json'
+                    name: 'New Remote Workflow',
+                    status: WorkflowSyncStatus.EXIST_ONLY_REMOTELY,
+                    filename: null
                 }
             ]);
 
@@ -233,14 +188,14 @@ describe('Synchronization Scenarios', () => {
                 },
                 {
                     id: '2',
-                    name: 'Remote Mod',
-                    status: WorkflowSyncStatus.MODIFIED_REMOTELY,
-                    filename: 'workflow2.json'
+                    name: 'New Remote',
+                    status: WorkflowSyncStatus.EXIST_ONLY_REMOTELY,
+                    filename: null
                 },
                 {
                     id: '3',
-                    name: 'In Sync',
-                    status: WorkflowSyncStatus.IN_SYNC,
+                    name: 'Tracked',
+                    status: WorkflowSyncStatus.TRACKED,
                     filename: 'workflow3.json'
                 }
             ]);
@@ -248,12 +203,12 @@ describe('Synchronization Scenarios', () => {
             const status = await mockSyncManager.getWorkflowsStatus();
             
             const localMods = status.filter(w => w.status === WorkflowSyncStatus.MODIFIED_LOCALLY);
-            const remoteMods = status.filter(w => w.status === WorkflowSyncStatus.MODIFIED_REMOTELY);
-            const inSync = status.filter(w => w.status === WorkflowSyncStatus.IN_SYNC);
+            const newRemote = status.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY);
+            const tracked = status.filter(w => w.status === WorkflowSyncStatus.TRACKED);
 
             expect(localMods).toHaveLength(1);
-            expect(remoteMods).toHaveLength(1);
-            expect(inSync).toHaveLength(1);
+            expect(newRemote).toHaveLength(1);
+            expect(tracked).toHaveLength(1);
         });
     });
 
