@@ -48,9 +48,9 @@ program.command('init')
 // switch - Switch between projects
 new SwitchCommand(program);
 
-// list - Snapshot view of all workflows and their sync status
+// list - Snapshot view of all workflows and their status
 program.command('list')
-    .description('Display a static table of all workflows and their current sync status')
+    .description('Display a table of all workflows and their current status (local, remote, or both)')
     .option('--local', 'Show only local workflows')
     .option('--remote', 'Show only remote workflows')
     .option('--distant', 'Alias for --remote')

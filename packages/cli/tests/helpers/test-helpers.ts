@@ -78,41 +78,57 @@ export class MockN8nApiClient extends EventEmitter {
 }
 
 /**
- * Mock SyncManager for testing
+ * Mock SyncManager for testing — matches the git-like API surface.
  */
 export class MockSyncManager extends EventEmitter {
-    private mockWorkflowsStatus: any[] = [];
+    private mockWorkflowsList: any[] = [];
     private shouldFail = false;
 
     constructor(public client: any, public config: any) {
         super();
     }
 
-    setMockWorkflowsStatus(status: any[]) {
-        this.mockWorkflowsStatus = status;
+    setMockWorkflowsList(workflows: any[]) {
+        this.mockWorkflowsList = workflows;
     }
 
     setShouldFail(shouldFail: boolean) {
         this.shouldFail = shouldFail;
     }
 
-    async refreshState(): Promise<void> {
+    /** Mirror of SyncManager.listWorkflows() — lightweight listing */
+    async listWorkflows(_options?: { fetchRemote?: boolean }): Promise<any[]> {
         if (this.shouldFail) throw new Error('SyncManager Error');
+        return this.mockWorkflowsList;
     }
 
-    async getWorkflowsStatus(): Promise<any[]> {
+    /** Mirror of SyncManager.getSingleWorkflowDetailedStatus() */
+    async getSingleWorkflowDetailedStatus(_workflowId: string, _filename: string): Promise<any> {
         if (this.shouldFail) throw new Error('SyncManager Error');
-        return this.mockWorkflowsStatus;
+        return { status: 'TRACKED', localExists: true, remoteExists: true };
     }
 
-    async syncDown(): Promise<void> {
+    /** Mirror of SyncManager.pull() */
+    async pull(_workflowId: string): Promise<void> {
         if (this.shouldFail) throw new Error('SyncManager Error');
-        this.emit('log', 'Syncing down...');
+        this.emit('log', 'Pulling workflow...');
     }
 
-    async syncUp(): Promise<void> {
+    /** Mirror of SyncManager.push() */
+    async push(_workflowId: string, _filename: string): Promise<void> {
         if (this.shouldFail) throw new Error('SyncManager Error');
-        this.emit('log', 'Syncing up...');
+        this.emit('log', 'Pushing workflow...');
+    }
+
+    /** Mirror of SyncManager.fetch() */
+    async fetch(_workflowId: string): Promise<boolean> {
+        if (this.shouldFail) throw new Error('SyncManager Error');
+        return true;
+    }
+
+    /** Mirror of SyncManager.refreshRemoteState() */
+    async refreshRemoteState(): Promise<void> {
+        if (this.shouldFail) throw new Error('SyncManager Error');
     }
 
     async resolveConflict(id: string, filename: string, resolution: 'local' | 'remote'): Promise<void> {
@@ -123,8 +139,12 @@ export class MockSyncManager extends EventEmitter {
         return '/tmp/test-workflows';
     }
 
-    async start(): Promise<void> {
+    async startWatch(): Promise<void> {
         if (this.shouldFail) throw new Error('SyncManager Error');
+    }
+
+    stopWatch(): void {
+        // No-op
     }
 
     async stop(): Promise<void> {

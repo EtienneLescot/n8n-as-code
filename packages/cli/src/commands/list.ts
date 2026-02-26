@@ -6,26 +6,30 @@ import Table from 'cli-table3';
 
 export class ListCommand extends BaseCommand {
     async run(options?: { local?: boolean; remote?: boolean }): Promise<void> {
-        const spinner = ora('Refreshing workflow status...').start();
+        const spinner = ora('Listing workflows...').start();
 
         try {
             const syncConfig = await this.getSyncConfig();
             const syncManager = new SyncManager(this.client, syncConfig);
 
-            // Get lightweight workflow list (no hash computation, no TypeScript compilation)
-            // Uses cached remote state - for fresh data, run 'n8nac sync' first
-            let matrix = await syncManager.getWorkflowsLightweight();
+            // Get lightweight workflow list: no hash computation, no TypeScript compilation.
+            // Fetches fresh remote metadata on each call for an up-to-date view.
+            let workflows = await syncManager.listWorkflows({ fetchRemote: true });
             
             // Apply filters based on options
             if (options?.local) {
-                matrix = matrix.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY ||
-                                           w.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
-                                           w.status === WorkflowSyncStatus.TRACKED ||
-                                           w.status === WorkflowSyncStatus.CONFLICT);
+                workflows = workflows.filter(w =>
+                    w.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY ||
+                    w.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
+                    w.status === WorkflowSyncStatus.TRACKED ||
+                    w.status === WorkflowSyncStatus.CONFLICT
+                );
             } else if (options?.remote) {
-                matrix = matrix.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY ||
-                                           w.status === WorkflowSyncStatus.TRACKED ||
-                                           w.status === WorkflowSyncStatus.CONFLICT);
+                workflows = workflows.filter(w =>
+                    w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY ||
+                    w.status === WorkflowSyncStatus.TRACKED ||
+                    w.status === WorkflowSyncStatus.CONFLICT
+                );
             }
 
             spinner.stop();
@@ -56,7 +60,7 @@ export class ListCommand extends BaseCommand {
                 [WorkflowSyncStatus.TRACKED]: 5
             };
 
-            const sorted = matrix.sort((a: IWorkflowStatus, b: IWorkflowStatus) => {
+            const sorted = workflows.sort((a: IWorkflowStatus, b: IWorkflowStatus) => {
                 const priorityDiff = statusPriority[a.status] - statusPriority[b.status];
                 if (priorityDiff !== 0) return priorityDiff;
                 return a.name.localeCompare(b.name);
@@ -86,14 +90,14 @@ export class ListCommand extends BaseCommand {
             console.log('\n' + table.toString() + '\n');
 
             // Display summary
-            const summary = this.getSummary(matrix);
+            const summary = this.getSummary(workflows);
             console.log(chalk.bold('Summary:'));
             console.log(chalk.green(`  ✔ Tracked: ${summary.tracked}`));
             console.log(chalk.blue(`  ✏️  Modified Locally: ${summary.modifiedLocally}`));
             console.log(chalk.red(`  💥 Conflicts: ${summary.conflicts}`));
-            console.log(chalk.yellow(`  + Only Local: ${summary.onlyLocal}`));
-            console.log(chalk.yellow(`  - Only Remote: ${summary.onlyRemote}`));
-            console.log(chalk.bold(`  Total: ${matrix.length}\n`));
+            console.log(chalk.yellow(`  + Local Only: ${summary.onlyLocal}`));
+            console.log(chalk.yellow(`  - Remote Only: ${summary.onlyRemote}`));
+            console.log(chalk.bold(`  Total: ${workflows.length}\n`));
 
         } catch (error: any) {
             spinner.fail(chalk.red(`Failed to list workflows: ${error.message}`));
@@ -118,13 +122,13 @@ export class ListCommand extends BaseCommand {
         }
     }
 
-    private getSummary(matrix: IWorkflowStatus[]) {
+    private getSummary(workflows: IWorkflowStatus[]) {
         return {
-            tracked: matrix.filter(w => w.status === WorkflowSyncStatus.TRACKED).length,
-            modifiedLocally: matrix.filter(w => w.status === WorkflowSyncStatus.MODIFIED_LOCALLY).length,
-            conflicts: matrix.filter(w => w.status === WorkflowSyncStatus.CONFLICT).length,
-            onlyLocal: matrix.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY).length,
-            onlyRemote: matrix.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY).length
+            tracked: workflows.filter(w => w.status === WorkflowSyncStatus.TRACKED).length,
+            modifiedLocally: workflows.filter(w => w.status === WorkflowSyncStatus.MODIFIED_LOCALLY).length,
+            conflicts: workflows.filter(w => w.status === WorkflowSyncStatus.CONFLICT).length,
+            onlyLocal: workflows.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY).length,
+            onlyRemote: workflows.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY).length
         };
     }
 }

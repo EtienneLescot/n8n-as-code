@@ -12,14 +12,14 @@
 
 1.  **Installation**: Install the extension from the Marketplace.
 2.  **Connection**: Click the **n8n** icon in the Activity Bar, then click the **Gear (⚙️)** to configure your `Host` and `API Key`. Your projects load automatically, with the Personal project pre-selected by default.
-3.  **Import**: Use the refresh button (**Pull Workflows**) to bring in your existing workflows.
+3.  **Import**: Use the refresh button (**Refresh**) to see your existing workflows.
 
 ---
 
 ## 🎨 Features
 
-### 🔄 Native Synchronization
-The extension synchronizes your modifications in real-time. By default, every JSON file save (`Ctrl+S`) instantly sends changes to your n8n instance.
+### 🔄 Git-like Synchronization
+The extension follows a git-like model: **List**, **Fetch**, **Pull**, and **Push**. You have full control over when changes are synchronized.
 
 ### 🛡️ Conflict Management
 The system intelligently detects conflicts to prevent data loss:
@@ -54,9 +54,7 @@ The extension uses native VS Code settings (accessible via the Gear ⚙️):
 | :--- | :--- | :--- |
 | `n8n.host` | URL of your n8n instance | - |
 | `n8n.apiKey` | Your n8n API Key | - |
-| `n8n.syncMode` | `auto` (push on save) or `manual` | `auto` |
 | `n8n.syncFolder` | Local storage folder | `workflows` |
-| `n8n.pollInterval`| Refresh frequency (ms) | `3000` |
 
 ---
 

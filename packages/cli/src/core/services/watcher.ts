@@ -30,6 +30,8 @@ export class Watcher extends EventEmitter {
     private stateFilePath: string;
     private isConnected: boolean = true;
     private isInitializing: boolean = false;
+    /** True during the first refreshRemoteState() call — suppresses status broadcasts */
+    private isInitialRemoteLoad: boolean = false;
 
     // Internal state tracking
     private localHashes: Map<string, string> = new Map(); // filename -> hash
@@ -37,6 +39,7 @@ export class Watcher extends EventEmitter {
     private fileToIdMap: Map<string, string> = new Map(); // filename -> workflowId
     private idToFileMap: Map<string, string> = new Map(); // workflowId -> filename
     private lastKnownStatuses: Map<string, WorkflowSyncStatus> = new Map(); // workflowId or filename -> status
+    private remoteIds: Set<string> = new Set(); // workflowId
 
     // Concurrency control
     private isPaused = new Set<string>(); // IDs for which observation is paused
@@ -561,32 +564,33 @@ export class Watcher extends EventEmitter {
      * 1. Fetch only IDs and updatedAt timestamps
      * 2. Compare with cached timestamps
      * 3. Fetch full content only if timestamp changed
+     *
+     * Status events are suppressed during the first call (initial remote load) to avoid
+     * spurious "Change detected" messages in the VSCode extension and CLI output.
      */
     public async refreshRemoteState() {
+        // Suppress broadcasts during the very first remote load (populating cache from scratch).
+        // Subsequent calls (user-triggered fetch/refresh) will still broadcast normally.
+        const isFirstLoad = this.remoteIds.size === 0;
+        if (isFirstLoad) this.isInitialRemoteLoad = true;
+
         try {
             const remoteWorkflows = await this.client.getAllWorkflows(this.projectId);
             this.isConnected = true;
-            const currentRemoteIds = new Set<string>();
+            
+            // Update remoteIds set
+            this.remoteIds.clear();
 
             // Build set of already-assigned filenames to prevent collisions
-            // A filename is "assigned" if:
-            // 1. It exists physically on disk, OR
-            // 2. It's mapped to a workflow that still exists remotely (even if only local file is gone)
             const assignedFilenames = new Set<string>();
 
             for (const wf of remoteWorkflows) {
                 if (this.shouldIgnore(wf)) continue;
                 if (this.isPaused.has(wf.id) || this.syncInProgress.has(wf.id)) continue;
 
-                currentRemoteIds.add(wf.id);
+                this.remoteIds.add(wf.id);
 
                 // CRITICAL: Use ID-based mapping with PERSISTED state as source of truth
-                // Priority order for finding filename:
-                // 1. Persisted mapping from state (most reliable for stability)
-                // 2. Memory mapping (may differ if file was renamed locally)
-                // 3. Scan local files by ID
-                // 4. Generate from name (new workflow)
-
                 let filename: string | undefined = this.idToFileMap.get(wf.id);
 
                 // If no valid mapping, scan local files to discover/rediscover the workflow
@@ -625,52 +629,24 @@ export class Watcher extends EventEmitter {
                     this.idToFileMap.set(wf.id, filename);
                     this.fileToIdMap.set(filename, wf.id);
                 } else if (previousFilename !== filename) {
-                    // Filename changed - this should only happen during explicit rename
-                    // For duplicate name scenarios, we should have generated a unique name above
-                    // Update mappings
+                    // Filename changed
                     this.fileToIdMap.delete(previousFilename);
                     this.idToFileMap.set(wf.id, filename);
                     this.fileToIdMap.set(filename, wf.id);
                 }
-                // If previousFilename === filename, mappings are already correct - don't touch them
 
-                // Check if we need to fetch full content
-                const cachedTimestamp = this.remoteTimestamps.get(wf.id);
-                const needsFullFetch = !cachedTimestamp ||
-                    (wf.updatedAt && wf.updatedAt !== cachedTimestamp);
-
-                if (needsFullFetch) {
-                    try {
-                        const fullWf = await this.client.getWorkflow(wf.id);
-                        if (fullWf) {
-                            const hash = await WorkflowTransformerAdapter.hashWorkflowFromJson(fullWf);
-
-                            this.remoteHashes.set(wf.id, hash);
-                            if (wf.updatedAt) {
-                                this.remoteTimestamps.set(wf.id, wf.updatedAt);
-                            }
-                            this.broadcastStatus(filename, wf.id);
-                        }
-                    } catch (e) {
-                        console.warn(`[Watcher] Could not fetch workflow ${wf.id}:`, e);
-                    }
-                } else {
-                    // Timestamp unchanged, use cached hash
-                    const cachedHash = this.remoteHashes.get(wf.id);
-                    if (cachedHash) {
-                        this.broadcastStatus(filename, wf.id);
-                    }
-                }
+                // In lightweight mode, we don't fetch full content or compute hashes here.
+                // We just broadcast that the workflow exists remotely.
+                this.broadcastStatus(filename, wf.id);
             }
 
-            // Prune remoteHashes for deleted workflows
-            for (const id of this.remoteHashes.keys()) {
-                if (!currentRemoteIds.has(id)) {
+            // Prune remoteHashes and timestamps for deleted workflows
+            for (const id of Array.from(this.remoteHashes.keys())) {
+                if (!this.remoteIds.has(id)) {
                     this.remoteHashes.delete(id);
                     this.remoteTimestamps.delete(id);
 
-                    // Clear lastSyncedHash from state so calculateStatus() returns
-                    // EXIST_ONLY_LOCALLY naturally (localHash present, no remoteHash, no lastSyncedHash).
+                    // Clear lastSyncedHash from state
                     const state = this.loadState();
                     if (state.workflows[id]) {
                         (state.workflows[id] as IWorkflowState).lastSyncedHash = undefined as any;
@@ -701,6 +677,9 @@ export class Watcher extends EventEmitter {
             }
             // Re-throw so that start() can catch it on initial call
             throw error;
+        } finally {
+            // Always clear the initial load flag
+            this.isInitialRemoteLoad = false;
         }
     }
 
@@ -846,6 +825,8 @@ export class Watcher extends EventEmitter {
 
     private broadcastStatus(filename: string, workflowId?: string) {
         if (this.isInitializing) return;
+        // Suppress during initial remote load — avoids spurious "Change detected" on startup
+        if (this.isInitialRemoteLoad) return;
 
         const status = this.calculateStatus(filename, workflowId);
         const key = workflowId || filename;
@@ -870,9 +851,10 @@ export class Watcher extends EventEmitter {
         if (!workflowId) workflowId = this.fileToIdMap.get(filename);
         const localHash = this.localHashes.get(filename);
         const remoteHash = workflowId ? this.remoteHashes.get(workflowId) : undefined;
+        const remoteExists = workflowId ? this.remoteIds.has(workflowId) : false;
 
         // If we are disconnected and don't have a remote hash, don't claim it's deleted
-        if (!this.isConnected && !remoteHash && workflowId) {
+        if (!this.isConnected && !remoteExists && workflowId) {
             return WorkflowSyncStatus.TRACKED; // Treat as tracked/unknown to avoid "deleted" panic
         }
 
@@ -891,7 +873,7 @@ export class Watcher extends EventEmitter {
 
         // Implementation of 4.2 Status Logic Matrix
         if (localHash && !lastSyncedHash && !remoteHash) return WorkflowSyncStatus.EXIST_ONLY_LOCALLY;
-        if (remoteHash && !lastSyncedHash && !localHash) return WorkflowSyncStatus.EXIST_ONLY_REMOTELY;
+        if (remoteExists && !lastSyncedHash && !localHash) return WorkflowSyncStatus.EXIST_ONLY_REMOTELY;
 
         if (localHash && remoteHash && localHash === remoteHash) return WorkflowSyncStatus.TRACKED;
 
@@ -1036,7 +1018,7 @@ export class Watcher extends EventEmitter {
         // 1. Process all local files (just check existence, no hash computation)
         for (const filename of this.getLocalWorkflowFilenames()) {
             const workflowId = this.fileToIdMap.get(filename);
-            const remoteExists = workflowId ? this.remoteHashes.has(workflowId) : false;
+            const remoteExists = workflowId ? this.remoteIds.has(workflowId) : false;
 
             // Determine basic status
             let status: WorkflowSyncStatus;
@@ -1065,7 +1047,7 @@ export class Watcher extends EventEmitter {
         }
 
         // 2. Process all remote workflows not yet in results
-        for (const [workflowId, remoteHash] of this.remoteHashes.entries()) {
+        for (const workflowId of this.remoteIds) {
             // Use persisted filename from state for stability
             const persistedFilename = (state.workflows[workflowId] as IWorkflowState)?.filename;
             const filename = persistedFilename || this.idToFileMap.get(workflowId) || `${workflowId}.workflow.ts`;

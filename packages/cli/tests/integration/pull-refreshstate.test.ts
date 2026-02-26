@@ -17,39 +17,39 @@ describe('Pull with refreshState', () => {
         });
     });
 
-    it('should call refreshState before syncDown', async () => {
-        const refreshStateSpy = vi.spyOn(mockSyncManager, 'refreshState');
-        const syncDownSpy = vi.spyOn(mockSyncManager, 'syncDown');
+    it('should call refreshRemoteState before pull', async () => {
+        const refreshRemoteStateSpy = vi.spyOn(mockSyncManager, 'refreshRemoteState');
+        const pullSpy = vi.spyOn(mockSyncManager, 'pull');
 
-        await mockSyncManager.refreshState();
-        await mockSyncManager.syncDown();
+        await mockSyncManager.refreshRemoteState();
+        await mockSyncManager.pull('1');
 
         // Verify both were called
-        expect(refreshStateSpy).toHaveBeenCalled();
-        expect(syncDownSpy).toHaveBeenCalled();
+        expect(refreshRemoteStateSpy).toHaveBeenCalled();
+        expect(pullSpy).toHaveBeenCalledWith('1');
     });
 
     it('should refresh state on push as well', async () => {
-        const refreshStateSpy = vi.spyOn(mockSyncManager, 'refreshState');
-        const syncUpSpy = vi.spyOn(mockSyncManager, 'syncUp');
+        const refreshRemoteStateSpy = vi.spyOn(mockSyncManager, 'refreshRemoteState');
+        const pushSpy = vi.spyOn(mockSyncManager, 'push');
 
-        await mockSyncManager.refreshState();
-        await mockSyncManager.syncUp();
+        await mockSyncManager.refreshRemoteState();
+        await mockSyncManager.push('1', 'test.workflow.ts');
 
-        expect(refreshStateSpy).toHaveBeenCalled();
-        expect(syncUpSpy).toHaveBeenCalled();
+        expect(refreshRemoteStateSpy).toHaveBeenCalled();
+        expect(pushSpy).toHaveBeenCalledWith('1', 'test.workflow.ts');
     });
 
     it('should handle force pull correctly', async () => {
-        mockSyncManager.setMockWorkflowsStatus([
-            { id: '1', name: 'Test', status: 'CONFLICT' as any, filename: 'test.json' }
+        mockSyncManager.setMockWorkflowsList([
+            { id: '1', name: 'Test', status: 'CONFLICT' as any, filename: 'test.workflow.ts' }
         ]);
 
-        const refreshStateSpy = vi.spyOn(mockSyncManager, 'refreshState');
+        const refreshRemoteStateSpy = vi.spyOn(mockSyncManager, 'refreshRemoteState');
         
-        await mockSyncManager.refreshState();
+        await mockSyncManager.refreshRemoteState();
 
         // In force mode, conflicts should be auto-resolved
-        expect(refreshStateSpy).toHaveBeenCalled();
+        expect(refreshRemoteStateSpy).toHaveBeenCalled();
     });
 });

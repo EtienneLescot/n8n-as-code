@@ -116,11 +116,6 @@
         "icon": "$(check)"
       },
       {
-        "command": "n8n.deleteWorkflow",
-        "title": "Delete Workflow",
-        "icon": "$(trash)"
-      },
-      {
         "command": "n8n.fetchWorkflow",
         "title": "Fetch",
         "icon": "$(refresh)"

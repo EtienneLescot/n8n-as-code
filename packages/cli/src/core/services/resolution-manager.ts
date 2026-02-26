@@ -136,7 +136,7 @@ export class ResolutionManager {
     /**
      * Get current status for a workflow
      */
-    public async getWorkflowStatus(workflowId: string, filename: string): Promise<{
+    public async getSingleWorkflowDetailedStatus(workflowId: string, filename: string): Promise<{
         status: WorkflowSyncStatus;
         localExists: boolean;
         remoteExists: boolean;
@@ -147,20 +147,16 @@ export class ResolutionManager {
         const status = this.watcher.calculateStatus(filename, workflowId);
         const lastSyncedHash = this.watcher.getLastSyncedHash(workflowId);
         
-        // Get local hash
-        const filePath = path.join(this.directory, filename);
-        const localContent = this.readJsonFile(filePath);
-        const localHash = localContent ? 
-            HashUtils.computeHash(WorkflowSanitizer.cleanForHash(localContent)) : 
-            undefined;
+        // Get local hash from watcher cache (already computed during scan/watch)
+        const localHash = (this.watcher as any).localHashes?.get(filename);
 
         // Get remote hash from watcher cache
         const remoteHash = (this.watcher as any).remoteHashes?.get(workflowId);
 
         return {
             status,
-            localExists: !!localContent,
-            remoteExists: !!remoteHash,
+            localExists: !!localHash || fs.existsSync(path.join(this.directory, filename)),
+            remoteExists: !!remoteHash || (this.watcher as any).remoteIds?.has(workflowId),
             lastSyncedHash,
             localHash,
             remoteHash

@@ -63,7 +63,6 @@ export class SyncManager extends EventEmitter {
         this.resolutionManager = new ResolutionManager(this.syncEngine, this.watcher, this.client);
 
         this.watcher.on('statusChange', (data) => {
-            console.log(`[SyncManager] 📨 Received statusChange event:`, data);
             this.emit('change', data);
             
             // Emit specific events for conflicts
@@ -80,7 +79,7 @@ export class SyncManager extends EventEmitter {
                 });
             }
             
-            // In the new Git-like architecture, local changes are never auto-pushed.
+            // In the git-like architecture, local changes are never auto-pushed.
             // The user must explicitly trigger a Push.
         });
 
@@ -94,19 +93,26 @@ export class SyncManager extends EventEmitter {
     }
 
     /**
-     * Lightweight list of workflows with basic status (local only, remote only, both)
-     * Does NOT compute hashes, compile TypeScript, or determine detailed status (MODIFIED_LOCALLY, CONFLICT)
+     * Lightweight list of workflows with basic status (local only, remote only, both).
+     * Does NOT compute hashes, compile TypeScript, or determine detailed status.
+     * This is the primary data source for the VSCode tree view and the CLI `list` command.
+     * 
+     * Optionally refreshes remote state from the API before listing (default: false
+     * to keep it fast). Pass `{ fetchRemote: true }` to force a fresh remote fetch.
      */
-    async getWorkflowsLightweight(): Promise<IWorkflowStatus[]> {
+    async listWorkflows(options?: { fetchRemote?: boolean }): Promise<IWorkflowStatus[]> {
         await this.ensureInitialized();
+        if (options?.fetchRemote) {
+            await this.watcher!.refreshRemoteState();
+        }
         return await this.watcher!.getLightweightList();
     }
 
     /**
-     * Get status for a single workflow (computes hash and detailed status for this workflow only)
-     * Used by pull command to check for local modifications before overwriting
+    * Get detailed status for a single workflow (computes hash and three-way comparison).
+     * Used by pull command to check for local modifications before overwriting.
      */
-    async getWorkflowStatus(workflowId: string, filename: string): Promise<{
+    async getSingleWorkflowDetailedStatus(workflowId: string, filename: string): Promise<{
         status: WorkflowSyncStatus;
         localExists: boolean;
         remoteExists: boolean;
@@ -118,16 +124,7 @@ export class SyncManager extends EventEmitter {
         if (!this.resolutionManager) {
             throw new Error('Resolution manager not initialized');
         }
-        return await this.resolutionManager.getWorkflowStatus(workflowId, filename);
-    }
-    
-    /**
-     * Get full workflows with organization metadata for display purposes.
-     * This returns the actual workflow objects with projectId, isArchived, tags, etc.
-     */
-    async getWorkflowsWithMetadata(): Promise<IWorkflow[]> {
-        await this.ensureInitialized();
-        return this.watcher!.getAllWorkflows();
+        return await this.resolutionManager.getSingleWorkflowDetailedStatus(workflowId, filename);
     }
 
     async startWatch() {
@@ -141,8 +138,18 @@ export class SyncManager extends EventEmitter {
     }
 
     /**
-     * Create or update the n8nac-instance.json file
-     * This file marks the workspace as initialized and stores the instance identifier
+     * Refresh the remote state for all workflows from the API.
+     * This populates the internal cache so that `listWorkflows()` can return up-to-date status.
+     * Emits status change events only when status actually changes.
+     */
+    async refreshRemoteState(): Promise<void> {
+        await this.ensureInitialized();
+        await this.watcher!.refreshRemoteState();
+    }
+
+    /**
+     * Create or update the n8nac-instance.json file.
+     * This file marks the workspace as initialized and stores the instance identifier.
      */
     private ensureInstanceConfigFile() {
         if (!this.config.instanceConfigPath || !this.config.instanceIdentifier) {
@@ -180,15 +187,13 @@ export class SyncManager extends EventEmitter {
 
     /**
      * Fetch remote state for a specific workflow (update internal cache for comparison).
-     * This is the manual fetch command that just updates the remote state cache
-     * without attempting to pull. Returns true if the workflow exists on remote
-     * and cache was updated, false if workflow doesn't exist on remote.
+     * This is the manual fetch command that updates the remote state cache without pulling.
+     * Returns true if the workflow exists on remote, false if not found.
      */
     public async fetch(workflowId: string): Promise<boolean> {
-        if (!this.watcher) return false;
+        await this.ensureInitialized();
 
         try {
-            // Fetch the latest remote state for this specific workflow
             const remoteWf = await this.client.getWorkflow(workflowId);
             if (!remoteWf) {
                 this.emit('log', `[SyncManager] Workflow ${workflowId} not found on remote.`);
@@ -196,7 +201,7 @@ export class SyncManager extends EventEmitter {
             }
 
             // Update the watcher's remote state cache for this workflow
-            await this.watcher.updateSingleRemoteState(remoteWf);
+            await this.watcher!.updateSingleRemoteState(remoteWf);
             
             this.emit('log', `[SyncManager] Fetched remote state for workflow ${workflowId}.`);
             return true;
@@ -210,11 +215,11 @@ export class SyncManager extends EventEmitter {
      * Explicit single-workflow pull (user-triggered).
      * Always overwrites local with the latest remote version, regardless of status.
      */
-    public async pullOne(workflowId: string): Promise<void> {
+    public async pull(workflowId: string): Promise<void> {
         await this.ensureInitialized();
         const filename = this.watcher!.getFilenameForId(workflowId);
         if (!filename) {
-            throw new Error(`Workflow ${workflowId} not found in local state`);
+            throw new Error(`Workflow ${workflowId} not found in local state. Try 'fetch' first if it only exists remotely.`);
         }
         // User-triggered pull always force-pulls (overwrites local regardless of status)
         await this.syncEngine!.forcePull(workflowId, filename);
@@ -224,9 +229,13 @@ export class SyncManager extends EventEmitter {
      * Explicit single-workflow push (user-triggered).
      * Runs OCC check — throws OccConflictError if remote was modified since last sync.
      */
-    public async pushOne(workflowId: string, filename: string): Promise<void> {
+    public async push(workflowId: string, filename?: string): Promise<void> {
         await this.ensureInitialized();
-        await this.syncEngine!.push(filename, workflowId, WorkflowSyncStatus.MODIFIED_LOCALLY);
+        const targetFilename = filename || this.watcher!.getFilenameForId(workflowId);
+        if (!targetFilename) {
+            throw new Error(`Workflow ${workflowId} not found locally`);
+        }
+        await this.syncEngine!.push(targetFilename, workflowId, WorkflowSyncStatus.MODIFIED_LOCALLY);
     }
 
     public async resolveConflict(workflowId: string, filename: string, resolution: 'local' | 'remote'): Promise<void> {
@@ -235,21 +244,6 @@ export class SyncManager extends EventEmitter {
             await this.syncEngine!.forcePush(workflowId, filename);
         } else {
             await this.syncEngine!.forcePull(workflowId, filename);
-        }
-    }
-
-    async deleteRemoteWorkflows(ids: string[]): Promise<void> {
-        await this.ensureInitialized();
-        for (const id of ids) {
-            try {
-                const filename = this.watcher!.getFilenameForId(id);
-                if (filename) {
-                    await this.syncEngine!.deleteRemote(id, filename);
-                    await this.watcher!.removeWorkflowState(id);
-                }
-            } catch (error: any) {
-                this.emit('error', new Error(`Failed to delete remote workflow ${id}: ${error.message}`));
-            }
         }
     }
 
@@ -263,28 +257,6 @@ export class SyncManager extends EventEmitter {
             this.emit('error', new Error(`Failed to delete remote workflow ${workflowId}: ${error.message}`));
             return false;
         }
-    }
-
-    public async confirmDeletion(workflowId: string, filename: string): Promise<boolean> {
-        return this.deleteRemoteWorkflow(workflowId, filename);
-    }
-
-    public async restoreRemoteWorkflow(workflowId: string, filename: string): Promise<boolean> {
-        await this.ensureInitialized();
-        try {
-            await this.syncEngine!.forcePush(workflowId, filename);
-            return true;
-        } catch (error: any) {
-            this.emit('error', new Error(`Failed to restore remote workflow ${workflowId}: ${error.message}`));
-            return false;
-        }
-    }
-
-    public async handleLocalFileChange(filePath: string): Promise<void> {
-        await this.ensureInitialized();
-        // The watcher handles local file changes automatically via chokidar
-        // This method is kept for compatibility with the VS Code extension
-        // which might want to explicitly trigger a check
     }
 
     public stopWatch() {

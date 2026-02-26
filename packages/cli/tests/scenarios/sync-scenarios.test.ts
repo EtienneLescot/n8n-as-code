@@ -54,16 +54,16 @@ describe('Synchronization Scenarios', () => {
 
     describe('Conflict Resolution', () => {
         it('should detect conflicts when both sides modified', async () => {
-            mockSyncManager.setMockWorkflowsStatus([
+            mockSyncManager.setMockWorkflowsList([
                 {
                     id: '1',
                     name: 'Conflicted Workflow',
                     status: WorkflowSyncStatus.CONFLICT,
-                    filename: 'workflow.json'
+                    filename: 'workflow.workflow.ts'
                 }
             ]);
 
-            const status = await mockSyncManager.getWorkflowsStatus();
+            const status = await mockSyncManager.listWorkflows();
             const conflicts = status.filter(w => w.status === WorkflowSyncStatus.CONFLICT);
 
             expect(conflicts).toHaveLength(1);
@@ -73,134 +73,134 @@ describe('Synchronization Scenarios', () => {
         it('should resolve conflict by keeping local', async () => {
             const resolveConflictSpy = vi.spyOn(mockSyncManager, 'resolveConflict');
 
-            await mockSyncManager.resolveConflict('1', 'workflow.json', 'local');
+            await mockSyncManager.resolveConflict('1', 'workflow.workflow.ts', 'local');
 
-            expect(resolveConflictSpy).toHaveBeenCalledWith('1', 'workflow.json', 'local');
+            expect(resolveConflictSpy).toHaveBeenCalledWith('1', 'workflow.workflow.ts', 'local');
         });
 
         it('should resolve conflict by keeping remote', async () => {
             const resolveConflictSpy = vi.spyOn(mockSyncManager, 'resolveConflict');
 
-            await mockSyncManager.resolveConflict('1', 'workflow.json', 'remote');
+            await mockSyncManager.resolveConflict('1', 'workflow.workflow.ts', 'remote');
 
-            expect(resolveConflictSpy).toHaveBeenCalledWith('1', 'workflow.json', 'remote');
+            expect(resolveConflictSpy).toHaveBeenCalledWith('1', 'workflow.workflow.ts', 'remote');
         });
     });
 
     describe('Status Detection', () => {
         it('should detect TRACKED workflows', async () => {
-            mockSyncManager.setMockWorkflowsStatus([
+            mockSyncManager.setMockWorkflowsList([
                 {
                     id: '1',
                     name: 'Tracked Workflow',
                     status: WorkflowSyncStatus.TRACKED,
-                    filename: 'workflow.json'
+                    filename: 'workflow.workflow.ts'
                 }
             ]);
 
-            const status = await mockSyncManager.getWorkflowsStatus();
+            const status = await mockSyncManager.listWorkflows();
             expect(status[0].status).toBe(WorkflowSyncStatus.TRACKED);
         });
 
         it('should detect MODIFIED_LOCALLY', async () => {
-            mockSyncManager.setMockWorkflowsStatus([
+            mockSyncManager.setMockWorkflowsList([
                 {
                     id: '1',
                     name: 'Modified Local',
                     status: WorkflowSyncStatus.MODIFIED_LOCALLY,
-                    filename: 'workflow.json'
+                    filename: 'workflow.workflow.ts'
                 }
             ]);
 
-            const status = await mockSyncManager.getWorkflowsStatus();
+            const status = await mockSyncManager.listWorkflows();
             expect(status[0].status).toBe(WorkflowSyncStatus.MODIFIED_LOCALLY);
         });
 
         it('should detect EXIST_ONLY_LOCALLY', async () => {
-            mockSyncManager.setMockWorkflowsStatus([
+            mockSyncManager.setMockWorkflowsList([
                 {
-                    id: null,
+                    id: '',
                     name: 'Local Only',
                     status: WorkflowSyncStatus.EXIST_ONLY_LOCALLY,
-                    filename: 'workflow.json'
+                    filename: 'workflow.workflow.ts'
                 }
             ]);
 
-            const status = await mockSyncManager.getWorkflowsStatus();
+            const status = await mockSyncManager.listWorkflows();
             expect(status[0].status).toBe(WorkflowSyncStatus.EXIST_ONLY_LOCALLY);
         });
 
         it('should detect EXIST_ONLY_REMOTELY', async () => {
-            mockSyncManager.setMockWorkflowsStatus([
+            mockSyncManager.setMockWorkflowsList([
                 {
                     id: '1',
                     name: 'Remote Only',
                     status: WorkflowSyncStatus.EXIST_ONLY_REMOTELY,
-                    filename: null
+                    filename: 'workflow.workflow.ts'
                 }
             ]);
 
-            const status = await mockSyncManager.getWorkflowsStatus();
+            const status = await mockSyncManager.listWorkflows();
             expect(status[0].status).toBe(WorkflowSyncStatus.EXIST_ONLY_REMOTELY);
         });
     });
 
     describe('Bidirectional Sync', () => {
         it('should push local changes', async () => {
-            mockSyncManager.setMockWorkflowsStatus([
+            mockSyncManager.setMockWorkflowsList([
                 {
                     id: '1',
                     name: 'Modified',
                     status: WorkflowSyncStatus.MODIFIED_LOCALLY,
-                    filename: 'workflow.json'
+                    filename: 'workflow.workflow.ts'
                 }
             ]);
 
-            const syncUpSpy = vi.spyOn(mockSyncManager, 'syncUp');
-            await mockSyncManager.syncUp();
+            const pushSpy = vi.spyOn(mockSyncManager, 'push');
+            await mockSyncManager.push('1', 'workflow.workflow.ts');
 
-            expect(syncUpSpy).toHaveBeenCalledOnce();
+            expect(pushSpy).toHaveBeenCalledOnce();
         });
 
         it('should pull remote changes', async () => {
-            mockSyncManager.setMockWorkflowsStatus([
+            mockSyncManager.setMockWorkflowsList([
                 {
                     id: '1',
                     name: 'New Remote Workflow',
                     status: WorkflowSyncStatus.EXIST_ONLY_REMOTELY,
-                    filename: null
+                    filename: 'workflow.workflow.ts'
                 }
             ]);
 
-            const syncDownSpy = vi.spyOn(mockSyncManager, 'syncDown');
-            await mockSyncManager.syncDown();
+            const pullSpy = vi.spyOn(mockSyncManager, 'pull');
+            await mockSyncManager.pull('1');
 
-            expect(syncDownSpy).toHaveBeenCalledOnce();
+            expect(pullSpy).toHaveBeenCalledOnce();
         });
 
         it('should handle mixed changes correctly', async () => {
-            mockSyncManager.setMockWorkflowsStatus([
+            mockSyncManager.setMockWorkflowsList([
                 {
                     id: '1',
                     name: 'Local Mod',
                     status: WorkflowSyncStatus.MODIFIED_LOCALLY,
-                    filename: 'workflow1.json'
+                    filename: 'workflow1.workflow.ts'
                 },
                 {
                     id: '2',
                     name: 'New Remote',
                     status: WorkflowSyncStatus.EXIST_ONLY_REMOTELY,
-                    filename: null
+                    filename: 'workflow2.workflow.ts'
                 },
                 {
                     id: '3',
                     name: 'Tracked',
                     status: WorkflowSyncStatus.TRACKED,
-                    filename: 'workflow3.json'
+                    filename: 'workflow3.workflow.ts'
                 }
             ]);
 
-            const status = await mockSyncManager.getWorkflowsStatus();
+            const status = await mockSyncManager.listWorkflows();
             
             const localMods = status.filter(w => w.status === WorkflowSyncStatus.MODIFIED_LOCALLY);
             const newRemote = status.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY);
@@ -225,7 +225,7 @@ describe('Synchronization Scenarios', () => {
             mockSyncManager.setShouldFail(true);
 
             await expect(async () => {
-                await mockSyncManager.refreshState();
+                await mockSyncManager.refreshRemoteState();
             }).rejects.toThrow('SyncManager Error');
         });
     });

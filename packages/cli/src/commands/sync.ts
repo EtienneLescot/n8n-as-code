@@ -10,7 +10,7 @@ export class SyncCommand extends BaseCommand {
         try {
             const syncConfig = await this.getSyncConfig();
             const syncManager = new SyncManager(this.client, syncConfig);
-            await syncManager.pullOne(workflowId);
+            await syncManager.pull(workflowId);
             spinner.succeed(chalk.green(`✔ Pulled workflow ${workflowId}.`));
         } catch (e: any) {
             spinner.fail(`Pull failed: ${e.message}`);
@@ -23,13 +23,11 @@ export class SyncCommand extends BaseCommand {
         try {
             const syncConfig = await this.getSyncConfig();
             const syncManager = new SyncManager(this.client, syncConfig);
-            const matrix = await syncManager.getWorkflowsLightweight();
-            const wf = matrix.find((w: any) => w.id === workflowId);
-            if (!wf) {
-                spinner.fail(`Workflow ${workflowId} not found in local state. Run 'n8nac list' first.`);
-                process.exit(1);
-            }
-            await syncManager.pushOne(workflowId, wf.filename);
+
+            // Ensure we have the latest mappings
+            await syncManager.listWorkflows({ fetchRemote: false });
+
+            await syncManager.push(workflowId);
             spinner.succeed(chalk.green(`✔ Pushed workflow ${workflowId}.`));
         } catch (e: any) {
             spinner.fail(`Push failed: ${e.message}`);
@@ -43,7 +41,7 @@ export class SyncCommand extends BaseCommand {
             const syncConfig = await this.getSyncConfig();
             const syncManager = new SyncManager(this.client, syncConfig);
             
-            // Fetch remote state for this specific workflow (update internal cache for comparison)
+            // Fetch remote state for this specific workflow (updates internal cache)
             const success = await syncManager.fetch(workflowId);
             if (!success) {
                 spinner.fail(`Workflow ${workflowId} not found on remote.`);

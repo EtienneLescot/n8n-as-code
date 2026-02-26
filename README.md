@@ -48,14 +48,11 @@ n8nac init
 # Switch project (optional)
 n8nac switch
 
-# Sync your workflows
-n8nac pull
-
 # Git-like sync workflow
-n8nac list                    # See all workflows and their status
-n8nac fetch <workflowId>      # Update remote state for a workflow
-n8nac pull --id <workflowId>  # Pull remote changes
-n8nac push --id <workflowId>  # Push local changes
+n8nac list                               # See all workflows and their status
+n8nac fetch --workflowsid <workflowId>   # Update remote state for a workflow
+n8nac pull --workflowsid <workflowId>    # Pull remote changes
+n8nac push --workflowsid <workflowId>    # Push local changes
 ```
 
 📖 [Full CLI documentation](https://etiennelescot.github.io/n8n-as-code/docs/usage/cli)
