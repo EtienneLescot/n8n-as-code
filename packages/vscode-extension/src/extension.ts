@@ -144,7 +144,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
             statusBar.showSyncing();
             try {
-                await cli.push(wf.id);
+                // Pass wf.filename so SyncManager can handle both new (no-ID) and existing workflows.
+                // IDs are the canonical identifier — names are NOT unique in n8n.
+                await cli.push(wf.id, wf.filename);
                 if (wf.id) WorkflowWebview.reloadIfMatching(wf.id, outputChannel);
                 outputChannel.appendLine(`[n8n] Push successful: ${wf.name} (${wf.id})`);
                 const workflows = await cli.list();

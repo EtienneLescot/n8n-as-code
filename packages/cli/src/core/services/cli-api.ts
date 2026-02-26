@@ -79,11 +79,16 @@ export class CliApi {
      * Mirrors `n8nac push --workflowsid <id>`
      *
      * Uploads the local `.workflow.ts` file to n8n.
-     * Performs an Optimistic Concurrency Check (OCC) — throws OccConflictError
-     * if the remote was modified since the last sync.
+     * Automatically handles three cases:
+     *  • New local file (no ID)              → creates the workflow on remote
+     *  • Local-only with ID (remote deleted) → re-creates on remote
+     *  • Both sides exist                    → updates remote (with OCC check)
+     *
+     * @param workflowId - Pass empty string for brand-new workflows (no remote ID yet)
+     * @param filename   - Required when workflowId is empty; optional otherwise
      */
-    async push(workflowId: string): Promise<void> {
-        return this.syncManager.push(workflowId);
+    async push(workflowId: string, filename?: string): Promise<void> {
+        return this.syncManager.push(workflowId || undefined, filename);
     }
 
     // ── conflict resolution (extension-only, no CLI equivalent) ──────────────

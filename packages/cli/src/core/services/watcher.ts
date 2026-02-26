@@ -52,6 +52,8 @@ export class Watcher extends EventEmitter {
 
     // Lightweight remote state cache
     private remoteTimestamps: Map<string, string> = new Map(); // workflowId -> updatedAt
+    /** Canonical display name for each remote workflow (id is the unique key, NOT the name). */
+    private remoteNames: Map<string, string> = new Map(); // workflowId -> name
 
     constructor(
         client: N8nApiClient,
@@ -577,9 +579,10 @@ export class Watcher extends EventEmitter {
         try {
             const remoteWorkflows = await this.client.getAllWorkflows(this.projectId);
             this.isConnected = true;
-            
-            // Update remoteIds set
+
+            // Update remoteIds and names (ID is the unique key; name is for display only)
             this.remoteIds.clear();
+            this.remoteNames.clear();
 
             // Build set of already-assigned filenames to prevent collisions
             const assignedFilenames = new Set<string>();
@@ -589,6 +592,8 @@ export class Watcher extends EventEmitter {
                 if (this.isPaused.has(wf.id) || this.syncInProgress.has(wf.id)) continue;
 
                 this.remoteIds.add(wf.id);
+                // Store canonical name keyed by ID (names are NOT unique in n8n)
+                if (wf.name) this.remoteNames.set(wf.id, wf.name);
 
                 // CRITICAL: Use ID-based mapping with PERSISTED state as source of truth
                 let filename: string | undefined = this.idToFileMap.get(wf.id);
@@ -770,6 +775,8 @@ export class Watcher extends EventEmitter {
         this.idToFileMap.delete(id);
         this.remoteHashes.delete(id);
         this.remoteTimestamps.delete(id);
+        this.remoteNames.delete(id);
+        this.remoteIds.delete(id);
     }
 
     /**
@@ -1008,6 +1015,14 @@ export class Watcher extends EventEmitter {
     }
 
     /**
+     * Returns true if this workflow ID is known to exist on the remote instance
+     * (i.e., it appeared in the last refreshRemoteState() call).
+     */
+    public isRemoteKnown(workflowId: string): boolean {
+        return this.remoteIds.has(workflowId);
+    }
+
+    /**
      * Lightweight list of workflows with basic status (local only, remote only, both)
      * Does NOT compute hashes, compile TypeScript, or determine detailed status (MODIFIED_LOCALLY, CONFLICT)
      */
@@ -1030,8 +1045,12 @@ export class Watcher extends EventEmitter {
                 status = WorkflowSyncStatus.EXIST_ONLY_LOCALLY; // New file without ID
             }
 
-            // Get workflow name from filename (lightweight - don't read file)
-            const workflowName = filename.replace('.workflow.ts', '');
+            // Prefer the remote canonical name (keyed by ID, not by name since names are non-unique).
+            // For local-only files, extract the name from the @workflow decorator for an accurate display.
+            // Fall back to filename-derived name as last resort.
+            const workflowName = (workflowId && this.remoteNames.get(workflowId))
+                || this.readJsonFile(path.join(this.directory, filename))?.name
+                || filename.replace('.workflow.ts', '');
 
             results.set(filename, {
                 id: workflowId || '',
@@ -1053,8 +1072,9 @@ export class Watcher extends EventEmitter {
             const filename = persistedFilename || this.idToFileMap.get(workflowId) || `${workflowId}.workflow.ts`;
 
             if (!results.has(filename)) {
-                // Lightweight mode - use filename as name, defaults for other properties
-                const workflowName = filename.replace('.workflow.ts', '');
+                // Prefer the actual remote name (stored by ID to avoid name-collision issues)
+                // Fallback to filename-derived name only if remote name is not available
+                const workflowName = this.remoteNames.get(workflowId) || filename.replace('.workflow.ts', '');
 
                 results.set(filename, {
                     id: workflowId,
@@ -1293,6 +1313,19 @@ export class Watcher extends EventEmitter {
             this.remoteTimestamps.delete(oldId);
             this.remoteTimestamps.set(newId, timestamp);
         }
+
+        // Migrate name entry
+        const name = this.remoteNames.get(oldId);
+        if (name) {
+            this.remoteNames.delete(oldId);
+            this.remoteNames.set(newId, name);
+        }
+
+        // Migrate remote ID set
+        if (this.remoteIds.has(oldId)) {
+            this.remoteIds.delete(oldId);
+            this.remoteIds.add(newId);
+        }
     }
 
     /**
@@ -1313,6 +1346,12 @@ export class Watcher extends EventEmitter {
             if (remoteWf.updatedAt) {
                 this.remoteTimestamps.set(remoteWf.id, remoteWf.updatedAt);
             }
+            // Keep remoteNames up-to-date (name is display-only; ID is the canonical key)
+            if (remoteWf.name) {
+                this.remoteNames.set(remoteWf.id, remoteWf.name);
+            }
+            // Mark as known on remote
+            this.remoteIds.add(remoteWf.id);
 
             // Broadcast status update
             const filename = this.idToFileMap.get(remoteWf.id);

@@ -227,15 +227,41 @@ export class SyncManager extends EventEmitter {
 
     /**
      * Explicit single-workflow push (user-triggered).
-     * Runs OCC check — throws OccConflictError if remote was modified since last sync.
+     *
+     * Handles three scenarios automatically:
+     *  1. Brand-new local file (no ID yet)  → CREATE on remote (POST)
+     *  2. EXIST_ONLY_LOCALLY with an ID     → CREATE on remote (POST) — e.g. remote was deleted
+     *  3. Known on both sides               → UPDATE on remote (PUT, with OCC check)
+     *
+     * @param workflowId - Workflow ID (pass empty string or undefined for new workflows)
+     * @param filename   - Explicit filename — required when workflowId is empty/unknown
      */
-    public async push(workflowId: string, filename?: string): Promise<void> {
+    public async push(workflowId?: string, filename?: string): Promise<void> {
         await this.ensureInitialized();
-        const targetFilename = filename || this.watcher!.getFilenameForId(workflowId);
+
+        // Normalise empty string to undefined ("brand new" sentinel)
+        const effectiveId = workflowId || undefined;
+
+        // Resolve filename: use explicit parameter first, then look up via watcher
+        const targetFilename = filename || (effectiveId ? this.watcher!.getFilenameForId(effectiveId) : undefined);
+
         if (!targetFilename) {
-            throw new Error(`Workflow ${workflowId} not found locally`);
+            throw new Error(
+                `Cannot push workflow ${effectiveId ?? '(new)'}: local file not found. ` +
+                `Run 'n8nac list' to verify the workflow exists locally.`
+            );
         }
-        await this.syncEngine!.push(targetFilename, workflowId, WorkflowSyncStatus.MODIFIED_LOCALLY);
+
+        if (!effectiveId) {
+            // Case 1: brand-new workflow (no ID) — let SyncEngine create it
+            await this.syncEngine!.push(targetFilename, undefined, undefined);
+        } else if (!this.watcher!.isRemoteKnown(effectiveId)) {
+            // Case 2: has an ID locally but doesn't exist on remote → create
+            await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.EXIST_ONLY_LOCALLY);
+        } else {
+            // Case 3: exists on both sides → update (with OCC check)
+            await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.MODIFIED_LOCALLY);
+        }
     }
 
     public async resolveConflict(workflowId: string, filename: string, resolution: 'local' | 'remote'): Promise<void> {
