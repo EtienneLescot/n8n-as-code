@@ -106,14 +106,9 @@ export class ResolutionManager {
         if (deletionType === 'local') {
             // Local file was deleted, confirm remote deletion
             await this.syncEngine.deleteRemote(workflowId, filename);
-            // Remove from state
-            await this.watcher.removeWorkflowState(workflowId);
-        } else {
-            // Remote workflow was deleted, confirm local archiving
-            await this.syncEngine.archive(filename);
-            // Remove from state
-            await this.watcher.removeWorkflowState(workflowId);
         }
+        // In both cases, remove from tracked state
+        await this.watcher.removeWorkflowState(workflowId);
     }
 
     /**
@@ -128,12 +123,8 @@ export class ResolutionManager {
         deletionType: 'local' | 'remote'
     ): Promise<string> {
         if (deletionType === 'local') {
-            // Restore from archive
-            const restored = await this.syncEngine.restoreFromArchive(filename);
-            if (!restored) {
-                throw new Error(`Cannot restore ${filename}: not found in archive`);
-            }
-            // Watcher will detect file addition and update status
+            // Restore local file by pulling from remote
+            await this.syncEngine.forcePull(workflowId, filename);
             return workflowId;
         } else {
             // Re-create on remote (force push)

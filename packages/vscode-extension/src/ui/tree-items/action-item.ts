@@ -12,9 +12,6 @@ export enum ActionItemType {
   PULL_REMOTE = 'pull-remote',
   MARK_RESOLVED = 'mark-resolved',
 
-  // Deletion confirmation actions
-  CONFIRM_DELETE = 'confirm-delete',
-  RESTORE_FILE = 'restore-file',
 }
 
 /**
@@ -47,10 +44,6 @@ export class ActionItem extends BaseTreeItem {
         return '⬇️ Keep Incoming (remote)';
       case ActionItemType.MARK_RESOLVED:
         return '✅ Mark as Resolved';
-      case ActionItemType.CONFIRM_DELETE:
-        return '🗑️ Confirm Deletion';
-      case ActionItemType.RESTORE_FILE:
-        return '↩️ Restore File';
       default:
         return 'Unknown Action';
     }
@@ -66,10 +59,6 @@ export class ActionItem extends BaseTreeItem {
         return new vscode.ThemeIcon('cloud-download');
       case ActionItemType.MARK_RESOLVED:
         return new vscode.ThemeIcon('pass');
-      case ActionItemType.CONFIRM_DELETE:
-        return new vscode.ThemeIcon('trash');
-      case ActionItemType.RESTORE_FILE:
-        return new vscode.ThemeIcon('reply');
       default:
         return new vscode.ThemeIcon('question');
     }
@@ -101,18 +90,6 @@ export class ActionItem extends BaseTreeItem {
           title: 'Mark as Resolved',
           arguments: [{ workflow, choice: 'Mark as Resolved' }]
         };
-      case ActionItemType.CONFIRM_DELETE:
-        return {
-          command: 'n8n.confirmDeletion',
-          title: 'Confirm Deletion',
-          arguments: [{ workflow }]
-        };
-      case ActionItemType.RESTORE_FILE:
-        return {
-          command: 'n8n.restoreDeletion',
-          title: 'Restore File',
-          arguments: [{ workflow }]
-        };
       default:
         return { command: 'n8n.refresh', title: 'Refresh' };
     }
@@ -128,10 +105,6 @@ export class ActionItem extends BaseTreeItem {
         return 'Keep the incoming remote version — overwrite local file';
       case ActionItemType.MARK_RESOLVED:
         return 'Mark your manual merge as resolved and push local file to n8n';
-      case ActionItemType.CONFIRM_DELETE:
-        return 'Delete this workflow from the remote n8n instance';
-      case ActionItemType.RESTORE_FILE:
-        return 'Restore the local file from the remote n8n instance';
       default:
         return '';
     }

@@ -42,12 +42,9 @@ export class ListCommand extends BaseCommand {
             const statusPriority: Record<WorkflowSyncStatus, number> = {
                 [WorkflowSyncStatus.CONFLICT]: 1,
                 [WorkflowSyncStatus.MODIFIED_LOCALLY]: 2,
-                [WorkflowSyncStatus.MODIFIED_REMOTELY]: 3,
-                [WorkflowSyncStatus.EXIST_ONLY_LOCALLY]: 4,
-                [WorkflowSyncStatus.EXIST_ONLY_REMOTELY]: 5,
-                [WorkflowSyncStatus.DELETED_LOCALLY]: 6,
-                [WorkflowSyncStatus.DELETED_REMOTELY]: 7,
-                [WorkflowSyncStatus.IN_SYNC]: 8
+                [WorkflowSyncStatus.EXIST_ONLY_LOCALLY]: 3,
+                [WorkflowSyncStatus.EXIST_ONLY_REMOTELY]: 4,
+                [WorkflowSyncStatus.TRACKED]: 5
             };
 
             const sorted = matrix.sort((a: IWorkflowStatus, b: IWorkflowStatus) => {
@@ -82,13 +79,11 @@ export class ListCommand extends BaseCommand {
             // Display summary
             const summary = this.getSummary(matrix);
             console.log(chalk.bold('Summary:'));
-            console.log(chalk.green(`  ✔ In Sync: ${summary.inSync}`));
+            console.log(chalk.green(`  ✔ Tracked: ${summary.tracked}`));
             console.log(chalk.blue(`  ✏️  Modified Locally: ${summary.modifiedLocally}`));
-            console.log(chalk.cyan(`  ☁️  Modified Remotely: ${summary.modifiedRemotely}`));
             console.log(chalk.red(`  💥 Conflicts: ${summary.conflicts}`));
             console.log(chalk.yellow(`  + Only Local: ${summary.onlyLocal}`));
             console.log(chalk.yellow(`  - Only Remote: ${summary.onlyRemote}`));
-            console.log(chalk.gray(`  🗑️  Deleted: ${summary.deleted}`));
             console.log(chalk.bold(`  Total: ${matrix.length}\n`));
 
         } catch (error: any) {
@@ -99,21 +94,16 @@ export class ListCommand extends BaseCommand {
 
     private getStatusDisplay(status: WorkflowSyncStatus): { icon: string; color: typeof chalk } {
         switch (status) {
-            case WorkflowSyncStatus.IN_SYNC:
+            case WorkflowSyncStatus.TRACKED:
                 return { icon: '✔', color: chalk.green };
             case WorkflowSyncStatus.MODIFIED_LOCALLY:
                 return { icon: '✏️', color: chalk.blue };
-            case WorkflowSyncStatus.MODIFIED_REMOTELY:
-                return { icon: '☁️', color: chalk.cyan };
             case WorkflowSyncStatus.CONFLICT:
                 return { icon: '💥', color: chalk.red };
             case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
                 return { icon: '+', color: chalk.yellow };
             case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
                 return { icon: '-', color: chalk.yellow };
-            case WorkflowSyncStatus.DELETED_LOCALLY:
-            case WorkflowSyncStatus.DELETED_REMOTELY:
-                return { icon: '🗑️', color: chalk.gray };
             default:
                 return { icon: '?', color: chalk.white };
         }
@@ -121,16 +111,11 @@ export class ListCommand extends BaseCommand {
 
     private getSummary(matrix: IWorkflowStatus[]) {
         return {
-            inSync: matrix.filter(w => w.status === WorkflowSyncStatus.IN_SYNC).length,
+            tracked: matrix.filter(w => w.status === WorkflowSyncStatus.TRACKED).length,
             modifiedLocally: matrix.filter(w => w.status === WorkflowSyncStatus.MODIFIED_LOCALLY).length,
-            modifiedRemotely: matrix.filter(w => w.status === WorkflowSyncStatus.MODIFIED_REMOTELY).length,
             conflicts: matrix.filter(w => w.status === WorkflowSyncStatus.CONFLICT).length,
             onlyLocal: matrix.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY).length,
-            onlyRemote: matrix.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY).length,
-            deleted: matrix.filter(w => 
-                w.status === WorkflowSyncStatus.DELETED_LOCALLY || 
-                w.status === WorkflowSyncStatus.DELETED_REMOTELY
-            ).length
+            onlyRemote: matrix.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY).length
         };
     }
 }

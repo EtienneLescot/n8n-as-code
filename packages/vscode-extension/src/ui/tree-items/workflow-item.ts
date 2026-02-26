@@ -11,14 +11,11 @@ export class WorkflowItem extends BaseTreeItem {
   
   constructor(
     public readonly workflow: IWorkflowStatus,
-    public readonly pendingAction?: 'delete' | 'conflict'
+    public readonly pendingAction?: 'conflict'
   ) {
     // Determine if this item should be collapsible (for conflicts and deletions)
     const shouldBeCollapsible = pendingAction === 'conflict' ||
-                                 pendingAction === 'delete' ||
-                                 workflow.status === WorkflowSyncStatus.CONFLICT ||
-                                 workflow.status === WorkflowSyncStatus.DELETED_LOCALLY ||
-                                 workflow.status === WorkflowSyncStatus.DELETED_REMOTELY;
+                                 workflow.status === WorkflowSyncStatus.CONFLICT;
     
     super(
       workflow.name,
@@ -29,9 +26,7 @@ export class WorkflowItem extends BaseTreeItem {
     this.tooltip = workflow.name;
 
     // Only show status description when something requires attention
-    if (pendingAction === 'delete') {
-      this.description = '(pending deletion)';
-    } else if (pendingAction === 'conflict' || workflow.status === WorkflowSyncStatus.CONFLICT) {
+    if (pendingAction === 'conflict' || workflow.status === WorkflowSyncStatus.CONFLICT) {
       this.description = '(conflict)';
     } else if (workflow.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY) {
       this.description = workflow.active ? '(active)' : '(inactive)';
@@ -77,7 +72,6 @@ export class WorkflowItem extends BaseTreeItem {
   }
   
   private getContextValueForStatus(status: WorkflowSyncStatus, pendingAction?: string): string {
-    if (pendingAction === 'delete') return 'workflow-pending-deletion';
     if (pendingAction === 'conflict' || status === WorkflowSyncStatus.CONFLICT) return 'workflow-conflict';
 
     switch (status) {
@@ -85,21 +79,15 @@ export class WorkflowItem extends BaseTreeItem {
         return 'workflow-cloud-only';
       case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
         return 'workflow-local-only';
-      case WorkflowSyncStatus.DELETED_LOCALLY:
-      case WorkflowSyncStatus.DELETED_REMOTELY:
-        return 'workflow-deleted';
       case WorkflowSyncStatus.MODIFIED_LOCALLY:
         return 'workflow-modified-local';
-      case WorkflowSyncStatus.MODIFIED_REMOTELY:
-        return 'workflow-modified-remote';
       default:
-        // IN_SYNC: just a local workflow, push/pull available
+        // TRACKED: workflow known on both sides, no local changes
         return 'workflow-local';
     }
   }
 
   private getIcon(status: WorkflowSyncStatus, pendingAction?: string): vscode.ThemeIcon {
-    if (pendingAction === 'delete') return new vscode.ThemeIcon('trash', new vscode.ThemeColor('charts.red'));
     if (pendingAction === 'conflict') return new vscode.ThemeIcon('alert', new vscode.ThemeColor('charts.red'));
 
     switch (status) {
@@ -110,15 +98,10 @@ export class WorkflowItem extends BaseTreeItem {
         return new vscode.ThemeIcon('cloud', new vscode.ThemeColor('charts.blue'));
       case WorkflowSyncStatus.MODIFIED_LOCALLY:
         return new vscode.ThemeIcon('pencil', new vscode.ThemeColor('charts.orange'));
-      case WorkflowSyncStatus.MODIFIED_REMOTELY:
-        return new vscode.ThemeIcon('cloud-download', new vscode.ThemeColor('charts.orange'));
       case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
         return new vscode.ThemeIcon('file-add', new vscode.ThemeColor('charts.orange'));
-      case WorkflowSyncStatus.DELETED_LOCALLY:
-      case WorkflowSyncStatus.DELETED_REMOTELY:
-        return new vscode.ThemeIcon('trash', new vscode.ThemeColor('charts.gray'));
       default:
-        // IN_SYNC: plain file icon, no color noise
+        // TRACKED: plain file icon, no color noise
         return new vscode.ThemeIcon('file');
     }
   }  override getContextValue(): string {

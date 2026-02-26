@@ -26,15 +26,10 @@ interface ConflictsState {
     }>;
 }
 
-interface PendingDeletionsState {
-    workflowIds: string[];
-}
-
 export interface RootState {
     workflows: WorkflowsState;
     sync: SyncState;
     conflicts: ConflictsState;
-    pendingDeletions: PendingDeletionsState;
 }
 
 // ============================================================================
@@ -147,27 +142,6 @@ const conflictsSlice = createSlice({
 });
 
 // ============================================================================
-// Pending Deletions Slice
-// ============================================================================
-
-const pendingDeletionsSlice = createSlice({
-    name: 'pendingDeletions',
-    initialState: {
-        workflowIds: [],
-    } as PendingDeletionsState,
-    reducers: {
-        addPendingDeletion: (state, action: PayloadAction<string>) => {
-            if (!state.workflowIds.includes(action.payload)) {
-                state.workflowIds.push(action.payload);
-            }
-        },
-        removePendingDeletion: (state, action: PayloadAction<string>) => {
-            state.workflowIds = state.workflowIds.filter(id => id !== action.payload);
-        },
-    },
-});
-
-// ============================================================================
 // Async Thunks (for SyncManager integration)
 // ============================================================================
 
@@ -187,40 +161,6 @@ export const loadWorkflows = createAsyncThunk(
     }
 );
 
-// Sync down (pull)
-export const syncDown = createAsyncThunk(
-    'sync/down',
-    async (_, { dispatch }) => {
-        if (!syncManagerRef) throw new Error('SyncManager not initialized');
-
-        dispatch(syncSlice.actions.setSyncing(true));
-        try {
-            await syncManagerRef.syncDown();
-            const workflows = await syncManagerRef.getWorkflowsStatus();
-            dispatch(workflowsSlice.actions.setWorkflows(workflows));
-        } finally {
-            dispatch(syncSlice.actions.setSyncing(false));
-        }
-    }
-);
-
-// Sync up (push)
-export const syncUp = createAsyncThunk(
-    'sync/up',
-    async (_, { dispatch }) => {
-        if (!syncManagerRef) throw new Error('SyncManager not initialized');
-
-        dispatch(syncSlice.actions.setSyncing(true));
-        try {
-            await syncManagerRef.syncUp();
-            const workflows = await syncManagerRef.getWorkflowsStatus();
-            dispatch(workflowsSlice.actions.setWorkflows(workflows));
-        } finally {
-            dispatch(syncSlice.actions.setSyncing(false));
-        }
-    }
-);
-
 // ============================================================================
 // Store Configuration
 // ============================================================================
@@ -230,7 +170,6 @@ export const store = configureStore({
         workflows: workflowsSlice.reducer,
         sync: syncSlice.reducer,
         conflicts: conflictsSlice.reducer,
-        pendingDeletions: pendingDeletionsSlice.reducer,
     },
     middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({
@@ -266,11 +205,6 @@ export const {
     clearConflicts,
 } = conflictsSlice.actions;
 
-export const {
-    addPendingDeletion,
-    removePendingDeletion,
-} = pendingDeletionsSlice.actions;
-
 // Selectors
 export const selectAllWorkflows = (state: RootState): IWorkflowStatus[] =>
     state.workflows.allIds.map(key => state.workflows.byId[key]).filter(Boolean);
@@ -283,9 +217,6 @@ export const selectWorkflowById = (state: RootState, id: string): IWorkflowStatu
 
 export const selectConflicts = (state: RootState) =>
     state.conflicts.byWorkflowId;
-
-export const selectPendingDeletions = (state: RootState): string[] =>
-    state.pendingDeletions.workflowIds;
 
 export const selectSyncState = (state: RootState) =>
     state.sync;

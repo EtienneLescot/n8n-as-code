@@ -80,22 +80,6 @@ export class StartCommand extends BaseCommand {
             await this.renderTable(syncManager);
         });
 
-        // Interactive prompts for local deletions (only during watch, not at startup)
-        syncManager.on('local-deletion', async (data: { id: string, filename: string }) => {
-            if (!watchStarted) return; // Ignore during initialization
-            await this.handleLocalDeletionPrompt(data, syncManager);
-            await this.renderTable(syncManager);
-        });
-
-        // Notification for remote deletions
-        syncManager.on('change', async (data: any) => {
-            if (data.type === 'remote-deletion' && !this.isPromptActive) {
-                // Render table first, then show notification
-                await this.renderTable(syncManager);
-                console.log(chalk.yellow(`\n🗑️  Remote workflow "${data.filename}" was deleted. Local file moved to .trash.\n`));
-            }
-        });
-
         // Initial render and capture issues BEFORE starting watch
         await syncManager.forceRefresh();
         await this.renderTable(syncManager);
@@ -103,7 +87,6 @@ export class StartCommand extends BaseCommand {
         // Capture issues that exist at startup (before watch changes them)
         const initialStatuses = await syncManager.getWorkflowsStatus();
         const initialConflicts = initialStatuses.filter(w => w.status === WorkflowSyncStatus.CONFLICT);
-        const initialDeletions = initialStatuses.filter(w => w.status === WorkflowSyncStatus.DELETED_LOCALLY);
 
         // Start watching FIRST (needed for proper state management)
         await syncManager.startWatch();
@@ -111,17 +94,10 @@ export class StartCommand extends BaseCommand {
         // Small delay to let the watcher stabilize
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Handle initial issues that we captured BEFORE watch
-        // In both manual and auto mode, conflicts and deletions require user decision
-        if (initialConflicts.length > 0 || initialDeletions.length > 0) {
-            // Handle conflicts first
+        // Handle initial conflicts that we captured BEFORE watch
+        if (initialConflicts.length > 0) {
             for (const conflict of initialConflicts) {
                 await this.handleConflictPrompt(conflict, syncManager);
-            }
-            
-            // Handle local deletions
-            for (const deletion of initialDeletions) {
-                await this.handleLocalDeletionPrompt(deletion, syncManager);
             }
             
             // Refresh display after handling
@@ -179,66 +155,6 @@ export class StartCommand extends BaseCommand {
         this.isPromptActive = false;
     }
 
-    /**
-     * Handle local deletion with prompt
-     */
-    private async handleLocalDeletionPrompt(data: { id: string, filename: string }, syncManager: SyncManager) {
-        this.isPromptActive = true;
-        
-        console.log(chalk.yellow(`\n🗑️  LOCAL DELETION detected for "${data.filename}"`));
-        
-        const { action } = await inquirer.prompt([{
-            type: 'rawlist',
-            name: 'action',
-            message: `Local file missing for "${data.filename}". Action:`,
-            choices: [
-                { name: 'Confirm Deletion (Delete on n8n)', value: 'delete' },
-                { name: 'Restore File (Download from n8n)', value: 'restore' },
-                { name: 'Skip', value: 'skip' }
-            ]
-        }]);
-
-        if (action === 'delete') {
-            // Before deleting, ensure we have a backup
-            // If file was deleted manually (outside watch), download it first for backup
-            try {
-                const fs = await import('fs');
-                const path = await import('path');
-                const localPath = path.join(syncManager.getInstanceDirectory(), data.filename);
-                
-                // Check if file exists locally
-                if (!fs.existsSync(localPath)) {
-                    // File doesn't exist, download from n8n for backup before deleting
-                    console.log(chalk.gray(`  Downloading workflow for backup...\n`));
-                    await syncManager.resolveConflict(data.id, data.filename, 'remote');
-                }
-            } catch (error: any) {
-                console.log(chalk.yellow(`  Warning: Could not create backup: ${error.message}\n`));
-            }
-            
-            // Now delete on remote
-            const success = await syncManager.deleteRemoteWorkflow(data.id, data.filename);
-            if (success) {
-                console.log(chalk.green(`✅ Remote workflow deleted and backed up to .trash.\n`));
-            } else {
-                console.log(chalk.red(`❌ Failed to delete remote workflow.\n`));
-            }
-        } else if (action === 'restore') {
-            // Use resolveConflict with 'remote' to force pull from n8n
-            // This works even if file is not in .trash (manual deletion case)
-            try {
-                await syncManager.resolveConflict(data.id, data.filename, 'remote');
-                console.log(chalk.blue(`🔄 Local file restored from n8n.\n`));
-            } catch (error: any) {
-                console.log(chalk.red(`❌ Failed to restore local file: ${error.message}\n`));
-            }
-        } else {
-            console.log(chalk.gray(`⏭️  Skipped deletion.\n`));
-        }
-
-        this.isPromptActive = false;
-    }
-
     private formatWorkflowName(workflow: IWorkflowStatus, maxLength?: number): string {
         return formatWorkflowNameWithBadges(workflow, {
             maxLength,
@@ -280,12 +196,9 @@ export class StartCommand extends BaseCommand {
             const statusPriority: Record<WorkflowSyncStatus, number> = {
                 [WorkflowSyncStatus.CONFLICT]: 1,
                 [WorkflowSyncStatus.MODIFIED_LOCALLY]: 2,
-                [WorkflowSyncStatus.MODIFIED_REMOTELY]: 3,
-                [WorkflowSyncStatus.EXIST_ONLY_LOCALLY]: 4,
-                [WorkflowSyncStatus.EXIST_ONLY_REMOTELY]: 5,
-                [WorkflowSyncStatus.DELETED_LOCALLY]: 6,
-                [WorkflowSyncStatus.DELETED_REMOTELY]: 7,
-                [WorkflowSyncStatus.IN_SYNC]: 8
+                [WorkflowSyncStatus.EXIST_ONLY_LOCALLY]: 3,
+                [WorkflowSyncStatus.EXIST_ONLY_REMOTELY]: 4,
+                [WorkflowSyncStatus.TRACKED]: 5
             };
 
             const sorted = matrix.sort((a: IWorkflowStatus, b: IWorkflowStatus) => {
@@ -317,11 +230,9 @@ export class StartCommand extends BaseCommand {
             const summary = this.getSummary(matrix);
             const summaryText = [
                 chalk.bold('\nSummary:'),
-                chalk.green(`  ✔ Sync: ${summary.inSync}`),
+                chalk.green(`  ✔ Tracked: ${summary.tracked}`),
                 chalk.blue(`  ✏️  Local: ${summary.modifiedLocally}`),
-                chalk.cyan(`  ☁️  Remote: ${summary.modifiedRemotely}`),
                 chalk.red(`  💥 Conflicts: ${summary.conflicts}`),
-                chalk.gray(`  🗑️  Deleted: ${summary.deleted}`),
                 chalk.bold(`  Total: ${matrix.length}`),
                 '',
                 chalk.gray(`⏱️  ${this.lastUpdate.toLocaleTimeString()}`),
@@ -353,12 +264,9 @@ export class StartCommand extends BaseCommand {
         const statusPriority: Record<WorkflowSyncStatus, number> = {
             [WorkflowSyncStatus.CONFLICT]: 1,
             [WorkflowSyncStatus.MODIFIED_LOCALLY]: 2,
-            [WorkflowSyncStatus.MODIFIED_REMOTELY]: 3,
-            [WorkflowSyncStatus.EXIST_ONLY_LOCALLY]: 4,
-            [WorkflowSyncStatus.EXIST_ONLY_REMOTELY]: 5,
-            [WorkflowSyncStatus.DELETED_LOCALLY]: 6,
-            [WorkflowSyncStatus.DELETED_REMOTELY]: 7,
-            [WorkflowSyncStatus.IN_SYNC]: 8
+            [WorkflowSyncStatus.EXIST_ONLY_LOCALLY]: 3,
+            [WorkflowSyncStatus.EXIST_ONLY_REMOTELY]: 4,
+            [WorkflowSyncStatus.TRACKED]: 5
         };
 
         const sorted = matrix.sort((a: IWorkflowStatus, b: IWorkflowStatus) => {
@@ -385,13 +293,11 @@ export class StartCommand extends BaseCommand {
         const summary = this.getSummary(matrix);
         const summaryText = [
             chalk.bold('\nStatus Summary:'),
-            chalk.green(`  ✔ In Sync: ${summary.inSync}`),
+            chalk.green(`  ✔ Tracked: ${summary.tracked}`),
             chalk.blue(`  ✏️  Modified Locally: ${summary.modifiedLocally}`),
-            chalk.cyan(`  ☁️  Modified Remotely: ${summary.modifiedRemotely}`),
             chalk.red(`  💥 Conflicts: ${summary.conflicts}`),
             chalk.yellow(`  + Only Local: ${summary.onlyLocal}`),
             chalk.yellow(`  - Only Remote: ${summary.onlyRemote}`),
-            chalk.gray(`  🗑️  Deleted: ${summary.deleted}`),
             chalk.bold(`  Total: ${matrix.length}`),
             '',
             chalk.gray(`⏱️  Last update: ${this.lastUpdate.toLocaleTimeString()}`),
@@ -404,21 +310,16 @@ export class StartCommand extends BaseCommand {
 
     private getStatusDisplay(status: WorkflowSyncStatus): { icon: string; color: typeof chalk } {
         switch (status) {
-            case WorkflowSyncStatus.IN_SYNC:
+            case WorkflowSyncStatus.TRACKED:
                 return { icon: '✔', color: chalk.green };
             case WorkflowSyncStatus.MODIFIED_LOCALLY:
                 return { icon: '✏️', color: chalk.blue };
-            case WorkflowSyncStatus.MODIFIED_REMOTELY:
-                return { icon: '☁️', color: chalk.cyan };
             case WorkflowSyncStatus.CONFLICT:
                 return { icon: '💥', color: chalk.red };
             case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
                 return { icon: '+', color: chalk.yellow };
             case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
                 return { icon: '-', color: chalk.yellow };
-            case WorkflowSyncStatus.DELETED_LOCALLY:
-            case WorkflowSyncStatus.DELETED_REMOTELY:
-                return { icon: '🗑️', color: chalk.gray };
             default:
                 return { icon: '?', color: chalk.white };
         }
@@ -426,16 +327,11 @@ export class StartCommand extends BaseCommand {
 
     private getSummary(matrix: IWorkflowStatus[]) {
         return {
-            inSync: matrix.filter(w => w.status === WorkflowSyncStatus.IN_SYNC).length,
+            tracked: matrix.filter(w => w.status === WorkflowSyncStatus.TRACKED).length,
             modifiedLocally: matrix.filter(w => w.status === WorkflowSyncStatus.MODIFIED_LOCALLY).length,
-            modifiedRemotely: matrix.filter(w => w.status === WorkflowSyncStatus.MODIFIED_REMOTELY).length,
             conflicts: matrix.filter(w => w.status === WorkflowSyncStatus.CONFLICT).length,
             onlyLocal: matrix.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY).length,
-            onlyRemote: matrix.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY).length,
-            deleted: matrix.filter(w => 
-                w.status === WorkflowSyncStatus.DELETED_LOCALLY || 
-                w.status === WorkflowSyncStatus.DELETED_REMOTELY
-            ).length
+            onlyRemote: matrix.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY).length
         };
     }
 }

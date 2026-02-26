@@ -4,7 +4,7 @@ import { SyncManager, WorkflowSyncStatus } from '@n8n-as-code/cli';
 import { ExtensionState } from '../types.js';
 import { validateN8nConfig } from '../utils/state-detection.js';
 
-import { store, RootState, selectAllWorkflows, selectPendingDeletions, selectConflicts } from '../services/workflow-store.js';
+import { store, RootState, selectAllWorkflows, selectConflicts } from '../services/workflow-store.js';
 
 import { BaseTreeItem } from './tree-items/base-tree-item.js';
 import { LoadingItem } from './tree-items/loading-item.js';
@@ -190,22 +190,6 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
       );
     }
 
-    // Deletion confirmation actions
-    if (pendingAction === 'delete' || workflow.status === WorkflowSyncStatus.DELETED_LOCALLY) {
-      actions.push(
-        new ActionItem(ActionItemType.CONFIRM_DELETE, workflow.id, workflow),
-        new ActionItem(ActionItemType.RESTORE_FILE, workflow.id, workflow)
-      );
-    }
-
-    // Remote deletion actions (confirm deletion OR restore)
-    if (workflow.status === WorkflowSyncStatus.DELETED_REMOTELY) {
-      actions.push(
-        new ActionItem(ActionItemType.CONFIRM_DELETE, workflow.id, workflow),
-        new ActionItem(ActionItemType.RESTORE_FILE, workflow.id, workflow)
-      );
-    }
-
     return actions;
   }
 
@@ -221,7 +205,6 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     // Read from Redux Store
     const state = store.getState();
     const workflows = selectAllWorkflows(state);
-    const pendingDeletions = new Set(selectPendingDeletions(state));
     const conflicts = selectConflicts(state);
 
     const items: BaseTreeItem[] = [];
@@ -229,10 +212,7 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     // Add workflow items
     if (workflows.length > 0) {
       items.push(...workflows.map(wf => {
-        let pendingAction: 'delete' | 'conflict' | undefined;
-        if (pendingDeletions.has(wf.id)) pendingAction = 'delete';
-        else if (conflicts[wf.id]) pendingAction = 'conflict';
-
+        const pendingAction: 'conflict' | undefined = conflicts[wf.id] ? 'conflict' : undefined;
         return new WorkflowItem(wf, pendingAction);
       }));
     } else if (this.syncManager) {

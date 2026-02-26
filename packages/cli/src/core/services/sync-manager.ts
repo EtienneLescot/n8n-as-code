@@ -66,13 +66,8 @@ export class SyncManager extends EventEmitter {
             console.log(`[SyncManager] 📨 Received statusChange event:`, data);
             this.emit('change', data);
             
-            // Emit specific events for deletions and conflicts
-            if (data.status === WorkflowSyncStatus.DELETED_LOCALLY && data.workflowId) {
-                this.emit('local-deletion', {
-                    id: data.workflowId,
-                    filename: data.filename
-                });
-            } else if (data.status === WorkflowSyncStatus.CONFLICT && data.workflowId) {
+            // Emit specific events for conflicts
+            if (data.status === WorkflowSyncStatus.CONFLICT && data.workflowId) {
                 // Fetch remote content for conflict notification
                 this.client.getWorkflow(data.workflowId).then(remoteContent => {
                     this.emit('conflict', {
@@ -113,32 +108,6 @@ export class SyncManager extends EventEmitter {
         return this.watcher!.getAllWorkflows();
     }
 
-    async syncDown() {
-        await this.ensureInitialized();
-        const statuses = await this.getWorkflowsStatus();
-        for (const s of statuses) {
-            if (s.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY ||
-                s.status === WorkflowSyncStatus.MODIFIED_REMOTELY) {
-                await this.syncEngine!.pull(s.id, s.filename, s.status);
-            }
-            // DELETED_REMOTELY requires user confirmation via confirmDeletion()
-            // Per spec 5.2: "Halt. Trigger Deletion Validation."
-        }
-    }
-
-    async syncUp() {
-        await this.ensureInitialized();
-        const statuses = await this.getWorkflowsStatus();
-        for (const s of statuses) {
-            if (s.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY || s.status === WorkflowSyncStatus.MODIFIED_LOCALLY) {
-                await this.syncEngine!.push(s.filename, s.id, s.status);
-            } else if (s.status === WorkflowSyncStatus.DELETED_LOCALLY) {
-                // Per spec: Halt and trigger deletion validation
-                throw new Error(`Local deletion detected for workflow "${s.filename}". Use confirmDeletion() to proceed with remote deletion or restoreWorkflow() to restore the file.`);
-            }
-        }
-    }
-
     async startWatch() {
         await this.ensureInitialized();
         await this.watcher!.start();
@@ -172,64 +141,6 @@ export class SyncManager extends EventEmitter {
             );
         } catch (error) {
             console.warn(`[SyncManager] Failed to write instance config file: ${error}`);
-        }
-    }
-
-    /**
-     * Handle automatic synchronization based on status changes
-     * Only triggered in auto mode
-     */
-    private async handleAutoSync(data: { filename: string; workflowId?: string; status: WorkflowSyncStatus }) {
-        const { filename, workflowId, status } = data;
-        
-        console.log(`[SyncManager] 🤖 handleAutoSync called for ${filename}, status: ${status}`);
-        
-        try {
-            switch (status) {
-                case WorkflowSyncStatus.MODIFIED_LOCALLY:
-                case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
-                    // Auto-push local changes
-                    this.emit('log', `🔄 Auto-sync: Pushing "${filename}"...`);
-                    console.log(`[SyncManager] Pushing ${filename}...`);
-                    await this.syncEngine!.push(filename, workflowId, status);
-                    this.emit('log', `✅ Auto-sync: Pushed "${filename}"`);
-                    console.log(`[SyncManager] ✅ Push complete for ${filename}`);
-                    // Emit event to notify that remote was updated (for webview reload)
-                    if (workflowId) {
-                        this.emit('remote-updated', { workflowId, filename });
-                    }
-                    break;
-                    
-                case WorkflowSyncStatus.MODIFIED_REMOTELY:
-                case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
-                    // Auto-pull remote changes
-                    if (workflowId) {
-                        this.emit('log', `🔄 Auto-sync: Pulling "${filename}"...`);
-                        await this.syncEngine!.pull(workflowId, filename, status);
-                        this.emit('log', `✅ Auto-sync: Pulled "${filename}"`);
-                    }
-                    break;
-                    
-                case WorkflowSyncStatus.CONFLICT:
-                    // Conflicts require manual resolution
-                    this.emit('log', `⚠️ Conflict detected for "${filename}". Manual resolution required.`);
-                    // conflict event is handled in ensureInitialized above
-                    break;
-                    
-                case WorkflowSyncStatus.DELETED_LOCALLY:
-                case WorkflowSyncStatus.DELETED_REMOTELY:
-                    // Deletions require manual confirmation
-                    // Note: local-deletion event is already emitted by the Watcher
-                    // We don't re-emit it here to avoid duplicates
-                    this.emit('log', `🗑️ Deletion detected for "${filename}". Manual confirmation required.`);
-                    break;
-                    
-                case WorkflowSyncStatus.IN_SYNC:
-                    // Already in sync, nothing to do
-                    break;
-            }
-        } catch (error: any) {
-            this.emit('error', `Auto-sync failed for "${filename}": ${error.message}`);
         }
     }
 
@@ -277,9 +188,10 @@ export class SyncManager extends EventEmitter {
             if (!status) return false;
 
             // 4. Decide whether to pull based on status
-            if (status.status === WorkflowSyncStatus.MODIFIED_REMOTELY) {
-                this.emit('log', `[SyncManager] Auto-pulling ${workflowId} (modified remotely, local is safe).`);
-                await this.syncEngine.pull(workflowId, status.filename, status.status);
+            // TRACKED: local untouched, safe to pull
+            if (status.status === WorkflowSyncStatus.TRACKED) {
+                this.emit('log', `[SyncManager] Auto-pulling ${workflowId} (remote updated, local is safe).`);
+                await this.syncEngine.pull(workflowId, status.filename, WorkflowSyncStatus.EXIST_ONLY_REMOTELY);
                 return true;
             } else if (status.status === WorkflowSyncStatus.CONFLICT) {
                 this.emit('log', `[SyncManager] Conflict detected for ${workflowId} on focus. Auto-pull aborted.`);
@@ -292,17 +204,6 @@ export class SyncManager extends EventEmitter {
         } catch (error) {
             this.emit('error', new Error(`Failed to fetch and pull workflow ${workflowId}: ${error}`));
             return false;
-        }
-    }
-
-    public async pullAll() {
-        await this.ensureInitialized();
-        const statuses = await this.getWorkflowsStatus();
-        for (const s of statuses) {
-            if (s.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY ||
-                s.status === WorkflowSyncStatus.MODIFIED_REMOTELY) {
-                await this.syncEngine!.pull(s.id, s.filename, s.status);
-            }
         }
     }
 
@@ -377,16 +278,6 @@ export class SyncManager extends EventEmitter {
             return true;
         } catch (error: any) {
             this.emit('error', new Error(`Failed to restore remote workflow ${workflowId}: ${error.message}`));
-            return false;
-        }
-    }
-
-    public async restoreLocalFile(workflowId: string, filename: string): Promise<boolean> {
-        await this.ensureInitialized();
-        try {
-            return await this.syncEngine!.restoreFromArchive(filename);
-        } catch (error: any) {
-            this.emit('error', new Error(`Failed to restore local file ${filename}: ${error.message}`));
             return false;
         }
     }

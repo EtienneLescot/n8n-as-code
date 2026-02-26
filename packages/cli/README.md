@@ -1,8 +1,8 @@
 # <img src="https://raw.githubusercontent.com/EtienneLescot/n8n-as-code/main/res/logo.png" alt="n8n-as-code logo" width="32" height="32"> @n8n-as-code/cli
 
-> **⚠️ BREAKING CHANGE (v0.9.0)**: Workflows are now stored as **TypeScript files** (`.workflow.ts`) instead of JSON. Use `n8nac convert` to migrate existing JSON workflows.
+The main command-line interface for the **n8n-as-code** ecosystem. Manage, synchronize, and version-control your n8n workflows as TypeScript files.
 
-The main command-line interface for the **n8n-as-code** ecosystem. Manage, synchronize, and version control your n8n workflows locally.
+> This package also embeds the synchronization engine and exposes it as a library for the VS Code extension.
 
 ## Installation
 
@@ -10,69 +10,125 @@ The main command-line interface for the **n8n-as-code** ecosystem. Manage, synch
 npm install -g @n8n-as-code/cli
 ```
 
-> **Note**: The command has been renamed to `n8nac`. The legacy `n8n-as-code` command is still available but deprecated.
-
-## 📖 Usage
+## Commands
 
 ### `init`
-Configure your connection to an n8n instance and select the project to sync.
+Interactive wizard — configure the connection to an n8n instance and pick the active project.
 
 ```bash
 n8nac init
 ```
 
-This creates/updates `n8nac.json` in the current folder and stores your API key securely (not in the repo).
+Creates `n8nac.json` in the current folder and stores the API key outside the repo.
+
+---
 
 ### `switch`
-Switch the active n8n project (writes `projectId` / `projectName` in `n8nac.json`).
+Switch the active n8n project (updates `projectId` / `projectName` in `n8nac.json`).
 
 ```bash
 n8nac switch
 ```
 
-### `pull`
-Download all workflows from your n8n instance to local JSON files.
-```bash
-n8nac pull
-```
-
-### `push`
-Send your local modifications back to the n8n instance.
-```bash
-n8nac push
-```
+---
 
 ### `list`
-Display a table of all workflows and their current synchronization status.
+Fetch the current state from the n8n API, scan local files, and display the full status matrix.
+
 ```bash
 n8nac list
 ```
 
-### `start`
-Start real-time monitoring and synchronization. This command provides a live dashboard of changes.
+Output columns: `Status` · `ID` · `Name` · `Local Path`
+
+Status values:
+
+| Status | Meaning | Action |
+|---|---|---|
+| `TRACKED`             | Workflow exists on both sides, no local changes detected             | Nothing to do |
+| `MODIFIED_LOCALLY`    | Local file changed since last sync | `push --id` |
+| `CONFLICT`            | Both sides changed — detected at push/pull time | `pull --id` (keep remote) or `push --id` (keep local) |
+| `EXIST_ONLY_LOCALLY`  | New local file not yet in n8n (or remote was deleted) | `push --id` to create in n8n |
+| `EXIST_ONLY_REMOTELY` | Remote workflow not yet local (or local was deleted) | `pull --id` to download |
+
+> **For agents**: always run `n8nac list` first to get workflow IDs and their current status before pulling or pushing.
+
+---
+
+### `pull --id <workflowId>`
+Download a single workflow from n8n and overwrite the local file.
+
 ```bash
-n8nac start
+n8nac pull --id <workflowId>
 ```
 
-Use manual mode for fully interactive prompts:
+> Recommended for agents and scripts. Targets exactly one workflow.
+
+---
+
+### `push --id <workflowId>`
+Upload a single local workflow file to n8n.
 
 ```bash
-n8nac start --manual
+n8nac push --id <workflowId>
 ```
+
+> Recommended for agents and scripts. Targets exactly one workflow.
+
+---
 
 ### `update-ai`
-Generate or update AI context files (`AGENTS.md`, rules, snippets) and the local `n8nac-skills` helper.
+Generate or refresh AI context files in the project root:
+- `AGENTS.md` — instructions for AI agents
+- `n8nac-skills` / `n8nac-skills.cmd` — local shim for the skills CLI
+- `n8nac` / `n8nac.cmd` — local shim for this CLI
+
 ```bash
 n8nac update-ai
 ```
 
-### Legacy alias
-The legacy `n8n-as-code` command is still available (deprecated). Prefer `n8nac`.
+---
+
+### `convert`
+Convert a single workflow between JSON and TypeScript formats.
+
+```bash
+n8nac convert <file>
+n8nac convert my-workflow.json --format typescript
+n8nac convert my-workflow.workflow.ts --format json
+```
+
+### `convert-batch`
+Batch-convert all workflows in a directory.
+
+```bash
+n8nac convert-batch workflows/ --format typescript
+```
+
+---
+
+## 🤖 Agent workflow
+
+The intended flow for an AI agent editing a workflow:
+
+```bash
+# 1. Fetch current state and get workflow IDs
+n8nac list
+
+# 2. Pull the target workflow
+n8nac pull --id <workflowId>
+
+# 3. Edit the local .workflow.ts file
+
+# 4. Push it back
+n8nac push --id <workflowId>
+```
+
+---
 
 ## 🏗 Part of the Ecosystem
-This package embeds the synchronization engine (formerly `@n8n-as-code/sync`) and works alongside:
-- `@n8n-as-code/skills`: AI-integration tools.
-- `vscode-extension`: Enhanced visual experience in VS Code.
+- `@n8n-as-code/skills`: AI-integration tools (node search, schemas, context generation).
+- `vscode-extension`: Visual editing in VS Code (uses this package as its sync library).
 
 ## 📄 License
 MIT

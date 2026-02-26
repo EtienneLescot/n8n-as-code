@@ -20,7 +20,6 @@ export class SyncEngine {
     private client: N8nApiClient;
     private watcher: Watcher;
     private directory: string;
-    private trashDirectory: string;
 
     constructor(
         client: N8nApiClient,
@@ -30,11 +29,6 @@ export class SyncEngine {
         this.client = client;
         this.watcher = watcher;
         this.directory = directory;
-        this.trashDirectory = path.join(directory, '.trash');
-
-        if (!fs.existsSync(this.trashDirectory)) {
-            fs.mkdirSync(this.trashDirectory, { recursive: true });
-        }
     }
 
     /**
@@ -55,30 +49,12 @@ export class SyncEngine {
                     await this.watcher.finalizeSync(workflowId, pullUpdatedAt1);
                     break;
 
-                case WorkflowSyncStatus.MODIFIED_REMOTELY:
-                    // Download Remote JSON -> Overwrite local file
-                    const pullUpdatedAt2 = await this.executePull(workflowId, filename);
-                    // Update lastSyncedHash via finalizeSync
-                    await this.watcher.finalizeSync(workflowId, pullUpdatedAt2);
-                    break;
-
-                case WorkflowSyncStatus.DELETED_REMOTELY:
-                    // Move local file to archive
-                    await this.archive(filename);
-                    // Remove from state (handled by watcher after observation resumes)
-                    // Watcher will detect file deletion and update status
-                    break;
-
                 case WorkflowSyncStatus.CONFLICT:
                     // Halt - trigger conflict resolution
                     throw new Error(`Conflict detected for workflow ${workflowId}. Use resolveConflict instead.`);
 
-                case WorkflowSyncStatus.DELETED_LOCALLY:
-                    // No action per spec
-                    break;
-
                 case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
-                case WorkflowSyncStatus.IN_SYNC:
+                case WorkflowSyncStatus.TRACKED:
                 case WorkflowSyncStatus.MODIFIED_LOCALLY:
                     // No action per spec
                     break;
@@ -126,21 +102,12 @@ export class SyncEngine {
                     await this.watcher.finalizeSync(workflowId, updateUpdatedAt);
                     return workflowId;
 
-                case WorkflowSyncStatus.DELETED_LOCALLY:
-                    // Step 1: Archive Remote to .trash/
-                    await this.archive(filename);
-                    // Step 2: Trigger Deletion Validation (caller should handle)
-                    // Note: Actual API deletion happens in ResolutionManager
-                    throw new Error(`Local deletion detected for workflow ${workflowId}. Use confirmDeletion instead.`);
-
                 case WorkflowSyncStatus.CONFLICT:
                     // Halt - trigger conflict resolution
                     throw new Error(`Conflict detected for workflow ${workflowId}. Use resolveConflict instead.`);
 
                 case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
-                case WorkflowSyncStatus.IN_SYNC:
-                case WorkflowSyncStatus.MODIFIED_REMOTELY:
-                case WorkflowSyncStatus.DELETED_REMOTELY:
+                case WorkflowSyncStatus.TRACKED:
                     // No action per spec
                     return workflowId;
 
@@ -226,10 +193,6 @@ export class SyncEngine {
         try {
             // Delete from API
             await this.client.deleteWorkflow(workflowId);
-            
-            // Archive local file if it still exists (edge case - shouldn't happen for DELETED_LOCALLY)
-            await this.archive(filename);
-            
             // Note: State removal will be handled by caller (ResolutionManager)
         } finally {
             this.watcher.markSyncComplete(workflowId);
@@ -237,48 +200,11 @@ export class SyncEngine {
         }
     }
 
-    /**
-     * Restore from archive (for deletion validation)
-     * Moves the file from archive back to workflows directory
-     * Then DELETES the archive file (no need to keep it after restoration)
-     */
-    public async restoreFromArchive(filename: string): Promise<boolean> {
-        const archiveFiles = fs.readdirSync(this.trashDirectory);
-        const matchingArchives = archiveFiles.filter(f => f.includes(filename));
-        
-        if (matchingArchives.length === 0) {
-            return false;
-        }
-
-        // Get most recent archive
-        const mostRecent = matchingArchives.sort().reverse()[0];
-        const archivePath = path.join(this.trashDirectory, mostRecent);
-        const targetPath = path.join(this.directory, filename);
-
-        // Read content from archive
-        const content = fs.readFileSync(archivePath, 'utf-8');
-        
-        // Write to target location
-        fs.writeFileSync(targetPath, content);
-        
-        // Delete the archive file (no need to keep it after restoration)
-        fs.unlinkSync(archivePath);
-        
-        return true;
-    }
-
     private async executePull(workflowId: string, filename: string): Promise<string | undefined> {
         const fullWf = await this.client.getWorkflow(workflowId);
         if (!fullWf) {
-            // Workflow might have been deleted (DELETED_REMOTELY case)
-            // Check if local file exists - if so, archive it
-            const filePath = path.join(this.directory, filename);
-            if (fs.existsSync(filePath)) {
-                await this.archive(filename);
-                // Don't throw - archiving is the expected behavior for DELETED_REMOTELY
-                return;
-            }
-            throw new Error(`Remote workflow ${workflowId} not found during pull`);
+            // Workflow was deleted remotely — nothing to pull
+            return;
         }
 
         // Convert to TypeScript
@@ -395,14 +321,6 @@ export class SyncEngine {
         fs.writeFileSync(filePath, tsCode, 'utf-8');
 
         return { id: newWf.id, updatedAt: newWf.updatedAt };
-    }
-
-    public async archive(filename: string): Promise<void> {
-        const filePath = path.join(this.directory, filename);
-        if (fs.existsSync(filePath)) {
-            const archivePath = path.join(this.trashDirectory, `${Date.now()}_${filename}`);
-            fs.renameSync(filePath, archivePath);
-        }
     }
 
     private readTypeScriptFile(filePath: string): string | null {

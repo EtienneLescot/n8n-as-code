@@ -107,10 +107,9 @@ export class Watcher extends EventEmitter {
         // Local Watch with Chokidar
         this.watcherSubscription = chokidar.watch(this.directory, {
             ignored: [
-                '**/.trash/**',
                 '**/.n8n-state.json',
                 '**/.git/**',
-                /(^|[\/\\])\../  // ignore dotfiles
+                /(^|[\/\\])\../
             ],
             ignoreInitial: true,
             persistent: true,
@@ -128,17 +127,17 @@ export class Watcher extends EventEmitter {
         this.watcherSubscription
             .on('add', (filePath: string) => {
                 const filename = path.basename(filePath);
-                if (filename.startsWith('.') || filePath.includes('.trash')) return;
+                if (filename.startsWith('.')) return;
                 this.onLocalChange(filePath);
             })
             .on('change', (filePath: string) => {
                 const filename = path.basename(filePath);
-                if (filename.startsWith('.') || filePath.includes('.trash')) return;
+                if (filename.startsWith('.')) return;
                 this.onLocalChange(filePath);
             })
             .on('unlink', (filePath: string) => {
                 const filename = path.basename(filePath);
-                if (filename.startsWith('.') || filePath.includes('.trash')) return;
+                if (filename.startsWith('.')) return;
                 this.onLocalDelete(filePath);
             })
             .on('error', (error: unknown) => {
@@ -378,52 +377,27 @@ export class Watcher extends EventEmitter {
             }
         }
 
-        // CRITICAL: Per spec 5.3 DELETED_LOCALLY - Archive Remote to .trash/ IMMEDIATELY
-        // This happens BEFORE user confirmation, to ensure we have a backup
+        // When a local file is deleted we simply clear the lastSyncedHash from state
+        // so that calculateStatus() naturally returns EXIST_ONLY_REMOTELY
+        // (remoteHash present, no lastSyncedHash, no localHash).
+        // No archiving is needed here – the remote copy is untouched.
         if (workflowId) {
-            const remoteHash = this.remoteHashes.get(workflowId);
-            const lastSyncedHash = this.getLastSyncedHash(workflowId);
-            
-            // Only archive if remote exists and matches last synced (true local deletion)
-            if (remoteHash && remoteHash === lastSyncedHash) {
-                try {
-                    // Fetch remote workflow content
-                    const remoteWorkflow = await this.client.getWorkflow(workflowId);
-                    
-                    if (remoteWorkflow) {
-                        // Create archive directory if it doesn't exist
-                        const trashDir = path.join(this.directory, '.trash');
-                        if (!fs.existsSync(trashDir)) {
-                            fs.mkdirSync(trashDir, { recursive: true });
-                        }
-                        
-                        // Convert to TypeScript and save to archive with timestamp
-                        const tsCode = await WorkflowTransformerAdapter.convertToTypeScript(remoteWorkflow, {
-                            format: true,
-                            commentStyle: 'verbose'
-                        });
-                        const archivePath = path.join(trashDir, `${Date.now()}_${filename}`);
-                        fs.writeFileSync(archivePath, tsCode, 'utf-8');
-                    }
-                } catch (error) {
-                    console.warn(`[Watcher] Failed to archive remote workflow ${workflowId}:`, error);
-                    // Continue anyway - deletion detection should still work
-                }
+            const state = this.loadState();
+            if (state.workflows[workflowId]) {
+                (state.workflows[workflowId] as IWorkflowState).lastSyncedHash = undefined as any;
+                this.saveState(state);
             }
         }
 
-        // IMPORTANT: Broadcast status BEFORE cleaning up mappings
-        // This ensures the UI receives the DELETED_LOCALLY status with the correct workflowId
-        this.broadcastStatus(filename, workflowId);
-
         // Clean up local hash for deleted file
         this.localHashes.delete(filename);
-        
-        // CRITICAL: DO NOT delete ID→filename mappings for DELETED_LOCALLY workflows
-        // Mappings must persist to:
-        // 1. Allow file restoration with the same filename
-        // 2. Prevent other remote workflows with the same name from taking this filename
-        // Mappings are only deleted when the workflow is completely removed via removeWorkflowState()
+
+        // Broadcast the new status (EXIST_ONLY_REMOTELY if remote exists, or gone entirely)
+        this.broadcastStatus(filename, workflowId);
+
+        // CRITICAL: DO NOT delete ID→filename mappings
+        // Mappings must persist so the workflow re-appears with the same filename
+        // when it is pulled again. Mappings are only cleaned up via removeWorkflowState().
     }
 
     private handleRename(workflowId: string, oldFilename: string, newFilename: string) {
@@ -488,6 +462,7 @@ export class Watcher extends EventEmitter {
         
         // First pass: collect all files and their content
         const fileContents: Array<{ filename: string; content: any; mtime: number }> = [];
+        const newlyTracked: string[] = [];
         for (const filename of files) {
             const filePath = path.join(this.directory, filename);
             const content = this.readJsonFile(filePath); // Quick ID extraction
@@ -498,8 +473,10 @@ export class Watcher extends EventEmitter {
                 // Compute hash from TypeScript file directly
                 const tsContent = fs.readFileSync(filePath, 'utf-8');
                 try {
+                    const isNew = !this.localHashes.has(filename);
                     const hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
                     this.localHashes.set(filename, hash);
+                    if (isNew) newlyTracked.push(filename);
                 } catch (parseErr: any) {
                     console.error(
                         `[Watcher] ❌ Cannot parse "${filename}" during local scan – skipping.\n` +
@@ -536,6 +513,14 @@ export class Watcher extends EventEmitter {
                     }
                 }
             }
+        }
+
+        // Broadcast status for newly-tracked files (includes ID-less local-only files)
+        // so that EXIST_ONLY_LOCALLY events are emitted for files that were already on
+        // disk when the watcher started.
+        for (const filename of newlyTracked) {
+            const workflowId = this.fileToIdMap.get(filename);
+            this.broadcastStatus(filename, workflowId);
         }
     }
     
@@ -606,7 +591,7 @@ export class Watcher extends EventEmitter {
             // Build set of already-assigned filenames to prevent collisions
             // A filename is "assigned" if:
             // 1. It exists physically on disk, OR
-            // 2. It's mapped to a workflow that still exists remotely (even if DELETED_LOCALLY)
+            // 2. It's mapped to a workflow that still exists remotely (even if only local file is gone)
             const assignedFilenames = new Set<string>();
             
             for (const wf of remoteWorkflows) {
@@ -703,6 +688,15 @@ export class Watcher extends EventEmitter {
                 if (!currentRemoteIds.has(id)) {
                     this.remoteHashes.delete(id);
                     this.remoteTimestamps.delete(id);
+
+                    // Clear lastSyncedHash from state so calculateStatus() returns
+                    // EXIST_ONLY_LOCALLY naturally (localHash present, no remoteHash, no lastSyncedHash).
+                    const state = this.loadState();
+                    if (state.workflows[id]) {
+                        (state.workflows[id] as IWorkflowState).lastSyncedHash = undefined as any;
+                        this.saveState(state);
+                    }
+
                     const filename = this.idToFileMap.get(id);
                     if (filename) this.broadcastStatus(filename, id);
                 }
@@ -781,7 +775,7 @@ export class Watcher extends EventEmitter {
         // Update base state
         await this.updateWorkflowState(workflowId, localHash, remoteUpdatedAt);
         
-        // Broadcast new IN_SYNC status
+        // Broadcast new TRACKED status
         this.broadcastStatus(filename, workflowId);
     }
 
@@ -899,7 +893,7 @@ export class Watcher extends EventEmitter {
         
         // If we are disconnected and don't have a remote hash, don't claim it's deleted
         if (!this.isConnected && !remoteHash && workflowId) {
-            return WorkflowSyncStatus.IN_SYNC; // Treat as in-sync or unknown to avoid "deleted" panic
+            return WorkflowSyncStatus.TRACKED; // Treat as tracked/unknown to avoid "deleted" panic
         }
 
         // Get base state
@@ -919,20 +913,18 @@ export class Watcher extends EventEmitter {
         if (localHash && !lastSyncedHash && !remoteHash) return WorkflowSyncStatus.EXIST_ONLY_LOCALLY;
         if (remoteHash && !lastSyncedHash && !localHash) return WorkflowSyncStatus.EXIST_ONLY_REMOTELY;
 
-        if (localHash && remoteHash && localHash === remoteHash) return WorkflowSyncStatus.IN_SYNC;
+        if (localHash && remoteHash && localHash === remoteHash) return WorkflowSyncStatus.TRACKED;
 
         if (lastSyncedHash) {
-            // Check deletions first (they take precedence over modifications)
-            if (!localHash && remoteHash === lastSyncedHash) return WorkflowSyncStatus.DELETED_LOCALLY;
-            if (!remoteHash && localHash === lastSyncedHash) return WorkflowSyncStatus.DELETED_REMOTELY;
-            
-            // Then check modifications
+            // Check modifications
             const localModified = localHash !== lastSyncedHash;
             const remoteModified = remoteHash && remoteHash !== lastSyncedHash;
 
             if (localModified && remoteModified) return WorkflowSyncStatus.CONFLICT;
             if (localModified && remoteHash === lastSyncedHash) return WorkflowSyncStatus.MODIFIED_LOCALLY;
-            if (remoteModified && localHash === lastSyncedHash) return WorkflowSyncStatus.MODIFIED_REMOTELY;
+            // remoteModified && localUnchanged: remote updated but local is untouched.
+            // Remote updated but local untouched — treat as TRACKED, user can pull explicitly.
+            if (remoteModified && localHash === lastSyncedHash) return WorkflowSyncStatus.TRACKED;
         }
 
         // Fallback for edge cases

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { StartCommand } from './commands/start.js';
 import { ListCommand } from './commands/list.js';
 import { SyncCommand } from './commands/sync.js';
 import { UpdateAiCommand, InitAiCommand } from './commands/init-ai.js';
@@ -56,27 +55,20 @@ program.command('list')
         await new ListCommand().run();
     });
 
-// start - Main monitoring command
-program.command('start')
-    .description('Start monitoring with live UI — shows status table and prompts for conflicts/deletions')
-    .action(async () => {
-        await new StartCommand().run();
-    });
-
-// pull - One-off command to download workflows from Remote to Local
+// pull - Download a single workflow by ID
 program.command('pull')
-    .description('Download workflows from n8n to local directory')
-    .option('--force', 'Skip conflict checks, overwrite local files')
+    .description('Download a single workflow from n8n to local directory')
+    .requiredOption('--id <workflowId>', 'Workflow ID to pull')
     .action(async (options) => {
-        await new SyncCommand().pull(options.force || false);
+        await new SyncCommand().pullOne(options.id);
     });
 
-// push - One-off command to upload workflows from Local to Remote
+// push - Upload a single workflow by ID
 program.command('push')
-    .description('Upload local workflows to n8n')
-    .option('--force', 'Skip conflict checks, overwrite remote workflows')
+    .description('Upload a single local workflow to n8n')
+    .requiredOption('--id <workflowId>', 'Workflow ID to push')
     .action(async (options) => {
-        await new SyncCommand().push(options.force || false);
+        await new SyncCommand().pushOne(options.id);
     });
 
 // convert - Convert workflows between JSON and TypeScript formats

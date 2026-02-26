@@ -17,10 +17,7 @@ import {
     store,
     setSyncManager,
     setWorkflows,
-    updateWorkflow,
     removeWorkflow,
-    addPendingDeletion,
-    removePendingDeletion,
     addConflict,
     removeConflict
 } from './services/workflow-store.js';
@@ -295,32 +292,17 @@ export async function activate(context: vscode.ExtensionContext) {
 
             if (!syncManager || !wf || !wf.filename) return;
 
-            // Check if already pending deletion
-            const state = store.getState();
-            const pendingDeletions = state.pendingDeletions.workflowIds;
-            if (pendingDeletions.includes(wf.id)) {
-                outputChannel.appendLine(`[n8n] Workflow ${wf.id} is already pending deletion. Ignoring.`);
-                return;
-            }
-
             try {
                 const instanceDirectory = syncManager.getInstanceDirectory();
                 const absPath = path.join(instanceDirectory, wf.filename);
 
                 if (fs.existsSync(absPath)) {
-                    // 1. Optimistic UI update via Redux
-                    store.dispatch(addPendingDeletion(wf.id));
-
-                    // 2. Delete file
                     await fs.promises.unlink(absPath);
-
-                    // 3. Notify
-                    vscode.window.showInformationMessage(`🗑️ Local file "${wf.filename}" deleted. Right-click to confirm deletion or restore.`);
+                    outputChannel.appendLine(`[n8n] Deleted local file: ${wf.filename}`);
                 }
             } catch (e: any) {
                 outputChannel.appendLine(`[n8n] Delete Error: ${e.message}`);
                 vscode.window.showErrorMessage(`Delete Error: ${e.message}`);
-                store.dispatch(removePendingDeletion(wf.id));
             }
         }),
 
@@ -410,44 +392,6 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
-        vscode.commands.registerCommand('n8n.confirmDeletion', async (arg: any) => {
-            const wf = arg?.workflow ? arg.workflow : arg;
-            if (!wf || !syncManager) return;
-
-            const confirm = await vscode.window.showWarningMessage(
-                `Are you sure you want to DELETE "${wf.name}" from n8n?`,
-                { modal: true },
-                'Delete Remote Workflow'
-            );
-
-            if (confirm === 'Delete Remote Workflow') {
-                const success = await syncManager.deleteRemoteWorkflow(wf.id, wf.filename);
-                if (success) {
-                    store.dispatch(removePendingDeletion(wf.id));
-                    store.dispatch(removeWorkflow(wf.id));
-
-                    vscode.window.showInformationMessage(`✅ Deleted "${wf.name}" from n8n.`);
-                } else {
-                    vscode.window.showErrorMessage(`❌ Failed to delete "${wf.name}".`);
-                }
-            }
-        }),
-
-        vscode.commands.registerCommand('n8n.restoreDeletion', async (arg: any) => {
-            const wf = arg?.workflow ? arg.workflow : arg;
-            if (!wf || !syncManager) return;
-
-            const success = await syncManager.restoreLocalFile(wf.id, wf.filename);
-            if (success) {
-                store.dispatch(removePendingDeletion(wf.id));
-                store.dispatch(updateWorkflow({ id: wf.id, updates: { status: WorkflowSyncStatus.IN_SYNC } }));
-
-                vscode.window.showInformationMessage(`✅ Restored "${wf.name}" locally.`);
-                enhancedTreeProvider.refresh();
-            } else {
-                vscode.window.showErrorMessage(`❌ Failed to restore "${wf.name}".`);
-            }
-        })
     );
 
     // 2. Determine initial state – fire-and-forget so activate() returns immediately.
@@ -813,46 +757,6 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             console.error('Failed to reload workflows:', error);
         }
 
-        // Handle remote deletion with interactive notification
-        if (ev.status === WorkflowSyncStatus.DELETED_REMOTELY && ev.workflowId) {
-            outputChannel.appendLine(`[n8n] REMOTE DELETION detected for: ${ev.filename}`);
-
-            // Interactive notification with action buttons
-            const choice = await vscode.window.showWarningMessage(
-                `🗑️ Remote workflow "${ev.filename}" was deleted - Archive local file?`,
-                'Delete File',
-                'Restore File',
-                'Show in Sidebar'
-            );
-
-            if (choice === 'Delete File') {
-                // Confirm deletion (archive local file)
-                try {
-                    await syncManager!.confirmDeletion(ev.workflowId, ev.filename);
-                    const workflows = await syncManager!.getWorkflowsStatus();
-                    store.dispatch(setWorkflows(workflows));
-                    vscode.window.showInformationMessage(`✅ Local file "${ev.filename}" archived`);
-                    enhancedTreeProvider.refresh();
-                } catch (error: any) {
-                    vscode.window.showErrorMessage(`❌ Failed to archive: ${error.message}`);
-                }
-            } else if (choice === 'Restore File') {
-                // Restore workflow by re-pushing to remote
-                try {
-                    await syncManager!.restoreRemoteWorkflow(ev.workflowId, ev.filename);
-                    const workflows = await syncManager!.getWorkflowsStatus();
-                    store.dispatch(setWorkflows(workflows));
-                    vscode.window.showInformationMessage(`✅ Workflow "${ev.filename}" re-created on n8n`);
-                    enhancedTreeProvider.refresh();
-                } catch (error: any) {
-                    vscode.window.showErrorMessage(`❌ Failed to restore: ${error.message}`);
-                }
-            } else if (choice === 'Show in Sidebar') {
-                // Focus on n8n explorer view
-                await vscode.commands.executeCommand('n8n-explorer.workflows.focus');
-            }
-        }
-
         // Note: Webview reload is handled explicitly in push/pull commands
         // The Watcher doesn't emit 'type' field, only 'status', so we can't
         // reliably determine if remote changed here
@@ -883,47 +787,6 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
                 workflow: { id, filename: filename, name: filename },
                 choice
             });
-        }
-    });
-
-    // Handle Local Deletion using Redux store
-    syncManager.on('local-deletion', async (data: { id: string, filename: string }) => {
-        outputChannel.appendLine(`[n8n] LOCAL DELETION detected for: ${data.filename}`);
-
-        store.dispatch(addPendingDeletion(data.id));
-
-        // Interactive notification with action buttons
-        const choice = await vscode.window.showWarningMessage(
-            `🗑️ Local file "${data.filename}" deleted - Confirm deletion?`,
-            'Delete File',
-            'Restore File',
-            'Show in Sidebar'
-        );
-
-        if (choice === 'Delete File') {
-            // Confirm deletion on remote
-            const success = await syncManager!.deleteRemoteWorkflow(data.id, data.filename);
-            if (success) {
-                store.dispatch(removePendingDeletion(data.id));
-                store.dispatch(removeWorkflow(data.id));
-                vscode.window.showInformationMessage(`✅ Workflow "${data.filename}" deleted from n8n`);
-            } else {
-                vscode.window.showErrorMessage(`❌ Failed to delete "${data.filename}" from n8n`);
-            }
-        } else if (choice === 'Restore File') {
-            // Restore the local file from remote
-            const success = await syncManager!.restoreLocalFile(data.id, data.filename);
-            if (success) {
-                store.dispatch(removePendingDeletion(data.id));
-                store.dispatch(updateWorkflow({ id: data.id, updates: { status: WorkflowSyncStatus.IN_SYNC } }));
-                vscode.window.showInformationMessage(`✅ File "${data.filename}" restored locally`);
-                enhancedTreeProvider.refresh();
-            } else {
-                vscode.window.showErrorMessage(`❌ Failed to restore "${data.filename}"`);
-            }
-        } else if (choice === 'Show in Sidebar') {
-            // Focus on n8n explorer view
-            await vscode.commands.executeCommand('n8n-explorer.workflows.focus');
         }
     });
 
@@ -970,12 +833,6 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         const workflows = await syncManager.getWorkflowsStatus();
         store.dispatch(setWorkflows(workflows));
 
-        // Sync pending actions state with store
-        for (const wf of workflows) {
-            if (wf.status === WorkflowSyncStatus.DELETED_LOCALLY || wf.status === WorkflowSyncStatus.DELETED_REMOTELY) {
-                store.dispatch(addPendingDeletion(wf.id));
-            }
-        }
     } catch (error: any) {
         outputChannel.appendLine(`[n8n] Failed to load workflows: ${error.message}`);
     }

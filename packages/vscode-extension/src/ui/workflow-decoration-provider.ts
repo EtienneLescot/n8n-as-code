@@ -46,22 +46,16 @@ export class WorkflowDecorationProvider implements vscode.FileDecorationProvider
 
     // Handle status-based decorations
     switch (status) {
-      case WorkflowSyncStatus.IN_SYNC:
+      case WorkflowSyncStatus.TRACKED:
         return {
           color: new vscode.ThemeColor('gitDecoration.untrackedResourceForeground'),
-          tooltip: 'In Sync'
+          tooltip: 'Tracked'
         };
 
       case WorkflowSyncStatus.MODIFIED_LOCALLY:
         return {
           color: new vscode.ThemeColor('gitDecoration.modifiedResourceForeground'),
           tooltip: 'Modified Locally'
-        };
-
-      case WorkflowSyncStatus.MODIFIED_REMOTELY:
-        return {
-          color: new vscode.ThemeColor('gitDecoration.modifiedResourceForeground'),
-          tooltip: 'Modified Remotely'
         };
 
       case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
@@ -74,13 +68,6 @@ export class WorkflowDecorationProvider implements vscode.FileDecorationProvider
         return {
           color: new vscode.ThemeColor('gitDecoration.addedResourceForeground'),
           tooltip: 'Local Only'
-        };
-
-      case WorkflowSyncStatus.DELETED_LOCALLY:
-      case WorkflowSyncStatus.DELETED_REMOTELY:
-        return {
-          color: new vscode.ThemeColor('gitDecoration.deletedResourceForeground'),
-          tooltip: 'Deleted'
         };
 
       default:
