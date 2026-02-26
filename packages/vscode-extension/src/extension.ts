@@ -185,7 +185,7 @@ export async function activate(context: vscode.ExtensionContext) {
             // Use single-workflow status check instead of batch calculation
             const workflowStatus = await syncManager.getWorkflowStatus(wf.id, wf.filename);
             const hasLocalChanges = workflowStatus.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
-                                    workflowStatus.status === WorkflowSyncStatus.CONFLICT;
+                workflowStatus.status === WorkflowSyncStatus.CONFLICT;
             if (hasLocalChanges) {
                 const confirm = await vscode.window.showWarningMessage(
                     `"${wf.name}" has local changes. Pulling will overwrite them with the remote version.`,
@@ -225,10 +225,10 @@ export async function activate(context: vscode.ExtensionContext) {
                 // Fetch remote state for this specific workflow (update internal cache for comparison)
                 // Uses the new fetch() method which just updates remote state cache without pulling
                 const success = await syncManager.fetch(wf.id);
-                
+
                 if (success) {
                     outputChannel.appendLine(`[n8n] Fetched remote state for: ${wf.name} (${wf.id})`);
-                    
+
                     // Refresh workflows status to show updated state
                     const workflows = await syncManager.getWorkflowsLightweight();
                     store.dispatch(setWorkflows(workflows));
@@ -248,7 +248,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         vscode.commands.registerCommand('n8n.refresh', async () => {
             outputChannel.appendLine('[n8n] Manual refresh command triggered.');
-            
+
             // Trigger a list operation to refresh workflow status
             if (syncManager) {
                 try {
@@ -265,7 +265,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 outputChannel.appendLine('[n8n] Cannot refresh: syncManager not initialized.');
                 vscode.window.showErrorMessage('Cannot refresh: n8n as code is not initialized. Please configure and initialize first.');
             }
-            
+
             // Also refresh the UI
             enhancedTreeProvider.refresh();
         }),
@@ -842,9 +842,9 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         }
     });
 
-    // Handle Remote Updated (after auto-sync push) - reload webview
+    // Handle Remote Updated (after explicit push) - reload webview
     syncManager.on('remote-updated', (data: { workflowId: string, filename: string }) => {
-        outputChannel.appendLine(`[n8n] Remote updated for: ${data.filename} (auto-sync push)`);
+        outputChannel.appendLine(`[n8n] Remote updated for: ${data.filename} (explicit push)`);
         WorkflowWebview.reloadIfMatching(data.workflowId, outputChannel);
     });
 

@@ -63,25 +63,26 @@ program.command('list')
 // pull - Download a single workflow by ID
 program.command('pull')
     .description('Download a single workflow from n8n to local directory')
-    .requiredOption('--id <workflowId>', 'Workflow ID to pull')
+    .requiredOption('--workflowsid <workflowId>', 'Workflow ID to pull')
     .action(async (options) => {
-        await new SyncCommand().pullOne(options.id);
+        await new SyncCommand().pullOne(options.workflowsid);
     });
 
 // push - Upload a single workflow by ID
 program.command('push')
     .description('Upload a single local workflow to n8n')
-    .requiredOption('--id <workflowId>', 'Workflow ID to push')
+    .requiredOption('--workflowsid <workflowId>', 'Workflow ID to push')
     .action(async (options) => {
-        await new SyncCommand().pushOne(options.id);
+        await new SyncCommand().pushOne(options.workflowsid);
     });
 
 // fetch - Update remote state cache for a specific workflow
-program.command('fetch <workflowId>')
+program.command('fetch')
     .description('Fetch remote state for a specific workflow (update internal cache for comparison)')
-    .action(async (workflowId) => {
+    .requiredOption('--workflowsid <workflowId>', 'Workflow ID to fetch')
+    .action(async (options) => {
         const syncCommand = new SyncCommand();
-        await syncCommand.fetchOne(workflowId);
+        await syncCommand.fetchOne(options.workflowsid);
     });
 
 // convert - Convert workflows between JSON and TypeScript formats

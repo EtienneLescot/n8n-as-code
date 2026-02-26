@@ -13,7 +13,7 @@ import { IWorkflowState, IInstanceState } from './state-manager.js';
  * 
  * Responsibilities:
  * 1. File System Watch with debounce
- * 2. Remote Polling with lightweight strategy
+ * 2. Remote Fetching with lightweight caching strategy
  * 3. Canonical Hashing (SHA-256 of sorted JSON)
  * 4. Status Matrix Calculation (3-way comparison)
  * 5. State Persistence (only component that writes to .n8n-state.json)
@@ -42,12 +42,12 @@ export class Watcher extends EventEmitter {
     private isPaused = new Set<string>(); // IDs for which observation is paused
     private syncInProgress = new Set<string>(); // IDs currently being synced
     private pausedFilenames = new Set<string>(); // Filenames for which observation is paused (for workflows without ID yet)
-    
+
     // Potential renames: when we see an add event for a workflow ID that already exists,
     // we track it here to match with subsequent unlink events
     private potentialRenames: Map<string, { newFilename: string; timestamp: number }> = new Map();
 
-    // Lightweight polling cache
+    // Lightweight remote state cache
     private remoteTimestamps: Map<string, string> = new Map(); // workflowId -> updatedAt
 
     constructor(
@@ -76,13 +76,13 @@ export class Watcher extends EventEmitter {
         // Don't fetch remote state on startup (no batch operations)
         // Remote state will be populated incrementally through single-workflow fetch operations
         // Skip connection test - assume connected, will fail on first fetch if not
-        
+
         await this.refreshLocalState();
-        
+
         // Restore persisted ID → filename mappings from state
         // This ensures stable filename assignment even when remote workflows have duplicate names
         this.restoreMappingsFromState();
-        
+
         this.isInitializing = false;
 
         // Local Watch with Chokidar
@@ -218,7 +218,7 @@ export class Watcher extends EventEmitter {
                 // Check if the existing file still exists on disk
                 const existingFilePath = path.join(this.directory, existingFilename);
                 const fileExists = fs.existsSync(existingFilePath);
-                
+
                 if (!fileExists) {
                     // The existing file doesn't exist - this is likely a rename
                     // Update mappings to point to the new filename
@@ -232,7 +232,7 @@ export class Watcher extends EventEmitter {
                         (state.workflows[content.id] as IWorkflowState).filename = filename;
                         this.saveState(state);
                     }
-                    
+
                     // Emit rename event
                     this.emit('fileRenamed', {
                         workflowId: content.id,
@@ -246,17 +246,17 @@ export class Watcher extends EventEmitter {
                         newFilename: filename,
                         timestamp: Date.now()
                     });
-                    
+
                     // File exists - this is a DUPLICATE ID (copy-paste)
                     // Principle: Keep ID only in the oldest file, remove from the new one
                     // DUPLICAT DÉTECTÉ pendant le watch → supprimer l'ID du nouveau fichier
-                    
+
                     // Remove ID from the new file
                     const currentContent = this.readJsonFile(filePath);
                     if (currentContent && currentContent.id === content.id) {
                         delete currentContent.id;
                         await this.writeWorkflowFile(filename, currentContent);
-                        
+
                         // Re-read the TypeScript content and compute hash
                         const tsContent = fs.readFileSync(filePath, 'utf-8');
                         try {
@@ -269,7 +269,7 @@ export class Watcher extends EventEmitter {
                         }
                     }
                     return; // Stop processing this file as it's being modified
-                    
+
                     // Don't return - continue processing as normal
                     // The unlink event should come soon and trigger rename detection
                 }
@@ -330,7 +330,7 @@ export class Watcher extends EventEmitter {
             const potentialRename = this.potentialRenames.get(workflowId);
             if (potentialRename) {
                 this.potentialRenames.delete(workflowId);
-                
+
                 // Handle as rename
                 this.handleRename(workflowId, filename, potentialRename.newFilename);
                 return;
@@ -385,7 +385,7 @@ export class Watcher extends EventEmitter {
         this.fileToIdMap.delete(oldFilename);
         this.fileToIdMap.set(newFilename, workflowId);
         this.idToFileMap.set(workflowId, newFilename);
-        
+
         // Update local hash mapping
         const oldHash = this.localHashes.get(oldFilename);
         if (oldHash) {
@@ -401,17 +401,17 @@ export class Watcher extends EventEmitter {
                 this.saveState(state);
             }
         }
-        
+
         // Emit rename event
         this.emit('fileRenamed', {
             workflowId,
             oldFilename,
             newFilename
         });
-        
+
         // Broadcast status with new filename
         this.broadcastStatus(newFilename, workflowId);
-        
+
         // Also broadcast status for old filename to clear it from UI
         // Since it's no longer in localHashes or mappings, it will be handled correctly
         this.broadcastStatus(oldFilename, undefined);
@@ -427,7 +427,7 @@ export class Watcher extends EventEmitter {
 
         const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.workflow.ts') && !f.startsWith('.'));
         const currentFiles = new Set(files);
-        
+
         // Remove entries for files that no longer exist
         for (const filename of this.localHashes.keys()) {
             if (!currentFiles.has(filename)) {
@@ -439,7 +439,7 @@ export class Watcher extends EventEmitter {
                 }
             }
         }
-        
+
         // First pass: collect all files and their content
         const fileContents: Array<{ filename: string; content: any; mtime: number }> = [];
         const newlyTracked: string[] = [];
@@ -449,7 +449,7 @@ export class Watcher extends EventEmitter {
             if (content) {
                 const stat = fs.statSync(filePath);
                 fileContents.push({ filename, content, mtime: stat.mtimeMs });
-                
+
                 // Compute hash from TypeScript file directly
                 const tsContent = fs.readFileSync(filePath, 'utf-8');
                 try {
@@ -468,10 +468,10 @@ export class Watcher extends EventEmitter {
                 }
             }
         }
-        
+
         // Detect and resolve duplicate IDs (following architectural plan)
         await this.resolveDuplicateIds(fileContents);
-        
+
         // Second pass: update mappings after duplicate resolution
         // CRITICAL: Only update mappings if not already set from persisted state
         // This prevents ID alternation when remote workflows have duplicate names
@@ -503,7 +503,7 @@ export class Watcher extends EventEmitter {
             this.broadcastStatus(filename, workflowId);
         }
     }
-    
+
     /**
      * Resolve duplicate IDs in local files (following architectural plan)
      * Principle: Keep ID only in the oldest file, remove from others
@@ -511,7 +511,7 @@ export class Watcher extends EventEmitter {
     private async resolveDuplicateIds(fileContents: Array<{ filename: string; content: any; mtime: number }>) {
         // Group files by workflow ID
         const filesById = new Map<string, Array<{ filename: string; mtime: number }>>();
-        
+
         for (const { filename, content, mtime } of fileContents) {
             if (content?.id) {
                 const workflowId = content.id;
@@ -521,16 +521,16 @@ export class Watcher extends EventEmitter {
                 filesById.get(workflowId)!.push({ filename, mtime });
             }
         }
-        
+
         // For each duplicate ID, keep only in oldest file
         for (const [workflowId, fileList] of filesById.entries()) {
             if (fileList.length > 1) {
                 // Sort by modification time (oldest first)
                 fileList.sort((a, b) => a.mtime - b.mtime);
-                
+
                 const oldestFile = fileList[0].filename;
                 const duplicates = fileList.slice(1);
-                
+
                 // Remove ID from duplicate files
                 for (const { filename: dupFilename } of duplicates) {
                     const filePath = path.join(this.directory, dupFilename);
@@ -538,14 +538,14 @@ export class Watcher extends EventEmitter {
                     if (content) {
                         delete content.id;
                         await this.writeWorkflowFile(dupFilename, content);
-                        
+
                         // Update local hash for the modified file
                         const tsContent = fs.readFileSync(filePath, 'utf-8');
                         const hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
                         this.localHashes.set(dupFilename, hash);
                     }
                 }
-                
+
                 // Emit event for UI (if needed)
                 this.emit('duplicateIdResolved', {
                     workflowId,
@@ -557,7 +557,7 @@ export class Watcher extends EventEmitter {
     }
 
     /**
-     * Lightweight polling strategy:
+     * Lightweight fetch strategy:
      * 1. Fetch only IDs and updatedAt timestamps
      * 2. Compare with cached timestamps
      * 3. Fetch full content only if timestamp changed
@@ -567,17 +567,17 @@ export class Watcher extends EventEmitter {
             const remoteWorkflows = await this.client.getAllWorkflows(this.projectId);
             this.isConnected = true;
             const currentRemoteIds = new Set<string>();
-            
+
             // Build set of already-assigned filenames to prevent collisions
             // A filename is "assigned" if:
             // 1. It exists physically on disk, OR
             // 2. It's mapped to a workflow that still exists remotely (even if only local file is gone)
             const assignedFilenames = new Set<string>();
-            
+
             for (const wf of remoteWorkflows) {
                 if (this.shouldIgnore(wf)) continue;
                 if (this.isPaused.has(wf.id) || this.syncInProgress.has(wf.id)) continue;
-                
+
                 currentRemoteIds.add(wf.id);
 
                 // CRITICAL: Use ID-based mapping with PERSISTED state as source of truth
@@ -586,23 +586,23 @@ export class Watcher extends EventEmitter {
                 // 2. Memory mapping (may differ if file was renamed locally)
                 // 3. Scan local files by ID
                 // 4. Generate from name (new workflow)
-                
+
                 let filename: string | undefined = this.idToFileMap.get(wf.id);
-                
+
                 // If no valid mapping, scan local files to discover/rediscover the workflow
                 if (!filename) {
                     filename = this.findFilenameByWorkflowId(wf.id);
                 }
-                
+
                 // Reserve this filename BEFORE checking for newworkflows
                 if (filename) {
                     assignedFilenames.add(filename);
                 }
-                
+
                 // If still not found, this is a NEW remote workflow - generate filename
                 if (!filename) {
                     const baseName = `${this.safeName(wf.name)}.workflow.ts`;
-                    
+
                     // Check if this base name is already assigned to another workflow
                     if (assignedFilenames.has(baseName)) {
                         // Name collision - generate unique filename with ID suffix
@@ -612,14 +612,14 @@ export class Watcher extends EventEmitter {
                         // Name is free - use it
                         filename = baseName;
                     }
-                    
+
                     // Mark this filename as assigned
                     assignedFilenames.add(filename);
                 }
-                
+
                 // Update mappings ONLY if this is a new workflow or filename hasn't changed
                 const previousFilename = this.idToFileMap.get(wf.id);
-                
+
                 if (!previousFilename) {
                     // New workflow - establish mapping
                     this.idToFileMap.set(wf.id, filename);
@@ -684,13 +684,13 @@ export class Watcher extends EventEmitter {
         } catch (error: any) {
             // Check if it's a connection error
             const isConnectionError = error.code === 'ECONNREFUSED' ||
-                                      error.code === 'ENOTFOUND' ||
-                                      error.code === 'ETIMEDOUT' ||
-                                      error.message?.includes('fetch failed') ||
-                                      error.message?.includes('ECONNREFUSED') ||
-                                      error.message?.includes('ENOTFOUND') ||
-                                      error.cause?.code === 'ECONNREFUSED';
-            
+                error.code === 'ENOTFOUND' ||
+                error.code === 'ETIMEDOUT' ||
+                error.message?.includes('fetch failed') ||
+                error.message?.includes('ECONNREFUSED') ||
+                error.message?.includes('ENOTFOUND') ||
+                error.cause?.code === 'ECONNREFUSED';
+
             if (isConnectionError) {
                 this.isConnected = false;
                 // Emit a specific connection error
@@ -710,7 +710,7 @@ export class Watcher extends EventEmitter {
      */
     public async finalizeSync(workflowId: string, remoteUpdatedAt?: string): Promise<void> {
         let filename = this.idToFileMap.get(workflowId);
-        
+
         // If workflow not tracked yet (first sync of local-only workflow),
         // scan directory to find the file with this ID
         if (!filename) {
@@ -726,7 +726,7 @@ export class Watcher extends EventEmitter {
                     break;
                 }
             }
-            
+
             if (!filename) {
                 throw new Error(`Cannot finalize sync: workflow ${workflowId} not found in directory`);
             }
@@ -735,26 +735,26 @@ export class Watcher extends EventEmitter {
         // Get current reality
         const filePath = path.join(this.directory, filename);
         const content = this.readJsonFile(filePath);
-        
+
         if (!content) {
             throw new Error(`Cannot finalize sync: local file not found for ${workflowId}`);
         }
 
         const tsContent = fs.readFileSync(filePath, 'utf-8');
         const computedHash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
-        
+
         // After a successful sync, local and remote should be identical
         // Use the computed hash for both
         const localHash = computedHash;
         const remoteHash = computedHash;
-        
+
         // Update caches
         this.localHashes.set(filename, localHash);
         this.remoteHashes.set(workflowId, remoteHash);
 
         // Update base state
         await this.updateWorkflowState(workflowId, localHash, remoteUpdatedAt);
-        
+
         // Broadcast new TRACKED status
         this.broadcastStatus(filename, workflowId);
     }
@@ -782,7 +782,7 @@ export class Watcher extends EventEmitter {
         const state = this.loadState();
         delete state.workflows[id];
         this.saveState(state);
-        
+
         // Clean up internal tracking
         const filename = this.idToFileMap.get(id);
         if (filename) {
@@ -811,7 +811,7 @@ export class Watcher extends EventEmitter {
         }
         return { workflows: {} };
     }
-    
+
     /**
      * Restore ID→filename mappings from persisted state
      * Should only be called once at startup and after state changes
@@ -846,11 +846,11 @@ export class Watcher extends EventEmitter {
 
     private broadcastStatus(filename: string, workflowId?: string) {
         if (this.isInitializing) return;
-        
+
         const status = this.calculateStatus(filename, workflowId);
         const key = workflowId || filename;
         const lastStatus = this.lastKnownStatuses.get(key);
-        
+
         console.log(`[Watcher] Status for ${filename}: ${status} (last: ${lastStatus || 'none'})`);
 
         if (status !== lastStatus) {
@@ -870,7 +870,7 @@ export class Watcher extends EventEmitter {
         if (!workflowId) workflowId = this.fileToIdMap.get(filename);
         const localHash = this.localHashes.get(filename);
         const remoteHash = workflowId ? this.remoteHashes.get(workflowId) : undefined;
-        
+
         // If we are disconnected and don't have a remote hash, don't claim it's deleted
         if (!this.isConnected && !remoteHash && workflowId) {
             return WorkflowSyncStatus.TRACKED; // Treat as tracked/unknown to avoid "deleted" panic
@@ -933,10 +933,10 @@ export class Watcher extends EventEmitter {
         if (!fs.existsSync(this.directory)) {
             return undefined;
         }
-        
+
         const files = fs.readdirSync(this.directory)
             .filter(f => f.endsWith('.workflow.ts') && !f.startsWith('.'));
-        
+
         for (const file of files) {
             const content = this.readJsonFile(path.join(this.directory, file));
             if (content?.id === workflowId) {
@@ -959,24 +959,24 @@ export class Watcher extends EventEmitter {
                 if (decoratorMatch) {
                     const decoratorContent = decoratorMatch[1];
                     const result: any = {};
-                    
+
                     // Extract id if present
                     const idMatch = decoratorContent.match(/id:\s*["']([^"']+)["']/);
                     if (idMatch) {
                         result.id = idMatch[1];
                     }
-                    
+
                     // Extract name if present
                     const nameMatch = decoratorContent.match(/name:\s*["']([^"']+)["']/);
                     if (nameMatch) {
                         result.name = nameMatch[1];
                     }
-                    
+
                     // Return at least the extracted data (even if no id)
                     // This allows EXIST_ONLY_LOCALLY workflows to be detected
                     return Object.keys(result).length > 0 ? result : {};
                 }
-                
+
                 // Fallback: If file contains JSON (for tests/transition), parse it
                 try {
                     const jsonData = JSON.parse(content);
@@ -1037,7 +1037,7 @@ export class Watcher extends EventEmitter {
         for (const filename of this.getLocalWorkflowFilenames()) {
             const workflowId = this.fileToIdMap.get(filename);
             const remoteExists = workflowId ? this.remoteHashes.has(workflowId) : false;
-            
+
             // Determine basic status
             let status: WorkflowSyncStatus;
             if (workflowId && remoteExists) {
@@ -1069,11 +1069,11 @@ export class Watcher extends EventEmitter {
             // Use persisted filename from state for stability
             const persistedFilename = (state.workflows[workflowId] as IWorkflowState)?.filename;
             const filename = persistedFilename || this.idToFileMap.get(workflowId) || `${workflowId}.workflow.ts`;
-            
+
             if (!results.has(filename)) {
                 // Lightweight mode - use filename as name, defaults for other properties
                 const workflowName = filename.replace('.workflow.ts', '');
-                
+
                 results.set(filename, {
                     id: workflowId,
                     name: workflowName,
@@ -1161,11 +1161,11 @@ export class Watcher extends EventEmitter {
             // Use persisted filename from state for stability
             const persistedFilename = (state.workflows[workflowId] as IWorkflowState)?.filename;
             const filename = persistedFilename || this.idToFileMap.get(workflowId) || `${workflowId}.workflow.ts`;
-            
+
             if (!results.has(filename)) {
                 const status = this.calculateStatus(filename, workflowId);
                 const workflow = workflowsMap.get(workflowId);
-                
+
                 results.set(filename, {
                     id: workflowId,
                     name: workflow?.name || filename.replace('.workflow.ts', ''),
@@ -1185,11 +1185,11 @@ export class Watcher extends EventEmitter {
             // Use persisted filename from state for stability
             const persistedFilename = (state.workflows[id] as IWorkflowState).filename;
             const filename = persistedFilename || this.idToFileMap.get(id) || `${id}.workflow.ts`;
-            
+
             if (!results.has(filename)) {
                 const status = this.calculateStatus(filename, id);
                 const workflow = workflowsMap.get(id);
-                
+
                 results.set(filename, {
                     id,
                     name: workflow?.name || filename.replace('.workflow.ts', ''),
@@ -1238,7 +1238,7 @@ export class Watcher extends EventEmitter {
         const state = this.loadState();
         return Object.keys(state.workflows);
     }
-    
+
     /**
      * Get all workflows with their full content including organization metadata.
      * This reads from local files first, falls back to remote for remote-only workflows.
@@ -1246,7 +1246,7 @@ export class Watcher extends EventEmitter {
      */
     public async getAllWorkflows(): Promise<IWorkflow[]> {
         const workflows: IWorkflow[] = [];
-        
+
         // 1. Get all local workflows
         for (const [filename, _] of this.localHashes.entries()) {
             const filepath = path.join(this.directory, filename);
@@ -1259,7 +1259,7 @@ export class Watcher extends EventEmitter {
                 console.warn(`[Watcher] Failed to read local workflow ${filename}:`, error);
             }
         }
-        
+
         // 2. For remote-only workflows, fetch from API
         const localIds = new Set(workflows.map(w => w.id));
         for (const [workflowId, _] of this.remoteHashes.entries()) {
@@ -1274,7 +1274,7 @@ export class Watcher extends EventEmitter {
                 }
             }
         }
-        
+
         return workflows;
     }
 
@@ -1283,14 +1283,14 @@ export class Watcher extends EventEmitter {
      */
     public async updateWorkflowId(oldId: string, newId: string): Promise<void> {
         const state = this.loadState();
-        
+
         // Migrate state from old ID to new ID
         if (state.workflows[oldId]) {
             state.workflows[newId] = state.workflows[oldId];
             delete state.workflows[oldId];
             this.saveState(state);
         }
-        
+
         // Update internal mappings
         const filename = this.idToFileMap.get(oldId);
         if (filename) {
@@ -1298,14 +1298,14 @@ export class Watcher extends EventEmitter {
             this.idToFileMap.set(newId, filename);
             this.fileToIdMap.set(filename, newId);
         }
-        
+
         // Update hash maps
         const remoteHash = this.remoteHashes.get(oldId);
         if (remoteHash) {
             this.remoteHashes.delete(oldId);
             this.remoteHashes.set(newId, remoteHash);
         }
-        
+
         const timestamp = this.remoteTimestamps.get(oldId);
         if (timestamp) {
             this.remoteTimestamps.delete(oldId);
@@ -1319,19 +1319,19 @@ export class Watcher extends EventEmitter {
      */
     public async updateSingleRemoteState(remoteWf: IWorkflow) {
         if (!remoteWf.id) return;
-        
+
         try {
             const tsCode = await WorkflowTransformerAdapter.convertToTypeScript(remoteWf, {
                 format: true,
                 commentStyle: 'verbose'
             });
             const hash = await WorkflowTransformerAdapter.hashWorkflow(tsCode);
-            
+
             this.remoteHashes.set(remoteWf.id, hash);
             if (remoteWf.updatedAt) {
                 this.remoteTimestamps.set(remoteWf.id, remoteWf.updatedAt);
             }
-            
+
             // Broadcast status update
             const filename = this.idToFileMap.get(remoteWf.id);
             if (filename) {

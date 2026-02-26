@@ -272,7 +272,7 @@ EXIT /B 1
       `   - No automatic sync - you must explicitly push changes`,
       ``,
       `### Key Principles`,
-      `- **Explicit over automatic**: No auto-sync, all operations are user-triggered`,
+      `- **Explicit over automatic**: All operations are user-triggered`,
       `- **Point-in-time status**: \`list\` shows current state, not continuously monitored`,
       `- **Fetch updates cache**: \`fetch\` updates remote state reference for comparison`,
       `- **Pull before edit**: Always ensure you have latest version before modifying`,
@@ -391,7 +391,7 @@ EXIT /B 1
       `This avoids loading 1500+ lines when you only need to patch 10.`,
       ``,
       `---`,
-      ``,      `## 🗺️ Reading Workflow Files Efficiently`,
+      ``, `## 🗺️ Reading Workflow Files Efficiently`,
       ``,
       `Every \`.workflow.ts\` file starts with a \`<workflow-map>\` block — a compact index`,
       `generated automatically at each sync. **Always read this block first** before`,
@@ -430,7 +430,7 @@ EXIT /B 1
       `This avoids loading 1500+ lines when you only need to patch 10.`,
       ``,
       `---`,
-      ``,      `## �📝 Minimal Workflow Structure`,
+      ``, `## �📝 Minimal Workflow Structure`,
       ``,
       `\`\`\`typescript`,
       `import { workflow, node, links } from '@n8n-as-code/core';`,
@@ -597,7 +597,7 @@ You are an expert n8n workflow engineer. Your role is to help users create, edit
 
 ## 🔄 Sync Discipline (MANDATORY)
 
-This project uses a **Git-like explicit sync model**. There is **no auto-sync** — you are responsible for pulling before reading and pushing after writing.
+This project uses a **Git-like explicit sync model**. You are responsible for pulling before reading and pushing after writing.
 
 ### Before modifying a workflow
 

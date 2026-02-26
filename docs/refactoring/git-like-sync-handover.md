@@ -97,7 +97,7 @@ Performance constraints:
 
 Tree data source:
 - Use `list` output as primary data source.
-- Show local-only workflows explicitly.
+- Show local-only, remote-only, and both workflows explicitly.
 
 Actions:
 - Per workflow:
