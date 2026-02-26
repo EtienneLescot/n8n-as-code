@@ -19,12 +19,20 @@ async function main() {
 
   const normalizedHost = host.replace(/['"]+/g, '').replace(/\/+$/,'');
   let items = [];
-  try {
-    const rawList = await fs.readFile(IN_FILE, 'utf8');
-    items = JSON.parse(rawList);
-  } catch (e) {
-    console.error('Could not read created workflows file:', IN_FILE);
-    process.exit(1);
+  const scanPrefix = process.env.SCAN_PREFIX || 'iac-test-';
+  const doScan = process.env.SCAN === 'true';
+
+  if (!doScan) {
+    try {
+      const rawList = await fs.readFile(IN_FILE, 'utf8');
+      items = JSON.parse(rawList);
+    } catch (e) {
+      console.warn('Could not read created workflows file, falling back to scanning if SCAN=true is set.');
+      if (!process.env.SCAN) {
+          console.error('To scan and delete by prefix instead, run with SCAN=true SCAN_PREFIX=iac-test-');
+          process.exit(1);
+      }
+    }
   }
 
   const ids = items.map((i) => i.id).filter(Boolean);
@@ -93,17 +101,54 @@ async function main() {
   }
   console.log('Using API base:', apiBase || '/', 'with auth header:', (authHeader || {}).header || overrideHeader || '<unknown>');
 
-  let deleted = 0;
-  for (const id of ids) {
+  if (doScan) {
+    console.log(`Scanning for workflows with prefix: ${scanPrefix}...`);
     try {
       const headers = { 'Accept': 'application/json' };
       if (authHeader) headers[authHeader.header] = authHeader.value;
+      
+      const collected = [];
+      let cursor = null;
+      let url = `${normalizedHost}${apiBase}/workflows?limit=250`;
+      
+      do {
+        const fullUrl = cursor ? `${url}&cursor=${encodeURIComponent(cursor)}` : url;
+        const res = await fetch(fullUrl, { headers });
+        if (!res.ok) {
+          console.error('Failed to fetch workflows for scanning:', res.status);
+          process.exit(1);
+        }
+        const data = await res.json();
+        const workflows = Array.isArray(data) ? data : (data.data || []);
+        collected.push(...workflows);
+        cursor = data.nextCursor;
+      } while (cursor);
+
+      const matched = collected.filter(w => w.name && w.name.startsWith(scanPrefix));
+      console.log(`Found ${matched.length} workflows matching prefix (out of ${collected.length} total).`);
+      items = matched;
+    } catch (e) {
+      console.error('Error scanning workflows:', e.message);
+      process.exit(1);
+    }
+  }
+
+  const concurrency = Number(process.env.CONCURRENCY || 10);
+  const remainingItems = [...items];
+  const results = { deleted: 0, alreadyGone: 0, failed: 0 };
+  const toDelete = [...items];
+
+  async function deleteOne(item) {
+    const id = item.id;
+    try {
+      const headers = { 'Accept': 'application/json' };
+      if (authHeader) headers[authHeader.header] = authHeader.value;
+      
       let res = await fetch(`${normalizedHost}${apiBase}/workflows/${encodeURIComponent(id)}`, {
         method: 'DELETE',
         headers,
       }).catch(() => null);
 
-      // If unauthorized or no response, try alternate header then query param
       if (!res || res.status === 401) {
         const alt = authCandidates.find((a) => (!authHeader) || a.header !== authHeader.header);
         if (alt) {
@@ -126,23 +171,53 @@ async function main() {
         }
       }
 
-      if (!res) {
-        console.error('Delete failed', id, 'no response');
-        continue;
-      }
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '<no body>');
-        console.error('Delete failed', id, res.status, txt);
-      } else {
-        deleted++;
+      if (res && (res.ok || res.status === 404)) {
+        if (res.status === 404) {
+          results.alreadyGone++;
+        } else {
+          results.deleted++;
+        }
         process.stdout.write('.');
+        return true; 
+      } else {
+        const txt = res ? await res.text().catch(() => '<no body>') : 'no response';
+        if (res && res.status !== 404) {
+            console.error(`\nDelete failed for ${id}: ${res.status} ${txt}`);
+        }
+        results.failed++;
+        return false;
       }
     } catch (err) {
-      console.error('Error deleting', id, err.message);
+      console.error(`\nError deleting ${id}:`, err.message);
+      results.failed++;
+      return false;
     }
   }
 
-  console.log('\nDone. Deleted', deleted, 'workflows.');
+  const successfullyRemoved = new Set();
+  
+  // Simple concurrency pool
+  for (let i = 0; i < toDelete.length; i += concurrency) {
+    const chunk = toDelete.slice(i, i + concurrency);
+    await Promise.all(chunk.map(async (item) => {
+      const ok = await deleteOne(item);
+      if (ok) {
+        successfullyRemoved.add(item.id);
+      }
+    }));
+  }
+
+  const updatedItems = items.filter(item => !successfullyRemoved.has(item.id));
+  
+  if (updatedItems.length === 0) {
+    await fs.unlink(IN_FILE).catch(() => {});
+    console.log('\nAll workflows cleaned up. Removed tracking file.');
+  } else {
+    await fs.writeFile(IN_FILE, JSON.stringify(updatedItems, null, 2));
+    console.log(`\nUpdated tracking file with ${updatedItems.length} remaining items.`);
+  }
+
+  console.log(`Done. Deleted: ${results.deleted}, Already gone: ${results.alreadyGone}, Failed: ${results.failed}`);
 }
 
 main().catch((err) => {
