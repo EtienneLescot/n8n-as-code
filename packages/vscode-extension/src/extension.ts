@@ -255,7 +255,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     // Lightweight refresh: use cached remote state, no network fetch
                     const workflows = await syncManager.getWorkflowsLightweight();
                     store.dispatch(setWorkflows(workflows));
-                    outputChannel.appendLine(`[n8n] Workflow status refreshed. Found ${workflows.length} workflows.`);
+                    outputChannel.appendLine(`[n8n] Workflow list refreshed. Found ${workflows.length} workflows.`);
                     vscode.window.showInformationMessage(`Refreshed workflow list (${workflows.length} workflows)`);
                 } catch (error: any) {
                     outputChannel.appendLine(`[n8n] Failed to refresh workflow status: ${error.message}`);
@@ -853,7 +853,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
         const syncFolder = config.get<string>('syncFolder') || 'workflows';
         // Use WorkspaceFolder as base for RelativePattern to ensure correct watching
-        const pattern = new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], `${syncFolder}/*.json`);
+        const pattern = new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], `${syncFolder}/*.workflow.ts`);
 
         outputChannel.appendLine(`[n8n] Starting global file watcher. Pattern: ${pattern.pattern}`);
         const fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
@@ -880,10 +880,19 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     statusBar.setWatchMode(false);
     await syncManager.startWatch();
 
-    // Load workflows for store
+    // Load workflows for store (including remote discovery)
     try {
+        outputChannel.appendLine('[n8n] Discovering remote workflows...');
+        // We need access to the watcher to refresh the list of remote IDs/timestamps
+        // @ts-expect-error - Accessing private watcher for initialization purposes
+        if (syncManager.watcher) {
+            // @ts-expect-error
+            await syncManager.watcher.refreshRemoteState();
+        }
+
         const workflows = await syncManager.getWorkflowsLightweight();
         store.dispatch(setWorkflows(workflows));
+        outputChannel.appendLine(`[n8n] Discovered ${workflows.length} workflows in total.`);
 
     } catch (error: any) {
         outputChannel.appendLine(`[n8n] Failed to load workflows: ${error.message}`);

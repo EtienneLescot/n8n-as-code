@@ -1099,7 +1099,7 @@ export class Watcher extends EventEmitter {
         try {
             const files = fs.readdirSync(this.directory);
             for (const file of files) {
-                if (file.endsWith('.workflow.ts') || file.endsWith('.json')) {
+                if (file.endsWith('.workflow.ts')) {
                     filenames.push(file);
                 }
             }
