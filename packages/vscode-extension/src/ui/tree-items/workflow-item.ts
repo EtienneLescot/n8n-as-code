@@ -40,19 +40,22 @@ export class WorkflowItem extends BaseTreeItem {
     this.resourceUri = this.createResourceUri(workflow.id, workflow.status, pendingAction);
     
     // Default command: open diff for conflicts, otherwise open JSON
+    // Don't set command for remote-only workflows (no local file to open)
     if (pendingAction === 'conflict' || workflow.status === WorkflowSyncStatus.CONFLICT) {
       this.command = {
         command: 'n8n.resolveConflict',
         title: 'Show Diff',
         arguments: [{ workflow, choice: 'Show Diff' }]
       };
-    } else {
+    } else if (workflow.status !== WorkflowSyncStatus.EXIST_ONLY_REMOTELY) {
+      // Only set open command for workflows that have local files
       this.command = {
         command: 'n8n.openJson',
         title: 'Open JSON',
         arguments: [workflow]
       };
     }
+    // For EXIST_ONLY_REMOTELY, don't set any command - clicking will do nothing
   }
   
   /**
