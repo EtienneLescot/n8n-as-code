@@ -10,7 +10,6 @@ export class SyncCommand extends BaseCommand {
         try {
             const syncConfig = await this.getSyncConfig();
             const syncManager = new SyncManager(this.client, syncConfig);
-            await syncManager.forceRefresh();
             await syncManager.pullOne(workflowId);
             spinner.succeed(chalk.green(`✔ Pulled workflow ${workflowId}.`));
         } catch (e: any) {
@@ -24,8 +23,7 @@ export class SyncCommand extends BaseCommand {
         try {
             const syncConfig = await this.getSyncConfig();
             const syncManager = new SyncManager(this.client, syncConfig);
-            await syncManager.forceRefresh();
-            const matrix = await syncManager.getWorkflowsStatus();
+            const matrix = await syncManager.getWorkflowsLightweight();
             const wf = matrix.find((w: any) => w.id === workflowId);
             if (!wf) {
                 spinner.fail(`Workflow ${workflowId} not found in local state. Run 'n8nac list' first.`);

@@ -252,10 +252,7 @@ export async function activate(context: vscode.ExtensionContext) {
             // Trigger a list operation to refresh workflow status
             if (syncManager) {
                 try {
-                    // Match what CLI "n8nac list" command does: force refresh then get lightweight list
-                    outputChannel.appendLine('[n8n] Force refreshing remote state...');
-                    await syncManager.forceRefresh();
-                    
+                    // Lightweight refresh: use cached remote state, no network fetch
                     const workflows = await syncManager.getWorkflowsLightweight();
                     store.dispatch(setWorkflows(workflows));
                     outputChannel.appendLine(`[n8n] Workflow status refreshed. Found ${workflows.length} workflows.`);

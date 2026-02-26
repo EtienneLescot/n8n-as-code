@@ -171,10 +171,6 @@ export class SyncManager extends EventEmitter {
         this.emit('log', 'Watcher stopped.');
     }
 
-    public async forceRefresh() {
-        await this.watcher!.refreshRemoteState();
-    }
-
     public getInstanceDirectory(): string {
         if (!this.watcher) {
             throw new Error('SyncManager not initialized');

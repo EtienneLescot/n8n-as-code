@@ -12,10 +12,8 @@ export class ListCommand extends BaseCommand {
             const syncConfig = await this.getSyncConfig();
             const syncManager = new SyncManager(this.client, syncConfig);
 
-            // Force refresh to get current state
-            await syncManager.forceRefresh();
-
             // Get lightweight workflow list (no hash computation, no TypeScript compilation)
+            // Uses cached remote state - for fresh data, run 'n8nac sync' first
             let matrix = await syncManager.getWorkflowsLightweight();
             
             // Apply filters based on options

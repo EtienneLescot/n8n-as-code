@@ -73,28 +73,9 @@ export class Watcher extends EventEmitter {
 
         this.isInitializing = true;
 
-        // Initial scan - throw error if connection fails on startup
-        try {
-            await this.refreshRemoteState();
-        } catch (error: any) {
-            // Check if it's a connection error
-            const isConnectionError = error.code === 'ECONNREFUSED' ||
-                                      error.code === 'ENOTFOUND' ||
-                                      error.code === 'ETIMEDOUT' ||
-                                      error.message?.includes('fetch failed') ||
-                                      error.message?.includes('ECONNREFUSED') ||
-                                      error.message?.includes('ENOTFOUND') ||
-                                      error.cause?.code === 'ECONNREFUSED';
-            
-            if (isConnectionError) {
-                this.isInitializing = false;
-                // On startup, throw the error to prevent initialization
-                throw new Error('Cannot connect to n8n instance. Please check if n8n is running and the host URL is correct.');
-            }
-            // For other errors, re-throw
-            this.isInitializing = false;
-            throw error;
-        }
+        // Don't fetch remote state on startup (no batch operations)
+        // Remote state will be populated incrementally through single-workflow fetch operations
+        // Skip connection test - assume connected, will fail on first fetch if not
         
         await this.refreshLocalState();
         
@@ -1067,9 +1048,8 @@ export class Watcher extends EventEmitter {
                 status = WorkflowSyncStatus.EXIST_ONLY_LOCALLY; // New file without ID
             }
 
-            // Get workflow name from state or filename
-            const workflowState = workflowId ? state.workflows[workflowId] as IWorkflowState : undefined;
-            const workflowName = workflowState?.name || filename.replace('.workflow.ts', '');
+            // Get workflow name from filename (lightweight - don't read file)
+            const workflowName = filename.replace('.workflow.ts', '');
 
             results.set(filename, {
                 id: workflowId || '',
@@ -1077,10 +1057,10 @@ export class Watcher extends EventEmitter {
                 filename: filename,
                 status: status,
                 active: true, // Default
-                projectId: workflowState?.projectId,
-                projectName: workflowState?.projectName,
-                homeProject: workflowState?.homeProject,
-                isArchived: workflowState?.isArchived ?? false
+                projectId: undefined, // Not available in lightweight mode
+                projectName: undefined, // Not available in lightweight mode
+                homeProject: undefined, // Not available in lightweight mode
+                isArchived: false // Default
             });
         }
 
@@ -1091,8 +1071,8 @@ export class Watcher extends EventEmitter {
             const filename = persistedFilename || this.idToFileMap.get(workflowId) || `${workflowId}.workflow.ts`;
             
             if (!results.has(filename)) {
-                const workflowState = state.workflows[workflowId] as IWorkflowState;
-                const workflowName = workflowState?.name || filename.replace('.workflow.ts', '');
+                // Lightweight mode - use filename as name, defaults for other properties
+                const workflowName = filename.replace('.workflow.ts', '');
                 
                 results.set(filename, {
                     id: workflowId,
@@ -1100,10 +1080,10 @@ export class Watcher extends EventEmitter {
                     filename: filename,
                     status: WorkflowSyncStatus.EXIST_ONLY_REMOTELY, // Remote only
                     active: true, // Default
-                    projectId: workflowState?.projectId,
-                    projectName: workflowState?.projectName,
-                    homeProject: workflowState?.homeProject,
-                    isArchived: workflowState?.isArchived ?? false
+                    projectId: undefined, // Not available in lightweight mode
+                    projectName: undefined, // Not available in lightweight mode
+                    homeProject: undefined, // Not available in lightweight mode
+                    isArchived: false // Default
                 });
             }
         }
