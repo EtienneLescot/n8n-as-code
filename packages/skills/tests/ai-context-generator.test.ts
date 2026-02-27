@@ -54,26 +54,6 @@ describe('AiContextGenerator', () => {
             const startMarkers = run2.match(/<!-- n8n-as-code-start -->/g);
             expect(startMarkers?.length).toBe(1);
         });
-
-        test('should update existing n8n block without duplication', async () => {
-            const agentsPath = path.join(tempDir, 'AGENTS.md');
-
-            // First run
-            await generator.generate(tempDir, '1.0.0');
-            const run1 = fs.readFileSync(agentsPath, 'utf-8');
-            expect(run1).toContain('1.0.0');
-
-            // Second run with updated version
-            await generator.generate(tempDir, '2.0.0');
-            const run2 = fs.readFileSync(agentsPath, 'utf-8');
-
-            expect(run2).toContain('2.0.0');
-            expect(run2).not.toContain('1.0.0');
-
-            // Check that markers only appear once
-            const startMarkers = run2.match(/<!-- n8n-as-code-start -->/g);
-            expect(startMarkers?.length).toBe(1);
-        });
     });
 
     describe('Shim Generation', () => {

@@ -64,8 +64,10 @@ async function runTest(suite) {
             } else {
                 // Parse counts
                 if (suite.name === 'skills' || suite.name === 'cli') {
-                    // Vitest format: "Tests  53 passed (53)"
-                    const testMatch = output.match(/Tests\s+(\d+)\s+passed/i);
+                    // Support both Vitest and Jest formats:
+                    // Vitest: "Tests  53 passed (53)"
+                    // Jest: "Tests:       29 passed, 29 total"
+                    const testMatch = output.match(/Tests:?\s+(\d+)\s+passed/i);
                     if (testMatch) {
                         passed = testMatch[1];
                     } else {
@@ -76,7 +78,7 @@ async function runTest(suite) {
                             passed = Math.max(...counts).toString();
                         }
                     }
-                    const failMatch = output.match(/Tests\s+(\d+)\s+failed/i);
+                    const failMatch = output.match(/Tests:?\s+(\d+)\s+failed/i);
                     if (failMatch) failed = failMatch[1];
                 } else {
                     const passMatch = output.match(/pass\s+(\d+)/i);

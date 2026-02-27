@@ -19,7 +19,7 @@
     "test": "node scripts/unified-test-report.mjs",
     "test:ci-local": "node scripts/test-ci-local.js",
     "validate-schema": "node scripts/validate-schema.js --schema ./packages/cli/src/core/assets/n8n-nodes-index.json",
-    "generate:nodes": "node scripts/ensure-n8n-cache.cjs && node scripts/generate-n8n-index.cjs && node scripts/compare-extraction.mjs",
+    "generate:nodes": "node scripts/ensure-n8n-cache.cjs && node scripts/generate-n8n-index.cjs && node scripts/download-complete-docs.cjs && node scripts/build-complete-index.cjs && node scripts/enrich-nodes-technical.cjs && node scripts/build-knowledge-index.cjs && node scripts/build-workflow-index.cjs && node scripts/compare-extraction.mjs",
     "clean": "npm run clean --workspaces --if-present && rm -rf packages/*/dist packages/*/out packages/**/tsconfig.tsbuildinfo .n8n-cache/ node_modules/.cache",
     "release": "npm run build",
     "check-versions": "node scripts/check-version-consistency.js",
