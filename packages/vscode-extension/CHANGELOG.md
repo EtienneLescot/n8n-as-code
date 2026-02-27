@@ -1,5 +1,20 @@
 # n8n-as-code
 
+## [0.14.4](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.14.3...n8n-as-code@v0.14.4) (2026-02-27)
+
+
+### Features
+
+* add build configuration for n8nac CLI and update promise handling ([1a0af08](https://github.com/EtienneLescot/n8n-as-code/commit/1a0af083a1955f8a55caf0e7096bb595b1246e15))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.5 to 0.16.6
+    * @n8n-as-code/cli bumped from 0.9.5 to 0.9.6
+
 ## [0.14.3](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.14.2...n8n-as-code@v0.14.3) (2026-02-27)
 
 

@@ -1,5 +1,12 @@
 # @n8n-as-code/skills
 
+## [0.16.6](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.5...@n8n-as-code/skills@v0.16.6) (2026-02-27)
+
+
+### Features
+
+* enhance shim generation test to include extension path simulation for VS Code ([22238f1](https://github.com/EtienneLescot/n8n-as-code/commit/22238f17b62afcac6dadce7ec83f499dddc2feee))
+
 ## [0.16.5](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.4...@n8n-as-code/skills@v0.16.5) (2026-02-27)
 
 
