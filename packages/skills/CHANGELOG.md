@@ -1,5 +1,12 @@
 # @n8n-as-code/skills
 
+## [0.16.7](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.6...@n8n-as-code/skills@v0.16.7) (2026-02-27)
+
+
+### Features
+
+* add usage tip for local shims in documentation ([d810bd9](https://github.com/EtienneLescot/n8n-as-code/commit/d810bd9df8522f163ced5f9bf3a15df5dae840b0))
+
 ## [0.16.6](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.5...@n8n-as-code/skills@v0.16.6) (2026-02-27)
 
 

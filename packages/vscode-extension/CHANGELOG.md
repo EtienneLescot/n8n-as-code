@@ -1,5 +1,20 @@
 # n8n-as-code
 
+## [0.14.5](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.14.4...n8n-as-code@v0.14.5) (2026-02-27)
+
+
+### Features
+
+* enhance skills assets copying logic and include n8n-workflows.d.ts from CLI package ([fd002f6](https://github.com/EtienneLescot/n8n-as-code/commit/fd002f641fb3c27b703a3156ed857184926826be))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.6 to 0.16.7
+    * @n8n-as-code/cli bumped from 0.9.6 to 0.9.7
+
 ## [0.14.4](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.14.3...n8n-as-code@v0.14.4) (2026-02-27)
 
 

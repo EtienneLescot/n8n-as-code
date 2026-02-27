@@ -1,6 +1,6 @@
 {
     "name": "@n8n-as-code/cli",
-    "version": "0.9.6",
+    "version": "0.9.7",
     "description": "CLI for n8n-as-code ecosystem",
     "main": "./dist/lib.js",
     "types": "./dist/lib.d.ts",
@@ -19,7 +19,7 @@
         "test:coverage": "vitest run --coverage"
     },
     "dependencies": {
-        "@n8n-as-code/skills": "0.16.6",
+        "@n8n-as-code/skills": "0.16.7",
         "@n8n-as-code/transformer": "0.2.2",
         "@types/json-stable-stringify": "^1.1.0",
         "axios": "^1.6.0",

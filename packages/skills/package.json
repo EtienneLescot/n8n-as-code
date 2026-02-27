@@ -1,6 +1,6 @@
 {
     "name": "@n8n-as-code/skills",
-    "version": "0.16.6",
+    "version": "0.16.7",
     "description": "AI Agent Skills for n8n-as-code (Search, Get Schema)",
     "type": "module",
     "main": "dist/index.js",
