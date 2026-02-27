@@ -10,7 +10,7 @@ import chalk from 'chalk';
 const isVerbose = process.argv.includes('-v') || process.argv.includes('--verbose');
 
 const testSuites = [
-    { section: 'Unit Tests', name: 'skills', pkg: '@n8n-as-code/skills', cmd: 'npm', args: ['test', '--workspace=@n8n-as-code/skills', '--', '--silent', '--reporters', 'default'] },
+    { section: 'Unit Tests', name: 'skills', pkg: '@n8n-as-code/skills', cmd: 'npm', args: ['test', '--workspace=@n8n-as-code/skills', '--', '--ci', '--reporters', 'default'] },
     { section: 'Unit Tests', name: 'cli', pkg: '@n8n-as-code/cli', cmd: 'npm', args: ['test', '--workspace=@n8n-as-code/cli'] },
     { section: 'Unit Tests', name: 'vscode-unit', pkg: 'n8n-as-code', cmd: 'npm', args: ['run', 'test', '--workspace=packages/vscode-extension'] }
 ];
@@ -51,6 +51,31 @@ async function runTest(suite) {
             let status = chalk.green('PASS');
             let passed = '0', failed = '0';
 
+            // Parse counts (even if it failed, we want the stats if available)
+            if (suite.name === 'skills' || suite.name === 'cli') {
+                // Support both Vitest and Jest formats:
+                // Vitest: "Tests  53 passed (53)"
+                // Jest: "Tests:       29 passed, 29 total"
+                const testMatch = output.match(/Tests:?\s+(\d+)\s+passed/i);
+                if (testMatch) {
+                    passed = testMatch[1];
+                } else {
+                    // Alternative format: "13 passed"
+                    const match = output.match(/(\d+)\s+passed/g);
+                    if (match) {
+                        const counts = match.map(m => parseInt(m.match(/(\d+)/)[0]));
+                        passed = Math.max(...counts).toString();
+                    }
+                }
+                const failMatch = output.match(/Tests:?\s+(\d+)\s+failed/i);
+                if (failMatch) failed = failMatch[1];
+            } else {
+                const passMatch = output.match(/pass\s+(\d+)/i);
+                if (passMatch) passed = passMatch[1];
+                const failMatch = output.match(/fail\s+(\d+)/i);
+                if (failMatch) failed = failMatch[1] || '0';
+            }
+
             if (code !== 0) {
                 if (isOffline) {
                     status = chalk.yellow('OFFLINE');
@@ -58,33 +83,6 @@ async function runTest(suite) {
                     failed = '-';
                 } else {
                     status = chalk.red('FAIL');
-                    passed = '-';
-                    failed = '1+';
-                }
-            } else {
-                // Parse counts
-                if (suite.name === 'skills' || suite.name === 'cli') {
-                    // Support both Vitest and Jest formats:
-                    // Vitest: "Tests  53 passed (53)"
-                    // Jest: "Tests:       29 passed, 29 total"
-                    const testMatch = output.match(/Tests:?\s+(\d+)\s+passed/i);
-                    if (testMatch) {
-                        passed = testMatch[1];
-                    } else {
-                        // Alternative format: "13 passed"
-                        const match = output.match(/(\d+)\s+passed/g);
-                        if (match) {
-                            const counts = match.map(m => parseInt(m.match(/(\d+)/)[0]));
-                            passed = Math.max(...counts).toString();
-                        }
-                    }
-                    const failMatch = output.match(/Tests:?\s+(\d+)\s+failed/i);
-                    if (failMatch) failed = failMatch[1];
-                } else {
-                    const passMatch = output.match(/pass\s+(\d+)/i);
-                    if (passMatch) passed = passMatch[1];
-                    const failMatch = output.match(/fail\s+(\d+)/i);
-                    if (failMatch) failed = failMatch[1] || '0';
                 }
             }
 
@@ -93,7 +91,7 @@ async function runTest(suite) {
                 process.stdout.write(`${displayStatus} (${duration})\n`);
             }
 
-            resolve({ ...suite, status, passed, failed, duration });
+            resolve({ ...suite, status, passed, failed, duration, output, code });
         });
     });
 }
@@ -123,6 +121,17 @@ async function runTest(suite) {
 
     console.log(''.padEnd(60, '─') + '\n');
 
-    const hasFailed = results.some(r => r.status.includes('FAIL'));
+    const failedSuites = results.filter(r => r.code !== 0 && !r.status.includes('OFFLINE'));
+
+    if (failedSuites.length > 0 && !isVerbose) {
+        console.log(chalk.red.bold('❌ Detailed Error Logs for Failed Suites:'));
+        for (const res of failedSuites) {
+            console.log(chalk.red.bold(`\n--- [ ${res.name} ] ---`));
+            console.log(res.output);
+            console.log(chalk.red.bold(`--- [ End of ${res.name} ] ---\n`));
+        }
+    }
+
+    const hasFailed = results.some(r => r.code !== 0 && !r.status.includes('OFFLINE'));
     process.exit(hasFailed ? 1 : 0);
 })();
