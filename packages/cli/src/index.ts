@@ -87,6 +87,19 @@ program.command('fetch')
         await syncCommand.fetchOne(options.workflowsid);
     });
 
+// resolve - Resolve a conflict for a specific workflow
+program.command('resolve')
+    .description('Resolve a conflict for a specific workflow')
+    .requiredOption('--workflowsid <workflowId>', 'Workflow ID to resolve')
+    .requiredOption('--mode <mode>', 'Resolution mode: "keep-current" (local) or "keep-incoming" (remote)')
+    .action(async (options) => {
+        if (options.mode !== 'keep-current' && options.mode !== 'keep-incoming') {
+            console.error(chalk.red('❌ Invalid mode. Use "keep-current" or "keep-incoming"'));
+            process.exit(1);
+        }
+        await new SyncCommand().resolveOne(options.workflowsid, options.mode);
+    });
+
 // convert - Convert workflows between JSON and TypeScript formats
 program.command('convert')
     .description('Convert workflows between JSON and TypeScript formats')

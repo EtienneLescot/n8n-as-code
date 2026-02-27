@@ -84,37 +84,33 @@ export class SyncEngine {
         }
 
         try {
-            // If no workflowId, treat as EXIST_ONLY_LOCALLY
-            if (!workflowId || status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY) {
-                // POST to API (Create)
-                const { id: newWorkflowId, updatedAt } = await this.executeCreate(filename);
-                // Initialize lastSyncedHash via finalizeSync
-                await this.watcher.finalizeSync(newWorkflowId, updatedAt);
-                return newWorkflowId;
-            }
-
-            // With workflowId and status
-            switch (status) {
-                case WorkflowSyncStatus.MODIFIED_LOCALLY:
+            // If we have an ID, we ALWAYS try to update first (robustness for git-like sync)
+            if (workflowId) {
+                try {
                     // PUT to API (Update)
-                    const updateUpdatedAt = await this.executeUpdate(workflowId, filename);
+                    // We bypass OCC check if the status is EXIST_ONLY_LOCALLY (meaning we think it's new but it might not be)
+                    const skipOcc = status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY;
+                    const updateUpdatedAt = await this.executeUpdate(workflowId, filename, skipOcc);
+                    
                     // Update lastSyncedHash via finalizeSync
                     await this.watcher.finalizeSync(workflowId, updateUpdatedAt);
                     return workflowId;
-
-                case WorkflowSyncStatus.CONFLICT:
-                    // Halt - trigger conflict resolution
-                    throw new Error(`Conflict detected for workflow ${workflowId}. Use resolveConflict instead.`);
-
-                case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
-                case WorkflowSyncStatus.TRACKED:
-                    // No action per spec
-                    return workflowId;
-
-                default:
-                    console.warn(`[SyncEngine] Unhandled status ${status} for PUSH operation`);
-                    return workflowId;
+                } catch (error: any) {
+                    // If it's a 404 or we truly think it's local-only, fall through to create
+                    const isNotFound = error.response?.status === 404 || error.message?.includes('404') || error.message?.includes('Not Found');
+                    if (!isNotFound && status !== WorkflowSyncStatus.EXIST_ONLY_LOCALLY) {
+                        throw error;
+                    }
+                    console.log(`[SyncEngine] Workflow ${workflowId} not found or treating as new, falling back to Create`);
+                }
             }
+
+            // No ID or Update failed with 404 -> POST to API (Create)
+            const { id: newWorkflowId, updatedAt } = await this.executeCreate(filename);
+            
+            // Initialize lastSyncedHash via finalizeSync
+            await this.watcher.finalizeSync(newWorkflowId, updatedAt);
+            return newWorkflowId;
         } finally {
             if (workflowId) {
                 this.watcher.markSyncComplete(workflowId);

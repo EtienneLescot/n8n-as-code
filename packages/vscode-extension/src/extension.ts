@@ -347,7 +347,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 conflictStore.set(remoteUri.toString(), JSON.stringify(remoteContent, null, 2));
                 await vscode.commands.executeCommand('vscode.diff', localUri, remoteUri, `${filename} ← n8n Remote (read-only)`);
             } else if (choice === 'Keep Current (local)') {
-                await cli.resolveConflict(id, filename, 'local');
+                await cli.resolveConflict(id, filename, 'keep-current');
                 await new Promise(r => setTimeout(r, 500));
                 store.dispatch(setWorkflows(await cli.list()));
                 store.dispatch(removeConflict(id));
@@ -355,14 +355,14 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.window.showInformationMessage('✅ Pushed — remote overwritten with your local version.');
                 enhancedTreeProvider.refresh();
             } else if (choice === 'Keep Incoming (remote)') {
-                await cli.resolveConflict(id, filename, 'remote');
+                await cli.resolveConflict(id, filename, 'keep-incoming');
                 await new Promise(r => setTimeout(r, 500));
                 store.dispatch(setWorkflows(await cli.list()));
                 store.dispatch(removeConflict(id));
                 vscode.window.showInformationMessage('✅ Pulled — local file updated from n8n.');
                 enhancedTreeProvider.refresh();
             } else if (choice === 'Mark as Resolved') {
-                await cli.resolveConflict(id, filename, 'local');
+                await cli.resolveConflict(id, filename, 'keep-current');
                 await new Promise(r => setTimeout(r, 500));
                 store.dispatch(setWorkflows(await cli.list()));
                 store.dispatch(removeConflict(id));

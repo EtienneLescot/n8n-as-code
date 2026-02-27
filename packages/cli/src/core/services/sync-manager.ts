@@ -198,6 +198,11 @@ export class SyncManager extends EventEmitter {
         return this.watcher.getDirectory();
     }
 
+    public getFilenameForId(id: string): string | undefined {
+        if (!this.watcher) return undefined;
+        return this.watcher.getFilenameForId(id);
+    }
+
     /**
      * Fetch remote state for a specific workflow (update internal cache for comparison).
      * This is the manual fetch command that updates the remote state cache without pulling.
@@ -268,12 +273,20 @@ export class SyncManager extends EventEmitter {
         if (!effectiveId) {
             // Case 1: brand-new workflow (no ID) — let SyncEngine create it
             await this.syncEngine!.push(targetFilename, undefined, undefined);
-        } else if (!this.watcher!.isRemoteKnown(effectiveId)) {
-            // Case 2: has an ID locally but doesn't exist on remote → create
-            await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.EXIST_ONLY_LOCALLY);
         } else {
-            // Case 3: exists on both sides → update (with OCC check)
-            await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.MODIFIED_LOCALLY);
+            // Case 2 & 3: workflow has an ID locally
+            // Ensure we know if it exists on remote (git-like sync starts with empty cache)
+            if (!this.watcher!.isRemoteKnown(effectiveId)) {
+                await this.fetch(effectiveId);
+            }
+
+            if (!this.watcher!.isRemoteKnown(effectiveId)) {
+                // Truly doesn't exist on remote → create
+                await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.EXIST_ONLY_LOCALLY);
+            } else {
+                // Known on both sides → update (with OCC check)
+                await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.MODIFIED_LOCALLY);
+            }
         }
     }
 

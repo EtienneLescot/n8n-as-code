@@ -101,9 +101,10 @@ export class CliApi {
     async resolveConflict(
         workflowId: string,
         filename: string,
-        resolution: 'local' | 'remote'
+        resolution: 'keep-current' | 'keep-incoming'
     ): Promise<void> {
-        return this.syncManager.resolveConflict(workflowId, filename, resolution);
+        const mode = resolution === 'keep-current' ? 'local' : 'remote';
+        return this.syncManager.resolveConflict(workflowId, filename, mode);
     }
 
     /**
