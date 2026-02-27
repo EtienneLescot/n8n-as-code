@@ -1,5 +1,12 @@
 # @n8n-as-code/cli
 
+## [0.9.8](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/cli@v0.9.7...@n8n-as-code/cli@v0.9.8) (2026-02-27)
+
+
+### Bug Fixes
+
+* prevent spurious CONFLICT status by ensuring local state is reported as TRACKED when remote hash is unknown ([41a42a6](https://github.com/EtienneLescot/n8n-as-code/commit/41a42a6f5dbc0b6df6b2f96a27635905fd9ab879))
+
 ## [0.9.7](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/cli@v0.9.6...@n8n-as-code/cli@v0.9.7) (2026-02-27)
 
 

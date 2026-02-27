@@ -1,5 +1,19 @@
 # n8n-as-code
 
+## [0.14.7](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.14.6...n8n-as-code@v0.14.7) (2026-02-27)
+
+
+### Bug Fixes
+
+* update esbuild configuration to enforce CommonJS export conditions for all packages ([a6e4d28](https://github.com/EtienneLescot/n8n-as-code/commit/a6e4d284c4030ace3507dc549eef6b41b80b6b58))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/cli bumped from 0.9.7 to 0.9.8
+
 ## [0.14.6](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.14.5...n8n-as-code@v0.14.6) (2026-02-27)
 
 

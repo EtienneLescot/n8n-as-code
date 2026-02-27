@@ -1,6 +1,6 @@
 {
     "name": "@n8n-as-code/cli",
-    "version": "0.9.7",
+    "version": "0.9.8",
     "description": "CLI for n8n-as-code ecosystem",
     "main": "./dist/lib.js",
     "types": "./dist/lib.d.ts",
