@@ -86,15 +86,13 @@ export class SwitchCommand {
             const selectedProjectDisplayName = selectedProject.type === 'personal' ? 'Personal' : selectedProject.name;
 
             // Update config with new project (keep all existing fields)
-            const updatedConfig: ILocalConfig = {
-                host: localConfig.host,
-                syncFolder: localConfig.syncFolder || 'workflows',
-                syncInactive: localConfig.syncInactive ?? true,
-                ignoredTags: localConfig.ignoredTags || [],
-                instanceIdentifier: localConfig.instanceIdentifier,
-                projectId: selectedProject.id,
-                projectName: selectedProjectDisplayName
-            };
+        const updatedConfig: ILocalConfig = {
+            host: localConfig.host,
+            syncFolder: localConfig.syncFolder || 'workflows',
+            instanceIdentifier: localConfig.instanceIdentifier,
+            projectId: selectedProject.id,
+            projectName: selectedProjectDisplayName
+        };
 
             this.configService.saveLocalConfig(updatedConfig);
 

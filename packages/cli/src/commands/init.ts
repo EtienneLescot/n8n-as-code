@@ -120,24 +120,21 @@ export class InitCommand {
                 host: answers.host,
                 syncFolder: answers.syncFolder,
                 projectId: selectedProject.id,
-                projectName: selectedProjectDisplayName,
-                // instanceIdentifier is now handled by SyncManager sync, not CLI
-                syncInactive: currentLocal.syncInactive ?? true,
-                ignoredTags: currentLocal.ignoredTags || ['archive']
+                projectName: selectedProjectDisplayName
             };
 
             this.configService.saveLocalConfig(localConfig);
             this.configService.saveApiKey(answers.host, answers.apiKey);
 
             console.log('\n' + chalk.green('✔ Configuration saved successfully!'));
-            console.log(chalk.blue('📁 Project config:') + ' n8nac.json');
+            console.log(chalk.blue('📁 Project config:') + ' n8nac-config.json');
             console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
 
             // Generate instance identifier (saved to n8n-as-code.json)
             spinner.start('Generating instance identifier...');
             const instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(answers.host);
             spinner.succeed(chalk.green(`Instance identifier: ${instanceIdentifier}`));
-            console.log(chalk.gray('(n8nac-instance.json will be created automatically on first sync)\n'));
+            console.log(chalk.gray('(n8nac-config.json will be kept up to date automatically)\n'));
 
             // Automatically initialize AI context (AI Bootstrap)
             console.log(chalk.cyan('🤖 Bootstrapping AI Context...'));

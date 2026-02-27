@@ -61,9 +61,9 @@ export function isFolderPreviouslyInitialized(workspaceRoot: string): boolean {
     return false;
   }
 
-  // Check for new file name first, then legacy
+  // Unified file name
   const instanceConfigPaths = [
-    path.join(workspaceRoot, 'n8nac-instance.json')
+    path.join(workspaceRoot, 'n8nac-config.json')
   ];
   
   for (const instanceConfigPath of instanceConfigPaths) {
@@ -172,8 +172,7 @@ export function doesSyncDirectoryExist(): boolean {
  */
 export function getExistingInstanceIdentifier(workspaceRoot: string): string | undefined {
   const instanceConfigPaths = [
-    path.join(workspaceRoot, 'n8nac-instance.json'),
-    path.join(workspaceRoot, 'n8n-as-code-instance.json')
+    path.join(workspaceRoot, 'n8nac-config.json')
   ];
   
   for (const instanceConfigPath of instanceConfigPaths) {

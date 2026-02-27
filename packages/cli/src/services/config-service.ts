@@ -2,14 +2,13 @@ import Conf from 'conf';
 import fs from 'fs';
 import path from 'path';
 
+// Unified local config written to n8nac-config.json (legacy n8nac.json/n8nac-instance.json deprecated)
 export interface ILocalConfig {
     host: string;
     syncFolder: string;
-    instanceIdentifier?: string;
     projectId: string;          // REQUIRED: Active project scope
     projectName: string;        // REQUIRED: Project display name
-    syncInactive: boolean;
-    ignoredTags: string[];
+    instanceIdentifier?: string; // Auto-generated once; stored for consistent paths
 }
 
 export class ConfigService {
@@ -21,11 +20,12 @@ export class ConfigService {
             projectName: 'n8nac',
             configName: 'credentials'
         });
-        this.localConfigPath = path.join(process.cwd(), 'n8nac.json');
+        // Unified config file
+        this.localConfigPath = path.join(process.cwd(), 'n8nac-config.json');
     }
 
     /**
-     * Get the local configuration from n8nac.json
+     * Get the local configuration from n8nac-config.json (migrates legacy once)
      */
     getLocalConfig(): Partial<ILocalConfig> {
         if (fs.existsSync(this.localConfigPath)) {
@@ -36,11 +36,50 @@ export class ConfigService {
                 console.error('Error reading local config:', error);
             }
         }
+
+        // Legacy migration: if old files exist, merge once into unified file
+        const legacyConfigPath = path.join(process.cwd(), 'n8nac.json');
+        const legacyInstancePath = path.join(process.cwd(), 'n8nac-instance.json');
+
+        let legacy: Partial<ILocalConfig> = {};
+
+        if (fs.existsSync(legacyConfigPath)) {
+            try {
+                legacy = JSON.parse(fs.readFileSync(legacyConfigPath, 'utf-8'));
+            } catch (error) {
+                console.error('Error reading legacy local config:', error);
+            }
+        }
+
+        if (fs.existsSync(legacyInstancePath)) {
+            try {
+                const inst = JSON.parse(fs.readFileSync(legacyInstancePath, 'utf-8'));
+                legacy.instanceIdentifier = legacy.instanceIdentifier || inst.instanceIdentifier;
+                // Prefer syncFolder from legacy config; fall back to instance file if present
+                legacy.syncFolder = legacy.syncFolder || inst.syncFolder || legacy.syncFolder;
+            } catch (error) {
+                console.error('Error reading legacy instance config:', error);
+            }
+        }
+
+        // If we got enough data, persist into unified file and return
+        if (legacy.host && legacy.syncFolder && legacy.projectId && legacy.projectName) {
+            const unified: ILocalConfig = {
+                host: legacy.host,
+                syncFolder: legacy.syncFolder,
+                projectId: legacy.projectId,
+                projectName: legacy.projectName,
+                instanceIdentifier: legacy.instanceIdentifier
+            };
+            this.saveLocalConfig(unified);
+            return unified;
+        }
+
         return {};
     }
 
     /**
-     * Save the local configuration to n8nac.json
+     * Save the local configuration to n8nac-config.json
      */
     saveLocalConfig(config: ILocalConfig): void {
         fs.writeFileSync(this.localConfigPath, JSON.stringify(config, null, 2));
@@ -143,9 +182,9 @@ export class ConfigService {
     }
 
     /**
-     * Get the path for n8nac-instance.json
+     * Get the path for n8nac-config.json (unified)
      */
     getInstanceConfigPath(): string {
-        return path.join(process.cwd(), 'n8nac-instance.json');
+        return this.localConfigPath;
     }
 }

@@ -33,9 +33,7 @@ describe('ConfigService', () => {
                 syncFolder: 'workflows',
                 instanceIdentifier: 'test-id',
                 projectId: 'test-project-id',
-                projectName: 'Test Project',
-                syncInactive: true,
-                ignoredTags: ['archive']
+                projectName: 'Test Project'
             };
 
             (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
@@ -79,15 +77,13 @@ describe('ConfigService', () => {
                 host: 'http://localhost:5678',
                 syncFolder: 'workflows',
                 projectId: 'test-project-id',
-                projectName: 'Test Project',
-                syncInactive: true,
-                ignoredTags: ['archive']
+                projectName: 'Test Project'
             };
 
             configService.saveLocalConfig(config);
 
             expect(fs.writeFileSync).toHaveBeenCalledWith(
-                expect.stringContaining('n8nac.json'),
+                expect.stringContaining('n8nac-config.json'),
                 JSON.stringify(config, null, 2)
             );
         });
@@ -257,10 +253,10 @@ describe('ConfigService', () => {
     });
 
     describe('getInstanceConfigPath', () => {
-        it('should return path to instance config file', () => {
+        it('should return path to unified config file', () => {
             const result = configService.getInstanceConfigPath();
 
-            expect(result).toContain('n8nac-instance.json');
+            expect(result).toContain('n8nac-config.json');
             expect(path.isAbsolute(result)).toBe(true);
         });
     });

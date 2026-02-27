@@ -210,7 +210,7 @@ export class MockConfigService {
     }
 
     getInstanceConfigPath(): string {
-        return '/tmp/n8nac-instance.json';
+        return '/tmp/n8nac-config.json';
     }
 }
 

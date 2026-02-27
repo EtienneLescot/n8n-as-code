@@ -26,11 +26,11 @@ export class BaseCommand {
 
         this.client = new N8nApiClient(credentials);
 
-        // Basic config defaults from local config
+        // Basic config defaults from local config (syncInactive/ignoredTags now hardcoded defaults)
         this.config = {
             directory: localConfig.syncFolder || './workflows',
-            syncInactive: localConfig.syncInactive ?? true,
-            ignoredTags: localConfig.ignoredTags || ['archive'],
+            syncInactive: true,
+            ignoredTags: [],
             host: localConfig.host
         };
     }
@@ -56,8 +56,8 @@ export class BaseCommand {
         
         return {
             directory: this.config.directory,
-            syncInactive: this.config.syncInactive,
-            ignoredTags: this.config.ignoredTags,
+            syncInactive: true,
+            ignoredTags: [],
             instanceIdentifier: instanceIdentifier,
             instanceConfigPath: this.configService.getInstanceConfigPath(),
             projectId: localConfig.projectId,

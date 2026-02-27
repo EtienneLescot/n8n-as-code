@@ -57,10 +57,10 @@ export interface IWorkflowStatus {
 
 export interface ISyncConfig {
     directory: string;
-    syncInactive: boolean;
-    ignoredTags: string[];
+    syncInactive: boolean; // internal default true
+    ignoredTags: string[]; // internal default []
     instanceIdentifier?: string; // Optional: auto-generated if not provided
-    instanceConfigPath?: string; // Optional: explicit path for n8nac-instance.json
+    instanceConfigPath?: string; // Optional: explicit path for n8nac-config.json
     projectId: string;           // REQUIRED: Project scope for sync
     projectName: string;         // REQUIRED: Project display name
 }

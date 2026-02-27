@@ -54,8 +54,8 @@ export class SyncManager extends EventEmitter {
         this.stateManager = new StateManager(instanceDir);
         this.watcher = new Watcher(this.client, {
             directory: instanceDir,
-            syncInactive: this.config.syncInactive,
-            ignoredTags: this.config.ignoredTags,
+            syncInactive: true,
+            ignoredTags: [],
             projectId: this.config.projectId
         });
 
@@ -148,8 +148,8 @@ export class SyncManager extends EventEmitter {
     }
 
     /**
-     * Create or update the n8nac-instance.json file.
-     * This file marks the workspace as initialized and stores the instance identifier.
+     * Create or update the n8nac-config.json file.
+     * This stores the instance identifier for the workspace.
      */
     private ensureInstanceConfigFile() {
         if (!this.config.instanceConfigPath || !this.config.instanceIdentifier) {
@@ -158,8 +158,7 @@ export class SyncManager extends EventEmitter {
 
         const configData = {
             instanceIdentifier: this.config.instanceIdentifier,
-            directory: this.config.directory,
-            lastSync: new Date().toISOString()
+            syncFolder: this.config.directory
         };
 
         try {

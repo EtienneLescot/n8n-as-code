@@ -591,7 +591,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         syncInactive: true,
         ignoredTags: [],
         instanceIdentifier,
-        instanceConfigPath: path.join(workspaceRoot, 'n8nac-instance.json'),
+        instanceConfigPath: path.join(workspaceRoot, 'n8nac-config.json'),
         projectId: projectId!,
         projectName: projectName!
     });
