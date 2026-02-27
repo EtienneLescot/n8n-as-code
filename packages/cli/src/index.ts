@@ -55,10 +55,11 @@ program.command('list')
     .option('--local', 'Show only local workflows')
     .option('--remote', 'Show only remote workflows')
     .option('--distant', 'Alias for --remote')
+    .option('--raw', 'Output full JSON instead of a table')
     .action(async (options) => {
         // Combine remote and distant flags
         const remote = options.remote || options.distant;
-        await new ListCommand().run({ local: options.local, remote });
+        await new ListCommand().run({ local: options.local, remote, raw: options.raw });
     });
 
 // pull - Download a single workflow by ID

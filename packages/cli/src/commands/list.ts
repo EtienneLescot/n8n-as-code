@@ -3,9 +3,9 @@ import { SyncManager, WorkflowSyncStatus, IWorkflowStatus, formatWorkflowNameWit
 import chalk from 'chalk';
 import ora from 'ora';
 import Table from 'cli-table3';
-
+ 
 export class ListCommand extends BaseCommand {
-    async run(options?: { local?: boolean; remote?: boolean }): Promise<void> {
+    async run(options?: { local?: boolean; remote?: boolean; raw?: boolean }): Promise<void> {
         const spinner = ora('Listing workflows...').start();
 
         try {
@@ -39,6 +39,13 @@ export class ListCommand extends BaseCommand {
                 console.log(chalk.cyan(`\n📁 Project: ${chalk.bold(localConfig.projectName)}`));
             }
 
+            // Raw output (full JSON) if requested
+            if (options?.raw) {
+                spinner.stop();
+                console.log(JSON.stringify(workflows, null, 2));
+                return;
+            }
+
             // Create table
             const table = new Table({
                 head: [
@@ -47,7 +54,7 @@ export class ListCommand extends BaseCommand {
                     chalk.bold('Name'),
                     chalk.bold('Local Path')
                 ],
-                colWidths: [20, 15, 50, 50],
+                // No fixed colWidths - let it auto-size based on content to avoid truncation
                 wordWrap: true
             });
 

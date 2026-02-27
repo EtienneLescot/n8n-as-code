@@ -33,7 +33,7 @@ n8nac init
 ```
 
 This command:
-1. Creates a configuration file (`n8nac.json`)
+1. Creates a configuration file (`n8nac-config.json`)
 2. Configures connection to your n8n instance
 3. Prompts you to select which **n8n project** to sync
 
@@ -209,7 +209,7 @@ n8nac init-ai
 ## ⚙️ Configuration
 
 ### Configuration File
-The CLI uses a configuration file (`n8nac.json`) with the following structure:
+The CLI uses a configuration file (`n8nac-config.json`) with the following structure:
 
 ```json
 {
@@ -217,9 +217,7 @@ The CLI uses a configuration file (`n8nac.json`) with the following structure:
   "syncFolder": "workflows",
   "projectId": "your-project-id",
   "projectName": "Personal",
-  "instanceIdentifier": "local_5678_user",
-  "syncInactive": true,
-  "ignoredTags": ["archive"]
+  "instanceIdentifier": "local_5678_user"
 }
 ```
 
@@ -341,7 +339,7 @@ n8nac push
 ### Project Structure
 ```
 my-project/
-├── n8nac.json                # Project configuration
+├── n8nac-config.json                # Project configuration
 ├── workflows/                # Workflow storage
 │   └── instance_identifier/  # Organized by instance
 │       └── project_slug/      # Organized by project
@@ -373,7 +371,7 @@ my-project/
 curl -I https://n8n.example.com
 
 # Verify configuration
-cat n8nac.json
+cat n8nac-config.json
 
 # Reinitialize connection
 n8nac init

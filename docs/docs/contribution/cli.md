@@ -219,7 +219,7 @@ Manages CLI configuration.
 - Provide typed configuration access
 
 **Configuration Sources:**
-The CLI currently loads local configuration from `n8nac.json` in the current working directory and stores API keys in a secure global credential store.
+The CLI currently loads local configuration from `n8nac-config.json` in the current working directory and stores API keys in a secure global credential store.
 
 ## 🔄 Integration with Sync Library
 
@@ -367,7 +367,7 @@ import nock from 'nock';
 beforeEach(() => {
   mockFs({
     'workflows': {},
-    'n8nac.json': JSON.stringify({ host: 'http://test.n8n' })
+    'n8nac-config.json': JSON.stringify({ host: 'http://test.n8n' })
   });
   
   nock('http://test.n8n')
@@ -440,7 +440,7 @@ curl -H "X-N8N-API-KEY: your-key" https://your-n8n.com/api/v1/workflows
 ```
 
 #### Configuration Not Found
-1. Check current directory for `n8nac.json`
+1. Check current directory for `n8nac-config.json`
 2. Run `n8nac init` to create config
 
 #### Sync Conflicts

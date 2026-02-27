@@ -98,7 +98,7 @@ n8nac push --id <workflowId>
 
 After setup, you'll have:
 
-- `n8nac.json`: Project configuration (safe to commit to Git)
+- `n8nac-config.json`: Project configuration (safe to commit to Git)
 - Global API key storage (not committed, stored securely in your system)
 
 ## 🔄 Syncing Your Workflows
@@ -166,7 +166,7 @@ After setup, your project will look like this:
 
 ```
 your-project/
-├── n8nac.json          # Project configuration
+├── n8nac-config.json          # Project configuration
 ├── workflows/                # Workflow storage
 │   └── instance-name_user/       # Instance identifier (auto-generated)
 │       └── project-slug/         # Project slug (from project name)
@@ -175,7 +175,7 @@ your-project/
 │           └── folder/
 │               └── workflow-3.json
 ├── AGENTS.md                # AI assistant instructions (optional)
-├── n8nac-instance.json # Instance configuration
+├── n8nac-config.json # Instance configuration
 └── .git/                    # Version control (recommended)
 ```
 

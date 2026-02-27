@@ -1,0 +1,16 @@
+#!/bin/bash
+# n8nac local shim for sync/deploy operations
+
+
+# 2. Standard NPM Dependency Context (Local Project)
+CLI_PATH="./node_modules/@n8n-as-code/cli/dist/index.js"
+
+if [ -f "$CLI_PATH" ]; then
+  node "$CLI_PATH" "$@"
+  exit $?
+fi
+
+# 3. Error if not found
+echo "Error: @n8n-as-code/cli not found in ./node_modules/"
+echo "Please ensure it is installed as a dev dependency in this project."
+exit 1

@@ -71,6 +71,9 @@ export class Watcher extends EventEmitter {
         this.ignoredTags = options.ignoredTags;
         this.projectId = options.projectId;
         this.stateFilePath = path.join(this.directory, '.n8n-state.json');
+
+        // Restore persisted mappings immediately so 'pull' and other commands can find workflows
+        this.restoreMappingsFromState();
     }
 
     public async start() {
@@ -633,6 +636,17 @@ export class Watcher extends EventEmitter {
                     // New workflow - establish mapping
                     this.idToFileMap.set(wf.id, filename);
                     this.fileToIdMap.set(filename, wf.id);
+
+                    // PERSIST: Save mapping to state so subsequent 'pull' commands can find it
+                    const state = this.loadState();
+                    if (!state.workflows[wf.id]) {
+                        state.workflows[wf.id] = {
+                            filename: filename,
+                            lastSyncedHash: undefined as any,
+                            lastSyncedAt: undefined as any
+                        };
+                        this.saveState(state);
+                    }
                 } else if (previousFilename !== filename) {
                     // Filename changed
                     this.fileToIdMap.delete(previousFilename);
@@ -1352,6 +1366,35 @@ export class Watcher extends EventEmitter {
             }
             // Mark as known on remote
             this.remoteIds.add(remoteWf.id);
+
+            // Establish mapping if it doesn't exist yet (allows 'pull' after single 'fetch')
+            if (!this.idToFileMap.has(remoteWf.id)) {
+                let filename = this.findFilenameByWorkflowId(remoteWf.id);
+                
+                if (!filename) {
+                    const baseName = `${this.safeName(remoteWf.name || remoteWf.id)}.workflow.ts`;
+                    filename = baseName;
+                    
+                    // Simple collision check against existing mappings
+                    if (this.fileToIdMap.has(filename)) {
+                        filename = `${this.safeName(remoteWf.name || remoteWf.id)}_${remoteWf.id.substring(0, 8)}.workflow.ts`;
+                    }
+                }
+                
+                this.idToFileMap.set(remoteWf.id, filename);
+                this.fileToIdMap.set(filename, remoteWf.id);
+
+                // PERSIST: Save the derived mapping to state so subsequent 'pull' commands can find it
+                const state = this.loadState();
+                if (!state.workflows[remoteWf.id]) {
+                    state.workflows[remoteWf.id] = {
+                        filename: filename,
+                        lastSyncedHash: undefined as any,
+                        lastSyncedAt: undefined as any
+                    };
+                    this.saveState(state);
+                }
+            }
 
             // Broadcast status update
             const filename = this.idToFileMap.get(remoteWf.id);

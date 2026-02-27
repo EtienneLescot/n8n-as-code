@@ -31,7 +31,7 @@ code --list-extensions | grep n8n-as-code
 ### 3. Check Configuration
 ```bash
 # View current configuration file
-cat n8nac.json
+cat n8nac-config.json
 ```
 
 ## 📦 Installation Issues
@@ -312,7 +312,7 @@ cat n8nac.json
 ## 🔧 Configuration Issues
 
 ### "Configuration not found"
-**Problem**: `n8nac.json` missing or invalid.
+**Problem**: `n8nac-config.json` missing or invalid.
 
 **Solutions:**
 1. **Create Configuration:**
@@ -323,13 +323,13 @@ cat n8nac.json
 2. **Check File Location:**
    ```bash
    # Default location
-   ls -la n8nac.json
+   ls -la n8nac-config.json
    ```
 
 3. **Validate Configuration:**
    ```bash
    # Check JSON syntax
-   jq . n8nac.json
+   jq . n8nac-config.json
    ```
 
 ## 🐛 Debugging Tips
@@ -369,7 +369,7 @@ n8nac pull
    code --version
    
    # Configuration (redact sensitive info)
-   cat n8nac.json
+   cat n8nac-config.json
    ```
 
 2. **Reproduction Steps:**
@@ -440,7 +440,7 @@ n8nac pull
 cp -r workflows/ workflows-backup-$(date +%Y%m%d)
 
 # Remove configuration
-rm n8nac.json
+rm n8nac-config.json
 
 # Reinitialize
 n8nac init

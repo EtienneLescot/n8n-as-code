@@ -113,7 +113,7 @@ n8nac push
 
 | File | Purpose | Location |
 |------|---------|----------|
-| `n8nac.json` | Project settings | Project root |
+| `n8nac-config.json` | Project settings | Project root |
 | VS Code Settings | Connection config | VS Code settings |
 
 ## 🚀 Getting Started with Each Tool

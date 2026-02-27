@@ -169,8 +169,10 @@ export class SyncManager extends EventEmitter {
         const configData = {
             ...existing,
             instanceIdentifier: existing.instanceIdentifier || this.config.instanceIdentifier,
-            // Preserve existing syncFolder if present; otherwise store current directory
-            syncFolder: existing.syncFolder || this.config.directory
+            // Preserve existing syncFolder if present; otherwise store current directory (relative to cwd)
+            syncFolder: existing.syncFolder || (path.isAbsolute(this.config.directory) 
+                ? path.relative(process.cwd(), this.config.directory) 
+                : this.config.directory)
         };
 
         try {
