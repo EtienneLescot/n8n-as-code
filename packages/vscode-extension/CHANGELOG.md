@@ -1,5 +1,38 @@
 # n8n-as-code
 
+## [0.14.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.14.1...n8n-as-code@v0.14.2) (2026-02-27)
+
+
+### Features
+
+* enhance configuration management by implementing unified config file for CLI and VSCode alignment ([50dce35](https://github.com/EtienneLescot/n8n-as-code/commit/50dce352891f7886972aaa91c0de150a7b0287dd))
+* enhance conflict resolution by removing 'Mark as Resolved' action and updating workflow status handling ([18ba868](https://github.com/EtienneLescot/n8n-as-code/commit/18ba86886fba3b6449c843170628e15f27f1b9bc))
+* enhance push functionality to handle new and existing workflows with filename support ([6900770](https://github.com/EtienneLescot/n8n-as-code/commit/6900770cab1d8d7709ce4ae3125f84ae6f983bb3))
+* implement auto-push and conflict resolution in SyncManager; update VSCode extension for improved workflow handling ([9ff944a](https://github.com/EtienneLescot/n8n-as-code/commit/9ff944a0b949143ae16d3296217406c4651c943d))
+* implement CliApi to unify CLI command handling in VSCode extension ([4eb2a50](https://github.com/EtienneLescot/n8n-as-code/commit/4eb2a502d5811260a3f94b7215038fd93fb124f5))
+* implement fetch command to update remote state cache for workflows ([cc6c064](https://github.com/EtienneLescot/n8n-as-code/commit/cc6c0640a9b0beda48de7c2ee3672b206aa1ba06))
+* implement force refresh method and update sync logic across commands; add Pull-on-Focus feature in VSCode extension ([f110a9b](https://github.com/EtienneLescot/n8n-as-code/commit/f110a9b9d50f74256839a42d86dcc1d5e8e8db2e))
+* implement git-like sync architecture with conflict resolution for workflows ([894b0a6](https://github.com/EtienneLescot/n8n-as-code/commit/894b0a6c58f91db989d5486b5abd048b4ac3faef))
+* implement Git-like sync architecture; disable auto-push and update sync logic in StartCommand and SyncManager ([3711d3e](https://github.com/EtienneLescot/n8n-as-code/commit/3711d3eea46c81d12db013a1187089f895277ace))
+* implement lightweight workflow listing to optimize status retrieval ([289e9bf](https://github.com/EtienneLescot/n8n-as-code/commit/289e9bfa3b3d1866aa16b5c794ea69b416688cc2))
+* optimize remote state fetching for workflows in activate function ([c3b936e](https://github.com/EtienneLescot/n8n-as-code/commit/c3b936ef2bd0c44162ae6c3caade7ebf60afb1e3))
+* optimize workflow synchronization by removing force refresh and using cached state ([40ae940](https://github.com/EtienneLescot/n8n-as-code/commit/40ae940d9c3803fe7fe8e3e02157f3d64897401a))
+* refactor StartCommand and SyncCommand to streamline conflict resolution; update VSCode extension for improved user experience and action handling ([e10a6e8](https://github.com/EtienneLescot/n8n-as-code/commit/e10a6e84f5404bdf218ed8b4f4eca5e48135a67d))
+* remove sync package references and integrate sync logic into cli package; update related documentation and tests ([89901ce](https://github.com/EtienneLescot/n8n-as-code/commit/89901ce03f953c0e8e162214e041a3638e980a0f))
+* Restrict local workflow file watching and discovery to `.workflow.ts` files and refresh remote state on startup. ([77137f7](https://github.com/EtienneLescot/n8n-as-code/commit/77137f71ec3afc7cdae164ceb79480d8269552c6))
+* transition to git-like sync architecture for n8n workflows ([9d1cd51](https://github.com/EtienneLescot/n8n-as-code/commit/9d1cd516eea5024ce949c050ad6d62b1655be02f))
+* unify configuration management by migrating to n8nac-config.json and removing legacy files ([58a0bb4](https://github.com/EtienneLescot/n8n-as-code/commit/58a0bb4ccceb0f806736ef6eded3a11586536ded))
+* update build script to generate SKILL.md dynamically and remove template file; enhance AiContextGenerator for workflow context ([2cfec72](https://github.com/EtienneLescot/n8n-as-code/commit/2cfec72dac9e09bca362a6fb8fd84ec6adcb600e))
+* update command handling for remote-only workflows in WorkflowItem ([eaed8e2](https://github.com/EtienneLescot/n8n-as-code/commit/eaed8e291676eca169f58143c4ee3b5c720beb41))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.3 to 0.16.4
+    * @n8n-as-code/cli bumped from 0.9.3 to 0.9.4
+
 ## [0.14.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.14.0...n8n-as-code@v0.14.1) (2026-02-22)
 
 

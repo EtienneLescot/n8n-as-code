@@ -1,5 +1,16 @@
 # @n8n-as-code/skills
 
+## [0.16.4](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.3...@n8n-as-code/skills@v0.16.4) (2026-02-27)
+
+
+### Features
+
+* implement force refresh method and update sync logic across commands; add Pull-on-Focus feature in VSCode extension ([f110a9b](https://github.com/EtienneLescot/n8n-as-code/commit/f110a9b9d50f74256839a42d86dcc1d5e8e8db2e))
+* transition to git-like sync architecture for n8n workflows ([9d1cd51](https://github.com/EtienneLescot/n8n-as-code/commit/9d1cd516eea5024ce949c050ad6d62b1655be02f))
+* update build script to generate SKILL.md dynamically and remove template file; enhance AiContextGenerator for workflow context ([2cfec72](https://github.com/EtienneLescot/n8n-as-code/commit/2cfec72dac9e09bca362a6fb8fd84ec6adcb600e))
+* update generate:nodes script for comprehensive documentation generation and enhance test report parsing for Jest compatibility ([feefb85](https://github.com/EtienneLescot/n8n-as-code/commit/feefb8566a98750bb6ce4f50b009e61207ddc065))
+* update README and CLI documentation to enhance git-like sync workflow with conflict resolution commands ([235f318](https://github.com/EtienneLescot/n8n-as-code/commit/235f3189bb46c323c785af25c8cce64cfda9f871))
+
 ## [0.16.3](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.2...@n8n-as-code/skills@v0.16.3) (2026-02-22)
 
 
