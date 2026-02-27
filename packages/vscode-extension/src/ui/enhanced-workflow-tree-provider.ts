@@ -185,8 +185,7 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
       actions.push(
         new ActionItem(ActionItemType.SHOW_DIFF, workflow.id, workflow),
         new ActionItem(ActionItemType.FORCE_PUSH, workflow.id, workflow),
-        new ActionItem(ActionItemType.PULL_REMOTE, workflow.id, workflow),
-        new ActionItem(ActionItemType.MARK_RESOLVED, workflow.id, workflow)
+        new ActionItem(ActionItemType.PULL_REMOTE, workflow.id, workflow)
       );
     }
 

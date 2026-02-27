@@ -10,8 +10,6 @@ export enum ActionItemType {
   SHOW_DIFF = 'show-diff',
   FORCE_PUSH = 'force-push',
   PULL_REMOTE = 'pull-remote',
-  MARK_RESOLVED = 'mark-resolved',
-
 }
 
 /**
@@ -42,8 +40,6 @@ export class ActionItem extends BaseTreeItem {
         return '⬆️ Keep Current (local)';
       case ActionItemType.PULL_REMOTE:
         return '⬇️ Keep Incoming (remote)';
-      case ActionItemType.MARK_RESOLVED:
-        return '✅ Mark as Resolved';
       default:
         return 'Unknown Action';
     }
@@ -57,8 +53,6 @@ export class ActionItem extends BaseTreeItem {
         return new vscode.ThemeIcon('cloud-upload');
       case ActionItemType.PULL_REMOTE:
         return new vscode.ThemeIcon('cloud-download');
-      case ActionItemType.MARK_RESOLVED:
-        return new vscode.ThemeIcon('pass');
       default:
         return new vscode.ThemeIcon('question');
     }
@@ -84,12 +78,6 @@ export class ActionItem extends BaseTreeItem {
           title: 'Keep Incoming (remote)',
           arguments: [{ workflow, choice: 'Keep Incoming (remote)' }]
         };
-      case ActionItemType.MARK_RESOLVED:
-        return {
-          command: 'n8n.resolveConflict',
-          title: 'Mark as Resolved',
-          arguments: [{ workflow, choice: 'Mark as Resolved' }]
-        };
       default:
         return { command: 'n8n.refresh', title: 'Refresh' };
     }
@@ -103,8 +91,6 @@ export class ActionItem extends BaseTreeItem {
         return 'Keep your current local version — push it to n8n';
       case ActionItemType.PULL_REMOTE:
         return 'Keep the incoming remote version — overwrite local file';
-      case ActionItemType.MARK_RESOLVED:
-        return 'Mark your manual merge as resolved and push local file to n8n';
       default:
         return '';
     }

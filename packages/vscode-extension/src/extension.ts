@@ -181,19 +181,19 @@ export async function activate(context: vscode.ExtensionContext) {
 
             if (wf.filename) {
                 const workflowStatus = await cli.getSingleWorkflowDetailedStatus(wf.id, wf.filename);
+                
                 const hasLocalChanges =
                     workflowStatus.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
                     workflowStatus.status === WorkflowSyncStatus.CONFLICT;
+
                 if (hasLocalChanges) {
-                    const confirm = await vscode.window.showWarningMessage(
-                        `"${wf.name}" has local changes. Pulling will overwrite them with the remote version.`,
-                        { modal: true },
-                        'Pull (discard local changes)'
-                    );
-                    if (confirm !== 'Pull (discard local changes)') {
-                        statusBar.showSynced();
-                        return;
-                    }
+                    statusBar.showError('Conflict');
+                    await vscode.commands.executeCommand('n8n.resolveConflict', { workflow: wf, choice: undefined });
+                    const workflows = await cli.list();
+                    store.dispatch(setWorkflows(workflows));
+                    enhancedTreeProvider.refresh();
+                    statusBar.showSynced();
+                    return; // Early return as conflict resolution handles the pull/push
                 }
             }
 
@@ -336,8 +336,8 @@ export async function activate(context: vscode.ExtensionContext) {
             let choice = arg?.choice;
             if (!choice) {
                 choice = await vscode.window.showWarningMessage(
-                    `⚠️ Conflict on "${filename}": both local and remote versions changed.`,
-                    'Show Diff', 'Keep Current (local)', 'Keep Incoming (remote)', 'Mark as Resolved'
+                    `⚠️ Conflict on "${filename}": local and remote versions differ.`,
+                    'Show Diff', 'Keep Current (local)', 'Keep Incoming (remote)'
                 );
             }
 
@@ -360,14 +360,6 @@ export async function activate(context: vscode.ExtensionContext) {
                 store.dispatch(setWorkflows(await cli.list()));
                 store.dispatch(removeConflict(id));
                 vscode.window.showInformationMessage('✅ Pulled — local file updated from n8n.');
-                enhancedTreeProvider.refresh();
-            } else if (choice === 'Mark as Resolved') {
-                await cli.resolveConflict(id, filename, 'keep-current');
-                await new Promise(r => setTimeout(r, 500));
-                store.dispatch(setWorkflows(await cli.list()));
-                store.dispatch(removeConflict(id));
-                WorkflowWebview.reloadIfMatching(id, outputChannel);
-                vscode.window.showInformationMessage('✅ Resolved — merged local version pushed to n8n.');
                 enhancedTreeProvider.refresh();
             }
         }),
@@ -649,7 +641,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         enhancedTreeProvider.refresh();
         const choice = await vscode.window.showWarningMessage(
             `⚠️ Conflict: "${filename}" — local and remote versions differ.`,
-            'Show Diff', 'Keep Current (local)', 'Keep Incoming (remote)', 'Mark as Resolved'
+            'Show Diff', 'Keep Current (local)', 'Keep Incoming (remote)'
         );
         if (choice) {
             await vscode.commands.executeCommand('n8n.resolveConflict', {
