@@ -204,6 +204,16 @@ export class SyncManager extends EventEmitter {
     }
 
     /**
+     * Populate the local hashes cache by scanning the local directory.
+     * Must be called before getSingleWorkflowDetailedStatus() in CLI mode
+     * (the watcher only scans automatically when start() is called).
+     */
+    public async refreshLocalState(): Promise<void> {
+        await this.ensureInitialized();
+        await this.watcher!.refreshLocalState();
+    }
+
+    /**
      * Fetch remote state for a specific workflow (update internal cache for comparison).
      * This is the manual fetch command that updates the remote state cache without pulling.
      * Returns true if the workflow exists on remote, false if not found.

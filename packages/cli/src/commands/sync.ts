@@ -10,6 +10,9 @@ export class SyncCommand extends BaseCommand {
         const syncConfig = await this.getSyncConfig();
         const syncManager = new SyncManager(this.client, syncConfig);
 
+        // Populate local hash cache FIRST — required for accurate status in CLI mode
+        await syncManager.refreshLocalState();
+
         // Fetch ensures initialization, remote knowledge, and filename mapping
         const remoteExists = await syncManager.fetch(workflowId);
         if (!remoteExists) {
@@ -48,7 +51,10 @@ export class SyncCommand extends BaseCommand {
         const syncConfig = await this.getSyncConfig();
         const syncManager = new SyncManager(this.client, syncConfig);
 
-        // Warm up the cache for this specific workflow (ensures we have remoteHash for conflict detection)
+        // Populate local hash cache FIRST — required for accurate status in CLI mode
+        await syncManager.refreshLocalState();
+
+        // Warm up the remote cache for this specific workflow
         await syncManager.fetch(workflowId);
 
         // Get current status and mapping
@@ -110,7 +116,8 @@ export class SyncCommand extends BaseCommand {
             const syncConfig = await this.getSyncConfig();
             const syncManager = new SyncManager(this.client, syncConfig);
 
-            // Warm up the cache/mappings (essential for fresh CLI processes)
+            // Populate local hash cache and remote state
+            await syncManager.refreshLocalState();
             await syncManager.fetch(workflowId);
 
             // Need to find the filename
