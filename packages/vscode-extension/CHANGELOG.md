@@ -1,5 +1,12 @@
 # n8n-as-code
 
+## [0.14.6](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.14.5...n8n-as-code@v0.14.6) (2026-02-27)
+
+
+### Features
+
+* add alias for prettier to ensure CJS compatibility in build configuration ([70c18bd](https://github.com/EtienneLescot/n8n-as-code/commit/70c18bd25b63571a8da26af44408f01eedcd1ddd))
+
 ## [0.14.5](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.14.4...n8n-as-code@v0.14.5) (2026-02-27)
 
 
