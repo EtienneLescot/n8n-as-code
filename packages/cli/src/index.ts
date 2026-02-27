@@ -9,7 +9,8 @@ import { ConvertCommand } from './commands/convert.js';
 import chalk from 'chalk';
 
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 /**
  * Get version from package.json
@@ -17,17 +18,17 @@ import { join } from 'path';
  */
 const getVersion = () => {
     try {
-        // Try to find package.json relative to this file's location in dist
+        const __dirname = dirname(fileURLToPath(import.meta.url));
         // In dist, index.js is at packages/cli/dist/index.js
         // package.json is at packages/cli/package.json
-        const pkgPath = join(process.cwd(), 'package.json');
+        const pkgPath = join(__dirname, '..', 'package.json');
         const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
         if (pkg.name === '@n8n-as-code/cli') return pkg.version;
 
         // Fallback for different execution contexts
-        return '0.1.0';
+        return '0.1.0-unknown';
     } catch {
-        return '0.1.0';
+        return '0.1.0-error';
     }
 };
 
