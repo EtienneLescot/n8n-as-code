@@ -1,5 +1,12 @@
 # @n8n-as-code/skills
 
+## [0.16.5](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.4...@n8n-as-code/skills@v0.16.5) (2026-02-27)
+
+
+### Features
+
+* enhance update-ai command and AiContextGenerator to improve local shim generation and clarify installation requirements for skills CLI ([3fb7e06](https://github.com/EtienneLescot/n8n-as-code/commit/3fb7e0658f6eefb984f43cee39c71162e3c1b069))
+
 ## [0.16.4](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.3...@n8n-as-code/skills@v0.16.4) (2026-02-27)
 
 
