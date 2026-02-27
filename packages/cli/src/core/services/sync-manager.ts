@@ -156,9 +156,21 @@ export class SyncManager extends EventEmitter {
             return;
         }
 
+        let existing: any = {};
+        try {
+            if (fs.existsSync(this.config.instanceConfigPath)) {
+                const content = fs.readFileSync(this.config.instanceConfigPath, 'utf-8');
+                existing = JSON.parse(content);
+            }
+        } catch (error) {
+            // Ignore parse errors and recreate
+        }
+
         const configData = {
-            instanceIdentifier: this.config.instanceIdentifier,
-            syncFolder: this.config.directory
+            ...existing,
+            instanceIdentifier: existing.instanceIdentifier || this.config.instanceIdentifier,
+            // Preserve existing syncFolder if present; otherwise store current directory
+            syncFolder: existing.syncFolder || this.config.directory
         };
 
         try {

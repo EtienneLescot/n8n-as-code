@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { N8nApiClient, type IN8nCredentials } from '@n8n-as-code/cli';
-import { getWorkspaceRoot, isFolderPreviouslyInitialized } from '../utils/state-detection.js';
+import { getWorkspaceRoot, isFolderPreviouslyInitialized, getExistingInstanceIdentifier } from '../utils/state-detection.js';
+import fs from 'fs';
+import path from 'path';
 
 type UiProject = {
   id: string;
@@ -99,6 +101,7 @@ export class ConfigurationWebview {
               await this._context.workspaceState.update('n8n.suppressSettingsChangedOnce', true);
             }
 
+            // Persist to VS Code settings for UI/connection, and to unified file for CLI compatibility.
             await config.update('host', host, vscode.ConfigurationTarget.Workspace);
             await config.update('apiKey', apiKey, vscode.ConfigurationTarget.Workspace);
 
@@ -124,6 +127,34 @@ export class ConfigurationWebview {
             if (projectId && projectName) {
               await config.update('projectId', projectId, vscode.ConfigurationTarget.Workspace);
               await config.update('projectName', projectName, vscode.ConfigurationTarget.Workspace);
+            }
+
+            // Write unified config file for CLI alignment
+            if (workspaceRoot) {
+              const unifiedPath = path.join(workspaceRoot, 'n8nac-config.json');
+              const storedSyncFolder = syncFolder && syncFolder.startsWith(workspaceRoot)
+                ? path.relative(workspaceRoot, syncFolder) || 'workflows'
+                : (syncFolder || 'workflows');
+
+              let existing: any = {};
+              try {
+                if (fs.existsSync(unifiedPath)) {
+                  existing = JSON.parse(fs.readFileSync(unifiedPath, 'utf-8'));
+                }
+              } catch {
+                existing = {};
+              }
+
+              const unified = {
+                ...existing,
+                host: host || existing.host || '',
+                syncFolder: storedSyncFolder || existing.syncFolder || 'workflows',
+                projectId: projectId || existing.projectId || '',
+                projectName: projectName || existing.projectName || '',
+                instanceIdentifier: getExistingInstanceIdentifier(workspaceRoot) || existing.instanceIdentifier
+              };
+
+              fs.writeFileSync(unifiedPath, JSON.stringify(unified, null, 2), 'utf-8');
             }
 
             if (shouldAutoApply) {
