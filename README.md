@@ -49,10 +49,14 @@ n8nac init
 n8nac switch
 
 # Git-like sync workflow
-n8nac list                               # See all workflows and their status
+n8nac list                               # See all workflows and their status (local & remote)
+n8nac list --local                       # List only local files
+n8nac list --remote                      # List only remote state from cache
 n8nac fetch --workflowsid <workflowId>   # Update remote state for a workflow
-n8nac pull --workflowsid <workflowId>    # Pull remote changes
-n8nac push --workflowsid <workflowId>    # Push local changes
+n8nac fetch --all                        # Update remote state for all workflows
+n8nac pull --workflowsid <workflowId>    # Pull remote changes (use --mode keep-incoming in conflict)
+n8nac push --workflowsid <workflowId>    # Push local changes (use --mode keep-current in conflict)
+n8nac resolve --workflowsid <id> --mode keep-current # Explicit conflict resolution
 ```
 
 📖 [Full CLI documentation](https://etiennelescot.github.io/n8n-as-code/docs/usage/cli)
@@ -84,7 +88,7 @@ n8nac push --workflowsid <workflowId>    # Push local changes
 ## ✨ Key Features
 
 ### 🔄 **Git-like Sync**
-Explicit, command-driven synchronization with git-like workflow: list, fetch, pull, push. No automatic polling - you control when to sync with clear status visibility.
+Explicit, command-driven synchronization with git-like workflow: `list`, `fetch`, `pull`, `push`, `resolve`. No automatic polling - you control when to sync with clear status visibility and explicit conflict resolution.
 
 ### 🎨 **VS Code Integration**
 Visual workflow management with embedded n8n canvas, status indicators, and push-on-save functionality.

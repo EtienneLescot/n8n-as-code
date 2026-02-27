@@ -90,7 +90,15 @@ Upload a single local workflow file to n8n.
 n8nac push --workflowsid <workflowId>
 ```
 
-> Recommended for agents and scripts. Targets exactly one workflow.
+---
+
+### `resolve --workflowsid <id> --mode <mode>`
+Explicitly resolve a conflict for a specific workflow.
+
+```bash
+n8nac resolve --workflowsid <id> --mode keep-current    # Force-push local version
+n8nac resolve --workflowsid <id> --mode keep-incoming   # Force-pull remote version
+```
 
 ---
 
