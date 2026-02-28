@@ -27,7 +27,7 @@ n8n-as-code/
 graph TD
     A[VS Code Extension] --> B[CLI - incl. Sync Engine]
     C[CLI] --> B
-    D[Skills CLI] --> E[n8n API]
+    D[n8nac skills] --> E[n8n API]
     B --> E
     
     style A fill:#ff6b35
@@ -37,10 +37,10 @@ graph TD
 ```
 
 ### Dependency Flow
-1. **Sync Engine** (embedded in `@n8n-as-code/cli`, `cli/src/core`): Shared business logic
-2. **CLI** (`@n8n-as-code/cli`): Command-line interface
-3. **VS Code Extension**: Visual interface using `@n8n-as-code/cli`
-4. **Skills CLI** (`@n8n-as-code/skills`): AI integration
+1. **Sync Engine** (embedded in `n8nac`, `cli/src/core`): Shared business logic
+2. **CLI** (`n8nac`): Command-line interface
+3. **VS Code Extension**: Visual interface using `n8nac`
+4. **Skills Library** (`@n8n-as-code/skills`, accessed via `n8nac skills`): AI integration
 
 ## 🧩 Sync Engine Architecture (inside `cli`)
 
@@ -281,11 +281,13 @@ classDiagram
 3. **Configuration**: Loads from file, env vars, or args
 4. **Error Handling**: Consistent error reporting
 
-## 🤖 Skills CLI Architecture
+## 🤖 Skills Library Architecture (`n8nac skills`)
 
 ### AI Integration
+The `@n8n-as-code/skills` package is an internal library exposed publicly via the `n8nac skills` subcommand group. It powers AI context generation for Cursor, Cline, Copilot, and other AI tools.
+
 ```typescript
-// Skills CLI architecture
+// Skills Library architecture
 classDiagram
     class AgentCLI {
         +generateContext()
@@ -416,7 +418,7 @@ npm run docs
 ## 📚 Related Documentation
 
 - [Sync Engine](/docs/contribution/sync): Sync engine internals (embedded in CLI)
-- [Skills CLI](/docs/contribution/skills): AI integration details
+- [Skills Library](/docs/contribution/skills): AI integration details
 - [Contribution Guide](/docs/contribution): How to contribute
 
 ---

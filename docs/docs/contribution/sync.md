@@ -1,12 +1,12 @@
 ---
 sidebar_label: Sync Engine
 title: Sync Engine - Core Library
-description: Documentation for the sync engine embedded in @n8n-as-code/cli that provides shared business logic for all n8n-as-code components.
+description: Documentation for the sync engine embedded in n8nac that provides shared business logic for all n8n-as-code components.
 ---
 
 # Sync Engine - Core Library Documentation
 
-**Note**: The sync engine is embedded in `@n8n-as-code/cli` (under `src/core/`) and exposed via `@n8n-as-code/cli`'s public lib surface. It was previously a standalone `@n8n-as-code/sync` package.
+**Note**: The sync engine is embedded in `n8nac` (under `src/core/`) and exposed via `n8nac`'s public lib surface. It was previously a standalone `@n8n-as-code/sync` package.
 
 ## 🎯 Purpose
 

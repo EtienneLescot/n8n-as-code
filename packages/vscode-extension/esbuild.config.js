@@ -40,23 +40,6 @@ const copySkillsAssets = {
                 }
             }
 
-            // Copy n8n-workflows.d.ts from CLI package to out/assets/
-            // so WorkspaceSetupService can find it at runtime inside the extension bundle.
-            const cliAssetSrc = fs.existsSync(
-                path.join(__dirname, 'node_modules', '@n8n-as-code', 'cli', 'dist', 'core', 'assets', 'n8n-workflows.d.ts')
-            )
-                ? path.join(__dirname, 'node_modules', '@n8n-as-code', 'cli', 'dist', 'core', 'assets', 'n8n-workflows.d.ts')
-                : path.join(__dirname, '..', 'cli', 'dist', 'core', 'assets', 'n8n-workflows.d.ts');
-
-            const cliAssetDest = path.join(__dirname, 'out', 'assets', 'n8n-workflows.d.ts');
-
-            if (fs.existsSync(cliAssetSrc)) {
-                fs.mkdirSync(path.dirname(cliAssetDest), { recursive: true });
-                fs.copyFileSync(cliAssetSrc, cliAssetDest);
-                console.log(`✅ Copied n8n-workflows.d.ts to out/assets/`);
-            } else {
-                console.warn(`⚠️  n8n-workflows.d.ts not found at ${cliAssetSrc}, skipping copy`);
-            }
         });
     }
 };
@@ -75,51 +58,4 @@ const extensionBuild = esbuild.build({
     plugins: [copySkillsAssets]
 });
 
-// Build configuration for Skills CLI (Portable version for VS Code)
-const skillsCliEntry = path.join(__dirname, 'node_modules', '@n8n-as-code', 'skills', 'dist', 'cli.js');
-const fallbackSkillsCliEntry = path.join(__dirname, '..', 'skills', 'dist', 'cli.js');
-const finalSkillsCliEntry = fs.existsSync(skillsCliEntry) ? skillsCliEntry : fallbackSkillsCliEntry;
-
-if (!fs.existsSync(finalSkillsCliEntry)) {
-    console.warn('⚠️  skills entry point not found, skipping CLI bundle');
-}
-
-const skillsCliBuild = fs.existsSync(finalSkillsCliEntry) ? esbuild.build({
-    entryPoints: [finalSkillsCliEntry],
-    bundle: true,
-    outfile: 'out/skills/cli.js',
-    external: ['vscode', 'prettier'],
-    format: 'cjs',
-    platform: 'node',
-    logOverride: {
-        'empty-import-meta': 'silent'
-    }
-}) : Promise.resolve();
-
-// Build configuration for n8nac CLI (Portable version for VS Code)
-const n8nacCliEntry = path.join(__dirname, 'node_modules', '@n8n-as-code', 'cli', 'dist', 'index.js');
-const fallbackN8nacCliEntry = path.join(__dirname, '..', 'cli', 'dist', 'index.js');
-const finalN8nacCliEntry = fs.existsSync(n8nacCliEntry) ? n8nacCliEntry : fallbackN8nacCliEntry;
-
-if (!fs.existsSync(finalN8nacCliEntry)) {
-    console.warn('⚠️  n8nac entry point not found, skipping CLI bundle');
-}
-
-const n8nacCliBuild = fs.existsSync(finalN8nacCliEntry) ? esbuild.build({
-    entryPoints: [finalN8nacCliEntry],
-    bundle: true,
-    outfile: 'out/cli/index.js',
-    external: ['vscode'],
-    format: 'cjs',
-    platform: 'node',
-    // Force the CommonJS export condition for ALL packages (including dynamic imports).
-    // Without this, esbuild resolves dynamic `await import('prettier')` using the
-    // 'import' condition → picks up prettier/index.mjs → createRequire(import.meta.url)
-    // crashes because import.meta.url is undefined in a CJS bundle.
-    conditions: ['require', 'node', 'default'],
-    logOverride: {
-        'empty-import-meta': 'silent'
-    }
-}) : Promise.resolve();
-
-Promise.all([extensionBuild, skillsCliBuild, n8nacCliBuild]).catch(() => process.exit(1));
+Promise.all([extensionBuild]).catch(() => process.exit(1));

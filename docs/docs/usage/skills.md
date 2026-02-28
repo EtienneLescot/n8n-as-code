@@ -1,12 +1,12 @@
 ---
 sidebar_position: 3
-title: Skills CLI (Tools for AI agents)
+title: Skills Commands (Tools for AI agents)
 description: Use the Skills CLI to search n8n nodes, get JSON schemas, and list available nodes for AI coding assistants.
 ---
 
 # Skills CLI (Tools for AI agents)
 
-The Skills CLI (`@n8n-as-code/skills`) provides command-line tools specifically designed for AI coding assistants and developers working with n8n workflows. It allows you to search, retrieve, and list n8n node schemas programmatically.
+The Skills CLI (`n8nac`) provides command-line tools specifically designed for AI coding assistants and developers working with n8n workflows. It allows you to search, retrieve, and list n8n node schemas programmatically.
 
 ## 🎯 Purpose
 
@@ -22,33 +22,33 @@ The Skills CLI is designed to:
 The Skills CLI is available as an npm package and can be run directly with npx:
 
 ```bash
-# Run with n8nac-skills (if installed globally)
-n8nac-skills <command>
+# Run with n8nac skills (if installed globally)
+n8nac skills <command>
 
 # Or run directly with npx
-npx @n8n-as-code/skills <command>
+npx n8nac skills <command>
 
 # Or install globally
-npm install -g @n8n-as-code/skills
+npm install -g n8nac
 ```
 
-Note: When you run `update-ai` from the main `@n8n-as-code/cli`, ensure `@n8n-as-code/skills` is available to the project (install locally with `npm install --save-dev @n8n-as-code/skills`, install globally, or use `npx`). The VS Code extension is the only caller that generates local executable shims (`n8nac`, `n8nac-skills`) in your project; the CLI will not create these shims to avoid unexpected file creation.
+Note: When you run `update-ai` from the main `n8nac`, ensure `n8nac` is available to the project (install locally with `npm install --save-dev n8nac`, install globally, or use `npx`). The VS Code extension is the only caller that generates the AGENTS.md and AI context files.
 
 ## 🛠️ Available Commands
 
 ### 1. Search Nodes
 # Skills (AI Tools)
 
-The Skills package (`@n8n-as-code/skills`) provides command-line tools specifically designed for AI coding assistants and developers working with n8n workflows. It allows you to search, retrieve, and list n8n node schemas programmatically.
+The Skills package (`n8nac`) provides command-line tools specifically designed for AI coding assistants and developers working with n8n workflows. It allows you to search, retrieve, and list n8n node schemas programmatically.
 
 ## 🛠 Purpose
 
-This package provides a dedicated CLI (`n8nac-skills`) and programmatic tools designed to:
+This package provides dedicated skills commands (`n8nac skills`) and programmatic tools designed to:
 
 ## 🚀 Installation
 
 ```bash
-npm install @n8n-as-code/skills
+npm install n8nac
 ```
 
 ## 📖 CLI Usage
@@ -57,29 +57,29 @@ npm install @n8n-as-code/skills
 
 ```bash
 # Search nodes, docs, and tutorials
-n8nac-skills search "how to generate images"
-n8nac-skills search "google sheets"
+n8nac skills search "how to generate images"
+n8nac skills search "google sheets"
 
 # Filter by type
-n8nac-skills search "authentication" --type documentation
-n8nac-skills search "database" --type node
+n8nac skills search "authentication" --type documentation
+n8nac skills search "database" --type node
 
 # Filter by category
-n8nac-skills search "ai" --category advanced-ai
+n8nac skills search "ai" --category advanced-ai
 ```
 
 ### `get <nodeName>` - 📚 Complete Node Info
 Get full node information: schema + documentation + examples.
 
 ```bash
-n8nac-skills get googleSheets
-n8nac-skills get httpRequest
+n8nac skills node-info googleSheets
+n8nac skills node-info httpRequest
 ```
 
 ### `schema <nodeName>` - ⚡ Quick Parameter Reference
 
 ```bash
-n8nac-skills schema googleSheets
+n8nac skills node-schema googleSheets
 # Returns only properties and required fields
 ```
 
@@ -87,45 +87,45 @@ n8nac-skills schema googleSheets
 
 ```bash
 # Read a specific page
-n8nac-skills docs "Google Gemini"
-n8nac-skills docs "Expressions"
+n8nac skills docs "Google Gemini"
+n8nac skills docs "Expressions"
 
 # List categories or stats
-n8nac-skills docs --list
+n8nac skills docs --list
 ```
 
 ### `guides [query]` - 🎯 Find Guides
 
 ```bash
-n8nac-skills guides "email automation"
-n8nac-skills guides "ai workflow"
-n8nac-skills guides --list
+n8nac skills guides "email automation"
+n8nac skills guides "ai workflow"
+n8nac skills guides --list
 ```
 
 ### `workflows` - 🌐 Search & Download Community Workflows
 
 ```bash
-n8nac-skills workflows search "slack notification"
-n8nac-skills workflows search "AI chatbot telegram"
-n8nac-skills workflows search "invoice processing" --limit 20
-n8nac-skills workflows search "google sheets" --json
+n8nac skills examples search "slack notification"
+n8nac skills examples search "AI chatbot telegram"
+n8nac skills examples search "invoice processing" --limit 20
+n8nac skills examples search "google sheets" --json
 
-n8nac-skills workflows info 916
-n8nac-skills workflows install 916
-n8nac-skills workflows install 4365 --output my-chatbot.json
-n8nac-skills workflows install 8088 --force
+n8nac skills examples info 916
+n8nac skills examples download 916
+n8nac skills examples download 4365 --output my-chatbot.json
+n8nac skills examples download 8088 --force
 
-n8nac-skills workflows list
-n8nac-skills workflows list --limit 50
+n8nac skills examples list
+n8nac skills examples list --limit 50
 ```
 
 ### `related <query>` - 🔗 Discover Resources
 
 ```bash
-n8nac-skills related googleSheets
+n8nac skills related googleSheets
 # Returns: Google Drive, Excel, Airtable, related docs
 
-n8nac-skills related "ai agents"
+n8nac skills related "ai agents"
 # Returns: AI-related concepts, nodes, examples
 ```
 
@@ -133,28 +133,28 @@ n8nac-skills related "ai agents"
 
 ```bash
 # Summary of nodes and docs
-n8nac-skills list
+n8nac skills list
 
 # List all node names
-n8nac-skills list --nodes
+n8nac skills list --nodes
 
 # List all doc categories
-n8nac-skills list --docs
+n8nac skills list --docs
 ```
 
 ### `validate <file>` - ✅ Validate Workflows
 
 ```bash
-n8nac-skills validate workflow.json
-n8nac-skills validate workflow.json --strict
+n8nac skills validate workflow.json
+n8nac skills validate workflow.json --strict
 ```
 
 ### `update-ai` - 🤖 Update AI Context
 Update AI Context (AGENTS.md, rule files, snippets).
 
 ```bash
-n8nac-skills update-ai
-n8nac-skills update-ai --version 1.70.0
+n8nac skills update-ai
+n8nac skills update-ai --version 1.70.0
 ```
 ## 📊 Output Format
 
@@ -214,8 +214,8 @@ The Skills CLI is designed to be used by AI coding assistants to:
 ```bash
 # AI Assistant workflow for generating n8n workflow code
 1. User asks: "Create a workflow that reads from Google Sheets"
-2. AI runs: npx @n8n-as-code/skills search "google sheets"
-3. AI gets node schemas: npx @n8n-as-code/skills get googleSheets
+2. AI runs: npx n8nac skills search "google sheets"
+3. AI gets node schemas: npx n8nac skills node-info googleSheets
 4. AI generates accurate JSON with proper parameters
 ```
 
@@ -236,7 +236,7 @@ This includes:
 ## 🔄 Related Tools
 
 ### AI Context Generation
-The main CLI (`@n8n-as-code/cli`) includes an `update-ai` command (with `init-ai` kept as an alias) that generates comprehensive context files for AI assistants:
+The main CLI (`n8nac`) includes an `update-ai` command (with `init-ai` kept as an alias) that generates comprehensive context files for AI assistants:
 
 ```bash
 n8nac update-ai
@@ -257,17 +257,17 @@ For workflow management and automation, use the [Main CLI](/docs/usage/cli).
 
 1. **Search for nodes you need:**
    ```bash
-   npx @n8n-as-code/skills search "your query"
+   npx n8nac skills search "your query"
    ```
 
 2. **Get detailed schema for a specific node:**
    ```bash
-   npx @n8n-as-code/skills get nodeName
+   npx n8nac skills node-info nodeName
    ```
 
 3. **List all available nodes:**
    ```bash
-   npx @n8n-as-code/skills list
+   npx n8nac skills list
    ```
 
 ## 📖 Next Steps
@@ -281,19 +281,19 @@ For workflow management and automation, use the [Main CLI](/docs/usage/cli).
 **Command not found:**
 ```bash
 # Make sure you're using the correct package name
-npx @n8n-as-code/skills --help
+npx n8nac skills --help
 ```
 
 **Node not found:**
 ```bash
 # Check available nodes first
-npx @n8n-as-code/skills list | grep "your-node"
+npx n8nac skills list | grep "your-node"
 ```
 
 **JSON parsing issues:**
 ```bash
 # Pipe output to jq for pretty printing
-npx @n8n-as-code/skills search "http" | jq .
+npx n8nac skills search "http" | jq .
 ```
 
 For more help, check the [Troubleshooting guide](/docs/troubleshooting) or [open an issue](https://github.com/EtienneLescot/n8n-as-code/issues).

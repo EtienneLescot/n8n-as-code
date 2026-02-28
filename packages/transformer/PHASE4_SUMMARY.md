@@ -72,13 +72,13 @@ Updated to support both file formats:
 **Usage Examples:**
 ```bash
 # Validate JSON workflow
-n8nac-skills validate my-workflow.json
+n8nac skills validate my-workflow.json
 
 # Validate TypeScript workflow
-n8nac-skills validate my-workflow.workflow.ts
+n8nac skills validate my-workflow.workflow.ts
 
 # Strict mode treats warnings as errors
-n8nac-skills validate workflow.ts --strict
+n8nac skills validate workflow.ts --strict
 ```
 
 ### 4. Workflows Install Command Enhanced
@@ -113,16 +113,16 @@ Added TypeScript conversion option:
 **Usage Examples:**
 ```bash
 # Download as JSON (default)
-n8nac-skills workflows install 123
+n8nac skills examples download 123
 
 # Download and convert to TypeScript
-n8nac-skills workflows install 123 --typescript
+n8nac skills examples download 123 --typescript
 
 # Download to specific path
-n8nac-skills workflows install 123 -o my-workflow.workflow.ts --typescript
+n8nac skills examples download 123 -o my-workflow.workflow.ts --typescript
 
 # Force overwrite existing file
-n8nac-skills workflows install 123 --typescript --force
+n8nac skills examples download 123 --typescript --force
 ```
 
 ## Technical Highlights
@@ -191,22 +191,22 @@ npm run build -w @n8n-as-code/skills ✅
 | Command | Description | New Features |
 |---------|-------------|--------------|
 | `validate <file>` | Validate workflow | Supports `.workflow.ts` files |
-| `workflows install <id>` | Download workflow | `--typescript` flag for conversion |
+| `examples download <id>` | Download workflow | `--typescript` flag for conversion |
 
 ### Example Workflow
 
 ```bash
 # 1. Search for a workflow
-n8nac-skills workflows search "email automation"
+n8nac skills examples search "email automation"
 
 # 2. Get workflow details
-n8nac-skills workflows info 42
+n8nac skills examples info 42
 
 # 3. Download as TypeScript
-n8nac-skills workflows install 42 --typescript
+n8nac skills examples download 42 --typescript
 
 # 4. Validate the downloaded workflow
-n8nac-skills validate email-automation.workflow.ts
+n8nac skills validate email-automation.workflow.ts
 
 # 5. Use in your n8n-as-code project
 # (Sync package will now recognize .workflow.ts files)

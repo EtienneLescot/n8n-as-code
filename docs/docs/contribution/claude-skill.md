@@ -105,7 +105,7 @@ description: Expert assistant... # max 1024 chars, explains WHEN to use
 
 **DO:**
 - Reuse content from `AiContextGenerator.getAgentsContent()`
-- Use `npx -y @n8n-as-code/skills` (the `-y` flag is critical)
+- Use `npx n8nac skills` (via the `n8nac` unified CLI)
 - Provide concrete examples in bash code blocks
 - Keep instructions imperative and clear
 
@@ -113,7 +113,7 @@ description: Expert assistant... # max 1024 chars, explains WHEN to use
 - Invent parameters or hallucinate capabilities
 - Remove YAML frontmatter
 - Use vague language
-- Add commands not in `@n8n-as-code/skills`
+- Add commands not supported by `n8nac skills`
 
 ## 🔄 Content Consistency
 
@@ -188,7 +188,7 @@ This package follows the monorepo's Changeset workflow:
 
 ## 📚 Key Dependencies
 
-- **@n8n-as-code/skills**: Provides the CLI commands executed by the skill
+- **n8nac**: The unified CLI that exposes `@n8n-as-code/skills` commands via `npx n8nac skills`
 - **Node.js**: Required for NPX execution
 - **Bash**: Scripts are bash-based
 

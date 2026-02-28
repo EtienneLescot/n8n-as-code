@@ -6,18 +6,18 @@ description: Learn how to use the n8nac CLI for automation, scripting, and CI/CD
 
 # CLI Guide
 
-The n8nac CLI (`@n8n-as-code/cli`) provides command-line access to all n8nac functionality. It's perfect for automation, scripting, and CI/CD integration.
+The n8nac CLI (`n8nac`) provides command-line access to all n8nac functionality. It's perfect for automation, scripting, and CI/CD integration.
 
 ## 📦 Installation
 
 ### Global Installation
 ```bash
-npm install -g @n8n-as-code/cli
+npm install -g n8nac
 ```
 
 ### Project Installation
 ```bash
-npm install --save-dev @n8n-as-code/cli
+npm install --save-dev n8nac
 ```
 
 ### Verify Installation

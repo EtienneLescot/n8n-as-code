@@ -283,7 +283,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     const health = await client.getHealth();
                     const version = health.version;
                     progress?.report({ message: 'Generating AGENTS.md...' });
-                    await new AiContextGenerator().generate(rootPath, version, context.extensionPath);
+                    await new AiContextGenerator().generate(rootPath, version);
                     progress?.report({ message: 'Generating Snippets...' });
                     await new SnippetGenerator().generate(rootPath);
                     context.workspaceState.update('n8n.lastInitVersion', version);

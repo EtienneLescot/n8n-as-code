@@ -59,7 +59,7 @@ If you prefer command-line tools or need automation:
 
 ```bash
 # Install globally
-npm install -g @n8n-as-code/cli
+npm install -g n8nac
 
 # Verify installation
 n8nac --version

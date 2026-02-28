@@ -10,7 +10,7 @@ description: Development guide for the n8n-as-code CLI package, covering archite
 
 ## 🎯 Purpose
 
-The CLI package (`@n8n-as-code/cli`) provides a command-line interface for managing n8n workflows from the terminal. It offers:
+The CLI package (`n8nac`) provides a command-line interface for managing n8n workflows from the terminal. It offers:
 
 - **Project Management**: Initialize and configure n8n-as-code projects
 - **Workflow Synchronization**: Sync workflows between local files and n8n with git-like commands
@@ -222,7 +222,7 @@ The CLI currently loads local configuration from `n8nac-config.json` in the curr
 The CLI commands use the sync engine (embedded in `packages/cli/src/core/`):
 
 ```typescript
-import { SyncManager, StateManager, N8nApiClient } from '@n8n-as-code/cli';
+import { SyncManager, StateManager, N8nApiClient } from 'n8nac';
 
 class SyncCommand extends BaseCommand {
   private syncManager: SyncManager;
@@ -389,7 +389,7 @@ The CLI uses `pkg` or `nexe` for creating standalone executables:
 ```json
 {
   "bin": {
-    "n8n-as-code": "./bin/n8n-as-code.js"
+    "n8nac": "./dist/index.js"
   }
 }
 ```
@@ -461,4 +461,4 @@ Check the terminal output (and VS Code Output panel when using the extension) fo
 
 ---
 
-*The CLI package provides powerful command-line tools for n8n workflow management, enabling automation, scripting, and integration with other development tools.*
+*The `n8nac` package provides powerful command-line tools for n8n workflow management, enabling automation, scripting, and integration with other development tools. It also exposes `n8nac skills` — a subcommand group bridging to the `@n8n-as-code/skills` library for AI agent tooling.*

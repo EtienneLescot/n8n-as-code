@@ -108,8 +108,10 @@ jobs:
         run: cd packages/skills && npm publish --access public --tag ${{ steps.dist.outputs.tag }}
 
       - name: Publish n8nac
-        if: github.ref == 'refs/heads/next' || needs.release-please.outputs.cli_release_created == 'true'
-        run: cd packages/cli && npm publish --access public --tag ${{ steps.dist.outputs.tag }}
+        if: ${{ needs.release-please.outputs.cli_release_created == 'true' }}
+        run: cd packages/cli && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish VS Code Extension (pre-release)
         if: github.ref == 'refs/heads/next'
