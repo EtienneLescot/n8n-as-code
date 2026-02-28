@@ -9,7 +9,7 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 permissions:
   contents: write
   pull-requests: write
-  id-token: write
+  id-token: write  # Required for npm trusted publishing (OIDC)
 
 jobs:
   release-please:
@@ -33,21 +33,23 @@ jobs:
     name: Publish
     runs-on: ubuntu-latest
     needs: release-please
+    # Run on next (pre-release) OR on main when release-please created releases
     if: |
       always() && (
         github.ref == 'refs/heads/next' ||
         (needs.release-please.result == 'success' && needs.release-please.outputs.releases_created == 'true')
       )
     environment: ${{ github.ref == 'refs/heads/next' && 'next' || 'prod' }}
-
     steps:
       - name: Set dist-tag
         id: dist
         run: |
           if [[ "$GITHUB_REF" == "refs/heads/next" ]]; then
             echo "tag=next" >> $GITHUB_OUTPUT
+            echo "prerelease=true" >> $GITHUB_OUTPUT
           else
             echo "tag=latest" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Checkout
@@ -58,11 +60,6 @@ jobs:
         with:
           node-version: '22.14'
           registry-url: 'https://registry.npmjs.org/'
-
-      - name: Upgrade npm for trusted publishing
-        run: |
-          npm install -g npm@^11.5.1
-          npm --version
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -99,6 +96,8 @@ jobs:
       - name: Build all packages
         run: npm run build
 
+      # Publish in dependency order: transformer → skills → cli
+      # Authentication via OIDC trusted publishing — no token needed
       - name: Publish @n8n-as-code/transformer
         if: github.ref == 'refs/heads/next' || needs.release-please.outputs.transformer_release_created == 'true'
         run: cd packages/transformer && npm publish --access public --tag ${{ steps.dist.outputs.tag }}
@@ -108,15 +107,11 @@ jobs:
         run: cd packages/skills && npm publish --access public --tag ${{ steps.dist.outputs.tag }}
 
       - name: Publish n8nac
-        if: ${{ needs.release-please.outputs.cli_release_created == 'true' }}
-        run: cd packages/cli && npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        if: github.ref == 'refs/heads/next' || needs.release-please.outputs.cli_release_created == 'true'
+        run: cd packages/cli && npm publish --access public --tag ${{ steps.dist.outputs.tag }}
 
-      - name: Publish VS Code Extension (pre-release)
-        if: github.ref == 'refs/heads/next'
-        env:
-          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
+      - name: Publish VS Code Extension
+        if: github.ref == 'refs/heads/next' || needs.release-please.outputs.vscode_release_created == 'true'
         run: |
           cd packages/vscode-extension
           if [[ -z "$VSCE_TOKEN" ]]; then
@@ -124,17 +119,6 @@ jobs:
             exit 1
           fi
           npx @vscode/vsce package --no-dependencies
-          npx @vscode/vsce publish --no-dependencies --pre-release --pat "$VSCE_TOKEN"
-
-      - name: Publish VS Code Extension (stable)
-        if: github.ref == 'refs/heads/main' && needs.release-please.outputs.vscode_release_created == 'true'
-        env:
-          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
-        run: |
-          cd packages/vscode-extension
-          if [[ -z "$VSCE_TOKEN" ]]; then
-            echo "❌ VSCE_TOKEN is missing in environment 'prod'."
-            exit 1
-          fi
-          npx @vscode/vsce package --no-dependencies
-          npx @vscode/vsce publish --no-dependencies --pat "$VSCE_TOKEN"
+          FLAGS=""
+          if [[ "${{ steps.dist.outputs.prerelease }}" == "true" ]]; then FLAGS="--pre-release"; fi
+          npx @vscode/vsce publish --no-dependencies $FLAGS --pat ${{ secrets.VSCE_TOKEN }}
