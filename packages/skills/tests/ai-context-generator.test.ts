@@ -69,16 +69,6 @@ describe('AiContextGenerator', () => {
             expect(agentsContent).not.toContain('./n8nac ');
         });
 
-        test('should use versioned n8nac commands when toolVersion is provided', async () => {
-            await generator.generate(tempDir, '1.0.0', '0.9.7');
-
-            const agentsPath = path.join(tempDir, 'AGENTS.md');
-            const agentsContent = fs.readFileSync(agentsPath, 'utf-8');
-
-            expect(agentsContent).toContain('npx n8nac@0.9.7 skills');
-            expect(agentsContent).not.toContain('./n8nac-skills');
-        });
-
         test('should NOT create shim files (shims removed)', async () => {
             await generator.generate(tempDir, '1.0.0');
 
@@ -87,4 +77,4 @@ describe('AiContextGenerator', () => {
             expect(fs.existsSync(path.join(tempDir, 'n8nac'))).toBe(false);
             expect(fs.existsSync(path.join(tempDir, 'n8nac.cmd'))).toBe(false);
         });
-    });
+    });});

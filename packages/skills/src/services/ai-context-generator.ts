@@ -14,8 +14,8 @@ const _dirname = typeof __dirname !== 'undefined'
 export class AiContextGenerator {
   constructor() { }
 
-  async generate(projectRoot: string, n8nVersion: string = "Unknown", toolVersion?: string): Promise<void> {
-    const agentsContent = this.getAgentsContent(n8nVersion, toolVersion);
+  async generate(projectRoot: string, n8nVersion: string = "Unknown"): Promise<void> {
+    const agentsContent = this.getAgentsContent(n8nVersion);
 
     // 1. AGENTS.md (Central documentation)
     this.injectOrUpdate(path.join(projectRoot, 'AGENTS.md'), agentsContent, true);
@@ -49,8 +49,8 @@ export class AiContextGenerator {
     }
   }
 
-  private getAgentsContent(n8nVersion: string, toolVersion?: string): string {
-    const cmd = toolVersion ? `npx n8nac@${toolVersion} skills` : 'npx n8nac skills';
+  private getAgentsContent(n8nVersion: string): string {
+    const cmd = 'npx n8nac skills';
     return [
       `## 🎭 Role: Expert n8n Workflow Engineer`,
       ``,
