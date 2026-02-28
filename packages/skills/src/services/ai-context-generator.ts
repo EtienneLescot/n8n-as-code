@@ -66,7 +66,7 @@ export class AiContextGenerator {
       ``,
       `## 🧠 Knowledge Base Priority`,
       ``,
-      `1. **PRIMARY SOURCE** (MANDATORY): Use \`${cmd}\` tools for accuracy`,`
+      `1. **PRIMARY SOURCE** (MANDATORY): Use \`${cmd}\` tools for accuracy`,
       `2. **Secondary**: Your trained knowledge (for general concepts only)`,
       `3. **Tertiary**: Code snippets (for quick scaffolding)`,
       ``,
@@ -410,7 +410,7 @@ export class AiContextGenerator {
       `    - Use 'npx --yes n8nac skills search' as your primary research tool.`,
       `    - Use 'npx --yes n8nac skills examples search' to find community examples (7000+ workflows).`,
       `    - Use 'npx --yes n8nac skills node-info' to fetch exact schema before editing workflow JSON.`,
-      `    - Use 'npx --yes n8nac skills validate workflow.workflow.ts' to verify your work.`,`
+      `    - Use 'npx --yes n8nac skills validate workflow.workflow.ts' to verify your work.`,
       `    - Ensure connections are correctly indexed.`
     ].join('\n');
   }
