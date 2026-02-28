@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { WorkflowSyncStatus } from '@n8n-as-code/cli';
+import { WorkflowSyncStatus } from 'n8nac';
 
 /**
  * Provides file decorations for workflow items in the tree view

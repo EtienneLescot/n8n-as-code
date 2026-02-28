@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import {
     SyncManager, CliApi, N8nApiClient, IN8nCredentials, WorkflowSyncStatus,
     createInstanceIdentifier, createFallbackInstanceIdentifier
-} from '@n8n-as-code/cli';
+} from 'n8nac';
 import { AiContextGenerator, SnippetGenerator } from '@n8n-as-code/skills';
 
 import { StatusBar } from './ui/status-bar.js';
