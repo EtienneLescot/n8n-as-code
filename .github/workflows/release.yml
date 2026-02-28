@@ -86,11 +86,17 @@ jobs:
         if: github.ref == 'refs/heads/next'
         run: |
           SHA=$(git rev-parse --short HEAD)
-          for pkg in packages/transformer packages/skills packages/cli packages/vscode-extension; do
+          for pkg in packages/transformer packages/skills packages/cli; do
             NAME=$(node -p "require('./$pkg/package.json').name")
             BASE=$(node -p "require('./$pkg/package.json').version.replace(/-next.*$/, '-next')")
             npm version "${BASE}.${SHA}" --no-git-tag-version --workspace="$NAME"
           done
+
+      - name: Normalize VS Code pre-release version (next only)
+        if: github.ref == 'refs/heads/next'
+        run: |
+          BASE=$(node -p "require('./packages/vscode-extension/package.json').version.replace(/-next.*$/, '')")
+          npm version "$BASE" --no-git-tag-version --workspace=n8n-as-code
 
       - name: Build all packages
         run: npm run build
