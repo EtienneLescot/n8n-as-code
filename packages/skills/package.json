@@ -1,13 +1,10 @@
 {
     "name": "@n8n-as-code/skills",
     "version": "0.16.7",
-    "description": "AI Agent Skills for n8n-as-code (Search, Get Schema)",
+    "description": "AI Agent skills library for n8nac (internal — use npx n8nac skills)",
     "type": "module",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
-    "bin": {
-        "n8nac-skills": "./dist/cli.js"
-    },
     "scripts": {
         "prebuild": "node ../../scripts/ensure-n8n-cache.cjs && node ../../scripts/generate-n8n-index.cjs && node ../../scripts/download-complete-docs.cjs && node ../../scripts/build-complete-index.cjs && node ../../scripts/enrich-nodes-technical.cjs && node ../../scripts/build-knowledge-index.cjs && node ../../scripts/build-workflow-index.cjs",
         "build": "tsc -b",

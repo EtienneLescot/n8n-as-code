@@ -140,28 +140,28 @@ const aiResults = provider.searchNodes('ai assistant');
 
 ```bash
 # Search for nodes
-npx @n8n-as-code/skills search "gemini"
-npx @n8n-as-code/skills search "generate image"
-npx @n8n-as-code/skills search "openai"
+npx n8nac skills search "gemini"
+npx n8nac skills search "generate image"
+npx n8nac skills search "openai"
 
 # Get specific node schema
-npx @n8n-as-code/skills get "googleGemini"
+npx n8nac skills node-info "googleGemini"
 
 # List all nodes
-npx @n8n-as-code/skills list
+npx n8nac skills list
 ```
 
 ## 🎨 Improved Results
 
 ### Before (Old System)
 ```bash
-$ npx n8nac-skills search "gemini"
+$ npx n8nac skills search "gemini"
 # No results found!
 ```
 
 ### After (Enhanced System)
 ```bash
-$ npx n8nac-skills search "gemini"
+$ npx n8nac skills search "gemini"
 [
   {
     "name": "googleGemini",

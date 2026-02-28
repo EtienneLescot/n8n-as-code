@@ -168,7 +168,7 @@ npm run build
 ## 🎯 Find Guides
 
 ```bash
-./n8nac-skills guides "gmail to discord"
+n8nac skills guides "gmail to discord"
 ```
 Quickly find workflow templates and tutorials matching your use case.
 
@@ -176,10 +176,10 @@ Quickly find workflow templates and tutorials matching your use case.
 
 ### Before (Old System - ❌ Broken)
 ```bash
-$ npx n8nac-skills search "gemini"
+$ npx n8nac skills search "gemini"
 []  # No results!
 
-$ npx n8nac-skills search "generate image"
+$ npx n8nac skills search "generate image"
 []  # No results!
 ```
 
@@ -191,7 +191,7 @@ $ npx n8nac-skills search "generate image"
 
 ### After (New System - ✅ Works!)
 ```bash
-$ npx n8nac-skills search "gemini"
+$ npx n8nac skills search "gemini"
 [
   {
     "name": "googleGemini",
@@ -203,7 +203,7 @@ $ npx n8nac-skills search "gemini"
   ...
 ]
 
-$ npx n8nac-skills search "generate image"
+$ npx n8nac skills search "generate image"
 [
   {
     "name": "googleGemini",
@@ -237,15 +237,13 @@ Once built, use the CLI:
 
 ```bash
 # Search (most common)
-n8nac-skills search "your query"
+n8nac skills search "your query"
 
 # Get schema (for code generation)
-n8nac-skills get "nodeName"
+n8nac skills node-info "nodeName"
 
 # List all (for discovery)
-n8nac-skills list | grep -i "keyword"
-
-# Note: You can also use 'npx @n8n-as-code/skills' if not installed globally
+n8nac skills list | grep -i "keyword"
 ```
 
 ## 📚 More Info

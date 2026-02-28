@@ -248,29 +248,26 @@ n8nac convert-batch ./workflows --format typescript --force
 
 ```bash
 # Validate JSON workflow
-n8nac-skills validate my-workflow.json
+n8nac skills validate my-workflow.json
 
 # Validate TypeScript workflow
-n8nac-skills validate my-workflow.workflow.ts
+n8nac skills validate my-workflow.workflow.ts
 
 # Strict mode (warnings as errors)
-n8nac-skills validate my-workflow.workflow.ts --strict
+n8nac skills validate my-workflow.workflow.ts --strict
 ```
 
 ### Download Community Workflows
 
 ```bash
 # Search workflows
-n8nac-skills workflows search "email automation"
+n8nac skills examples search "email automation"
 
-# Download as JSON (default)
-n8nac-skills workflows install 123
-
-# Download as TypeScript
-n8nac-skills workflows install 123 --typescript
+# Download as TypeScript (default for .workflow.ts output)
+n8nac skills examples download 123
 
 # Custom output path
-n8nac-skills workflows install 123 -o my-workflow.workflow.ts --typescript
+n8nac skills examples download 123 -o my-workflow.workflow.ts
 ```
 
 ## Migration Guide

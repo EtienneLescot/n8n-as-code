@@ -54,35 +54,37 @@ describe('AiContextGenerator', () => {
             const startMarkers = run2.match(/<!-- n8n-as-code-start -->/g);
             expect(startMarkers?.length).toBe(1);
         });
-    });
 
-    describe('Shim Generation', () => {
-        test('should generate robust shim checking for local node_modules (simulate VS Code)', async () => {
-            const mockExtPath = '/mock/extension/path';
-            await generator.generate(tempDir, undefined, mockExtPath);
+        test('should use npx n8nac skills commands (no shims)', async () => {
+            await generator.generate(tempDir, '1.0.0');
 
-            const shimPath = path.join(tempDir, 'n8nac-skills');
-            expect(fs.existsSync(shimPath)).toBe(true);
+            const agentsPath = path.join(tempDir, 'AGENTS.md');
+            const agentsContent = fs.readFileSync(agentsPath, 'utf-8');
 
-            const content = fs.readFileSync(shimPath, 'utf-8');
+            // New unified command format
+            expect(agentsContent).toContain('npx n8nac skills');
 
-            // Should contain standard NPM path check
-            expect(content).toContain('CLI_PATH="./node_modules/@n8n-as-code/skills/dist/cli.js"');
-            expect(content).toContain('if [ -f "$CLI_PATH" ]; then');
-
-            // Should contain extension absolute path check when extensionPath provided
-            expect(content).toContain(`if [ -f "${mockExtPath}/out/skills/cli.js"`);
+            // No old shim-style commands
+            expect(agentsContent).not.toContain('./n8nac-skills');
+            expect(agentsContent).not.toContain('./n8nac ');
         });
 
-        test('should prioritize extension path if provided', async () => {
-            const mockExtPath = '/mock/extension/path';
-            await generator.generate(tempDir, '1.0.0', mockExtPath);
+        test('should use versioned n8nac commands when toolVersion is provided', async () => {
+            await generator.generate(tempDir, '1.0.0', '0.9.7');
 
-            const shimPath = path.join(tempDir, 'n8nac-skills');
-            const content = fs.readFileSync(shimPath, 'utf-8');
+            const agentsPath = path.join(tempDir, 'AGENTS.md');
+            const agentsContent = fs.readFileSync(agentsPath, 'utf-8');
 
-            // Should contain explicit extension path check with new subpath
-            expect(content).toContain(`if [ -f "${mockExtPath}/out/skills/cli.js" ]; then`);
+            expect(agentsContent).toContain('npx n8nac@0.9.7 skills');
+            expect(agentsContent).not.toContain('./n8nac-skills');
+        });
+
+        test('should NOT create shim files (shims removed)', async () => {
+            await generator.generate(tempDir, '1.0.0');
+
+            expect(fs.existsSync(path.join(tempDir, 'n8nac-skills'))).toBe(false);
+            expect(fs.existsSync(path.join(tempDir, 'n8nac-skills.cmd'))).toBe(false);
+            expect(fs.existsSync(path.join(tempDir, 'n8nac'))).toBe(false);
+            expect(fs.existsSync(path.join(tempDir, 'n8nac.cmd'))).toBe(false);
         });
     });
-});

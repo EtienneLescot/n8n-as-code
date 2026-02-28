@@ -2,19 +2,20 @@
 import { Command } from 'commander';
 import { ListCommand } from './commands/list.js';
 import { SyncCommand } from './commands/sync.js';
-import { UpdateAiCommand, InitAiCommand } from './commands/init-ai.js';
+import { InitAiCommand } from './commands/init-ai.js';
 import { InitCommand } from './commands/init.js';
 import { SwitchCommand } from './commands/switch.js';
 import { ConvertCommand } from './commands/convert.js';
+import { registerSkillsCommands } from '@n8n-as-code/skills';
 import chalk from 'chalk';
 
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { createRequire } from 'module';
 
 /**
  * Get version from package.json
- * We use a simple approach that works with our build system
  */
 const getVersion = () => {
     try {
@@ -23,12 +24,28 @@ const getVersion = () => {
         // package.json is at packages/cli/package.json
         const pkgPath = join(__dirname, '..', 'package.json');
         const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-        if (pkg.name === '@n8n-as-code/cli') return pkg.version;
-
-        // Fallback for different execution contexts
-        return '0.1.0-unknown';
+        return pkg.version || '0.1.0-unknown';
     } catch {
         return '0.1.0-error';
+    }
+};
+
+/**
+ * Resolve the skills assets directory bundled with @n8n-as-code/skills
+ */
+const getSkillsAssetsDir = (): string => {
+    // Allow override via environment
+    if (process.env.N8N_AS_CODE_ASSETS_DIR) {
+        return process.env.N8N_AS_CODE_ASSETS_DIR;
+    }
+    try {
+        const require = createRequire(import.meta.url);
+        const skillsPkg = require.resolve('@n8n-as-code/skills/package.json');
+        return join(dirname(skillsPkg), 'dist', 'assets');
+    } catch {
+        // Fallback: skills lives next to cli in a monorepo
+        const __dirname = dirname(fileURLToPath(import.meta.url));
+        return join(__dirname, '..', '..', 'skills', 'dist', 'assets');
     }
 };
 
@@ -125,10 +142,13 @@ program.command('convert-batch')
         await new ConvertCommand().batch(directory, options);
     });
 
-// update-ai - Maintenance command to refresh AI Context files
-new UpdateAiCommand(program);
+// skills - AI knowledge tools subcommand group
+const skillsCmd = program
+    .command('skills')
+    .description('AI tools: search nodes, docs, guides, validate workflows, and more');
+registerSkillsCommands(skillsCmd, getSkillsAssetsDir());
 
-// Backward compatibility: keep init-ai as alias
+// Backward compatibility alias
 new InitAiCommand(program);
 
 program.parse();

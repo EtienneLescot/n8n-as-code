@@ -1,12 +1,11 @@
 {
-    "name": "@n8n-as-code/cli",
+    "name": "n8nac",
     "version": "0.9.8",
-    "description": "CLI for n8n-as-code ecosystem",
+    "description": "Unified CLI for n8n-as-code — manage workflows and access AI tools",
     "main": "./dist/lib.js",
     "types": "./dist/lib.d.ts",
     "bin": {
-        "n8nac": "./dist/index.js",
-        "n8n-as-code": "./dist/bin/legacy.js"
+        "n8nac": "./dist/index.js"
     },
     "type": "module",
     "scripts": {

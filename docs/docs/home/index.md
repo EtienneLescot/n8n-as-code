@@ -120,7 +120,7 @@ Ready to get started? Here's how to set up n8n-as-code in under 2 minutes:
 
 1. **Install the CLI**:
    ```bash
-   npm install -g @n8n-as-code/cli
+   npm install -g n8nac
    ```
 
 2. **Initialize your project**:

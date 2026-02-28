@@ -163,7 +163,7 @@ Shows sync status and quick actions in VS Code status bar.
 The extension uses the Sync library through dependency injection:
 
 ```typescript
-import { SyncManager, StateManager } from '@n8n-as-code/cli';
+import { SyncManager, StateManager } from 'n8nac';
 
 class ExtensionServices {
   private syncManager: SyncManager;

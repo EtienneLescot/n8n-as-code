@@ -42,12 +42,12 @@ cat n8nac-config.json
 **Solutions:**
 1. **Global Installation:**
    ```bash
-   npm install -g @n8n-as-code/cli
+   npm install -g n8nac
    ```
 
 2. **Local Installation:**
    ```bash
-   npm install --save-dev @n8n-as-code/cli
+   npm install --save-dev n8nac
    npx n8nac --version
    ```
 

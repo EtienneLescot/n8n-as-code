@@ -83,7 +83,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish @n8n-as-code/cli
+      - name: Publish n8nac
         if: ${{ needs.release-please.outputs.cli_release_created == 'true' }}
         run: cd packages/cli && npm publish --access public
         env:

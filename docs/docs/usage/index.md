@@ -129,16 +129,16 @@ n8nac push --workflowsid <workflowId>
 4. Use context menu actions (right-click) for fetch, pull, push operations
 
 ### 2. CLI
-1. Install globally: `npm install -g @n8n-as-code/cli`
+1. Install globally: `npm install -g n8nac`
 2. Initialize: `n8nac init`
 3. (Optional) Switch project: `n8nac switch`
 4. Sync workflows: `n8nac pull`
 4. Use commands as needed for automation
 
-### 3. Skills CLI (For AI Tools)
-1. Run with npx: `npx @n8n-as-code/skills --help`
-2. Search for nodes: `npx @n8n-as-code/skills search "query"`
-3. Get node schemas: `npx @n8n-as-code/skills get nodeName`
+### 3. AI Tools (via `n8nac skills`)
+1. Run with npx: `npx n8nac skills --help`
+2. Search for nodes: `npx n8nac skills search "query"`
+3. Get node schemas: `npx n8nac skills node-info nodeName`
 4. Use output for AI context or development
 
 ### 4. Claude Skill (For Claude AI)

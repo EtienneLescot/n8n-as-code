@@ -22,8 +22,8 @@ This architecture enables **progressive disclosure** - Claude only loads content
 
 When installed, Claude will:
 
-- ✅ Search n8n nodes using `npx @n8n-as-code/skills search`
-- ✅ Retrieve exact node schemas using `npx @n8n-as-code/skills get`
+- ✅ Search n8n nodes using `npx n8nac skills search`
+- ✅ Retrieve exact node schemas using `npx n8nac skills node-info`
 - ✅ Generate valid workflow JSON without hallucinating parameters
 - ✅ Follow n8n best practices (modern expressions, Code node, no hardcoded credentials)
 
@@ -36,9 +36,9 @@ Claude detects n8n context (via skill description)
          ↓
 Claude reads SKILL.md instructions
          ↓
-Claude runs: npx -y @n8n-as-code/skills search "http request"
+Claude runs: npx n8nac skills search "http request"
          ↓
-Claude runs: npx -y @n8n-as-code/skills get "httpRequest"
+Claude runs: npx n8nac skills node-info "httpRequest"
          ↓
 Claude generates workflow JSON using real schema
 ```
@@ -166,8 +166,8 @@ You manage n8n workflows as **clean, version-controlled JSON**.
 
 ### 🔬 Research Protocol (MANDATORY)
 Do NOT hallucinate node parameters. Use these tools:
-- npx -y @n8n-as-code/skills search "<term>"
-- npx -y @n8n-as-code/skills get "<nodeName>"
+- npx n8nac skills search "<term>"
+- npx n8nac skills node-info "<nodeName>"
 ...
 `;
 ```
@@ -177,10 +177,10 @@ This ensures consistency between AGENTS.md (for Cursor/Windsurf) and SKILL.md (f
 ## 🔒 Security
 
 - ✅ Runs 100% locally (no external servers)
-- ✅ Uses NPX to execute `@n8n-as-code/skills`
+- ✅ Uses NPX to execute `n8nac skills`
 - ✅ Open-source and auditable
 - ⚠️ Requires Node.js and npm on the machine
-- ⚠️ First run downloads `@n8n-as-code/skills` via NPX
+- ⚠️ First run downloads `n8nac` via NPX
 
 ## 📚 Related Documentation
 

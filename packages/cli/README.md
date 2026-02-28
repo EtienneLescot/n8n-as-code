@@ -1,13 +1,13 @@
-# <img src="https://raw.githubusercontent.com/EtienneLescot/n8n-as-code/main/res/logo.png" alt="n8n-as-code logo" width="32" height="32"> @n8n-as-code/cli
+# <img src="https://raw.githubusercontent.com/EtienneLescot/n8n-as-code/main/res/logo.png" alt="n8n-as-code logo" width="32" height="32"> n8nac
 
 The main command-line interface for the **n8n-as-code** ecosystem. Manage, synchronize, and version-control your n8n workflows as TypeScript files.
 
-> This package also embeds the synchronization engine and exposes it as a library for the VS Code extension.
+> This package also embeds the synchronization engine and exposes it as a library for the VS Code extension. It includes a `skills` subcommand group that forwards to `@n8n-as-code/skills` for AI agent tooling.
 
 ## Installation
 
 ```bash
-npm install -g @n8n-as-code/cli
+npm install -g n8nac
 ```
 
 ## Commands
@@ -103,25 +103,20 @@ n8nac resolve --workflowsid <id> --mode keep-incoming   # Force-pull remote vers
 ---
 
 ### `update-ai`
-Generate or refresh AI context files in the project root. This command will create `AGENTS.md` and VS Code snippets (when possible).
-
-Note: to run skills-related tooling locally you must have `@n8n-as-code/skills` available in your environment. Install it into your project or globally, or run via `npx`:
-
-```bash
-# Install locally as dev dependency
-npm install --save-dev @n8n-as-code/skills
-
-# Or install globally
-npm install -g @n8n-as-code/skills
-
-# Or run via npx
-npx @n8n-as-code/skills update-ai
-```
-
-The CLI will not create local executable shims in the project root when invoked directly. Shims such as `n8nac` / `n8nac.cmd` and `n8nac-skills` are only generated when `update-ai` is executed by the VS Code extension (the extension provides its installation path to create safe, versioned shims). This avoids surprising file creation in projects where the skills CLI is installed independently.
+Generate or refresh AI context files in the project root. This command creates `AGENTS.md`, VS Code snippets, and editor rule files.
 
 ```bash
 n8nac update-ai
+# or equivalently:
+n8nac skills update-ai
+```
+
+AI tooling commands are available as `n8nac skills <command>` — powered by `@n8n-as-code/skills`. Run via npx (no global install needed):
+
+```bash
+npx n8nac skills --help
+npx n8nac skills search "google sheets"
+npx n8nac skills node-info googleSheets
 ```
 
 ---
@@ -164,7 +159,7 @@ n8nac push --workflowsid <workflowId>
 ---
 
 ## 🏗 Part of the Ecosystem
-- `@n8n-as-code/skills`: AI-integration tools (node search, schemas, context generation).
+- `@n8n-as-code/skills`: Internal AI-integration library (node search, schemas, context generation) — accessible via `n8nac skills`.
 - `vscode-extension`: Visual editing in VS Code (uses this package as its sync library).
 
 ## 📄 License
