@@ -111,13 +111,15 @@ jobs:
 
       - name: Publish VS Code Extension
         if: github.ref == 'refs/heads/next' || needs.release-please.outputs.vscode_release_created == 'true'
+        env:
+          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
         run: |
           cd packages/vscode-extension
           if [[ -z "$VSCE_TOKEN" ]]; then
-            echo "❌ VSCE_TOKEN is missing in environment 'next'."
+            echo "❌ VSCE_TOKEN is missing. Add it to GitHub Environment secrets for '${{ github.ref == 'refs/heads/next' && 'next' || 'prod' }}'."
             exit 1
           fi
           npx @vscode/vsce package --no-dependencies
           FLAGS=""
           if [[ "${{ steps.dist.outputs.prerelease }}" == "true" ]]; then FLAGS="--pre-release"; fi
-          npx @vscode/vsce publish --no-dependencies $FLAGS --pat ${{ secrets.VSCE_TOKEN }}
+          npx @vscode/vsce publish --no-dependencies $FLAGS --pat "$VSCE_TOKEN"
