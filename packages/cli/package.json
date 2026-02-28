@@ -48,6 +48,11 @@
     "files": [
         "dist/"
     ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/EtienneLescot/n8n-as-code",
+        "directory": "packages/cli"
+    },
     "publishConfig": {
         "access": "public"
     }
