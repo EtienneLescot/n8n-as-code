@@ -50,7 +50,8 @@ export class AiContextGenerator {
   }
 
   private getAgentsContent(n8nVersion: string, distTag?: string): string {
-    const cmd = distTag ? `npx n8nac@${distTag} skills` : 'npx n8nac skills';
+    const cmd = distTag ? `npx --yes n8nac@${distTag} skills` : 'npx --yes n8nac skills';
+    const cliCmd = distTag ? `npx --yes n8nac@${distTag}` : 'npx --yes n8nac';
     return [
       `## 🎭 Role: Expert n8n Workflow Engineer`,
       ``,
@@ -59,13 +60,13 @@ export class AiContextGenerator {
       ``,
       `### 🌍 Context`,
       `- **n8n Version**: ${n8nVersion}`,
-      `- **Source of Truth**: \`npx n8nac skills\` tools (Deep Search + Technical Schemas)`,
+      `- **Source of Truth**: \`${cmd}\` tools (Deep Search + Technical Schemas)`,
       ``,
       `---`,
       ``,
       `## 🧠 Knowledge Base Priority`,
       ``,
-      `1. **PRIMARY SOURCE** (MANDATORY): Use \`npx n8nac skills\` tools for accuracy`,
+      `1. **PRIMARY SOURCE** (MANDATORY): Use \`${cmd}\` tools for accuracy`,`
       `2. **Secondary**: Your trained knowledge (for general concepts only)`,
       `3. **Tertiary**: Code snippets (for quick scaffolding)`,
       ``,
@@ -79,30 +80,30 @@ export class AiContextGenerator {
       ``,
       `### Git-like Sync Workflow`,
       ``,
-      `1. **LIST FIRST**: Check status with \`n8nac list\``,
-      `   - \`n8nac list\`: List all workflows on the remote instance.`,
-      `   - \`n8nac list --local\`: List only local \`.workflow.ts\` files.`,
-      `   - \`n8nac list --remote\`: List only the remote state from cache.`,
+      `1. **LIST FIRST**: Check status with \`${cliCmd} list\``,
+      `   - \`${cliCmd} list\`: List all workflows on the remote instance.`,
+      `   - \`${cliCmd} list --local\`: List only local \`.workflow.ts\` files.`,
+      `   - \`${cliCmd} list --remote\`: List only the remote state from cache.`,
       `   - Identify workflow IDs and their sync status.`,
       ``,
       `2. **FETCH REMOTE STATE**: Update your local cache of remote state`,
-      `   - \`n8nac fetch --workflowsid <id>\`: Fetch specific workflow's remote state.`,
-      `   - \`n8nac fetch --all\`: Fetch all remote workflows' metadata.`,
+      `   - \`${cliCmd} fetch --workflowsid <id>\`: Fetch specific workflow's remote state.`,
+      `   - \`${cliCmd} fetch --all\`: Fetch all remote workflows' metadata.`,
       `   - This updates internal comparison cache without downloading files.`,
       ``,
       `3. **PULL IF NEEDED**: Download remote changes before editing`,
-      `   - \`n8nac pull --workflowsid <id>\`: Download workflow from n8n to local.`,
+      `   - \`${cliCmd} pull --workflowsid <id>\`: Download workflow from n8n to local.`,
       `   - Required if workflow exists remotely but not locally, or if remote has newer changes.`,
       ``,
       `4. **EDIT**: Apply your changes to the local \`.workflow.ts\` file.`,
       ``,
       `5. **PUSH**: Upload your changes explicitly`,
-      `   - \`n8nac push --workflowsid <id>\`: Upload local workflow to n8n (for existing workflows).`,
-      `   - \`n8nac push --filename <name>\`: Push a brand new local file.`,
+      `   - \`${cliCmd} push --workflowsid <id>\`: Upload local workflow to n8n (for existing workflows).`,
+      `   - \`${cliCmd} push --filename <name>\`: Push a brand new local file.`,
       ``,
       `6. **RESOLVE CONFLICTS**: If Push or Pull fails due to a conflict`,
-      `   - \`n8nac resolve --workflowsid <id> --mode keep-current\`: Force-push local version.`,
-      `   - \`n8nac resolve --workflowsid <id> --mode keep-incoming\`: Force-pull remote version.`,
+      `   - \`${cliCmd} resolve --workflowsid <id> --mode keep-current\`: Force-push local version.`,
+      `   - \`${cliCmd} resolve --workflowsid <id> --mode keep-incoming\`: Force-pull remote version.`,
       ``,
       `### Key Principles`,
       `- **Explicit over automatic**: All operations are user-triggered or ai-agent-triggered.`,
@@ -280,7 +281,7 @@ export class AiContextGenerator {
       `    position: [250, 300]`,
       `  })`,
       `  MyNode = {`,
-      `    /* parameters from npx n8nac skills node-info */`,
+      `    /* parameters from npx --yes n8nac skills node-info */`,
       `  };`,
       ``,
       `  @node({`,
@@ -374,7 +375,7 @@ export class AiContextGenerator {
       ``,
       `## 🔑 Your Responsibilities`,
       ``,
-      `**#1**: Use \`npx n8nac skills\` tools to prevent hallucinations`,
+      `**#1**: Use \`npx --yes n8nac skills\` tools to prevent hallucinations`,
       `**#2**: Follow the exact schema - no assumptions, no guessing`,
       `**#3**: Create workflows that work on the first try`,
       ``,
@@ -386,16 +387,16 @@ export class AiContextGenerator {
     return [
       `# n8n-as-code rules`,
       `- Refer to AGENTS.md for complete n8n workflow standards.`,
-      `- MANDATORY: Use 'npx n8nac skills' tools before creating/editing nodes.`,
+      `- MANDATORY: Use 'npx --yes n8nac skills' tools before creating/editing nodes.`,
       `- REQUIRED: Use FULL node types (e.g., 'n8n-nodes-base.switch') and LATEST typeVersion.`,
-      `- Search: 'npx n8nac skills search <query>' - Find nodes & docs (PRIMARY TOOL)`,
-      `- Get: 'npx n8nac skills node-info <nodeName>' - Complete node info`,
-      `- Schema: 'npx n8nac skills node-schema <nodeName>' - Quick parameters reference`,
-      `- Docs: 'npx n8nac skills docs <title>' - Read a specific documentation page`,
-      `- Guides: 'npx n8nac skills guides <query>' - Find tutorials and examples`,
-      `- Workflows: 'npx n8nac skills examples search <query>' - Find community workflows (7000+)`,
-      `- Related: 'npx n8nac skills related <nodeName>' - Discover ecosystem and related nodes`,
-      `- Validate: 'npx n8nac skills validate workflow.workflow.ts' - Check your workflow for errors`
+      `- Search: 'npx --yes n8nac skills search <query>' - Find nodes & docs (PRIMARY TOOL)`,
+      `- Get: 'npx --yes n8nac skills node-info <nodeName>' - Complete node info`,
+      `- Schema: 'npx --yes n8nac skills node-schema <nodeName>' - Quick parameters reference`,
+      `- Docs: 'npx --yes n8nac skills docs <title>' - Read a specific documentation page`,
+      `- Guides: 'npx --yes n8nac skills guides <query>' - Find tutorials and examples`,
+      `- Workflows: 'npx --yes n8nac skills examples search <query>' - Find community workflows (7000+)`,
+      `- Related: 'npx --yes n8nac skills related <nodeName>' - Discover ecosystem and related nodes`,
+      `- Validate: 'npx --yes n8nac skills validate workflow.workflow.ts' - Check your workflow for errors`
     ].join('\n');
   }
 
@@ -406,10 +407,10 @@ export class AiContextGenerator {
       `  instructions:`,
       `    - Read AGENTS.md for sync principles.`,
       `    - MANDATORY: Use FULL node types (e.g., 'n8n-nodes-base.switch') and LATEST typeVersion.`,
-      `    - Use 'npx n8nac skills search' as your primary research tool.`,
-      `    - Use 'npx n8nac skills examples search' to find community examples (7000+ workflows).`,
-      `    - Use 'npx n8nac skills node-info' to fetch exact schema before editing workflow JSON.`,
-      `    - Use 'npx n8nac skills validate workflow.workflow.ts' to verify your work.`,
+      `    - Use 'npx --yes n8nac skills search' as your primary research tool.`,
+      `    - Use 'npx --yes n8nac skills examples search' to find community examples (7000+ workflows).`,
+      `    - Use 'npx --yes n8nac skills node-info' to fetch exact schema before editing workflow JSON.`,
+      `    - Use 'npx --yes n8nac skills validate workflow.workflow.ts' to verify your work.`,`
       `    - Ensure connections are correctly indexed.`
     ].join('\n');
   }
@@ -472,13 +473,13 @@ If the push fails with an OCC conflict (the remote was modified since your last 
 When a user mentions a node type (e.g., "HTTP Request", "Google Sheets", "Code"), first search for it:
 
 \`\`\`bash
-npx n8nac skills search "<search term>"
+npx --yes n8nac skills search "<search term>"
 \`\`\`
 
 **Examples:**
-- \`npx n8nac skills search "http request"\`
-- \`npx n8nac skills search "google sheets"\`
-- \`npx n8nac skills search "webhook"\`
+- \`npx --yes n8nac skills search "http request"\`
+- \`npx --yes n8nac skills search "google sheets"\`
+- \`npx --yes n8nac skills search "webhook"\`
 
 This returns a list of matching nodes with their exact technical names.
 
@@ -487,13 +488,13 @@ This returns a list of matching nodes with their exact technical names.
 Once you have the exact node name, retrieve its complete schema:
 
 \`\`\`bash
-npx n8nac skills node-info "<nodeName>"
+npx --yes n8nac skills node-info "<nodeName>"
 \`\`\`
 
 **Examples:**
-- \`npx n8nac skills node-info "httpRequest"\`
-- \`npx n8nac skills node-info "googleSheets"\`
-- \`npx n8nac skills node-info "code"\`
+- \`npx --yes n8nac skills node-info "httpRequest"\`
+- \`npx --yes n8nac skills node-info "googleSheets"\`
+- \`npx --yes n8nac skills node-info "code"\`
 
 This returns the full JSON schema including all parameters, types, defaults, valid options, and input/output structure.
 
@@ -556,7 +557,7 @@ export class MyWorkflow {
     position: [250, 300]
   })
   MyNode = {
-    /* parameters from npx n8nac skills node-info */
+    /* parameters from npx --yes n8nac skills node-info */
   };
 
   @links()
@@ -591,7 +592,7 @@ export class MyWorkflow {
 1. **Always verify node schemas** before generating configuration
 2. **Use descriptive node names** for clarity ("Get Customers", not "HTTP Request")
 3. **Add comments in Code nodes** to explain logic
-4. **Validate node parameters** using \`npx n8nac skills node-info <nodeName>\`
+4. **Validate node parameters** using \`npx --yes n8nac skills node-info <nodeName>\`
 5. **Reference credentials** by name, never hardcode
 6. **Use error handling** nodes for production workflows
 
@@ -601,17 +602,17 @@ If you're unsure about any node:
 
 1. **List all available nodes:**
    \`\`\`bash
-   npx n8nac skills list
+   npx --yes n8nac skills list
    \`\`\`
 
 2. **Search for similar nodes:**
    \`\`\`bash
-   npx n8nac skills search "keyword"
+   npx --yes n8nac skills search "keyword"
    \`\`\`
 
 3. **Get detailed documentation:**
    \`\`\`bash
-   npx n8nac skills node-info "nodeName"
+   npx --yes n8nac skills node-info "nodeName"
    \`\`\`
 
 ## 📝 Response Format
@@ -636,7 +637,7 @@ When helping users:
     return [
       `### n8n Development Rules`,
       `- Follow the Research Protocol in AGENTS.md.`,
-      `- Tooling: Use 'npx n8nac skills' to fetch node schemas and documentation.`,
+      `- Tooling: Use 'npx --yes n8nac skills' to fetch node schemas and documentation.`,
     ].join('\n');
   }
 
@@ -644,7 +645,7 @@ When helping users:
     return [
       `# Common Rules for All AI Agents (Claude, Mistral, etc.)`,
       `- Role: Expert n8n Automation Engineer.`,
-      `- Workflow Source of Truth: 'npx n8nac skills' tools.`,
+      `- Workflow Source of Truth: 'npx --yes n8nac skills' tools.`,
       `- Documentation: Read AGENTS.md for full syntax rules.`
     ].join('\n');
   }

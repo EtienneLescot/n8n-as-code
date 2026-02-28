@@ -13,12 +13,13 @@ import {
 } from '@n8n-as-code/skills';
 import dotenv from 'dotenv';
 
-/** Returns 'next' if running from a pre-release build, undefined otherwise. */
+/** Returns the exact version string for pre-release builds (e.g. '0.9.9-next.abc1234'),
+ * undefined for stable builds. This pins the generated AGENTS.md to the exact CLI version. */
 function getDistTag(): string | undefined {
     try {
         const __dir = dirname(fileURLToPath(import.meta.url));
         const pkg = JSON.parse(readFileSync(join(__dir, '..', 'package.json'), 'utf8'));
-        return pkg.version?.includes('-') ? 'next' : undefined;
+        return pkg.version?.includes('-') ? pkg.version : undefined;
     } catch {
         return undefined;
     }
