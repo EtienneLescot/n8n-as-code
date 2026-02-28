@@ -2,6 +2,19 @@ const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
 
+// Read n8nac version at build time for pre-release detection
+let n8nacVersion = 'unknown';
+try {
+    const n8nacPkg = require('./node_modules/n8nac/package.json');
+    n8nacVersion = n8nacPkg.version;
+} catch {
+    // Fallback: read from workspace sibling
+    try {
+        const n8nacPkg = require('../cli/package.json');
+        n8nacVersion = n8nacPkg.version;
+    } catch { /* ignore */ }
+}
+
 // Plugin to copy skills assets and CLI assets
 const copySkillsAssets = {
     name: 'copy-skills-assets',
@@ -54,6 +67,9 @@ const extensionBuild = esbuild.build({
     platform: 'node',
     logOverride: {
         'empty-import-meta': 'silent'
+    },
+    define: {
+        '__N8NAC_VERSION__': JSON.stringify(n8nacVersion)
     },
     plugins: [copySkillsAssets]
 });
