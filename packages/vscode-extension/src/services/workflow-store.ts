@@ -1,5 +1,5 @@
 import { configureStore, createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
-import { IWorkflowStatus, SyncManager } from '@n8n-as-code/cli';
+import { IWorkflowStatus, SyncManager } from 'n8nac';
 
 // ============================================================================
 // State Types

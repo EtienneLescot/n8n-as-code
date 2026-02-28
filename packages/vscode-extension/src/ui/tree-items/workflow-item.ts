@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { IWorkflowStatus, WorkflowSyncStatus } from '@n8n-as-code/cli';
+import { IWorkflowStatus, WorkflowSyncStatus } from 'n8nac';
 import { BaseTreeItem } from './base-tree-item.js';
 import { TreeItemType } from '../../types.js';
 

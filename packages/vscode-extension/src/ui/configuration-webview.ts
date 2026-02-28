@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { N8nApiClient, type IN8nCredentials } from '@n8n-as-code/cli';
+import { N8nApiClient, type IN8nCredentials } from 'n8nac';
 import { getWorkspaceRoot, isFolderPreviouslyInitialized, getExistingInstanceIdentifier } from '../utils/state-detection.js';
 import fs from 'fs';
 import path from 'path';
