@@ -1,5 +1,8 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import {
     N8nApiClient,
     IN8nCredentials
@@ -9,6 +12,17 @@ import {
     SnippetGenerator
 } from '@n8n-as-code/skills';
 import dotenv from 'dotenv';
+
+/** Returns 'next' if running from a pre-release build, undefined otherwise. */
+function getDistTag(): string | undefined {
+    try {
+        const __dir = dirname(fileURLToPath(import.meta.url));
+        const pkg = JSON.parse(readFileSync(join(__dir, '..', 'package.json'), 'utf8'));
+        return pkg.version?.includes('-') ? 'next' : undefined;
+    } catch {
+        return undefined;
+    }
+}
 
 export class UpdateAiCommand {
     constructor(private program: Command) {
@@ -50,7 +64,7 @@ export class UpdateAiCommand {
             // 2. Generate Context (AGENTS.md, rules)
             console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md, rules)...'));
             const aiContextGenerator = new AiContextGenerator();
-            await aiContextGenerator.generate(projectRoot, version);
+            await aiContextGenerator.generate(projectRoot, version, getDistTag());
             console.log(chalk.green('   ✅ AI context files created.'));
 
             // 3. Generate VS Code Snippets

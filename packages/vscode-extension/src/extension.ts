@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+
+// Injected at build time by esbuild (see esbuild.config.js)
+declare const __N8NAC_VERSION__: string;
 import {
     SyncManager, CliApi, N8nApiClient, IN8nCredentials, WorkflowSyncStatus,
     createInstanceIdentifier, createFallbackInstanceIdentifier
@@ -283,7 +286,8 @@ export async function activate(context: vscode.ExtensionContext) {
                     const health = await client.getHealth();
                     const version = health.version;
                     progress?.report({ message: 'Generating AGENTS.md...' });
-                    await new AiContextGenerator().generate(rootPath, version);
+                    const distTag = (typeof __N8NAC_VERSION__ !== 'undefined' && __N8NAC_VERSION__?.includes('-')) ? 'next' : undefined;
+                    await new AiContextGenerator().generate(rootPath, version, distTag);
                     progress?.report({ message: 'Generating Snippets...' });
                     await new SnippetGenerator().generate(rootPath);
                     context.workspaceState.update('n8n.lastInitVersion', version);

@@ -69,6 +69,16 @@ describe('AiContextGenerator', () => {
             expect(agentsContent).not.toContain('./n8nac ');
         });
 
+        test('should use npx n8nac@next skills when distTag is next', async () => {
+            await generator.generate(tempDir, '1.0.0', 'next');
+
+            const agentsPath = path.join(tempDir, 'AGENTS.md');
+            const agentsContent = fs.readFileSync(agentsPath, 'utf-8');
+
+            expect(agentsContent).toContain('npx n8nac@next skills');
+            expect(agentsContent).not.toContain('./n8nac-skills');
+        });
+
         test('should NOT create shim files (shims removed)', async () => {
             await generator.generate(tempDir, '1.0.0');
 
