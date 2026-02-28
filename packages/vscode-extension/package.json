@@ -238,7 +238,7 @@
     "Other"
   ],
   "dependencies": {
-    "@n8n-as-code/skills": "0.16.8-next.0",
+    "@n8n-as-code/skills": "*",
     "n8nac": "*",
     "@reduxjs/toolkit": "^2.11.2",
     "http-proxy": "^1.18.1"
