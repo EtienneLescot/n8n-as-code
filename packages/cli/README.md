@@ -48,21 +48,21 @@ Status values:
 | Status | Meaning | Action |
 |---|---|---|
 | `TRACKED`             | Workflow exists on both sides, no local changes detected             | Nothing to do |
-| `MODIFIED_LOCALLY`    | Local file changed since last sync | `push --workflowsid` |
-| `CONFLICT`            | Both sides changed — detected at push/pull time | `pull --workflowsid` (keep remote) or `push --workflowsid` (keep local) |
-| `EXIST_ONLY_LOCALLY`  | New local file not yet in n8n (or remote was deleted) | `push --workflowsid` to create in n8n |
-| `EXIST_ONLY_REMOTELY` | Remote workflow not yet local (or local was deleted) | `pull --workflowsid` to download |
+| `MODIFIED_LOCALLY`    | Local file changed since last sync | `push <workflowId>` |
+| `CONFLICT`            | Both sides changed — detected at push/pull time | `pull <workflowId>` (keep remote) or `push <workflowId>` (keep local) |
+| `EXIST_ONLY_LOCALLY`  | New local file not yet in n8n (or remote was deleted) | `push <workflowId>` to create in n8n |
+| `EXIST_ONLY_REMOTELY` | Remote workflow not yet local (or local was deleted) | `pull <workflowId>` to download |
 
 > **Git-like sync**: Status is a point-in-time observation. Use `fetch` to update remote state cache.
 > **For agents**: always run `n8nac list` first to get workflow IDs and their current status before pulling or pushing.
 
 ---
 
-### `fetch --workflowsid <workflowId>`
+### `fetch <workflowId>`
 Update remote state cache for a specific workflow (internal reference for comparison).
 
 ```bash
-n8nac fetch --workflowsid <workflowId>          # Fetch specific workflow's remote state
+n8nac fetch <workflowId>          # Fetch specific workflow's remote state
 ```
 
 - Updates internal comparison cache for the specified workflow only
@@ -72,32 +72,32 @@ n8nac fetch --workflowsid <workflowId>          # Fetch specific workflow's remo
 
 ---
 
-### `pull --workflowsid <workflowId>`
+### `pull <workflowId>`
 Download a single workflow from n8n and overwrite the local file.
 
 ```bash
-n8nac pull --workflowsid <workflowId>
+n8nac pull <workflowId>
 ```
 
 > Recommended for agents and scripts. Targets exactly one workflow.
 
 ---
 
-### `push --workflowsid <workflowId>`
+### `push <workflowId>`
 Upload a single local workflow file to n8n.
 
 ```bash
-n8nac push --workflowsid <workflowId>
+n8nac push <workflowId>
 ```
 
 ---
 
-### `resolve --workflowsid <id> --mode <mode>`
+### `resolve <id> --mode <mode>`
 Explicitly resolve a conflict for a specific workflow.
 
 ```bash
-n8nac resolve --workflowsid <id> --mode keep-current    # Force-push local version
-n8nac resolve --workflowsid <id> --mode keep-incoming   # Force-pull remote version
+n8nac resolve <id> --mode keep-current    # Force-push local version
+n8nac resolve <id> --mode keep-incoming   # Force-pull remote version
 ```
 
 ---
@@ -148,12 +148,12 @@ The intended flow for an AI agent editing a workflow:
 n8nac list
 
 # 2. Pull the target workflow
-n8nac pull --workflowsid <workflowId>
+n8nac pull <workflowId>
 
 # 3. Edit the local .workflow.ts file
 
 # 4. Push it back
-n8nac push --workflowsid <workflowId>
+n8nac push <workflowId>
 ```
 
 ---

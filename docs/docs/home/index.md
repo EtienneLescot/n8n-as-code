@@ -137,7 +137,7 @@ Ready to get started? Here's how to set up n8n-as-code in under 2 minutes:
 
 4. **Pull workflows you want to work on**:
    ```bash
-   n8nac pull --workflowsid <workflowId>
+   n8nac pull <workflowId>
    ```
 
 5. **Open in VS Code**:

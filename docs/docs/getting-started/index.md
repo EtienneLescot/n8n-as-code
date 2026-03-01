@@ -85,13 +85,13 @@ The interactive wizard will guide you through:
 n8nac list
 
 # Fetch remote state for a specific workflow
-n8nac fetch --workflowsid <workflowId>
+n8nac fetch <workflowId>
 
 # Pull that workflow locally
-n8nac pull --workflowsid <workflowId>
+n8nac pull <workflowId>
 
 # After editing, push changes back
-n8nac push --workflowsid <workflowId>
+n8nac push <workflowId>
 ```
 
 ## ⚙️ Configuration Files
@@ -112,7 +112,7 @@ Download a specific workflow from your n8n instance:
 n8nac list
 
 # Pull the workflow you want
-n8nac pull --workflowsid <workflowId>
+n8nac pull <workflowId>
 ```
 
 This will:
@@ -124,7 +124,7 @@ This will:
 Send your local modifications back to n8n:
 
 - **VS Code Extension**: Use the context menu on workflow items (right-click → Push)
-- **CLI**: Use `n8nac push --workflowsid <workflowId>` command
+- **CLI**: Use `n8nac push <workflowId>` command
 
 ### Git-like Sync Workflow
 
@@ -135,20 +135,20 @@ Follow this git-like pattern for synchronization:
 n8nac list
 
 # 2. Fetch remote state for specific workflows
-n8nac fetch --workflowsid <workflowId>
+n8nac fetch <workflowId>
 
 # 3. Pull remote changes
-n8nac pull --workflowsid <workflowId>
+n8nac pull <workflowId>
 
 # 4. Edit workflow locally
 # ... make changes ...
 
 # 5. Push local changes
-n8nac push --workflowsid <workflowId>
+n8nac push <workflowId>
 
 # 6. If a conflict is reported, resolve it
-n8nac resolve --workflowsid <workflowId> --mode keep-current   # keep local
-n8nac resolve --workflowsid <workflowId> --mode keep-incoming  # keep remote
+n8nac resolve <workflowId> --mode keep-current   # keep local
+n8nac resolve <workflowId> --mode keep-incoming  # keep remote
 ```
 
 This explicit command pattern gives you full control over when to sync, similar to git workflow. For heavy instances, fetch individual workflows rather than all at once.
@@ -205,10 +205,10 @@ your-project/
 **Problem**: Changes not syncing properly
 **Solution**:
 - Use `n8nac list` to check workflow status
-- Use `n8nac fetch --workflowsid <workflowId>` to update remote state cache for specific workflows
-- Use `n8nac pull --workflowsid <workflowId>` to get fresh copy
-- Use `n8nac push --workflowsid <workflowId>` to send local changes
-- Use `n8nac resolve --workflowsid <workflowId> --mode keep-current|keep-incoming` if a conflict is reported
+- Use `n8nac fetch <workflowId>` to update remote state cache for specific workflows
+- Use `n8nac pull <workflowId>` to get fresh copy
+- Use `n8nac push <workflowId>` to send local changes
+- Use `n8nac resolve <workflowId> --mode keep-current|keep-incoming` if a conflict is reported
 - Check network connectivity to n8n instance
 
 ## 📚 Next Steps

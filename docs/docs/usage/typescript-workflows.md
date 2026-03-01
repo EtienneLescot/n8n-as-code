@@ -278,7 +278,7 @@ n8nac skills examples download 123 -o my-workflow.workflow.ts
 1. Pull your existing workflows (if not already local)
    ```bash
    n8nac list  # See what's available
-   n8nac pull --workflowsid <workflowId>  # Pull each workflow you need
+   n8nac pull <workflowId>  # Pull each workflow you need
    ```
 
 2. Convert workflows to TypeScript

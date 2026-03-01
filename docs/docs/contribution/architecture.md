@@ -337,7 +337,7 @@ sequenceDiagram
     n8n-->>SyncEngine: Confirm update
     SyncEngine-->>VS Code: Update status (TRACKED)
     
-    User->>CLI: n8nac pull --workflowsid <workflowId>
+    User->>CLI: n8nac pull <workflowId>
     CLI->>SyncEngine: pull(workflowId)
     SyncEngine->>n8n: Download latest
     n8n-->>SyncEngine: Return workflow

@@ -82,7 +82,7 @@ graph LR
 n8nac list
 
 # Pull the specific workflows you need
-n8nac pull --workflowsid <workflowId>
+n8nac pull <workflowId>
 
 # Validate JSON syntax (using jq or other tools)
 find workflows/ -name "*.json" -exec jq . {} >/dev/null 2>&1 \;
@@ -91,7 +91,7 @@ find workflows/ -name "*.json" -exec jq . {} >/dev/null 2>&1 \;
 export N8N_HOST="https://target.n8n.example.com"
 export N8N_API_KEY="$TARGET_API_KEY"
 n8nac init
-n8nac push --workflowsid <workflowId>
+n8nac push <workflowId>
 ```
 
 ## 📚 Quick Reference
