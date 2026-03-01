@@ -36,7 +36,6 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .option('--type <type>', 'Filter by type (node or documentation)')
         .option('--limit <limit>', 'Limit results', '10')
         .option('--json', 'Output as JSON instead of TypeScript')
-        .option('--typescript', 'Output TypeScript snippets for nodes (default)', true)
         .action((query, options) => {
             try {
                 const results = knowledgeSearch.searchAll(query, {
@@ -360,13 +359,15 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .command('update-ai')
         .description('Update AI Context files (AGENTS.md, rule files, snippets)')
         .option('--n8n-version <version>', 'n8n instance version', 'Unknown')
-        .action(async (options) => {
+        .option('--cli-version <version>', 'n8nac CLI version or dist-tag to use in generated AI context', 'latest')
+        .action(async (options: { n8nVersion: string; cliVersion?: string }) => {
             try {
                 console.error(chalk.blue('🤖 Updating AI Context...'));
                 const projectRoot = process.cwd();
+                const distTag = options.cliVersion === 'latest' ? undefined : options.cliVersion;
 
                 const aiContextGenerator = new AiContextGenerator();
-                await aiContextGenerator.generate(projectRoot, options.n8nVersion);
+                await aiContextGenerator.generate(projectRoot, options.n8nVersion, distTag);
 
                 const snippetGen = new SnippetGenerator();
                 await snippetGen.generate(projectRoot);

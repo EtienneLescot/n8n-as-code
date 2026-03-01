@@ -52,9 +52,9 @@ graph TD
     User([User])
     subgraph CLI
         List[n8nac list]
-        Fetch[n8nac fetch <workflowId> ID]
-        Pull[n8nac pull <workflowId> ID]
-        Push[n8nac push <workflowId> ID]
+        Fetch[n8nac fetch <workflowId>]
+        Pull[n8nac pull <workflowId>]
+        Push[n8nac push <workflowId>]
     end
     subgraph VSCode
         Tree[Workflow Tree]

@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /**
- * Thin CLI wrapper — all command logic lives in skills-commander.ts.
- * This file is kept for backward compatibility (users who installed the
- * old n8nac-skills binary locally).  New users should invoke skills via:
+ * This entry point is primarily for internal/dev or legacy setups that still
+ * invoke an `n8nac-skills` binary directly. New installs should invoke skills via:
  *   npx n8nac@<version> skills <command>
  */
 import { Command } from 'commander';
