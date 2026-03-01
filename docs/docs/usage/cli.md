@@ -127,7 +127,7 @@ Downloads a single workflow from your configured n8n instance. Detects and block
 
 **Example:**
 ```bash
-n8nac pull <workflowId> abc123
+n8nac pull abc123
 ```
 
 **Behavior:**
@@ -148,7 +148,7 @@ Uploads a single workflow from local to your n8n instance. Uses Optimistic Concu
 
 **Example:**
 ```bash
-n8nac push <workflowId> abc123          # Push an existing workflow
+n8nac push abc123          # Push an existing workflow
 n8nac push --filename my-workflow.workflow.ts  # Push a brand-new local file
 ```
 

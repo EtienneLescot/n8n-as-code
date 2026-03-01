@@ -7,6 +7,7 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 const PACKAGES = [
     'packages/transformer',
@@ -15,7 +16,7 @@ const PACKAGES = [
     'packages/vscode-extension',
 ];
 
-const root = path.resolve(import.meta.dirname ?? path.dirname(new URL(import.meta.url).pathname), '..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Step 1: Read all base stable versions (strip -next suffix)
 const versions = {};
