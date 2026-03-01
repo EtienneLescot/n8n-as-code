@@ -285,7 +285,7 @@ n8nac list
 n8nac fetch abc123
 
 # 4. Pull remote changes for a specific workflow
-n8nac pull <workflowId> abc123
+n8nac pull abc123
 
 # 5. Edit workflow files locally
 #    (edit workflows/*.workflow.ts files)
@@ -294,7 +294,7 @@ n8nac pull <workflowId> abc123
 n8nac list
 
 # 7. Push local changes to n8n
-n8nac push <workflowId> abc123
+n8nac push abc123
 ```
 
 ### Git-like Development Pattern
@@ -306,12 +306,12 @@ n8nac list
 n8nac fetch abc123
 
 # Pull remote changes for that workflow
-n8nac pull <workflowId> abc123
+n8nac pull abc123
 
 # ... edit workflow ...
 
 # Push local changes back to n8n
-n8nac push <workflowId> abc123
+n8nac push abc123
 
 # Resolve a conflict (if push/pull is blocked)
 n8nac resolve abc123 --mode keep-current   # keep local
