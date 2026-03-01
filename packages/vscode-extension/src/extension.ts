@@ -632,9 +632,11 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
     // ── Lightweight UI watchers (replaces the heavy chokidar-based WorkflowStateTracker watcher) ──
     //
-    // 1. VS Code native FS watcher: detects new/deleted .workflow.ts files and refreshes the list.
+    // 1. VS Code native FS watcher on *.workflow.ts: detects new/deleted files → refreshes list.
     //    We deliberately ignore 'change' events — 'modified locally' is no longer a tracked status.
-    // 2. Remote polling every 60s: discovers workflows created/deleted on the n8n instance.
+    // 2. State file watcher on .n8n-state.json: written by CLI after every push/pull/resolve →
+    //    refreshes list and reloads the open webview (handles agent-driven CLI operations).
+    // 3. Remote polling every 60s: discovers workflows created/deleted on the n8n instance.
     if (vscode.workspace.workspaceFolders?.length) {
         const syncFolder = config.get<string>('syncFolder') || 'workflows';
         const pattern = new vscode.RelativePattern(
@@ -656,6 +658,32 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         context.subscriptions.push(fileWatcher);
     }
 
+    // 3. State file watcher: .n8n-state.json is written by the CLI after every push/pull/resolve.
+    //    Watching it lets the UI react to CLI operations (agent-driven workflow).
+    //    IMPORTANT: cli.list() here has NO fetchRemote option → purely local (readdirSync +
+    //    in-memory remoteIds populated at init). No network call on every state change.
+    if (vscode.workspace.workspaceFolders?.length) {
+        const syncFolder = config.get<string>('syncFolder') || 'workflows';
+        const statePattern = new vscode.RelativePattern(
+            vscode.workspace.workspaceFolders[0],
+            `${syncFolder}/**/.n8n-state.json`
+        );
+        // ignoreCreate=true, ignoreChange=false, ignoreDelete=true — only react to writes
+        const stateWatcher = vscode.workspace.createFileSystemWatcher(statePattern, true, false, true);
+        stateWatcher.onDidChange(async () => {
+            if (!cli) return;
+            try {
+                store.dispatch(setWorkflows(await cli.list()));
+                enhancedTreeProvider.refresh();
+                // Reload the open webview — the CLI may have pushed a new version
+                WorkflowWebview.reloadCurrent(outputChannel);
+            } catch (err) {
+                console.error('[n8n] State watcher: failed to refresh after CLI operation', err);
+            }
+        });
+        context.subscriptions.push(stateWatcher);
+    }
+
     // Remote polling — lightweight `list` every 60 seconds to surface new/deleted remote workflows.
     const pollingInterval = setInterval(async () => {
         if (!cli) return;
@@ -670,7 +698,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
     statusBar.setWatchMode(false);
     // NOTE: syncManager.startWatch() is intentionally NOT called.
-    // The heavy chokidar-based watcher is replaced by the two lightweight UI watchers above.
+    // The heavy chokidar-based watcher is replaced by the three lightweight UI watchers above.
 
     // Initial list — uses cli.list(fetchRemote: true) which mirrors `n8nac list`
     outputChannel.appendLine('[n8n] Loading workflow list...');
