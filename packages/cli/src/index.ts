@@ -150,5 +150,9 @@ registerSkillsCommands(skillsCmd, getSkillsAssetsDir());
 
 // Backward compatibility alias
 new InitAiCommand(program);
+const updateAiCommand = program.commands.find((cmd) => cmd.name() === 'update-ai');
+if (updateAiCommand && !updateAiCommand.aliases().includes('init-ai')) {
+    updateAiCommand.alias('init-ai');
+}
 
 program.parse();
