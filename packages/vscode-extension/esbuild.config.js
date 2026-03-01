@@ -53,6 +53,36 @@ const copySkillsAssets = {
                 }
             }
 
+            // Copy n8n-workflows.d.ts so WorkspaceSetupService can locate it when
+            // n8nac is bundled into out/extension.js (resolveAssetPath looks at
+            // path.join(__dirname, '..', 'assets') relative to the bundle, which
+            // resolves to the extension's top-level assets/ directory).
+            //
+            // Candidate paths (in order):
+            //   1. node_modules/n8nac/dist/core/assets/ — installed npm package layout
+            //      (n8nac package.json "files": ["dist/"], build copies the .d.ts there)
+            //   2. ../cli/dist/core/assets/             — local workspace after `npm run build`
+            //   3. ../cli/src/core/assets/              — local workspace source (dev fallback)
+            const declarationFileCandidates = [
+                path.join(__dirname, 'node_modules', 'n8nac', 'dist', 'core', 'assets', 'n8n-workflows.d.ts'),
+                path.join(__dirname, '..', 'cli', 'dist', 'core', 'assets', 'n8n-workflows.d.ts'),
+                path.join(__dirname, '..', 'cli', 'src', 'core', 'assets', 'n8n-workflows.d.ts'),
+            ];
+            const declarationFileSrc = declarationFileCandidates.find(p => fs.existsSync(p));
+            if (!declarationFileSrc) {
+                console.warn(
+                    '⚠️  n8n-workflows.d.ts not found — WorkspaceSetupService will be unable to ' +
+                    'write the TypeScript stub to user workspaces. Checked:\n' +
+                    declarationFileCandidates.map(p => `  ${p}`).join('\n')
+                );
+            } else {
+                if (!fs.existsSync(targetDir)) {
+                    fs.mkdirSync(targetDir, { recursive: true });
+                }
+                const declarationFileDest = path.join(targetDir, 'n8n-workflows.d.ts');
+                fs.copyFileSync(declarationFileSrc, declarationFileDest);
+                console.log('✅ Copied n8n-workflows.d.ts to assets/');
+            }
         });
     }
 };
