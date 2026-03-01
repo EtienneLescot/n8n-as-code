@@ -150,11 +150,12 @@ n8nac skills validate workflow.json --strict
 ```
 
 ### `update-ai` - 🤖 Update AI Context
-Update AI Context (AGENTS.md, rule files, snippets).
+Update AI Context (AGENTS.md and snippets).
 
 ```bash
 n8nac skills update-ai
-n8nac skills update-ai --version 1.70.0
+n8nac skills update-ai --n8n-version 1.70.0
+n8nac skills update-ai --n8n-version 1.70.0 --cli-version 1.2.3
 ```
 ## 📊 Output Format
 
