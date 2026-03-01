@@ -62,7 +62,7 @@ describe('AiContextGenerator', () => {
             const agentsContent = fs.readFileSync(agentsPath, 'utf-8');
 
             // New unified command format
-            expect(agentsContent).toContain('npx n8nac skills');
+            expect(agentsContent).toContain('npx --yes n8nac skills');
 
             // No old shim-style commands
             expect(agentsContent).not.toContain('./n8nac-skills');
@@ -75,7 +75,7 @@ describe('AiContextGenerator', () => {
             const agentsPath = path.join(tempDir, 'AGENTS.md');
             const agentsContent = fs.readFileSync(agentsPath, 'utf-8');
 
-            expect(agentsContent).toContain('npx n8nac@next skills');
+            expect(agentsContent).toContain('npx --yes n8nac@next skills');
             expect(agentsContent).not.toContain('./n8nac-skills');
         });
 
