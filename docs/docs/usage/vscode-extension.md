@@ -11,7 +11,7 @@ The n8n-as-code VS Code Extension transforms VS Code into a powerful IDE for you
 ## 🎨 Features
 
 ### 🔄 Git-like Synchronization
-The extension follows a git-like workflow with explicit commands. View workflow status, fetch remote state, pull changes, and push local changes using the context menu. No automatic polling - you control when to sync.
+The extension follows a git-like workflow with explicit commands. View workflow status, pull changes, and push local changes using the context menu. The tree view refreshes automatically when `.workflow.ts` files are created or deleted locally, and polls the remote every 60 seconds with a lightweight `list` to surface new or deleted workflows.
 
 ### 🗂️ Multi-Instance Support
 Your workflows are automatically organized by instance to avoid mixing files from different environments:
@@ -20,11 +20,10 @@ Your workflows are automatically organized by instance to avoid mixing files fro
 ### 🎯 Visual Status Indicators
 The tree view displays color-coded icons showing the sync status of each workflow at a glance:
 
-- **📄 Plain file** - `TRACKED`: Both local and remote exist (in sync, or remote updated — pull to get changes)
-- **✏️ Orange pencil** - `MODIFIED_LOCALLY`: Local changes not yet pushed
+- **📄 Plain file** - `TRACKED`: Both local and remote exist (in sync)
 - **☁️ Blue cloud** - `EXIST_ONLY_REMOTELY`: Remote workflow not yet pulled locally
 - **📄+ Orange file-add** - `EXIST_ONLY_LOCALLY`: New local workflow not yet pushed
-- **🔴 Red alert** - `CONFLICT`: Both local and remote modified since last sync
+- **🔴 Red alert** - `CONFLICT`: Both sides modified since last sync, requires resolution
 
 ### 🛡️ Persistent Conflict Resolution UI
 Workflows in **conflict** state become **expandable tree items** with child action buttons, ensuring you never lose track of issues that need resolution:

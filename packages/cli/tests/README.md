@@ -36,15 +36,12 @@ End-to-end synchronization scenarios covering all workflow states.
 **Covered scenarios:**
 - Initial Sync (2 tests)
 - Conflict Resolution (3 tests)
-- Status Detection (8 tests)
-  - IN_SYNC
-  - MODIFIED_LOCALLY
-  - MODIFIED_REMOTELY
-  - DELETED_LOCALLY
-  - DELETED_REMOTELY
+- Status Detection (via `list`, which returns lightweight statuses):
+  - TRACKED
   - EXIST_ONLY_LOCALLY
   - EXIST_ONLY_REMOTELY
   - CONFLICT
+  > Note: `MODIFIED_LOCALLY` is only returned by `getSingleWorkflowDetailedStatus()` (used internally by `pull`/`push`), not by the `list` command.
 - Bidirectional Sync (3 tests)
 - Error Handling (2 tests)
 - Performance (1 test)

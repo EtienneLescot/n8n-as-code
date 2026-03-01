@@ -92,7 +92,7 @@ Display all workflows with their current sync status.
 Shows a color-coded table of all workflows with their sync status, helping you understand the current state of your workflow synchronization. Supports filtering to show only local or remote workflows.
 
 **Options:**
-- `--local`: Show only workflows that exist locally (including `EXIST_ONLY_LOCALLY`, `MODIFIED_LOCALLY`, `TRACKED`, `CONFLICT`)
+- `--local`: Show only workflows that exist locally (including `EXIST_ONLY_LOCALLY`, `TRACKED`, `CONFLICT`)
 - `--remote` / `--distant`: Show only workflows that exist remotely (including `EXIST_ONLY_REMOTELY`, `TRACKED`, `CONFLICT`)
 - `--raw`: Output raw JSON for scripting/automation
 
@@ -105,13 +105,12 @@ n8nac list --raw              # Output raw JSON
 ```
 
 **Output:**
-- Status indicators with icons (✔ Tracked, ✏️ Modified Locally, 💥 Conflicts, + Local Only, - Remote Only)
+- Status indicators with icons (✔ Tracked, 💥 Conflicts, + Local Only, - Remote Only)
 - Workflow ID, name, and local path
 - Summary statistics showing counts by status
 
 **Status Types:**
-- `TRACKED` - Both local and remote exist (may include remote-only changes — use pull to get them)
-- `MODIFIED_LOCALLY` - Local changes not yet pushed
+- `TRACKED` - Both local and remote exist (in sync)
 - `CONFLICT` - Both local and remote modified since last sync
 - `EXIST_ONLY_LOCALLY` - New local workflow not yet pushed
 - `EXIST_ONLY_REMOTELY` - Remote workflow not yet pulled locally
@@ -132,9 +131,8 @@ n8nac pull abc123
 
 **Behavior:**
 1. Fetches the latest remote state for the workflow
-2. Checks for conflict (`CONFLICT`) or uncommitted local edits (`MODIFIED_LOCALLY`)
-3. Aborts with instructions if a conflict or local change is detected (use `n8nac resolve` to proceed)
-4. Downloads and writes the workflow file on success
+2. Checks for conflict (`CONFLICT`) — aborts with instructions if detected (use `n8nac resolve`)
+3. Downloads and writes the workflow file on success
 
 ### `push`
 Upload a local workflow to n8n.
@@ -162,7 +160,11 @@ n8nac push --filename my-workflow.workflow.ts  # Push a brand-new local file
 Update the remote state cache for a specific workflow.
 
 **Description:**
-Fetches the latest remote metadata for a specific workflow without downloading the file. This updates the internal comparison cache so `n8nac list` shows an accurate status before you decide to pull or push.
+Fetches the latest remote metadata for a specific workflow without downloading the file. This is done automatically by `push` and `pull` — you rarely need to call this manually. It can be useful as a lightweight sanity check to verify a workflow still exists on remote.
+
+:::note
+`push` and `pull` both call `fetch` internally before operating. You do not need to run `fetch` manually before a push or pull.
+:::
 
 **Options:**
 - `<workflowId>` (**required**): The ID of the workflow to fetch
@@ -171,11 +173,6 @@ Fetches the latest remote metadata for a specific workflow without downloading t
 ```bash
 n8nac fetch abc123
 ```
-
-**Use Cases:**
-- Before running `n8nac list` to get accurate status for a specific workflow
-- After making changes in the n8n UI to update the local cache for that workflow
-- As a lightweight check for remote changes without downloading files
 
 ### `resolve`
 Force-resolve a sync conflict for a specific workflow.
@@ -278,42 +275,33 @@ The CLI uses a configuration file (`n8nac-config.json`) with the following struc
 # 1. Initialize project
 n8nac init
 
-# 2. List workflows to see current status
+# 2. List all workflows to see their sync status (lightweight, covers all workflows)
 n8nac list
 
-# 3. Fetch remote state to update status for a specific workflow
-n8nac fetch abc123
-
-# 4. Pull remote changes for a specific workflow
+# 3. Pull a specific workflow (single workflow, by ID)
 n8nac pull abc123
 
-# 5. Edit workflow files locally
+# 4. Edit workflow files locally
 #    (edit workflows/*.workflow.ts files)
 
-# 6. Check status before pushing
-n8nac list
-
-# 7. Push local changes to n8n
+# 5. Push local changes to n8n (single workflow, by ID)
 n8nac push abc123
 ```
 
 ### Git-like Development Pattern
 ```bash
-# See what's changed
+# See current status of all workflows
 n8nac list
 
-# Update remote state cache for a specific workflow
-n8nac fetch abc123
-
-# Pull remote changes for that workflow
+# Pull a specific workflow from remote (single workflow)
 n8nac pull abc123
 
 # ... edit workflow ...
 
-# Push local changes back to n8n
+# Push local changes back to n8n (single workflow)
 n8nac push abc123
 
-# Resolve a conflict (if push/pull is blocked)
+# Resolve a conflict (if push/pull is blocked) (single workflow)
 n8nac resolve abc123 --mode keep-current   # keep local
 n8nac resolve abc123 --mode keep-incoming  # keep remote
 

@@ -102,20 +102,6 @@ describe('Synchronization Scenarios', () => {
             expect(status[0].status).toBe(WorkflowSyncStatus.TRACKED);
         });
 
-        it('should detect MODIFIED_LOCALLY', async () => {
-            mockSyncManager.setMockWorkflowsList([
-                {
-                    id: '1',
-                    name: 'Modified Local',
-                    status: WorkflowSyncStatus.MODIFIED_LOCALLY,
-                    filename: 'workflow.workflow.ts'
-                }
-            ]);
-
-            const status = await mockSyncManager.listWorkflows();
-            expect(status[0].status).toBe(WorkflowSyncStatus.MODIFIED_LOCALLY);
-        });
-
         it('should detect EXIST_ONLY_LOCALLY', async () => {
             mockSyncManager.setMockWorkflowsList([
                 {
@@ -150,8 +136,8 @@ describe('Synchronization Scenarios', () => {
             mockSyncManager.setMockWorkflowsList([
                 {
                     id: '1',
-                    name: 'Modified',
-                    status: WorkflowSyncStatus.MODIFIED_LOCALLY,
+                    name: 'Local Only',
+                    status: WorkflowSyncStatus.EXIST_ONLY_LOCALLY,
                     filename: 'workflow.workflow.ts'
                 }
             ]);
@@ -182,8 +168,8 @@ describe('Synchronization Scenarios', () => {
             mockSyncManager.setMockWorkflowsList([
                 {
                     id: '1',
-                    name: 'Local Mod',
-                    status: WorkflowSyncStatus.MODIFIED_LOCALLY,
+                    name: 'Local Only',
+                    status: WorkflowSyncStatus.EXIST_ONLY_LOCALLY,
                     filename: 'workflow1.workflow.ts'
                 },
                 {
@@ -202,11 +188,11 @@ describe('Synchronization Scenarios', () => {
 
             const status = await mockSyncManager.listWorkflows();
             
-            const localMods = status.filter(w => w.status === WorkflowSyncStatus.MODIFIED_LOCALLY);
+            const localOnly = status.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY);
             const newRemote = status.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY);
             const tracked = status.filter(w => w.status === WorkflowSyncStatus.TRACKED);
 
-            expect(localMods).toHaveLength(1);
+            expect(localOnly).toHaveLength(1);
             expect(newRemote).toHaveLength(1);
             expect(tracked).toHaveLength(1);
         });
