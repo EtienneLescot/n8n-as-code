@@ -227,6 +227,20 @@ Each package maintains its own release history!
 3. Ensure all tests pass
 4. Submit a pull request with clear description
 
+### GitHub Copilot Code Review
+
+When you request a Copilot review on your pull request, you can follow its advancement directly in the PR:
+
+1. **Request the review**: In your PR page, go to the **Reviewers** section (top-right sidebar) and select **Copilot** as a reviewer.
+
+2. **Follow the advancement**: Once requested, the review status is visible in two places:
+   - **Reviewers sidebar** (top-right of the PR page): Shows "Copilot" with a pending/completed indicator.
+   - **PR timeline**: When the review is complete, Copilot's inline comments and summary appear directly in the conversation thread.
+
+3. **Notifications**: GitHub will notify you (via the bell icon and email, depending on your settings) when the Copilot review is posted.
+
+> **Tip**: If the Copilot review does not appear after a few minutes, refresh the PR page. The review is typically completed within seconds to a couple of minutes.
+
 ### Documentation
 - Update relevant documentation when adding features
 - Include JSDoc comments for public APIs
