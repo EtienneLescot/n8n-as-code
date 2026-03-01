@@ -136,6 +136,15 @@ jobs:
             echo "❌ VSCE_TOKEN is missing. Add it to GitHub Environment secrets for '${{ github.ref == 'refs/heads/next' && 'next' || 'prod' }}'."
             exit 1
           fi
+          VERSION=$(node -p "require('./package.json').version")
+          EXISTING=$(curl -s -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery?api-version=7.2-preview.1" \
+            -H "Content-Type: application/json" \
+            -d '{"filters":[{"criteria":[{"filterType":7,"value":"etienne-lescot.n8n-as-code"}]}],"flags":529}' \
+            | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).results[0].extensions[0].versions.map(v=>v.version).join(',')")
+          if echo "$EXISTING" | grep -qF "$VERSION"; then
+            echo "⚠️ VS Code Extension v$VERSION already exists on Marketplace, skipping publish."
+            exit 0
+          fi
           npx @vscode/vsce package --no-dependencies
           npx @vscode/vsce publish --no-dependencies --pre-release --pat "$VSCE_TOKEN"
 
@@ -148,6 +157,15 @@ jobs:
           if [[ -z "$VSCE_TOKEN" ]]; then
             echo "❌ VSCE_TOKEN is missing. Add it to GitHub Environment secrets for 'prod'."
             exit 1
+          fi
+          VERSION=$(node -p "require('./package.json').version")
+          EXISTING=$(curl -s -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery?api-version=7.2-preview.1" \
+            -H "Content-Type: application/json" \
+            -d '{"filters":[{"criteria":[{"filterType":7,"value":"etienne-lescot.n8n-as-code"}]}],"flags":529}' \
+            | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).results[0].extensions[0].versions.map(v=>v.version).join(',')")
+          if echo "$EXISTING" | grep -qF "$VERSION"; then
+            echo "⚠️ VS Code Extension v$VERSION already exists on Marketplace, skipping publish."
+            exit 0
           fi
           npx @vscode/vsce package --no-dependencies
           npx @vscode/vsce publish --no-dependencies --pat "$VSCE_TOKEN"
