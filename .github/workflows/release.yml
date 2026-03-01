@@ -121,13 +121,14 @@ jobs:
         if: github.ref == 'refs/heads/next'
         run: |
           # VS Code convention: even minor = stable, odd minor = pre-release.
-          # Use (stable_minor + 1) as pre-release minor, and commit-count as patch
-          # so every push to next gets a unique, monotonically increasing version.
+          # Use (stable_minor + 1) as pre-release minor, and github.run_number as patch
+          # so every CI run gets a unique, monotonically increasing version.
+          # (git rev-list --count is unreliable in shallow clones)
           BASE=$(node -p "require('./packages/vscode-extension/package.json').version.replace(/-next.*$/, '')")
           MAJOR=$(echo "$BASE" | cut -d. -f1)
           STABLE_MINOR=$(echo "$BASE" | cut -d. -f2)
           PRE_MINOR=$(( STABLE_MINOR + 1 ))
-          PATCH=$(git rev-list --count HEAD)
+          PATCH=${{ github.run_number }}
           npm version "$MAJOR.$PRE_MINOR.$PATCH" --no-git-tag-version --workspace=n8n-as-code
 
       - name: Build all packages
