@@ -52,12 +52,6 @@ export class WorkflowDecorationProvider implements vscode.FileDecorationProvider
           tooltip: 'Tracked'
         };
 
-      case WorkflowSyncStatus.MODIFIED_LOCALLY:
-        return {
-          color: new vscode.ThemeColor('gitDecoration.modifiedResourceForeground'),
-          tooltip: 'Modified Locally'
-        };
-
       case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
         return {
           color: new vscode.ThemeColor('gitDecoration.deletedResourceForeground'),

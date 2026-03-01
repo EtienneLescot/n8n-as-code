@@ -82,10 +82,8 @@ export class WorkflowItem extends BaseTreeItem {
         return 'workflow-cloud-only';
       case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
         return 'workflow-local-only';
-      case WorkflowSyncStatus.MODIFIED_LOCALLY:
-        return 'workflow-modified-local';
       default:
-        // TRACKED: workflow known on both sides, no local changes
+        // TRACKED: workflow known on both sides
         return 'workflow-local';
     }
   }
@@ -99,8 +97,6 @@ export class WorkflowItem extends BaseTreeItem {
       case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
         // Remote-only: cloud icon (like a remote git branch not yet checked out)
         return new vscode.ThemeIcon('cloud', new vscode.ThemeColor('charts.blue'));
-      case WorkflowSyncStatus.MODIFIED_LOCALLY:
-        return new vscode.ThemeIcon('pencil', new vscode.ThemeColor('charts.orange'));
       case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
         return new vscode.ThemeIcon('file-add', new vscode.ThemeColor('charts.orange'));
       default:
