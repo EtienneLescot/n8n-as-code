@@ -5,7 +5,7 @@
  * Extracts metadata from decorators and class structure
  */
 
-import { Project, SourceFile, SyntaxKind, ClassDeclaration, PropertyDeclaration, MethodDeclaration, Node } from 'ts-morph';
+import { Project, SourceFile, SyntaxKind, ClassDeclaration, PropertyDeclaration, MethodDeclaration, Node, VariableDeclarationKind } from 'ts-morph';
 import { WorkflowAST, NodeAST, ConnectionAST, WorkflowMetadata } from '../types.js';
 
 /**
@@ -566,8 +566,7 @@ export class TypeScriptParser {
         const varDecl = sourceFile.getVariableDeclaration(name);
         if (varDecl) {
             const stmt = varDecl.getVariableStatement();
-            const isConst = stmt?.getDeclarationKind() === 'const' ||
-                (stmt as any)?.getDeclarationKind?.() === 0; // VariableDeclarationKind.Const
+            const isConst = stmt?.getDeclarationKind() === VariableDeclarationKind.Const;
             if (!isConst) {
                 throw new Error(
                     `[n8n-as-code] Identifier "${name}" is declared with \`let\` or \`var\`. ` +
