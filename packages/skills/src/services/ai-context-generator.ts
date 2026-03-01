@@ -383,38 +383,6 @@ export class AiContextGenerator {
     ].join('\n');
   }
 
-  private getCursorRulesContent(): string {
-    return [
-      `# n8n-as-code rules`,
-      `- Refer to AGENTS.md for complete n8n workflow standards.`,
-      `- MANDATORY: Use 'npx --yes n8nac skills' tools before creating/editing nodes.`,
-      `- REQUIRED: Use FULL node types (e.g., 'n8n-nodes-base.switch') and LATEST typeVersion.`,
-      `- Search: 'npx --yes n8nac skills search <query>' - Find nodes & docs (PRIMARY TOOL)`,
-      `- Get: 'npx --yes n8nac skills node-info <nodeName>' - Complete node info`,
-      `- Schema: 'npx --yes n8nac skills node-schema <nodeName>' - Quick parameters reference`,
-      `- Docs: 'npx --yes n8nac skills docs <title>' - Read a specific documentation page`,
-      `- Guides: 'npx --yes n8nac skills guides <query>' - Find tutorials and examples`,
-      `- Workflows: 'npx --yes n8nac skills examples search <query>' - Find community workflows (7000+)`,
-      `- Related: 'npx --yes n8nac skills related <nodeName>' - Discover ecosystem and related nodes`,
-      `- Validate: 'npx --yes n8nac skills validate workflow.workflow.ts' - Check your workflow for errors`
-    ].join('\n');
-  }
-
-  private getClineRulesContent(): string {
-    return [
-      `n8n_engineer_role:`,
-      `  description: Expert in n8n-as-code`,
-      `  instructions:`,
-      `    - Read AGENTS.md for sync principles.`,
-      `    - MANDATORY: Use FULL node types (e.g., 'n8n-nodes-base.switch') and LATEST typeVersion.`,
-      `    - Use 'npx --yes n8nac skills search' as your primary research tool.`,
-      `    - Use 'npx --yes n8nac skills examples search' to find community examples (7000+ workflows).`,
-      `    - Use 'npx --yes n8nac skills node-info' to fetch exact schema before editing workflow JSON.`,
-      `    - Use 'npx --yes n8nac skills validate workflow.workflow.ts' to verify your work.`,
-      `    - Ensure connections are correctly indexed.`
-    ].join('\n');
-  }
-
   getSkillContent(): string {
     return `---
 name: n8n-architect
@@ -633,20 +601,4 @@ When helping users:
 `;
   }
 
-  private getWindsurfRulesContent(): string {
-    return [
-      `### n8n Development Rules`,
-      `- Follow the Research Protocol in AGENTS.md.`,
-      `- Tooling: Use 'npx --yes n8nac skills' to fetch node schemas and documentation.`,
-    ].join('\n');
-  }
-
-  private getCommonRulesContent(): string {
-    return [
-      `# Common Rules for All AI Agents (Claude, Mistral, etc.)`,
-      `- Role: Expert n8n Automation Engineer.`,
-      `- Workflow Source of Truth: 'npx --yes n8nac skills' tools.`,
-      `- Documentation: Read AGENTS.md for full syntax rules.`
-    ].join('\n');
-  }
 }

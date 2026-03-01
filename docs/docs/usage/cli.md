@@ -196,7 +196,7 @@ n8nac resolve abc123 --mode keep-incoming  # Force-pull remote
 ```
 
 ### `update-ai`
-Update AI Context (AGENTS.md, rule files, code snippets).
+Update AI Context (AGENTS.md and code snippets).
 
 **Description:**
 Regenerates context files that help AI coding assistants (GitHub Copilot, Cursor, Cline, Windsurf…) understand n8n workflow structure and best practices. The command fetches the installed n8n version to tailor the output.
@@ -213,7 +213,6 @@ n8nac update-ai
 **Creates / updates:**
 - `AGENTS.md`: Instructions for AI assistants on n8n workflow development
 - `.vscode/n8n.code-snippets`: Code completion snippets for VS Code
-- `.cursorrules` / `.clinerules` / `.windsurfrules`: AI agent rule files
 
 ### `convert`
 Convert a single workflow file between JSON and TypeScript formats.

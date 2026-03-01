@@ -13,7 +13,7 @@ description: Documentation for the Skills CLI package used by AI assistants to g
 The Skills CLI (`@n8n-as-code/skills`) provides tools for AI assistants to understand and work with n8n workflows. It offers:
 
 1. **Node Schema Access**: Search and retrieve n8n node schemas
-2. **AI Context Generation**: Create `AGENTS.md` and AI rule files
+2. **AI Context Generation**: Create `AGENTS.md`
 3. **Code Snippets**: Generate VS Code snippets for common n8n patterns
 
 ## 🏗️ Architecture
@@ -27,7 +27,6 @@ graph TD
     
     B --> E[Search/Get/List Commands]
     C --> F[AGENTS.md]
-    C --> G[.cursorrules/.clinerules/.windsurfrules]
     D --> H[.vscode/n8n.code-snippets]
     
     style A fill:#ff6b35
@@ -52,8 +51,6 @@ Generates AI context files with instructions for AI assistants.
 
 **Key Features:**
 - Creates `AGENTS.md` with n8n-as-code context and rules
-- Generates specialized rule files (`.cursorrules`, `.clinerules`, `.windsurfrules`)
-- Creates `.ai-rules.md` for general AI assistants
 - Injects/updates existing files without overwriting user content
 
 #### 3. **SnippetGenerator**
@@ -95,10 +92,8 @@ Apply the Knowledge: Use the `get` tool's output as the absolute source of truth
 ```
 
 ### AI Rule Files
-- `.cursorrules`: Rules for Cursor AI
-- `.clinerules`: Rules for Cline AI
-- `.windsurfrules`: Rules for Windsurf AI
-- `.ai-rules.md`: General rules for all AI assistants
+
+`update-ai` only generates `AGENTS.md`. Cursor, Cline, Windsurf, and other AI assistants can pick up their instructions directly from `AGENTS.md`.
 
 ### .vscode/n8n.code-snippets
 ```json
@@ -182,7 +177,7 @@ AI assistants use:
 The VS Code extension can use the Skills CLI programmatically to:
 1. Generate AI context files when initializing projects
 2. Provide node schema access for AI features
-3. Update rule files when n8n version changes
+3. Update `AGENTS.md` when n8n version changes
 
 ### Main CLI
 The main CLI's `update-ai` command (`init-ai` is a backward-compatible alias) uses the Skills CLI internally to:

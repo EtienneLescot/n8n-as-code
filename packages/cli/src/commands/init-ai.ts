@@ -29,7 +29,7 @@ export class UpdateAiCommand {
     constructor(private program: Command) {
         this.program
             .command('update-ai')
-            .description('Update AI Context (AGENTS.md, rule files, snippets)')
+            .description('Update AI Context (AGENTS.md and snippets)')
             .action(async (options) => {
                 await this.run(options);
             });
@@ -37,7 +37,7 @@ export class UpdateAiCommand {
 
     public async run(options: any = {}, providedCredentials?: IN8nCredentials) {
         console.log(chalk.blue('🤖 Updating AI Context...'));
-        console.log(chalk.gray('   Regenerating AGENTS.md, rule files, and snippets\n'));
+        console.log(chalk.gray('   Regenerating AGENTS.md and snippets\n'));
 
         const projectRoot = process.cwd();
 
@@ -62,8 +62,8 @@ export class UpdateAiCommand {
                 } catch { } // Ignore version fetch error
             }
 
-            // 2. Generate Context (AGENTS.md, rules)
-            console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md, rules)...'));
+            // 2. Generate Context (AGENTS.md)
+            console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md)...'));
             const aiContextGenerator = new AiContextGenerator();
             await aiContextGenerator.generate(projectRoot, version, getDistTag());
             console.log(chalk.green('   ✅ AI context files created.'));
@@ -80,7 +80,6 @@ export class UpdateAiCommand {
 
             console.log(chalk.green('\n✨ AI Context Updated Successfully!'));
             console.log(chalk.gray('   ✔ AGENTS.md: Complete AI agent guidelines'));
-            console.log(chalk.gray('   ✔ .cursorrules/.clinerules/.windsurfrules: AI agent rules'));
             console.log(chalk.gray('   ✔ .vscode/n8n.code-snippets: Code completion snippets'));
             console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/skills)\n'));
 

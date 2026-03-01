@@ -197,7 +197,6 @@ Regenerates AI context files for the project.
 **Key Responsibilities:**
 - Generate `AGENTS.md` with n8n-specific AI agent instructions
 - Generate `.vscode/n8n.code-snippets` from the n8n node index
-- Generate editor rule files (`.cursorrules`, `.clinerules`, `.windsurfrules`)
 - Optionally connect to n8n to embed the running instance version
 
 :::note
