@@ -19,6 +19,7 @@ jobs:
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
       paths_released: ${{ steps.release.outputs.paths_released }}
+      # Per-package outputs
       cli_release_created: ${{ steps.release.outputs['packages/cli--release_created'] }}
       skills_release_created: ${{ steps.release.outputs['packages/skills--release_created'] }}
       transformer_release_created: ${{ steps.release.outputs['packages/transformer--release_created'] }}
@@ -106,8 +107,15 @@ jobs:
       - name: Normalize VS Code pre-release version (next only)
         if: github.ref == 'refs/heads/next'
         run: |
+          # VS Code convention: even minor = stable, odd minor = pre-release.
+          # Use (stable_minor + 1) as pre-release minor, and commit-count as patch
+          # so every push to next gets a unique, monotonically increasing version.
           BASE=$(node -p "require('./packages/vscode-extension/package.json').version.replace(/-next.*$/, '')")
-          npm version "$BASE" --no-git-tag-version --workspace=n8n-as-code
+          MAJOR=$(echo "$BASE" | cut -d. -f1)
+          STABLE_MINOR=$(echo "$BASE" | cut -d. -f2)
+          PRE_MINOR=$(( STABLE_MINOR + 1 ))
+          PATCH=$(git rev-list --count HEAD)
+          npm version "$MAJOR.$PRE_MINOR.$PATCH" --no-git-tag-version --workspace=n8n-as-code
 
       - name: Build all packages
         run: npm run build
