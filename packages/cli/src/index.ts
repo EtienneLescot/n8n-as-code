@@ -82,39 +82,39 @@ program.command('list')
 // pull - Download a single workflow by ID
 program.command('pull')
     .description('Download a single workflow from n8n to local directory')
-    .requiredOption('--workflowsid <workflowId>', 'Workflow ID to pull')
-    .action(async (options) => {
-        await new SyncCommand().pullOne(options.workflowsid);
+    .argument('<workflowId>', 'Workflow ID to pull')
+    .action(async (workflowId) => {
+        await new SyncCommand().pullOne(workflowId);
     });
 
 // push - Upload a single workflow by ID
 program.command('push')
     .description('Upload a single local workflow to n8n')
-    .requiredOption('--workflowsid <workflowId>', 'Workflow ID to push')
-    .action(async (options) => {
-        await new SyncCommand().pushOne(options.workflowsid);
+    .argument('<workflowId>', 'Workflow ID to push')
+    .action(async (workflowId) => {
+        await new SyncCommand().pushOne(workflowId);
     });
 
 // fetch - Update remote state cache for a specific workflow
 program.command('fetch')
     .description('Fetch remote state for a specific workflow (update internal cache for comparison)')
-    .requiredOption('--workflowsid <workflowId>', 'Workflow ID to fetch')
-    .action(async (options) => {
+    .argument('<workflowId>', 'Workflow ID to fetch')
+    .action(async (workflowId) => {
         const syncCommand = new SyncCommand();
-        await syncCommand.fetchOne(options.workflowsid);
+        await syncCommand.fetchOne(workflowId);
     });
 
 // resolve - Resolve a conflict for a specific workflow
 program.command('resolve')
     .description('Resolve a conflict for a specific workflow')
-    .requiredOption('--workflowsid <workflowId>', 'Workflow ID to resolve')
+    .argument('<workflowId>', 'Workflow ID to resolve')
     .requiredOption('--mode <mode>', 'Resolution mode: "keep-current" (local) or "keep-incoming" (remote)')
-    .action(async (options) => {
+    .action(async (workflowId, options) => {
         if (options.mode !== 'keep-current' && options.mode !== 'keep-incoming') {
             console.error(chalk.red('❌ Invalid mode. Use "keep-current" or "keep-incoming"'));
             process.exit(1);
         }
-        await new SyncCommand().resolveOne(options.workflowsid, options.mode);
+        await new SyncCommand().resolveOne(workflowId, options.mode);
     });
 
 // convert - Convert workflows between JSON and TypeScript formats

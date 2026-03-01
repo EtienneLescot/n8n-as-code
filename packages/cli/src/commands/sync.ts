@@ -27,12 +27,12 @@ export class SyncCommand extends BaseCommand {
             if (status.status === WorkflowSyncStatus.CONFLICT) {
                 console.log(chalk.red(`💥 Conflict detected for workflow ${workflowId}.`));
                 console.log(chalk.yellow(`To resolve the conflict you can either:`));
-                console.log(`  n8nac resolve --workflowsid ${workflowId} --mode keep-current`);
-                console.log(`  n8nac resolve --workflowsid ${workflowId} --mode keep-incoming`);
+                console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
+                console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
                 return;
             } else if (status.status === WorkflowSyncStatus.MODIFIED_LOCALLY) {
                 console.log(chalk.yellow(`⚠️  Workflow ${workflowId} has local changes. Pulling would overwrite them.`));
-                console.log(chalk.yellow(`If you want to overwrite local changes, use n8nac resolve --workflowsid ${workflowId} --mode keep-incoming`));
+                console.log(chalk.yellow(`If you want to overwrite local changes, use n8nac resolve ${workflowId} --mode keep-incoming`));
                 return;
             }
         }
@@ -65,8 +65,8 @@ export class SyncCommand extends BaseCommand {
             if (status.status === WorkflowSyncStatus.CONFLICT) {
                 console.log(chalk.red(`💥 Conflict detected for workflow ${workflowId}.`));
                 console.log(chalk.yellow(`To resolve the conflict you can either:`));
-                console.log(`  n8nac resolve --workflowsid ${workflowId} --mode keep-current`);
-                console.log(`  n8nac resolve --workflowsid ${workflowId} --mode keep-incoming`);
+                console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
+                console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
                 return;
             }
         }
@@ -80,8 +80,8 @@ export class SyncCommand extends BaseCommand {
                 spinner.stop();
                 console.log(chalk.red(`\n💥 Conflict detected: ${e.message}`));
                 console.log(chalk.yellow(`To resolve the conflict you can either:`));
-                console.log(`  n8nac resolve --workflowsid ${workflowId} --mode keep-current`);
-                console.log(`  n8nac resolve --workflowsid ${workflowId} --mode keep-incoming`);
+                console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
+                console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
                 return;
             }
             spinner.fail(`Push failed: ${e.message}`);

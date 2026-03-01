@@ -5,7 +5,7 @@ This plan outlines the steps to complete the refactoring of the `n8n-as-code` pr
 ## 1. CLI Refactoring
 
 ### 1.1 Command Harmonization
-- Ensure `pull`, `push`, and `fetch` all use `--workflowsid` as the primary identifier. and cannot be used to operate on "all" workflows at once.
+- Ensure `pull`, `push`, and `fetch` all use `<workflowId>` as the primary identifier. and cannot be used to operate on "all" workflows at once.
 - Verify `list` supports `--local`, `--remote` (alias `--distant`). and that list without flags shows combined view with clear local_only/remote_only/both status indicators.
 - Ensure `list` is ultra lightweight: metadata only, no TS compilation, no deep diffs. should be able to list hundreds of workflows in under a second.
 
@@ -36,7 +36,7 @@ This plan outlines the steps to complete the refactoring of the `n8n-as-code` pr
 
 ### 3.2 UI Updates
 - **Refresh Button:** Ensure the global refresh button in the tree view calls the `list` command (via `SyncManager.getWorkflowsLightweight`).
-- **Fetch Button:** Ensure the per-workflow fetch button is correctly wired to the `fetch --workflowsid` logic.
+- **Fetch Button:** Ensure the per-workflow fetch button is correctly wired to the `fetch <workflowId>` logic.
 
 ### 3.3 Enhanced Tree Provider
 - Ensure it properly displays "local-only", "remote-only", and "both" workflows based on the lightweight list.
@@ -52,9 +52,9 @@ graph TD
     User([User])
     subgraph CLI
         List[n8nac list]
-        Fetch[n8nac fetch --workflowsid ID]
-        Pull[n8nac pull --workflowsid ID]
-        Push[n8nac push --workflowsid ID]
+        Fetch[n8nac fetch <workflowId> ID]
+        Pull[n8nac pull <workflowId> ID]
+        Push[n8nac push <workflowId> ID]
     end
     subgraph VSCode
         Tree[Workflow Tree]

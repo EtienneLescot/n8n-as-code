@@ -54,11 +54,11 @@ n8nac switch
 n8nac list                               # See all workflows and their status (local & remote)
 n8nac list --local                       # List only local files
 n8nac list --remote                      # List only remote state from cache
-n8nac fetch --workflowsid <workflowId>   # Update remote state for a workflow
+n8nac fetch <workflowId>   # Update remote state for a workflow
 n8nac fetch --all                        # Update remote state for all workflows
-n8nac pull --workflowsid <workflowId>    # Pull remote changes (use --mode keep-incoming in conflict)
-n8nac push --workflowsid <workflowId>    # Push local changes (use --mode keep-current in conflict)
-n8nac resolve --workflowsid <id> --mode keep-current # Explicit conflict resolution
+n8nac pull <workflowId>    # Pull remote changes (use --mode keep-incoming in conflict)
+n8nac push <workflowId>    # Push local changes (use --mode keep-current in conflict)
+n8nac resolve <id> --mode keep-current # Explicit conflict resolution
 ```
 
 📖 [Full CLI documentation](https://etiennelescot.github.io/n8n-as-code/docs/usage/cli)

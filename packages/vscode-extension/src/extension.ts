@@ -136,7 +136,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
-        // n8nac push --workflowsid <id>
+        // n8nac push <id>
         vscode.commands.registerCommand('n8n.pushWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
                 vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
@@ -173,7 +173,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
-        // n8nac pull --workflowsid <id>
+        // n8nac pull <id>
         vscode.commands.registerCommand('n8n.pullWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
                 vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
@@ -214,7 +214,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
-        // n8nac fetch --workflowsid <id>
+        // n8nac fetch <id>
         vscode.commands.registerCommand('n8n.fetchWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
                 vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');

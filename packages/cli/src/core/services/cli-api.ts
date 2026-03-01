@@ -3,9 +3,9 @@
  *
  * Provides a named API surface that mirrors exactly the CLI commands:
  *   n8nac list               → CliApi.list()
- *   n8nac fetch --workflowsid → CliApi.fetch()
- *   n8nac pull  --workflowsid → CliApi.pull()
- *   n8nac push  --workflowsid → CliApi.push()
+ *   n8nac fetch <id> → CliApi.fetch()
+ *   n8nac pull <id>  → CliApi.pull()
+ *   n8nac push <id>  → CliApi.push()
  *
  * This is the single contract that must be used by all VSCode extension
  * command handlers. It ensures there is zero code duplication between the
@@ -46,7 +46,7 @@ export class CliApi {
     // ── fetch ─────────────────────────────────────────────────────────────────
 
     /**
-     * Mirrors `n8nac fetch --workflowsid <id>`
+     * Mirrors `n8nac fetch <id>`
      *
      * Updates the internal remote-state cache for one specific workflow.
      * Returns true if the workflow exists on remote, false if not found.
@@ -61,7 +61,7 @@ export class CliApi {
     // ── pull ──────────────────────────────────────────────────────────────────
 
     /**
-     * Mirrors `n8nac pull --workflowsid <id>`
+     * Mirrors `n8nac pull <id>`
      *
      * Downloads the latest remote version of one workflow and overwrites
      * the local `.workflow.ts` file regardless of local status.
@@ -76,7 +76,7 @@ export class CliApi {
     // ── push ──────────────────────────────────────────────────────────────────
 
     /**
-     * Mirrors `n8nac push --workflowsid <id>`
+     * Mirrors `n8nac push <id>`
      *
      * Uploads the local `.workflow.ts` file to n8n.
      * Automatically handles three cases:
