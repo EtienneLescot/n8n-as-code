@@ -36,23 +36,6 @@ Note: When you run `update-ai` from the main `n8nac`, ensure `n8nac` is availabl
 
 ## 🛠️ Available Commands
 
-### 1. Search Nodes
-# Skills (AI Tools)
-
-The Skills package (`n8nac`) provides command-line tools specifically designed for AI coding assistants and developers working with n8n workflows. It allows you to search, retrieve, and list n8n node schemas programmatically.
-
-## 🛠 Purpose
-
-This package provides dedicated skills commands (`n8nac skills`) and programmatic tools designed to:
-
-## 🚀 Installation
-
-```bash
-npm install n8nac
-```
-
-## 📖 CLI Usage
-
 ### `search <query>` - 🚀 Deep Unified Search (PRIMARY TOOL)
 
 ```bash
