@@ -3,7 +3,7 @@
  *
  * Registers all `n8nac skills` subcommands on a given Commander program.
  * Called directly by the standalone `n8nac-skills` binary (cli.ts) **and** by
- * the unified `n8nac` CLI via `packages/cli/src/commands/skills.ts`.
+ * the unified `n8nac` CLI via `packages/cli/src/index.ts`.
  */
 
 import { Command } from 'commander';
