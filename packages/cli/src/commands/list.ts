@@ -20,7 +20,6 @@ export class ListCommand extends BaseCommand {
             if (options?.local) {
                 workflows = workflows.filter(w =>
                     w.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY ||
-                    w.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
                     w.status === WorkflowSyncStatus.TRACKED ||
                     w.status === WorkflowSyncStatus.CONFLICT
                 );
@@ -61,10 +60,10 @@ export class ListCommand extends BaseCommand {
             // Sort workflows by status priority, then by name
             const statusPriority: Record<WorkflowSyncStatus, number> = {
                 [WorkflowSyncStatus.CONFLICT]: 1,
-                [WorkflowSyncStatus.MODIFIED_LOCALLY]: 2,
-                [WorkflowSyncStatus.EXIST_ONLY_LOCALLY]: 3,
-                [WorkflowSyncStatus.EXIST_ONLY_REMOTELY]: 4,
-                [WorkflowSyncStatus.TRACKED]: 5
+                [WorkflowSyncStatus.EXIST_ONLY_LOCALLY]: 2,
+                [WorkflowSyncStatus.EXIST_ONLY_REMOTELY]: 3,
+                [WorkflowSyncStatus.TRACKED]: 4,
+                [WorkflowSyncStatus.MODIFIED_LOCALLY]: 5 // never returned by list, kept for type completeness
             };
 
             const sorted = workflows.sort((a: IWorkflowStatus, b: IWorkflowStatus) => {
@@ -100,7 +99,6 @@ export class ListCommand extends BaseCommand {
             const summary = this.getSummary(workflows);
             console.log(chalk.bold('Summary:'));
             console.log(chalk.green(`  ✔ Tracked: ${summary.tracked}`));
-            console.log(chalk.blue(`  ✏️  Modified Locally: ${summary.modifiedLocally}`));
             console.log(chalk.red(`  💥 Conflicts: ${summary.conflicts}`));
             console.log(chalk.yellow(`  + Local Only: ${summary.onlyLocal}`));
             console.log(chalk.yellow(`  - Remote Only: ${summary.onlyRemote}`));
@@ -116,8 +114,6 @@ export class ListCommand extends BaseCommand {
         switch (status) {
             case WorkflowSyncStatus.TRACKED:
                 return { icon: '✔', color: chalk.green };
-            case WorkflowSyncStatus.MODIFIED_LOCALLY:
-                return { icon: '✏️', color: chalk.blue };
             case WorkflowSyncStatus.CONFLICT:
                 return { icon: '💥', color: chalk.red };
             case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
@@ -132,7 +128,6 @@ export class ListCommand extends BaseCommand {
     private getSummary(workflows: IWorkflowStatus[]) {
         return {
             tracked: workflows.filter(w => w.status === WorkflowSyncStatus.TRACKED).length,
-            modifiedLocally: workflows.filter(w => w.status === WorkflowSyncStatus.MODIFIED_LOCALLY).length,
             conflicts: workflows.filter(w => w.status === WorkflowSyncStatus.CONFLICT).length,
             onlyLocal: workflows.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY).length,
             onlyRemote: workflows.filter(w => w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY).length

@@ -32,7 +32,8 @@ export class CliApi {
      * Mirrors `n8nac list`
      *
      * Returns a lightweight list of all workflows with basic status:
-     * EXIST_ONLY_LOCALLY | EXIST_ONLY_REMOTELY | TRACKED | MODIFIED_LOCALLY | CONFLICT
+     * EXIST_ONLY_LOCALLY | EXIST_ONLY_REMOTELY | TRACKED | CONFLICT
+     * (MODIFIED_LOCALLY is only returned by getSingleWorkflowDetailedStatus, not by list)
      *
      * Pass `{ fetchRemote: true }` to force a fresh remote metadata fetch
      * (equivalent to running `n8nac list` which always fetches remote).
