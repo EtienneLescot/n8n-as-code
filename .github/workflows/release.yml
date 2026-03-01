@@ -161,8 +161,8 @@ jobs:
           EXISTING=$(curl -s -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery?api-version=7.2-preview.1" \
             -H "Content-Type: application/json" \
             -d '{"filters":[{"criteria":[{"filterType":7,"value":"etienne-lescot.n8n-as-code"}]}],"flags":529}' \
-            | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).results[0].extensions[0].versions.map(v=>v.version).join(',')")
-          if echo "$EXISTING" | grep -qF "$VERSION"; then
+            | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).results[0].extensions[0].versions.map(v=>v.version).join('\n')")
+          if echo "$EXISTING" | grep -qxF "$VERSION"; then
             echo "⚠️ VS Code Extension v$VERSION already exists on Marketplace, skipping publish."
             exit 0
           fi
@@ -183,8 +183,8 @@ jobs:
           EXISTING=$(curl -s -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery?api-version=7.2-preview.1" \
             -H "Content-Type: application/json" \
             -d '{"filters":[{"criteria":[{"filterType":7,"value":"etienne-lescot.n8n-as-code"}]}],"flags":529}' \
-            | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).results[0].extensions[0].versions.map(v=>v.version).join(',')")
-          if echo "$EXISTING" | grep -qF "$VERSION"; then
+            | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).results[0].extensions[0].versions.map(v=>v.version).join('\n')")
+          if echo "$EXISTING" | grep -qxF "$VERSION"; then
             echo "⚠️ VS Code Extension v$VERSION already exists on Marketplace, skipping publish."
             exit 0
           fi
