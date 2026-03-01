@@ -18,7 +18,7 @@ import dotenv from 'dotenv';
 function getDistTag(): string | undefined {
     try {
         const __dir = dirname(fileURLToPath(import.meta.url));
-        const pkg = JSON.parse(readFileSync(join(__dir, '..', 'package.json'), 'utf8'));
+        const pkg = JSON.parse(readFileSync(join(__dir, '..', '..', 'package.json'), 'utf8'));
         return pkg.version?.includes('-') ? pkg.version : undefined;
     } catch {
         return undefined;
