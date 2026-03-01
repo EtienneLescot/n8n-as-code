@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { SyncEngine } from './sync-engine.js';
-import { Watcher } from './watcher.js';
+import { WorkflowStateTracker } from './workflow-state-tracker.js';
 import { WorkflowSanitizer } from './workflow-sanitizer.js';
 import { HashUtils } from './hash-utils.js';
 import { WorkflowSyncStatus } from '../types.js';
@@ -18,11 +18,11 @@ import { N8nApiClient } from './n8n-api-client.js';
  */
 export class ResolutionManager {
     private syncEngine: SyncEngine;
-    private watcher: Watcher;
+    private watcher: WorkflowStateTracker;
     private client: N8nApiClient;
     private directory: string;
 
-    constructor(syncEngine: SyncEngine, watcher: Watcher, client: N8nApiClient) {
+    constructor(syncEngine: SyncEngine, watcher: WorkflowStateTracker, client: N8nApiClient) {
         this.syncEngine = syncEngine;
         this.watcher = watcher;
         this.client = client;
