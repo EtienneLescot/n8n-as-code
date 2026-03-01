@@ -87,4 +87,5 @@ describe('AiContextGenerator', () => {
             expect(fs.existsSync(path.join(tempDir, 'n8nac'))).toBe(false);
             expect(fs.existsSync(path.join(tempDir, 'n8nac.cmd'))).toBe(false);
         });
-    });});
+    });
+});
