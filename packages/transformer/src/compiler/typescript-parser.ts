@@ -492,9 +492,16 @@ export class TypeScriptParser {
                         // { name }  →  try to resolve `name` as a top-level const
                         const key: string = prop.getName();
                         result[key] = this.resolveIdentifier(key, sourceFile);
+                    } else {
+                        const kindName = prop.getKindName?.() ?? prop.getKind();
+                        const rawText = prop.getText();
+                        const preview = rawText.length > 80 ? rawText.substring(0, 80) + '...' : rawText;
+                        throw new Error(
+                            `[n8n-as-code] Unsupported object property kind "${kindName}" ` +
+                            `("${preview}") in a node parameter. ` +
+                            `Only PropertyAssignment and ShorthandPropertyAssignment are supported.`
+                        );
                     }
-                    // SpreadAssignment / MethodDeclaration inside object literals
-                    // are intentionally not handled here.
                 }
                 return result;
             }
