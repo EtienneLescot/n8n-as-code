@@ -5,7 +5,7 @@
  * Extracts metadata from decorators and class structure
  */
 
-import { Project, SourceFile, SyntaxKind, ClassDeclaration, PropertyDeclaration, MethodDeclaration, Node } from 'ts-morph';
+import { Project, SourceFile, SyntaxKind, ClassDeclaration, PropertyDeclaration, MethodDeclaration, Node, VariableDeclarationKind } from 'ts-morph';
 import { WorkflowAST, NodeAST, ConnectionAST, WorkflowMetadata } from '../types.js';
 
 /**
@@ -566,12 +566,16 @@ export class TypeScriptParser {
         const varDecl = sourceFile.getVariableDeclaration(name);
         if (varDecl) {
             const stmt = varDecl.getVariableStatement();
-            const isConst = stmt?.getDeclarationKind() === 'const' ||
-                (stmt as any)?.getDeclarationKind?.() === 0; // VariableDeclarationKind.Const
-            if (!isConst) {
+            if (stmt?.getDeclarationKind() !== VariableDeclarationKind.Const) {
                 throw new Error(
                     `[n8n-as-code] Identifier "${name}" is declared with \`let\` or \`var\`. ` +
                     `Only \`const\` top-level declarations can be referenced in node parameters.`
+                );
+            }
+            if (!Node.isSourceFile(stmt.getParent())) {
+                throw new Error(
+                    `[n8n-as-code] Identifier "${name}" is not a top-level declaration. ` +
+                    `Only top-level \`const\` declarations can be referenced in node parameters.`
                 );
             }
             const init = varDecl.getInitializer();
