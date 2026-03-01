@@ -5,7 +5,7 @@
  * Extracts metadata from decorators and class structure
  */
 
-import { Project, SourceFile, SyntaxKind, ClassDeclaration, PropertyDeclaration, MethodDeclaration } from 'ts-morph';
+import { Project, SourceFile, SyntaxKind, ClassDeclaration, PropertyDeclaration, MethodDeclaration, Node } from 'ts-morph';
 import { WorkflowAST, NodeAST, ConnectionAST, WorkflowMetadata } from '../types.js';
 
 /**
@@ -106,13 +106,8 @@ export class TypeScriptParser {
             throw new Error('@workflow decorator missing metadata argument');
         }
         
-        // Parse object literal argument
-        const metadataArg = args[0];
-        const metadataText = metadataArg.getText();
-        
-        // Use eval in a safe context to parse the object literal
-        // This is safe because we're only parsing our own generated code
-        const metadata = this.parseObjectLiteral(metadataText);
+        // Extract metadata directly from the AST node — no eval needed
+        const metadata = this.extractValueFromASTNode(args[0], workflowClass.getSourceFile());
         
         return metadata as WorkflowMetadata;
     }
@@ -137,15 +132,15 @@ export class TypeScriptParser {
                 continue;
             }
             
-            const metadataText = args[0].getText();
-            const metadata = this.parseObjectLiteral(metadataText);
+            const sourceFile = prop.getSourceFile();
+            const metadata = this.extractValueFromASTNode(args[0], sourceFile);
             
             // Extract property name
             const propertyName = prop.getName();
             
             // Extract parameters from property initializer
             const initializer = prop.getInitializer();
-            const parameters = initializer ? this.parseObjectLiteral(initializer.getText()) : {};
+            const parameters = initializer ? this.extractValueFromASTNode(initializer, sourceFile) : {};
             
             nodes.push({
                 propertyName,
@@ -430,19 +425,159 @@ export class TypeScriptParser {
     }
     
     /**
-     * Parse object literal string to object
-     * 
-     * Uses Function constructor for safe eval of object literals
-     * This is safe because we only parse our own generated code
+     * Extract a JavaScript value by walking a ts-morph AST node.
+     *
+     * Supported: string/number/boolean literals, null, undefined, plain object
+     * literals, array literals, no-substitution template literals, negative
+     * number literals, and top-level `const` identifiers whose initializers
+     * are themselves statically resolvable.
+     *
+     * For truly dynamic expressions (function calls, imports, template
+     * expressions with substitutions, etc.) a helpful error is thrown
+     * explaining what IS supported and how to work around the limitation.
+     *
+     * @param node - The AST node to evaluate.
+     * @param sourceFile - The containing SourceFile, used to resolve
+     *   top-level `const` identifier references.
      */
-    private parseObjectLiteral(text: string): any {
-        try {
-            // Wrap in parentheses and use Function constructor
-            const func = new Function(`return (${text})`);
-            return func();
-        } catch (error) {
-            console.error('Failed to parse object literal:', text);
-            throw new Error(`Failed to parse object literal: ${error}`);
+    private extractValueFromASTNode(node: Node, sourceFile?: SourceFile): any {
+        switch (node.getKind()) {
+
+            // ── Primitive literals ───────────────────────────────────────
+            case SyntaxKind.StringLiteral:
+            case SyntaxKind.NoSubstitutionTemplateLiteral:
+                return (node as any).getLiteralValue() as string;
+
+            case SyntaxKind.NumericLiteral:
+                return Number((node as any).getLiteralValue());
+
+            case SyntaxKind.TrueKeyword:
+                return true;
+
+            case SyntaxKind.FalseKeyword:
+                return false;
+
+            case SyntaxKind.NullKeyword:
+                return null;
+
+            case SyntaxKind.UndefinedKeyword:
+                return undefined;
+
+            // ── Negative numbers  (-42, -3.14) ───────────────────────────
+            case SyntaxKind.PrefixUnaryExpression: {
+                const prefix = node as any;
+                if (prefix.getOperatorToken() === SyntaxKind.MinusToken) {
+                    const operand = this.extractValueFromASTNode(prefix.getOperand(), sourceFile);
+                    if (typeof operand === 'number') return -operand;
+                }
+                throw new Error(
+                    `[n8n-as-code] Cannot statically evaluate prefix expression ` +
+                    `"${node.getText()}" in a node parameter. ` +
+                    `Only literal values are supported.`
+                );
+            }
+
+            // ── Plain object literals ─────────────────────────────────────
+            case SyntaxKind.ObjectLiteralExpression: {
+                const result: Record<string, any> = {};
+                const objLit = node as any;
+                for (const prop of objLit.getProperties()) {
+                    if (prop.getKind() === SyntaxKind.PropertyAssignment) {
+                        const key: string = prop.getName();
+                        const valueNode: Node | undefined = prop.getInitializer();
+                        result[key] = valueNode !== undefined
+                            ? this.extractValueFromASTNode(valueNode, sourceFile)
+                            : undefined;
+                    } else if (prop.getKind() === SyntaxKind.ShorthandPropertyAssignment) {
+                        // { name }  →  try to resolve `name` as a top-level const
+                        const key: string = prop.getName();
+                        result[key] = this.resolveIdentifier(key, sourceFile);
+                    }
+                    // SpreadAssignment / MethodDeclaration inside object literals
+                    // are intentionally not handled here.
+                }
+                return result;
+            }
+
+            // ── Array literals ────────────────────────────────────────────
+            case SyntaxKind.ArrayLiteralExpression: {
+                const arrLit = node as any;
+                return (arrLit.getElements() as Node[]).map(
+                    (elem) => this.extractValueFromASTNode(elem, sourceFile)
+                );
+            }
+
+            // ── Identifier reference (e.g. a top-level const) ─────────────
+            case SyntaxKind.Identifier: {
+                const name = node.getText();
+                if (name === 'undefined') return undefined;
+                return this.resolveIdentifier(name, sourceFile);
+            }
+
+            // ── Dynamic / unsupported expressions ────────────────────────
+            case SyntaxKind.CallExpression: {
+                const preview = node.getText().substring(0, 80);
+                throw new Error(
+                    `[n8n-as-code] Dynamic expression not supported in node parameters:\n` +
+                    `  ${preview}\n\n` +
+                    `Only static literal values (strings, numbers, booleans, null, plain objects,\n` +
+                    `arrays) and references to top-level \`const\` literals are supported.\n\n` +
+                    `Workaround – move the computation to a top-level const BEFORE the class:\n` +
+                    `  import { readFileSync } from 'fs';\n` +
+                    `  const jsCode = readFileSync('code/example.js', 'utf-8');  // still a call — not yet supported\n` +
+                    `  // For now use a string literal directly, or open an issue to request\n` +
+                    `  // dynamic evaluation support.`
+                );
+            }
+
+            default: {
+                const kindName = node.getKindName();
+                const preview = node.getText().substring(0, 80);
+                throw new Error(
+                    `[n8n-as-code] Cannot statically evaluate ` +
+                    `${kindName} expression "${preview}" in a node parameter.\n` +
+                    `Only literal values are supported.`
+                );
+            }
         }
+    }
+
+    /**
+     * Try to resolve an identifier name to its value by looking at top-level
+     * `const` variable declarations in the given source file.
+     *
+     * Only plain `const` declarations with a statically-resolvable initializer
+     * are supported. `let` / `var` and destructuring are not resolved.
+     */
+    private resolveIdentifier(name: string, sourceFile?: SourceFile): any {
+        if (!sourceFile) {
+            throw new Error(
+                `[n8n-as-code] Cannot resolve identifier "${name}": no source file context available.`
+            );
+        }
+
+        const varDecl = sourceFile.getVariableDeclaration(name);
+        if (varDecl) {
+            const stmt = varDecl.getVariableStatement();
+            const isConst = stmt?.getDeclarationKind() === 'const' ||
+                (stmt as any)?.getDeclarationKind?.() === 0; // VariableDeclarationKind.Const
+            if (!isConst) {
+                throw new Error(
+                    `[n8n-as-code] Identifier "${name}" is declared with \`let\` or \`var\`. ` +
+                    `Only \`const\` top-level declarations can be referenced in node parameters.`
+                );
+            }
+            const init = varDecl.getInitializer();
+            if (init) {
+                return this.extractValueFromASTNode(init, sourceFile);
+            }
+        }
+
+        throw new Error(
+            `[n8n-as-code] Cannot resolve identifier "${name}" in node parameters.\n` +
+            `Only static literal values and references to top-level \`const\` literals are supported.\n` +
+            `If "${name}" is a function, calling it dynamically is not yet supported.\n` +
+            `Workaround: use a string or object literal directly in the node parameter.`
+        );
     }
 }
