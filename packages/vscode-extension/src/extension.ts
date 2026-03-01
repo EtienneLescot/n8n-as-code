@@ -186,7 +186,6 @@ export async function activate(context: vscode.ExtensionContext) {
                 const workflowStatus = await cli.getSingleWorkflowDetailedStatus(wf.id, wf.filename);
                 
                 const hasLocalChanges =
-                    workflowStatus.status === WorkflowSyncStatus.MODIFIED_LOCALLY ||
                     workflowStatus.status === WorkflowSyncStatus.CONFLICT;
 
                 if (hasLocalChanges) {
@@ -627,64 +626,51 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         }
     });
 
-    // Real (user-triggered) status change — refresh the list via cli.list()
-    syncManager.on('change', async (ev: any) => {
-        outputChannel.appendLine(`[n8n] Status change: ${ev.status} (${ev.filename})`);
-        if (!cli) return;
-        try {
-            store.dispatch(setWorkflows(await cli.list()));
-            // Clear conflict if the new status is not CONFLICT
-            if (ev.status !== WorkflowSyncStatus.CONFLICT && ev.workflowId) {
-                store.dispatch(removeConflict(ev.workflowId));
-            }
-            enhancedTreeProvider.refresh();
-        } catch (err) {
-            console.error('Failed to reload workflows:', err);
-        }
-    });
-
-    syncManager.on('conflict', async (conflict: any) => {
-        const { filename, id } = conflict;
-        outputChannel.appendLine(`[n8n] CONFLICT detected: ${filename}`);
-        store.dispatch(addConflict({ id: conflict.id, filename: conflict.filename, remoteContent: conflict.remoteContent }));
-        enhancedTreeProvider.refresh();
-        const choice = await vscode.window.showWarningMessage(
-            `⚠️ Conflict: "${filename}" — local and remote versions differ.`,
-            'Show Diff', 'Keep Current (local)', 'Keep Incoming (remote)'
-        );
-        if (choice) {
-            await vscode.commands.executeCommand('n8n.resolveConflict', {
-                workflow: { id, filename, name: filename },
-                choice
-            });
-        }
-    });
-
     syncManager.on('remote-updated', (data: { workflowId: string; filename: string }) => {
         WorkflowWebview.reloadIfMatching(data.workflowId, outputChannel);
     });
 
-    // VS Code file-system watcher for immediate tree refresh on local edits
+    // ── Lightweight UI watchers (replaces the heavy chokidar-based WorkflowStateTracker watcher) ──
+    //
+    // 1. VS Code native FS watcher: detects new/deleted .workflow.ts files and refreshes the list.
+    //    We deliberately ignore 'change' events — 'modified locally' is no longer a tracked status.
+    // 2. Remote polling every 60s: discovers workflows created/deleted on the n8n instance.
     if (vscode.workspace.workspaceFolders?.length) {
         const syncFolder = config.get<string>('syncFolder') || 'workflows';
         const pattern = new vscode.RelativePattern(
             vscode.workspace.workspaceFolders[0],
-            `${syncFolder}/*.workflow.ts`
+            `${syncFolder}/**/*.workflow.ts`
         );
-        const fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
-        let refreshTimeout: NodeJS.Timeout | undefined;
-        const debouncedRefresh = () => {
-            if (refreshTimeout) clearTimeout(refreshTimeout);
-            refreshTimeout = setTimeout(() => enhancedTreeProvider.refresh(), 500);
+        const fileWatcher = vscode.workspace.createFileSystemWatcher(pattern, false, true, false);
+        const reloadList = async () => {
+            if (!cli) return;
+            try {
+                store.dispatch(setWorkflows(await cli.list()));
+                enhancedTreeProvider.refresh();
+            } catch (err) {
+                console.error('[n8n] FS watcher: failed to refresh list', err);
+            }
         };
-        fileWatcher.onDidCreate(debouncedRefresh);
-        fileWatcher.onDidDelete(debouncedRefresh);
-        fileWatcher.onDidChange(debouncedRefresh);
+        fileWatcher.onDidCreate(reloadList);
+        fileWatcher.onDidDelete(reloadList);
         context.subscriptions.push(fileWatcher);
     }
 
+    // Remote polling — lightweight `list` every 60 seconds to surface new/deleted remote workflows.
+    const pollingInterval = setInterval(async () => {
+        if (!cli) return;
+        try {
+            store.dispatch(setWorkflows(await cli.list({ fetchRemote: true })));
+            enhancedTreeProvider.refresh();
+        } catch (err) {
+            console.error('[n8n] Polling: failed to refresh list', err);
+        }
+    }, 60_000);
+    context.subscriptions.push({ dispose: () => clearInterval(pollingInterval) });
+
     statusBar.setWatchMode(false);
-    await syncManager.startWatch();
+    // NOTE: syncManager.startWatch() is intentionally NOT called.
+    // The heavy chokidar-based watcher is replaced by the two lightweight UI watchers above.
 
     // Initial list — uses cli.list(fetchRemote: true) which mirrors `n8nac list`
     outputChannel.appendLine('[n8n] Loading workflow list...');
