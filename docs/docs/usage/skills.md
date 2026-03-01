@@ -76,7 +76,7 @@ n8nac skills node-info googleSheets
 n8nac skills node-info httpRequest
 ```
 
-### `schema <nodeName>` - ⚡ Quick Parameter Reference
+### `node-schema <nodeName>` - ⚡ Quick Parameter Reference
 
 ```bash
 n8nac skills node-schema googleSheets
@@ -102,7 +102,7 @@ n8nac skills guides "ai workflow"
 n8nac skills guides --list
 ```
 
-### `workflows` - 🌐 Search & Download Community Workflows
+### `examples` - 🌐 Search & Download Community Workflows
 
 ```bash
 n8nac skills examples search "slack notification"
@@ -112,7 +112,7 @@ n8nac skills examples search "google sheets" --json
 
 n8nac skills examples info 916
 n8nac skills examples download 916
-n8nac skills examples download 4365 --output my-chatbot.json
+n8nac skills examples download 4365 --output my-chatbot.workflow.ts
 n8nac skills examples download 8088 --force
 
 n8nac skills examples list
