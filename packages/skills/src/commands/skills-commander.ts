@@ -25,7 +25,13 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
     const provider = new NodeSchemaProvider(join(assetsDir, 'n8n-nodes-technical.json'));
     const docsProvider = new DocsProvider(join(assetsDir, 'n8n-docs-complete.json'));
     const knowledgeSearch = new KnowledgeSearch(join(assetsDir, 'n8n-knowledge-index.json'));
-    const registry = new WorkflowRegistry();
+    let registry: WorkflowRegistry | undefined;
+    const getRegistry = (): WorkflowRegistry => {
+        if (!registry) {
+            registry = new WorkflowRegistry();
+        }
+        return registry;
+    };
 
     // ── search ────────────────────────────────────────────────────────────────
     program
@@ -391,7 +397,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .option('--json', 'Output results as JSON')
         .action((query: string, options: { limit: string; json?: boolean }) => {
             const limit = parseInt(options.limit, 10);
-            const results = registry.search(query, limit);
+            const results = getRegistry().search(query, limit);
 
             if (options.json) {
                 console.log(JSON.stringify(results, null, 2));
@@ -420,7 +426,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .option('-l, --limit <number>', 'Limit number of results', '20')
         .action((options: { limit: string }) => {
             const limit = parseInt(options.limit, 10);
-            const results = registry.search('', limit);
+            const results = getRegistry().search('', limit);
             console.log(JSON.stringify(results, null, 2));
         });
 
@@ -428,7 +434,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .command('info <id>')
         .description('Display detailed information about a community workflow')
         .action((id: string) => {
-            const workflow = registry.getById(id);
+            const workflow = getRegistry().getById(id);
             if (!workflow) {
                 console.error(chalk.red(`❌ Workflow with ID "${id}" not found.`));
                 process.exit(1);
@@ -445,7 +451,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                 console.log(chalk.dim(workflow.description));
             }
             console.log(chalk.cyan('\nRaw URL:'));
-            console.log(chalk.blue(registry.getRawUrl(workflow)));
+            console.log(chalk.blue(getRegistry().getRawUrl(workflow)));
             console.log('');
         });
 
@@ -455,7 +461,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .option('-o, --output <path>', 'Output file path')
         .option('-f, --force', 'Overwrite existing file')
         .action(async (id: string, options: { output?: string; force?: boolean }) => {
-            const workflow = registry.getById(id);
+            const workflow = getRegistry().getById(id);
             if (!workflow) {
                 console.error(chalk.red(`❌ Workflow with ID "${id}" not found.`));
                 process.exit(1);
@@ -474,7 +480,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                 process.exit(1);
             }
 
-            const url = registry.getRawUrl(workflow);
+            const url = getRegistry().getRawUrl(workflow);
             console.log(chalk.blue(`📥 Downloading from: ${url}`));
 
             try {
