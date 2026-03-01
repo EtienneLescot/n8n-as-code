@@ -19,7 +19,7 @@ export interface IInstanceState {
  * 1. Read state from .n8n-state.json
  * 2. Provide read-only access to workflow states
  * 
- * Note: Write operations are handled exclusively by Watcher component
+ * Note: Write operations are handled exclusively by WorkflowStateTracker component
  * to maintain single source of truth for state mutations.
  */
 export class StateManager {
@@ -74,7 +74,7 @@ export class StateManager {
     }
 
     /**
-     * Get the entire state object (for Watcher's internal use)
+     * Get the entire state object (for WorkflowStateTracker's internal use)
      * @internal
      */
     getFullState(): IInstanceState {

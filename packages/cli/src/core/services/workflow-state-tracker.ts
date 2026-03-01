@@ -20,7 +20,7 @@ import { IWorkflowState, IInstanceState } from './state-manager.js';
  * 
  * Never performs synchronization actions - only observes reality.
  */
-export class Watcher extends EventEmitter {
+export class WorkflowStateTracker extends EventEmitter {
     private watcherSubscription: FSWatcher | null = null;
     private client: N8nApiClient;
     private directory: string;
@@ -197,25 +197,25 @@ export class Watcher extends EventEmitter {
 
     private async onLocalChange(filePath: string) {
         const filename = path.basename(filePath);
-        console.log(`[Watcher] onLocalChange: ${filename}`);
+        console.log(`[WorkflowStateTracker] onLocalChange: ${filename}`);
         if (!filename.endsWith('.workflow.ts')) return;
 
         const content = this.readJsonFile(filePath);
         if (!content) {
-            console.log(`[Watcher] ❌ Cannot read file content for ${filename} - readJsonFile returned null`);
+            console.log(`[WorkflowStateTracker] ❌ Cannot read file content for ${filename} - readJsonFile returned null`);
             return;
         }
-        console.log(`[Watcher] ✅ File content read for ${filename}, ID=${content.id}`);
+        console.log(`[WorkflowStateTracker] ✅ File content read for ${filename}, ID=${content.id}`);
 
         // Check if filename is paused (for workflows without ID)
         if (this.pausedFilenames.has(filename)) {
-            console.log(`[Watcher] ⏸️  Filename ${filename} is paused, ignoring change`);
+            console.log(`[WorkflowStateTracker] ⏸️  Filename ${filename} is paused, ignoring change`);
             return;
         }
 
         let workflowId = content.id || this.fileToIdMap.get(filename);
         if (workflowId && (this.isPaused.has(workflowId) || this.syncInProgress.has(workflowId))) {
-            console.log(`[Watcher] ⏸️  Workflow ${workflowId} is paused or sync in progress, ignoring change`);
+            console.log(`[WorkflowStateTracker] ⏸️  Workflow ${workflowId} is paused or sync in progress, ignoring change`);
             return;
         }
 
@@ -273,7 +273,7 @@ export class Watcher extends EventEmitter {
                             this.localHashes.set(filename, hash);
                             this.broadcastStatus(filename, workflowId);
                         } catch (parseErr: any) {
-                            console.error(`[Watcher] ❌ Cannot parse "${filename}" after duplicate-ID removal: ${parseErr.message}`);
+                            console.error(`[WorkflowStateTracker] ❌ Cannot parse "${filename}" after duplicate-ID removal: ${parseErr.message}`);
                         }
                     }
                     return; // Stop processing this file as it's being modified
@@ -297,7 +297,7 @@ export class Watcher extends EventEmitter {
             // which would be mistaken as a local modification and pushed, wiping the remote).
             // Log the problem and abort – do NOT update localHashes so the file is not pushed.
             console.error(
-                `[Watcher] ❌ Cannot parse "${filename}" – skipping hash/status update to prevent data loss.\n` +
+                `[WorkflowStateTracker] ❌ Cannot parse "${filename}" – skipping hash/status update to prevent data loss.\n` +
                 `  Cause: ${parseErr.message}\n` +
                 `  Tip: Make sure the class name contains only valid ASCII/identifier characters ` +
                 `(→ U+2192 and similar symbols are not allowed in TypeScript identifiers).`
@@ -305,7 +305,7 @@ export class Watcher extends EventEmitter {
             return;
         }
 
-        console.log(`[Watcher] 🔢 Hash computed for ${filename}: ${hash.substring(0, 8)}...`);
+        console.log(`[WorkflowStateTracker] 🔢 Hash computed for ${filename}: ${hash.substring(0, 8)}...`);
 
         this.localHashes.set(filename, hash);
         if (workflowId) {
@@ -313,7 +313,7 @@ export class Watcher extends EventEmitter {
             this.idToFileMap.set(workflowId, filename);
         }
 
-        console.log(`[Watcher] 📡 Broadcasting status for ${filename}...`);
+        console.log(`[WorkflowStateTracker] 📡 Broadcasting status for ${filename}...`);
         this.broadcastStatus(filename, workflowId);
     }
 
@@ -467,7 +467,7 @@ export class Watcher extends EventEmitter {
                     if (isNew) newlyTracked.push(filename);
                 } catch (parseErr: any) {
                     console.error(
-                        `[Watcher] ❌ Cannot parse "${filename}" during local scan – skipping.\n` +
+                        `[WorkflowStateTracker] ❌ Cannot parse "${filename}" during local scan – skipping.\n` +
                         `  Cause: ${parseErr.message}\n` +
                         `  Tip: Make sure the class name contains only valid ASCII/identifier characters ` +
                         `(→ U+2192 and similar symbols are not allowed in TypeScript identifiers).`
@@ -853,10 +853,10 @@ export class Watcher extends EventEmitter {
         const key = workflowId || filename;
         const lastStatus = this.lastKnownStatuses.get(key);
 
-        console.log(`[Watcher] Status for ${filename}: ${status} (last: ${lastStatus || 'none'})`);
+        console.log(`[WorkflowStateTracker] Status for ${filename}: ${status} (last: ${lastStatus || 'none'})`);
 
         if (status !== lastStatus) {
-            console.log(`[Watcher] 🔔 Status changed! Emitting statusChange event`);
+            console.log(`[WorkflowStateTracker] 🔔 Status changed! Emitting statusChange event`);
             this.lastKnownStatuses.set(key, status);
             this.emit('statusChange', {
                 filename,
@@ -864,7 +864,7 @@ export class Watcher extends EventEmitter {
                 status
             });
         } else {
-            console.log(`[Watcher] Status unchanged, not emitting event`);
+            console.log(`[WorkflowStateTracker] Status unchanged, not emitting event`);
         }
     }
 
@@ -886,7 +886,7 @@ export class Watcher extends EventEmitter {
 
         // Debug logging for new files
         if (!workflowId && localHash) {
-            console.log(`[Watcher] 🆕 calculateStatus for NEW file: ${filename}`);
+            console.log(`[WorkflowStateTracker] 🆕 calculateStatus for NEW file: ${filename}`);
             console.log(`  localHash: ${localHash ? localHash.substring(0, 8) : 'none'}`);
             console.log(`  lastSyncedHash: ${lastSyncedHash ? lastSyncedHash.substring(0, 8) : 'none'}`);
             console.log(`  remoteHash: ${remoteHash ? remoteHash.substring(0, 8) : 'none'}`);
@@ -917,7 +917,7 @@ export class Watcher extends EventEmitter {
         }
 
         // Fallback for edge cases
-        console.warn(`[Watcher] ⚠️  CONFLICT fallback for ${filename}:`, { localHash: !!localHash, remoteHash: !!remoteHash, lastSyncedHash: !!lastSyncedHash, workflowId });
+        console.warn(`[WorkflowStateTracker] ⚠️  CONFLICT fallback for ${filename}:`, { localHash: !!localHash, remoteHash: !!remoteHash, lastSyncedHash: !!lastSyncedHash, workflowId });
         return WorkflowSyncStatus.CONFLICT;
     }
 
@@ -1126,7 +1126,7 @@ export class Watcher extends EventEmitter {
                 }
             }
         } catch (error) {
-            console.debug('[Watcher] Failed to read local directory:', error);
+            console.debug('[WorkflowStateTracker] Failed to read local directory:', error);
         }
         return filenames;
     }
@@ -1151,12 +1151,12 @@ export class Watcher extends EventEmitter {
                             }
                         }
                     } catch (e) {
-                        console.warn(`[Watcher] Failed to parse local workflow ${filename}:`, e);
+                        console.warn(`[WorkflowStateTracker] Failed to parse local workflow ${filename}:`, e);
                     }
                 }
             }
         } catch (error) {
-            console.debug('[Watcher] Failed to load workflow metadata for status matrix:', error);
+            console.debug('[WorkflowStateTracker] Failed to load workflow metadata for status matrix:', error);
         }
 
         // 1. Process all local files
@@ -1278,7 +1278,7 @@ export class Watcher extends EventEmitter {
                     workflows.push(workflow);
                 }
             } catch (error) {
-                console.warn(`[Watcher] Failed to read local workflow ${filename}:`, error);
+                console.warn(`[WorkflowStateTracker] Failed to read local workflow ${filename}:`, error);
             }
         }
 
@@ -1292,7 +1292,7 @@ export class Watcher extends EventEmitter {
                         workflows.push(workflow);
                     }
                 } catch (error) {
-                    console.warn(`[Watcher] Failed to fetch remote workflow ${workflowId}:`, error);
+                    console.warn(`[WorkflowStateTracker] Failed to fetch remote workflow ${workflowId}:`, error);
                 }
             }
         }
@@ -1408,7 +1408,7 @@ export class Watcher extends EventEmitter {
                 this.broadcastStatus(filename, remoteWf.id);
             }
         } catch (error) {
-            console.error(`[Watcher] Failed to update single remote state for ${remoteWf.id}:`, error);
+            console.error(`[WorkflowStateTracker] Failed to update single remote state for ${remoteWf.id}:`, error);
         }
     }
 }

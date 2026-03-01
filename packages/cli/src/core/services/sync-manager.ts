@@ -3,7 +3,7 @@ import path from 'path';
 import EventEmitter from 'events';
 import { N8nApiClient } from './n8n-api-client.js';
 import { StateManager } from './state-manager.js';
-import { Watcher } from './watcher.js';
+import { WorkflowStateTracker } from './workflow-state-tracker.js';
 import { SyncEngine } from './sync-engine.js';
 import { ResolutionManager } from './resolution-manager.js';
 import { ISyncConfig, IWorkflow, WorkflowSyncStatus, IWorkflowStatus } from '../types.js';
@@ -14,7 +14,7 @@ export class SyncManager extends EventEmitter {
     private client: N8nApiClient;
     private config: ISyncConfig;
     private stateManager: StateManager | null = null;
-    private watcher: Watcher | null = null;
+    private watcher: WorkflowStateTracker | null = null;
     private syncEngine: SyncEngine | null = null;
     private resolutionManager: ResolutionManager | null = null;
 
@@ -52,7 +52,7 @@ export class SyncManager extends EventEmitter {
         }
 
         this.stateManager = new StateManager(instanceDir);
-        this.watcher = new Watcher(this.client, {
+        this.watcher = new WorkflowStateTracker(this.client, {
             directory: instanceDir,
             syncInactive: true,
             ignoredTags: [],

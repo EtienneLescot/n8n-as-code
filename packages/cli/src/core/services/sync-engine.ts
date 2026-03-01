@@ -3,7 +3,7 @@ import path from 'path';
 import { N8nApiClient } from './n8n-api-client.js';
 import { WorkflowTransformerAdapter } from './workflow-transformer-adapter.js';
 import { HashUtils } from './hash-utils.js';
-import { Watcher } from './watcher.js';
+import { WorkflowStateTracker } from './workflow-state-tracker.js';
 import { WorkflowSyncStatus, IWorkflow } from '../types.js';
 
 /**
@@ -18,12 +18,12 @@ import { WorkflowSyncStatus, IWorkflow } from '../types.js';
  */
 export class SyncEngine {
     private client: N8nApiClient;
-    private watcher: Watcher;
+    private watcher: WorkflowStateTracker;
     private directory: string;
 
     constructor(
         client: N8nApiClient,
-        watcher: Watcher,
+        watcher: WorkflowStateTracker,
         directory: string
     ) {
         this.client = client;

@@ -581,7 +581,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         outputChannel.appendLine(`[n8n] Instance identifier (fallback): ${instanceIdentifier}`);
     }
 
-    // Create SyncManager (the stateful engine: Watcher, events, etc.)
+    // Create SyncManager (the stateful engine: WorkflowStateTracker, events, etc.)
     syncManager = new SyncManager(client, {
         directory: absDirectory,
         syncInactive: true,
@@ -633,6 +633,11 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         if (!cli) return;
         try {
             store.dispatch(setWorkflows(await cli.list()));
+            // Clear conflict if the new status is not CONFLICT
+            if (ev.status !== WorkflowSyncStatus.CONFLICT && ev.workflowId) {
+                store.dispatch(removeConflict(ev.workflowId));
+            }
+            enhancedTreeProvider.refresh();
         } catch (err) {
             console.error('Failed to reload workflows:', err);
         }
