@@ -5,9 +5,9 @@ This plan outlines the steps to complete the refactoring of the `n8n-as-code` pr
 ## 1. CLI Refactoring
 
 ### 1.1 Command Harmonization
-- Ensure `pull`, `push`, and `fetch` all use `<workflowId>` as the primary identifier. and cannot be used to operate on "all" workflows at once.
-- Verify `list` supports `--local`, `--remote` (alias `--distant`). and that list without flags shows combined view with clear local_only/remote_only/both status indicators.
-- Ensure `list` is ultra lightweight: metadata only, no TS compilation, no deep diffs. should be able to list hundreds of workflows in under a second.
+- Ensure `pull`, `push`, and `fetch` all use `<workflowId>` as the primary identifier and cannot be used to operate on "all" workflows at once.
+- Verify `list` supports `--local`, `--remote` (alias `--distant`) and that list without flags shows combined view with clear local_only/remote_only/both status indicators.
+- Ensure `list` is ultra lightweight: metadata only, no TS compilation, no deep diffs and should be able to list hundreds of workflows in under a second.
 
 ### 1.2 Deprecation cleanup
 - Remove any remaining "auto-sync" or "sync status" (global) terminology in help texts.
