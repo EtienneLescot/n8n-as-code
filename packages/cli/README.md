@@ -103,7 +103,7 @@ n8nac resolve <id> --mode keep-incoming   # Force-pull remote version
 ---
 
 ### `update-ai`
-Generate or refresh AI context files in the project root. This command creates `AGENTS.md`, VS Code snippets, and editor rule files.
+Generate or refresh AI context files in the project root. This command creates `AGENTS.md` and VS Code snippets.
 
 ```bash
 n8nac update-ai

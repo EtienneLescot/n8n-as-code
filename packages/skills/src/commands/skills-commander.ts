@@ -357,7 +357,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
     // ── update-ai ─────────────────────────────────────────────────────────────
     program
         .command('update-ai')
-        .description('Update AI Context files (AGENTS.md, rule files, snippets)')
+        .description('Update AI Context files (AGENTS.md and snippets)')
         .option('--n8n-version <version>', 'n8n instance version', 'Unknown')
         .option('--cli-version <version>', 'n8nac CLI version or dist-tag to use in generated AI context', 'latest')
         .action(async (options: { n8nVersion: string; cliVersion?: string }) => {
