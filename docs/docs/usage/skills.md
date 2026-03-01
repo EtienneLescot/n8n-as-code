@@ -68,7 +68,7 @@ n8nac skills search "database" --type node
 n8nac skills search "ai" --category advanced-ai
 ```
 
-### `get <nodeName>` - 📚 Complete Node Info
+### `node-info <nodeName>` - 📚 Complete Node Info
 Get full node information: schema + documentation + examples.
 
 ```bash
@@ -224,7 +224,7 @@ The Skills CLI is designed to be used by AI coding assistants to:
 The Skills CLI uses a pre-generated index of n8n nodes from the official n8n source code. The data is stored in `dist/assets/` (generated during build):
 
 - `n8n-knowledge-index.json`: Unified FlexSearch index for the `search` command.
-- `n8n-nodes-technical.json`: Detailed technical schemas for the `get` command.
+- `n8n-nodes-technical.json`: Detailed technical schemas for the `node-info` command.
 - `n8n-docs-complete.json`: Full documentation content.
 
 This includes:
