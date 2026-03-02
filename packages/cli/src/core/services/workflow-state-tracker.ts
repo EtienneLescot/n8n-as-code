@@ -228,18 +228,11 @@ export class WorkflowStateTracker extends EventEmitter {
                 const fileExists = fs.existsSync(existingFilePath);
 
                 if (!fileExists) {
-                    // The existing file doesn't exist - this is likely a rename
-                    // Update mappings to point to the new filename
+                    // The existing file doesn't exist - this is a rename
+                    // Update in-memory mappings to point to the new filename
                     this.fileToIdMap.delete(existingFilename);
                     this.fileToIdMap.set(filename, content.id);
                     this.idToFileMap.set(content.id, filename);
-
-                    // PERSIST: Update filename in state to prevent "ghost" workflows after restart
-                    const state = this.loadState();
-                    if (state.workflows[content.id]) {
-                        (state.workflows[content.id] as IWorkflowState).filename = filename;
-                        this.saveState(state);
-                    }
 
                     // Emit rename event
                     this.emit('fileRenamed', {
@@ -401,15 +394,6 @@ export class WorkflowStateTracker extends EventEmitter {
             this.localHashes.set(newFilename, oldHash);
         }
 
-        // PERSIST: Update filename in state to prevent "ghost" workflows after restart
-        if (workflowId) {
-            const state = this.loadState();
-            if (state.workflows[workflowId]) {
-                (state.workflows[workflowId] as IWorkflowState).filename = newFilename;
-                this.saveState(state);
-            }
-        }
-
         // Emit rename event
         this.emit('fileRenamed', {
             workflowId,
@@ -449,14 +433,13 @@ export class WorkflowStateTracker extends EventEmitter {
         }
 
         // First pass: collect all files and their content
-        const fileContents: Array<{ filename: string; content: any; mtime: number }> = [];
+        const fileContents: Array<{ filename: string; content: any }> = [];
         const newlyTracked: string[] = [];
         for (const filename of files) {
             const filePath = path.join(this.directory, filename);
             const content = this.readJsonFile(filePath); // Quick ID extraction
             if (content) {
-                const stat = fs.statSync(filePath);
-                fileContents.push({ filename, content, mtime: stat.mtimeMs });
+                fileContents.push({ filename, content });
 
                 // Compute hash from TypeScript file directly
                 const tsContent = fs.readFileSync(filePath, 'utf-8');
@@ -477,29 +460,49 @@ export class WorkflowStateTracker extends EventEmitter {
             }
         }
 
-        // Detect and resolve duplicate IDs (following architectural plan)
-        await this.resolveDuplicateIds(fileContents);
+        // Second pass: build file→ID mappings from actual file content (scan-wins).
+        //
+        // For IDs that exist on disk, the scan result is authoritative — this correctly
+        // handles renames (new filename contains the same @workflow({ id: "..." }) decorator).
+        // Mappings for remote-only workflows (set by fetch/updateSingleRemoteState and not
+        // present in local files) are left untouched.
+        //
+        // Duplicate ID handling (copy-paste, option A — no file modification):
+        //   Sort claimants alphabetically → first file wins, others get no mapping
+        //   → treated as EXIST_ONLY_LOCALLY, resolved by pushing (gets a new id)
 
-        // Second pass: update mappings after duplicate resolution
-        // CRITICAL: Only update mappings if not already set from persisted state
-        // This prevents ID alternation when remote workflows have duplicate names
+        const idClaims = new Map<string, string[]>();
         for (const { filename, content } of fileContents) {
             if (content?.id) {
-                // Only update if we don't have a persisted mapping for this ID
-                if (!this.idToFileMap.has(content.id)) {
-                    this.fileToIdMap.set(filename, content.id);
-                    this.idToFileMap.set(content.id, filename);
-                } else {
-                    // We have a persisted mapping - verify it matches the file
-                    const persistedFilename = this.idToFileMap.get(content.id);
-                    if (persistedFilename !== filename) {
-                        // The ID is in a different file than expected
-                        // This can happen if a file was renamed or copied
-                        // We need to decide: keep persisted mapping or update to new file?
-                        // For now, update the reverse mapping but keep ID mapping stable
-                        this.fileToIdMap.set(filename, content.id);
-                    }
-                }
+                if (!idClaims.has(content.id)) idClaims.set(content.id, []);
+                idClaims.get(content.id)!.push(filename);
+            }
+        }
+
+        for (const [id, claimants] of idClaims) {
+            // Remove the stale filename entry for this ID before setting the scan result
+            const staleFilename = this.idToFileMap.get(id);
+            if (staleFilename) {
+                this.fileToIdMap.delete(staleFilename);
+            }
+
+            const sorted = [...claimants].sort();
+            const winner = sorted[0];
+            if (sorted.length > 1) {
+                console.warn(
+                    `[WorkflowStateTracker] ⚠️  Duplicate ID "${id}" in [${sorted.join(', ')}]` +
+                    ` → "${winner}" wins (alphabetical). Others treated as new workflows.`
+                );
+            }
+            this.fileToIdMap.set(winner, id);
+            this.idToFileMap.set(id, winner);
+        }
+
+        // Clean up fileToIdMap entries for files that no longer exist on disk.
+        // (idToFileMap for deleted-locally workflows is intentionally kept for EXIST_ONLY_REMOTELY.)
+        for (const existingFilename of Array.from(this.fileToIdMap.keys())) {
+            if (!currentFiles.has(existingFilename)) {
+                this.fileToIdMap.delete(existingFilename);
             }
         }
 
@@ -512,57 +515,7 @@ export class WorkflowStateTracker extends EventEmitter {
         }
     }
 
-    /**
-     * Resolve duplicate IDs in local files (following architectural plan)
-     * Principle: Keep ID only in the oldest file, remove from others
-     */
-    private async resolveDuplicateIds(fileContents: Array<{ filename: string; content: any; mtime: number }>) {
-        // Group files by workflow ID
-        const filesById = new Map<string, Array<{ filename: string; mtime: number }>>();
 
-        for (const { filename, content, mtime } of fileContents) {
-            if (content?.id) {
-                const workflowId = content.id;
-                if (!filesById.has(workflowId)) {
-                    filesById.set(workflowId, []);
-                }
-                filesById.get(workflowId)!.push({ filename, mtime });
-            }
-        }
-
-        // For each duplicate ID, keep only in oldest file
-        for (const [workflowId, fileList] of filesById.entries()) {
-            if (fileList.length > 1) {
-                // Sort by modification time (oldest first)
-                fileList.sort((a, b) => a.mtime - b.mtime);
-
-                const oldestFile = fileList[0].filename;
-                const duplicates = fileList.slice(1);
-
-                // Remove ID from duplicate files
-                for (const { filename: dupFilename } of duplicates) {
-                    const filePath = path.join(this.directory, dupFilename);
-                    const content = this.readJsonFile(filePath);
-                    if (content) {
-                        delete content.id;
-                        await this.writeWorkflowFile(dupFilename, content);
-
-                        // Update local hash for the modified file
-                        const tsContent = fs.readFileSync(filePath, 'utf-8');
-                        const hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
-                        this.localHashes.set(dupFilename, hash);
-                    }
-                }
-
-                // Emit event for UI (if needed)
-                this.emit('duplicateIdResolved', {
-                    workflowId,
-                    keptInFilename: oldestFile,
-                    removedFromFilenames: duplicates.map(d => d.filename)
-                });
-            }
-        }
-    }
 
     /**
      * Lightweight fetch strategy:
@@ -637,16 +590,7 @@ export class WorkflowStateTracker extends EventEmitter {
                     this.idToFileMap.set(wf.id, filename);
                     this.fileToIdMap.set(filename, wf.id);
 
-                    // PERSIST: Save mapping to state so subsequent 'pull' commands can find it
-                    const state = this.loadState();
-                    if (!state.workflows[wf.id]) {
-                        state.workflows[wf.id] = {
-                            filename: filename,
-                            lastSyncedHash: undefined as any,
-                            lastSyncedAt: undefined as any
-                        };
-                        this.saveState(state);
-                    }
+                    // No longer persist filename to state (mappings are rebuilt from file scan).
                 } else if (previousFilename !== filename) {
                     // Filename changed
                     this.fileToIdMap.delete(previousFilename);
@@ -763,11 +707,9 @@ export class WorkflowStateTracker extends EventEmitter {
      */
     private async updateWorkflowState(id: string, hash: string, remoteUpdatedAt?: string) {
         const state = this.loadState();
-        const filename = this.idToFileMap.get(id) || '';
         state.workflows[id] = {
             lastSyncedHash: hash,
-            lastSyncedAt: remoteUpdatedAt || new Date().toISOString(),
-            filename: filename
+            lastSyncedAt: remoteUpdatedAt || new Date().toISOString()
         };
         this.saveState(state);
     }
@@ -813,21 +755,12 @@ export class WorkflowStateTracker extends EventEmitter {
     }
 
     /**
-     * Restore ID→filename mappings from persisted state
-     * Should only be called once at startup and after state changes
+     * No-op: file→ID mappings are now built exclusively by refreshLocalState()
+     * which scans the @workflow({ id: "..." }) decorator in each *.workflow.ts.
+     * This guarantees correct reconciliation after a local rename.
      */
     private restoreMappingsFromState() {
-        const state = this.loadState();
-        for (const [id, workflowState] of Object.entries(state.workflows)) {
-            const ws = workflowState as IWorkflowState;
-            if (ws.filename) {
-                // Only set if not already mapped (current session takes precedence)
-                if (!this.idToFileMap.has(id)) {
-                    this.idToFileMap.set(id, ws.filename);
-                    this.fileToIdMap.set(ws.filename, id);
-                }
-            }
-        }
+        // Intentionally empty — mappings are built by refreshLocalState() scan.
     }
 
     /**
@@ -1087,9 +1020,11 @@ export class WorkflowStateTracker extends EventEmitter {
 
         // 2. Process all remote workflows not yet in results
         for (const workflowId of this.remoteIds) {
-            // Use persisted filename from state for stability
-            const persistedFilename = (state.workflows[workflowId] as IWorkflowState)?.filename;
-            const filename = persistedFilename || this.idToFileMap.get(workflowId) || `${workflowId}.workflow.ts`;
+            // Scan-wins: idToFileMap (rebuilt from @workflow decorator) is authoritative.
+            // Fall back to deprecated persisted filename for old state files during transition.
+            const filename = this.idToFileMap.get(workflowId)
+                || (state.workflows[workflowId] as IWorkflowState)?.filename
+                || `${workflowId}.workflow.ts`;
 
             if (!results.has(filename)) {
                 // Prefer the actual remote name (stored by ID to avoid name-collision issues)
@@ -1180,9 +1115,11 @@ export class WorkflowStateTracker extends EventEmitter {
 
         // 2. Process all remote workflows not yet in results
         for (const [workflowId, remoteHash] of this.remoteHashes.entries()) {
-            // Use persisted filename from state for stability
-            const persistedFilename = (state.workflows[workflowId] as IWorkflowState)?.filename;
-            const filename = persistedFilename || this.idToFileMap.get(workflowId) || `${workflowId}.workflow.ts`;
+            // Scan-wins: idToFileMap (rebuilt from @workflow decorator) is authoritative.
+            // Fall back to deprecated persisted filename for old state files during transition.
+            const filename = this.idToFileMap.get(workflowId)
+                || (state.workflows[workflowId] as IWorkflowState)?.filename
+                || `${workflowId}.workflow.ts`;
 
             if (!results.has(filename)) {
                 const status = this.calculateStatus(filename, workflowId);
@@ -1204,9 +1141,11 @@ export class WorkflowStateTracker extends EventEmitter {
 
         // 3. Process tracked but deleted workflows
         for (const id of Object.keys(state.workflows)) {
-            // Use persisted filename from state for stability
-            const persistedFilename = (state.workflows[id] as IWorkflowState).filename;
-            const filename = persistedFilename || this.idToFileMap.get(id) || `${id}.workflow.ts`;
+            // Scan-wins: idToFileMap (rebuilt from @workflow decorator) is authoritative.
+            // Fall back to deprecated persisted filename for old state files during transition.
+            const filename = this.idToFileMap.get(id)
+                || (state.workflows[id] as IWorkflowState)?.filename
+                || `${id}.workflow.ts`;
 
             if (!results.has(filename)) {
                 const status = this.calculateStatus(filename, id);
@@ -1390,16 +1329,7 @@ export class WorkflowStateTracker extends EventEmitter {
                 this.idToFileMap.set(remoteWf.id, filename);
                 this.fileToIdMap.set(filename, remoteWf.id);
 
-                // PERSIST: Save the derived mapping to state so subsequent 'pull' commands can find it
-                const state = this.loadState();
-                if (!state.workflows[remoteWf.id]) {
-                    state.workflows[remoteWf.id] = {
-                        filename: filename,
-                        lastSyncedHash: undefined as any,
-                        lastSyncedAt: undefined as any
-                    };
-                    this.saveState(state);
-                }
+                // No longer persist filename to state (mappings are rebuilt from file scan).
             }
 
             // Broadcast status update
