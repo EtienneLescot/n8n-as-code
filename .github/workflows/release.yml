@@ -100,11 +100,15 @@ jobs:
         run: |
           TRANSFORMER_VERSION=$(node -p "require('./packages/transformer/package.json').version")
           SKILLS_VERSION=$(node -p "require('./packages/skills/package.json').version")
+          CLI_VERSION=$(node -p "require('./packages/cli/package.json').version")
           # Pin skills -> transformer
           npm pkg set "dependencies.@n8n-as-code/transformer=${TRANSFORMER_VERSION}" --workspace=@n8n-as-code/skills
           # Pin cli -> skills and transformer
           npm pkg set "dependencies.@n8n-as-code/skills=${SKILLS_VERSION}" --workspace=n8nac
           npm pkg set "dependencies.@n8n-as-code/transformer=${TRANSFORMER_VERSION}" --workspace=n8nac
+          # Pin vscode-extension -> cli and skills (so esbuild detects the pre-release version for __N8NAC_VERSION__)
+          npm pkg set "dependencies.n8nac=${CLI_VERSION}" --workspace=n8n-as-code
+          npm pkg set "dependencies.@n8n-as-code/skills=${SKILLS_VERSION}" --workspace=n8n-as-code
 
       - name: Pin inter-package dependencies (main)
         if: github.ref == 'refs/heads/main'
