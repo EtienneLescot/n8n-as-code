@@ -8,7 +8,7 @@
     "scripts": {
         "build": "tsc -b",
         "clean": "rm -rf dist tsconfig.tsbuildinfo",
-        "test": "vitest",
+        "test": "vitest run",
         "test:watch": "vitest --watch",
         "typecheck": "tsc --noEmit"
     },

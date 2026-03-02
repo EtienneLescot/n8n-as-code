@@ -10,6 +10,7 @@ import chalk from 'chalk';
 const isVerbose = process.argv.includes('-v') || process.argv.includes('--verbose');
 
 const testSuites = [
+    { section: 'Unit Tests', name: 'transformer', pkg: '@n8n-as-code/transformer', cmd: 'npm', args: ['test', '--workspace=@n8n-as-code/transformer'] },
     { section: 'Unit Tests', name: 'skills', pkg: '@n8n-as-code/skills', cmd: 'npm', args: ['test', '--workspace=@n8n-as-code/skills', '--', '--ci', '--reporters', 'default'] },
     { section: 'Unit Tests', name: 'cli', pkg: 'n8nac', cmd: 'npm', args: ['test', '--workspace=n8nac'] },
     { section: 'Unit Tests', name: 'vscode-unit', pkg: 'n8n-as-code', cmd: 'npm', args: ['run', 'test', '--workspace=packages/vscode-extension'] }
@@ -52,7 +53,7 @@ async function runTest(suite) {
             let passed = '0', failed = '0';
 
             // Parse counts (even if it failed, we want the stats if available)
-            if (suite.name === 'skills' || suite.name === 'cli') {
+            if (suite.name === 'transformer' || suite.name === 'skills' || suite.name === 'cli') {
                 // Support both Vitest and Jest formats:
                 // Vitest: "Tests  53 passed (53)"
                 // Jest: "Tests:       29 passed, 29 total"
