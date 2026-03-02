@@ -102,6 +102,10 @@ export class SyncManager extends EventEmitter {
      */
     async listWorkflows(options?: { fetchRemote?: boolean }): Promise<IWorkflowStatus[]> {
         await this.ensureInitialized();
+        // Always scan local files so that idToFileMap is rebuilt from the @workflow({ id })
+        // decorator in each file. This correctly handles renames (the new filename is found
+        // via its ID) without relying on a persisted filename in .n8n-state.json.
+        await this.watcher!.refreshLocalState();
         if (options?.fetchRemote) {
             await this.watcher!.refreshRemoteState();
         }

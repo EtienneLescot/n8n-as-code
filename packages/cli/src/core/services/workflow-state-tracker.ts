@@ -370,15 +370,17 @@ export class WorkflowStateTracker extends EventEmitter {
             }
         }
 
-        // Clean up local hash for deleted file
+        // Clean up local hash and mappings for deleted file.
+        // On the next pull, the filename is regenerated from safeName(workflow.name)
+        // or from the @workflow({ id }) scan if the file still exists under another name.
         this.localHashes.delete(filename);
+        if (workflowId) {
+            this.idToFileMap.delete(workflowId);
+        }
+        this.fileToIdMap.delete(filename);
 
         // Broadcast the new status (EXIST_ONLY_REMOTELY if remote exists, or gone entirely)
         this.broadcastStatus(filename, workflowId);
-
-        // CRITICAL: DO NOT delete ID→filename mappings
-        // Mappings must persist so the workflow re-appears with the same filename
-        // when it is pulled again. Mappings are only cleaned up via removeWorkflowState().
     }
 
     private handleRename(workflowId: string, oldFilename: string, newFilename: string) {
