@@ -55,18 +55,6 @@ export class WorkflowWebview {
         return false;
     }
 
-    /**
-     * Reload the currently open webview regardless of workflow ID.
-     */
-    public static reloadCurrent(_outputChannel?: vscode.OutputChannel) {
-        if (WorkflowWebview.currentPanel) {
-            // outputChannel?.appendLine(`[Webview] Reloading current panel (${WorkflowWebview.currentPanel._workflowId})`);
-            WorkflowWebview.currentPanel._panel.webview.postMessage({ type: 'reload' });
-            return true;
-        }
-        return false;
-    }
-
     public update(workflowId: string, url: string) {
         this._workflowId = workflowId;
         this._panel.title = `n8n: ${workflowId}`;
