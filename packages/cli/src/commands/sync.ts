@@ -1,5 +1,6 @@
 import { BaseCommand } from './base.js';
 import { SyncManager, WorkflowSyncStatus } from '../core/index.js';
+import { WorkflowValidator } from '@n8n-as-code/skills';
 import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';
@@ -147,6 +148,65 @@ export class SyncCommand extends BaseCommand {
             spinner.fail(`Resolution failed: ${e.message}`);
             process.exit(1);
         }
+    }
+
+    /**
+     * Fetch workflow from n8n and validate it against the local node schema.
+     * Detects runtime issues such as invalid typeVersion, invalid operation/resource values,
+     * or missing required parameters — the same errors n8n would show in the UI.
+     */
+    async verifyRemote(workflowId: string): Promise<boolean> {
+        const spinner = ora(`Fetching workflow ${workflowId} from n8n for verification...`).start();
+        let workflow: any;
+
+        try {
+            workflow = await this.client.getWorkflow(workflowId);
+        } catch (e: any) {
+            spinner.fail(`Could not fetch workflow: ${e.message}`);
+            process.exit(1);
+        }
+
+        if (!workflow) {
+            spinner.fail(chalk.red(`Workflow ${workflowId} not found on remote.`));
+            process.exit(1);
+        }
+
+        spinner.succeed(chalk.green(`✔ Fetched "${workflow.name}" (${workflow.nodes?.length ?? 0} nodes)`));
+
+        const validator = new WorkflowValidator();
+        const result = await validator.validateWorkflow(workflow, false);
+
+        // ── Errors ──────────────────────────────────────────────────────────
+        if (result.errors.length > 0) {
+            console.log(chalk.red(`\n❌ ${result.errors.length} error(s) detected:\n`));
+            for (const err of result.errors) {
+                const nodeLabel = err.nodeName ? chalk.bold(`[${err.nodeName}] `) : '';
+                console.log(chalk.red(`  • ${nodeLabel}${err.message}`));
+                if (err.path) console.log(chalk.dim(`    at ${err.path}`));
+            }
+        }
+
+        // ── Warnings ─────────────────────────────────────────────────────────
+        if (result.warnings.length > 0) {
+            console.log(chalk.yellow(`\n⚠  ${result.warnings.length} warning(s):\n`));
+            for (const warn of result.warnings) {
+                const nodeLabel = warn.nodeName ? chalk.bold(`[${warn.nodeName}] `) : '';
+                console.log(chalk.yellow(`  • ${nodeLabel}${warn.message}`));
+            }
+        }
+
+        // ── Summary ──────────────────────────────────────────────────────────
+        console.log('');
+        if (result.valid && result.warnings.length === 0) {
+            console.log(chalk.green('✅ Workflow looks clean — no issues found.'));
+        } else if (result.valid) {
+            console.log(chalk.yellow('⚠  Workflow passed with warnings. Fix them before activating.'));
+        } else {
+            console.log(chalk.red('❌ Workflow has errors that will cause problems in n8n.'));
+            console.log(chalk.dim('   Fix the issues locally, then push again.'));
+        }
+
+        return result.valid;
     }
 
 }

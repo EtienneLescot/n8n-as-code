@@ -184,6 +184,21 @@ export class WorkflowValidator {
           nodeName: node.name,
           message: 'Node is missing "typeVersion" field',
         });
+      } else {
+        // Check that typeVersion is a valid version from the schema
+        const schemaVersions = Array.isArray(nodeSchema.version)
+          ? nodeSchema.version
+          : nodeSchema.version !== undefined ? [nodeSchema.version] : [];
+        if (schemaVersions.length > 0 && !schemaVersions.includes(node.typeVersion)) {
+          const maxVersion = Math.max(...schemaVersions.map(Number));
+          errors.push({
+            type: 'error',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: `typeVersion ${node.typeVersion} does not exist for node "${node.type}". Valid versions: [${schemaVersions.join(', ')}]. Use ${maxVersion} (latest).`,
+            path: `nodes[${node.name}].typeVersion`,
+          });
+        }
       }
 
       // Check position
@@ -207,7 +222,7 @@ export class WorkflowValidator {
       }
 
       // Validate parameters against schema
-      if (node.parameters && nodeSchema.properties) {
+      if (node.parameters && (nodeSchema.schema?.properties || nodeSchema.properties)) {
         this.validateNodeParameters(node, nodeSchema, errors, warnings);
       }
     }
@@ -225,6 +240,24 @@ export class WorkflowValidator {
   }
 
   /**
+   * Check whether a schema property's displayOptions.show conditions are satisfied
+   * by the current node parameters. If no displayOptions defined → always shown.
+   */
+  private isPropertyDisplayed(prop: any, nodeParams: Record<string, any>): boolean {
+    const show = prop.displayOptions?.show;
+    if (!show || typeof show !== 'object') return true;
+
+    for (const [condParamName, allowedValues] of Object.entries(show)) {
+      if (!Array.isArray(allowedValues)) continue;
+      const actualValue = nodeParams[condParamName];
+      // Skip expression values — can't evaluate at static validation time
+      if (typeof actualValue === 'string' && actualValue.includes('{{')) continue;
+      if (!allowedValues.includes(actualValue)) return false;
+    }
+    return true;
+  }
+
+  /**
    * Validate node parameters against schema
    */
   private validateNodeParameters(
@@ -233,8 +266,10 @@ export class WorkflowValidator {
     errors: ValidationError[],
     warnings: ValidationWarning[]
   ): void {
-    const schemaProps = nodeSchema.properties || [];
-    const requiredProps = schemaProps.filter((p: any) => p.required === true);
+    const schemaProps = nodeSchema.schema?.properties || nodeSchema.properties || [];
+    // Only consider props whose display conditions are satisfied by the current params
+    const displayedProps = schemaProps.filter((p: any) => this.isPropertyDisplayed(p, node.parameters));
+    const requiredProps = displayedProps.filter((p: any) => p.required === true);
 
     // Check required parameters
     for (const prop of requiredProps) {
@@ -260,6 +295,85 @@ export class WorkflowValidator {
           message: `Unknown parameter: "${paramName}". This might be a typo or deprecated parameter.`,
           path: `nodes[${node.name}].parameters.${paramName}`,
         });
+      }
+    }
+
+    // Validate 'options' type parameter values
+    // Collect all valid values for each options-type property across all display conditions
+    const optionValuesByPropName = new Map<string, Set<string | number>>();
+    for (const prop of schemaProps) {
+      if (prop.type === 'options' && Array.isArray(prop.options)) {
+        if (!optionValuesByPropName.has(prop.name)) {
+          optionValuesByPropName.set(prop.name, new Set());
+        }
+        const set = optionValuesByPropName.get(prop.name)!;
+        for (const opt of prop.options) {
+          if (opt.value !== undefined) set.add(opt.value);
+        }
+      }
+    }
+
+    for (const [propName, validValues] of optionValuesByPropName) {
+      if (!(propName in node.parameters)) continue;
+      const actualValue = node.parameters[propName];
+      // Skip expressions
+      if (typeof actualValue === 'string' && actualValue.includes('{{')) continue;
+      if (!validValues.has(actualValue)) {
+        // Try to find which resource this operation belongs to, for a helpful hint
+        let hint = '';
+        if (propName === 'operation') {
+          const resourceValue = node.parameters['resource'];
+          if (resourceValue) {
+            // Find operation props scoped to this resource
+            const scopedOps = schemaProps
+              .filter((p: any) => p.name === 'operation' && p.type === 'options' &&
+                Array.isArray(p.displayOptions?.show?.resource) &&
+                p.displayOptions.show.resource.includes(resourceValue))
+              .flatMap((p: any) => p.options?.map((o: any) => o.value) ?? []);
+            if (scopedOps.length > 0) {
+              hint = ` For resource "${resourceValue}", valid operations are: [${scopedOps.join(', ')}].`;
+            }
+          }
+        }
+        const validList = [...validValues].slice(0, 20).join(', ') + (validValues.size > 20 ? ', ...' : '');
+        errors.push({
+          type: 'error',
+          nodeId: node.id,
+          nodeName: node.name,
+          message: `Invalid value "${actualValue}" for parameter "${propName}". n8n will reject this with "Could not find property option".${hint} All known values: [${validList}].`,
+          path: `nodes[${node.name}].parameters.${propName}`,
+        });
+      }
+    }
+
+    // Cross-check: when both 'resource' and 'operation' are set, verify the operation
+    // is valid for the specific resource (some operations only exist for certain resources)
+    const resourceValue = node.parameters['resource'];
+    const operationValue = node.parameters['operation'];
+    if (
+      resourceValue && operationValue &&
+      typeof resourceValue === 'string' && !resourceValue.includes('{{') &&
+      typeof operationValue === 'string' && !operationValue.includes('{{')
+    ) {
+      const scopedOpProps = schemaProps.filter(
+        (p: any) => p.name === 'operation' && p.type === 'options' &&
+          Array.isArray(p.displayOptions?.show?.resource) &&
+          p.displayOptions.show.resource.includes(resourceValue)
+      );
+      if (scopedOpProps.length > 0) {
+        const scopedValues = new Set<string | number>(
+          scopedOpProps.flatMap((p: any) => p.options?.map((o: any) => o.value) ?? [])
+        );
+        if (!scopedValues.has(operationValue)) {
+          const validOps = [...scopedValues].join(', ');
+          errors.push({
+            type: 'error',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: `Operation "${operationValue}" is not valid for resource "${resourceValue}". n8n will show "Could not find property option". Valid operations for resource "${resourceValue}": [${validOps}].`,
+            path: `nodes[${node.name}].parameters.operation`,
+          });
+        }
       }
     }
   }

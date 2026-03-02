@@ -92,12 +92,28 @@ program.command('push')
     .description('Upload a single local workflow to n8n')
     .argument('[workflowId]', 'Workflow ID to push (omit for brand-new files)')
     .option('--filename <filename>', 'Filename to push (use only if no workflowId)')
+    .option('--verify', 'After pushing, fetch the workflow from n8n and validate it against the local schema')
     .action(async (workflowId, options) => {
         if (!workflowId && !options.filename) {
             console.error(chalk.red('❌ Provide a workflow ID or --filename <name> for new files.'));
             process.exit(1);
         }
-        await new SyncCommand().pushOne(workflowId, options.filename);
+        const cmd = new SyncCommand();
+        await cmd.pushOne(workflowId, options.filename);
+        if (options.verify && workflowId) {
+            console.log(chalk.dim('\n── Post-push verification ──────────────────────────────'));
+            const ok = await cmd.verifyRemote(workflowId);
+            if (!ok) process.exit(1);
+        }
+    });
+
+// verify - Fetch a workflow from n8n and validate it against the local node schema
+program.command('verify')
+    .description('Fetch a workflow from n8n and validate its nodes against the local schema (detects invalid typeVersion, bad operation values, missing required params)')
+    .argument('<workflowId>', 'Workflow ID to verify')
+    .action(async (workflowId) => {
+        const ok = await new SyncCommand().verifyRemote(workflowId);
+        if (!ok) process.exit(1);
     });
 
 // fetch - Update remote state cache for a specific workflow
