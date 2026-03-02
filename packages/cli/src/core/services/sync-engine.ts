@@ -55,7 +55,6 @@ export class SyncEngine {
 
                 case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
                 case WorkflowSyncStatus.TRACKED:
-                case WorkflowSyncStatus.MODIFIED_LOCALLY:
                     // No action per spec
                     break;
 

@@ -30,7 +30,7 @@ export class SyncCommand extends BaseCommand {
                 console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
                 console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
                 return;
-            } else if (status.status === WorkflowSyncStatus.MODIFIED_LOCALLY) {
+            } else if (status.localHash && status.lastSyncedHash && status.localHash !== status.lastSyncedHash) {
                 console.log(chalk.yellow(`⚠️  Workflow ${workflowId} has local changes. Pulling would overwrite them.`));
                 console.log(chalk.yellow(`If you want to overwrite local changes, use n8nac resolve ${workflowId} --mode keep-incoming`));
                 return;

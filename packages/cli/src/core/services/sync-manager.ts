@@ -299,7 +299,7 @@ export class SyncManager extends EventEmitter {
                 await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.EXIST_ONLY_LOCALLY);
             } else {
                 // Known on both sides → update (with OCC check)
-                await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.MODIFIED_LOCALLY);
+                await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.TRACKED);
             }
         }
     }

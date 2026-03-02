@@ -185,10 +185,10 @@ export async function activate(context: vscode.ExtensionContext) {
             if (wf.filename) {
                 const workflowStatus = await cli.getSingleWorkflowDetailedStatus(wf.id, wf.filename);
                 
-                const hasLocalChanges =
-                    workflowStatus.status === WorkflowSyncStatus.CONFLICT;
+                const hasConflict = workflowStatus.status === WorkflowSyncStatus.CONFLICT;
+                const hasLocalChanges = !!(workflowStatus.localHash && workflowStatus.lastSyncedHash && workflowStatus.localHash !== workflowStatus.lastSyncedHash);
 
-                if (hasLocalChanges) {
+                if (hasConflict) {
                     statusBar.showError('Conflict');
                     await vscode.commands.executeCommand('n8n.resolveConflict', { workflow: wf, choice: undefined });
                     const workflows = await cli.list();
@@ -196,6 +196,16 @@ export async function activate(context: vscode.ExtensionContext) {
                     enhancedTreeProvider.refresh();
                     statusBar.showSynced();
                     return; // Early return as conflict resolution handles the pull/push
+                }
+
+                if (hasLocalChanges) {
+                    statusBar.showSynced();
+                    const choice = await vscode.window.showWarningMessage(
+                        `⚠️ "${wf.name}" has local changes. Pulling would overwrite them.`,
+                        'Overwrite Local', 'Cancel'
+                    );
+                    if (choice !== 'Overwrite Local') return;
+                    // user confirmed: fall through to the pull below
                 }
             }
 

@@ -63,7 +63,6 @@ export class ListCommand extends BaseCommand {
                 [WorkflowSyncStatus.EXIST_ONLY_LOCALLY]: 2,
                 [WorkflowSyncStatus.EXIST_ONLY_REMOTELY]: 3,
                 [WorkflowSyncStatus.TRACKED]: 4,
-                [WorkflowSyncStatus.MODIFIED_LOCALLY]: 5 // never returned by list, kept for type completeness
             };
 
             const sorted = workflows.sort((a: IWorkflowStatus, b: IWorkflowStatus) => {
