@@ -1,5 +1,20 @@
 # n8n-as-code
 
+## [0.15.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.15.0...n8n-as-code@v0.15.1) (2026-03-02)
+
+
+### Bug Fixes
+
+* **dependencies:** update version pinning logic for inter-package dependencies and adjust AGENTS.md generation for pre-release builds ([a7a7a0d](https://github.com/EtienneLescot/n8n-as-code/commit/a7a7a0d96a1ae5a61887263dee8631b3dc75e7cd))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.8 to 0.16.9
+    * n8nac bumped from 0.10.0 to 0.10.1
+
 ## [0.15.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.14.9...n8n-as-code@v0.15.0) (2026-03-02)
 
 

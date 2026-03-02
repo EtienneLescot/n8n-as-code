@@ -1,5 +1,17 @@
 # @n8n-as-code/transformer
 
+## [0.2.4](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.3...@n8n-as-code/transformer@v0.2.4) (2026-03-02)
+
+
+### Features
+
+* **tests:** update test command for transformer and include in unified test report ([d8e6931](https://github.com/EtienneLescot/n8n-as-code/commit/d8e69314c6322d0fe88bcaf8dc0a9aa18d277ce8))
+
+
+### Bug Fixes
+
+* **naming:** handle null/undefined inputs in property and class name generation ([6e341ac](https://github.com/EtienneLescot/n8n-as-code/commit/6e341ac0fa86f17aacdef865aed6f77ec617f62d))
+
 ## [0.2.3](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.2...@n8n-as-code/transformer@v0.2.3) (2026-03-02)
 
 

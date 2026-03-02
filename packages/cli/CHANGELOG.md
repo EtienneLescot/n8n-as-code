@@ -1,5 +1,26 @@
 # @n8n-as-code/cli
 
+## [0.10.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.10.0...n8nac@v0.10.1) (2026-03-02)
+
+
+### Features
+
+* **sync:** add workflow verification after push and new verify command ([4742e0d](https://github.com/EtienneLescot/n8n-as-code/commit/4742e0d4bdbce62355ef4d668f09e1aa70456682))
+
+
+### Bug Fixes
+
+* **dependencies:** update version pinning logic for inter-package dependencies and adjust AGENTS.md generation for pre-release builds ([a7a7a0d](https://github.com/EtienneLescot/n8n-as-code/commit/a7a7a0d96a1ae5a61887263dee8631b3dc75e7cd))
+* **sync:** throw error if workflow not found on remote during pull ([b18de07](https://github.com/EtienneLescot/n8n-as-code/commit/b18de07442408ea0089cb9c8a8e5f73c738e49cc))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.8 to 0.16.9
+    * @n8n-as-code/transformer bumped from 0.2.3 to 0.2.4
+
 ## [0.10.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.9.8...n8nac@v0.10.0) (2026-03-02)
 
 

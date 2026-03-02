@@ -1,5 +1,19 @@
 # @n8n-as-code/skills
 
+## [0.16.9](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.8...@n8n-as-code/skills@v0.16.9) (2026-03-02)
+
+
+### Features
+
+* **sync:** add workflow verification after push and new verify command ([4742e0d](https://github.com/EtienneLescot/n8n-as-code/commit/4742e0d4bdbce62355ef4d668f09e1aa70456682))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/transformer bumped from 0.2.3 to 0.2.4
+
 ## [0.16.8](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.7...@n8n-as-code/skills@v0.16.8) (2026-03-02)
 
 
