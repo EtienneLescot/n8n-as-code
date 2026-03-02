@@ -660,6 +660,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     //    Watching it lets the UI react to CLI operations (agent-driven workflow).
     //    IMPORTANT: cli.list() here has NO fetchRemote option → purely local (readdirSync +
     //    in-memory remoteIds populated at init). No network call on every state change.
+    //    The webview is only reloaded when the workflow it is currently displaying is the one
+    //    whose lastSyncedAt changed — unrelated operations do not trigger a reload.
     if (vscode.workspace.workspaceFolders?.length) {
         const syncFolder = config.get<string>('syncFolder') || 'workflows';
         const statePattern = new vscode.RelativePattern(
@@ -668,13 +670,25 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         );
         // ignoreCreate=true, ignoreChange=false, ignoreDelete=true — only react to writes
         const stateWatcher = vscode.workspace.createFileSystemWatcher(statePattern, true, false, true);
-        stateWatcher.onDidChange(async () => {
+        // Snapshot of workflowId → lastSyncedAt: used to detect which workflow was actually touched.
+        const stateSnapshot = new Map<string, string>();
+        stateWatcher.onDidChange(async (changedUri) => {
             if (!cli) return;
             try {
                 store.dispatch(setWorkflows(await cli.list()));
                 enhancedTreeProvider.refresh();
-                // Reload the open webview — the CLI may have pushed a new version
-                WorkflowWebview.reloadCurrent(outputChannel);
+                // Only reload the webview if the currently displayed workflow was affected.
+                // Read the state file to find which workflow IDs changed since last write.
+                const raw = await vscode.workspace.fs.readFile(changedUri);
+                const state = JSON.parse(Buffer.from(raw).toString('utf8')) as {
+                    workflows: Record<string, { lastSyncedAt?: string }>;
+                };
+                for (const [id, entry] of Object.entries(state.workflows ?? {})) {
+                    if (entry.lastSyncedAt && entry.lastSyncedAt !== stateSnapshot.get(id)) {
+                        stateSnapshot.set(id, entry.lastSyncedAt);
+                        WorkflowWebview.reloadIfMatching(id, outputChannel);
+                    }
+                }
             } catch (err) {
                 console.error('[n8n] State watcher: failed to refresh after CLI operation', err);
             }
