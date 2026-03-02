@@ -1,19 +1,17 @@
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
-// Read n8nac version at build time for pre-release detection
-let n8nacVersion = 'unknown';
+// Detect whether this is a pre-release (next) build.
+// Stable builds → AGENTS.md will use `npx --yes n8nac <cmd>`
+// Pre-release builds → AGENTS.md will use `npx --yes n8nac@next <cmd>`
+const githubRef = process.env.GITHUB_REF || '';
+let gitBranch = '';
 try {
-    const n8nacPkg = require('./node_modules/n8nac/package.json');
-    n8nacVersion = n8nacPkg.version;
-} catch {
-    // Fallback: read from workspace sibling
-    try {
-        const n8nacPkg = require('../cli/package.json');
-        n8nacVersion = n8nacPkg.version;
-    } catch { /* ignore */ }
-}
+    gitBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: __dirname, stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
+} catch { /* ignore */ }
+const n8nacVersion = (githubRef.includes('next') || gitBranch === 'next') ? 'next' : '';
 
 // Plugin to copy skills assets and CLI assets
 const copySkillsAssets = {
@@ -99,6 +97,7 @@ const extensionBuild = esbuild.build({
         'empty-import-meta': 'silent'
     },
     define: {
+        // 'next' on pre-release builds, '' on stable — drives npx dist-tag in AGENTS.md
         '__N8NAC_VERSION__': JSON.stringify(n8nacVersion)
     },
     plugins: [copySkillsAssets]

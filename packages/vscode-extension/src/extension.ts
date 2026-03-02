@@ -285,7 +285,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     const health = await client.getHealth();
                     const version = health.version;
                     progress?.report({ message: 'Generating AGENTS.md...' });
-                    const distTag = (typeof __N8NAC_VERSION__ !== 'undefined' && __N8NAC_VERSION__?.includes('-')) ? __N8NAC_VERSION__ : undefined;
+                    const distTag = (typeof __N8NAC_VERSION__ !== 'undefined' && __N8NAC_VERSION__ === 'next') ? 'next' : undefined;
                     await new AiContextGenerator().generate(rootPath, version, distTag);
                     progress?.report({ message: 'Generating Snippets...' });
                     await new SnippetGenerator().generate(rootPath);

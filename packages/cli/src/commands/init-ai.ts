@@ -13,13 +13,13 @@ import {
 } from '@n8n-as-code/skills';
 import dotenv from 'dotenv';
 
-/** Returns the exact version string for pre-release builds (e.g. '0.9.9-next.abc1234'),
- * undefined for stable builds. This pins the generated AGENTS.md to the exact CLI version. */
+/** Returns 'next' for pre-release builds, undefined for stable builds.
+ * AGENTS.md will use `npx --yes n8nac@next` vs `npx --yes n8nac` accordingly. */
 function getDistTag(): string | undefined {
     try {
         const __dir = dirname(fileURLToPath(import.meta.url));
         const pkg = JSON.parse(readFileSync(join(__dir, '..', '..', 'package.json'), 'utf8'));
-        return pkg.version?.includes('-') ? pkg.version : undefined;
+        return pkg.version?.includes('-') ? 'next' : undefined;
     } catch {
         return undefined;
     }
