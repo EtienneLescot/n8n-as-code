@@ -89,7 +89,7 @@ jobs:
           SHA=$(git rev-parse --short HEAD)
           for pkg in packages/transformer packages/skills packages/cli; do
             NAME=$(node -p "require('./$pkg/package.json').name")
-            BASE=$(node -p "require('./$pkg/package.json').version.replace(/-next.*$/, '-next')")
+            BASE=$(node -p "require('./$pkg/package.json').version.split('-')[0] + '-next'")
             # --no-package-lock prevents npm from resolving the new version against
             # the registry (the version doesn't exist yet — it's published later).
             npm version "${BASE}.${SHA}" --no-git-tag-version --no-package-lock --workspace="$NAME"
