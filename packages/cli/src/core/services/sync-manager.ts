@@ -131,16 +131,6 @@ export class SyncManager extends EventEmitter {
         return await this.resolutionManager.getSingleWorkflowDetailedStatus(workflowId, filename);
     }
 
-    async startWatch() {
-        await this.ensureInitialized();
-        await this.watcher!.start();
-        
-        // Create instance config file to mark workspace as initialized
-        this.ensureInstanceConfigFile();
-        
-        this.emit('log', 'Watcher started.');
-    }
-
     /**
      * Refresh the remote state for all workflows from the API.
      * This populates the internal cache so that `listWorkflows()` can return up-to-date status.

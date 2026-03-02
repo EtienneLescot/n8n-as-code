@@ -36,12 +36,7 @@ export class SyncEngine {
      * Based on spec 5.2 PULL Strategy table
      */
     public async pull(workflowId: string, filename: string, status: WorkflowSyncStatus): Promise<void> {
-        // Mark sync in progress to prevent race conditions
-        this.watcher.markSyncInProgress(workflowId);
-        this.watcher.pauseObservation(workflowId);
-        
-        try {
-            switch (status) {
+        switch (status) {
                 case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
                     // Download Remote JSON -> Write to disk
                     const pullUpdatedAt1 = await this.executePull(workflowId, filename);
@@ -61,10 +56,6 @@ export class SyncEngine {
                 default:
                     console.warn(`[SyncEngine] Unhandled status ${status} for PULL operation`);
                     break;
-            }
-        } finally {
-            this.watcher.markSyncComplete(workflowId);
-            this.watcher.resumeObservation(workflowId);
         }
     }
 
@@ -73,17 +64,7 @@ export class SyncEngine {
      * Based on spec 5.3 PUSH Strategy table
      */
     public async push(filename: string, workflowId?: string, status?: WorkflowSyncStatus): Promise<string> {
-        // If workflow has an ID, pause observation by ID
-        if (workflowId) {
-            this.watcher.markSyncInProgress(workflowId);
-            this.watcher.pauseObservation(workflowId);
-        } else {
-            // If no ID yet (new workflow), pause observation by filename
-            this.watcher.pauseObservationByFilename(filename);
-        }
-
-        try {
-            // If we have an ID, we ALWAYS try to update first (robustness for git-like sync)
+        // If we have an ID, we ALWAYS try to update first (robustness for git-like sync)
             if (workflowId) {
                 try {
                     // PUT to API (Update)
@@ -110,31 +91,14 @@ export class SyncEngine {
             // Initialize lastSyncedHash via finalizeSync
             await this.watcher.finalizeSync(newWorkflowId, updatedAt);
             return newWorkflowId;
-        } finally {
-            if (workflowId) {
-                this.watcher.markSyncComplete(workflowId);
-                this.watcher.resumeObservation(workflowId);
-            } else {
-                // Resume observation by filename if no ID (new workflow case)
-                this.watcher.resumeObservationByFilename(filename);
-            }
-        }
     }
 
     /**
      * Force PULL - overwrite local with remote (for conflict resolution)
      */
     public async forcePull(workflowId: string, filename: string): Promise<void> {
-        this.watcher.markSyncInProgress(workflowId);
-        this.watcher.pauseObservation(workflowId);
-        
-        try {
-            const updatedAt = await this.executePull(workflowId, filename);
-            await this.watcher.finalizeSync(workflowId, updatedAt);
-        } finally {
-            this.watcher.markSyncComplete(workflowId);
-            this.watcher.resumeObservation(workflowId);
-        }
+        const updatedAt = await this.executePull(workflowId, filename);
+        await this.watcher.finalizeSync(workflowId, updatedAt);
     }
 
     /**
@@ -142,39 +106,31 @@ export class SyncEngine {
      * If workflow doesn't exist on remote, creates it
      */
     public async forcePush(workflowId: string, filename: string): Promise<string> {
-        this.watcher.markSyncInProgress(workflowId);
-        this.watcher.pauseObservation(workflowId);
-        
         let finalWorkflowId = workflowId;
         let finalUpdatedAt: string | undefined;
-        
+
+        // Try to update first, bypassing OCC (this is an explicit force operation)
         try {
-            // Try to update first, bypassing OCC (this is an explicit force operation)
-            try {
-                finalUpdatedAt = await this.executeUpdate(workflowId, filename, true);
-            } catch (error: any) {
-                // If update fails with 404, create the workflow instead
-                if (error.response?.status === 404 || error.message?.includes('404') || error.message?.includes('Not Found')) {
-                    console.log(`[SyncEngine] Workflow ${workflowId} not found, creating new workflow`);
-                    const { id: newWorkflowId, updatedAt } = await this.executeCreate(filename);
-                    finalUpdatedAt = updatedAt;
-                    
-                    // Migrate state from old ID to new ID
-                    if (newWorkflowId !== workflowId) {
-                        await this.watcher.updateWorkflowId(workflowId, newWorkflowId);
-                        finalWorkflowId = newWorkflowId;
-                    }
-                } else {
-                    throw error;
+            finalUpdatedAt = await this.executeUpdate(workflowId, filename, true);
+        } catch (error: any) {
+            // If update fails with 404, create the workflow instead
+            if (error.response?.status === 404 || error.message?.includes('404') || error.message?.includes('Not Found')) {
+                console.log(`[SyncEngine] Workflow ${workflowId} not found, creating new workflow`);
+                const { id: newWorkflowId, updatedAt } = await this.executeCreate(filename);
+                finalUpdatedAt = updatedAt;
+
+                // Migrate state from old ID to new ID
+                if (newWorkflowId !== workflowId) {
+                    await this.watcher.updateWorkflowId(workflowId, newWorkflowId);
+                    finalWorkflowId = newWorkflowId;
                 }
+            } else {
+                throw error;
             }
-            
-            await this.watcher.finalizeSync(finalWorkflowId, finalUpdatedAt);
-            return finalWorkflowId;
-        } finally {
-            this.watcher.markSyncComplete(finalWorkflowId);
-            this.watcher.resumeObservation(finalWorkflowId);
         }
+
+        await this.watcher.finalizeSync(finalWorkflowId, finalUpdatedAt);
+        return finalWorkflowId;
     }
 
     /**
@@ -182,17 +138,8 @@ export class SyncEngine {
      * Note: The Watcher already archived the remote content when it detected the local deletion
      */
     public async deleteRemote(workflowId: string, filename: string): Promise<void> {
-        this.watcher.markSyncInProgress(workflowId);
-        this.watcher.pauseObservation(workflowId);
-        
-        try {
-            // Delete from API
-            await this.client.deleteWorkflow(workflowId);
-            // Note: State removal will be handled by caller (ResolutionManager)
-        } finally {
-            this.watcher.markSyncComplete(workflowId);
-            this.watcher.resumeObservation(workflowId);
-        }
+        // Delete from API — State removal is handled by caller (ResolutionManager)
+        await this.client.deleteWorkflow(workflowId);
     }
 
     private async executePull(workflowId: string, filename: string): Promise<string | undefined> {

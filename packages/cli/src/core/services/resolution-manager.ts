@@ -4,6 +4,7 @@ import { SyncEngine } from './sync-engine.js';
 import { WorkflowStateTracker } from './workflow-state-tracker.js';
 import { WorkflowSanitizer } from './workflow-sanitizer.js';
 import { HashUtils } from './hash-utils.js';
+import { WorkflowTransformerAdapter } from './workflow-transformer-adapter.js';
 import { WorkflowSyncStatus } from '../types.js';
 import { N8nApiClient } from './n8n-api-client.js';
 
@@ -144,11 +145,23 @@ export class ResolutionManager {
         localHash?: string;
         remoteHash?: string;
     }> {
+        // Recompute local hash from disk — do NOT use the in-memory cache which may be
+        // stale in VSCode mode (change events are suppressed by the file system watcher).
+        const filePath = path.join(this.directory, filename);
+        let localHash: string | undefined;
+        if (fs.existsSync(filePath)) {
+            try {
+                const tsContent = fs.readFileSync(filePath, 'utf-8');
+                localHash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
+                // Keep cache in sync so calculateStatus() sees the fresh value
+                (this.watcher as any).localHashes?.set(filename, localHash);
+            } catch {
+                // unparseable file — treat as no local hash
+            }
+        }
+
         const status = this.watcher.calculateStatus(filename, workflowId);
         const lastSyncedHash = this.watcher.getLastSyncedHash(workflowId);
-        
-        // Get local hash from watcher cache (already computed during scan/watch)
-        const localHash = (this.watcher as any).localHashes?.get(filename);
 
         // Get remote hash from watcher cache
         const remoteHash = (this.watcher as any).remoteHashes?.get(workflowId);

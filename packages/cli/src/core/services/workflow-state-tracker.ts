@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import EventEmitter from 'events';
-import chokidar, { FSWatcher } from 'chokidar';
 import { N8nApiClient } from './n8n-api-client.js';
 import { WorkflowTransformerAdapter } from './workflow-transformer-adapter.js';
 import { HashUtils } from './hash-utils.js';
@@ -21,7 +20,6 @@ import { IWorkflowState, IInstanceState } from './state-manager.js';
  * Never performs synchronization actions - only observes reality.
  */
 export class WorkflowStateTracker extends EventEmitter {
-    private watcherSubscription: FSWatcher | null = null;
     private client: N8nApiClient;
     private directory: string;
     private syncInactive: boolean;
@@ -29,7 +27,6 @@ export class WorkflowStateTracker extends EventEmitter {
     private projectId: string;
     private stateFilePath: string;
     private isConnected: boolean = true;
-    private isInitializing: boolean = false;
     /** True during the first refreshRemoteState() call — suppresses status broadcasts */
     private isInitialRemoteLoad: boolean = false;
 
@@ -40,15 +37,6 @@ export class WorkflowStateTracker extends EventEmitter {
     private idToFileMap: Map<string, string> = new Map(); // workflowId -> filename
     private lastKnownStatuses: Map<string, WorkflowSyncStatus> = new Map(); // workflowId or filename -> status
     private remoteIds: Set<string> = new Set(); // workflowId
-
-    // Concurrency control
-    private isPaused = new Set<string>(); // IDs for which observation is paused
-    private syncInProgress = new Set<string>(); // IDs currently being synced
-    private pausedFilenames = new Set<string>(); // Filenames for which observation is paused (for workflows without ID yet)
-
-    // Potential renames: when we see an add event for a workflow ID that already exists,
-    // we track it here to match with subsequent unlink events
-    private potentialRenames: Map<string, { newFilename: string; timestamp: number }> = new Map();
 
     // Lightweight remote state cache
     private remoteTimestamps: Map<string, string> = new Map(); // workflowId -> updatedAt
@@ -76,339 +64,12 @@ export class WorkflowStateTracker extends EventEmitter {
         this.restoreMappingsFromState();
     }
 
-    public async start() {
-        if (this.watcherSubscription) return;
-
-        this.isInitializing = true;
-
-        // Don't fetch remote state on startup (no batch operations)
-        // Remote state will be populated incrementally through single-workflow fetch operations
-        // Skip connection test - assume connected, will fail on first fetch if not
-
-        await this.refreshLocalState();
-
-        // Restore persisted ID → filename mappings from state
-        // This ensures stable filename assignment even when remote workflows have duplicate names
-        this.restoreMappingsFromState();
-
-        this.isInitializing = false;
-
-        // Local Watch with Chokidar
-        this.watcherSubscription = chokidar.watch(this.directory, {
-            ignored: [
-                '**/.n8n-state.json',
-                '**/.git/**',
-                /(^|[\/\\])\../
-            ],
-            ignoreInitial: true,
-            persistent: true,
-            awaitWriteFinish: {
-                stabilityThreshold: 100,
-                pollInterval: 50
-            }
-        });
-
-        // Wait for watcher to be ready
-        await new Promise<void>((resolve) => {
-            this.watcherSubscription?.once('ready', resolve);
-        });
-
-        this.watcherSubscription
-            .on('add', (filePath: string) => {
-                const filename = path.basename(filePath);
-                if (filename.startsWith('.')) return;
-                this.onLocalChange(filePath);
-            })
-            .on('change', (filePath: string) => {
-                const filename = path.basename(filePath);
-                if (filename.startsWith('.')) return;
-                this.onLocalChange(filePath);
-            })
-            .on('unlink', (filePath: string) => {
-                const filename = path.basename(filePath);
-                if (filename.startsWith('.')) return;
-                this.onLocalDelete(filePath);
-            })
-            .on('error', (error: unknown) => {
-                this.emit('error', error);
-            });
-
-        this.emit('ready');
-    }
-
-    public async stop() {
-        if (this.watcherSubscription) {
-            await this.watcherSubscription.close();
-            this.watcherSubscription = null;
-        }
-    }
-
     public getDirectory(): string {
         return this.directory;
     }
 
     public getFilenameForId(id: string): string | undefined {
         return this.idToFileMap.get(id);
-    }
-
-    /**
-     * Pause observation for a workflow during sync operations
-     */
-    public pauseObservation(workflowId: string) {
-        this.isPaused.add(workflowId);
-    }
-
-    /**
-     * Resume observation after sync operations
-     */
-    public resumeObservation(workflowId: string) {
-        this.isPaused.delete(workflowId);
-        // Don't force refresh here to avoid unnecessary API calls
-        // In git-like sync, remote state is updated explicitly via fetch command
-    }
-
-    /**
-     * Pause observation for a filename (for workflows without ID yet)
-     */
-    public pauseObservationByFilename(filename: string) {
-        this.pausedFilenames.add(filename);
-    }
-
-    /**
-     * Resume observation for a filename
-     */
-    public resumeObservationByFilename(filename: string) {
-        this.pausedFilenames.delete(filename);
-    }
-
-    /**
-     * Mark a workflow as being synced (prevents race conditions)
-     */
-    public markSyncInProgress(workflowId: string) {
-        this.syncInProgress.add(workflowId);
-    }
-
-    /**
-     * Mark a workflow as no longer being synced
-     */
-    public markSyncComplete(workflowId: string) {
-        this.syncInProgress.delete(workflowId);
-    }
-
-    private async onLocalChange(filePath: string) {
-        const filename = path.basename(filePath);
-        console.log(`[WorkflowStateTracker] onLocalChange: ${filename}`);
-        if (!filename.endsWith('.workflow.ts')) return;
-
-        const content = this.readJsonFile(filePath);
-        if (!content) {
-            console.log(`[WorkflowStateTracker] ❌ Cannot read file content for ${filename} - readJsonFile returned null`);
-            return;
-        }
-        console.log(`[WorkflowStateTracker] ✅ File content read for ${filename}, ID=${content.id}`);
-
-        // Check if filename is paused (for workflows without ID)
-        if (this.pausedFilenames.has(filename)) {
-            console.log(`[WorkflowStateTracker] ⏸️  Filename ${filename} is paused, ignoring change`);
-            return;
-        }
-
-        let workflowId = content.id || this.fileToIdMap.get(filename);
-        if (workflowId && (this.isPaused.has(workflowId) || this.syncInProgress.has(workflowId))) {
-            console.log(`[WorkflowStateTracker] ⏸️  Workflow ${workflowId} is paused or sync in progress, ignoring change`);
-            return;
-        }
-
-        // Check for duplicate ID (following architectural plan)
-        if (content.id) {
-            const existingFilename = this.idToFileMap.get(content.id);
-            if (existingFilename && existingFilename !== filename) {
-                // Check if the existing file still exists on disk
-                const existingFilePath = path.join(this.directory, existingFilename);
-                const fileExists = fs.existsSync(existingFilePath);
-
-                if (!fileExists) {
-                    // The existing file doesn't exist - this is a rename
-                    // Update in-memory mappings to point to the new filename
-                    this.fileToIdMap.delete(existingFilename);
-                    this.fileToIdMap.set(filename, content.id);
-                    this.idToFileMap.set(content.id, filename);
-
-                    // Emit rename event
-                    this.emit('fileRenamed', {
-                        workflowId: content.id,
-                        oldFilename: existingFilename,
-                        newFilename: filename
-                    });
-                } else {
-                    // File exists - this could be a rename where add happened before unlink
-                    // Track as potential rename and wait for unlink event
-                    this.potentialRenames.set(content.id, {
-                        newFilename: filename,
-                        timestamp: Date.now()
-                    });
-
-                    // File exists - this is a DUPLICATE ID (copy-paste)
-                    // Principle: Keep ID only in the oldest file, remove from the new one
-                    // DUPLICAT DÉTECTÉ pendant le watch → supprimer l'ID du nouveau fichier
-
-                    // Remove ID from the new file
-                    const currentContent = this.readJsonFile(filePath);
-                    if (currentContent && currentContent.id === content.id) {
-                        delete currentContent.id;
-                        await this.writeWorkflowFile(filename, currentContent);
-
-                        // Re-read the TypeScript content and compute hash
-                        const tsContent = fs.readFileSync(filePath, 'utf-8');
-                        try {
-                            const hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
-                            const workflowId = this.fileToIdMap.get(filename);
-                            this.localHashes.set(filename, hash);
-                            this.broadcastStatus(filename, workflowId);
-                        } catch (parseErr: any) {
-                            console.error(`[WorkflowStateTracker] ❌ Cannot parse "${filename}" after duplicate-ID removal: ${parseErr.message}`);
-                        }
-                    }
-                    return; // Stop processing this file as it's being modified
-
-                    // Don't return - continue processing as normal
-                    // The unlink event should come soon and trigger rename detection
-                }
-            }
-        }
-
-        // IMPORTANT: Hash is calculated on the SANITIZED version
-        // This means versionId, versionCounter, pinData, etc. are ignored
-        // The file on disk can contain these fields, but they won't affect the hash
-        const tsContent = fs.readFileSync(filePath, 'utf-8');
-        let hash: string;
-        try {
-            hash = await WorkflowTransformerAdapter.hashWorkflow(tsContent);
-        } catch (parseErr: any) {
-            // Parsing failed (e.g. invalid identifier characters like → in the class name
-            // cause ts-morph to silently drop the class body, resulting in a 0-node compile
-            // which would be mistaken as a local modification and pushed, wiping the remote).
-            // Log the problem and abort – do NOT update localHashes so the file is not pushed.
-            console.error(
-                `[WorkflowStateTracker] ❌ Cannot parse "${filename}" – skipping hash/status update to prevent data loss.\n` +
-                `  Cause: ${parseErr.message}\n` +
-                `  Tip: Make sure the class name contains only valid ASCII/identifier characters ` +
-                `(→ U+2192 and similar symbols are not allowed in TypeScript identifiers).`
-            );
-            return;
-        }
-
-        console.log(`[WorkflowStateTracker] 🔢 Hash computed for ${filename}: ${hash.substring(0, 8)}...`);
-
-        this.localHashes.set(filename, hash);
-        if (workflowId) {
-            this.fileToIdMap.set(filename, workflowId);
-            this.idToFileMap.set(workflowId, filename);
-        }
-
-        console.log(`[WorkflowStateTracker] 📡 Broadcasting status for ${filename}...`);
-        this.broadcastStatus(filename, workflowId);
-    }
-
-    private async onLocalDelete(filePath: string) {
-        const filename = path.basename(filePath);
-        let workflowId = this.fileToIdMap.get(filename);
-
-        // If workflowId not found via filename mapping, try to find it via state
-        if (!workflowId) {
-            const state = this.loadState();
-            for (const [id, stateData] of Object.entries(state.workflows)) {
-                const mappedFilename = this.idToFileMap.get(id);
-                if (mappedFilename === filename) {
-                    workflowId = id;
-                    break;
-                }
-            }
-        }
-
-        // Check if this is a potential rename (add happened before unlink)
-        if (workflowId) {
-            const potentialRename = this.potentialRenames.get(workflowId);
-            if (potentialRename) {
-                this.potentialRenames.delete(workflowId);
-
-                // Handle as rename
-                this.handleRename(workflowId, filename, potentialRename.newFilename);
-                return;
-            }
-        }
-
-        if (workflowId && (this.isPaused.has(workflowId) || this.syncInProgress.has(workflowId))) {
-            return;
-        }
-
-        // Handle deletion directly
-        await this.handleLocalDelete(filename, workflowId);
-    }
-
-    private async handleLocalDelete(filename: string, workflowId: string | undefined) {
-        // Final check: is this actually a rename?
-        if (workflowId) {
-            // Check if the workflow ID appears in another file
-            const otherFilename = this.findFilenameByWorkflowId(workflowId);
-            if (otherFilename && otherFilename !== filename) {
-                // This is a rename, not a deletion!
-                this.handleRename(workflowId, filename, otherFilename);
-                return;
-            }
-        }
-
-        // When a local file is deleted we simply clear the lastSyncedHash from state
-        // so that calculateStatus() naturally returns EXIST_ONLY_REMOTELY
-        // (remoteHash present, no lastSyncedHash, no localHash).
-        // No archiving is needed here – the remote copy is untouched.
-        if (workflowId) {
-            const state = this.loadState();
-            if (state.workflows[workflowId]) {
-                (state.workflows[workflowId] as IWorkflowState).lastSyncedHash = undefined as any;
-                this.saveState(state);
-            }
-        }
-
-        // Clean up local hash and mappings for deleted file.
-        // On the next pull, the filename is regenerated from safeName(workflow.name)
-        // or from the @workflow({ id }) scan if the file still exists under another name.
-        this.localHashes.delete(filename);
-        if (workflowId) {
-            this.idToFileMap.delete(workflowId);
-        }
-        this.fileToIdMap.delete(filename);
-
-        // Broadcast the new status (EXIST_ONLY_REMOTELY if remote exists, or gone entirely)
-        this.broadcastStatus(filename, workflowId);
-    }
-
-    private handleRename(workflowId: string, oldFilename: string, newFilename: string) {
-        // Update mappings
-        this.fileToIdMap.delete(oldFilename);
-        this.fileToIdMap.set(newFilename, workflowId);
-        this.idToFileMap.set(workflowId, newFilename);
-
-        // Update local hash mapping
-        const oldHash = this.localHashes.get(oldFilename);
-        if (oldHash) {
-            this.localHashes.delete(oldFilename);
-            this.localHashes.set(newFilename, oldHash);
-        }
-
-        // Emit rename event
-        this.emit('fileRenamed', {
-            workflowId,
-            oldFilename,
-            newFilename
-        });
-
-        // Broadcast status with new filename
-        this.broadcastStatus(newFilename, workflowId);
-
-        // Also broadcast status for old filename to clear it from UI
-        // Since it's no longer in localHashes or mappings, it will be handled correctly
-        this.broadcastStatus(oldFilename, undefined);
     }
 
     public async refreshLocalState() {
@@ -547,7 +208,6 @@ export class WorkflowStateTracker extends EventEmitter {
 
             for (const wf of remoteWorkflows) {
                 if (this.shouldIgnore(wf)) continue;
-                if (this.isPaused.has(wf.id) || this.syncInProgress.has(wf.id)) continue;
 
                 this.remoteIds.add(wf.id);
                 // Store canonical name keyed by ID (names are NOT unique in n8n)
@@ -780,8 +440,7 @@ export class WorkflowStateTracker extends EventEmitter {
     }
 
     private broadcastStatus(filename: string, workflowId?: string) {
-        if (this.isInitializing) return;
-        // Suppress during initial remote load — avoids spurious "Change detected" on startup
+        // Suppress during initial remote load — avoids spurious “Change detected” on startup
         if (this.isInitialRemoteLoad) return;
 
         const status = this.calculateStatus(filename, workflowId);
@@ -946,16 +605,6 @@ export class WorkflowStateTracker extends EventEmitter {
         } catch {
             return null;
         }
-    }
-
-    private async writeWorkflowFile(filename: string, workflow: any): Promise<void> {
-        const filePath = path.join(this.directory, filename);
-        // Always write as TypeScript
-        const tsCode = await WorkflowTransformerAdapter.convertToTypeScript(workflow, {
-            format: true,
-            commentStyle: 'verbose'
-        });
-        fs.writeFileSync(filePath, tsCode, 'utf-8');
     }
 
     public getFileToIdMap() {

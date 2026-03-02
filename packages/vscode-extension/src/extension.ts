@@ -640,10 +640,11 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         WorkflowWebview.reloadIfMatching(data.workflowId, outputChannel);
     });
 
-    // ── Lightweight UI watchers (replaces the heavy chokidar-based WorkflowStateTracker watcher) ──
+    // ── Lightweight UI watchers ──────────────────────────────────────────────
     //
     // 1. VS Code native FS watcher on *.workflow.ts: detects new/deleted files → refreshes list.
-    //    We deliberately ignore 'change' events — 'modified locally' is no longer a tracked status.
+    //    Change events are deliberately ignored — local modifications are detected via hash
+    //    comparison in getSingleWorkflowDetailedStatus() only when an operation requires it.
     // 2. State file watcher on .n8n-state.json: written by CLI after every push/pull/resolve →
     //    refreshes list and reloads the open webview (handles agent-driven CLI operations).
     // 3. Remote polling every 60s: discovers workflows created/deleted on the n8n instance.
@@ -707,8 +708,6 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     context.subscriptions.push({ dispose: () => clearInterval(pollingInterval) });
 
     statusBar.setWatchMode(false);
-    // NOTE: syncManager.startWatch() is intentionally NOT called.
-    // The heavy chokidar-based watcher is replaced by the three lightweight UI watchers above.
 
     // Initial list — uses cli.list(fetchRemote: true) which mirrors `n8nac list`
     outputChannel.appendLine('[n8n] Loading workflow list...');
