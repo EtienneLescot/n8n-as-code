@@ -57,7 +57,8 @@ n8nac list --remote                      # List only remote state from cache
 n8nac fetch <workflowId>   # Update remote state for a workflow
 n8nac fetch --all                        # Update remote state for all workflows
 n8nac pull <workflowId>    # Pull remote changes (use --mode keep-incoming in conflict)
-n8nac push <workflowId>    # Push local changes (use --mode keep-current in conflict)
+n8nac push <workflowId>    # Push local changes — use when workflow already has an ID
+n8nac push --filename <file>  # Push a brand-new local file that has never been pushed
 n8nac resolve <id> --mode keep-current # Explicit conflict resolution
 ```
 

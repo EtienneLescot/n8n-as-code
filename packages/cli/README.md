@@ -47,11 +47,10 @@ Status values:
 
 | Status | Meaning | Action |
 |---|---|---|
-| `TRACKED`             | Workflow exists on both sides, no local changes detected             | Nothing to do |
-| `MODIFIED_LOCALLY`    | Local file changed since last sync | `push <workflowId>` |
-| `CONFLICT`            | Both sides changed — detected at push/pull time | `pull <workflowId>` (keep remote) or `push <workflowId>` (keep local) |
-| `EXIST_ONLY_LOCALLY`  | New local file not yet in n8n (or remote was deleted) | `push <workflowId>` to create in n8n |
-| `EXIST_ONLY_REMOTELY` | Remote workflow not yet local (or local was deleted) | `pull <workflowId>` to download |
+| `TRACKED`             | Workflow exists on both sides, in sync                              | Nothing to do |
+| `CONFLICT`            | Both sides changed — detected at push/pull time | `n8nac resolve <id> --mode keep-current` (keep local) or `keep-incoming` (keep remote) |
+| `EXIST_ONLY_LOCALLY`  | New local file not yet in n8n (or remote was deleted) | `n8nac push <id>` or `n8nac push --filename <file>` if brand-new |
+| `EXIST_ONLY_REMOTELY` | Remote workflow not yet local (or local was deleted) | `n8nac pull <workflowId>` to download |
 
 > **Git-like sync**: Status is a point-in-time observation. Use `fetch` to update remote state cache.
 > **For agents**: always run `n8nac list` first to get workflow IDs and their current status before pulling or pushing.
@@ -83,12 +82,19 @@ n8nac pull <workflowId>
 
 ---
 
-### `push <workflowId>`
+### `push`
 Upload a single local workflow file to n8n.
 
 ```bash
+# Existing workflow (has an ID in n8nac list)
 n8nac push <workflowId>
+
+# Brand-new local file never pushed before (no remote ID yet)
+n8nac push --filename my-workflow.workflow.ts
 ```
+
+> **Which form to use?** If `n8nac list` shows a workflow with an ID, always use `push <id>`.
+> Only use `--filename` for files that have never been pushed and have no entry in `.n8n-state.json`.
 
 ---
 

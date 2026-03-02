@@ -87,12 +87,17 @@ program.command('pull')
         await new SyncCommand().pullOne(workflowId);
     });
 
-// push - Upload a single workflow by ID
+// push - Upload a single workflow by ID, or a brand-new local file by filename
 program.command('push')
     .description('Upload a single local workflow to n8n')
-    .argument('<workflowId>', 'Workflow ID to push')
-    .action(async (workflowId) => {
-        await new SyncCommand().pushOne(workflowId);
+    .argument('[workflowId]', 'Workflow ID to push (omit for brand-new files)')
+    .option('--filename <filename>', 'Filename to push (use only if no workflowId)')
+    .action(async (workflowId, options) => {
+        if (!workflowId && !options.filename) {
+            console.error(chalk.red('❌ Provide a workflow ID or --filename <name> for new files.'));
+            process.exit(1);
+        }
+        await new SyncCommand().pushOne(workflowId, options.filename);
     });
 
 // fetch - Update remote state cache for a specific workflow

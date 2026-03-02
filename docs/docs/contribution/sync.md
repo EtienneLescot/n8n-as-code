@@ -96,8 +96,9 @@ const localModified  = localHash  !== lastSyncedHash;
 const remoteModified = remoteHash !== lastSyncedHash;
 
 if (localModified && remoteModified) return CONFLICT;
-if (localModified)  return MODIFIED_LOCALLY;
-if (remoteModified) return TRACKED; // Remote changed — user pulls explicitly
+// Only one side changed → status is TRACKED; pull/push guards check hashes directly
+if (localModified)  return TRACKED; // local-only change, detected at push time via hash
+if (remoteModified) return TRACKED; // remote changed — user pulls explicitly
 
 return CONFLICT; // fallback
 ```

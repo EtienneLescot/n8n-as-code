@@ -190,9 +190,8 @@ classDiagram
 Based on 3-way comparison (base vs local vs remote):
 
 | Status | Icon | Description |
-|--------|------|-------------|
-| `TRACKED` | 📄 plain file | Both local and remote exist; remote may have changed — user pulls explicitly |
-| `MODIFIED_LOCALLY` | ✏️ orange pencil | Local changed since last sync, remote unchanged |
+|--------|------|--------------|
+| `TRACKED` | 📄 plain file | Both local and remote exist; either side may have changed — user syncs explicitly |
 | `CONFLICT` | 🔴 red alert | Both local and remote changed since last sync |
 | `EXIST_ONLY_LOCALLY` | 📄+ orange file-add | New workflow created locally, not yet pushed |
 | `EXIST_ONLY_REMOTELY` | ☁️ blue cloud | Workflow exists remotely, not yet pulled locally |

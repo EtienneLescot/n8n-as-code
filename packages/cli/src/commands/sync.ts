@@ -45,21 +45,34 @@ export class SyncCommand extends BaseCommand {
         }
     }
 
-    async pushOne(workflowId: string): Promise<void> {
+    async pushOne(workflowId?: string, filename?: string): Promise<void> {
         const syncConfig = await this.getSyncConfig();
         const syncManager = new SyncManager(this.client, syncConfig);
 
         // Populate local hash cache FIRST — required for accurate status in CLI mode
         await syncManager.refreshLocalState();
 
+        if (!workflowId) {
+            // Brand-new file: no ID yet, push directly by filename
+            const label = filename ?? '(unknown)';
+            const spinner = ora(`Pushing new workflow "${label}"...`).start();
+            try {
+                await syncManager.push(undefined, filename);
+                spinner.succeed(chalk.green(`✔ Pushed "${label}" to n8n.`));
+            } catch (e: any) {
+                spinner.fail(`Push failed: ${e.message}`);
+                process.exit(1);
+            }
+            return;
+        }
+
         // Warm up the remote cache for this specific workflow
         await syncManager.fetch(workflowId);
 
-        // Get current status and mapping
-        const filename = syncManager.getFilenameForId(workflowId);
-        if (filename) {
-            const status = await syncManager.getSingleWorkflowDetailedStatus(workflowId, filename);
-            
+        // Conflict check before pushing
+        const resolvedFilename = syncManager.getFilenameForId(workflowId);
+        if (resolvedFilename) {
+            const status = await syncManager.getSingleWorkflowDetailedStatus(workflowId, resolvedFilename);
             if (status.status === WorkflowSyncStatus.CONFLICT) {
                 console.log(chalk.red(`💥 Conflict detected for workflow ${workflowId}.`));
                 console.log(chalk.yellow(`To resolve the conflict you can either:`));

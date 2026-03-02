@@ -49,13 +49,22 @@ This command:
 
 ### Upload a Local Workflow to n8n
 ```bash
+# Existing workflow (has an ID in n8nac list)
 n8nac push <workflowId>
+
+# Brand-new local file never pushed before
+n8nac push --filename my-workflow.workflow.ts
 ```
 
 This command:
 1. Uploads the specified workflow to n8n
 2. Uses Optimistic Concurrency Control — rejected if the remote was modified since last pull
 3. Suggests `n8nac resolve` if a conflict is detected
+
+:::tip Which form to use?
+If `n8nac list` shows the workflow with an ID → always use `push <id>`.
+Only use `--filename` for files that have **never been pushed** and have no entry in `.n8n-state.json`.
+:::
 
 ## 📋 Command Reference
 
