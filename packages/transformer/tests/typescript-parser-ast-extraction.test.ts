@@ -6,8 +6,8 @@
  *
  * The parser must correctly handle:
  *  - All literal value types (strings, numbers, booleans, null, arrays, objects)
- *  - Top-level `const` identifier references
- *  - Helpful errors for dynamic / un-resolvable expressions (function calls, etc.)
+ *  - Helpful errors for dynamic / unsupported expressions (function calls,
+ *    identifiers, etc.) with no misleading workaround suggestions
  */
 
 import { describe, it, expect } from 'vitest';
@@ -95,36 +95,6 @@ describe('TypeScriptParser – AST value extraction', () => {
         });
     });
 
-    describe('top-level const identifier resolution', () => {
-        it('resolves a string const declared before the class', async () => {
-            const parser = new TypeScriptParser();
-            const preamble = `const myCode = "return items;";`;
-            const ast = await parser.parseCode(makeWorkflow(`{ jsCode: myCode }`, preamble));
-            expect(ast.nodes[0].parameters.jsCode).toBe('return items;');
-        });
-
-        it('resolves a number const', async () => {
-            const parser = new TypeScriptParser();
-            const preamble = `const TIMEOUT = 30000;`;
-            const ast = await parser.parseCode(makeWorkflow(`{ timeout: TIMEOUT }`, preamble));
-            expect(ast.nodes[0].parameters.timeout).toBe(30000);
-        });
-
-        it('resolves a nested-object const', async () => {
-            const parser = new TypeScriptParser();
-            const preamble = `const opts = { batchSize: 50, parallel: true };`;
-            const ast = await parser.parseCode(makeWorkflow(`{ options: opts }`, preamble));
-            expect(ast.nodes[0].parameters.options).toEqual({ batchSize: 50, parallel: true });
-        });
-
-        it('resolves a template-literal const', async () => {
-            const parser = new TypeScriptParser();
-            const preamble = 'const script = `return $input.all();`;';
-            const ast = await parser.parseCode(makeWorkflow('{ jsCode: script }', preamble));
-            expect(ast.nodes[0].parameters.jsCode).toBe('return $input.all();');
-        });
-    });
-
     describe('dynamic / unsupported expressions', () => {
         it('throws a helpful error for a bare function call  (original bug report)', async () => {
             const parser = new TypeScriptParser();
@@ -147,17 +117,17 @@ describe('TypeScriptParser – AST value extraction', () => {
             );
         });
 
-        it('error message mentions workaround', async () => {
+        it('error message does not suggest misleading workarounds', async () => {
             const parser = new TypeScriptParser();
             const code = makeWorkflow(`{ jsCode: foo() }`, `function foo() { return "x"; }`);
-            await expect(parser.parseCode(code)).rejects.toThrow(/static literal values/);
+            await expect(parser.parseCode(code)).rejects.toThrow(/inline literal values/);
         });
 
-        it('throws a helpful error for an unresolvable identifier', async () => {
+        it('throws a helpful error for a bare identifier (not undefined)', async () => {
             const parser = new TypeScriptParser();
             const code = makeWorkflow(`{ jsCode: unknownVar }`);
             await expect(parser.parseCode(code)).rejects.toThrow(
-                /Cannot resolve identifier "unknownVar"/
+                /Cannot use identifier "unknownVar"/
             );
         });
     });
