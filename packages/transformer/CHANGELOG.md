@@ -1,5 +1,18 @@
 # @n8n-as-code/transformer
 
+## [0.2.3](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.2...@n8n-as-code/transformer@v0.2.3) (2026-03-02)
+
+
+### Features
+
+* Refactor AiContextGenerator to remove shim generation and update command usage ([b5f6fa1](https://github.com/EtienneLescot/n8n-as-code/commit/b5f6fa1ed161a98e0f8cc38e57640ecd3db936b6))
+
+
+### Bug Fixes
+
+* **transformer:** remove const identifier resolution from static parser ([7a94f32](https://github.com/EtienneLescot/n8n-as-code/commit/7a94f32b913a019eb1724ca63f560f7eb666bf0f))
+* **transformer:** replace eval with AST-based value extraction ([1a74315](https://github.com/EtienneLescot/n8n-as-code/commit/1a7431522f5064fdd3058bad4ee924fdf3c11f30))
+
 ## [0.2.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.1...@n8n-as-code/transformer@v0.2.2) (2026-02-22)
 
 

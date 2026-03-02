@@ -1,5 +1,30 @@
 # @n8n-as-code/skills
 
+## [0.16.8](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.7...@n8n-as-code/skills@v0.16.8) (2026-03-02)
+
+
+### Features
+
+* enhance AiContextGenerator to support pre-release detection and update CLI command usage ([bde29b9](https://github.com/EtienneLescot/n8n-as-code/commit/bde29b9001839df9166e5309b076140678dcdb46))
+* Refactor AiContextGenerator to remove shim generation and update command usage ([b5f6fa1](https://github.com/EtienneLescot/n8n-as-code/commit/b5f6fa1ed161a98e0f8cc38e57640ecd3db936b6))
+
+
+### Bug Fixes
+
+* address PR review comments - pin deps, fix docs, add --cli-version, use fileURLToPath ([082b8d1](https://github.com/EtienneLescot/n8n-as-code/commit/082b8d13bc195d676484709c9d7f162df8151459))
+* lazy-initialize WorkflowRegistry in skills-commander to avoid eager I/O on startup ([526d114](https://github.com/EtienneLescot/n8n-as-code/commit/526d1141cea4b0d48e52a6fb0b1f82ea9a75e032))
+* remove false claims about AI rule file generation ([8bf4912](https://github.com/EtienneLescot/n8n-as-code/commit/8bf491277411258d3dc26891599d9a8946e5b844))
+* remove stray backticks causing TS errors, add cliCmd for n8nac commands, pin exact version in npx, pin inter-package deps in CI ([010aba3](https://github.com/EtienneLescot/n8n-as-code/commit/010aba37ef65a7a84352c8308a098aa30d7cd202))
+* restore proper line breaks for closing describe blocks in ai-context-generator.test.ts ([67d27ae](https://github.com/EtienneLescot/n8n-as-code/commit/67d27ae4c26412517dd17081fb11b9ab8de0ce0a))
+* revert hardcoded pre-release versions to * — CI pins exact SHA-suffixed versions at publish time ([68ba945](https://github.com/EtienneLescot/n8n-as-code/commit/68ba945a4818d41f6fdf34c3521474b98930b64b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/transformer bumped from * to 0.2.3
+
 ## [0.16.7](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.6...@n8n-as-code/skills@v0.16.7) (2026-02-27)
 
 

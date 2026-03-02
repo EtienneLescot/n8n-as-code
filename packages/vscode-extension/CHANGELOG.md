@@ -1,5 +1,28 @@
 # n8n-as-code
 
+## [0.14.8](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.14.7...n8n-as-code@v0.14.8) (2026-03-02)
+
+
+### Features
+
+* enhance AiContextGenerator to support pre-release detection and update CLI command usage ([bde29b9](https://github.com/EtienneLescot/n8n-as-code/commit/bde29b9001839df9166e5309b076140678dcdb46))
+* Refactor AiContextGenerator to remove shim generation and update command usage ([b5f6fa1](https://github.com/EtienneLescot/n8n-as-code/commit/b5f6fa1ed161a98e0f8cc38e57640ecd3db936b6))
+* **vscode:** watch .n8n-state.json to react to CLI push/pull/resolve ([82c0e0d](https://github.com/EtienneLescot/n8n-as-code/commit/82c0e0d10efaca913ef1534c92953c18211a9444))
+
+
+### Bug Fixes
+
+* update SyncManager comment and handle workflow conflict resolution ([68ad67a](https://github.com/EtienneLescot/n8n-as-code/commit/68ad67a642487da913e3d4be6bf5d76d7ddc4e88))
+* **vscode-extension:** copy n8n-workflows.d.ts to extension assets during build ([bead064](https://github.com/EtienneLescot/n8n-as-code/commit/bead064151e92844bdc5e94c90b3d0a6f8dd5ee4))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from * to 0.16.8
+    * n8nac bumped from * to 0.10.0
+
 ## [0.14.7](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.14.6...n8n-as-code@v0.14.7) (2026-02-27)
 
 
