@@ -40,7 +40,7 @@ export function generatePropertyName(
     context: PropertyNameContext
 ): string {
     // Step 1: Clean the name (remove emojis, special chars)
-    let cleaned = cleanDisplayName(displayName);
+    let cleaned = cleanDisplayName(displayName ?? '');
     
     // Step 2: Convert to PascalCase
     let baseName = toPascalCase(cleaned);
@@ -120,6 +120,8 @@ function toPascalCase(str: string): string {
  * "naïve" → "naive"
  */
 function transliterate(str: string): string {
+    // Guard against null/undefined (can happen when workflow JSON has missing node names)
+    if (!str) return '';
     // NFD decomposes accented chars into base + combining diacritic, then strip diacritics
     return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
@@ -175,10 +177,11 @@ function isReservedWord(name: string): boolean {
  * 
  * @example
  * "Job Application Assistant" → "JobApplicationAssistantWorkflow"
- * "My Workflow" → "MyWorkflowWorkflow"
+ * "My Workflow" → "MyWorkflow"   (not doubled — already ends with Workflow)
+ * "Send Slack Message" → "SendSlackMessageWorkflow"
  */
 export function generateClassName(workflowName: string): string {
-    let baseName = toPascalCase(cleanDisplayName(workflowName));
+    let baseName = toPascalCase(cleanDisplayName(workflowName ?? ''));
     
     // Ensure valid identifier (strip remaining non-alphanumerics, handle leading digits, etc.)
     baseName = ensureValidIdentifier(baseName);

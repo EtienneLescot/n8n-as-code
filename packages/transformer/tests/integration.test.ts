@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generatePropertyName, createPropertyNameContext } from '../src/utils/naming.js';
+import { generatePropertyName, generateClassName, createPropertyNameContext } from '../src/utils/naming.js';
 
 describe('Naming Utils', () => {
     describe('generatePropertyName', () => {
@@ -52,6 +52,27 @@ describe('Naming Utils', () => {
             const context = createPropertyNameContext();
             expect(generatePropertyName('  Start   Node  ', context)).toBe('StartNode');
             expect(generatePropertyName('Node---1', context)).toBe('Node1');
+        });
+
+        it('should not crash on null or undefined (missing JSON fields)', () => {
+            const context = createPropertyNameContext();
+            // Workflow JSON from community sites sometimes omits the name field entirely
+            expect(generatePropertyName(null as unknown as string, context)).toBe('Node');
+            expect(generatePropertyName(undefined as unknown as string, context)).toBe('Node1');
+        });
+    });
+
+    describe('generateClassName', () => {
+        it('should generate a PascalCase class name with Workflow suffix', () => {
+            expect(generateClassName('Job Application Assistant')).toBe('JobApplicationAssistantWorkflow');
+            // already ending with "Workflow" → not doubled
+            expect(generateClassName('My Workflow')).toBe('MyWorkflow');
+            expect(generateClassName('Send Slack Message')).toBe('SendSlackMessageWorkflow');
+        });
+
+        it('should not crash on null or undefined workflow name', () => {
+            expect(generateClassName(null as unknown as string)).toBe('NodeWorkflow');
+            expect(generateClassName(undefined as unknown as string)).toBe('NodeWorkflow');
         });
     });
 });
