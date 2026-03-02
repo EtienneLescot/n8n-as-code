@@ -988,16 +988,24 @@ export class WorkflowStateTracker extends EventEmitter {
         // 1. Process all local files (just check existence, no hash computation)
         for (const filename of this.getLocalWorkflowFilenames()) {
             const workflowId = this.fileToIdMap.get(filename);
-            const remoteExists = workflowId ? this.remoteIds.has(workflowId) : false;
+
+            // A workflow is considered "known on remote" if:
+            //   a) remoteIds has it (populated by refreshRemoteState)
+            //   b) remoteHashes has it (populated by finalizeSync after push/pull)
+            //   c) lastSyncedHash exists in state (written by any CLI/VSCode process,
+            //      survives cross-process CLI operations like resolve)
+            const remoteKnown = workflowId
+                ? (this.remoteIds.has(workflowId)
+                    || this.remoteHashes.has(workflowId)
+                    || !!state.workflows[workflowId]?.lastSyncedHash)
+                : false;
 
             // Determine basic status
             let status: WorkflowSyncStatus;
-            if (workflowId && remoteExists) {
+            if (workflowId && remoteKnown) {
                 status = WorkflowSyncStatus.TRACKED; // Both exist
-            } else if (workflowId && !remoteExists) {
-                status = WorkflowSyncStatus.EXIST_ONLY_LOCALLY; // Local only (but has ID)
             } else {
-                status = WorkflowSyncStatus.EXIST_ONLY_LOCALLY; // New file without ID
+                status = WorkflowSyncStatus.EXIST_ONLY_LOCALLY; // New or not yet pushed
             }
 
             // Prefer the remote canonical name (keyed by ID, not by name since names are non-unique).

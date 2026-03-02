@@ -175,12 +175,7 @@
           "group": "inline@4",
           "when": "viewItem =~ /workflow-(local|local-only|cloud-only|modified-local|modified-remote)/ && viewItem != workflow-conflict"
         },
-        {
-          "command": "n8n.fetchWorkflow",
-          "group": "inline@5",
-          "when": "viewItem =~ /workflow-/ && viewItem != workflow-deleted && viewItem != workflow-conflict"
-        },
-        {
+{
           "command": "n8n.openBoard",
           "group": "1_open@1",
           "when": "viewItem =~ /workflow-(local|cloud-only|modified-remote)/"
