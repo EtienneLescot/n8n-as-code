@@ -145,8 +145,7 @@ export class SyncEngine {
     private async executePull(workflowId: string, filename: string): Promise<string | undefined> {
         const fullWf = await this.client.getWorkflow(workflowId);
         if (!fullWf) {
-            // Workflow was deleted remotely — nothing to pull
-            return;
+            throw new Error(`Workflow ${workflowId} not found on remote.`);
         }
 
         // Convert to TypeScript
