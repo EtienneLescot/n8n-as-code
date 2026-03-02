@@ -839,16 +839,9 @@ export class WorkflowStateTracker extends EventEmitter {
             const remoteModified = remoteHash && remoteHash !== lastSyncedHash;
 
             if (localModified && remoteModified) return WorkflowSyncStatus.CONFLICT;
-            if (localModified && remoteHash === lastSyncedHash) return WorkflowSyncStatus.MODIFIED_LOCALLY;
-            // remoteModified && localUnchanged: remote updated but local is untouched.
-            // Remote updated but local untouched — treat as TRACKED, user can pull explicitly.
-            if (remoteModified && localHash === lastSyncedHash) return WorkflowSyncStatus.TRACKED;
-            // localUnchanged && remoteHash unknown (not yet fetched by this watcher instance):
-            // local matches last synced state — safe to report TRACKED.
-            // This prevents a spurious CONFLICT when an external process (CLI, another SyncManager
-            // instance) pulls a workflow and writes lastSyncedHash to state while this watcher has
-            // never fetched the remote hash for the workflow (remoteHashes cache is empty here).
-            if (!localModified) return WorkflowSyncStatus.TRACKED;
+            // All other combinations (single-side or no modification) → TRACKED.
+            // Pull guards detect local modifications via direct hash comparison.
+            return WorkflowSyncStatus.TRACKED;
         }
 
         // Fallback for edge cases
@@ -979,7 +972,7 @@ export class WorkflowStateTracker extends EventEmitter {
 
     /**
      * Lightweight list of workflows with basic status (local only, remote only, both)
-     * Does NOT compute hashes, compile TypeScript, or determine detailed status (MODIFIED_LOCALLY, CONFLICT)
+     * Does NOT compute hashes, compile TypeScript, or determine detailed status (CONFLICT)
      */
     public async getLightweightList(): Promise<IWorkflowStatus[]> {
         const results: Map<string, IWorkflowStatus> = new Map();
