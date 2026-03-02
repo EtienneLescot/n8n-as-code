@@ -7,7 +7,7 @@
 [![npm: skills](https://img.shields.io/npm/v/@n8n-as-code/skills?label=skills&logo=npm)](https://www.npmjs.com/package/@n8n-as-code/skills)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **⚠️ BREAKING CHANGE**: Local workflows are now stored as **TypeScript files** (`.workflow.ts`) instead of JSON. This provides better readability, type safety, and AI compatibility. See the [TypeScript Workflows Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/typescript-workflows) for details.
+> **⚠️ BREAKING CHANGES**: This release contains significant breaking changes across multiple packages. Please review the changelogs : [CLI](https://github.com/EtienneLescot/n8n-as-code/blob/main/packages/cli/CHANGELOG.md) · [Skills](https://github.com/EtienneLescot/n8n-as-code/blob/main/packages/skills/CHANGELOG.md) · [Transformer](https://github.com/EtienneLescot/n8n-as-code/blob/main/packages/transformer/CHANGELOG.md) · [VS Code Extension](https://github.com/EtienneLescot/n8n-as-code/blob/main/packages/vscode-extension/CHANGELOG.md)
 
 <div align="center">
   <img src="res/n8n-as-code.gif" alt="n8n-as-code demo" width="800">
