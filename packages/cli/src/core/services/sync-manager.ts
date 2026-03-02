@@ -180,11 +180,6 @@ export class SyncManager extends EventEmitter {
         }
     }
 
-    public async stop() {
-        await this.watcher?.stop();
-        this.emit('log', 'Watcher stopped.');
-    }
-
     public getInstanceDirectory(): string {
         if (!this.watcher) {
             throw new Error('SyncManager not initialized');
@@ -312,12 +307,6 @@ export class SyncManager extends EventEmitter {
         } catch (error: any) {
             this.emit('error', new Error(`Failed to delete remote workflow ${workflowId}: ${error.message}`));
             return false;
-        }
-    }
-
-    public stopWatch() {
-        if (this.watcher) {
-            this.watcher.stop();
         }
     }
 }

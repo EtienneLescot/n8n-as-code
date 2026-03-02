@@ -403,7 +403,6 @@ export async function activate(context: vscode.ExtensionContext) {
             ) {
                 outputChannel.appendLine('[n8n] Critical settings changed. Pausing until applied.');
                 if (syncManager) {
-                    syncManager.stopWatch();
                     enhancedTreeProvider.setExtensionState(ExtensionState.SETTINGS_CHANGED);
                     statusBar.showSettingsChanged();
                 } else {
@@ -522,7 +521,6 @@ function getN8nConfig(): { host: string; apiKey: string } {
 
 async function initializeSyncManager(context: vscode.ExtensionContext) {
     if (syncManager) {
-        syncManager.stopWatch();
         syncManager.removeAllListeners();
     }
 
@@ -612,7 +610,6 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     // ── Event wiring ─────────────────────────────────────────────────────────
     syncManager.on('connection-lost', (error: Error) => {
         outputChannel.appendLine(`[n8n] CONNECTION LOST: ${error.message}`);
-        syncManager!.stopWatch();
         enhancedTreeProvider.setExtensionState(ExtensionState.ERROR, error.message);
         statusBar.showError('Connection lost');
         vscode.window.showErrorMessage(
@@ -749,7 +746,6 @@ async function reinitializeSyncManager(context: vscode.ExtensionContext) {
     if (!syncManager) return;
     outputChannel.appendLine('[n8n] Reinitializing with new settings...');
     try {
-        syncManager.stopWatch();
         syncManager.removeAllListeners();
         await initializeSyncManager(context);
         enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZED);
