@@ -1,5 +1,20 @@
 # n8n-as-code
 
+## [0.15.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.15.1...n8n-as-code@v0.15.2) (2026-03-03)
+
+
+### Bug Fixes
+
+* **vscode-extension:** re-publish stable release after pre-release conflict ([e518679](https://github.com/EtienneLescot/n8n-as-code/commit/e518679eca186072eaf1f6fccd9b4b54a659ff6f))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.9 to 0.16.10
+    * n8nac bumped from 0.10.1 to 0.10.2
+
 ## [0.15.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.15.0...n8n-as-code@v0.15.1) (2026-03-02)
 
 

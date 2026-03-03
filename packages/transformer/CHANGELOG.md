@@ -1,5 +1,12 @@
 # @n8n-as-code/transformer
 
+## [0.2.5](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.4...@n8n-as-code/transformer@v0.2.5) (2026-03-03)
+
+
+### Bug Fixes
+
+* **vscode-extension:** re-publish stable release after pre-release conflict ([e518679](https://github.com/EtienneLescot/n8n-as-code/commit/e518679eca186072eaf1f6fccd9b4b54a659ff6f))
+
 ## [0.2.4](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.3...@n8n-as-code/transformer@v0.2.4) (2026-03-02)
 
 

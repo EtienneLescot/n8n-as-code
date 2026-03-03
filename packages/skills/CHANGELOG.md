@@ -1,5 +1,19 @@
 # @n8n-as-code/skills
 
+## [0.16.10](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.9...@n8n-as-code/skills@v0.16.10) (2026-03-03)
+
+
+### Bug Fixes
+
+* **vscode-extension:** re-publish stable release after pre-release conflict ([e518679](https://github.com/EtienneLescot/n8n-as-code/commit/e518679eca186072eaf1f6fccd9b4b54a659ff6f))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/transformer bumped from 0.2.4 to 0.2.5
+
 ## [0.16.9](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.8...@n8n-as-code/skills@v0.16.9) (2026-03-02)
 
 
