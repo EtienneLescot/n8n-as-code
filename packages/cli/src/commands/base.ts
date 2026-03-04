@@ -13,11 +13,19 @@ export class BaseCommand {
         const localConfig = this.configService.getLocalConfig();
 
         // Resolve host: local config → env var
-        const host = localConfig.host || process.env.N8N_HOST?.replace(/^'|'$/g, '') || '';
+        const rawEnvHost = process.env.N8N_HOST;
+        const envHost = rawEnvHost
+            ? rawEnvHost.trim().replace(/^['"]|['"]$/g, '')
+            : '';
+        const host = localConfig.host || envHost || '';
 
         // Resolve API key: global Conf store → env var
+        const rawEnvApiKey = process.env.N8N_API_KEY;
+        const envApiKey = rawEnvApiKey
+            ? rawEnvApiKey.trim().replace(/^['"]|['"]$/g, '')
+            : '';
         const apiKey = (host ? this.configService.getApiKey(host) : undefined)
-            || process.env.N8N_API_KEY
+            || envApiKey
             || '';
 
         if (!host || !apiKey) {
