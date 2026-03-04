@@ -50,8 +50,9 @@ export class NodeSchemaProvider {
     private index: any = null;
     private enrichedIndex: any = null;
     private enrichedIndexPath: string;
+    private customNodesPath: string | undefined;
 
-    constructor(customIndexPath?: string) {
+    constructor(customIndexPath?: string, customNodesPath?: string) {
         const envAssetsDir = process.env.N8N_AS_CODE_ASSETS_DIR;
         if (customIndexPath) {
             this.enrichedIndexPath = customIndexPath;
@@ -65,6 +66,7 @@ export class NodeSchemaProvider {
                 this.enrichedIndexPath = path.resolve(_dirname, '../../assets/n8n-nodes-technical.json');
             }
         }
+        this.customNodesPath = customNodesPath;
     }
 
 
@@ -88,6 +90,28 @@ export class NodeSchemaProvider {
                 `Failed to load technical node index: ${error.message}\n` +
                 `The index file may be corrupted. Try rebuilding: npm run build in packages/skills`
             );
+        }
+
+        // Merge user-provided custom nodes on top of the official index
+        if (this.customNodesPath && fs.existsSync(this.customNodesPath)) {
+            try {
+                const customContent = fs.readFileSync(this.customNodesPath, 'utf-8');
+                const customIndex = JSON.parse(customContent);
+                if (customIndex && typeof customIndex.nodes === 'object') {
+                    this.index = {
+                        ...this.index,
+                        nodes: {
+                            ...this.index.nodes,
+                            ...customIndex.nodes
+                        }
+                    };
+                }
+            } catch (error: any) {
+                throw new Error(
+                    `Failed to load custom nodes file at: ${this.customNodesPath}\n` +
+                    `${error.message}`
+                );
+            }
         }
     }
 

@@ -26,8 +26,8 @@ export interface ValidationWarning {
 export class WorkflowValidator {
   private provider: NodeSchemaProvider;
 
-  constructor(customIndexPath?: string) {
-    this.provider = new NodeSchemaProvider(customIndexPath);
+  constructor(customIndexPath?: string, customNodesPath?: string) {
+    this.provider = new NodeSchemaProvider(customIndexPath, customNodesPath);
   }
 
   /**
