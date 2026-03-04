@@ -63,12 +63,24 @@ export class BaseCommand {
     }
 
     /**
-     * Get sync config with instance identifier
+     * Get sync config with instance identifier.
+     * Validates that required project fields are present; exits with a clear error if not.
      */
     protected async getSyncConfig(): Promise<any> {
         const instanceIdentifier = await this.ensureInstanceIdentifier();
         const localConfig = this.configService.getLocalConfig();
-        
+
+        const missing: string[] = [];
+        if (!localConfig.projectId) missing.push('projectId');
+        if (!localConfig.projectName) missing.push('projectName');
+        if (!localConfig.syncFolder) missing.push('syncFolder');
+
+        if (missing.length > 0) {
+            console.error(chalk.red(`❌ Missing required project configuration: ${missing.join(', ')}.`));
+            console.error(chalk.yellow('Please run `n8nac init` to configure your project, or create an `n8nac-config.json` file with the required fields.'));
+            process.exit(1);
+        }
+
         return {
             directory: this.config.directory,
             syncInactive: true,
