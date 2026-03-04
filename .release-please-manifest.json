@@ -1,6 +1,6 @@
 {
   "packages/transformer": "0.2.5",
   "packages/skills": "0.16.10",
-  "packages/cli": "0.10.2",
-  "packages/vscode-extension": "0.15.2"
+  "packages/cli": "0.10.3",
+  "packages/vscode-extension": "0.15.3"
 }

@@ -1,5 +1,13 @@
 # @n8n-as-code/cli
 
+## [0.10.3](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.10.2...n8nac@v0.10.3) (2026-03-04)
+
+
+### Bug Fixes
+
+* replace all colons in host slug on Windows, not just the first ([4705def](https://github.com/EtienneLescot/n8n-as-code/commit/4705deffbd6b82b6283c3121c93c88a6c51a6a3e))
+* Replace colon in host slugs on Windows ([425edbb](https://github.com/EtienneLescot/n8n-as-code/commit/425edbbc2aafc5575ebf22c5fce9ea10a374ec2c))
+
 ## [0.10.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.10.1...n8nac@v0.10.2) (2026-03-03)
 
 
