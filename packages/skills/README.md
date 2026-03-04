@@ -164,6 +164,10 @@ n8nac skills validate workflow.workflow.ts
 n8nac skills validate workflow.workflow.ts --strict
 ```
 
+**Custom nodes:** If your project uses custom nodes bundled into a self-hosted n8n instance,
+add a `n8nac-custom-nodes.json` sidecar file (see [Custom Nodes](#custom-nodes) below) so the
+validator recognises them instead of reporting errors.
+
 ### `update-ai` - 🤖 Update AI Context
 Update AI Context (AGENTS.md and snippets).
 
@@ -182,6 +186,60 @@ The Skills CLI uses a pre-generated index of n8n nodes from the official n8n sou
 - `n8n-knowledge-index.json`: Unified FlexSearch index for the `search` command.
 - `n8n-nodes-technical.json`: Detailed technical schemas for the `get` command.
 - `n8n-docs-complete.json`: Full documentation content.
+
+## 🔧 Custom Nodes
+
+Custom nodes statically bundled into a self-hosted n8n deployment are not present in the
+official `n8n-nodes-technical.json` index. Without extra configuration the validator flags them
+as errors and the AI agent treats them as unknown.
+
+### Sidecar file (recommended)
+
+Create `n8nac-custom-nodes.json` in your project root (next to `n8nac-config.json`):
+
+```json
+{
+  "nodes": {
+    "myCustomNode": {
+      "name": "myCustomNode",
+      "displayName": "My Custom Node",
+      "description": "A proprietary ETL node built into our self-hosted n8n",
+      "type": "n8n-nodes-custom.myCustomNode",
+      "version": 1,
+      "schema": {
+        "properties": [
+          { "name": "endpoint", "type": "string", "required": true },
+          { "name": "timeout",  "type": "number", "required": false }
+        ]
+      }
+    }
+  }
+}
+```
+
+The file is automatically picked up when any `n8nac skills` command runs. Custom entries are
+merged **on top of** the official index: they win on key collision, so you can also patch
+incorrect official schemas.
+
+A minimal schema (`"properties": []`) is enough to suppress errors and skip parameter
+validation. Full property definitions enable parameter validation just like official nodes.
+
+### Non-default path
+
+If you prefer a different location, set `customNodesPath` in `n8nac-config.json`:
+
+```json
+{
+  "host": "https://my-n8n.example.com",
+  "syncFolder": "workflows",
+  "projectId": "...",
+  "projectName": "...",
+  "customNodesPath": "./config/custom-nodes.json"
+}
+```
+
+The path is resolved relative to the project root (the directory where `n8nac-config.json`
+lives).
 
 ## 🧩 Integration
 

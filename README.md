@@ -87,6 +87,7 @@ Visual workflow management with embedded n8n canvas, status indicators, and push
 - **Node schemas** to prevent parameter hallucination
 - **7000+ community workflows** searchable database
 - **Claude Agent Skill** for Claude AI integration
+- **Custom node support** — bring your own node schemas via `n8nac-custom-nodes.json`
 
 ### 🛡️ **Smart Conflict Resolution**
 3-way merge architecture with interactive conflict resolution UI.
@@ -159,6 +160,8 @@ n8nac pull --format typescript
 |----------|---------------|------------|
 | **Sync workflows** | `n8nac list` → `fetch` → `pull`/`push` | [Usage Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/cli) |
 | **AI workflow creation** | `n8nac skills search "google sheets"` | [Skills CLI Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/skills) |
+| **Validate workflows** | `n8nac skills validate my-workflow.json` | [Skills CLI Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/skills) |
+| **Custom nodes** | Add `n8nac-custom-nodes.json` to project root | [Custom Nodes](packages/skills/README.md#-custom-nodes) |
 | **Visual editing** | Install [VS Code Extension](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) | [Extension Guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/vscode-extension) |
 | **Version control** | Git commit workflow JSON files | [Getting Started](https://etiennelescot.github.io/n8n-as-code/docs/getting-started) |
 
