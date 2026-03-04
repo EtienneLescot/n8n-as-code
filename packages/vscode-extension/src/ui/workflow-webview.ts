@@ -140,13 +140,13 @@ export class WorkflowWebview {
                     id="frame-1"
                     src="${url}" 
                     sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation allow-top-navigation-by-user-activation"
-                    allow="clipboard-read; clipboard-write; geolocation; microphone; camera">
+                    allow="clipboard-read *; clipboard-write *; geolocation *; microphone *; camera *">
                 </iframe>
                 <iframe 
                     id="frame-2"
                     class="hidden"
                     sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation allow-top-navigation-by-user-activation"
-                    allow="clipboard-read; clipboard-write; geolocation; microphone; camera">
+                    allow="clipboard-read *; clipboard-write *; geolocation *; microphone *; camera *">
                 </iframe>
             </div>
 
@@ -157,10 +157,19 @@ export class WorkflowWebview {
                 const loadingOverlay = document.getElementById('loading-overlay');
                 const initialLoading = document.getElementById('initial-loading');
                 const workflowId = "${workflowId}";
+                
+                function focusActiveFrame() {
+                    try {
+                        activeFrame.focus();
+                    } catch (e) {
+                        // ignore focus errors
+                    }
+                }
 
                 // Hide initial loading when first iframe is ready
                 activeFrame.onload = () => {
                     initialLoading.style.display = 'none';
+                    focusActiveFrame();
                     // console.log('n8n initial iframe loaded');
                 };
 
@@ -207,6 +216,7 @@ export class WorkflowWebview {
                         activeFrame = pendingFrame;
                         pendingFrame = temp;
 
+                        focusActiveFrame();
                         loadingOverlay.style.display = 'none';
                     };
 
@@ -229,6 +239,8 @@ export class WorkflowWebview {
                         }
                     }
                 });
+
+                window.addEventListener('pointerdown', () => focusActiveFrame(), true);
             </script>
         </body>
         </html>`;
