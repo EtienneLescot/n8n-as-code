@@ -6,6 +6,8 @@ import crypto from 'crypto';
  * @returns Cleaned host slug (e.g., "local_5678", "etiennel_cloud")
  */
 export function createHostSlug(host: string): string {
+    const isWindows = process.platform === 'win32';
+
     // Remove protocol and trailing slashes
     let cleanHost = host.replace(/^https?:\/\//, '').replace(/\/$/, '');
     
@@ -13,6 +15,10 @@ export function createHostSlug(host: string): string {
     if (cleanHost.startsWith('localhost:')) {
         const port = cleanHost.split(':')[1];
         return `local_${port}`;
+    }
+
+    if (isWindows) {
+        cleanHost = cleanHost.replace(':', '_');
     }
     
     // For domains, extract main parts
