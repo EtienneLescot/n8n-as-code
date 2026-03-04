@@ -72,6 +72,14 @@ export class WorkflowWebview {
 
     private getHtmlForWebview(workflowId: string, url: string) {
         // url is the proxy URL pointing to the n8n workflow
+        let iframePermissionOrigin = '*';
+        try {
+            iframePermissionOrigin = new URL(url).origin;
+        } catch {
+            // Keep wildcard fallback if URL parsing fails
+        }
+        const iframeAllowPolicy = `clipboard-read ${iframePermissionOrigin}; clipboard-write ${iframePermissionOrigin}; geolocation ${iframePermissionOrigin}; microphone ${iframePermissionOrigin}; camera ${iframePermissionOrigin}`;
+
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -140,13 +148,13 @@ export class WorkflowWebview {
                     id="frame-1"
                     src="${url}" 
                     sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation allow-top-navigation-by-user-activation"
-                    allow="clipboard-read src; clipboard-write src; geolocation src; microphone src; camera src">
+                    allow="${iframeAllowPolicy}">
                 </iframe>
                 <iframe 
                     id="frame-2"
                     class="hidden"
                     sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation allow-top-navigation-by-user-activation"
-                    allow="clipboard-read src; clipboard-write src; geolocation src; microphone src; camera src">
+                    allow="${iframeAllowPolicy}">
                 </iframe>
             </div>
 
