@@ -7,7 +7,7 @@
  * Provides TypeScript types for .workflow.ts files without requiring
  * a local installation of @n8n-as-code/transformer.
  *
- * Mapped as the @n8n-as-code/transformer module via tsconfig "paths".
+ * Exposes @n8n-as-code/transformer as an ambient module declaration.
  */
 
 // =========================================================================
@@ -160,6 +160,7 @@ export declare function node(options: NodeDecoratorOptions): PropertyDecorator;
 export declare function links(): MethodDecorator;
 
 
+declare module '@n8n-as-code/transformer' {
     // =========================================================================
     // WORKFLOW SETTINGS
     // =========================================================================

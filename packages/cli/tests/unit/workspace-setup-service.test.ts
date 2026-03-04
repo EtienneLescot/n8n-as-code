@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 describe('WorkspaceSetupService', () => {
-    it('writes a minimal tsconfig without baseUrl and with wildcard paths mapping', () => {
+    it('writes a minimal tsconfig without baseUrl and paths mapping', () => {
         const workflowDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-workspace-'));
         tempDirs.push(workflowDir);
 
@@ -25,7 +25,19 @@ describe('WorkspaceSetupService', () => {
 
         const tsconfig = JSON.parse(fs.readFileSync(tsconfigPath, 'utf-8'));
         expect(tsconfig.compilerOptions.baseUrl).toBeUndefined();
-        expect(tsconfig.compilerOptions.paths['*']).toEqual(['./*']);
-        expect(tsconfig.compilerOptions.paths['@n8n-as-code/transformer']).toEqual(['./n8n-workflows.d.ts']);
+        expect(tsconfig.compilerOptions.paths).toBeUndefined();
+    });
+
+    it('writes declaration file with ambient module for @n8n-as-code/transformer', () => {
+        const workflowDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-workspace-'));
+        tempDirs.push(workflowDir);
+
+        WorkspaceSetupService.ensureWorkspaceFiles(workflowDir);
+
+        const declarationPath = path.join(workflowDir, 'n8n-workflows.d.ts');
+        expect(fs.existsSync(declarationPath)).toBe(true);
+
+        const declaration = fs.readFileSync(declarationPath, 'utf-8');
+        expect(declaration).toContain("declare module '@n8n-as-code/transformer' {");
     });
 });
