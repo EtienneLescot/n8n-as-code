@@ -140,13 +140,13 @@ export class WorkflowWebview {
                     id="frame-1"
                     src="${url}" 
                     sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation allow-top-navigation-by-user-activation"
-                    allow="clipboard-read *; clipboard-write *; geolocation *; microphone *; camera *">
+                    allow="clipboard-read src; clipboard-write src; geolocation src; microphone src; camera src">
                 </iframe>
                 <iframe 
                     id="frame-2"
                     class="hidden"
                     sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation allow-top-navigation-by-user-activation"
-                    allow="clipboard-read *; clipboard-write *; geolocation *; microphone *; camera *">
+                    allow="clipboard-read src; clipboard-write src; geolocation src; microphone src; camera src">
                 </iframe>
             </div>
 
@@ -160,7 +160,9 @@ export class WorkflowWebview {
                 
                 function focusActiveFrame() {
                     try {
-                        activeFrame.focus();
+                        if (document.activeElement !== activeFrame) {
+                            activeFrame.focus();
+                        }
                     } catch (e) {
                         // ignore focus errors
                     }
