@@ -11,17 +11,24 @@ export class BaseCommand {
     constructor() {
         this.configService = new ConfigService();
         const localConfig = this.configService.getLocalConfig();
-        const apiKey = localConfig.host ? this.configService.getApiKey(localConfig.host) : undefined;
 
-        if (!localConfig.host || !apiKey) {
+        // Resolve host: local config → env var
+        const host = localConfig.host || process.env.N8N_HOST?.replace(/^'|'$/g, '') || '';
+
+        // Resolve API key: global Conf store → env var
+        const apiKey = (host ? this.configService.getApiKey(host) : undefined)
+            || process.env.N8N_API_KEY
+            || '';
+
+        if (!host || !apiKey) {
             console.error(chalk.red('❌ CLI not configured.'));
-            console.error(chalk.yellow('Please run `n8nac init` to set up your environment.'));
+            console.error(chalk.yellow('Please run `n8nac init` to set up your environment, or set N8N_HOST and N8N_API_KEY environment variables.'));
             process.exit(1);
         }
 
         const credentials: IN8nCredentials = {
-            host: localConfig.host,
-            apiKey: apiKey
+            host,
+            apiKey
         };
 
         this.client = new N8nApiClient(credentials);
@@ -31,7 +38,7 @@ export class BaseCommand {
             directory: localConfig.syncFolder || './workflows',
             syncInactive: true,
             ignoredTags: [],
-            host: localConfig.host
+            host
         };
     }
 
