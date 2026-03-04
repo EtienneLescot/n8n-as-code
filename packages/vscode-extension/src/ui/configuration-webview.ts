@@ -131,8 +131,12 @@ export class ConfigurationWebview {
 
             // Sync API key to CLI global store so the CLI works without `n8nac init`
             if (host && apiKey) {
-              const configService = new ConfigService();
-              configService.saveApiKey(host, apiKey);
+              try {
+                const configService = new ConfigService();
+                configService.saveApiKey(host, apiKey);
+              } catch (error) {
+                console.warn('Failed to sync API key to n8n CLI global config store:', error);
+              }
             }
 
             // Write unified config file for CLI alignment
