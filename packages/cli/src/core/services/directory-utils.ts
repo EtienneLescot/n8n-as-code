@@ -18,7 +18,7 @@ export function createHostSlug(host: string): string {
     }
 
     if (isWindows) {
-        cleanHost = cleanHost.replace(':', '_');
+        cleanHost = cleanHost.replace(/:/g, '_');
     }
     
     // For domains, extract main parts
