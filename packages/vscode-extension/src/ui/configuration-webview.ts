@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { N8nApiClient, type IN8nCredentials } from 'n8nac';
+import { N8nApiClient, ConfigService, type IN8nCredentials } from 'n8nac';
 import { getWorkspaceRoot, isFolderPreviouslyInitialized, getExistingInstanceIdentifier } from '../utils/state-detection.js';
 import fs from 'fs';
 import path from 'path';
@@ -127,6 +127,12 @@ export class ConfigurationWebview {
             if (projectId && projectName) {
               await config.update('projectId', projectId, vscode.ConfigurationTarget.Workspace);
               await config.update('projectName', projectName, vscode.ConfigurationTarget.Workspace);
+            }
+
+            // Sync API key to CLI global store so the CLI works without `n8nac init`
+            if (host && apiKey) {
+              const configService = new ConfigService();
+              configService.saveApiKey(host, apiKey);
             }
 
             // Write unified config file for CLI alignment
