@@ -57,10 +57,6 @@ const TSCONFIG_CONTENT = JSON.stringify(
             target: 'ES2022',
             module: 'ESNext',
             moduleResolution: 'node',
-            paths: {
-                '*': ['./*'],
-                '@n8n-as-code/transformer': ['./n8n-workflows.d.ts'],
-            },
             experimentalDecorators: true,
             emitDecoratorMetadata: false,
             strict: false,
