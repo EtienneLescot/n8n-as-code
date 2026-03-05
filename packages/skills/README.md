@@ -217,9 +217,11 @@ Create `n8nac-custom-nodes.json` in your project root (next to `n8nac-config.jso
 }
 ```
 
-The file is automatically picked up when any `n8nac skills` command runs. Custom entries are
-merged **on top of** the official index: they win on key collision, so you can also patch
-incorrect official schemas.
+The file is automatically picked up by schema-aware `n8nac skills` commands (for example,
+`validate`, `list`, `node-schema`). Custom entries are merged **on top of** the official
+index: they win on key collision, so you can also patch incorrect official schemas. Note that
+`skills search` uses the pre-generated `n8n-knowledge-index.json` and will not include custom
+nodes that exist only in the sidecar file.
 
 A minimal schema (`"properties": []`) is enough to suppress errors and skip parameter
 validation. Full property definitions enable parameter validation just like official nodes.
