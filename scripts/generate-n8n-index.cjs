@@ -249,7 +249,7 @@ async function extractNodes() {
                 if (process.env.DEBUG) console.log(`❌ Invalid description specific data (missing name/displayName): ${path.basename(fullPath)}`);
                 errorCount++;
             } else {
-                if (process.env.DEBUG) console.log(`❌ No description found for: ${path.basename(fullPath)} (Keys: ${moduleKeys.join(', ')})`);
+                if (process.env.DEBUG) console.log(`❌ No description found for: ${path.basename(fullPath)} (Keys: ${Object.keys(module).join(', ')})`);
                 errorCount++;
             }
 

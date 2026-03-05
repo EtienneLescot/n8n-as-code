@@ -607,7 +607,7 @@ When you need an AI agent to make HTTP requests, **always use \`n8n-nodes-base.h
 
 Example:
 \`\`\`typescript
-@node({ name: 'SearchUsers', type: 'n8n-nodes-base.httpRequestTool', version: 4.1, position: [500, 300] })
+@node({ name: 'SearchUsers', type: 'n8n-nodes-base.httpRequestTool', version: /* highest available version from schema */, position: [500, 300] })
 SearchUsers = {
   url: 'https://api.example.com/users/search',
   sendQuery: true,
