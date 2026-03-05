@@ -2,6 +2,8 @@ import { jest } from '@jest/globals';
 import { WorkflowValidator } from '../src/services/workflow-validator.js';
 import { NodeSchemaProvider } from '../src/services/node-schema-provider.js';
 import path from 'path';
+import fs from 'fs';
+import os from 'os';
 import { fileURLToPath } from 'url';
 
 const _filename = fileURLToPath(import.meta.url);
@@ -146,5 +148,113 @@ describe('WorkflowValidator', () => {
             w.message.includes('Community node') &&
             w.message.includes('@tavily/n8n-nodes-tavily.tavily')
         )).toBe(true);
+    });
+});
+
+describe('WorkflowValidator - custom nodes', () => {
+    let tempDir: string;
+    let indexPath: string;
+    let customNodesPath: string;
+
+    beforeAll(() => {
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wv-custom-test-'));
+        indexPath = path.resolve(_dirname, 'fixtures/n8n-nodes-technical.json');
+        customNodesPath = path.join(tempDir, 'n8nac-custom-nodes.json');
+
+        const customNodes = {
+            nodes: {
+                myCustomNode: {
+                    name: 'myCustomNode',
+                    displayName: 'My Custom Node',
+                    description: 'A proprietary custom node',
+                    type: 'n8n-nodes-custom.myCustomNode',
+                    version: 1,
+                    schema: {
+                        properties: [
+                            { name: 'endpoint', type: 'string', required: true }
+                        ]
+                    }
+                }
+            }
+        };
+        fs.writeFileSync(customNodesPath, JSON.stringify(customNodes));
+    });
+
+    afterAll(() => {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('should accept a custom node without errors when custom nodes file is provided', async () => {
+        const validator = new WorkflowValidator(indexPath, customNodesPath);
+        const workflow = {
+            nodes: [
+                {
+                    id: '1',
+                    name: 'Trigger',
+                    type: 'n8n-nodes-base.manualTrigger',
+                    typeVersion: 1,
+                    position: [0, 0],
+                    parameters: {}
+                },
+                {
+                    id: '2',
+                    name: 'MyCustom',
+                    type: 'n8n-nodes-custom.myCustomNode',
+                    typeVersion: 1,
+                    position: [200, 0],
+                    parameters: { endpoint: 'https://api.example.com' }
+                }
+            ],
+            connections: {}
+        };
+
+        const result = await validator.validateWorkflow(workflow);
+        expect(result.errors.length).toBe(0);
+        expect(result.valid).toBe(true);
+        // Should NOT warn about unknown node type
+        expect(result.warnings.some(w => w.message.includes('not in the schema'))).toBe(false);
+    });
+
+    it('should flag a custom node type as an error when no custom nodes file is provided', async () => {
+        const validator = new WorkflowValidator(indexPath);
+        const workflow = {
+            nodes: [
+                {
+                    id: '1',
+                    name: 'MyCustom',
+                    type: 'n8n-nodes-custom.myCustomNode',
+                    typeVersion: 1,
+                    position: [0, 0],
+                    parameters: {}
+                }
+            ],
+            connections: {}
+        };
+
+        const result = await validator.validateWorkflow(workflow);
+        // Without a custom nodes file the type is unknown → error
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.message.includes('Unknown node type'))).toBe(true);
+    });
+
+    it('should validate required parameters from custom node schema', async () => {
+        const validator = new WorkflowValidator(indexPath, customNodesPath);
+        const workflow = {
+            nodes: [
+                {
+                    id: '1',
+                    name: 'MyCustom',
+                    type: 'n8n-nodes-custom.myCustomNode',
+                    typeVersion: 1,
+                    position: [0, 0],
+                    parameters: {} // Missing required 'endpoint'
+                }
+            ],
+            connections: {}
+        };
+
+        const result = await validator.validateWorkflow(workflow);
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.message.includes('endpoint'))).toBe(true);
     });
 });
