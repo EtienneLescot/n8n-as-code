@@ -68,4 +68,51 @@ describe('Search Intelligence Integration', () => {
         expect(keywords).toContain('generate');
         expect(keywords).toContain('image');
     });
+
+    // ── httpRequestTool tests ──────────────────────────────────────────────────
+
+    it('httpRequestTool schema should be present in the index', () => {
+        const provider = new NodeSchemaProvider();
+        const schema = provider.getNodeSchema('httpRequestTool');
+        expect(schema).toBeDefined();
+        expect(schema.type).toBe('n8n-nodes-base.httpRequestTool');
+        expect(schema.displayName).toBe('HTTP Request Tool');
+    });
+
+    it('searching for "http request tool" should return httpRequestTool', () => {
+        const provider = new NodeSchemaProvider();
+        const results = provider.searchNodes('http request tool', 5);
+        expect(results.length).toBeGreaterThan(0);
+        // httpRequestTool must appear in results
+        const tool = results.find(r => r.name === 'httpRequestTool');
+        expect(tool).toBeDefined();
+    });
+
+    it('httpRequestTool should rank above toolHttpRequest for "http request tool" query', () => {
+        const provider = new NodeSchemaProvider();
+        const results = provider.searchNodes('http request tool', 10);
+        const baseToolIndex = results.findIndex(r => r.name === 'httpRequestTool');
+        const langchainToolIndex = results.findIndex(r => r.name === 'toolHttpRequest');
+        expect(baseToolIndex).toBeGreaterThanOrEqual(0);
+        // httpRequestTool must rank at least as high as the langchain variant
+        if (langchainToolIndex >= 0) {
+            expect(baseToolIndex).toBeLessThanOrEqual(langchainToolIndex);
+        }
+    });
+
+    it('searching for "ai tool http" should return httpRequestTool', () => {
+        const provider = new NodeSchemaProvider();
+        const results = provider.searchNodes('ai tool http', 10);
+        const tool = results.find(r => r.name === 'httpRequestTool');
+        expect(tool).toBeDefined();
+    });
+
+    it('httpRequestTool schema should have the url property', () => {
+        const provider = new NodeSchemaProvider();
+        const schema = provider.getNodeSchema('httpRequestTool');
+        const props: any[] = schema?.schema?.properties ?? [];
+        const urlProp = props.find((p: any) => p.name === 'url');
+        expect(urlProp).toBeDefined();
+        expect(urlProp.required).toBe(true);
+    });
 });
