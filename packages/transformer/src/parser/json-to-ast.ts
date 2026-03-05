@@ -8,6 +8,17 @@ import { N8nWorkflow, WorkflowAST, NodeAST, ConnectionAST, PropertyNameContext }
 import { createPropertyNameContext, generatePropertyName } from '../utils/naming.js';
 
 /**
+ * All 12 AI connection types in n8n LangChain nodes.
+ * Stored as a module-level Set for O(1) membership checks.
+ * These connections are handled separately by extractAIDependencies().
+ */
+const AI_CONNECTION_TYPES = new Set([
+    'ai_languageModel', 'ai_memory', 'ai_outputParser', 'ai_tool',
+    'ai_agent', 'ai_chain', 'ai_textSplitter', 'ai_embedding',
+    'ai_retriever', 'ai_reranker', 'ai_vectorStore', 'ai_document',
+]);
+
+/**
  * Parse n8n workflow JSON to AST
  */
 export class JsonToAstParser {
@@ -99,9 +110,6 @@ export class JsonToAstParser {
             return result;
         }
         
-        // AI connection types (these are handled separately)
-        const AI_CONNECTION_TYPES = ['ai_languageModel', 'ai_memory', 'ai_outputParser', 'ai_tool'];
-        
         for (const [sourceNodeName, outputs] of Object.entries(connections)) {
             const sourcePropertyName = nodeNameMap.get(sourceNodeName);
             
@@ -113,7 +121,7 @@ export class JsonToAstParser {
             // Iterate output types (usually "main", "error", or ai_*)
             for (const [outputType, outputGroups] of Object.entries(outputs as any)) {
                 // Skip AI connection types (handled by extractAIDependencies)
-                if (AI_CONNECTION_TYPES.includes(outputType)) {
+                if (AI_CONNECTION_TYPES.has(outputType)) {
                     continue;
                 }
                 
