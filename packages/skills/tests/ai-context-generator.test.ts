@@ -88,4 +88,49 @@ describe('AiContextGenerator', () => {
             expect(fs.existsSync(path.join(tempDir, 'n8nac.cmd'))).toBe(false);
         });
     });
+
+    describe('HTTP Tool Guidance (Integration)', () => {
+        test('AGENTS.md should recommend n8n-nodes-base.httpRequestTool', async () => {
+            await generator.generate(tempDir, '1.0.0');
+
+            const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
+            expect(agentsContent).toContain('n8n-nodes-base.httpRequestTool');
+        });
+
+        test('AGENTS.md should warn against @n8n/n8n-nodes-langchain.toolHttpRequest', async () => {
+            await generator.generate(tempDir, '1.0.0');
+
+            const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
+            expect(agentsContent).toContain('@n8n/n8n-nodes-langchain.toolHttpRequest');
+            // The warning must use a negative signal (❌ or "Do NOT" or "broken")
+            expect(agentsContent).toMatch(/❌.*toolHttpRequest|toolHttpRequest.*broken|Do NOT use.*toolHttpRequest/s);
+        });
+
+        test('AGENTS.md should include the httpRequestTool code example with ai_tool connection', async () => {
+            await generator.generate(tempDir, '1.0.0');
+
+            const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
+            expect(agentsContent).toContain('ai_tool');
+            expect(agentsContent).toContain('$fromAI(');
+            expect(agentsContent).toContain('sendQuery');
+        });
+
+        test('getSkillContent() should recommend n8n-nodes-base.httpRequestTool', () => {
+            const content = generator.getSkillContent();
+            expect(content).toContain('n8n-nodes-base.httpRequestTool');
+        });
+
+        test('getSkillContent() should warn against the langchain toolHttpRequest variant', () => {
+            const content = generator.getSkillContent();
+            expect(content).toContain('@n8n/n8n-nodes-langchain.toolHttpRequest');
+            expect(content).toMatch(/❌.*toolHttpRequest|toolHttpRequest.*broken/s);
+        });
+
+        test('getSkillContent() should include the httpRequestTool code example', () => {
+            const content = generator.getSkillContent();
+            expect(content).toContain('$fromAI(');
+            expect(content).toContain('sendQuery');
+            expect(content).toContain('ai_tool');
+        });
+    });
 });
