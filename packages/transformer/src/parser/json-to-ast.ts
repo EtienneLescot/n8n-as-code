@@ -99,8 +99,12 @@ export class JsonToAstParser {
             return result;
         }
         
-        // AI connection types (these are handled separately)
-        const AI_CONNECTION_TYPES = ['ai_languageModel', 'ai_memory', 'ai_outputParser', 'ai_tool'];
+        // AI connection types (these are handled separately by extractAIDependencies)
+        const AI_CONNECTION_TYPES = [
+            'ai_languageModel', 'ai_memory', 'ai_outputParser', 'ai_tool',
+            'ai_agent', 'ai_chain', 'ai_textSplitter', 'ai_embedding',
+            'ai_retriever', 'ai_reranker', 'ai_vectorStore', 'ai_document',
+        ];
         
         for (const [sourceNodeName, outputs] of Object.entries(connections)) {
             const sourcePropertyName = nodeNameMap.get(sourceNodeName);
