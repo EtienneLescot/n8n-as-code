@@ -280,7 +280,7 @@ export class AstToTypeScriptGenerator {
         const parts: string[] = [];
         
         if (node.id) {
-            parts.push(`id: "${node.id}"`);
+            parts.push(`id: ${JSON.stringify(node.id)}`);
         }
         parts.push(`name: "${node.displayName}"`);
         parts.push(`type: "${node.type}"`);
