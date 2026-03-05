@@ -331,7 +331,7 @@ export class AiContextGenerator {
       ``,
       `  @links()`,
       `  defineRouting() {`,
-      `    // Regular data flow: use .out(0).to(.in(0))`,
+      `    // Regular data flow: use .out(0).to(target.in(0))`,
       `    this.ChatTrigger.out(0).to(this.AiAgent.in(0));`,
       ``,
       `    // AI sub-node connections: ALWAYS use .uses(), NEVER .out().to() for these`,
