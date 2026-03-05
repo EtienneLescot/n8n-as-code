@@ -31,6 +31,44 @@ Zero external calls. Zero latency. Zero hallucination.
 
 ---
 
+## ⚡ Quick Start
+
+<table>
+<tr>
+<td width="50%">
+
+### 🎨 VS Code (visual)
+
+```
+1. Install extension from Marketplace
+2. Click the n8n icon
+3. Enter Host + API Key
+4. Done.
+```
+
+[📥 Install Extension](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code)
+
+</td>
+<td width="50%">
+
+### 🖥️ CLI (terminal)
+
+```
+1. npx n8nac init
+2. Enter Host + API Key
+3. Done.
+```
+
+No install needed — `npx` runs it directly.
+
+</td>
+</tr>
+</table>
+
+📖 [Full Getting Started Guide](https://etiennelescot.github.io/n8n-as-code/docs/getting-started)
+
+---
+
 ## 🧠 AI Skills — What Your Agent Gets
 
 > **Not a bridge. Not a proxy. A Skill.**<br>
@@ -145,66 +183,6 @@ n8nac pull <id> --format typescript  # Pull directly as TypeScript
 - ☁️ **One-click push/pull** — sync workflows without touching the terminal
 - ⚡ **Push-on-save** — auto-deploy when you save
 - 🔀 **Conflict resolution UI** — visual merge conflicts
-
----
-
-## ⚡ Quick Start
-
-**Choose your style:**
-
-<table>
-<tr>
-<td width="50%">
-
-### 🎨 VS Code (visual)
-
-```
-1. Install extension from Marketplace
-2. Click the n8n icon
-3. Enter Host + API Key
-4. Done.
-```
-
-[📥 Install Extension](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code)
-
-</td>
-<td width="50%">
-
-### 🖥️ CLI (terminal)
-
-```bash
-npx n8nac init    # Configure
-npx n8nac list    # Browse
-npx n8nac pull    # Download
-npx n8nac push    # Deploy
-```
-
-No install needed — `npx` runs it directly.
-
-</td>
-</tr>
-</table>
-
-📖 [Full Getting Started Guide](https://etiennelescot.github.io/n8n-as-code/docs/getting-started)
-
----
-
-## 📊 How We Compare
-
-|  | **n8n-as-code** | Alternatives |
-|:---|:---:|:---:|
-| **Node coverage** | 537 (100% official) | 537 core + community |
-| **Schema coverage** | **100%** | 99% |
-| **Documentation** | **1,243 pages (93%)** | 87% |
-| **Workflow templates** | **7,702** | 2,709 |
-| **Write back to n8n** | ✅ push / pull / resolve | ❌ read-only |
-| **TypeScript workflows** | ✅ bidirectional | ❌ |
-| **VS Code extension** | ✅ embedded canvas | ❌ |
-| **Git-like sync** | ✅ 3-way merge | ❌ |
-| **Conflict resolution** | ✅ interactive UI | ❌ |
-| **Multi-instance** | ✅ | ❌ |
-| **External server needed** | ❌ zero setup | ✅ MCP server |
-| **Works in any AI agent** | ✅ Skill = universal | ⚠️ MCP clients only |
 
 ---
 
