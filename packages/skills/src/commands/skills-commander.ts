@@ -21,8 +21,44 @@ import fs, { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { join } from 'path';
 
+/**
+ * Resolve the path to the user-provided custom nodes file.
+ * Lookup order:
+ *   1. `customNodesPath` field in n8nac-config.json (relative to CWD)
+ *   2. n8nac-custom-nodes.json in CWD (default sidecar file)
+ * Returns undefined when no custom nodes file is found.
+ */
+function resolveCustomNodesPath(): string | undefined {
+    const cwd = process.cwd();
+
+    // 1. Check n8nac-config.json for an explicit customNodesPath
+    const configPath = join(cwd, 'n8nac-config.json');
+    if (existsSync(configPath)) {
+        try {
+            const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+            if (config.customNodesPath) {
+                const resolved = resolve(cwd, config.customNodesPath);
+                if (existsSync(resolved)) {
+                    return resolved;
+                }
+            }
+        } catch {
+            // Ignore malformed config
+        }
+    }
+
+    // 2. Default sidecar: n8nac-custom-nodes.json next to n8nac-config.json
+    const defaultPath = join(cwd, 'n8nac-custom-nodes.json');
+    if (existsSync(defaultPath)) {
+        return defaultPath;
+    }
+
+    return undefined;
+}
+
 export function registerSkillsCommands(program: Command, assetsDir: string): void {
-    const provider = new NodeSchemaProvider(join(assetsDir, 'n8n-nodes-technical.json'));
+    const customNodesPath = resolveCustomNodesPath();
+    const provider = new NodeSchemaProvider(join(assetsDir, 'n8n-nodes-technical.json'), customNodesPath);
     const docsProvider = new DocsProvider(join(assetsDir, 'n8n-docs-complete.json'));
     const knowledgeSearch = new KnowledgeSearch(join(assetsDir, 'n8n-knowledge-index.json'));
     let registry: WorkflowRegistry | undefined;
@@ -308,7 +344,10 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
             try {
                 const workflowContent = readFileSync(file, 'utf8');
                 const isTypeScript = file.endsWith('.workflow.ts') || file.endsWith('.ts');
-                const validator = new WorkflowValidator();
+                const validator = new WorkflowValidator(
+                    join(assetsDir, 'n8n-nodes-technical.json'),
+                    customNodesPath
+                );
                 const result = await validator.validateWorkflow(
                     isTypeScript ? workflowContent : JSON.parse(workflowContent),
                     isTypeScript

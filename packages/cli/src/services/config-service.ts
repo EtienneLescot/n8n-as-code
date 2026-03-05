@@ -9,6 +9,7 @@ export interface ILocalConfig {
     projectId: string;          // REQUIRED: Active project scope
     projectName: string;        // REQUIRED: Project display name
     instanceIdentifier?: string; // Auto-generated once; stored for consistent paths
+    customNodesPath?: string;   // Optional path to n8nac-custom-nodes.json for user-defined node schemas
 }
 
 export class ConfigService {
