@@ -1,5 +1,19 @@
 # @n8n-as-code/cli
 
+## [0.10.4](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.10.3...n8nac@v0.10.4) (2026-03-05)
+
+
+### Features
+
+* single config point — VS Code extension syncs credentials to CLI store ([2b51743](https://github.com/EtienneLescot/n8n-as-code/commit/2b51743730dff7bf04bde16c1151dcb429173cb3))
+
+
+### Bug Fixes
+
+* **cli:** avoid tsconfig paths/baseUrl conflict in workspace setup ([913281e](https://github.com/EtienneLescot/n8n-as-code/commit/913281ea07afc140d11b9717078cf4f5a5f83584))
+* **cli:** remove deprecated baseUrl from generated workspace tsconfig ([08f9273](https://github.com/EtienneLescot/n8n-as-code/commit/08f92734824d636cdd2df96470a3c1eeb73f7120))
+* **cli:** validate project config before ensureInstanceIdentifier in getSyncConfig ([90991bf](https://github.com/EtienneLescot/n8n-as-code/commit/90991bfdcc048448d559af016ef9fec254656b8d))
+
 ## [0.10.3](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.10.2...n8nac@v0.10.3) (2026-03-04)
 
 

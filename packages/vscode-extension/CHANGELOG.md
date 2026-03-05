@@ -1,5 +1,26 @@
 # n8n-as-code
 
+## [0.15.4](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.15.3...n8n-as-code@v0.15.4) (2026-03-05)
+
+
+### Features
+
+* single config point — VS Code extension syncs credentials to CLI store ([2b51743](https://github.com/EtienneLescot/n8n-as-code/commit/2b51743730dff7bf04bde16c1151dcb429173cb3))
+
+
+### Bug Fixes
+
+* **vscode-extension:** improve board webview clipboard and focus handling on macOS ([8f64af6](https://github.com/EtienneLescot/n8n-as-code/commit/8f64af603225c99e7b671db535b7b3b52e24fbeb))
+* **vscode-extension:** use 'src' as safer fallback for iframe permission origin ([307225a](https://github.com/EtienneLescot/n8n-as-code/commit/307225a07f5a30d0ff60ac34bf74569464e518d2))
+* **vscode-extension:** use explicit iframe origin in allow policy ([27a5d16](https://github.com/EtienneLescot/n8n-as-code/commit/27a5d161eff349a8248bee2372c6ad2ba135b5a9))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * n8nac bumped from 0.10.3 to 0.10.4
+
 ## [0.15.3](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.15.2...n8n-as-code@v0.15.3) (2026-03-04)
 
 
