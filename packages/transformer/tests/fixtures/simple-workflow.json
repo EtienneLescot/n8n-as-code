@@ -4,6 +4,7 @@
     "active": true,
     "nodes": [
         {
+            "id": "node-uuid-001",
             "name": "Schedule Trigger",
             "type": "n8n-nodes-base.scheduleTrigger",
             "typeVersion": 1.2,
@@ -20,6 +21,7 @@
             }
         },
         {
+            "id": "node-uuid-002",
             "name": "HTTP Request",
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4,
@@ -30,6 +32,7 @@
             }
         },
         {
+            "id": "node-uuid-003",
             "name": "Set Variables",
             "type": "n8n-nodes-base.set",
             "typeVersion": 3,

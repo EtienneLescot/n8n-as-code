@@ -58,6 +58,9 @@ export interface NodeAST {
     // TypeScript property name (identifier)
     propertyName: string;           // "ScheduleTrigger", "Configuration1"
     
+    // Node ID (UUID) — retained from existing JSON to avoid regenerating on every round-trip
+    id?: string;
+    
     // Node metadata (from @node decorator)
     displayName: string;            // "🕘 Schedule Trigger"
     type: string;                   // "n8n-nodes-base.scheduleTrigger"

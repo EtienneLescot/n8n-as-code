@@ -1,5 +1,23 @@
 import { workflow, node, links } from '@n8n-as-code/transformer';
 
+// <workflow-map>
+// Workflow : Simple Test Workflow
+// Nodes   : 3  |  Connections: 2
+//
+// NODE INDEX
+// ──────────────────────────────────────────────────────────────────
+// Property name                    Node type (short)         Flags
+// ScheduleTrigger                    scheduleTrigger
+// HttpRequest                        httpRequest
+// SetVariables                       set
+//
+// ROUTING MAP
+// ──────────────────────────────────────────────────────────────────
+// ScheduleTrigger
+//    → HttpRequest
+//      → SetVariables
+// </workflow-map>
+
 // =====================================================================
 // METADATA DU WORKFLOW
 // =====================================================================
@@ -16,6 +34,7 @@ export class SimpleTestWorkflow {
     // =====================================================================
 
     @node({
+        id: 'node-uuid-001',
         name: 'Schedule Trigger',
         type: 'n8n-nodes-base.scheduleTrigger',
         version: 1.2,
@@ -33,6 +52,7 @@ export class SimpleTestWorkflow {
     };
 
     @node({
+        id: 'node-uuid-002',
         name: 'HTTP Request',
         type: 'n8n-nodes-base.httpRequest',
         version: 4,
@@ -44,6 +64,7 @@ export class SimpleTestWorkflow {
     };
 
     @node({
+        id: 'node-uuid-003',
         name: 'Set Variables',
         type: 'n8n-nodes-base.set',
         version: 3,

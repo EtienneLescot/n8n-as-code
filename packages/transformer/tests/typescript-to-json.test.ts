@@ -68,6 +68,11 @@ describe('TypeScript to JSON Transformation', () => {
         expect(workflow.active).toBe(true);
         expect(workflow.nodes).toHaveLength(3);
         
+        // Verify node IDs are preserved from the fixture
+        expect(workflow.nodes[0].id).toBe('node-uuid-001');
+        expect(workflow.nodes[1].id).toBe('node-uuid-002');
+        expect(workflow.nodes[2].id).toBe('node-uuid-003');
+        
         // Verify connections
         expect(workflow.connections).toBeDefined();
         expect(workflow.connections['Schedule Trigger']).toBeDefined();
@@ -92,19 +97,20 @@ describe('TypeScript to JSON Transformation', () => {
         const tsParser = new TypeScriptParser();
         const ast2 = await tsParser.parseCode(tsCode);
         const builder = new WorkflowBuilder();
-        const resultJson = builder.build(ast2, { deterministicIds: true });
+        const resultJson = builder.build(ast2);
         
-        // Compare essential fields (ignore node IDs which are generated)
+        // Compare essential fields
         expect(resultJson.id).toBe(originalJson.id);
         expect(resultJson.name).toBe(originalJson.name);
         expect(resultJson.active).toBe(originalJson.active);
         expect(resultJson.nodes).toHaveLength(originalJson.nodes.length);
         
-        // Compare node properties (without IDs)
+        // Verify node IDs are preserved across the full roundtrip
         for (let i = 0; i < originalJson.nodes.length; i++) {
             const original = originalJson.nodes[i];
             const result = resultJson.nodes[i];
             
+            expect(result.id).toBe(original.id);
             expect(result.name).toBe(original.name);
             expect(result.type).toBe(original.type);
             expect(result.typeVersion).toBe(original.typeVersion);
