@@ -278,4 +278,8 @@ async function extractNodes() {
     console.log(`💾 Saved index to: ${OUTPUT_FILE}`);
 }
 
-extractNodes();
+if (require.main === module) {
+    extractNodes();
+}
+
+module.exports = { loadModule, extractDescription };
