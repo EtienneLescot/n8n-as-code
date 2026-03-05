@@ -67,7 +67,6 @@ export class BaseCommand {
      * Validates that required project fields are present; exits with a clear error if not.
      */
     protected async getSyncConfig(): Promise<any> {
-        const instanceIdentifier = await this.ensureInstanceIdentifier();
         const localConfig = this.configService.getLocalConfig();
 
         const missing: string[] = [];
@@ -80,6 +79,8 @@ export class BaseCommand {
             console.error(chalk.yellow('Please run `n8nac init` to configure your project, or create an `n8nac-config.json` file with the required fields.'));
             process.exit(1);
         }
+
+        const instanceIdentifier = await this.ensureInstanceIdentifier();
 
         return {
             directory: this.config.directory,
