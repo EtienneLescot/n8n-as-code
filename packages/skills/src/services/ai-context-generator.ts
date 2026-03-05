@@ -359,7 +359,7 @@ export class AiContextGenerator {
       `- ❌ Do NOT use \`@n8n/n8n-nodes-langchain.toolHttpRequest\` — this LangChain variant is known to be broken on many instances`,
       `- The \`httpRequestTool\` node connects to an agent via \`ai_tool\`:`,
       `  \`\`\`typescript`,
-      `  @node({ name: 'SearchUsers', type: 'n8n-nodes-base.httpRequestTool', version: 4.1, position: [500, 300] })`,
+      `  @node({ name: 'SearchUsers', type: 'n8n-nodes-base.httpRequestTool', version: /* highest available version from schema */, position: [500, 300] })`,
       `  SearchUsers = {`,
       `    url: 'https://api.example.com/users/search',`,
       `    sendQuery: true,`,
