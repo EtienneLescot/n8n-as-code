@@ -237,7 +237,7 @@ Contributions welcome!
 
 ## 📄 License
 
-MIT — free to use, modify, and distribute.
+[Apache 2.0](LICENSE) — free to use, modify, and distribute.
 
 ---
 
