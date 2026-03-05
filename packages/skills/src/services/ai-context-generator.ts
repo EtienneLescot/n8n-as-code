@@ -345,7 +345,7 @@ export class AiContextGenerator {
       `}`,
       `\`\`\``,
       ``,
-      `> **Key rule**: Regular nodes connect with \`.out(0).to(.in(0))\`. AI sub-nodes (models, memory, tools, parsers, embeddings, vector stores, retrievers) MUST connect with \`.uses()\`. Using \`.out().to()\` for AI sub-nodes will produce broken connections.`,
+      `> **Key rule**: Regular nodes connect with \`source.out(0).to(target.in(0))\`. AI sub-nodes (models, memory, tools, parsers, embeddings, vector stores, retrievers) MUST connect with \`.uses()\`. Using \`.out().to()\` for AI sub-nodes will produce broken connections.`,
       ``,
       `---`,
       ``,
