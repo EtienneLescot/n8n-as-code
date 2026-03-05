@@ -60,6 +60,88 @@ function findNodeFiles(dir) {
     return results;
 }
 
+/**
+ * Load a node module using CJS require, falling back to dynamic ESM import
+ * when the file is an ES module (ERR_REQUIRE_ESM).  This is necessary because
+ * newer versions of n8n-nodes-base compile to ESM output while the older
+ * @n8n/nodes-langchain package may still emit CJS.  Without the fallback,
+ * any ESM-compiled node file is silently skipped, which is why nodes like
+ * `httpRequestTool` disappear from the generated schema.
+ */
+async function loadModule(fullPath) {
+    try {
+        return require(fullPath);
+    } catch (err) {
+        if (err.code === 'ERR_REQUIRE_ESM' || err.code === 'ERR_REQUIRE_ASYNC_MODULE') {
+            // Dynamic import returns the module namespace – unwrap default if present
+            const { pathToFileURL } = require('url');
+            const ns = await import(pathToFileURL(fullPath).href);
+            // Flatten the namespace so callers see the same shape as CJS exports
+            if (ns.default && typeof ns.default === 'object') {
+                return { ...ns, ...ns.default };
+            }
+            return ns;
+        }
+        throw err;
+    }
+}
+
+/**
+ * Extract a node description object from a loaded module, trying multiple
+ * strategies to handle the various ways n8n nodes export their metadata.
+ */
+function extractDescription(module) {
+    const moduleKeys = Object.keys(module);
+    let description = null;
+
+    if (moduleKeys.length === 0) {
+        return null;
+    }
+
+    for (const key of moduleKeys) {
+        const item = module[key];
+
+        // Strategy A: Class with static or instance description
+        if (typeof item === 'function' && item.prototype) {
+            if (item.description) {
+                return item.description;
+            }
+
+            try {
+                const instance = new item();
+
+                // Handle VersionedNodeType
+                if (instance.nodeVersions) {
+                    const defaultVersion = instance.defaultVersion || Object.keys(instance.nodeVersions)[0];
+                    const version = instance.nodeVersions[defaultVersion];
+
+                    if (version && version.description) {
+                        description = version.description;
+                        // Add all versions to description for indexing
+                        description.allVersions = Object.keys(instance.nodeVersions).map(Number).sort((a, b) => a - b);
+                    }
+                } else if (instance.description) {
+                    description = instance.description;
+                }
+
+                if (description) break;
+            } catch (e) {
+                if (process.env.DEBUG) console.log(`   ⚠️ Failed to instantiate ${key}: ${e.message}`);
+            }
+        }
+
+        // Strategy B: Plain object export with description property
+        if (typeof item === 'object' && item !== null) {
+            if (item.description && (item.description.properties || item.description.name)) {
+                description = item.description;
+                break;
+            }
+        }
+    }
+
+    return description;
+}
+
 async function extractNodes() {
     console.log('🚀 Starting Native Node Extraction...');
     console.log(`📂 Scanning directories:`);
@@ -93,58 +175,13 @@ async function extractNodes() {
 
     for (const fullPath of allNodeFiles) {
         try {
-            // NATIVE REQUIRE
-            // We rely on standard node module resolution + our pushed path for deps
-            const module = require(fullPath);
+            const module = await loadModule(fullPath);
 
-            const moduleKeys = Object.keys(module);
-            let description = null;
-
-            if (moduleKeys.length === 0) {
-                if (process.env.DEBUG) console.log(`⚠️ Empty module: ${path.basename(fullPath)}`);
+            if (process.env.DEBUG && Object.keys(module).length === 0) {
+                console.log(`⚠️ Empty module: ${path.basename(fullPath)}`);
             }
 
-            for (const key of moduleKeys) {
-                const item = module[key];
-
-                // Strategy A: Class
-                if (typeof item === 'function' && item.prototype) {
-                    if (item.description) {
-                        description = item.description;
-                        break;
-                    }
-
-                    try {
-                        const instance = new item();
-
-                        // Handle VersionedNodeType
-                        if (instance.nodeVersions) {
-                            const defaultVersion = instance.defaultVersion || Object.keys(instance.nodeVersions)[0];
-                            const version = instance.nodeVersions[defaultVersion];
-
-                            if (version && version.description) {
-                                description = version.description;
-                                // Add all versions to description for indexing
-                                description.allVersions = Object.keys(instance.nodeVersions).map(Number).sort((a, b) => a - b);
-                            }
-                        } else if (instance.description) {
-                            description = instance.description;
-                        }
-
-                        if (description) break;
-                    } catch (e) {
-                        if (process.env.DEBUG) console.log(`   ⚠️ Failed to instantiate ${key}: ${e.message}`);
-                    }
-                }
-
-                // Strategy B: Object
-                if (typeof item === 'object' && item !== null) {
-                    if (item.description && (item.description.properties || item.description.name)) {
-                        description = item.description;
-                        break;
-                    }
-                }
-            }
+            const description = extractDescription(module);
 
             if (description && description.name && description.displayName) {
                 // Determine full type name based on package

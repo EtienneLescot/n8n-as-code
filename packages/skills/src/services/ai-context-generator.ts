@@ -354,6 +354,23 @@ export class AiContextGenerator {
       `  - Example: \`this.RAG.uses({ ai_embedding: this.Embedding.output, ai_vectorStore: this.VectorStore.output, ai_retriever: this.Retriever.output })\``,
       `- ❌ Never use \`.out().to()\` for AI sub-node connections`,
       ``,
+      `### HTTP Tool for AI Agents`,
+      `- ✅ Use \`n8n-nodes-base.httpRequestTool\` — the official HTTP Request Tool for AI agent workflows`,
+      `- ❌ Do NOT use \`@n8n/n8n-nodes-langchain.toolHttpRequest\` — this LangChain variant is known to be broken on many instances`,
+      `- The \`httpRequestTool\` node connects to an agent via \`ai_tool\`:`,
+      `  \`\`\`typescript`,
+      `  @node({ name: 'SearchUsers', type: 'n8n-nodes-base.httpRequestTool', version: 4.1, position: [500, 300] })`,
+      `  SearchUsers = {`,
+      `    url: 'https://api.example.com/users/search',`,
+      `    sendQuery: true,`,
+      `    queryParameters: {`,
+      `      parameters: [{ name: 'q', value: "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('q', 'Search term', 'string') }}" }]`,
+      `    },`,
+      `    toolDescription: 'Search users by query term in the q parameter.',`,
+      `  };`,
+      `  // Connect as tool: this.Agent.uses({ ai_tool: [this.SearchUsers.output] })`,
+      `  \`\`\``,
+      ``,
       `---`,
       ``,
       `## 📚 Available Tools`,
@@ -580,6 +597,27 @@ export class MyWorkflow {
 - ✅ Regular: \`this.NodeA.out(0).to(this.NodeB.in(0))\`
 - ✅ AI sub-nodes: \`this.Agent.uses({ ai_languageModel: this.Model.output })\`
 - ❌ Never use \`.out().to()\` for AI sub-node connections
+
+### HTTP Tool for AI Agents
+
+When you need an AI agent to make HTTP requests, **always use \`n8n-nodes-base.httpRequestTool\`**:
+
+- ✅ \`n8n-nodes-base.httpRequestTool\` — stable, official HTTP tool for AI agents
+- ❌ \`@n8n/n8n-nodes-langchain.toolHttpRequest\` — LangChain variant; broken on many n8n instances
+
+Example:
+\`\`\`typescript
+@node({ name: 'SearchUsers', type: 'n8n-nodes-base.httpRequestTool', version: 4.1, position: [500, 300] })
+SearchUsers = {
+  url: 'https://api.example.com/users/search',
+  sendQuery: true,
+  queryParameters: {
+    parameters: [{ name: 'q', value: "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('q', 'Search term', 'string') }}" }]
+  },
+  toolDescription: 'Search users. Use the q parameter to specify the search term.',
+};
+// Then connect: this.Agent.uses({ ai_tool: [this.SearchUsers.output] })
+\`\`\`
 
 ## 🚀 Best Practices
 

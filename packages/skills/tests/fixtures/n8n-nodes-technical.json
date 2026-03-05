@@ -127,6 +127,170 @@
                 "useCases": [],
                 "keywordScore": 10
             }
+        },
+        "httpRequestTool": {
+            "name": "httpRequestTool",
+            "displayName": "HTTP Request Tool",
+            "type": "n8n-nodes-base.httpRequestTool",
+            "version": [1, 2, 3, 4, 4.1, 4.2],
+            "description": "Makes an HTTP request and returns the result as a tool for use with AI agents",
+            "group": ["output"],
+            "icon": "fa:globe",
+            "schema": {
+                "properties": [
+                    {
+                        "displayName": "URL",
+                        "name": "url",
+                        "type": "string",
+                        "default": "",
+                        "required": true,
+                        "description": "The URL to make the request to"
+                    },
+                    {
+                        "displayName": "Method",
+                        "name": "method",
+                        "type": "options",
+                        "default": "GET",
+                        "options": [
+                            {"name": "DELETE", "value": "DELETE"},
+                            {"name": "GET", "value": "GET"},
+                            {"name": "HEAD", "value": "HEAD"},
+                            {"name": "OPTIONS", "value": "OPTIONS"},
+                            {"name": "PATCH", "value": "PATCH"},
+                            {"name": "POST", "value": "POST"},
+                            {"name": "PUT", "value": "PUT"}
+                        ],
+                        "description": "HTTP method to use for the request"
+                    },
+                    {
+                        "displayName": "Authentication",
+                        "name": "authentication",
+                        "type": "options",
+                        "default": "none",
+                        "options": [
+                            {"name": "None", "value": "none"},
+                            {"name": "Predefined Credential Type", "value": "predefinedCredentialType"},
+                            {"name": "Generic Credential Type", "value": "genericCredentialType"}
+                        ]
+                    },
+                    {
+                        "displayName": "Send Query Parameters",
+                        "name": "sendQuery",
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Whether to send query parameters with the request"
+                    },
+                    {
+                        "displayName": "Query Parameters",
+                        "name": "queryParameters",
+                        "type": "fixedCollection",
+                        "default": {},
+                        "displayOptions": {"show": {"sendQuery": [true]}}
+                    },
+                    {
+                        "displayName": "Send Headers",
+                        "name": "sendHeaders",
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Whether to send custom headers with the request"
+                    },
+                    {
+                        "displayName": "Header Parameters",
+                        "name": "headerParameters",
+                        "type": "fixedCollection",
+                        "default": {},
+                        "displayOptions": {"show": {"sendHeaders": [true]}}
+                    },
+                    {
+                        "displayName": "Send Body",
+                        "name": "sendBody",
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Whether to send a body with the request"
+                    },
+                    {
+                        "displayName": "Tool Description",
+                        "name": "toolDescription",
+                        "type": "string",
+                        "default": "",
+                        "description": "Explain to the LLM what this tool does and when to use it. Shown in the model prompt."
+                    }
+                ]
+            },
+            "metadata": {
+                "keywords": [
+                    "http",
+                    "request",
+                    "tool",
+                    "api",
+                    "fetch",
+                    "agent",
+                    "ai",
+                    "get",
+                    "post",
+                    "put",
+                    "delete",
+                    "rest",
+                    "url",
+                    "webhook",
+                    "call"
+                ],
+                "operations": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "DELETE",
+                    "PATCH"
+                ],
+                "useCases": [
+                    "make http requests from ai agent",
+                    "call rest api from agent",
+                    "fetch data from url in agent workflow",
+                    "search api with ai agent",
+                    "ai tool for http"
+                ],
+                "keywordScore": 70
+            }
+        },
+        "toolHttpRequest": {
+            "name": "toolHttpRequest",
+            "displayName": "HTTP Request",
+            "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+            "version": 1,
+            "description": "Makes an HTTP request (LangChain tool variant). Prefer n8n-nodes-base.httpRequestTool which is more stable.",
+            "group": ["output"],
+            "schema": {
+                "properties": [
+                    {
+                        "displayName": "URL",
+                        "name": "url",
+                        "type": "string",
+                        "default": "",
+                        "required": true
+                    },
+                    {
+                        "displayName": "Method",
+                        "name": "method",
+                        "type": "options",
+                        "default": "GET"
+                    }
+                ]
+            },
+            "metadata": {
+                "keywords": [
+                    "http",
+                    "request",
+                    "tool",
+                    "langchain",
+                    "api"
+                ],
+                "operations": [
+                    "GET",
+                    "POST"
+                ],
+                "useCases": [],
+                "keywordScore": 30
+            }
         }
     }
 }

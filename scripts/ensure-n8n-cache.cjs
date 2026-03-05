@@ -5,7 +5,7 @@ const { execSync } = require('child_process');
 const ROOT_DIR = path.resolve(__dirname, '..');
 const CACHE_DIR = path.resolve(ROOT_DIR, '.n8n-cache');
 const N8N_REPO_URL = 'https://github.com/n8n-io/n8n.git';
-const N8N_STABLE_TAG = 'n8n@2.4.4'; // Updated to latest stable version to include all nodes including Google Gemini image generation
+const N8N_STABLE_TAG = 'n8n@2.4.4'; // Updated to latest stable version to include all nodes including Google Gemini image generation and httpRequestTool (n8n-nodes-base.httpRequestTool)
 
 function run(command, cwd = ROOT_DIR) {
     console.log(`> ${command}`);
