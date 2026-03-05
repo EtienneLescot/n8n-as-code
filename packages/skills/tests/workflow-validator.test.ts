@@ -215,7 +215,10 @@ describe('WorkflowValidator - custom nodes', () => {
         expect(result.warnings.some(w => w.message.includes('not in the schema'))).toBe(false);
     });
 
-    it('should flag a custom node type as an error when no custom nodes file is provided', async () => {
+    it('should emit a community-node warning (not an error) for custom node type when no sidecar file is provided', async () => {
+        // n8n-nodes-custom.* matches the community node heuristic (n8n-nodes-* without
+        // n8n-nodes-base.* / n8n-nodes-langchain.*), so the validator emits a warning and
+        // keeps the workflow valid — parameter validation is simply skipped for that node.
         const validator = new WorkflowValidator(indexPath);
         const workflow = {
             nodes: [
@@ -232,9 +235,10 @@ describe('WorkflowValidator - custom nodes', () => {
         };
 
         const result = await validator.validateWorkflow(workflow);
-        // Without a custom nodes file the type is unknown → error
-        expect(result.valid).toBe(false);
-        expect(result.errors.some(e => e.message.includes('Unknown node type'))).toBe(true);
+        // Without a custom nodes file the type is treated as a community node → warning only
+        expect(result.valid).toBe(true);
+        expect(result.errors.length).toBe(0);
+        expect(result.warnings.some(w => w.message.includes('not in the schema'))).toBe(true);
     });
 
     it('should validate required parameters from custom node schema', async () => {
