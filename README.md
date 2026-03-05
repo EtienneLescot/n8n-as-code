@@ -160,9 +160,9 @@ export class SlackNotifierWorkflow {
 ```
 
 ```bash
-n8nac convert workflow.json          # JSON → TypeScript
-n8nac convert-batch workflows/       # Bulk convert
-n8nac pull <id> --format typescript  # Pull directly as TypeScript
+n8nac convert workflow.json --format typescript              # JSON → TypeScript
+n8nac convert-batch workflows/ --format typescript           # Bulk convert to TypeScript
+n8nac pull <id> > workflow.json && n8nac convert workflow.json --format typescript  # Pull then convert to TypeScript
 ```
 
 **Why TypeScript?** → Better diffs in Git · Type safety · IntelliSense · Much easier for AI to read & edit
