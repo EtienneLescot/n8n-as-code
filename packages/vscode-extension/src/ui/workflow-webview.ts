@@ -72,11 +72,11 @@ export class WorkflowWebview {
 
     private getHtmlForWebview(workflowId: string, url: string) {
         // url is the proxy URL pointing to the n8n workflow
-        let iframePermissionOrigin = '*';
+        let iframePermissionOrigin = 'src';
         try {
             iframePermissionOrigin = new URL(url).origin;
         } catch {
-            // Keep wildcard fallback if URL parsing fails
+            // Fallback to iframe's own source origin behavior if URL parsing fails
         }
         const iframeAllowPolicy = `clipboard-read ${iframePermissionOrigin}; clipboard-write ${iframePermissionOrigin}; geolocation ${iframePermissionOrigin}; microphone ${iframePermissionOrigin}; camera ${iframePermissionOrigin}`;
 
