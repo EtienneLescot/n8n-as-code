@@ -26,8 +26,6 @@ export class WorkflowSanitizer {
         // Clean nodes
         const nodes = (workflow.nodes || []).map(node => {
             const newNode = { ...node };
-            // Remove node-level metadata that might vary
-            delete newNode.id; // n8n 2.x often adds node IDs
             
             // Standardize parameters
             if (newNode.parameters && Object.keys(newNode.parameters).length === 0) {

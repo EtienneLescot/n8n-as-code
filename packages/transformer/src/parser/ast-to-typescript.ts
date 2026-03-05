@@ -279,6 +279,9 @@ export class AstToTypeScriptGenerator {
     private formatNodeDecorator(node: any): string {
         const parts: string[] = [];
         
+        if (node.id) {
+            parts.push(`id: "${node.id}"`);
+        }
         parts.push(`name: "${node.displayName}"`);
         parts.push(`type: "${node.type}"`);
         parts.push(`version: ${node.version}`);

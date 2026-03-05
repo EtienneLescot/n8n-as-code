@@ -23,9 +23,10 @@ export class WorkflowBuilder {
         
         // Generate node IDs
         for (const node of ast.nodes) {
-            const nodeId = deterministicIds
-                ? this.generateDeterministicId(node.propertyName, node.position)
-                : randomUUID();
+            const nodeId = node.id
+                ?? (deterministicIds
+                    ? this.generateDeterministicId(node.propertyName, node.position)
+                    : randomUUID());
             
             nodeIdMap.set(node.propertyName, nodeId);
         }

@@ -56,6 +56,7 @@ export class JsonToAstParser {
     private parseNode(node: any, propertyName: string): NodeAST {
         return {
             propertyName,
+            ...(node.id && { id: node.id }),
             displayName: node.name,
             type: node.type,
             version: node.typeVersion || 1,

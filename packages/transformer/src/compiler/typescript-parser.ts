@@ -143,6 +143,7 @@ export class TypeScriptParser {
             
             nodes.push({
                 propertyName,
+                ...(metadata.id && { id: metadata.id }),
                 displayName: metadata.name,
                 type: metadata.type,
                 version: metadata.version,
