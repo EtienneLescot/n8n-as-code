@@ -241,49 +241,11 @@ export class AiContextGenerator {
       `This avoids loading 1500+ lines when you only need to patch 10.`,
       ``,
       `---`,
-      ``, `## 🗺️ Reading Workflow Files Efficiently`,
       ``,
-      `Every \`.workflow.ts\` file starts with a \`<workflow-map>\` block — a compact index`,
-      `generated automatically at each sync. **Always read this block first** before`,
-      `opening the rest of the file.`,
-      ``,
-      `\`\`\``,
-      `// <workflow-map>`,
-      `// Workflow : My Workflow`,
-      `// Nodes   : 12  |  Connections: 14`,
-      `//`,
-      `// NODE INDEX`,
-      `// ──────────────────────────────────────────────────────────────────`,
-      `// Property name                    Node type (short)         Flags`,
-      `// ScheduleTrigger                  scheduleTrigger`,
-      `// AgentGenerateApplication         agent                      [AI] [creds]`,
-      `// GithubCheckBranchRef             httpRequest                [onError→out(1)]`,
-      `//`,
-      `// ROUTING MAP`,
-      `// ──────────────────────────────────────────────────────────────────`,
-      `// ScheduleTrigger`,
-      `//   → Configuration1`,
-      `//     → BuildProfileSources → LoopOverProfileSources`,
-      `//       .out(1) → JinaReadProfileSource → LoopOverProfileSources (↩ loop)`,
-      `//`,
-      `// AI CONNECTIONS`,
-      `// AgentIa.uses({ ai_languageModel: OpenaiChatModel, ai_memory: Mmoire })`,
-      `// </workflow-map>`,
-      `\`\`\``,
-      ``,
-      `### How to navigate a workflow as an agent`,
-      ``,
-      `1. **Read \`<workflow-map>\` only** — locate the property name you need`,
-      `2. **Search for that property name** in the file (e.g. \`AgentGenerateApplication =\`)`,
-      `3. **Read only that section** — do not load the entire file into context`,
-      ``,
-      `This avoids loading 1500+ lines when you only need to patch 10.`,
-      ``,
-      `---`,
-      ``, `## �📝 Minimal Workflow Structure`,
+      `## 📝 Minimal Workflow Structure`,
       ``,
       `\`\`\`typescript`,
-      `import { workflow, node, links } from '@n8n-as-code/core';`,
+      `import { workflow, node, links } from '@n8n-as-code/transformer';`,
       ``,
       `@workflow({`,
       `  name: 'Workflow Name',`,
@@ -313,6 +275,77 @@ export class AiContextGenerator {
       `  }`,
       `}`,
       `\`\`\``,
+      ``,
+      `### AI Agent Workflow Example (CRITICAL — follow this pattern for LangChain nodes)`,
+      ``,
+      `\`\`\`typescript`,
+      `import { workflow, node, links } from '@n8n-as-code/transformer';`,
+      ``,
+      `// <workflow-map>`,
+      `// Workflow : AI Agent`,
+      `// Nodes   : 6  |  Connections: 1`,
+      `//`,
+      `// NODE INDEX`,
+      `// ──────────────────────────────────────────────────────────────────`,
+      `// Property name                    Node type (short)         Flags`,
+      `// ChatTrigger                      chatTrigger`,
+      `// AiAgent                          agent                      [AI]`,
+      `// OpenaiModel                      lmChatOpenAi               [creds]`,
+      `// Memory                           memoryBufferWindow`,
+      `// SearchTool                       httpRequestTool`,
+      `// OutputParser                     outputParserStructured`,
+      `//`,
+      `// ROUTING MAP`,
+      `// ──────────────────────────────────────────────────────────────────`,
+      `// ChatTrigger`,
+      `//   → AiAgent`,
+      `//`,
+      `// AI CONNECTIONS`,
+      `// AiAgent.uses({ ai_languageModel: OpenaiModel, ai_memory: Memory, ai_outputParser: OutputParser, ai_tool: [SearchTool] })`,
+      `// </workflow-map>`,
+      ``,
+      `@workflow({ name: 'AI Agent', active: false })`,
+      `export class AIAgentWorkflow {`,
+      `  @node({ name: 'Chat Trigger', type: '@n8n/n8n-nodes-langchain.chatTrigger', version: 1.1, position: [0, 0] })`,
+      `  ChatTrigger = {};`,
+      ``,
+      `  @node({ name: 'AI Agent', type: '@n8n/n8n-nodes-langchain.agent', version: 3, position: [200, 0] })`,
+      `  AiAgent = {`,
+      `    promptType: 'define',`,
+      `    text: '={{ $json.chatInput }}',`,
+      `    options: { systemMessage: 'You are a helpful assistant.' },`,
+      `  };`,
+      ``,
+      `  @node({ name: 'OpenAI Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', version: 1.2, position: [200, 200],`,
+      `    credentials: { openAiApi: { id: 'xxx', name: 'OpenAI' } } })`,
+      `  OpenaiModel = { model: 'gpt-4o', options: {} };`,
+      ``,
+      `  @node({ name: 'Memory', type: '@n8n/n8n-nodes-langchain.memoryBufferWindow', version: 1.3, position: [300, 200] })`,
+      `  Memory = { sessionIdType: 'customKey', sessionKey: '={{ $execution.id }}', contextWindowLength: 10 };`,
+      ``,
+      `  @node({ name: 'Search Tool', type: 'n8n-nodes-base.httpRequestTool', version: 1.1, position: [400, 200] })`,
+      `  SearchTool = { url: 'https://api.example.com/search', toolDescription: 'Search for information' };`,
+      ``,
+      `  @node({ name: 'Output Parser', type: '@n8n/n8n-nodes-langchain.outputParserStructured', version: 1.3, position: [500, 200] })`,
+      `  OutputParser = { schemaType: 'manual', inputSchema: '{ "type": "object", "properties": { "answer": { "type": "string" } } }' };`,
+      ``,
+      `  @links()`,
+      `  defineRouting() {`,
+      `    // Regular data flow: use .out(0).to(.in(0))`,
+      `    this.ChatTrigger.out(0).to(this.AiAgent.in(0));`,
+      ``,
+      `    // AI sub-node connections: ALWAYS use .uses(), NEVER .out().to() for these`,
+      `    this.AiAgent.uses({`,
+      `      ai_languageModel: this.OpenaiModel.output,   // single ref → this.Node.output`,
+      `      ai_memory: this.Memory.output,               // single ref`,
+      `      ai_outputParser: this.OutputParser.output,    // single ref`,
+      `      ai_tool: [this.SearchTool.output],            // array ref → [this.Node.output, ...]`,
+      `    });`,
+      `  }`,
+      `}`,
+      `\`\`\``,
+      ``,
+      `> **Key rule**: Regular nodes connect with \`.out(0).to(.in(0))\`. AI sub-nodes (models, memory, tools, parsers, embeddings, vector stores, retrievers) MUST connect with \`.uses()\`. Using \`.out().to()\` for AI sub-nodes will produce broken connections.`,
       ``,
       `---`,
       ``,
@@ -554,7 +587,7 @@ This avoids loading 1500+ lines when you only need to patch 10.
 ### TypeScript Decorator Format
 
 \`\`\`typescript
-import { workflow, node, links } from '@n8n-as-code/core';
+import { workflow, node, links } from '@n8n-as-code/transformer';
 
 @workflow({
   name: 'Workflow Name',
@@ -577,6 +610,72 @@ export class MyWorkflow {
   }
 }
 \`\`\`
+
+### AI Agent Workflow Example
+
+\`\`\`typescript
+import { workflow, node, links } from '@n8n-as-code/transformer';
+
+// <workflow-map>
+// Workflow : AI Agent
+// Nodes   : 5  |  Connections: 1
+//
+// NODE INDEX
+// ──────────────────────────────────────────────────────────────────
+// Property name                    Node type (short)         Flags
+// ChatTrigger                      chatTrigger
+// AiAgent                          agent                      [AI]
+// OpenaiModel                      lmChatOpenAi               [creds]
+// Memory                           memoryBufferWindow
+// SearchTool                       httpRequestTool
+//
+// ROUTING MAP
+// ──────────────────────────────────────────────────────────────────
+// ChatTrigger
+//   → AiAgent
+//
+// AI CONNECTIONS
+// AiAgent.uses({ ai_languageModel: OpenaiModel, ai_memory: Memory, ai_tool: [SearchTool] })
+// </workflow-map>
+
+@workflow({ name: 'AI Agent', active: false })
+export class AIAgentWorkflow {
+  @node({ name: 'Chat Trigger', type: '@n8n/n8n-nodes-langchain.chatTrigger', version: 1.1, position: [0, 0] })
+  ChatTrigger = {};
+
+  @node({ name: 'AI Agent', type: '@n8n/n8n-nodes-langchain.agent', version: 3, position: [200, 0] })
+  AiAgent = {
+    promptType: 'define',
+    text: '={{ $json.chatInput }}',
+    options: { systemMessage: 'You are a helpful assistant.' },
+  };
+
+  @node({ name: 'OpenAI Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', version: 1.2, position: [200, 200],
+    credentials: { openAiApi: { id: 'xxx', name: 'OpenAI' } } })
+  OpenaiModel = { model: 'gpt-4o', options: {} };
+
+  @node({ name: 'Memory', type: '@n8n/n8n-nodes-langchain.memoryBufferWindow', version: 1.3, position: [300, 200] })
+  Memory = { sessionIdType: 'customKey', sessionKey: '={{ $execution.id }}', contextWindowLength: 10 };
+
+  @node({ name: 'Search Tool', type: 'n8n-nodes-base.httpRequestTool', version: 1.1, position: [400, 200] })
+  SearchTool = { url: 'https://api.example.com/search', toolDescription: 'Search for information' };
+
+  @links()
+  defineRouting() {
+    // Regular data flow
+    this.ChatTrigger.out(0).to(this.AiAgent.in(0));
+
+    // AI sub-node connections (ALWAYS use .uses(), NEVER .out().to())
+    this.AiAgent.uses({
+      ai_languageModel: this.OpenaiModel.output,
+      ai_memory: this.Memory.output,
+      ai_tool: [this.SearchTool.output],
+    });
+  }
+}
+\`\`\`
+
+> **Key rule**: Regular nodes connect with \`.out(0).to(.in(0))\`. AI sub-nodes MUST connect with \`.uses()\`.
 
 ### Expression Syntax
 
