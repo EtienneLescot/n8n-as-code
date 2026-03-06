@@ -7,7 +7,7 @@
     "url": "https://github.com/EtienneLescot"
   },
   "license": "Apache-2.0",
-  "homepage": "https://github.com/EtienneLescot/n8n-as-code",
+  "homepage": "https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/",
   "repository": "https://github.com/EtienneLescot/n8n-as-code",
   "skills": "./skills/",
   "keywords": [
