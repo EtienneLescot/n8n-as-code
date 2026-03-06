@@ -61,7 +61,7 @@ const sidebars: SidebarsConfig = {
         {
           type: 'doc',
           id: 'usage/claude-skill',
-          label: 'Claude Adapter',
+          label: 'Claude Plugin',
         },
       ],
     },

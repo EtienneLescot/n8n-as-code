@@ -1,67 +1,107 @@
 ---
 sidebar_position: 4
-title: Claude Skill
-description: Use the n8n Architect Claude Agent Skill to enable Claude AI to generate accurate n8n workflows
+title: Claude Plugin
+description: Use the n8n-as-code Claude Code plugin to create, update, and fix n8n workflows from high-level user requests.
 ---
 
-# Claude Agent Skill
+# Claude Plugin
 
-The `@n8n-as-code/claude-skill` package provides an official [Claude Agent Skill](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills) that transforms Claude into an n8n workflow expert.
+The `n8n-as-code` Claude Code plugin adds the `n8n-architect` skill and turns Claude into an n8n workflow expert.
 
-## 🎯 What is a Claude Agent Skill?
+The important point is that this stays **high-level for the user**. The user does not need to think in terms of TypeScript decorators, `n8nac skills search`, or exact node schemas. Those are implementation details used by the agent behind the scenes.
 
-Claude Agent Skills are filesystem-based packages that provide Claude with:
+Typical requests look like this:
 
-1. **Metadata** (always loaded): Name and description (~100 tokens)
-2. **Instructions** (loaded on-demand): Guidance from SKILL.md (~5k tokens)
-3. **Resources** (executed as needed): Scripts that run via bash (0 tokens, only output counts)
+- `Create a workflow that watches new Typeform responses and sends them to Slack`
+- `Add a Google Sheets node to the onboarding workflow`
+- `Fix the error in the invoice workflow`
+- `Update the AI agent workflow to use a memory node`
 
-This architecture enables **progressive disclosure** - Claude only loads content when needed.
+Claude then guides the user through initialization if needed, and uses `n8nac` commands such as `init`, `list`, `pull`, `push`, and `skills ...` internally to do the work safely.
 
-## ✨ What This Skill Does
+## 🎯 What This Plugin Adds
 
-When installed, Claude will:
+Claude Code plugins can bundle skills, manifests, and marketplace metadata. In this case, the plugin provides:
 
-- ✅ Search n8n nodes using `npx n8nac skills search`
-- ✅ Retrieve exact node schemas using `npx n8nac skills node-info`
-- ✅ Generate valid workflow JSON without hallucinating parameters
-- ✅ Follow n8n best practices (modern expressions, Code node, no hardcoded credentials)
+1. **A Claude Code plugin manifest** in `.claude-plugin/plugin.json`
+2. **A plugin marketplace manifest** in `.claude-plugin/marketplace.json`
+3. **The `n8n-architect` skill** in `skills/n8n-architect/SKILL.md`
+
+This lets users install the plugin directly from GitHub through Claude Code, while keeping the CLI alias `n8nac` for the underlying commands.
+
+## ✨ What the User Experiences
+
+When installed, Claude can:
+
+- ✅ Understand high-level workflow requests in natural language
+- ✅ Guide the user through `n8nac init` if the workspace is not initialized yet
+- ✅ Pull the current workflow state before editing
+- ✅ Search exact nodes and schemas behind the scenes to avoid hallucinations
+- ✅ Push verified changes back to n8n after local edits
+- ✅ Fix existing workflow issues without making the user reason about internal TypeScript structure
 
 ## 🏗️ How It Works
 
 ```
-User: "Create an HTTP Request workflow"
+User: "Add a Slack notification step to the lead intake workflow"
          ↓
-Claude detects n8n context (via skill description)
+Claude detects n8n context and loads the n8n-architect skill
          ↓
-Claude reads SKILL.md instructions
+Claude checks whether the project is initialized and guides the user if needed
          ↓
-Claude runs: npx n8nac skills search "http request"
+Claude runs: n8nac list / pull / skills search / node-info as needed
          ↓
-Claude runs: npx n8nac skills node-info "httpRequest"
+Claude edits the local `.workflow.ts` file with the correct schema-backed config
          ↓
-Claude generates workflow JSON using real schema
+Claude validates and pushes the workflow back to n8n
 ```
 
-## 📦 Building the Skill
+The user stays at the level of intent. The TypeScript workflow representation is an implementation detail that helps the agent make safe, reviewable edits.
+
+## 📦 Plugin Source of Truth
+
+The canonical public plugin repository is:
+
+```text
+https://github.com/EtienneLescot/n8n-as-code
+```
+
+For marketplace and directory submissions, this is the correct **Link to plugin** field because the plugin manifests and skill files live in the root repo.
+
+The public documentation page for the plugin is:
+
+```text
+https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/
+```
+
+This is the correct **Plugin homepage** field for submissions.
+
+## 📦 Building the Plugin Assets
 
 From the monorepo root:
 
 ```bash
-cd packages/skills
-npm run build:adapters
+npm run build:claude-plugin
 ```
 
-This generates `dist/adapters/claude/n8n-architect/`.
+This builds the skills package and regenerates the committed Claude skill at `skills/n8n-architect/`, plus the distributable adapter under `packages/skills/dist/adapters/claude/n8n-architect/`.
 
 ## 🚀 Installation
+
+### For Claude Code (Marketplace Install)
+
+```text
+/plugin marketplace add EtienneLescot/n8n-as-code
+/plugin install n8n-as-code@n8nac-marketplace
+```
+
+This is the recommended install path for Claude Code.
 
 ### For Claude.ai (Web)
 
 1. **Build and package:**
    ```bash
-   cd packages/skills
-   npm run build:adapters
+  npm run build:claude-plugin
    cd dist/adapters/claude
    zip -r n8n-architect-skill.zip n8n-architect/
    ```
@@ -77,16 +117,15 @@ This generates `dist/adapters/claude/n8n-architect/`.
    
    Claude should acknowledge the n8n context automatically.
 
-### For Claude Code (Desktop)
+### For Claude Code (Manual Install)
 
 1. **Build and install:**
    ```bash
-   cd packages/skills
-   npm run build:adapters
+  npm run build:claude-plugin
    
    # Install globally
    mkdir -p ~/.claude/skills
-   cp -r dist/adapters/claude/n8n-architect ~/.claude/skills/
+  cp -r packages/skills/dist/adapters/claude/n8n-architect ~/.claude/skills/
    ```
 
 2. **Restart Claude Code**
@@ -126,35 +165,35 @@ const response = await client.messages.create({
 console.log(response.content);
 ```
 
-## ✅ Testing
+## ✅ Example User Requests
 
-Test with these prompts:
+These are better examples than low-level schema questions, because they match how users actually talk to Claude.
 
-### Basic Recognition
+### Create a workflow
 ```
-"Help me create an n8n workflow"
+"Create a workflow that reads new Stripe payments and posts a summary to Slack"
 ```
-Expected: Claude acknowledges n8n context
+Expected: Claude guides initialization if needed, finds the right nodes, and creates the workflow.
 
-### Node Search
+### Update an existing workflow
 ```
-"I need to make an HTTP request in n8n"
+"Add a Google Sheets node to the customer onboarding workflow"
 ```
-Expected: Claude searches for HTTP Request node
+Expected: Claude pulls the workflow if needed, edits the correct file, and updates routing safely.
 
-### Schema Retrieval
+### Fix a broken workflow
 ```
-"Show me the parameters for a Code node"
+"Fix the error in the invoice reminder workflow"
 ```
-Expected: Claude fetches and displays schema
+Expected: Claude inspects the existing workflow, diagnoses invalid node config or AI wiring, and proposes or applies a fix.
 
-### Workflow Generation
+### Refactor an AI workflow
 ```
-"Create a webhook that calls the GitHub API"
+"Update the support agent workflow to use memory and an OpenAI chat model"
 ```
-Expected: Claude generates valid workflow JSON
+Expected: Claude uses `.uses()` correctly for AI sub-nodes and keeps the workflow valid.
 
-## 🔧 How the Skill is Built
+## 🔧 How the Plugin Works Internally
 
 The skill reuses content from `@n8n-as-code/skills`'s `AiContextGenerator`:
 
@@ -172,7 +211,7 @@ Do NOT hallucinate node parameters. Use these tools:
 `;
 ```
 
-This ensures consistency between AGENTS.md (for Cursor/Windsurf) and SKILL.md (for Claude).
+This ensures consistency between AGENTS.md for other coding agents and SKILL.md for Claude.
 
 ## 🔒 Security
 
@@ -184,7 +223,7 @@ This ensures consistency between AGENTS.md (for Cursor/Windsurf) and SKILL.md (f
 
 ## 📚 Related Documentation
 
-- [Skills CLI Usage](/docs/usage/skills) - The underlying CLI tool
+- [Skills CLI Usage](/docs/usage/skills) - The underlying CLI tool Claude uses behind the scenes
 - [Claude Agent Skills Docs](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills) - Official Anthropic documentation
 - [Contribution Guide](/docs/contribution) - Development guidelines
 
@@ -208,7 +247,7 @@ This ensures consistency between AGENTS.md (for Cursor/Windsurf) and SKILL.md (f
 - Verify: `npx --version`
 - For Claude.ai: Check if code execution has network access in settings
 
-### Claude doesn't use the skill
+### Claude doesn't use the plugin as expected
 
 - Be explicit: "Using n8n-architect skill, help me..."
 - Check the description field matches your use case

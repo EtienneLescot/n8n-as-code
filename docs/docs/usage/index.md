@@ -17,7 +17,7 @@ This section is organized by the primary user-facing tools:
 | **[VS Code Extension](/docs/usage/vscode-extension)** | Integrated development environment | Visual editing, git-like sync, workflow validation |
 | **[CLI](/docs/usage/cli)** | Command-line interface | Automation, scripting, CI/CD integration |
 | **[Skills CLI](/docs/usage/skills)** | AI tools and node schemas | AI coding assistants, node search, schema retrieval |
-| **[Claude Skill](/docs/usage/claude-skill)** | Claude Agent Skill package | Using Claude AI to generate n8n workflows |
+| **[Claude Plugin](/docs/usage/claude-skill)** | Claude Code plugin | High-level workflow creation, updates, and fixes through Claude |
 
 ## 🎨 Choosing the Right Tool
 
@@ -141,11 +141,11 @@ n8nac push <workflowId>
 3. Get node schemas: `npx n8nac skills node-info nodeName`
 4. Use output for AI context or development
 
-### 4. Claude Skill (For Claude AI)
-1. Build: `cd packages/claude-skill && npm run build`
-2. Install to Claude.ai, Claude Code, or use via API
-3. Claude automatically uses the skill for n8n questions
-4. See [Claude Skill Guide](/docs/usage/claude-skill) for details
+### 4. Claude Plugin (For Claude Code)
+1. Add the marketplace: `/plugin marketplace add EtienneLescot/n8n-as-code`
+2. Install the plugin: `/plugin install n8n-as-code@n8nac-marketplace`
+3. Ask Claude high-level workflow requests
+4. See [Claude Plugin Guide](/docs/usage/claude-skill) for details
 
 ## 🔧 Advanced Features
 
