@@ -8,11 +8,12 @@ import { N8nWorkflow, WorkflowAST, NodeAST, ConnectionAST, PropertyNameContext }
 import { createPropertyNameContext, generatePropertyName } from '../utils/naming.js';
 
 // AI connection types are handled separately by extractAIDependencies()
-const AI_CONNECTION_TYPES = new Set([
-    'ai_languageModel', 'ai_memory', 'ai_outputParser', 'ai_tool',
-    'ai_agent', 'ai_chain', 'ai_textSplitter', 'ai_embedding',
-    'ai_retriever', 'ai_reranker', 'ai_vectorStore', 'ai_document',
-]);
+// Use a generic prefix-based check so new ai_* types are handled consistently.
+const AI_CONNECTION_TYPES = {
+    has(type: string | undefined | null): boolean {
+        return typeof type === 'string' && type.startsWith('ai_');
+    },
+};
 
 /**
  * Parse n8n workflow JSON to AST
