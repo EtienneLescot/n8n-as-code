@@ -116,12 +116,12 @@ When installed, Claude becomes an expert n8n developer who can:
 
 ## 🔍 How It Works
 
-The skill uses the \`@n8n-as-code/skills\` package (formerly skills) to access complete n8n node documentation:
+The skill uses the \`n8nac\` CLI to access complete n8n node documentation:
 
 \`\`\`bash
-npx -y @n8n-as-code/skills search "http request"
-npx -y @n8n-as-code/skills get "httpRequest"
-npx -y @n8n-as-code/skills list
+npx --yes n8nac skills search "http request"
+npx --yes n8nac skills node-info "httpRequest"
+npx --yes n8nac skills list
 \`\`\`
 
 Claude executes these commands automatically when you ask about n8n workflows.
