@@ -1,0 +1,166 @@
+name: Claude Plugin
+
+on:
+  push:
+    branches: [ main, next ]
+    paths:
+      - '.claude-plugin/**'
+      - 'skills/**'
+      - 'packages/skills/scripts/build-claude-adapter.js'
+      - 'packages/skills/src/services/ai-context-generator.ts'
+      - 'README.md'
+      - 'package.json'
+      - '.github/workflows/claude-plugin.yml'
+  pull_request:
+    branches: [ main, next ]
+    paths:
+      - '.claude-plugin/**'
+      - 'skills/**'
+      - 'packages/skills/scripts/build-claude-adapter.js'
+      - 'packages/skills/src/services/ai-context-generator.ts'
+      - 'README.md'
+      - 'package.json'
+      - '.github/workflows/claude-plugin.yml'
+  workflow_dispatch:
+    inputs:
+      publish_release_asset:
+        description: 'Create or update a GitHub release and attach the plugin zip'
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: 'Tag name to publish the plugin bundle under, for example claude-plugin-v0.2.0'
+        required: false
+        type: string
+      prerelease:
+        description: 'Mark the GitHub release as a pre-release'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-bundle:
+    runs-on: ubuntu-latest
+
+    outputs:
+      artifact_name: ${{ steps.bundle.outputs.artifact_name }}
+      zip_path: ${{ steps.bundle.outputs.zip_path }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Cache n8n repository
+        uses: actions/cache@v4
+        with:
+          path: .n8n-cache
+          key: ${{ runner.os }}-n8n-cache-${{ hashFiles('scripts/ensure-n8n-cache.cjs') }}
+          restore-keys: |
+            ${{ runner.os }}-n8n-cache-
+
+      - name: Validate Claude plugin manifests
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+
+          const plugin = JSON.parse(fs.readFileSync('.claude-plugin/plugin.json', 'utf8'));
+          const marketplace = JSON.parse(fs.readFileSync('.claude-plugin/marketplace.json', 'utf8'));
+
+          if (plugin.name !== 'n8n-as-code') {
+            throw new Error(`Unexpected plugin name: ${plugin.name}`);
+          }
+
+          if (!Array.isArray(marketplace.plugins) || marketplace.plugins.length === 0) {
+            throw new Error('Marketplace must contain at least one plugin entry.');
+          }
+
+          const pluginEntry = marketplace.plugins.find((entry) => entry.name === plugin.name);
+          if (!pluginEntry) {
+            throw new Error(`Marketplace does not include plugin entry for ${plugin.name}.`);
+          }
+
+          if (pluginEntry.source !== './') {
+            throw new Error(`Expected marketplace plugin source to be ./, got ${pluginEntry.source}`);
+          }
+
+          console.log('Claude plugin manifests validated successfully.');
+          NODE
+
+      - name: Build Claude plugin assets
+        run: npm run build:claude-plugin
+
+      - name: Verify committed skill matches generated skill
+        run: |
+          cmp -s skills/n8n-architect/SKILL.md packages/skills/dist/adapters/claude/n8n-architect/SKILL.md
+          echo 'Committed skill matches generated skill.'
+
+      - name: Bundle Claude plugin
+        id: bundle
+        run: |
+          ARTIFACT_NAME="n8n-as-code-claude-plugin"
+          BUNDLE_DIR="$RUNNER_TEMP/$ARTIFACT_NAME"
+          ZIP_PATH="$RUNNER_TEMP/${ARTIFACT_NAME}.zip"
+
+          rm -rf "$BUNDLE_DIR" "$ZIP_PATH"
+          mkdir -p "$BUNDLE_DIR/.claude-plugin" "$BUNDLE_DIR/skills/n8n-architect"
+
+          cp .claude-plugin/plugin.json "$BUNDLE_DIR/.claude-plugin/plugin.json"
+          cp .claude-plugin/marketplace.json "$BUNDLE_DIR/.claude-plugin/marketplace.json"
+          cp skills/n8n-architect/SKILL.md "$BUNDLE_DIR/skills/n8n-architect/SKILL.md"
+          cp skills/n8n-architect/README.md "$BUNDLE_DIR/skills/n8n-architect/README.md"
+          cp README.md "$BUNDLE_DIR/README.md"
+          cp LICENSE "$BUNDLE_DIR/LICENSE"
+
+          cd "$RUNNER_TEMP"
+          zip -qr "$ZIP_PATH" "$ARTIFACT_NAME"
+
+          echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
+          echo "zip_path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload plugin bundle directory
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.bundle.outputs.artifact_name }}
+          path: ${{ runner.temp }}/${{ steps.bundle.outputs.artifact_name }}
+
+      - name: Upload plugin zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: n8n-as-code-claude-plugin-zip
+          path: ${{ steps.bundle.outputs.zip_path }}
+
+  publish-release-asset:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release_asset && inputs.release_tag != ''
+    needs: validate-and-bundle
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download plugin zip artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: n8n-as-code-claude-plugin-zip
+          path: ./release-assets
+
+      - name: Publish GitHub release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          prerelease: ${{ inputs.prerelease }}
+          files: ./release-assets/*.zip
+          generate_release_notes: true
