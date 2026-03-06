@@ -23,9 +23,9 @@ Claude then guides the user through initialization if needed, and uses `n8nac` c
 
 Claude Code plugins can bundle skills, manifests, and marketplace metadata. In this case, the plugin provides:
 
-1. **A Claude Code plugin manifest** in `.claude-plugin/plugin.json`
-2. **A plugin marketplace manifest** in `.claude-plugin/marketplace.json`
-3. **The `n8n-architect` skill** in `skills/n8n-architect/SKILL.md`
+1. **A plugin marketplace manifest** in `.claude-plugin/marketplace.json`
+2. **A slim installable plugin root** in `plugins/claude/n8n-as-code/.claude-plugin/plugin.json`
+3. **The `n8n-architect` skill** in `plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md`
 
 This lets users install the plugin directly from GitHub through Claude Code, while keeping the CLI alias `n8nac` for the underlying commands.
 
@@ -66,7 +66,7 @@ The canonical public plugin repository is:
 https://github.com/EtienneLescot/n8n-as-code
 ```
 
-For marketplace and directory submissions, this is the correct **Link to plugin** field because the plugin manifests and skill files live in the root repo.
+For marketplace and directory submissions, this is the correct **Link to plugin** field because the repository hosts both the marketplace manifest at the root and the installable plugin package in `plugins/claude/n8n-as-code/`.
 
 The public documentation page for the plugin is:
 

@@ -81,16 +81,11 @@ jobs:
           node - <<'NODE'
           const fs = require('fs');
 
-          const plugin = JSON.parse(fs.readFileSync('.claude-plugin/plugin.json', 'utf8'));
           const slimPlugin = JSON.parse(fs.readFileSync('plugins/claude/n8n-as-code/.claude-plugin/plugin.json', 'utf8'));
           const marketplace = JSON.parse(fs.readFileSync('.claude-plugin/marketplace.json', 'utf8'));
 
-          if (plugin.name !== 'n8n-as-code') {
-            throw new Error(`Unexpected plugin name: ${plugin.name}`);
-          }
-
-          if (plugin.skills !== './skills/') {
-            throw new Error(`Expected plugin.skills to be ./skills/, got ${plugin.skills}`);
+          if (fs.existsSync('.claude-plugin/plugin.json')) {
+            throw new Error('Root .claude-plugin/plugin.json must not exist. Keep only marketplace.json at repo root to avoid plugin/workspace collisions.');
           }
 
           if (slimPlugin.name !== 'n8n-as-code') {
@@ -105,9 +100,9 @@ jobs:
             throw new Error('Marketplace must contain at least one plugin entry.');
           }
 
-          const pluginEntry = marketplace.plugins.find((entry) => entry.name === plugin.name);
+          const pluginEntry = marketplace.plugins.find((entry) => entry.name === slimPlugin.name);
           if (!pluginEntry) {
-            throw new Error(`Marketplace does not include plugin entry for ${plugin.name}.`);
+            throw new Error(`Marketplace does not include plugin entry for ${slimPlugin.name}.`);
           }
 
           if (pluginEntry.source !== './plugins/claude/n8n-as-code') {
