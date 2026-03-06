@@ -57,6 +57,7 @@ jobs:
       - name: Build/package/publish extension
         env:
           VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
+          OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
         run: |
           if [[ -z "$VSCE_TOKEN" ]]; then
             echo "❌ VSCE_TOKEN is missing in the selected environment secrets."
@@ -64,6 +65,15 @@ jobs:
           fi
 
           cd packages/vscode-extension
+
+          # Remove "private" flag without committing (prevents vsce from rejecting the package)
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            delete pkg.private;
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
           npm version '${{ inputs.version }}' --no-git-tag-version
           npm run build
           npx @vscode/vsce package --no-dependencies
@@ -72,4 +82,13 @@ jobs:
             npx @vscode/vsce publish --no-dependencies --pre-release --pat "$VSCE_TOKEN"
           else
             npx @vscode/vsce publish --no-dependencies --pat "$VSCE_TOKEN"
+          fi
+
+          # Publish to Open VSX (Cursor / Windsurf)
+          if [[ -z "$OVSX_TOKEN" ]]; then
+            echo "⚠️ OVSX_TOKEN is missing, skipping Open VSX publish."
+          elif [[ '${{ inputs.pre_release }}' == 'true' ]]; then
+            npx ovsx publish *.vsix --pre-release -p "$OVSX_TOKEN"
+          else
+            npx ovsx publish *.vsix -p "$OVSX_TOKEN"
           fi
