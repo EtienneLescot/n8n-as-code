@@ -1,5 +1,4 @@
 module.exports = {
-    preset: 'ts-jest',
     testEnvironment: 'node',
     moduleNameMapper: {
         '^(\\.{1,2}/.*)\\.js$': '$1',
@@ -9,6 +8,13 @@ module.exports = {
             'ts-jest',
             {
                 useESM: true,
+                tsconfig: {
+                    module: 'ESNext',
+                    moduleResolution: 'Bundler',
+                    target: 'ES2022',
+                    isolatedModules: true,
+                    verbatimModuleSyntax: false,
+                },
             },
         ],
     },
