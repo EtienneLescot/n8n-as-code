@@ -1,6 +1,6 @@
 {
     "name": "n8nac",
-    "version": "0.10.7",
+    "version": "0.11.0",
     "description": "Unified CLI for n8n-as-code — manage workflows and access AI tools",
     "main": "./dist/lib.js",
     "types": "./dist/lib.d.ts",
@@ -18,7 +18,7 @@
         "test:coverage": "vitest run --coverage"
     },
     "dependencies": {
-        "@n8n-as-code/skills": "0.16.12",
+        "@n8n-as-code/skills": "0.16.13",
         "@n8n-as-code/transformer": "0.2.6",
         "@types/json-stable-stringify": "^1.1.0",
         "axios": "^1.6.0",

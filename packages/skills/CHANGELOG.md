@@ -1,5 +1,59 @@
 # @n8n-as-code/skills
 
+## [0.16.13](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.12...@n8n-as-code/skills@v0.16.13) (2026-03-06)
+
+
+### Features
+
+* add custom nodes support via n8nac-custom-nodes.json sidecar file ([e293a4e](https://github.com/EtienneLescot/n8n-as-code/commit/e293a4e5f0a0537f534b79bc350f5c81b9b4646f))
+* add TypeScript formatter for generating code snippets and documentation ([e5d9b9d](https://github.com/EtienneLescot/n8n-as-code/commit/e5d9b9dce051c32477cd0163fbfe4f7a32b9e3d1))
+* add usage tip for local shims in documentation ([d810bd9](https://github.com/EtienneLescot/n8n-as-code/commit/d810bd9df8522f163ced5f9bf3a15df5dae840b0))
+* enhance AI tool support and enrich node metadata for HTTP requests ([4052027](https://github.com/EtienneLescot/n8n-as-code/commit/405202741860fecc621511ce9e7ebf174c9273bf))
+* enhance AiContextGenerator to support pre-release detection and update CLI command usage ([bde29b9](https://github.com/EtienneLescot/n8n-as-code/commit/bde29b9001839df9166e5309b076140678dcdb46))
+* enhance shim generation test to include extension path simulation for VS Code ([22238f1](https://github.com/EtienneLescot/n8n-as-code/commit/22238f17b62afcac6dadce7ec83f499dddc2feee))
+* Enhance skills package with TypeScript workflow support ([4700a28](https://github.com/EtienneLescot/n8n-as-code/commit/4700a284e5666646a8dbf413edc171c0dd282eae))
+* enhance TypeScript node generation with workflow support and improved formatting ([6802ba0](https://github.com/EtienneLescot/n8n-as-code/commit/6802ba0bac68dcc3461c1be472800e7b920143a9))
+* enhance update-ai command and AiContextGenerator to improve local shim generation and clarify installation requirements for skills CLI ([3fb7e06](https://github.com/EtienneLescot/n8n-as-code/commit/3fb7e0658f6eefb984f43cee39c71162e3c1b069))
+* enhance workflow validation and transformation with TypeScript support ([dbf7dda](https://github.com/EtienneLescot/n8n-as-code/commit/dbf7dda81d00e5e4d349f11fb4aa7509049b6c65))
+* enhance workflow-map generation for improved navigation and readability ([94c09cd](https://github.com/EtienneLescot/n8n-as-code/commit/94c09cdba2d60995470f3d0a4eb7479e4fb1dd9b))
+* expand AI connection types and add workspace TypeScript stubs ([4b9cc90](https://github.com/EtienneLescot/n8n-as-code/commit/4b9cc90f010a6c70ccb99411d07d4bf9c5b6dc5f))
+* implement force refresh method and update sync logic across commands; add Pull-on-Focus feature in VSCode extension ([f110a9b](https://github.com/EtienneLescot/n8n-as-code/commit/f110a9b9d50f74256839a42d86dcc1d5e8e8db2e))
+* improve VS Code extension configuration UX with automatic project loading and pre-selection ([91fcee5](https://github.com/EtienneLescot/n8n-as-code/commit/91fcee5d5eb3abfc57b66386c1b846ce4703ac01))
+* Refactor AiContextGenerator to remove shim generation and update command usage ([b5f6fa1](https://github.com/EtienneLescot/n8n-as-code/commit/b5f6fa1ed161a98e0f8cc38e57640ecd3db936b6))
+* **skills:** integrate skills CLI into VS Code extension ([6ec2302](https://github.com/EtienneLescot/n8n-as-code/commit/6ec230280ab5c265c32b02c0406645ba7cabf2a0))
+* **sync:** add workflow verification after push and new verify command ([4742e0d](https://github.com/EtienneLescot/n8n-as-code/commit/4742e0d4bdbce62355ef4d668f09e1aa70456682))
+* transition to git-like sync architecture for n8n workflows ([9d1cd51](https://github.com/EtienneLescot/n8n-as-code/commit/9d1cd516eea5024ce949c050ad6d62b1655be02f))
+* update build script to generate SKILL.md dynamically and remove template file; enhance AiContextGenerator for workflow context ([2cfec72](https://github.com/EtienneLescot/n8n-as-code/commit/2cfec72dac9e09bca362a6fb8fd84ec6adcb600e))
+* update documentation to reflect breaking changes for TypeScript workflow format across all packages ([48062d1](https://github.com/EtienneLescot/n8n-as-code/commit/48062d1c2f38e2d018e5e8da3fcec46a38f6d441))
+* update generate:nodes script for comprehensive documentation generation and enhance test report parsing for Jest compatibility ([feefb85](https://github.com/EtienneLescot/n8n-as-code/commit/feefb8566a98750bb6ce4f50b009e61207ddc065))
+* update install command to always download workflows as TypeScript and improve parameter prioritization in TypeScript formatter ([1f3e78e](https://github.com/EtienneLescot/n8n-as-code/commit/1f3e78e20afd22bf34f10178b3663ec87d5f2eb8))
+* update package versions and changelogs for n8n-as-code ecosystem ([986996b](https://github.com/EtienneLescot/n8n-as-code/commit/986996b38dbaec5cc525d6d0aafbbd00f52959a6))
+* update README and CLI documentation to enhance git-like sync workflow with conflict resolution commands ([235f318](https://github.com/EtienneLescot/n8n-as-code/commit/235f3189bb46c323c785af25c8cce64cfda9f871))
+* update TypeScript configuration files to include transformer references and ensure composite builds ([53a2451](https://github.com/EtienneLescot/n8n-as-code/commit/53a2451ebd75fb0e1b40e2dd3a53a3c575ba696a))
+* update version numbers and changelogs for dependencies across packages ([10dd3b3](https://github.com/EtienneLescot/n8n-as-code/commit/10dd3b325f6ecbf1ee8fb5c20e77f472c619e74e))
+* update version numbers and changelogs for pagination implementation across packages ([f4b3b29](https://github.com/EtienneLescot/n8n-as-code/commit/f4b3b29f64520657673f373aef6396e7c579c950))
+* update workflow documentation to reflect TypeScript usage and improve clarity ([faa38a2](https://github.com/EtienneLescot/n8n-as-code/commit/faa38a2ded5714a7b712898e8abb7d128cfc7eee))
+
+
+### Bug Fixes
+
+* add httpRequestTool schema, fix ESM scanning in generate-n8n-index, add guidance against toolHttpRequest ([2205212](https://github.com/EtienneLescot/n8n-as-code/commit/22052122c7741f8fb0a750f0a704c1b1df4d3324))
+* address PR review comments - pin deps, fix docs, add --cli-version, use fileURLToPath ([082b8d1](https://github.com/EtienneLescot/n8n-as-code/commit/082b8d13bc195d676484709c9d7f162df8151459))
+* complete AI connection types and improve agent instructions ([239d4c3](https://github.com/EtienneLescot/n8n-as-code/commit/239d4c3cb6c3fcd38522d3015179325091f34af9))
+* correct WorkflowValidator custom nodes test expectation ([a53407e](https://github.com/EtienneLescot/n8n-as-code/commit/a53407ecf27ff2b092be43fc86e2af7179b58009))
+* emit [ai_*] flags for AI sub-nodes in workflow-map NODE INDEX ([d487634](https://github.com/EtienneLescot/n8n-as-code/commit/d487634a82ca9ca619529b691ef22f6cd3ca63f0))
+* lazy-initialize WorkflowRegistry in skills-commander to avoid eager I/O on startup ([526d114](https://github.com/EtienneLescot/n8n-as-code/commit/526d1141cea4b0d48e52a6fb0b1f82ea9a75e032))
+* remove false claims about AI rule file generation ([8bf4912](https://github.com/EtienneLescot/n8n-as-code/commit/8bf491277411258d3dc26891599d9a8946e5b844))
+* remove stray backticks causing TS errors, add cliCmd for n8nac commands, pin exact version in npx, pin inter-package deps in CI ([010aba3](https://github.com/EtienneLescot/n8n-as-code/commit/010aba37ef65a7a84352c8308a098aa30d7cd202))
+* replace out-of-scope moduleKeys with Object.keys(module) in debug log; use version placeholder in httpRequestTool examples ([a87599e](https://github.com/EtienneLescot/n8n-as-code/commit/a87599e750dffd6b6bf45570c0a383710f657be4))
+* restore proper line breaks for closing describe blocks in ai-context-generator.test.ts ([67d27ae](https://github.com/EtienneLescot/n8n-as-code/commit/67d27ae4c26412517dd17081fb11b9ab8de0ce0a))
+* revert hardcoded pre-release versions to * — CI pins exact SHA-suffixed versions at publish time ([68ba945](https://github.com/EtienneLescot/n8n-as-code/commit/68ba945a4818d41f6fdf34c3521474b98930b64b))
+* update AI connection examples and improve usage instructions ([1310dad](https://github.com/EtienneLescot/n8n-as-code/commit/1310dadaaf0f4dfb1055e1605e2ad1578f7e829b))
+* update AI tool guidance in AGENTS.md and tests for consistency ([7573795](https://github.com/EtienneLescot/n8n-as-code/commit/7573795781346fa80a0179f946192dfd857a3376))
+* update package versions and changelogs for [@n8n-as-code](https://github.com/n8n-as-code) ecosystem ([02d7fbd](https://github.com/EtienneLescot/n8n-as-code/commit/02d7fbd8fd0f214c3f73726c5d4e14b49ee0a152))
+* update package versions and changelogs for @n8n-as-code/cli, @n8n-as-code/skills, and @n8n-as-code/sync ([e8b7b7e](https://github.com/EtienneLescot/n8n-as-code/commit/e8b7b7e38fd2908c51d5ecf023d4376e34f286eb))
+* **vscode-extension:** re-publish stable release after pre-release conflict ([e518679](https://github.com/EtienneLescot/n8n-as-code/commit/e518679eca186072eaf1f6fccd9b4b54a659ff6f))
+
 ## [0.16.12](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.11...@n8n-as-code/skills@v0.16.12) (2026-03-06)
 
 
