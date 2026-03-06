@@ -1,5 +1,21 @@
 # @n8n-as-code/cli
 
+## [0.10.5](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.10.4...n8nac@v0.10.5) (2026-03-06)
+
+
+### Features
+
+* add custom nodes support via n8nac-custom-nodes.json sidecar file ([e293a4e](https://github.com/EtienneLescot/n8n-as-code/commit/e293a4e5f0a0537f534b79bc350f5c81b9b4646f))
+* retain node GUIDs across JSON ↔ TypeScript roundtrips ([2f77f8b](https://github.com/EtienneLescot/n8n-as-code/commit/2f77f8b52ba484474fcc826d6694c67387d3f909))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.10 to 0.16.11
+    * @n8n-as-code/transformer bumped from 0.2.5 to 0.2.6
+
 ## [0.10.4](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.10.3...n8nac@v0.10.4) (2026-03-05)
 
 

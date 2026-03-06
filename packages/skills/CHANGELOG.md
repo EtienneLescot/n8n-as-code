@@ -1,5 +1,29 @@
 # @n8n-as-code/skills
 
+## [0.16.11](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.10...@n8n-as-code/skills@v0.16.11) (2026-03-06)
+
+
+### Features
+
+* add custom nodes support via n8nac-custom-nodes.json sidecar file ([e293a4e](https://github.com/EtienneLescot/n8n-as-code/commit/e293a4e5f0a0537f534b79bc350f5c81b9b4646f))
+
+
+### Bug Fixes
+
+* add httpRequestTool schema, fix ESM scanning in generate-n8n-index, add guidance against toolHttpRequest ([2205212](https://github.com/EtienneLescot/n8n-as-code/commit/22052122c7741f8fb0a750f0a704c1b1df4d3324))
+* complete AI connection types and improve agent instructions ([239d4c3](https://github.com/EtienneLescot/n8n-as-code/commit/239d4c3cb6c3fcd38522d3015179325091f34af9))
+* correct WorkflowValidator custom nodes test expectation ([a53407e](https://github.com/EtienneLescot/n8n-as-code/commit/a53407ecf27ff2b092be43fc86e2af7179b58009))
+* emit [ai_*] flags for AI sub-nodes in workflow-map NODE INDEX ([d487634](https://github.com/EtienneLescot/n8n-as-code/commit/d487634a82ca9ca619529b691ef22f6cd3ca63f0))
+* replace out-of-scope moduleKeys with Object.keys(module) in debug log; use version placeholder in httpRequestTool examples ([a87599e](https://github.com/EtienneLescot/n8n-as-code/commit/a87599e750dffd6b6bf45570c0a383710f657be4))
+* update AI connection examples and improve usage instructions ([1310dad](https://github.com/EtienneLescot/n8n-as-code/commit/1310dadaaf0f4dfb1055e1605e2ad1578f7e829b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/transformer bumped from 0.2.5 to 0.2.6
+
 ## [0.16.10](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.9...@n8n-as-code/skills@v0.16.10) (2026-03-03)
 
 

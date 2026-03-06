@@ -1,5 +1,24 @@
 # @n8n-as-code/transformer
 
+## [0.2.6](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.5...@n8n-as-code/transformer@v0.2.6) (2026-03-06)
+
+
+### Features
+
+* retain node GUIDs across JSON ↔ TypeScript roundtrips ([2f77f8b](https://github.com/EtienneLescot/n8n-as-code/commit/2f77f8b52ba484474fcc826d6694c67387d3f909))
+
+
+### Bug Fixes
+
+* complete AI connection types and improve agent instructions ([239d4c3](https://github.com/EtienneLescot/n8n-as-code/commit/239d4c3cb6c3fcd38522d3015179325091f34af9))
+* emit [ai_*] flags for AI sub-nodes in workflow-map NODE INDEX ([d487634](https://github.com/EtienneLescot/n8n-as-code/commit/d487634a82ca9ca619529b691ef22f6cd3ca63f0))
+* use JSON.stringify for node id in [@node](https://github.com/node) decorator to safely escape special chars ([a1fbdf2](https://github.com/EtienneLescot/n8n-as-code/commit/a1fbdf253d689595e118e76edcfb47d1d689399e))
+
+
+### Performance Improvements
+
+* move AI_CONNECTION_TYPES to module-level Set for O(1) lookups ([a49d1ba](https://github.com/EtienneLescot/n8n-as-code/commit/a49d1bafbfebe66b7de0719abfff1dc3dbb73e8c))
+
 ## [0.2.5](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.4...@n8n-as-code/transformer@v0.2.5) (2026-03-03)
 
 
