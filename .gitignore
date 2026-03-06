@@ -84,3 +84,5 @@ packages/skills/extraction-report.md
 n8nac.cmd
 
 workflows/
+!.github/workflows/
+!.github/workflows/**
