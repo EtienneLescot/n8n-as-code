@@ -144,6 +144,7 @@ export class TypeScriptParser {
             nodes.push({
                 propertyName,
                 ...(metadata.id && { id: metadata.id }),
+                ...(metadata.webhookId && { webhookId: metadata.webhookId }),
                 displayName: metadata.name,
                 type: metadata.type,
                 version: metadata.version,

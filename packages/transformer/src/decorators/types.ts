@@ -32,6 +32,8 @@ export interface WorkflowDecoratorMetadata {
  * Metadata for @node decorator
  */
 export interface NodeDecoratorMetadata {
+    webhookId?: string;
+
     /** Display name of the node */
     name: string;
     

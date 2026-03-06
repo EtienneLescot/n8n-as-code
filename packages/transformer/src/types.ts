@@ -60,6 +60,7 @@ export interface NodeAST {
     
     // Node ID (UUID) — retained from existing JSON to avoid regenerating on every round-trip
     id?: string;
+    webhookId?: string;
     
     // Node metadata (from @node decorator)
     displayName: string;            // "🕘 Schedule Trigger"
@@ -157,6 +158,7 @@ export interface N8nWorkflow {
  */
 export interface N8nNode {
     id?: string;                    // UUID (generated)
+    webhookId?: string;
     name: string;                   // Display name
     type: string;                   // Node type
     typeVersion?: number;           // Version

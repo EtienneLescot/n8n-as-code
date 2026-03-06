@@ -72,6 +72,7 @@ export class WorkflowBuilder {
         return nodes.map(node => {
             const n8nNode: N8nNode = {
                 id: nodeIdMap.get(node.propertyName),
+                ...(node.webhookId && { webhookId: node.webhookId }),
                 name: node.displayName,
                 type: node.type,
                 typeVersion: node.version,

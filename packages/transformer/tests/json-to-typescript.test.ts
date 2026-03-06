@@ -125,4 +125,40 @@ export class AiTestWorkflow {
         // Regular trigger should have no AI flags
         expect(output).not.toMatch(/\/\/ Trigger\s+manualTrigger\s+\[/);
     });
+
+    it('should preserve webhookId in node decorator metadata', async () => {
+        const workflowJson = {
+            id: 'wf-webhook-1',
+            name: 'Webhook Workflow',
+            active: false,
+            nodes: [
+                {
+                    id: 'node-webhook-1',
+                    webhookId: 'wh_123456',
+                    name: 'Webhook',
+                    type: 'n8n-nodes-base.webhook',
+                    typeVersion: 2,
+                    position: [100, 200],
+                    parameters: {
+                        httpMethod: 'POST',
+                        path: 'incoming'
+                    }
+                }
+            ],
+            connections: {},
+            settings: {}
+        };
+
+        const parser = new JsonToAstParser();
+        const ast = parser.parse(workflowJson as any);
+        expect(ast.nodes[0].webhookId).toBe('wh_123456');
+
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast, {
+            format: false,
+            commentStyle: 'minimal'
+        });
+
+        expect(tsCode).toContain('webhookId: "wh_123456"');
+    });
 });

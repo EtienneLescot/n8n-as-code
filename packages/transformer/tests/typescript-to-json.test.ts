@@ -121,4 +121,37 @@ describe('TypeScript to JSON Transformation', () => {
         // Verify connections are preserved
         expect(Object.keys(resultJson.connections).length).toBe(Object.keys(originalJson.connections).length);
     });
+
+    it('should preserve webhookId through TypeScript → JSON compilation', async () => {
+        const tsCode = `
+import { workflow, node, links } from '@n8n-as-code/transformer';
+
+@workflow({ id: 'wf-webhook-ts', name: 'Webhook TS', active: false })
+export class WebhookTsWorkflow {
+    @node({
+        id: 'node-webhook-ts',
+        webhookId: 'wh_from_ts',
+        name: 'Webhook',
+        type: 'n8n-nodes-base.webhook',
+        version: 2,
+        position: [0, 0],
+    })
+    Webhook = {
+        path: 'incoming',
+        httpMethod: 'POST',
+    };
+
+    @links()
+    defineRouting() {}
+}`;
+
+        const parser = new TypeScriptParser();
+        const ast = await parser.parseCode(tsCode);
+        expect(ast.nodes[0].webhookId).toBe('wh_from_ts');
+
+        const builder = new WorkflowBuilder();
+        const workflow = builder.build(ast, { deterministicIds: true });
+
+        expect(workflow.nodes[0].webhookId).toBe('wh_from_ts');
+    });
 });

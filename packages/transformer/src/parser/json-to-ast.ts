@@ -65,6 +65,7 @@ export class JsonToAstParser {
         return {
             propertyName,
             ...(node.id && { id: node.id }),
+            ...(node.webhookId && { webhookId: node.webhookId }),
             displayName: node.name,
             type: node.type,
             version: node.typeVersion || 1,

@@ -299,6 +299,9 @@ export class AstToTypeScriptGenerator {
         if (node.id) {
             parts.push(`id: ${JSON.stringify(node.id)}`);
         }
+        if (node.webhookId) {
+            parts.push(`webhookId: ${JSON.stringify(node.webhookId)}`);
+        }
         parts.push(`name: "${node.displayName}"`);
         parts.push(`type: "${node.type}"`);
         parts.push(`version: ${node.version}`);
