@@ -265,19 +265,19 @@ For workflow management and automation, use the [Main CLI](/docs/usage/cli).
 **Command not found:**
 ```bash
 # Make sure you're using the correct package name
-npx n8nac skills --help
+npx --yes n8nac skills --help
 ```
 
 **Node not found:**
 ```bash
 # Check available nodes first
-npx n8nac skills list | grep "your-node"
+npx --yes n8nac skills list | grep "your-node"
 ```
 
 **JSON parsing issues:**
 ```bash
 # Pipe output to jq for pretty printing
-npx n8nac skills search "http" | jq .
+npx --yes n8nac skills search "http" | jq .
 ```
 
 For more help, check the [Troubleshooting guide](/docs/troubleshooting) or [open an issue](https://github.com/EtienneLescot/n8n-as-code/issues).
