@@ -14,41 +14,10 @@ const _dirname = typeof __dirname !== 'undefined'
 export class AiContextGenerator {
   constructor() { }
 
-  async generate(projectRoot: string, n8nVersion: string = "Unknown", distTag?: string): Promise<void> {
-    const agentsContent = this.getAgentsContent(n8nVersion, distTag);
-
-    // 1. AGENTS.md (Central documentation)
-    this.injectOrUpdate(path.join(projectRoot, 'AGENTS.md'), agentsContent, true);
-  }
-
-  private injectOrUpdate(filePath: string, content: string, isMarkdownFile: boolean = false): void {
-    const startMarker = isMarkdownFile ? '<!-- n8n-as-code-start -->' : '### 🤖 n8n-as-code-start';
-    const endMarker = isMarkdownFile ? '<!-- n8n-as-code-end -->' : '### 🤖 n8n-as-code-end';
-
-    const block = `\n${startMarker}\n${content.trim()}\n${endMarker}\n`;
-
-    if (!fs.existsSync(filePath)) {
-      // Create new file with header if it's AGENTS.md
-      const header = filePath.endsWith('AGENTS.md') ? '# 🤖 AI Agents Guidelines\n' : '';
-      fs.writeFileSync(filePath, header + block.trim() + '\n');
-      return;
-    }
-
-    let existing = fs.readFileSync(filePath, 'utf8');
-    const startIdx = existing.indexOf(startMarker);
-    const endIdx = existing.indexOf(endMarker);
-
-    if (startIdx !== -1 && endIdx !== -1) {
-      // Update existing block while preserving what's before/after
-      const before = existing.substring(0, startIdx);
-      const after = existing.substring(endIdx + endMarker.length);
-      fs.writeFileSync(filePath, before + block.trim() + after);
-    } else {
-      // Append to end of existing file
-      fs.writeFileSync(filePath, existing.trim() + '\n' + block);
-    }
-  }
-
+  /**
+   * Returns the canonical AI Agent workflow example TypeScript code.
+   * Shared between AGENTS.md and the skill prompt to keep both in sync.
+   */
   private getAiAgentWorkflowExampleCode(): string {
     return [
       `import { workflow, node, links } from '@n8n-as-code/transformer';`,
@@ -116,6 +85,41 @@ export class AiContextGenerator {
       `  }`,
       `}`,
     ].join('\n');
+  }
+
+  async generate(projectRoot: string, n8nVersion: string = "Unknown", distTag?: string): Promise<void> {
+    const agentsContent = this.getAgentsContent(n8nVersion, distTag);
+
+    // 1. AGENTS.md (Central documentation)
+    this.injectOrUpdate(path.join(projectRoot, 'AGENTS.md'), agentsContent, true);
+  }
+
+  private injectOrUpdate(filePath: string, content: string, isMarkdownFile: boolean = false): void {
+    const startMarker = isMarkdownFile ? '<!-- n8n-as-code-start -->' : '### 🤖 n8n-as-code-start';
+    const endMarker = isMarkdownFile ? '<!-- n8n-as-code-end -->' : '### 🤖 n8n-as-code-end';
+
+    const block = `\n${startMarker}\n${content.trim()}\n${endMarker}\n`;
+
+    if (!fs.existsSync(filePath)) {
+      // Create new file with header if it's AGENTS.md
+      const header = filePath.endsWith('AGENTS.md') ? '# 🤖 AI Agents Guidelines\n' : '';
+      fs.writeFileSync(filePath, header + block.trim() + '\n');
+      return;
+    }
+
+    let existing = fs.readFileSync(filePath, 'utf8');
+    const startIdx = existing.indexOf(startMarker);
+    const endIdx = existing.indexOf(endMarker);
+
+    if (startIdx !== -1 && endIdx !== -1) {
+      // Update existing block while preserving what's before/after
+      const before = existing.substring(0, startIdx);
+      const after = existing.substring(endIdx + endMarker.length);
+      fs.writeFileSync(filePath, before + block.trim() + after);
+    } else {
+      // Append to end of existing file
+      fs.writeFileSync(filePath, existing.trim() + '\n' + block);
+    }
   }
 
   private getAgentsContent(n8nVersion: string, distTag?: string): string {
@@ -348,7 +352,7 @@ export class AiContextGenerator {
       `### AI Agent Workflow Example (CRITICAL — follow this pattern for LangChain nodes)`,
       ``,
       `\`\`\`typescript`,
-      this.getAiAgentWorkflowExampleCode(),
+      ...this.getAiAgentWorkflowExampleCode().split('\n'),
       `\`\`\``,
       ``,
       `> **Key rule**: Regular nodes connect with \`source.out(0).to(target.in(0))\`. AI sub-nodes (models, memory, tools, parsers, embeddings, vector stores, retrievers) MUST connect with \`.uses()\`. Using \`.out().to()\` for AI sub-nodes will produce broken connections.`,
@@ -623,7 +627,7 @@ export class MyWorkflow {
 ${this.getAiAgentWorkflowExampleCode()}
 \`\`\`
 
-> **Key rule**: Regular nodes connect with \`.out(0).to(.in(0))\`. AI sub-nodes MUST connect with \`.uses()\`.
+> **Key rule**: Regular nodes connect with \`source.out(0).to(target.in(0))\`. AI sub-nodes (models, memory, tools, parsers, embeddings, vector stores, retrievers) MUST connect with \`.uses()\`. Using \`.out().to()\` for AI sub-nodes will produce broken connections.
 
 ### Expression Syntax
 
