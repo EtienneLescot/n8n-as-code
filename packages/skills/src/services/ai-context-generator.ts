@@ -291,17 +291,21 @@ export class AiContextGenerator {
       `// Property name                    Node type (short)         Flags`,
       `// ScheduleTrigger                  scheduleTrigger`,
       `// AgentGenerateApplication         agent                      [AI] [creds]`,
+      `// OpenaiChatModel                  lmChatOpenAi               [creds] [ai_languageModel]`,
+      `// Memory                           memoryBufferWindow         [ai_memory]`,
       `// GithubCheckBranchRef             httpRequest                [onError→out(1)]`,
       `//`,
       `// ROUTING MAP`,
       `// ──────────────────────────────────────────────────────────────────`,
+      `// ⚠️ Nodes flagged [ai_*] are NOT in the → routing — they connect via .uses()`,
       `// ScheduleTrigger`,
       `//   → Configuration1`,
       `//     → BuildProfileSources → LoopOverProfileSources`,
       `//       .out(1) → JinaReadProfileSource → LoopOverProfileSources (↩ loop)`,
       `//`,
       `// AI CONNECTIONS`,
-      `// AgentIa.uses({ ai_languageModel: OpenaiChatModel, ai_memory: Mmoire })`,
+      `// AgentGenerateApplication.uses({ ai_languageModel: OpenaiChatModel, ai_memory: Memory })`,
+
       `// </workflow-map>`,
       `\`\`\``,
       ``,
@@ -370,6 +374,8 @@ export class AiContextGenerator {
       `7. ❌ **Guessing parameter structure** - Check if nested objects required`,
       `8. ❌ **Wrong connection names** - Must match EXACT node \`name\` field`,
       `9. ❌ **Inventing non-existent nodes** - Use \`search\` to verify`,
+      `10. ❌ **Wrong \`.uses()\` syntax for tools** - \`ai_tool\` and \`ai_document\` are ALWAYS arrays: \`ai_tool: [this.Tool.output]\`. All other AI connection types (\`ai_languageModel\`, \`ai_memory\`, etc.) are single refs: \`ai_languageModel: this.Model.output\`. Never wrap single refs in an array.`,
+      `11. ❌ **Connecting AI sub-nodes with \`.out().to()\`** — any node flagged \`[ai_*]\` in the NODE INDEX MUST use \`.uses()\`, never \`.out().to()\`. Doing so produces invisible/broken connections in n8n.`,
       ``,
       `---`,
       ``,
@@ -570,17 +576,20 @@ Every \`.workflow.ts\` file starts with a \`<workflow-map>\` block — a compact
 // Property name                    Node type (short)         Flags
 // ScheduleTrigger                  scheduleTrigger
 // AgentGenerateApplication         agent                      [AI] [creds]
+// OpenaiChatModel                  lmChatOpenAi               [creds] [ai_languageModel]
+// Memory                           memoryBufferWindow         [ai_memory]
 // GithubCheckBranchRef             httpRequest                [onError→out(1)]
 //
 // ROUTING MAP
 // ──────────────────────────────────────────────────────────────────
+// ⚠️ Nodes flagged [ai_*] are NOT in the → routing — they connect via .uses()
 // ScheduleTrigger
 //   → Configuration1
 //     → BuildProfileSources → LoopOverProfileSources
 //       .out(1) → JinaReadProfileSource → LoopOverProfileSources (↩ loop)
 //
 // AI CONNECTIONS
-// AgentIa.uses({ ai_languageModel: OpenaiChatModel, ai_memory: Mmoire })
+// AgentGenerateApplication.uses({ ai_languageModel: OpenaiChatModel, ai_memory: Memory })
 // </workflow-map>
 \`\`\`
 
