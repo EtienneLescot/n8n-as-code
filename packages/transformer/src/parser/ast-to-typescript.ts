@@ -238,6 +238,10 @@ export class AstToTypeScriptGenerator {
         parts.push(`id: "${metadata.id}"`);
         parts.push(`name: "${metadata.name}"`);
         parts.push(`active: ${metadata.active}`);
+
+        if (metadata.tags && metadata.tags.length > 0) {
+            parts.push(`tags: ${JSON.stringify(metadata.tags)}`);
+        }
         
         if (metadata.settings && Object.keys(metadata.settings).length > 0) {
             const settings = JSON.stringify(metadata.settings)

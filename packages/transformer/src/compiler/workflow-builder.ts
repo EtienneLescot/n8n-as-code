@@ -45,7 +45,7 @@ export class WorkflowBuilder {
             nodes,
             connections,
             settings: ast.metadata.settings,
-            tags: []
+            tags: ast.metadata.tags || []
         };
         
         // Add optional organization metadata

@@ -154,4 +154,32 @@ export class WebhookTsWorkflow {
 
         expect(workflow.nodes[0].webhookId).toBe('wh_from_ts');
     });
+
+    it('should preserve workflow tags through JSON → TS → JSON roundtrip', async () => {
+        const originalJson = {
+            id: 'wf-tags-roundtrip',
+            name: 'Tagged Roundtrip Workflow',
+            active: true,
+            tags: ['ops', 'production'],
+            nodes: [],
+            connections: {},
+            settings: {
+                executionOrder: 'v1'
+            }
+        };
+
+        const jsonParser = new JsonToAstParser();
+        const ast1 = jsonParser.parse(originalJson as any);
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast1, { format: false });
+
+        const tsParser = new TypeScriptParser();
+        const ast2 = await tsParser.parseCode(tsCode);
+        expect(ast2.metadata.tags).toEqual(['ops', 'production']);
+
+        const builder = new WorkflowBuilder();
+        const resultJson = builder.build(ast2);
+
+        expect(resultJson.tags).toEqual(['ops', 'production']);
+    });
 });
