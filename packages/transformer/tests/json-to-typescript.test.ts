@@ -161,4 +161,32 @@ export class AiTestWorkflow {
 
         expect(tsCode).toContain('webhookId: "wh_123456"');
     });
+
+    it('should include workflow tags in generated TypeScript metadata', async () => {
+        const workflowJson = {
+            id: 'wf-tags-1',
+            name: 'Tagged Workflow',
+            active: false,
+            tags: [
+                { id: 'tag-1', name: 'ops' },
+                { id: 'tag-2', name: 'production' }
+            ],
+            nodes: [],
+            connections: {},
+            settings: {}
+        };
+
+        const parser = new JsonToAstParser();
+        const ast = parser.parse(workflowJson as any);
+
+        expect(ast.metadata.tags).toEqual(['ops', 'production']);
+
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast, {
+            format: false,
+            commentStyle: 'minimal'
+        });
+
+        expect(tsCode).toContain('tags: ["ops","production"]');
+    });
 });

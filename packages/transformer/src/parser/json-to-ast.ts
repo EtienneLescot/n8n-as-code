@@ -47,6 +47,7 @@ export class JsonToAstParser {
                 id: workflow.id,
                 name: workflow.name,
                 active: workflow.active,
+                tags: this.parseTags(workflow.tags),
                 settings: workflow.settings,
                 projectId: workflow.projectId,
                 projectName: workflow.projectName,
@@ -56,6 +57,22 @@ export class JsonToAstParser {
             nodes,
             connections
         };
+    }
+
+    /**
+     * Normalize workflow tags from API responses.
+     *
+     * n8n API responses may expose tags either as strings or as objects
+     * containing id/name fields depending on the caller and endpoint.
+     */
+    private parseTags(tags: Array<string | { id?: string; name?: string }> | undefined): string[] | undefined {
+        if (!Array.isArray(tags) || tags.length === 0) {
+            return undefined;
+        }
+
+        return tags
+            .map(tag => typeof tag === 'string' ? tag : tag.name)
+            .filter((tag): tag is string => typeof tag === 'string' && tag.length > 0);
     }
     
     /**
