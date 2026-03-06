@@ -145,7 +145,18 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
             try {
                 printCustomNodesWarnings(customNodesConfig);
                 if (options.debug) {
-                    printCustomNodesDebugInfo(customNodesConfig, provider);
+                    try {
+                        printCustomNodesDebugInfo(customNodesConfig, provider);
+                    } catch (diagnosticsError: any) {
+                        console.error(
+                            chalk.yellow(
+                                'Warning: failed to load custom nodes diagnostics for --debug output.',
+                            ),
+                        );
+                        if (diagnosticsError && diagnosticsError.message) {
+                            console.error(chalk.gray(diagnosticsError.message));
+                        }
+                    }
                 }
 
                 const results = knowledgeSearch.searchAll(query, {
