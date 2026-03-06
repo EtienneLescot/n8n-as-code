@@ -15,6 +15,7 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const WORKSPACE_ROOT = path.resolve(__dirname, '..', '..', '..');
 
 // Dynamically import AiContextGenerator from compiled dist
 async function getAiContextGenerator() {
@@ -27,6 +28,7 @@ async function getAiContextGenerator() {
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
 const DIST_DIR = path.join(PACKAGE_ROOT, 'dist', 'adapters', 'claude');
 const SKILL_OUTPUT_DIR = path.join(DIST_DIR, 'n8n-architect');
+const PLUGIN_SKILL_DIR = path.join(WORKSPACE_ROOT, 'skills', 'n8n-architect');
 
 // Colors for terminal output
 const colors = {
@@ -35,6 +37,7 @@ const colors = {
     blue: '\x1b[34m',
     yellow: '\x1b[33m',
     cyan: '\x1b[36m',
+    gray: '\x1b[90m',
     red: '\x1b[31m'
 };
 
@@ -56,6 +59,7 @@ function createSkillStructure() {
 
     // Create main skill directory
     fs.mkdirSync(SKILL_OUTPUT_DIR, { recursive: true });
+    fs.mkdirSync(PLUGIN_SKILL_DIR, { recursive: true });
 
     // Create scripts subdirectory
     const scriptsDir = path.join(SKILL_OUTPUT_DIR, 'scripts');
@@ -68,10 +72,13 @@ async function generateSkillMd() {
     log('\n📄 Generating SKILL.md from AiContextGenerator...', 'blue');
 
     const generator = await getAiContextGenerator();
-    const destPath = path.join(SKILL_OUTPUT_DIR, 'SKILL.md');
+    const skillContent = generator.getSkillContent();
+    const distPath = path.join(SKILL_OUTPUT_DIR, 'SKILL.md');
+    const pluginPath = path.join(PLUGIN_SKILL_DIR, 'SKILL.md');
 
-    fs.writeFileSync(destPath, generator.getSkillContent());
-    log('   ✓ SKILL.md generated', 'green');
+    fs.writeFileSync(distPath, skillContent);
+    fs.writeFileSync(pluginPath, skillContent);
+    log('   ✓ SKILL.md generated for dist and plugin source', 'green');
 }
 
 function generateReadme() {
@@ -197,6 +204,7 @@ function printSummary() {
     log(`   │   ├── SKILL.md`, 'yellow');
     log(`   │   └── README.md`, 'yellow');
     log(`   └── install.sh`, 'yellow');
+    log(`   ${PLUGIN_SKILL_DIR}/SKILL.md`, 'yellow');
 
     log('\n' + '='.repeat(60) + '\n', 'cyan');
 }

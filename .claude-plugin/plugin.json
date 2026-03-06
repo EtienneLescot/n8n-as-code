@@ -1,0 +1,21 @@
+{
+  "name": "n8n-as-code",
+  "version": "0.2.0",
+  "description": "Claude Code plugin for n8n-as-code. Adds the n8n-architect skill and uses the n8nac CLI as its local knowledge/runtime bridge.",
+  "author": {
+    "name": "Etienne Lescot",
+    "url": "https://github.com/EtienneLescot"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/EtienneLescot/n8n-as-code",
+  "repository": "https://github.com/EtienneLescot/n8n-as-code",
+  "keywords": [
+    "n8n",
+    "workflow",
+    "automation",
+    "claude-code",
+    "plugin",
+    "skill",
+    "n8nac"
+  ]
+}
