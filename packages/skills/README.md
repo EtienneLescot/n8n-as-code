@@ -223,6 +223,10 @@ index: they win on key collision, so you can also patch incorrect official schem
 `skills search` uses the pre-generated `n8n-knowledge-index.json` and will not include custom
 nodes that exist only in the sidecar file.
 
+For troubleshooting, run `npx n8nac skills list --debug` to print the resolved `n8nac-config.json`
+path, the selected custom nodes file, and the merged node counts. If you're checking a single
+custom node, `npx n8nac skills node-info <nodeName> --debug` is the most direct verification.
+
 A minimal schema (`"properties": []`) is enough to suppress errors and skip parameter
 validation. Full property definitions enable parameter validation just like official nodes.
 
