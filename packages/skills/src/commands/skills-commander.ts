@@ -21,43 +21,105 @@ import fs, { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { join } from 'path';
 
+export interface CustomNodesResolution {
+    cwd: string;
+    configPath: string;
+    configExists: boolean;
+    configuredPath?: string;
+    resolvedConfiguredPath?: string;
+    defaultPath: string;
+    defaultExists: boolean;
+    resolvedPath?: string;
+    source: 'config' | 'default' | 'none';
+    warnings: string[];
+}
+
 /**
  * Resolve the path to the user-provided custom nodes file.
  * Lookup order:
  *   1. `customNodesPath` field in n8nac-config.json (relative to CWD)
  *   2. n8nac-custom-nodes.json in CWD (default sidecar file)
- * Returns undefined when no custom nodes file is found.
+ * Returns resolution details, warnings, and the selected path when found.
  */
-function resolveCustomNodesPath(): string | undefined {
-    const cwd = process.cwd();
+export function resolveCustomNodesConfig(cwd: string = process.cwd()): CustomNodesResolution {
+    const warnings: string[] = [];
+    const configPath = join(cwd, 'n8nac-config.json');
+    const defaultPath = join(cwd, 'n8nac-custom-nodes.json');
+    const resolution: CustomNodesResolution = {
+        cwd,
+        configPath,
+        configExists: existsSync(configPath),
+        defaultPath,
+        defaultExists: existsSync(defaultPath),
+        source: 'none',
+        warnings
+    };
 
     // 1. Check n8nac-config.json for an explicit customNodesPath
-    const configPath = join(cwd, 'n8nac-config.json');
-    if (existsSync(configPath)) {
+    if (resolution.configExists) {
         try {
             const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-            if (config.customNodesPath) {
-                const resolved = resolve(cwd, config.customNodesPath);
+            if (typeof config.customNodesPath === 'string' && config.customNodesPath.trim().length > 0) {
+                resolution.configuredPath = config.customNodesPath;
+                resolution.resolvedConfiguredPath = resolve(cwd, config.customNodesPath);
+                const resolved = resolution.resolvedConfiguredPath;
                 if (existsSync(resolved)) {
-                    return resolved;
+                    resolution.resolvedPath = resolved;
+                    resolution.source = 'config';
+                    return resolution;
                 }
+                warnings.push(`Configured customNodesPath was not found: ${resolved}`);
+            } else if (config.customNodesPath !== undefined) {
+                warnings.push('Ignoring customNodesPath in n8nac-config.json because it is not a non-empty string.');
             }
-        } catch {
-            // Ignore malformed config
+        } catch (error: any) {
+            warnings.push(`Failed to parse ${configPath}: ${error.message}`);
         }
     }
 
     // 2. Default sidecar: n8nac-custom-nodes.json next to n8nac-config.json
-    const defaultPath = join(cwd, 'n8nac-custom-nodes.json');
-    if (existsSync(defaultPath)) {
-        return defaultPath;
+    if (resolution.defaultExists) {
+        resolution.resolvedPath = defaultPath;
+        resolution.source = 'default';
     }
 
-    return undefined;
+    return resolution;
+}
+
+function printCustomNodesWarnings(customNodesConfig: CustomNodesResolution): void {
+    if (customNodesConfig.warnings.length === 0) {
+        return;
+    }
+
+    console.error(chalk.yellow('\nCustom nodes configuration warnings:'));
+    customNodesConfig.warnings.forEach((warning) => {
+        console.error(chalk.yellow(`- ${warning}`));
+    });
+}
+
+function printCustomNodesDebugInfo(customNodesConfig: CustomNodesResolution, provider: NodeSchemaProvider): void {
+    console.error(JSON.stringify({
+        customNodes: {
+            resolution: customNodesConfig,
+            provider: provider.getDiagnostics()
+        }
+    }, null, 2));
+}
+
+function printSearchCustomNodesNote(customNodesConfig: CustomNodesResolution, query: string, resultCount: number): void {
+    if (!customNodesConfig.resolvedPath || resultCount > 0) {
+        return;
+    }
+
+    console.error(chalk.cyan('\nCustom nodes note:'));
+    console.error(chalk.gray(`- Loaded custom nodes from ${customNodesConfig.resolvedPath}`));
+    console.error(chalk.gray(`- 'skills search' only uses the prebuilt knowledge index, so sidecar-only nodes such as "${query}" will not appear here.`));
+    console.error(chalk.gray(`- Use 'skills list --nodes --debug' or 'skills node-info ${query} --debug' to confirm the node was merged.`));
 }
 
 export function registerSkillsCommands(program: Command, assetsDir: string): void {
-    const customNodesPath = resolveCustomNodesPath();
+    const customNodesConfig = resolveCustomNodesConfig();
+    const customNodesPath = customNodesConfig.resolvedPath;
     const provider = new NodeSchemaProvider(join(assetsDir, 'n8n-nodes-technical.json'), customNodesPath);
     const docsProvider = new DocsProvider(join(assetsDir, 'n8n-docs-complete.json'));
     const knowledgeSearch = new KnowledgeSearch(join(assetsDir, 'n8n-knowledge-index.json'));
@@ -77,9 +139,15 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .option('--category <category>', 'Filter by category')
         .option('--type <type>', 'Filter by type (node or documentation)')
         .option('--limit <limit>', 'Limit results', '10')
+        .option('--debug', 'Show custom nodes resolution details on stderr')
         .option('--json', 'Output as JSON instead of TypeScript')
         .action((query, options) => {
             try {
+                printCustomNodesWarnings(customNodesConfig);
+                if (options.debug) {
+                    printCustomNodesDebugInfo(customNodesConfig, provider);
+                }
+
                 const results = knowledgeSearch.searchAll(query, {
                     category: options.category,
                     type: options.type,
@@ -114,6 +182,8 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                     }
                 }
 
+                printSearchCustomNodesNote(customNodesConfig, query, results.results.length);
+
                 if (results.hints && results.hints.length > 0) {
                     console.error(chalk.cyan('\n💡 Hints:'));
                     results.hints.forEach((hint: string) => console.error(chalk.gray(`   ${hint}`)));
@@ -131,8 +201,14 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .option('--nodes', 'List all node names')
         .option('--docs', 'List all documentation categories')
         .option('--guides', 'List all available guides')
+        .option('--debug', 'Show custom nodes resolution details on stderr')
         .action((options) => {
             try {
+                printCustomNodesWarnings(customNodesConfig);
+                if (options.debug) {
+                    printCustomNodesDebugInfo(customNodesConfig, provider);
+                }
+
                 const nodes = provider.listAllNodes();
                 const stats = docsProvider.getStatistics();
 
@@ -170,9 +246,15 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .command('node-info')
         .description('Get complete node information as TypeScript code')
         .argument('<name>', 'Node name (exact, e.g. "googleSheets")')
+        .option('--debug', 'Show custom nodes resolution details on stderr')
         .option('--json', 'Output as JSON instead of TypeScript')
         .action((name, options) => {
             try {
+                printCustomNodesWarnings(customNodesConfig);
+                if (options.debug) {
+                    printCustomNodesDebugInfo(customNodesConfig, provider);
+                }
+
                 const schema = provider.getNodeSchema(name);
                 if (schema) {
                     if (options.json) {
@@ -208,9 +290,15 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .command('node-schema')
         .description('Get TypeScript code snippet for a node (quick reference)')
         .argument('<name>', 'Node name')
+        .option('--debug', 'Show custom nodes resolution details on stderr')
         .option('--json', 'Output as JSON instead of TypeScript')
         .action((name, options) => {
             try {
+                printCustomNodesWarnings(customNodesConfig);
+                if (options.debug) {
+                    printCustomNodesDebugInfo(customNodesConfig, provider);
+                }
+
                 let schema = provider.getNodeSchema(name);
 
                 if (!schema) {
@@ -340,8 +428,14 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .description('Validate a workflow file (JSON or TypeScript)')
         .argument('<file>', 'Path to workflow file (.json or .workflow.ts)')
         .option('--strict', 'Treat warnings as errors')
+        .option('--debug', 'Show custom nodes resolution details on stderr')
         .action(async (file, options) => {
             try {
+                printCustomNodesWarnings(customNodesConfig);
+                if (options.debug) {
+                    printCustomNodesDebugInfo(customNodesConfig, provider);
+                }
+
                 const workflowContent = readFileSync(file, 'utf8');
                 const isTypeScript = file.endsWith('.workflow.ts') || file.endsWith('.ts');
                 const validator = new WorkflowValidator(

@@ -46,11 +46,23 @@ export interface IEnrichedNode {
     };
 }
 
+export interface NodeSchemaDiagnostics {
+    enrichedIndexPath: string;
+    customNodesPath?: string;
+    officialNodeCount: number;
+    totalNodeCount: number;
+    customNodeCount: number;
+    overriddenNodeCount: number;
+    customNodesLoaded: boolean;
+    customNodeKeys: string[];
+}
+
 export class NodeSchemaProvider {
     private index: any = null;
     private enrichedIndex: any = null;
     private enrichedIndexPath: string;
     private customNodesPath: string | undefined;
+    private diagnostics: NodeSchemaDiagnostics | null = null;
 
     constructor(customIndexPath?: string, customNodesPath?: string) {
         const envAssetsDir = process.env.N8N_AS_CODE_ASSETS_DIR;
@@ -92,20 +104,35 @@ export class NodeSchemaProvider {
             );
         }
 
+        const officialNodes = (this.index && typeof this.index.nodes === 'object' && !Array.isArray(this.index.nodes))
+            ? this.index.nodes
+            : {};
+        const officialNodeCount = Object.keys(officialNodes).length;
+        let customNodeCount = 0;
+        let overriddenNodeCount = 0;
+        let customNodeKeys: string[] = [];
+        let customNodesLoaded = false;
+
         // Merge user-provided custom nodes on top of the official index
         if (this.customNodesPath && fs.existsSync(this.customNodesPath)) {
             try {
                 const customContent = fs.readFileSync(this.customNodesPath, 'utf-8');
                 const customIndex = JSON.parse(customContent);
-                if (customIndex && typeof customIndex.nodes === 'object') {
-                    this.index = {
-                        ...this.index,
-                        nodes: {
-                            ...this.index.nodes,
-                            ...customIndex.nodes
-                        }
-                    };
+                if (!customIndex || typeof customIndex !== 'object' || !customIndex.nodes || typeof customIndex.nodes !== 'object' || Array.isArray(customIndex.nodes)) {
+                    throw new Error('Expected a JSON object with a top-level "nodes" object keyed by node name.');
                 }
+
+                customNodeKeys = Object.keys(customIndex.nodes);
+                customNodeCount = customNodeKeys.length;
+                overriddenNodeCount = customNodeKeys.filter((key) => key in officialNodes).length;
+                customNodesLoaded = true;
+                this.index = {
+                    ...this.index,
+                    nodes: {
+                        ...officialNodes,
+                        ...customIndex.nodes
+                    }
+                };
             } catch (error: any) {
                 throw new Error(
                     `Failed to load custom nodes file at: ${this.customNodesPath}\n` +
@@ -113,6 +140,22 @@ export class NodeSchemaProvider {
                 );
             }
         }
+
+        this.diagnostics = {
+            enrichedIndexPath: this.enrichedIndexPath,
+            customNodesPath: this.customNodesPath,
+            officialNodeCount,
+            totalNodeCount: Object.keys(this.index.nodes || {}).length,
+            customNodeCount,
+            overriddenNodeCount,
+            customNodesLoaded,
+            customNodeKeys
+        };
+    }
+
+    public getDiagnostics(): NodeSchemaDiagnostics {
+        this.loadIndex();
+        return this.diagnostics as NodeSchemaDiagnostics;
     }
 
     /**

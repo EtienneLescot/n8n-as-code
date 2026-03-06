@@ -181,4 +181,22 @@ describe('NodeSchemaProvider - custom nodes', () => {
         const provider = new NodeSchemaProvider(indexPath, badPath);
         expect(() => provider.getNodeSchema('slack')).toThrow(/Failed to load custom nodes file/);
     });
+
+    test('should throw when custom nodes file does not contain a top-level nodes object', () => {
+        const badShapePath = path.join(tempDir, 'bad-shape-custom-nodes.json');
+        fs.writeFileSync(badShapePath, JSON.stringify({ customNodes: {} }));
+        const provider = new NodeSchemaProvider(indexPath, badShapePath);
+        expect(() => provider.getNodeSchema('slack')).toThrow(/top-level "nodes" object/);
+    });
+
+    test('should expose diagnostics for merged custom nodes', () => {
+        const provider = new NodeSchemaProvider(indexPath, customNodesPath);
+        const diagnostics = provider.getDiagnostics();
+
+        expect(diagnostics.customNodesLoaded).toBe(true);
+        expect(diagnostics.officialNodeCount).toBe(1);
+        expect(diagnostics.customNodeCount).toBe(1);
+        expect(diagnostics.totalNodeCount).toBe(2);
+        expect(diagnostics.customNodeKeys).toContain('myCustomNode');
+    });
 });

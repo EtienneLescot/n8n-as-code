@@ -83,57 +83,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-n8n-cache-
 
-      - name: Compute pre-release versions (next only)
+      - name: Prepare publish manifests (next only)
         if: github.ref == 'refs/heads/next'
         run: |
           SHA=$(git rev-parse --short HEAD)
-          for pkg in packages/transformer packages/skills packages/cli; do
-            NAME=$(node -p "require('./$pkg/package.json').name")
-            BASE=$(node -p "require('./$pkg/package.json').version.split('-')[0] + '-next'")
-            # --no-package-lock prevents npm from resolving the new version against
-            # the registry (the version doesn't exist yet — it's published later).
-            npm version "${BASE}.${SHA}" --no-git-tag-version --no-package-lock --workspace="$NAME"
-          done
+          node scripts/prepare-publish-manifests.mjs --mode=next --sha="$SHA" --run-number="${{ github.run_number }}"
 
-      - name: Pin inter-package dependencies (next only)
-        if: github.ref == 'refs/heads/next'
-        run: |
-          TRANSFORMER_VERSION=$(node -p "require('./packages/transformer/package.json').version")
-          SKILLS_VERSION=$(node -p "require('./packages/skills/package.json').version")
-          CLI_VERSION=$(node -p "require('./packages/cli/package.json').version")
-          # Pin skills -> transformer
-          npm pkg set "dependencies.@n8n-as-code/transformer=${TRANSFORMER_VERSION}" --workspace=@n8n-as-code/skills
-          # Pin cli -> skills and transformer
-          npm pkg set "dependencies.@n8n-as-code/skills=${SKILLS_VERSION}" --workspace=n8nac
-          npm pkg set "dependencies.@n8n-as-code/transformer=${TRANSFORMER_VERSION}" --workspace=n8nac
-          # Pin vscode-extension -> cli (ensures npm workspace symlinks the local
-          # bumped n8nac instead of falling back to the published registry version)
-          npm pkg set "dependencies.n8nac=${CLI_VERSION}" --workspace=n8n-as-code
-
-      - name: Pin inter-package dependencies (main)
+      - name: Prepare publish manifests (main)
         if: github.ref == 'refs/heads/main'
-        run: |
-          TRANSFORMER_VERSION=$(node -p "require('./packages/transformer/package.json').version")
-          SKILLS_VERSION=$(node -p "require('./packages/skills/package.json').version")
-          # Pin skills -> transformer
-          npm pkg set "dependencies.@n8n-as-code/transformer=${TRANSFORMER_VERSION}" --workspace=@n8n-as-code/skills
-          # Pin cli -> skills and transformer
-          npm pkg set "dependencies.@n8n-as-code/skills=${SKILLS_VERSION}" --workspace=n8nac
-          npm pkg set "dependencies.@n8n-as-code/transformer=${TRANSFORMER_VERSION}" --workspace=n8nac
-
-      - name: Normalize VS Code pre-release version (next only)
-        if: github.ref == 'refs/heads/next'
-        run: |
-          # VS Code convention: even minor = stable, odd minor = pre-release.
-          # Use (stable_minor + 1) as pre-release minor, and github.run_number as patch
-          # so every CI run gets a unique, monotonically increasing version.
-          # (git rev-list --count is unreliable in shallow clones)
-          BASE=$(node -p "require('./packages/vscode-extension/package.json').version.replace(/-next.*$/, '')")
-          MAJOR=$(echo "$BASE" | cut -d. -f1)
-          STABLE_MINOR=$(echo "$BASE" | cut -d. -f2)
-          PRE_MINOR=$(( STABLE_MINOR + 1 ))
-          PATCH=${{ github.run_number }}
-          npm version "$MAJOR.$PRE_MINOR.$PATCH" --no-git-tag-version --workspace=n8n-as-code
+        run: node scripts/prepare-publish-manifests.mjs --mode=main
 
       - name: Build all packages
         run: npm run build
