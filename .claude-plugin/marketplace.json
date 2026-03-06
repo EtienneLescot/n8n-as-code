@@ -1,0 +1,39 @@
+{
+  "name": "n8nac-marketplace",
+  "owner": {
+    "name": "Etienne Lescot"
+  },
+  "metadata": {
+    "description": "Community marketplace for n8n-as-code Claude Code plugin releases. The plugin name stays user-facing as n8n-as-code; n8nac is kept as the CLI alias.",
+    "version": "0.2.0"
+  },
+  "plugins": [
+    {
+      "name": "n8n-as-code",
+      "source": "./",
+      "description": "Expert n8n workflow engineering skill for Claude Code. Uses the n8nac CLI and the n8n-as-code knowledge base to search nodes, inspect schemas, and generate TypeScript workflows.",
+      "version": "0.2.0",
+      "author": {
+        "name": "Etienne Lescot"
+      },
+      "homepage": "https://github.com/EtienneLescot/n8n-as-code",
+      "repository": "https://github.com/EtienneLescot/n8n-as-code",
+      "license": "Apache-2.0",
+      "category": "automation",
+      "keywords": [
+        "n8n",
+        "workflow",
+        "automation",
+        "claude-code",
+        "skill",
+        "n8nac"
+      ],
+      "tags": [
+        "n8n",
+        "typescript-workflows",
+        "gitops",
+        "node-schemas"
+      ]
+    }
+  ]
+}

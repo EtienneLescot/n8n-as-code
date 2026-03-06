@@ -92,6 +92,20 @@ npx n8nac skills examples search "AI agent"  # Search 7,702 templates
 npx n8nac skills validate workflow.json   # Validate before deploying
 ```
 
+### Claude Code Plugin
+
+The CLI stays `n8nac`. The Claude-facing plugin name is **`n8n-as-code`** for clarity in plugin managers and marketplaces.
+
+```bash
+# Add the repository as a Claude plugin marketplace
+/plugin marketplace add EtienneLescot/n8n-as-code
+
+# Install the plugin from that marketplace
+/plugin install n8n-as-code@n8nac-marketplace
+```
+
+This installs the `n8n-architect` skill under the `n8n-as-code` namespace while preserving `n8nac` as the CLI alias used in examples and automation.
+
 ---
 
 ## 🔀 GitOps for n8n
