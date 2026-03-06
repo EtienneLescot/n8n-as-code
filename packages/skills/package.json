@@ -1,6 +1,6 @@
 {
     "name": "@n8n-as-code/skills",
-    "version": "0.16.12",
+    "version": "0.16.13",
     "description": "AI Agent skills library for n8nac (internal — use npx n8nac skills)",
     "type": "module",
     "main": "dist/index.js",
