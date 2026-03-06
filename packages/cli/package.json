@@ -1,6 +1,6 @@
 {
     "name": "n8nac",
-    "version": "0.10.5",
+    "version": "0.10.6",
     "description": "Unified CLI for n8n-as-code — manage workflows and access AI tools",
     "main": "./dist/lib.js",
     "types": "./dist/lib.d.ts",

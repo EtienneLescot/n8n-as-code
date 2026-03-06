@@ -1,5 +1,19 @@
 # n8n-as-code
 
+## [0.15.6](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.15.5...n8n-as-code@v0.15.6) (2026-03-06)
+
+
+### Bug Fixes
+
+* **vscode-extension:** improve no-workspace initialization UX ([74cd5f6](https://github.com/EtienneLescot/n8n-as-code/commit/74cd5f6972854efe8e225867e6d6ad25c3f8d328))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * n8nac bumped from 0.10.5 to 0.10.6
+
 ## [0.15.5](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.15.4...n8n-as-code@v0.15.5) (2026-03-06)
 
 

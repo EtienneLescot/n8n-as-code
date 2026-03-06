@@ -1,5 +1,12 @@
 # @n8n-as-code/cli
 
+## [0.10.6](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.10.5...n8nac@v0.10.6) (2026-03-06)
+
+
+### Bug Fixes
+
+* sanitize workflow filenames to avoid invalid Windows filesystem names ([0d83c26](https://github.com/EtienneLescot/n8n-as-code/commit/0d83c26ce67aa8b15fa6d29dafff1ddd1e71f425))
+
 ## [0.10.5](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.10.4...n8nac@v0.10.5) (2026-03-06)
 
 
