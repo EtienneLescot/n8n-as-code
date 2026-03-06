@@ -82,6 +82,22 @@ export class AstToTypeScriptGenerator {
 
         const shortType = (type: string) => type.split('.').pop() ?? type;
 
+        // Build reverse map: subNodePropertyName → [ai_role1, ai_role2, ...]
+        // Derived from each consumer node's aiDependencies so sub-nodes can be
+        // annotated with their AI connection role(s) in the NODE INDEX.
+        const subNodeRoles = new Map<string, string[]>();
+        for (const n of ast.nodes) {
+            if (!n.aiDependencies) continue;
+            for (const [role, target] of Object.entries(n.aiDependencies)) {
+                const targets = Array.isArray(target) ? target : [target as string];
+                for (const subNode of targets) {
+                    if (!subNode) continue;
+                    if (!subNodeRoles.has(subNode)) subNodeRoles.set(subNode, []);
+                    subNodeRoles.get(subNode)!.push(role);
+                }
+            }
+        }
+
         for (const n of ast.nodes) {
             const prop = n.propertyName.padEnd(34);
             const t = shortType(n.type).padEnd(26);
@@ -90,6 +106,7 @@ export class AstToTypeScriptGenerator {
             if (n.onError === 'continueErrorOutput') flags.push('[onError→out(1)]');
             if (n.onError === 'continueRegularOutput') flags.push('[onError→regular]');
             if (n.credentials && Object.keys(n.credentials).length > 0) flags.push('[creds]');
+            for (const role of subNodeRoles.get(n.propertyName) ?? []) flags.push(`[${role}]`);
             lines.push(`// ${prop} ${t} ${flags.join(' ')}`);
         }
 
