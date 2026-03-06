@@ -178,6 +178,9 @@ n8nac pull <id> > workflow.json && n8nac convert workflow.json --format typescri
 2. Click the **n8n** icon in the Activity Bar
 3. Configure your instance → Start editing
 
+> ℹ️ **Workspace required**: Open a folder or a `.code-workspace` before running **Initialize n8n as code**.  
+> The extension needs an active workspace to index files and settings.
+
 **What you get:**
 - 📂 **Workflow sidebar** — browse all local & remote workflows with sync status
 - 🖼️ **Embedded n8n canvas** — visual split-view editing

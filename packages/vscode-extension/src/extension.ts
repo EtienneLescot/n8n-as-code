@@ -18,6 +18,7 @@ import { WorkflowDecorationProvider } from './ui/workflow-decoration-provider.js
 import { ProxyService } from './services/proxy-service.js';
 import { ExtensionState } from './types.js';
 import { validateN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from './utils/state-detection.js';
+import { NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION } from './constants/workspace.js';
 
 import {
     store,
@@ -266,7 +267,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         vscode.commands.registerCommand('n8n.initializeAI', async (options?: { silent?: boolean }) => {
             if (!vscode.workspace.workspaceFolders?.length) {
-                if (!options?.silent) vscode.window.showErrorMessage('No workspace open.');
+                if (!options?.silent) await showNoWorkspaceError();
                 return;
             }
             if (!syncManager) {
@@ -474,6 +475,11 @@ async function handleInitializeCommand(context: vscode.ExtensionContext) {
         return;
     }
 
+    if (!vscode.workspace.workspaceFolders?.length) {
+        await showNoWorkspaceError();
+        return;
+    }
+
     const configValidation = validateN8nConfig();
     if (!configValidation.isValid) {
         vscode.window.showErrorMessage(`Missing configuration: ${configValidation.missing.join(', ')}`);
@@ -498,6 +504,13 @@ async function handleInitializeCommand(context: vscode.ExtensionContext) {
         enhancedTreeProvider.setExtensionState(ExtensionState.ERROR, error.message);
         statusBar.showError(error.message);
         vscode.window.showErrorMessage(`Initialization failed: ${error.message}`);
+    }
+}
+
+async function showNoWorkspaceError() {
+    const action = await vscode.window.showErrorMessage(NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION);
+    if (action === OPEN_FOLDER_ACTION) {
+        await vscode.commands.executeCommand('vscode.openFolder');
     }
 }
 
@@ -555,7 +568,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     }
 
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-    if (!workspaceRoot) throw new Error('No workspace open');
+    if (!workspaceRoot) throw new Error(NO_WORKSPACE_ERROR_MESSAGE);
 
     const absDirectory = path.join(workspaceRoot, folder);
 
