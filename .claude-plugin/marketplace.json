@@ -10,13 +10,13 @@
   "plugins": [
     {
       "name": "n8n-as-code",
-      "source": "./",
+      "source": "./plugins/claude/n8n-as-code",
       "description": "Expert n8n workflow engineering skill for Claude Code. Uses the n8nac CLI and the n8n-as-code knowledge base to search nodes, inspect schemas, and generate TypeScript workflows.",
       "version": "0.2.0",
       "author": {
         "name": "Etienne Lescot"
       },
-      "homepage": "https://github.com/EtienneLescot/n8n-as-code",
+      "homepage": "https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/",
       "repository": "https://github.com/EtienneLescot/n8n-as-code",
       "license": "Apache-2.0",
       "category": "automation",

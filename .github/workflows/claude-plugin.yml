@@ -5,6 +5,7 @@ on:
     branches: [ main, next ]
     paths:
       - '.claude-plugin/**'
+      - 'plugins/claude/**'
       - 'skills/**'
       - 'packages/skills/scripts/build-claude-adapter.js'
       - 'packages/skills/src/services/ai-context-generator.ts'
@@ -15,6 +16,7 @@ on:
     branches: [ main, next ]
     paths:
       - '.claude-plugin/**'
+      - 'plugins/claude/**'
       - 'skills/**'
       - 'packages/skills/scripts/build-claude-adapter.js'
       - 'packages/skills/src/services/ai-context-generator.ts'
@@ -80,10 +82,23 @@ jobs:
           const fs = require('fs');
 
           const plugin = JSON.parse(fs.readFileSync('.claude-plugin/plugin.json', 'utf8'));
+          const slimPlugin = JSON.parse(fs.readFileSync('plugins/claude/n8n-as-code/.claude-plugin/plugin.json', 'utf8'));
           const marketplace = JSON.parse(fs.readFileSync('.claude-plugin/marketplace.json', 'utf8'));
 
           if (plugin.name !== 'n8n-as-code') {
             throw new Error(`Unexpected plugin name: ${plugin.name}`);
+          }
+
+          if (plugin.skills !== './skills/') {
+            throw new Error(`Expected plugin.skills to be ./skills/, got ${plugin.skills}`);
+          }
+
+          if (slimPlugin.name !== 'n8n-as-code') {
+            throw new Error(`Unexpected slim plugin name: ${slimPlugin.name}`);
+          }
+
+          if (slimPlugin.skills !== './skills/') {
+            throw new Error(`Expected slim plugin.skills to be ./skills/, got ${slimPlugin.skills}`);
           }
 
           if (!Array.isArray(marketplace.plugins) || marketplace.plugins.length === 0) {
@@ -95,8 +110,8 @@ jobs:
             throw new Error(`Marketplace does not include plugin entry for ${plugin.name}.`);
           }
 
-          if (pluginEntry.source !== './') {
-            throw new Error(`Expected marketplace plugin source to be ./, got ${pluginEntry.source}`);
+          if (pluginEntry.source !== './plugins/claude/n8n-as-code') {
+            throw new Error(`Expected marketplace plugin source to be ./plugins/claude/n8n-as-code, got ${pluginEntry.source}`);
           }
 
           console.log('Claude plugin manifests validated successfully.');
@@ -108,6 +123,7 @@ jobs:
       - name: Verify committed skill matches generated skill
         run: |
           cmp -s skills/n8n-architect/SKILL.md packages/skills/dist/adapters/claude/n8n-architect/SKILL.md
+          cmp -s plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md packages/skills/dist/adapters/claude/n8n-architect/SKILL.md
           echo 'Committed skill matches generated skill.'
 
       - name: Bundle Claude plugin
@@ -118,14 +134,7 @@ jobs:
           ZIP_PATH="$RUNNER_TEMP/${ARTIFACT_NAME}.zip"
 
           rm -rf "$BUNDLE_DIR" "$ZIP_PATH"
-          mkdir -p "$BUNDLE_DIR/.claude-plugin" "$BUNDLE_DIR/skills/n8n-architect"
-
-          cp .claude-plugin/plugin.json "$BUNDLE_DIR/.claude-plugin/plugin.json"
-          cp .claude-plugin/marketplace.json "$BUNDLE_DIR/.claude-plugin/marketplace.json"
-          cp skills/n8n-architect/SKILL.md "$BUNDLE_DIR/skills/n8n-architect/SKILL.md"
-          cp skills/n8n-architect/README.md "$BUNDLE_DIR/skills/n8n-architect/README.md"
-          cp README.md "$BUNDLE_DIR/README.md"
-          cp LICENSE "$BUNDLE_DIR/LICENSE"
+          cp -R plugins/claude/n8n-as-code "$BUNDLE_DIR"
 
           cd "$RUNNER_TEMP"
           zip -qr "$ZIP_PATH" "$ARTIFACT_NAME"
