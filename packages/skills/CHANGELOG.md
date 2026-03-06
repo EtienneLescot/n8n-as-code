@@ -1,5 +1,17 @@
 # @n8n-as-code/skills
 
+## [0.16.12](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.11...@n8n-as-code/skills@v0.16.12) (2026-03-06)
+
+
+### Features
+
+* enhance AI tool support and enrich node metadata for HTTP requests ([4052027](https://github.com/EtienneLescot/n8n-as-code/commit/405202741860fecc621511ce9e7ebf174c9273bf))
+
+
+### Bug Fixes
+
+* update AI tool guidance in AGENTS.md and tests for consistency ([7573795](https://github.com/EtienneLescot/n8n-as-code/commit/7573795781346fa80a0179f946192dfd857a3376))
+
 ## [0.16.11](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.10...@n8n-as-code/skills@v0.16.11) (2026-03-06)
 
 
