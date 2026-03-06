@@ -1,296 +1,778 @@
 {
-    "generatedAt": "2024-01-01T00:00:00.000Z",
-    "nodes": {
-        "httpRequest": {
-            "name": "httpRequest",
-            "displayName": "HTTP Request",
-            "type": "n8n-nodes-base.httpRequest",
-            "version": 1,
-            "description": "Makes an HTTP request",
-            "icon": "fa:at",
-            "schema": {
-                "properties": [
-                    {
-                        "displayName": "URL",
-                        "name": "url",
-                        "type": "string",
-                        "default": "",
-                        "required": true
-                    }
+  "generatedAt": "2024-01-01T00:00:00.000Z",
+  "nodes": {
+    "httpRequest": {
+      "name": "httpRequest",
+      "displayName": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "version": 1,
+      "description": "Makes an HTTP request",
+      "icon": "fa:at",
+      "schema": {
+        "properties": [
+          {
+            "displayName": "URL",
+            "name": "url",
+            "type": "string",
+            "default": "",
+            "required": true
+          }
+        ]
+      },
+      "metadata": {
+        "keywords": [
+          "http",
+          "request",
+          "api",
+          "fetch"
+        ],
+        "operations": [
+          "GET",
+          "POST",
+          "PUT",
+          "DELETE"
+        ],
+        "useCases": [],
+        "keywordScore": 50
+      }
+    },
+    "googleGemini": {
+      "name": "googleGemini",
+      "displayName": "Google Gemini",
+      "type": "n8n-nodes-base.googleGemini",
+      "version": 1,
+      "description": "Consume Google Gemini API",
+      "icon": "fa:google",
+      "schema": {
+        "properties": []
+      },
+      "metadata": {
+        "keywords": [
+          "ai",
+          "generate",
+          "image",
+          "text",
+          "video",
+          "llm"
+        ],
+        "operations": [
+          "generateContent"
+        ],
+        "useCases": [
+          "image generation",
+          "text generation"
+        ],
+        "keywordScore": 100
+      }
+    },
+    "gmail": {
+      "name": "gmail",
+      "displayName": "Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "version": 1,
+      "description": "Consume Gmail API",
+      "icon": "fa:envelope",
+      "schema": {
+        "properties": []
+      },
+      "metadata": {
+        "keywords": [
+          "email",
+          "mail",
+          "send",
+          "receive"
+        ],
+        "operations": [
+          "send",
+          "get"
+        ],
+        "useCases": [
+          "send message"
+        ],
+        "keywordScore": 80
+      }
+    },
+    "start": {
+      "name": "Start",
+      "displayName": "Start",
+      "type": "n8n-nodes-base.start",
+      "version": 1,
+      "description": "Starts the workflow",
+      "schema": {
+        "properties": []
+      },
+      "metadata": {
+        "keywords": [],
+        "operations": [],
+        "useCases": [],
+        "keywordScore": 0
+      }
+    },
+    "manualTrigger": {
+      "name": "manualTrigger",
+      "displayName": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "version": 1,
+      "description": "Manually trigger workflow execution",
+      "schema": {
+        "properties": []
+      },
+      "metadata": {
+        "keywords": [
+          "manual",
+          "trigger",
+          "execute"
+        ],
+        "operations": [],
+        "useCases": [],
+        "keywordScore": 10
+      }
+    },
+    "httpRequestTool": {
+      "name": "httpRequestTool",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "displayName": "HTTP Request Tool",
+      "description": "Makes HTTP requests and returns the response data to the AI agent. Useful for fetching data from APIs or services.",
+      "version": [
+        1,
+        2,
+        3,
+        4,
+        4.1,
+        4.2,
+        4.3
+      ],
+      "group": [
+        "output"
+      ],
+      "icon": {
+        "light": "file:httprequest.svg",
+        "dark": "file:httprequest.dark.svg"
+      },
+      "schema": {
+        "properties": [
+          {
+            "displayName": "Authentication",
+            "name": "authentication",
+            "type": "options",
+            "options": [
+              {
+                "name": "Basic Auth",
+                "value": "basicAuth"
+              },
+              {
+                "name": "Digest Auth",
+                "value": "digestAuth"
+              },
+              {
+                "name": "Header Auth",
+                "value": "headerAuth"
+              },
+              {
+                "name": "None",
+                "value": "none"
+              },
+              {
+                "name": "OAuth1",
+                "value": "oAuth1"
+              },
+              {
+                "name": "OAuth2",
+                "value": "oAuth2"
+              },
+              {
+                "name": "Query Auth",
+                "value": "queryAuth"
+              }
+            ],
+            "default": "none",
+            "description": "The way to authenticate"
+          },
+          {
+            "displayName": "Request Method",
+            "name": "requestMethod",
+            "type": "options",
+            "options": [
+              {
+                "name": "DELETE",
+                "value": "DELETE"
+              },
+              {
+                "name": "GET",
+                "value": "GET"
+              },
+              {
+                "name": "HEAD",
+                "value": "HEAD"
+              },
+              {
+                "name": "OPTIONS",
+                "value": "OPTIONS"
+              },
+              {
+                "name": "PATCH",
+                "value": "PATCH"
+              },
+              {
+                "name": "POST",
+                "value": "POST"
+              },
+              {
+                "name": "PUT",
+                "value": "PUT"
+              }
+            ],
+            "default": "GET",
+            "description": "The request method to use"
+          },
+          {
+            "displayName": "URL",
+            "name": "url",
+            "type": "string",
+            "default": "",
+            "placeholder": "http://example.com/index.html",
+            "description": "The URL to make the request to",
+            "required": true
+          },
+          {
+            "displayName": "Ignore SSL Issues (Insecure)",
+            "name": "allowUnauthorizedCerts",
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to download the response even if SSL certificate validation is not possible"
+          },
+          {
+            "displayName": "Response Format",
+            "name": "responseFormat",
+            "type": "options",
+            "options": [
+              {
+                "name": "File",
+                "value": "file"
+              },
+              {
+                "name": "JSON",
+                "value": "json"
+              },
+              {
+                "name": "String",
+                "value": "string"
+              }
+            ],
+            "default": "json",
+            "description": "The format in which the data gets returned from the URL"
+          },
+          {
+            "displayName": "Property Name",
+            "name": "dataPropertyName",
+            "type": "string",
+            "default": "data",
+            "required": true,
+            "displayOptions": {
+              "show": {
+                "responseFormat": [
+                  "string"
                 ]
+              }
             },
-            "metadata": {
-                "keywords": [
-                    "http",
-                    "request",
-                    "api",
-                    "fetch"
-                ],
-                "operations": [
-                    "GET",
-                    "POST",
-                    "PUT",
-                    "DELETE"
-                ],
-                "useCases": [],
-                "keywordScore": 50
-            }
-        },
-        "googleGemini": {
-            "name": "googleGemini",
-            "displayName": "Google Gemini",
-            "type": "n8n-nodes-base.googleGemini",
-            "version": 1,
-            "description": "Consume Google Gemini API",
-            "icon": "fa:google",
-            "schema": {
-                "properties": []
-            },
-            "metadata": {
-                "keywords": [
-                    "ai",
-                    "generate",
-                    "image",
-                    "text",
-                    "video",
-                    "llm"
-                ],
-                "operations": [
-                    "generateContent"
-                ],
-                "useCases": [
-                    "image generation",
-                    "text generation"
-                ],
-                "keywordScore": 100
-            }
-        },
-        "gmail": {
-            "name": "gmail",
-            "displayName": "Gmail",
-            "type": "n8n-nodes-base.gmail",
-            "version": 1,
-            "description": "Consume Gmail API",
-            "icon": "fa:envelope",
-            "schema": {
-                "properties": []
-            },
-            "metadata": {
-                "keywords": [
-                    "email",
-                    "mail",
-                    "send",
-                    "receive"
-                ],
-                "operations": [
-                    "send",
-                    "get"
-                ],
-                "useCases": [
-                    "send message"
-                ],
-                "keywordScore": 80
-            }
-        },
-        "start": {
-            "name": "Start",
-            "displayName": "Start",
-            "type": "n8n-nodes-base.start",
-            "version": 1,
-            "description": "Starts the workflow",
-            "schema": {
-                "properties": []
-            },
-            "metadata": {
-                "keywords": [],
-                "operations": [],
-                "useCases": [],
-                "keywordScore": 0
-            }
-        },
-        "manualTrigger": {
-            "name": "manualTrigger",
-            "displayName": "Manual Trigger",
-            "type": "n8n-nodes-base.manualTrigger",
-            "version": 1,
-            "description": "Manually trigger workflow execution",
-            "schema": {
-                "properties": []
-            },
-            "metadata": {
-                "keywords": [
-                    "manual",
-                    "trigger",
-                    "execute"
-                ],
-                "operations": [],
-                "useCases": [],
-                "keywordScore": 10
-            }
-        },
-        "httpRequestTool": {
-            "name": "httpRequestTool",
-            "displayName": "HTTP Request Tool",
-            "type": "n8n-nodes-base.httpRequestTool",
-            "version": [1, 2, 3, 4, 4.1, 4.2],
-            "description": "Makes an HTTP request and returns the result as a tool for use with AI agents",
-            "group": ["output"],
-            "icon": "fa:globe",
-            "schema": {
-                "properties": [
-                    {
-                        "displayName": "URL",
-                        "name": "url",
-                        "type": "string",
-                        "default": "",
-                        "required": true,
-                        "description": "The URL to make the request to"
-                    },
-                    {
-                        "displayName": "Method",
-                        "name": "method",
-                        "type": "options",
-                        "default": "GET",
-                        "options": [
-                            {"name": "DELETE", "value": "DELETE"},
-                            {"name": "GET", "value": "GET"},
-                            {"name": "HEAD", "value": "HEAD"},
-                            {"name": "OPTIONS", "value": "OPTIONS"},
-                            {"name": "PATCH", "value": "PATCH"},
-                            {"name": "POST", "value": "POST"},
-                            {"name": "PUT", "value": "PUT"}
-                        ],
-                        "description": "HTTP method to use for the request"
-                    },
-                    {
-                        "displayName": "Authentication",
-                        "name": "authentication",
-                        "type": "options",
-                        "default": "none",
-                        "options": [
-                            {"name": "None", "value": "none"},
-                            {"name": "Predefined Credential Type", "value": "predefinedCredentialType"},
-                            {"name": "Generic Credential Type", "value": "genericCredentialType"}
-                        ]
-                    },
-                    {
-                        "displayName": "Send Query Parameters",
-                        "name": "sendQuery",
-                        "type": "boolean",
-                        "default": false,
-                        "description": "Whether to send query parameters with the request"
-                    },
-                    {
-                        "displayName": "Query Parameters",
-                        "name": "queryParameters",
-                        "type": "fixedCollection",
-                        "default": {},
-                        "displayOptions": {"show": {"sendQuery": [true]}}
-                    },
-                    {
-                        "displayName": "Send Headers",
-                        "name": "sendHeaders",
-                        "type": "boolean",
-                        "default": false,
-                        "description": "Whether to send custom headers with the request"
-                    },
-                    {
-                        "displayName": "Header Parameters",
-                        "name": "headerParameters",
-                        "type": "fixedCollection",
-                        "default": {},
-                        "displayOptions": {"show": {"sendHeaders": [true]}}
-                    },
-                    {
-                        "displayName": "Send Body",
-                        "name": "sendBody",
-                        "type": "boolean",
-                        "default": false,
-                        "description": "Whether to send a body with the request"
-                    },
-                    {
-                        "displayName": "Tool Description",
-                        "name": "toolDescription",
-                        "type": "string",
-                        "default": "",
-                        "description": "Explain to the LLM what this tool does and when to use it. Shown in the model prompt."
-                    }
+            "description": "Name of the property to which to write the response data"
+          },
+          {
+            "displayName": "Put Output File in Field",
+            "name": "dataPropertyName",
+            "type": "string",
+            "default": "data",
+            "required": true,
+            "displayOptions": {
+              "show": {
+                "responseFormat": [
+                  "file"
                 ]
+              }
             },
-            "metadata": {
-                "keywords": [
-                    "http",
-                    "request",
-                    "tool",
-                    "api",
-                    "fetch",
-                    "agent",
-                    "ai",
-                    "get",
-                    "post",
-                    "put",
-                    "delete",
-                    "rest",
-                    "url",
-                    "webhook",
-                    "call"
+            "hint": "The name of the output binary field to put the file in"
+          },
+          {
+            "displayName": "JSON/RAW Parameters",
+            "name": "jsonParameters",
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the query and/or body parameter should be set via the value-key pair UI or JSON/RAW"
+          },
+          {
+            "displayName": "Options",
+            "name": "options",
+            "type": "collection",
+            "placeholder": "Add option",
+            "default": {},
+            "options": [
+              {
+                "displayName": "Batch Interval",
+                "name": "batchInterval",
+                "type": "number",
+                "typeOptions": {
+                  "minValue": 0
+                },
+                "default": 1000,
+                "description": "Time (in milliseconds) between each batch of requests. 0 for disabled."
+              },
+              {
+                "displayName": "Batch Size",
+                "name": "batchSize",
+                "type": "number",
+                "typeOptions": {
+                  "minValue": -1
+                },
+                "default": 50,
+                "description": "Input will be split in batches to throttle requests. -1 for disabled. 0 will be treated as 1."
+              },
+              {
+                "displayName": "Body Content Type",
+                "name": "bodyContentType",
+                "type": "options",
+                "displayOptions": {
+                  "show": {
+                    "/requestMethod": [
+                      "PATCH",
+                      "POST",
+                      "PUT"
+                    ]
+                  }
+                },
+                "options": [
+                  {
+                    "name": "JSON",
+                    "value": "json"
+                  },
+                  {
+                    "name": "RAW/Custom",
+                    "value": "raw"
+                  },
+                  {
+                    "name": "Form-Data Multipart",
+                    "value": "multipart-form-data"
+                  },
+                  {
+                    "name": "Form Urlencoded",
+                    "value": "form-urlencoded"
+                  }
                 ],
-                "operations": [
-                    "GET",
-                    "POST",
-                    "PUT",
-                    "DELETE",
-                    "PATCH"
+                "default": "json",
+                "description": "Content-Type to use to send body parameters"
+              },
+              {
+                "displayName": "Full Response",
+                "name": "fullResponse",
+                "type": "boolean",
+                "default": false,
+                "description": "Whether to return the full response data instead of only the body"
+              },
+              {
+                "displayName": "Follow All Redirects",
+                "name": "followAllRedirects",
+                "type": "boolean",
+                "default": false,
+                "description": "Whether to follow All HTTP 3xx redirects"
+              },
+              {
+                "displayName": "Follow GET/HEAD Redirect",
+                "name": "followRedirect",
+                "type": "boolean",
+                "default": true,
+                "description": "Whether to follow GET or HEAD HTTP 3xx redirects"
+              },
+              {
+                "displayName": "Ignore Response Code",
+                "name": "ignoreResponseCode",
+                "type": "boolean",
+                "default": false,
+                "description": "Whether to succeeds also when status code is not 2xx"
+              },
+              {
+                "displayName": "MIME Type",
+                "name": "bodyContentCustomMimeType",
+                "type": "string",
+                "default": "",
+                "placeholder": "text/xml",
+                "description": "Specify the mime type for raw/custom body type",
+                "displayOptions": {
+                  "show": {
+                    "/requestMethod": [
+                      "PATCH",
+                      "POST",
+                      "PUT"
+                    ]
+                  }
+                }
+              },
+              {
+                "displayName": "Proxy",
+                "name": "proxy",
+                "type": "string",
+                "default": "",
+                "placeholder": "http://myproxy:3128",
+                "description": "HTTP proxy to use"
+              },
+              {
+                "displayName": "Split Into Items",
+                "name": "splitIntoItems",
+                "type": "boolean",
+                "default": false,
+                "description": "Whether to output each element of an array as own item",
+                "displayOptions": {
+                  "show": {
+                    "/responseFormat": [
+                      "json"
+                    ]
+                  }
+                }
+              },
+              {
+                "displayName": "Timeout",
+                "name": "timeout",
+                "type": "number",
+                "typeOptions": {
+                  "minValue": 1
+                },
+                "default": 10000,
+                "description": "Time in ms to wait for the server to send response headers (and start the response body) before aborting the request"
+              },
+              {
+                "displayName": "Use Querystring",
+                "name": "useQueryString",
+                "type": "boolean",
+                "default": false,
+                "description": "Whether you need arrays to be serialized as foo=bar&foo=baz instead of the default foo[0]=bar&foo[1]=baz"
+              }
+            ]
+          },
+          {
+            "displayName": "Send Binary File",
+            "name": "sendBinaryData",
+            "type": "boolean",
+            "displayOptions": {
+              "show": {
+                "jsonParameters": [
+                  true
                 ],
-                "useCases": [
-                    "make http requests from ai agent",
-                    "call rest api from agent",
-                    "fetch data from url in agent workflow",
-                    "search api with ai agent",
-                    "ai tool for http"
-                ],
-                "keywordScore": 70
-            }
-        },
-        "toolHttpRequest": {
-            "name": "toolHttpRequest",
-            "displayName": "HTTP Request",
-            "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
-            "version": 1,
-            "description": "Makes an HTTP request (LangChain tool variant). Prefer n8n-nodes-base.httpRequestTool which is more stable.",
-            "group": ["output"],
-            "schema": {
-                "properties": [
-                    {
-                        "displayName": "URL",
-                        "name": "url",
-                        "type": "string",
-                        "default": "",
-                        "required": true
-                    },
-                    {
-                        "displayName": "Method",
-                        "name": "method",
-                        "type": "options",
-                        "default": "GET"
-                    }
+                "requestMethod": [
+                  "PATCH",
+                  "POST",
+                  "PUT"
                 ]
+              }
             },
-            "metadata": {
-                "keywords": [
-                    "http",
-                    "request",
-                    "tool",
-                    "langchain",
-                    "api"
+            "default": false,
+            "description": "Whether binary data should be send as body"
+          },
+          {
+            "displayName": "Input Binary Field",
+            "name": "binaryPropertyName",
+            "type": "string",
+            "required": true,
+            "default": "data",
+            "displayOptions": {
+              "hide": {
+                "sendBinaryData": [
+                  false
+                ]
+              },
+              "show": {
+                "jsonParameters": [
+                  true
                 ],
-                "operations": [
-                    "GET",
-                    "POST"
+                "requestMethod": [
+                  "PATCH",
+                  "POST",
+                  "PUT"
+                ]
+              }
+            },
+            "hint": "The name of the input binary field containing the file to be uploaded",
+            "description": "For Form-Data Multipart, they can be provided in the format: <code>\"sendKey1:binaryProperty1,sendKey2:binaryProperty2</code>"
+          },
+          {
+            "displayName": "Body Parameters",
+            "name": "bodyParametersJson",
+            "type": "json",
+            "displayOptions": {
+              "hide": {
+                "sendBinaryData": [
+                  true
+                ]
+              },
+              "show": {
+                "jsonParameters": [
+                  true
                 ],
-                "useCases": [],
-                "keywordScore": 30
-            }
-        }
+                "requestMethod": [
+                  "PATCH",
+                  "POST",
+                  "PUT",
+                  "DELETE"
+                ]
+              }
+            },
+            "default": "",
+            "description": "Body parameters as JSON or RAW"
+          },
+          {
+            "displayName": "Body Parameters",
+            "name": "bodyParametersUi",
+            "placeholder": "Add Parameter",
+            "type": "fixedCollection",
+            "typeOptions": {
+              "multipleValues": true
+            },
+            "displayOptions": {
+              "show": {
+                "jsonParameters": [
+                  false
+                ],
+                "requestMethod": [
+                  "PATCH",
+                  "POST",
+                  "PUT",
+                  "DELETE"
+                ]
+              }
+            },
+            "description": "The body parameter to send",
+            "default": {},
+            "options": [
+              {
+                "name": "parameter",
+                "displayName": "Parameter",
+                "values": [
+                  {
+                    "displayName": "Name",
+                    "name": "name",
+                    "type": "string",
+                    "default": "",
+                    "description": "Name of the parameter"
+                  },
+                  {
+                    "displayName": "Value",
+                    "name": "value",
+                    "type": "string",
+                    "default": "",
+                    "description": "Value of the parameter"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "displayName": "Headers",
+            "name": "headerParametersJson",
+            "type": "json",
+            "displayOptions": {
+              "show": {
+                "jsonParameters": [
+                  true
+                ]
+              }
+            },
+            "default": "",
+            "description": "Header parameters as JSON or RAW"
+          },
+          {
+            "displayName": "Headers",
+            "name": "headerParametersUi",
+            "placeholder": "Add Header",
+            "type": "fixedCollection",
+            "typeOptions": {
+              "multipleValues": true
+            },
+            "displayOptions": {
+              "show": {
+                "jsonParameters": [
+                  false
+                ]
+              }
+            },
+            "description": "The headers to send",
+            "default": {},
+            "options": [
+              {
+                "name": "parameter",
+                "displayName": "Header",
+                "values": [
+                  {
+                    "displayName": "Name",
+                    "name": "name",
+                    "type": "string",
+                    "default": "",
+                    "description": "Name of the header"
+                  },
+                  {
+                    "displayName": "Value",
+                    "name": "value",
+                    "type": "string",
+                    "default": "",
+                    "description": "Value to set for the header"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "displayName": "Query Parameters",
+            "name": "queryParametersJson",
+            "type": "json",
+            "displayOptions": {
+              "show": {
+                "jsonParameters": [
+                  true
+                ]
+              }
+            },
+            "default": "",
+            "description": "Query parameters as JSON (flat object)"
+          },
+          {
+            "displayName": "Query Parameters",
+            "name": "queryParametersUi",
+            "placeholder": "Add Parameter",
+            "type": "fixedCollection",
+            "typeOptions": {
+              "multipleValues": true
+            },
+            "displayOptions": {
+              "show": {
+                "jsonParameters": [
+                  false
+                ]
+              }
+            },
+            "description": "The query parameter to send",
+            "default": {},
+            "options": [
+              {
+                "name": "parameter",
+                "displayName": "Parameter",
+                "values": [
+                  {
+                    "displayName": "Name",
+                    "name": "name",
+                    "type": "string",
+                    "default": "",
+                    "description": "Name of the parameter"
+                  },
+                  {
+                    "displayName": "Value",
+                    "name": "value",
+                    "type": "string",
+                    "default": "",
+                    "description": "Value of the parameter"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "displayName": "You can view the raw requests this node makes in your browser's developer console",
+            "name": "infoMessage",
+            "type": "notice",
+            "default": ""
+          }
+        ],
+        "sourcePath": "/.n8n-cache/packages/nodes-base/dist/nodes/HttpRequest/HttpRequest.node.js"
+      },
+      "metadata": {
+        "keywords": [
+          "http",
+          "request",
+          "tool",
+          "makes",
+          "requests",
+          "returns",
+          "response",
+          "data",
+          "agent",
+          "useful",
+          "fetching",
+          "output",
+          "basicauth",
+          "digestauth",
+          "headerauth",
+          "none",
+          "oauth1",
+          "oauth2",
+          "queryauth",
+          "delete",
+          "get",
+          "head",
+          "options",
+          "patch",
+          "post",
+          "put",
+          "file",
+          "json",
+          "string",
+          "property",
+          "name",
+          "input",
+          "binary",
+          "api",
+          "fetch",
+          "ai",
+          "node",
+          "documentation",
+          "templates",
+          "examples",
+          "related",
+          "resources"
+        ],
+        "operations": [],
+        "useCases": [],
+        "keywordScore": 51,
+        "hasDocumentation": true,
+        "markdownUrl": null,
+        "markdownFile": null
+      }
+    },
+    "toolHttpRequest": {
+      "name": "toolHttpRequest",
+      "displayName": "HTTP Request",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "version": 1,
+      "description": "Makes an HTTP request (LangChain tool variant). Prefer n8n-nodes-base.httpRequestTool which is more stable.",
+      "group": [
+        "output"
+      ],
+      "schema": {
+        "properties": [
+          {
+            "displayName": "URL",
+            "name": "url",
+            "type": "string",
+            "default": "",
+            "required": true
+          },
+          {
+            "displayName": "Method",
+            "name": "method",
+            "type": "options",
+            "default": "GET"
+          }
+        ]
+      },
+      "metadata": {
+        "keywords": [
+          "http",
+          "request",
+          "tool",
+          "langchain",
+          "api"
+        ],
+        "operations": [
+          "GET",
+          "POST"
+        ],
+        "useCases": [],
+        "keywordScore": 30
+      }
     }
+  }
 }

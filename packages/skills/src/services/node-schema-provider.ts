@@ -117,6 +117,8 @@ export class NodeSchemaProvider {
 
     /**
      * Get the full JSON schema for a specific node by name.
+     * Accepts short names (httpRequest) or full type prefixed names
+     * (n8n-nodes-base.httpRequest, @n8n/n8n-nodes-langchain.agent).
      * Returns null if not found.
      */
     public getNodeSchema(nodeName: string): any | null {
@@ -124,25 +126,45 @@ export class NodeSchemaProvider {
 
         // Direct match
         if (this.index.nodes[nodeName]) {
-            const node = this.index.nodes[nodeName];
-            return {
-                name: node.name,
-                type: node.type,
-                displayName: node.displayName,
-                description: node.description,
-                version: node.version,
-                group: node.group,
-                icon: node.icon,
-                schema: node.schema,
-                metadata: node.metadata
-            };
+            return this._formatNode(this.index.nodes[nodeName]);
+        }
+
+        // Strip package prefix if present (e.g. "n8n-nodes-base.httpRequest" → "httpRequest")
+        const dotIdx = nodeName.lastIndexOf('.');
+        if (dotIdx !== -1) {
+            const shortName = nodeName.substring(dotIdx + 1);
+            if (this.index.nodes[shortName]) {
+                return this._formatNode(this.index.nodes[shortName]);
+            }
         }
 
         // Case insensitive fallback
         const lowerName = nodeName.toLowerCase();
         const found = Object.keys(this.index.nodes).find(k => k.toLowerCase() === lowerName);
+        if (found) return this._formatNode(this.index.nodes[found]);
 
-        return found ? this.index.nodes[found] : null;
+        // Case insensitive fallback on stripped name
+        if (dotIdx !== -1) {
+            const shortLower = nodeName.substring(dotIdx + 1).toLowerCase();
+            const foundShort = Object.keys(this.index.nodes).find(k => k.toLowerCase() === shortLower);
+            if (foundShort) return this._formatNode(this.index.nodes[foundShort]);
+        }
+
+        return null;
+    }
+
+    private _formatNode(node: any): any {
+        return {
+            name: node.name,
+            type: node.type,
+            displayName: node.displayName,
+            description: node.description,
+            version: node.version,
+            group: node.group,
+            icon: node.icon,
+            schema: node.schema,
+            metadata: node.metadata
+        };
     }
 
     /**

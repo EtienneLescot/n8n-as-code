@@ -57,9 +57,9 @@ export class AiContextGenerator {
       `    options: { systemMessage: 'You are a helpful assistant.' },`,
       `  };`,
       ``,
-      `  @node({ name: 'OpenAI Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', version: 1.2, position: [200, 200],`,
+      `  @node({ name: 'OpenAI Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', version: 1.3, position: [200, 200],`,
       `    credentials: { openAiApi: { id: 'xxx', name: 'OpenAI' } } })`,
-      `  OpenaiModel = { model: 'gpt-4o', options: {} };`,
+      `  OpenaiModel = { model: { mode: 'list', value: 'gpt-4o-mini' }, options: {} };`,
       ``,
       `  @node({ name: 'Memory', type: '@n8n/n8n-nodes-langchain.memoryBufferWindow', version: 1.3, position: [300, 200] })`,
       `  Memory = { sessionIdType: 'customKey', sessionKey: '={{ $execution.id }}', contextWindowLength: 10 };`,
@@ -405,15 +405,17 @@ export class AiContextGenerator {
       ``,
       `### HTTP Tool for AI Agents`,
       `- ✅ Use \`n8n-nodes-base.httpRequestTool\` — the official HTTP Request Tool for AI agent workflows`,
-      `- ❌ Do NOT use \`@n8n/n8n-nodes-langchain.toolHttpRequest\` — this LangChain variant is known to be broken on many instances`,
-      `- The \`httpRequestTool\` node connects to an agent via \`ai_tool\`:`,
+      `- ❌ Do NOT use \`@n8n/n8n-nodes-langchain.toolHttpRequest\` — use \`httpRequestTool\` instead`,
+      `- ⚠️ Always run \`${cmd} node-info httpRequestTool\` first — do NOT guess parameter names`,
+      `- Key: \`parametersQuery\` uses \`{ values: [...] }\` (NOT \`{ parameters: [...] }\`)`,
       `  \`\`\`typescript`,
       `  @node({ name: 'SearchUsers', type: 'n8n-nodes-base.httpRequestTool', version: /* highest available version from schema */, position: [500, 300] })`,
       `  SearchUsers = {`,
       `    url: 'https://api.example.com/users/search',`,
       `    sendQuery: true,`,
-      `    queryParameters: {`,
-      `      parameters: [{ name: 'q', value: "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('q', 'Search term', 'string') }}" }]`,
+      `    specifyQuery: 'keypair',`,
+      `    parametersQuery: {`,
+      `      values: [{ name: 'q', valueProvider: 'fieldValue', value: "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('q', 'Search term', 'string') }}" }]`,
       `    },`,
       `    toolDescription: 'Search users by query term in the q parameter.',`,
       `  };`,
@@ -660,10 +662,12 @@ ${this.getAiAgentWorkflowExampleCode()}
 
 ### HTTP Tool for AI Agents
 
-When you need an AI agent to make HTTP requests, **always use \`n8n-nodes-base.httpRequestTool\`**:
+When you need an AI agent to make HTTP requests, use **\`n8n-nodes-base.httpRequestTool\`**:
 
-- ✅ \`n8n-nodes-base.httpRequestTool\` — stable, official HTTP tool for AI agents
-- ❌ \`@n8n/n8n-nodes-langchain.toolHttpRequest\` — LangChain variant; broken on many n8n instances
+- ✅ \`n8n-nodes-base.httpRequestTool\` — the official HTTP Request Tool for AI agent workflows
+- ❌ Do NOT use \`@n8n/n8n-nodes-langchain.toolHttpRequest\` — use \`httpRequestTool\` instead
+- ⚠️ Always run \`npx --yes n8nac skills node-info httpRequestTool\` first — do NOT guess parameter names
+- Key gotcha: \`parametersQuery\` uses **\`{ values: [...] }\`** (NOT \`{ parameters: [...] }\`)
 
 Example:
 \`\`\`typescript
@@ -671,8 +675,9 @@ Example:
 SearchUsers = {
   url: 'https://api.example.com/users/search',
   sendQuery: true,
-  queryParameters: {
-    parameters: [{ name: 'q', value: "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('q', 'Search term', 'string') }}" }]
+  specifyQuery: 'keypair',
+  parametersQuery: {
+    values: [{ name: 'q', valueProvider: 'fieldValue', value: "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('q', 'Search term', 'string') }}" }]
   },
   toolDescription: 'Search users. Use the q parameter to specify the search term.',
 };

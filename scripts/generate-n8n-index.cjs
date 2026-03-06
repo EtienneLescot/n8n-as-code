@@ -259,6 +259,46 @@ async function extractNodes() {
         }
     }
 
+    // ── Inject virtual / synthetic nodes ────────────────────────────────
+    // n8n defines several node types that have no physical .node.js file.
+    // They are runtime aliases referencing another node's implementation.
+    // We must inject them explicitly so they appear in the index.
+    const VIRTUAL_NODES = [
+        {
+            // n8n-nodes-base.httpRequestTool  (HTTP_REQUEST_AS_TOOL_NODE_TYPE)
+            // This is httpRequest running in "AI tool" mode.  n8n registers it
+            // under a separate type so the agent node can discover it.
+            name: 'httpRequestTool',
+            fullType: 'n8n-nodes-base.httpRequestTool',
+            cloneFrom: 'httpRequest',        // inherit properties
+            displayName: 'HTTP Request Tool',
+            description: 'Makes HTTP requests and returns the response data to the AI agent. Useful for fetching data from APIs or services.',
+        },
+    ];
+
+    for (const vNode of VIRTUAL_NODES) {
+        if (resultsMap.has(vNode.name)) {
+            if (process.env.DEBUG) console.log(`   ⏭️  Virtual node ${vNode.name} already in index, skipping`);
+            continue;
+        }
+
+        const donor = vNode.cloneFrom ? resultsMap.get(vNode.cloneFrom) : null;
+        const entry = {
+            name: vNode.name,
+            fullType: vNode.fullType,
+            displayName: vNode.displayName,
+            description: vNode.description,
+            icon: donor?.icon || 'file:httprequest.svg',
+            group: donor?.group || ['output'],
+            version: donor?.version || 1,
+            properties: donor?.properties || [],
+            sourcePath: donor?.sourcePath || '(virtual)',
+        };
+        resultsMap.set(vNode.name, entry);
+        successCount++;
+        console.log(`   🧩 Injected virtual node: ${vNode.name} (${vNode.fullType})`);
+    }
+
     console.log('\n\n✨ Extraction complete!');
     console.log(`✅ Extracted: ${successCount} nodes`);
     console.log(`❌ Skipped/Error: ${errorCount}`);

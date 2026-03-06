@@ -282,6 +282,12 @@ async function enrichNodesIndex() {
 
         // Combine keywords from both sources
         const allKeywords = new Set([...schemaKeywords]);
+
+        // Boost keywords for virtual / tool nodes that agents need to discover
+        if (node.name === 'httpRequestTool') {
+            ['http', 'request', 'tool', 'api', 'fetch', 'agent', 'ai'].forEach(k => allKeywords.add(k));
+        }
+
         let operations = [];
         let useCases = [];
 
