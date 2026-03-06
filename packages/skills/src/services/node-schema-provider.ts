@@ -126,7 +126,7 @@ export class NodeSchemaProvider {
 
         // Direct match
         if (this.index.nodes[nodeName]) {
-            return this._formatNode(this.index.nodes[nodeName]);
+            return this.formatNode(this.index.nodes[nodeName]);
         }
 
         // Strip package prefix if present (e.g. "n8n-nodes-base.httpRequest" → "httpRequest")
@@ -134,26 +134,26 @@ export class NodeSchemaProvider {
         if (dotIdx !== -1) {
             const shortName = nodeName.substring(dotIdx + 1);
             if (this.index.nodes[shortName]) {
-                return this._formatNode(this.index.nodes[shortName]);
+                return this.formatNode(this.index.nodes[shortName]);
             }
         }
 
         // Case insensitive fallback
         const lowerName = nodeName.toLowerCase();
         const found = Object.keys(this.index.nodes).find(k => k.toLowerCase() === lowerName);
-        if (found) return this._formatNode(this.index.nodes[found]);
+        if (found) return this.formatNode(this.index.nodes[found]);
 
         // Case insensitive fallback on stripped name
         if (dotIdx !== -1) {
             const shortLower = nodeName.substring(dotIdx + 1).toLowerCase();
             const foundShort = Object.keys(this.index.nodes).find(k => k.toLowerCase() === shortLower);
-            if (foundShort) return this._formatNode(this.index.nodes[foundShort]);
+            if (foundShort) return this.formatNode(this.index.nodes[foundShort]);
         }
 
         return null;
     }
 
-    private _formatNode(node: any): any {
+    private formatNode(node: any): any {
         return {
             name: node.name,
             type: node.type,
