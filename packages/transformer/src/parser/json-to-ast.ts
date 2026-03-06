@@ -65,7 +65,7 @@ export class JsonToAstParser {
      * n8n API responses may expose tags either as strings or as objects
      * containing id/name fields depending on the caller and endpoint.
      */
-    private parseTags(tags: Array<string | { id?: string; name?: string }> | undefined): string[] | undefined {
+    private parseTags(tags: N8nWorkflow['tags']): string[] | undefined {
         if (!Array.isArray(tags) || tags.length === 0) {
             return undefined;
         }

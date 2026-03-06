@@ -150,7 +150,7 @@ export class AiTestWorkflow {
         };
 
         const parser = new JsonToAstParser();
-        const ast = parser.parse(workflowJson as any);
+        const ast = parser.parse(workflowJson);
         expect(ast.nodes[0].webhookId).toBe('wh_123456');
 
         const generator = new AstToTypeScriptGenerator();

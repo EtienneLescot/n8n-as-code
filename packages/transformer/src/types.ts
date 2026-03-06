@@ -135,7 +135,7 @@ export interface N8nWorkflow {
     nodes: N8nNode[];
     connections: N8nConnections;
     settings?: WorkflowSettings;
-    tags?: string[];
+    tags?: N8nWorkflowTag[];
     
     // Organization metadata
     projectId?: string;
@@ -153,6 +153,11 @@ export interface N8nWorkflow {
     versionCounter?: number;
     pinData?: any;
 }
+
+export type N8nWorkflowTag = string | {
+    id?: string;
+    name?: string;
+};
 
 /**
  * n8n node JSON structure
