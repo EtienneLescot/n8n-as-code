@@ -84,11 +84,12 @@ jobs:
             npx @vscode/vsce publish --no-dependencies --pat "$VSCE_TOKEN"
           fi
 
-          # Publish to Open VSX (Cursor / Windsurf)
-          if [[ -z "$OVSX_TOKEN" ]]; then
+          # Publish only stable builds to Open VSX. Preview metadata exists there,
+          # but downstream clients can still resolve the highest version by default.
+          if [[ '${{ inputs.pre_release }}' == 'true' ]]; then
+            echo "ℹ️ Skipping Open VSX publish for pre-release builds."
+          elif [[ -z "$OVSX_TOKEN" ]]; then
             echo "⚠️ OVSX_TOKEN is missing, skipping Open VSX publish."
-          elif [[ '${{ inputs.pre_release }}' == 'true' ]]; then
-            npx ovsx publish *.vsix --pre-release -p "$OVSX_TOKEN"
           else
             npx ovsx publish *.vsix -p "$OVSX_TOKEN"
           fi

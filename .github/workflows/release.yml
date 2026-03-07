@@ -184,17 +184,12 @@ jobs:
           npx @vscode/vsce package --no-dependencies
           npx @vscode/vsce publish --no-dependencies --pre-release --pat "$VSCE_TOKEN"
 
-      - name: Publish VS Code Extension (pre-release) to Open VSX
+      - name: Skip Open VSX publish for pre-release
         if: github.ref == 'refs/heads/next'
-        env:
-          OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
         run: |
-          cd packages/vscode-extension
-          if [[ -z "$OVSX_TOKEN" ]]; then
-            echo "⚠️ OVSX_TOKEN is missing, skipping Open VSX publish."
-            exit 0
-          fi
-          npx ovsx publish *.vsix --pre-release -p "$OVSX_TOKEN"
+          echo "ℹ️ Skipping Open VSX publish for next builds."
+          echo "ℹ️ Open VSX exposes preview metadata, but downstream clients can still resolve the highest version by default."
+          echo "ℹ️ Only stable releases from main are published to Open VSX."
 
       - name: Publish VS Code Extension (stable)
         if: github.ref == 'refs/heads/main' && needs.release-please.outputs.vscode_release_created == 'true'

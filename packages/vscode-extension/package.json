@@ -230,7 +230,23 @@
     }
   },
   "categories": [
-    "Other"
+    "AI",
+    "Visualization",
+    "Snippets"
+  ],
+  "keywords": [
+    "n8n",
+    "workflow",
+    "workflows",
+    "automation",
+    "ai",
+    "agent",
+    "agents",
+    "typescript",
+    "json",
+    "sync",
+    "gitops",
+    "langchain"
   ],
   "dependencies": {
     "@n8n-as-code/skills": "0.16.15",
