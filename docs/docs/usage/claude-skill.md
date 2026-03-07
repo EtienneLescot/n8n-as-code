@@ -102,7 +102,7 @@ This is the recommended install path for Claude Code.
 1. **Build and package:**
    ```bash
   npm run build:claude-plugin
-   cd dist/adapters/claude
+  cd packages/skills/dist/adapters/claude
    zip -r n8n-architect-skill.zip n8n-architect/
    ```
 

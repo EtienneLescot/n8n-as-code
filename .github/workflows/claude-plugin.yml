@@ -41,7 +41,7 @@ on:
         type: boolean
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate-and-bundle:
@@ -115,10 +115,14 @@ jobs:
       - name: Build Claude plugin assets
         run: npm run build:claude-plugin
 
-      - name: Verify committed skill matches generated skill
+      - name: Verify committed skill not modified by build
         run: |
-          cmp -s plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md packages/skills/dist/adapters/claude/n8n-architect/SKILL.md
-          echo 'Committed skill matches generated skill.'
+          if ! git diff --quiet --exit-code -- plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md; then
+            echo 'Error: plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md was modified by the Claude plugin build.'
+            echo 'Please run "npm run build:claude-plugin" locally and commit the updated SKILL.md file.'
+            exit 1
+          fi
+          echo 'Committed SKILL.md matches the generated version (no changes from build).'
 
       - name: Bundle Claude plugin
         id: bundle
@@ -152,6 +156,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.publish_release_asset && inputs.release_tag != ''
     needs: validate-and-bundle
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Download plugin zip artifact

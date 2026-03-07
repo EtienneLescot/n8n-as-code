@@ -102,7 +102,7 @@ export class AiContextGenerator {
       ``,
       `### Initialization Check`,
       `- Look for \`n8nac-config.json\` in the workspace root.`,
-      `- If \`n8nac-config.json\` is missing, the workspace is not initialized yet.`,
+      `- If \`n8nac-config.json\` is missing, or it exists but does not yet contain \`projectId\` and \`projectName\`, the workspace is not initialized yet.`,
       `- **NEVER tell the user to run \`npx n8nac init\` themselves.** You are the agent — it is YOUR job to run the command.`,
       `- Initialization is a 2-step flow: first save credentials with \`${cliCmd} init-auth --host <url> --api-key <key>\`, then select the project with \`${cliCmd} init-project\`.`,
       `- If the user has already provided the n8n host and API key, run \`${cliCmd} init-auth --host <url> --api-key <key>\` immediately.`,
