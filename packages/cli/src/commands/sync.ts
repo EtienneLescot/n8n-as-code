@@ -63,10 +63,9 @@ export class SyncCommand extends BaseCommand {
         let basename: string | undefined;
         
         try {
-            // This is a bit redundant with push() but allows us to pre-check for conflicts
-            // using the same normalization logic.
-            basename = (syncManager as any).normalizePushFilename(filename);
-            workflowId = syncManager.getWorkflowIdForFilename(basename!);
+            const pushTarget = syncManager.resolvePushTarget(filename);
+            basename = pushTarget.filename;
+            workflowId = syncManager.getWorkflowIdForFilename(pushTarget.filename);
         } catch (e) {
             // If normalization fails, let the actual push() call throw the clean error
         }

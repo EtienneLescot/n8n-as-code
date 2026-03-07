@@ -259,8 +259,9 @@ export class SyncManager extends EventEmitter {
     public async push(filename: string): Promise<string> {
         await this.ensureInitialized();
 
-        const targetFilename = this.normalizePushFilename(filename);
-        const filePath = path.join(this.watcher!.getDirectory(), targetFilename);
+        const target = this.resolvePushTarget(filename);
+        const targetFilename = target.filename;
+        const filePath = target.filePath;
 
         if (!fs.existsSync(filePath)) {
             throw new Error(
@@ -296,29 +297,54 @@ export class SyncManager extends EventEmitter {
         return await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.TRACKED);
     }
 
-    private normalizePushFilename(filename: string): string {
+    public resolvePushTarget(filename: string): { filename: string; filePath: string; absolutePath: string; } {
+        if (!this.watcher) {
+            throw new Error('SyncManager not initialized');
+        }
+
         const trimmed = filename.trim();
         if (!trimmed) {
             throw new Error('Missing workflow file path. Use `n8nac push <path/to/workflow.workflow.ts>`.');
         }
 
-        // Always resolve against CWD to get an absolute path, regardless of whether 
-        // it's a simple filename or a deep path.
-        const absolutePath = path.resolve(process.cwd(), trimmed);
-        const syncScopeDir = path.resolve(this.watcher!.getDirectory());
+        const syncScopeDir = path.resolve(this.watcher.getDirectory());
+        const hasPathSeparator = trimmed.includes('/') || trimmed.includes('\\');
+        const candidatePath = path.isAbsolute(trimmed)
+            ? trimmed
+            : hasPathSeparator
+                ? path.resolve(process.cwd(), trimmed)
+                : path.join(syncScopeDir, trimmed);
 
-        // STRICT CHECK: The file MUST be inside the active sync scope.
-        // No "guessing" or "shortcuts" for filenames in parent directories.
-        if (!absolutePath.startsWith(syncScopeDir)) {
+        const absolutePath = path.resolve(candidatePath);
+        const normalizedScopeDir = this.resolveExistingPath(syncScopeDir);
+        const normalizedAbsolutePath = this.resolveExistingPath(absolutePath);
+        const relativePath = path.relative(normalizedScopeDir, normalizedAbsolutePath);
+
+        if (
+            relativePath === '..' ||
+            relativePath.startsWith(`..${path.sep}`) ||
+            path.isAbsolute(relativePath)
+        ) {
             throw new Error(
                 `The path "${trimmed}" is outside the active sync scope for this project.\n` +
-                `Active sync scope: ${syncScopeDir}\n` +
+                `Active sync scope: ${normalizedScopeDir}\n` +
                 `Please provide a file located within this directory.`
             );
         }
 
-        // Extract just the filename for internal sync logic (which uses the scoped directory as base)
-        return path.basename(absolutePath);
+        return {
+            filename: path.basename(normalizedAbsolutePath),
+            filePath: path.join(syncScopeDir, path.basename(normalizedAbsolutePath)),
+            absolutePath: normalizedAbsolutePath
+        };
+    }
+
+    private resolveExistingPath(targetPath: string): string {
+        try {
+            return fs.realpathSync.native(targetPath);
+        } catch {
+            return path.resolve(targetPath);
+        }
     }
 
     public async resolveConflict(workflowId: string, filename: string, resolution: 'local' | 'remote'): Promise<void> {

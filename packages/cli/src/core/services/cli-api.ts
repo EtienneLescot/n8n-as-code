@@ -5,7 +5,7 @@
  *   n8nac list               → CliApi.list()
  *   n8nac fetch <id>       → CliApi.fetch()
  *   n8nac pull <id>        → CliApi.pull()
- *   n8nac push <filename>  → CliApi.push()
+ *   n8nac push <path>      → CliApi.push()
  *
  * This is the single contract that must be used by all VSCode extension
  * command handlers. It ensures there is zero code duplication between the
@@ -77,7 +77,7 @@ export class CliApi {
     // ── push ──────────────────────────────────────────────────────────────────
 
     /**
-     * Mirrors `n8nac push <filename>`
+    * Mirrors `n8nac push <path>`
      *
      * Uploads the local `.workflow.ts` file to n8n.
      * Automatically handles three cases:
@@ -85,7 +85,7 @@ export class CliApi {
      *  • Local-only with ID (remote deleted) → re-creates on remote
      *  • Both sides exist                    → updates remote (with OCC check)
      *
-     * @param filename - Workflow filename inside the active sync scope
+    * @param filename - Workflow path or basename inside the active sync scope
      */
     async push(filename: string): Promise<string> {
         return this.syncManager.push(filename);

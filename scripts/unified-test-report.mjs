@@ -89,14 +89,12 @@ async function runTest(suite) {
                 if (failMatch) failed = failMatch[1] || '0';
             }
 
-            if (code !== 0) {
-                if (isOffline) {
-                    status = chalk.yellow('OFFLINE');
-                    passed = '-';
-                    failed = '-';
-                } else {
-                    status = chalk.red('FAIL');
-                }
+            if (isOffline) {
+                status = chalk.yellow('OFFLINE');
+                passed = '-';
+                failed = '-';
+            } else if (code !== 0) {
+                status = chalk.red('FAIL');
             }
 
             if (!isVerbose) {

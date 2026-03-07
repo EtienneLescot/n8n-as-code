@@ -27,7 +27,18 @@ describe('SyncManager push filename contract', () => {
         };
 
         const filePath = path.join(syncDir, 'my-workflow.workflow.ts');
-        expect((manager as any).normalizePushFilename(filePath)).toBe('my-workflow.workflow.ts');
+        expect(manager.resolvePushTarget(filePath).filename).toBe('my-workflow.workflow.ts');
+    });
+
+    it('accepts a plain workflow filename for in-process callers inside the sync scope', () => {
+        const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
+        const manager = createSyncManager(syncDir);
+
+        (manager as any).watcher = {
+            getDirectory: () => syncDir
+        };
+
+        expect(manager.resolvePushTarget('my-workflow.workflow.ts').filename).toBe('my-workflow.workflow.ts');
     });
 
     it('rejects paths outside the sync scope', () => {
@@ -40,7 +51,20 @@ describe('SyncManager push filename contract', () => {
         };
 
         const outsidePath = '/tmp/outside-workflow.workflow.ts';
-        expect(() => (manager as any).normalizePushFilename(outsidePath))
+        expect(() => manager.resolvePushTarget(outsidePath))
+            .toThrow(/outside the active sync scope/);
+    });
+
+    it('rejects paths that share a common prefix with the sync scope but are outside it', () => {
+        const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
+        const manager = createSyncManager(syncDir);
+
+        (manager as any).watcher = {
+            getDirectory: () => syncDir
+        };
+
+        const prefixedOutsidePath = path.join(`${syncDir}-2`, 'my-workflow.workflow.ts');
+        expect(() => manager.resolvePushTarget(prefixedOutsidePath))
             .toThrow(/outside the active sync scope/);
     });
 
@@ -53,7 +77,7 @@ describe('SyncManager push filename contract', () => {
             getDirectory: () => syncDir
         };
 
-        expect(() => (manager as any).normalizePushFilename('   ')).toThrow(/Missing workflow file path/);
+        expect(() => manager.resolvePushTarget('   ')).toThrow(/Missing workflow file path/);
     });
 
     it('refreshes local state before resolving workflow id during push', async () => {
