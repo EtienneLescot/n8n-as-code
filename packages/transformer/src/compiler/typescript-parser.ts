@@ -480,7 +480,13 @@ export class TypeScriptParser {
                 const objLit = node as any;
                 for (const prop of objLit.getProperties()) {
                     if (prop.getKind() === SyntaxKind.PropertyAssignment) {
-                        const key: string = prop.getName();
+                        // Use getName() for identifiers, but for StringLiterals we want the literal value
+                        // to avoid double-quotes being part of the key name.
+                        const nameNode = prop.getNameNode();
+                        const key: string = nameNode.getKind() === SyntaxKind.StringLiteral 
+                            ? (nameNode as any).getLiteralValue()
+                            : prop.getName();
+                            
                         const valueNode: Node | undefined = prop.getInitializer();
                         result[key] = valueNode !== undefined
                             ? this.extractValueFromASTNode(valueNode)

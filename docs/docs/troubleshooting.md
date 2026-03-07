@@ -141,7 +141,7 @@ cat n8nac-config.json
    n8nac pull <workflowId>
    
    # Or push:
-   n8nac push my-workflow.workflow.ts
+   n8nac push workflows/instance/project/workflow.workflow.ts
    ```
 
 3. **Check File Permissions:**
@@ -462,7 +462,7 @@ n8nac pull <workflowId>
 # 1. Check if it exists in n8n UI
 # 2. If deleted from n8n, restore from backup
 # 3. If local copy exists, push it back
-n8nac push my-workflow.workflow.ts
+n8nac push workflows/instance/project/workflow.workflow.ts
 ```
 
 ---

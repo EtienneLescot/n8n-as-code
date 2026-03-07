@@ -53,12 +53,28 @@ export class SyncCommand extends BaseCommand {
         // Populate local hash cache FIRST — required for accurate status in CLI mode
         await syncManager.refreshLocalState();
 
-        const workflowId = syncManager.getWorkflowIdForFilename(filename);
+        // ⚠️ In pushOne(inputPath), we MUST NOT use syncManager.getWorkflowIdForFilename(inputPath)
+        // because inputPath might be a relative path from CWD (e.g. workflows/...) 
+        // while the internal tracker only knows about the flat basename.
+        // We let syncManager.push() handle the expansion and resolution correctly.
+        // For conflict detection BEFORE the actual push, we need the basename.
+        
+        let workflowId: string | undefined;
+        let basename: string | undefined;
+        
+        try {
+            // This is a bit redundant with push() but allows us to pre-check for conflicts
+            // using the same normalization logic.
+            basename = (syncManager as any).normalizePushFilename(filename);
+            workflowId = syncManager.getWorkflowIdForFilename(basename!);
+        } catch (e) {
+            // If normalization fails, let the actual push() call throw the clean error
+        }
 
-        if (workflowId) {
+        if (workflowId && basename) {
             await syncManager.fetch(workflowId);
 
-            const status = await syncManager.getSingleWorkflowDetailedStatus(workflowId, filename);
+            const status = await syncManager.getSingleWorkflowDetailedStatus(workflowId, basename);
             if (status.status === WorkflowSyncStatus.CONFLICT) {
                 console.log(chalk.red(`💥 Conflict detected for workflow ${workflowId}.`));
                 console.log(chalk.yellow(`To resolve the conflict you can either:`));

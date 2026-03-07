@@ -96,11 +96,11 @@ n8nac pull <workflowId>
 Upload a single local workflow file to n8n.
 
 ```bash
-n8nac push my-workflow.workflow.ts
+n8nac push workflows/etiennel_cloud_etienne_l/personal/my-workflow.workflow.ts
 ```
 
-> Pass only the workflow filename. Do not pass a path. `n8nac` resolves the real local path from `n8nac-config.json` and the active sync scope.
-> The filename is the local entry point; the workflow ID remains the remote source of truth.
+> Provide the relative path to the workflow file. The file **must** reside within the active sync scope defined by your configuration. Any path outside this scope will be rejected for safety.
+> The path is the local entry point; the workflow ID remains the remote source of truth.
 
 ---
 

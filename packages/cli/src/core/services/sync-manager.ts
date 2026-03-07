@@ -299,17 +299,26 @@ export class SyncManager extends EventEmitter {
     private normalizePushFilename(filename: string): string {
         const trimmed = filename.trim();
         if (!trimmed) {
-            throw new Error('Missing filename. Use `n8nac push <filename.workflow.ts>`.');
+            throw new Error('Missing workflow file path. Use `n8nac push <path/to/workflow.workflow.ts>`.');
         }
 
-        if (path.isAbsolute(trimmed) || trimmed.includes('/') || trimmed.includes('\\')) {
+        // Always resolve against CWD to get an absolute path, regardless of whether 
+        // it's a simple filename or a deep path.
+        const absolutePath = path.resolve(process.cwd(), trimmed);
+        const syncScopeDir = path.resolve(this.watcher!.getDirectory());
+
+        // STRICT CHECK: The file MUST be inside the active sync scope.
+        // No "guessing" or "shortcuts" for filenames in parent directories.
+        if (!absolutePath.startsWith(syncScopeDir)) {
             throw new Error(
-                `Invalid filename "${filename}". Use only the workflow filename from the active sync scope, ` +
-                `not a path. Example: n8nac push my-workflow.workflow.ts`
+                `The path "${trimmed}" is outside the active sync scope for this project.\n` +
+                `Active sync scope: ${syncScopeDir}\n` +
+                `Please provide a file located within this directory.`
             );
         }
 
-        return trimmed;
+        // Extract just the filename for internal sync logic (which uses the scoped directory as base)
+        return path.basename(absolutePath);
     }
 
     public async resolveConflict(workflowId: string, filename: string, resolution: 'local' | 'remote'): Promise<void> {

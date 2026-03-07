@@ -49,7 +49,7 @@ This command:
 
 ### Upload a Local Workflow to n8n
 ```bash
-n8nac push my-workflow.workflow.ts
+n8nac push workflows/instance/project/workflow.workflow.ts
 ```
 
 This command:
@@ -150,7 +150,7 @@ Uploads a single workflow from local to your n8n instance. Uses Optimistic Concu
 
 **Example:**
 ```bash
-n8nac push my-workflow.workflow.ts
+n8nac push workflows/instance/project/workflow.workflow.ts
 ```
 
 **Behavior:**
@@ -346,7 +346,7 @@ if [ "$DEPLOY_TO_PROD" = "true" ]; then
   export N8N_HOST="https://prod.n8n.example.com"
   export N8N_API_KEY="$PROD_API_KEY"
   n8nac init
-  n8nac push my-workflow.workflow.ts
+  n8nac push workflows/instance/project/workflow.workflow.ts
 fi
 ```
 
@@ -365,7 +365,7 @@ for workflow in workflows/*.json; do
 done
 
 # Push changes to n8n
-n8nac push my-workflow.workflow.ts
+n8nac push workflows/instance/project/workflow.workflow.ts
 ```
 
 ## 🎯 Best Practices
@@ -429,7 +429,7 @@ n8nac list
 n8nac pull <workflowId>
 
 # Push local changes for a specific workflow file
-n8nac push my-workflow.workflow.ts
+n8nac push workflows/instance/project/workflow.workflow.ts
 
 # Resolve a conflict
 n8nac resolve <workflowId> --mode keep-current
@@ -443,7 +443,7 @@ Enable debug logging for detailed output:
 DEBUG=n8n-as-code:* n8nac pull <workflowId>
 
 # Debug specific operations
-DEBUG=axios,n8n-as-code:* n8nac push my-workflow.workflow.ts
+DEBUG=axios,n8n-as-code:* n8nac push workflows/instance/project/workflow.workflow.ts
 ```
 
 ## 📚 Next Steps

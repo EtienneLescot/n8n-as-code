@@ -6,9 +6,9 @@ import { SyncManager } from '../../src/core/services/sync-manager.js';
 import { MockN8nApiClient } from '../helpers/test-helpers.js';
 
 describe('SyncManager push filename contract', () => {
-    function createSyncManager() {
+    function createSyncManager(syncDir: string) {
         return new SyncManager(new MockN8nApiClient() as any, {
-            directory: '/tmp/n8nac-sync-manager-test',
+            directory: syncDir,
             syncInactive: true,
             ignoredTags: [],
             projectId: 'project-1',
@@ -17,32 +17,52 @@ describe('SyncManager push filename contract', () => {
         });
     }
 
-    it('accepts a plain workflow filename', () => {
-        const manager = createSyncManager();
-        expect((manager as any).normalizePushFilename('my-workflow.workflow.ts')).toBe('my-workflow.workflow.ts');
+    it('accepts a workflow file path within the sync scope', () => {
+        const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
+        const manager = createSyncManager(syncDir);
+        
+        // Mock the watcher as it's null by default in the constructor
+        (manager as any).watcher = {
+            getDirectory: () => syncDir
+        };
+
+        const filePath = path.join(syncDir, 'my-workflow.workflow.ts');
+        expect((manager as any).normalizePushFilename(filePath)).toBe('my-workflow.workflow.ts');
     });
 
-    it('rejects absolute paths', () => {
-        const manager = createSyncManager();
-        expect(() => (manager as any).normalizePushFilename('/tmp/my-workflow.workflow.ts')).toThrow(/Use only the workflow filename/);
+    it('rejects paths outside the sync scope', () => {
+        const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
+        const manager = createSyncManager(syncDir);
+        
+        // Mock the watcher
+        (manager as any).watcher = {
+            getDirectory: () => syncDir
+        };
+
+        const outsidePath = '/tmp/outside-workflow.workflow.ts';
+        expect(() => (manager as any).normalizePushFilename(outsidePath))
+            .toThrow(/outside the active sync scope/);
     });
 
-    it('rejects nested relative paths', () => {
-        const manager = createSyncManager();
-        expect(() => (manager as any).normalizePushFilename('nested/my-workflow.workflow.ts')).toThrow(/Use only the workflow filename/);
-    });
+    it('rejects empty paths', () => {
+        const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
+        const manager = createSyncManager(syncDir);
+        
+        // Mock the watcher
+        (manager as any).watcher = {
+            getDirectory: () => syncDir
+        };
 
-    it('rejects empty filenames', () => {
-        const manager = createSyncManager();
-        expect(() => (manager as any).normalizePushFilename('   ')).toThrow(/Missing filename/);
+        expect(() => (manager as any).normalizePushFilename('   ')).toThrow(/Missing workflow file path/);
     });
 
     it('refreshes local state before resolving workflow id during push', async () => {
-        const manager = createSyncManager();
         const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-sync-manager-'));
+        const manager = createSyncManager(workspaceDir);
         const workflowFilename = 'existing.workflow.ts';
+        const fullPath = path.join(workspaceDir, workflowFilename);
 
-        fs.writeFileSync(path.join(workspaceDir, workflowFilename), '// workflow placeholder', 'utf-8');
+        fs.writeFileSync(fullPath, '// workflow placeholder', 'utf-8');
 
         const refreshLocalState = vi.fn(async () => undefined);
         const getWorkflowIdForFilename = vi.fn(() => 'wf-123');
@@ -58,7 +78,8 @@ describe('SyncManager push filename contract', () => {
         };
         (manager as any).syncEngine = { push };
 
-        await expect(manager.push(workflowFilename)).resolves.toBe('wf-123');
+        // We must pass the full path or a relative path that resolves into workspaceDir
+        await expect(manager.push(fullPath)).resolves.toBe('wf-123');
 
         expect(refreshLocalState).toHaveBeenCalledOnce();
         expect(getWorkflowIdForFilename).toHaveBeenCalledWith(workflowFilename);

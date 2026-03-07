@@ -91,7 +91,7 @@ find workflows/ -name "*.json" -exec jq . {} >/dev/null 2>&1 \;
 export N8N_HOST="https://target.n8n.example.com"
 export N8N_API_KEY="$TARGET_API_KEY"
 n8nac init
-n8nac push my-workflow.workflow.ts
+n8nac push workflows/instance/project/workflow.workflow.ts
 ```
 
 ## 📚 Quick Reference
@@ -154,7 +154,7 @@ Work with multiple n8n instances. Workflows are automatically organized by insta
 ### Git-like Sync Workflow
 Follow a git-like pattern for synchronization: list workflows to see status, pull changes you want, edit locally, then push changes back.
 
-Use `n8nac list` to check status, `n8nac pull` to download by workflow ID, and `n8nac push <filename>` to upload from the active local sync scope.
+Use `n8nac list` to check status, `n8nac pull` to download by workflow ID, and `n8nac push <path>` to upload from the active local sync scope.
 
 ### Git Integration
 Store workflows as JSON files in Git for version control, collaboration, and deployment pipelines.

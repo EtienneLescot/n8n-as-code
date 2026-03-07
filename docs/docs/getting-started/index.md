@@ -88,7 +88,7 @@ n8nac list
 n8nac pull <workflowId>
 
 # After editing, push changes back
-n8nac push my-workflow.workflow.ts
+n8nac push workflows/instance/project/workflow.workflow.ts
 ```
 
 ## ⚙️ Configuration Files
@@ -121,7 +121,7 @@ This will:
 Send your local modifications back to n8n:
 
 - **VS Code Extension**: Use the context menu on workflow items (right-click → Push)
-- **CLI**: Use `n8nac push <filename>` command
+- **CLI**: Use `n8nac push <path>` command
 
 ### Git-like Sync Workflow
 
@@ -138,7 +138,7 @@ n8nac pull <workflowId>
 # ... make changes ...
 
 # 4. Push local changes
-n8nac push my-workflow.workflow.ts
+n8nac push workflows/instance/project/workflow.workflow.ts
 
 # 5. If a conflict is reported, resolve it
 n8nac resolve <workflowId> --mode keep-current   # keep local
@@ -201,7 +201,7 @@ your-project/
 - Use `n8nac list` to check workflow status
 - Use `n8nac list` to refresh status and identify the workflow ID you need
 - Use `n8nac pull <workflowId>` to get fresh copy
-- Use `n8nac push <filename>` to send local changes
+- Use `n8nac push <path>` to send local changes
 - Use `n8nac resolve <workflowId> --mode keep-current|keep-incoming` if a conflict is reported
 - Check network connectivity to n8n instance
 

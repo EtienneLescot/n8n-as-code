@@ -149,13 +149,15 @@ export async function activate(context: vscode.ExtensionContext) {
             statusBar.showSyncing();
             try {
                 const pushedId = await cli.push(wf.filename);
-                const workflowId = pushedId ?? wf.id;
+                const workflows = await cli.list();
+                const updatedWorkflow = workflows.find(candidate => candidate.filename === wf.filename);
+                const workflowId = updatedWorkflow?.id ?? pushedId ?? wf.id;
+
                 if (workflowId) {
-                    wf.id = workflowId;
                     WorkflowWebview.reloadIfMatching(workflowId, outputChannel);
                 }
+
                 outputChannel.appendLine(`[n8n] Push successful: ${wf.name} (${workflowId ?? 'unknown id'})`);
-                const workflows = await cli.list();
                 store.dispatch(setWorkflows(workflows));
                 enhancedTreeProvider.refresh();
                 statusBar.showSynced();

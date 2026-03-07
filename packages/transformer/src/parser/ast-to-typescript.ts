@@ -244,7 +244,8 @@ export class AstToTypeScriptGenerator {
         }
         
         if (metadata.settings && Object.keys(metadata.settings).length > 0) {
-            const settings = JSON.stringify(metadata.settings)
+            const settings = JSON.stringify(metadata.settings, null, 1)
+                .replace(/\n\s*/g, ' ') // Make it single line
                 .replace(/"([^"]+)":/g, '$1:'); // Remove quotes from keys
             parts.push(`settings: ${settings}`);
         }
