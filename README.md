@@ -4,11 +4,12 @@
 
 ### The AI Skill that gives your coding agent n8n superpowers.
 
-**GitOps · AI Skills · TypeScript Workflows · VS Code**
+**GitOps · AI Skills · TypeScript Workflows · VS Code · Claude Code**
 
 [![CI](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/ci.yml/badge.svg)](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/ci.yml)
 [![Documentation](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/docs.yml/badge.svg)](https://etiennelescot.github.io/n8n-as-code/)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/etienne-lescot.n8n-as-code?label=VS%20Code&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code)
+[![Open VSX](https://img.shields.io/open-vsx/v/etienne-lescot/n8n-as-code?label=Open%20VSX&logo=eclipseide)](https://open-vsx.org/extension/etienne-lescot/n8n-as-code)
 [![npm: cli](https://img.shields.io/npm/v/@n8n-as-code/cli?label=cli&logo=npm)](https://www.npmjs.com/package/@n8n-as-code/cli)
 [![npm: skills](https://img.shields.io/npm/v/@n8n-as-code/skills?label=skills&logo=npm)](https://www.npmjs.com/package/@n8n-as-code/skills)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -33,33 +34,50 @@ Zero external calls. Zero latency. Zero hallucination.
 
 ## ⚡ Quick Start
 
+Choose the entry point that matches how you already work.
+
 <table>
 <tr>
-<td width="50%">
+<td width="33%" valign="top">
 
-### 🎨 VS Code (visual)
+### 💻 VS Code, Cursor, Windsurf
 
-```
-1. Install extension from Marketplace
-2. Click the n8n icon
+```text
+1. Install extension
+2. Open the n8n view
 3. Enter Host + API Key
-4. Done.
+4. Start editing
 ```
 
-[📥 Install Extension](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code)
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) · [Open VSX](https://open-vsx.org/extension/etienne-lescot/n8n-as-code)
 
 </td>
-<td width="50%">
+<td width="33%" valign="top">
 
-### 🖥️ CLI (terminal)
+### ⌨️ CLI
 
-```
+```text
 1. npx n8nac init
 2. Enter Host + API Key
-3. Done.
+3. Select your project
+4. Start syncing
 ```
 
-No install needed — `npx` runs it directly.
+No install needed. Best for scripts, CI, GitOps, and explicit sync workflows.
+
+</td>
+<td width="33%" valign="top">
+
+### ✴️ Claude Code (Available soon)
+
+```text
+Marketplace
+Release
+in
+Progress
+```
+
+Natural-language workflow work in Claude Code, powered by the same `n8nac` CLI and `n8n-architect` skill.
 
 </td>
 </tr>
@@ -92,19 +110,7 @@ npx n8nac skills examples search "AI agent"  # Search 7,702 templates
 npx n8nac skills validate workflow.json   # Validate before deploying
 ```
 
-### Claude Code Plugin
-
-The CLI stays `n8nac`. The Claude-facing plugin name is **`n8n-as-code`** for clarity in plugin managers and marketplaces.
-
-```bash
-# Add the repository as a Claude plugin marketplace
-/plugin marketplace add EtienneLescot/n8n-as-code
-
-# Install the plugin from that marketplace
-/plugin install n8n-as-code@n8nac-marketplace
-```
-
-This installs the `n8n-architect` skill under the `n8n-as-code` namespace while preserving `n8nac` as the CLI alias used in examples and automation.
+Claude Code uses the same `n8nac` CLI and ships the `n8n-architect` skill through the `n8n-as-code` plugin, so natural-language workflow work and terminal automation stay aligned.
 
 ---
 
@@ -218,26 +224,28 @@ n8nac pull <id> > workflow.json && n8nac convert workflow.json --format typescri
 ## 🏗 Architecture
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                    User Interfaces                        │
-│                                                          │
-│   🖥️ CLI (n8nac)          🎨 VS Code Extension           │
-│   sync · convert · search    canvas · sidebar · push      │
-└────────────┬──────────────────────┬───────────────────────┘
-             │                      │
-┌────────────▼──────────────────────▼───────────────────────┐
-│                    Core Services                          │
-│                                                          │
-│   🔀 Sync Engine          📝 Transformer                  │
-│   3-way merge · conflicts    JSON ↔ TypeScript            │
-└────────────┬──────────────────────────────────────────────┘
-             │
-┌────────────▼──────────────────────────────────────────────┐
-│                    🧠 AI Skills Layer                      │
-│                                                          │
-│   537 nodes · 10,209 properties · 1,243 docs · 7,702 wf  │
-│   FlexSearch (~5ms) · Schema validation · Node info       │
-└───────────────────────────────────────────────────────────┘
++----------------------------------------------------------+
+|                    User Interfaces                       |
+|                                                          |
+|  [CLI (n8nac)]           [VS Code Extension]             |
+|  sync / convert / search canvas / sidebar / push         |
++-----------+----------------------+-----------------------+
+            |                      |
+            v                      v
++-----------+----------------------+-----------------------+
+|                     Core Services                        |
+|                                                          |
+|  [Sync Engine]           [Transformer]                   |
+|  3-way merge / conflicts JSON <-> TypeScript             |
++---------------------------+------------------------------+
+                            |
+                            v
++----------------------------------------------------------+
+|                     AI Skills Layer                      |
+|                                                          |
+|  537 nodes / 10,209 properties / 1,243 docs / 7,702 wf   |
+|  FlexSearch (~5ms) / Schema validation / Node info       |
++----------------------------------------------------------+
 ```
 
 ---
