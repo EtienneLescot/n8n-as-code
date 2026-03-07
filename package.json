@@ -18,6 +18,8 @@
     "extension:install": "node scripts/build-and-install.js",
     "extension:dev": "node scripts/setup-dev-link.js",
     "test": "node scripts/unified-test-report.mjs",
+    "test:verbose": "node scripts/unified-test-report.mjs --verbose",
+    "test:integration": "npm run test:integration --workspace=n8nac",
     "test:ci-local": "node scripts/test-ci-local.js",
     "validate-schema": "node scripts/validate-schema.js --schema ./packages/cli/src/core/assets/n8n-nodes-index.json",
     "generate:nodes": "node scripts/ensure-n8n-cache.cjs && node scripts/generate-n8n-index.cjs && node scripts/download-complete-docs.cjs && node scripts/build-complete-index.cjs && node scripts/enrich-nodes-technical.cjs && node scripts/build-knowledge-index.cjs && node scripts/build-workflow-index.cjs && node scripts/compare-extraction.mjs",

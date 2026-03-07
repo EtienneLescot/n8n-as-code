@@ -1,172 +1,53 @@
-# <img src="https://raw.githubusercontent.com/EtienneLescot/n8n-as-code/main/res/logo.png" alt="n8n-as-code logo" width="32" height="32"> CLI Test Suite
+# CLI Test Suite
 
-Comprehensive test suite for the n8n-as-code CLI package using **Vitest**.
+Vitest coverage for the git-like CLI sync model.
 
-## 🎯 Test Coverage
+## Test Sets
 
-### ✅ Integration Tests (4 files, ~40+ tests)
+`npm test`
 
-#### 1. `integration/pull-refreshstate.test.ts` (3 tests)
-Tests the **Sync bug workaround**: Pull/Push commands must call `refreshState()` before sync operations.
+- Fast local suite.
+- Runs unit tests, scenario tests, and lightweight mocked sync tests.
+- Does not require any live n8n instance.
 
-- ✅ Verifies refreshState is called before syncDown
-- ✅ Verifies refreshState is called before syncUp  
-- ✅ Tests force pull behavior
+`npm run test:integration`
 
-#### 2. `integration/restore-deleted-file.test.ts` (4 tests)
-Tests the **restore workaround**: Using `resolveConflict()` instead of `restoreLocalFile()` for manually deleted files.
+- Live integration suite against a real n8n instance.
+- Loads `.env.test` automatically when present.
+- Intended to validate the git-like flows before shipping: create, push, pull, conflict detection, conflict resolution, and deletion/recreation scenarios.
 
-- ✅ Uses resolveConflict instead of restoreLocalFile
-- ✅ Handles files not in archive
-- ✅ Restores multiple files
-- ✅ Handles errors gracefully
+`npm run test:all`
 
-#### 3. `integration/delete-with-backup.test.ts` (5 tests)
-Tests the **backup guarantee**: Ensuring files are backed up before deletion on n8n.
+- Runs every CLI Vitest file, including the live integration suite.
 
-- ✅ Ensures file is in archive before deletion
-- ✅ Moves file to archive during watch deletion
-- ✅ Handles manual deletion without archive
-- ✅ Prevents n8n deletion if backup fails
-- ✅ Preserves backup after deletion
+## Live Integration Setup
 
-#### 4. `scenarios/sync-scenarios.test.ts` (24+ tests)
-End-to-end synchronization scenarios covering all workflow states.
+Create a `.env.test` file either at the repository root or in `packages/cli/`.
 
-**Covered scenarios:**
-- Initial Sync (2 tests)
-- Conflict Resolution (3 tests)
-- Status Detection (via `list`, which returns lightweight statuses):
-  - TRACKED
-  - EXIST_ONLY_LOCALLY
-  - EXIST_ONLY_REMOTELY
-  - CONFLICT
-  > Note: `MODIFIED_LOCALLY` is only returned by `getSingleWorkflowDetailedStatus()` (used internally by `pull`/`push`), not by the `list` command.
-- Bidirectional Sync (3 tests)
-- Error Handling (2 tests)
-- Performance (1 test)
+Required variables:
 
-### ✅ Unit Tests (2 files, ~15+ tests)
-
-#### 5. `unit/config-service.test.ts` (~12 tests)
-Tests for configuration management (local config, API keys, instance identifiers).
-
-- ✅ getLocalConfig (3 tests)
-- ✅ saveLocalConfig (1 test)
-- ✅ getApiKey (4 tests)
-- ✅ saveApiKey (3 tests)
-- ✅ hasConfig (3 tests)
-- ✅ getOrCreateInstanceIdentifier (2 tests)
-- ✅ getInstanceConfigPath (1 test)
-
-#### 6. `unit/cli-helpers.test.ts` (~5 tests)
-Tests for CLI utility functions (diff display, log buffering).
-
-- ✅ showDiff (3 tests)
-- ✅ flushLogBuffer (3 tests)
-
-## 🛠 Test Infrastructure
-
-### Helpers (`helpers/test-helpers.ts`)
-Provides mock implementations for testing:
-
-- **MockN8nApiClient**: Mocks Sync's N8nApiClient
-- **MockSyncManager**: Mocks Sync's SyncManager
-- **MockConfigService**: Mocks ConfigService
-- **createMockWorkflow()**: Factory for test workflows
-- **mockInquirerPrompt()**: Mocks user prompts
-- **suppressConsole()**: Suppresses console output during tests
-
-### Fixtures
-- `fixtures/sample-workflow.json`: Sample workflow for testing
-- `fixtures/sample-config.json`: Sample config for testing
-
-## Running Tests
-
-### Install dependencies
 ```bash
-cd packages/cli
-npm install
+N8N_HOST=https://your-instance.app.n8n.cloud
+N8N_API_KEY=your-api-key
 ```
 
-### Run all tests
+Optional variables:
+
 ```bash
-npm test
+# none
 ```
 
-### Run tests in watch mode
-```bash
-npm run test:watch
-```
+The live suite intentionally stays agnostic about project naming and automatically selects the default personal project, matching the non-interactive init behavior.
 
-### Run tests with coverage
-```bash
-npm run test:coverage
-```
+## CI
 
-### Run specific test file
-```bash
-npx vitest run tests/integration/pull-refreshstate.test.ts
-```
+The GitHub Actions workflow runs the live suite only when these secrets are defined:
 
-### Run tests matching pattern
-```bash
-npx vitest run -t "pull"
-```
+- environment variable `N8N_HOST`
+- secret `N8N_API_KEY`
 
-## 📊 Expected Results
+## Current Coverage
 
-All tests should pass:
-- **Total**: ~60+ tests
-- **Integration**: ~40 tests
-- **Unit**: ~20 tests
-
-## 🔧 Technology Stack
-
-- **Test Framework**: Vitest (v1.1.0)
-- **Mocking**: Vitest built-in mocking (vi.fn, vi.mock, vi.spyOn)
-- **Coverage**: @vitest/coverage-v8
-
-## ✨ Key Improvements Over Jest
-
-Vitest was chosen over Jest because:
-1. ✅ **Native ESM support** - Works with modern ESM packages (chalk, conf, inquirer)
-2. ✅ **Faster execution** - Uses Vite's transformation pipeline
-3. ✅ **Better DX** - Hot module replacement for tests
-4. ✅ **Compatible API** - Similar to Jest, easy migration
-
-## 🐛 Tests Cover These Critical Bugs
-
-### Bug 1: syncDown/syncUp don't refresh state
-**Workaround**: Call `refreshState()` before `syncDown()` and `syncUp()`
-**Tested in**: `pull-refreshstate.test.ts`
-
-### Bug 2: restoreLocalFile fails for manually deleted files
-**Workaround**: Use `resolveConflict(id, filename, 'remote')` instead
-**Tested in**: `restore-deleted-file.test.ts`
-
-### Bug 3: deleteRemoteWorkflow requires file in archive
-**Workaround**: Ensure backup exists before deletion
-**Tested in**: `delete-with-backup.test.ts`
-
-## 📝 Test Status
-
-✅ **All tests implemented and ready to run**
-
-The tests were recreated from a previous session where 37 tests were passing. The current implementation uses Vitest instead of Jest to resolve ESM compatibility issues.
-
-## 🔍 Next Steps
-
-To extend test coverage:
-1. Add tests for `BaseCommand`
-2. Add tests for `InitCommand`
-3. Add tests for `ListCommand`
-4. Add tests for `StartCommand`
-5. Add more edge case scenarios
-6. Aim for >80% code coverage
-
-## 📚 References
-
-- [Vitest Documentation](https://vitest.dev/)
-- [n8n-as-code Sync API](../../../packages/sync/README.md)
-- [CLI Specification](../../../SPECS/REFACTO_CLI.md)
+- Unit behavior around config and sync-manager contracts.
+- Mocked sync scenarios for listing, pull/push orchestration, and conflict handling.
+- Live sync scenarios for the real git-like engine against an actual n8n backend.

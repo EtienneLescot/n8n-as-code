@@ -13,7 +13,8 @@ const testSuites = [
     { section: 'Unit Tests', name: 'transformer', pkg: '@n8n-as-code/transformer', cmd: 'npm', args: ['test', '--workspace=@n8n-as-code/transformer'] },
     { section: 'Unit Tests', name: 'skills', pkg: '@n8n-as-code/skills', cmd: 'npm', args: ['test', '--workspace=@n8n-as-code/skills', '--', '--ci', '--reporters', 'default'] },
     { section: 'Unit Tests', name: 'cli', pkg: 'n8nac', cmd: 'npm', args: ['test', '--workspace=n8nac'] },
-    { section: 'Unit Tests', name: 'vscode-unit', pkg: 'n8n-as-code', cmd: 'npm', args: ['run', 'test', '--workspace=packages/vscode-extension'] }
+    { section: 'Unit Tests', name: 'vscode-unit', pkg: 'n8n-as-code', cmd: 'npm', args: ['run', 'test', '--workspace=packages/vscode-extension'] },
+    { section: 'Integration Tests', name: 'cli-live', pkg: 'n8nac', cmd: 'npm', args: ['run', 'test:integration', '--workspace=n8nac'] }
 ];
 
 const results = [];
@@ -51,9 +52,20 @@ async function runTest(suite) {
 
             let status = chalk.green('PASS');
             let passed = '0', failed = '0';
+            let scenarios = [];
+
+            const scenarioMatches = [...output.matchAll(/^SCENARIO_(PASS|FAIL):(.+)$/gm)];
+            if (scenarioMatches.length > 0) {
+                scenarios = scenarioMatches.map((match) => ({
+                    status: match[1],
+                    name: match[2].trim()
+                }));
+                passed = scenarios.filter((scenario) => scenario.status === 'PASS').length.toString();
+                failed = scenarios.filter((scenario) => scenario.status === 'FAIL').length.toString();
+            }
 
             // Parse counts (even if it failed, we want the stats if available)
-            if (suite.name === 'transformer' || suite.name === 'skills' || suite.name === 'cli') {
+            if (scenarioMatches.length === 0 && (suite.name === 'transformer' || suite.name === 'skills' || suite.name === 'cli')) {
                 // Support both Vitest and Jest formats:
                 // Vitest: "Tests  53 passed (53)"
                 // Jest: "Tests:       29 passed, 29 total"
@@ -70,7 +82,7 @@ async function runTest(suite) {
                 }
                 const failMatch = output.match(/Tests:?\s+(\d+)\s+failed/i);
                 if (failMatch) failed = failMatch[1];
-            } else {
+            } else if (scenarioMatches.length === 0) {
                 const passMatch = output.match(/pass\s+(\d+)/i);
                 if (passMatch) passed = passMatch[1];
                 const failMatch = output.match(/fail\s+(\d+)/i);
@@ -92,7 +104,7 @@ async function runTest(suite) {
                 process.stdout.write(`${displayStatus} (${duration})\n`);
             }
 
-            resolve({ ...suite, status, passed, failed, duration, output, code });
+            resolve({ ...suite, status, passed, failed, duration, output, code, scenarios });
         });
     });
 }
@@ -121,6 +133,18 @@ async function runTest(suite) {
     }
 
     console.log(''.padEnd(60, '─') + '\n');
+
+    const suitesWithScenarios = results.filter(r => Array.isArray(r.scenarios) && r.scenarios.length > 0);
+    if (suitesWithScenarios.length > 0) {
+        console.log(chalk.blue.bold('Scenario Highlights'));
+        for (const suite of suitesWithScenarios) {
+            const scenarioSummary = suite.scenarios
+                .map((scenario) => `${scenario.status === 'PASS' ? 'PASS' : 'FAIL'} ${scenario.name}`)
+                .join(' | ');
+            console.log(`- ${suite.name}: ${scenarioSummary}`);
+        }
+        console.log('');
+    }
 
     const failedSuites = results.filter(r => r.code !== 0 && !r.status.includes('OFFLINE'));
 

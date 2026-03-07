@@ -54,6 +54,11 @@ const steps = [
     name: 'Run tests',
     command: 'npm test',
     optional: false
+  },
+  {
+    name: 'Run live integration tests',
+    command: 'npm run test:integration',
+    optional: true
   }
 ];
 

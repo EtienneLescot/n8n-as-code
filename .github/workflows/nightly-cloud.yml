@@ -1,15 +1,14 @@
-name: CI
+name: Nightly Cloud Regression
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 jobs:
-  build-and-test:
+  nightly-live-tests:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'next' }}
+    environment: next
     env:
       N8N_HOST: ${{ vars.N8N_HOST }}
       N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
@@ -21,7 +20,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          # cache: 'npm' removed because package-lock.json is gitignored
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -42,6 +40,6 @@ jobs:
       - name: Build all packages
         run: npm run build
 
-      - name: Run tests
+      - name: Run root test report
+        if: env.N8N_HOST != '' && env.N8N_API_KEY != ''
         run: npm test
-
