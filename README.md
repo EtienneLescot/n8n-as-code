@@ -62,6 +62,40 @@ pnpm run watch
 
 > **Note**: The n8n node cache build may fail on the Kafka node due to a known issue in n8n@2.5.0. This does not affect the main build or tests — the pre-built cache is still usable. If you need to work with Kafka nodes, please file an issue or check the [n8n repository](https://github.com/n8n-io/n8n) for updates.
 
+### VSCode Workspace
+
+Open the workspace for a better development experience with pre-configured debug configs and tasks:
+
+```bash
+code n8n-as-code.code-workspace
+```
+
+**Available Debug Configurations:**
+- Debug CLI - Run the CLI with breakpoints
+- Debug Tests (Transformer, CLI, Skills) - Debug individual test suites
+- Debug Extension - Debug the VSCode extension
+- Debug All Tests - Run all tests with debugging
+
+**Available Tasks:**
+- `pnpm: build` - Build all packages (Ctrl+Shift+B)
+- `pnpm: test` - Run all tests
+- `pnpm: clean` - Clean build artifacts
+- `pnpm: watch` - Watch mode for development
+
+### Useful Commands
+
+```bash
+# Development workflow
+pnpm run watch              # Watch mode for all packages
+pnpm build:cli              # Build only CLI
+pnpm build:extension        # Build only VSCode extension
+pnpm test:coverage          # Run tests with coverage
+
+# Workspace management
+pnpm clean                  # Clean all build artifacts
+pnpm check-versions         # Verify version consistency
+```
+
 ---
 
 ## ⚡ Quick Start
