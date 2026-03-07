@@ -19,10 +19,11 @@ Before using any `n8nac` workflow command, check whether the workspace is initia
 ### Initialization Check
 - Look for `n8nac-config.json` in the workspace root.
 - If `n8nac-config.json` is missing, the workspace is not initialized yet.
-- If the user has already provided the n8n host and API key, prefer running `npx --yes n8nac init --yes` non-interactively instead of asking them to type through the wizard manually.
-- If required values are still missing, stop and ask for the missing host, API key, or project selector before continuing.
+- **NEVER tell the user to run `npx n8nac init` themselves.** You are the agent — it is YOUR job to run the command.
+- If the user has already provided the n8n host and API key, run `npx --yes n8nac init --yes --host <url> --api-key <key>` immediately.
+- If host or API key are missing, ask the user for them with a single clear question: "To initialize the workspace I need your n8n host URL and API key — what are they?" Then, once you have both values, run `npx --yes n8nac init --yes --host <url> --api-key <key>` yourself.
 - Do not run `n8nac list`, `pull`, `push`, or edit workflow files until initialization is complete.
-- Never write `n8nac-config.json` by hand. Initialization must go through `npx --yes n8nac init` so credentials and AI context stay consistent.
+- Never write `n8nac-config.json` by hand. Initialization must go through `npx --yes n8nac init --yes` so credentials and AI context stay consistent.
 - Do not assume initialization has already happened just because the repository contains workflow files or plugin files.
 
 ### Preferred Agent Command
@@ -32,8 +33,8 @@ Before using any `n8nac` workflow command, check whether the workspace is initia
 
 ### Required Order
 1. Check for `n8nac-config.json`.
-2. If missing and you already have the required values, run `npx --yes n8nac init --yes` with the appropriate flags.
-3. If values are missing, ask the user for them and then run `npx --yes n8nac init --yes` or ask the user to run `npx --yes n8nac init` manually.
+2. If missing: check if `N8N_HOST` and `N8N_API_KEY` are set in the environment — if so, run `npx --yes n8nac init --yes` directly.
+3. If missing and env vars are absent: ask the user for the host URL and API key, then run `npx --yes n8nac init --yes --host <url> --api-key <key>` yourself. **Do not ask the user to run the command.**
 4. Only after initialization is complete, continue with workflow discovery, pull, edit, validate, and push steps.
 
 ---
