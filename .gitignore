@@ -27,6 +27,7 @@ pids
 
 # npm
 package-lock.json
+pnpm-lock.yaml
 
 # OS generated files
 .DS_Store

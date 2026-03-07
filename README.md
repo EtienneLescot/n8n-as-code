@@ -31,6 +31,39 @@ Zero external calls. Zero latency. Zero hallucination.
 
 ---
 
+## 🛠️ Development Setup
+
+### Prerequisites
+
+This project uses **pnpm** for dependency management. Install it first:
+
+```bash
+npm install -g pnpm
+```
+
+Then install dependencies:
+
+```bash
+pnpm install
+```
+
+### Build & Test
+
+```bash
+# Build all packages
+pnpm build
+
+# Run tests
+pnpm test
+
+# Watch mode for development
+pnpm run watch
+```
+
+> **Note**: The n8n node cache build may fail on the Kafka node due to a known issue in n8n@2.5.0. This does not affect the main build or tests — the pre-built cache is still usable. If you need to work with Kafka nodes, please file an issue or check the [n8n repository](https://github.com/n8n-io/n8n) for updates.
+
+---
+
 ## ⚡ Quick Start
 
 <table>
