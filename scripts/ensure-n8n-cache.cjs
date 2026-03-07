@@ -5,7 +5,7 @@ const { execSync } = require('child_process');
 const ROOT_DIR = path.resolve(__dirname, '..');
 const CACHE_DIR = path.resolve(ROOT_DIR, '.n8n-cache');
 const N8N_REPO_URL = 'https://github.com/n8n-io/n8n.git';
-const N8N_STABLE_TAG = 'n8n@2.6.0'; // Latest stable with Kafka node properly included
+const N8N_STABLE_TAG = 'n8n@2.4.4'; // Stable version with comprehensive node support
 
 function run(command, cwd = ROOT_DIR, allowFailure = false) {
     console.log(`> ${command}`);

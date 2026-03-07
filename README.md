@@ -60,7 +60,7 @@ pnpm test
 pnpm run watch
 ```
 
-> **Note**: The n8n node cache build may fail on the Kafka node due to a known issue in n8n@2.5.0. This does not affect the main build or tests — the pre-built cache is still usable. If you need to work with Kafka nodes, please file an issue or check the [n8n repository](https://github.com/n8n-io/n8n) for updates.
+> **Note**: The n8n node cache build may fail on the Kafka node due to a known issue in n8n. This does not affect the main build or tests — the pre-built cache is still usable. If you need to work with Kafka nodes, please check the [n8n repository](https://github.com/n8n-io/n8n) for updates.
 
 ### VSCode Workspace
 
