@@ -124,16 +124,12 @@ jobs:
       - name: Normalize VS Code pre-release version (next only)
         if: github.ref == 'refs/heads/next'
         run: |
-          # VS Code convention: even minor = stable, odd minor = pre-release.
-          # Use (stable_minor + 1) as pre-release minor, and github.run_number as patch
-          # so every CI run gets a unique, monotonically increasing version.
-          # (git rev-list --count is unreliable in shallow clones)
+          # Publish next builds as proper semver pre-releases of the upcoming stable.
+          # Example: 0.18.0 -> 0.18.0-next.123
+          # This keeps preview builds below the eventual stable release while still
+          # giving each CI run a unique, monotonically increasing suffix.
           BASE=$(node -p "require('./packages/vscode-extension/package.json').version.replace(/-next.*$/, '')")
-          MAJOR=$(echo "$BASE" | cut -d. -f1)
-          STABLE_MINOR=$(echo "$BASE" | cut -d. -f2)
-          PRE_MINOR=$(( STABLE_MINOR + 1 ))
-          PATCH=${{ github.run_number }}
-          npm version "$MAJOR.$PRE_MINOR.$PATCH" --no-git-tag-version --workspace=n8n-as-code
+          npm version "$BASE-next.${{ github.run_number }}" --no-git-tag-version --workspace=n8n-as-code
 
       - name: Build all packages
         run: npm run build
