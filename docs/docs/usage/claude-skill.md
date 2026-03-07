@@ -84,7 +84,7 @@ From the monorepo root:
 npm run build:claude-plugin
 ```
 
-This builds the skills package and regenerates the committed Claude skill at `skills/n8n-architect/`, plus the distributable adapter under `packages/skills/dist/adapters/claude/n8n-architect/`.
+This builds the skills package and regenerates the distributable adapter under `packages/skills/dist/adapters/claude/n8n-architect/`, plus the committed plugin artifact under `plugins/claude/n8n-as-code/skills/n8n-architect/`.
 
 ## 🚀 Installation
 

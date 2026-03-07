@@ -6,9 +6,9 @@ on:
     paths:
       - '.claude-plugin/**'
       - 'plugins/claude/**'
-      - 'skills/**'
       - 'packages/skills/scripts/build-claude-adapter.js'
       - 'packages/skills/src/services/ai-context-generator.ts'
+      - 'packages/skills/tests/ai-context-generator.test.ts'
       - 'README.md'
       - 'package.json'
       - '.github/workflows/claude-plugin.yml'
@@ -17,9 +17,9 @@ on:
     paths:
       - '.claude-plugin/**'
       - 'plugins/claude/**'
-      - 'skills/**'
       - 'packages/skills/scripts/build-claude-adapter.js'
       - 'packages/skills/src/services/ai-context-generator.ts'
+      - 'packages/skills/tests/ai-context-generator.test.ts'
       - 'README.md'
       - 'package.json'
       - '.github/workflows/claude-plugin.yml'
@@ -117,7 +117,6 @@ jobs:
 
       - name: Verify committed skill matches generated skill
         run: |
-          cmp -s skills/n8n-architect/SKILL.md packages/skills/dist/adapters/claude/n8n-architect/SKILL.md
           cmp -s plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md packages/skills/dist/adapters/claude/n8n-architect/SKILL.md
           echo 'Committed skill matches generated skill.'
 

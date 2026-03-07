@@ -111,8 +111,8 @@ describe('AiContextGenerator', () => {
 
             const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
             expect(agentsContent).toContain('ai_tool');
-            expect(agentsContent).toContain('inspect its schema before configuring it');
-            expect(agentsContent).toContain('exact `type`, `version`, and parameter names returned by the schema');
+            expect(agentsContent).toContain('Run `npx --yes n8nac skills node-info <nodeName>` before writing parameters.');
+            expect(agentsContent).toContain('Do not assume tool parameter names or reuse stale node-specific guidance.');
         });
 
         test('getSkillContent() should include generic ai_tool guidance', () => {
@@ -131,6 +131,18 @@ describe('AiContextGenerator', () => {
             const content = generator.getSkillContent();
             expect(content).toContain('ai_tool');
             expect(content).toContain('node-info <nodeName>');
+        });
+
+        test('AGENTS.md and SKILL.md should share workspace bootstrap guidance', async () => {
+            await generator.generate(tempDir, '1.0.0');
+
+            const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
+            const skillContent = generator.getSkillContent();
+
+            expect(agentsContent).toContain('Look for `n8nac-config.json` in the workspace root.');
+            expect(skillContent).toContain('Look for `n8nac-config.json` in the workspace root.');
+            expect(agentsContent).toContain('Only after initialization is complete, continue with workflow discovery, pull, edit, validate, and push steps.');
+            expect(skillContent).toContain('Only after initialization is complete, continue with workflow discovery, pull, edit, validate, and push steps.');
         });
     });
 });
