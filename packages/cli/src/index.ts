@@ -56,11 +56,18 @@ program
     .description('N8N Sync Command Line Interface - Manage n8n workflows as code')
     .version(getVersion());
 
-// init - Interactive wizard to bootstrap the project
+// init - Interactive wizard to bootstrap the project, with optional non-interactive flags
 program.command('init')
-    .description('Interactive wizard to bootstrap the project')
-    .action(async () => {
-        await new InitCommand().run();
+    .description('Bootstrap the project (interactive by default, non-interactive with flags)')
+    .option('--host <url>', 'n8n instance URL')
+    .option('--api-key <key>', 'n8n API key (or set N8N_API_KEY)')
+    .option('--sync-folder <path>', 'Local folder for workflows')
+    .option('--project-id <id>', 'Project ID to select non-interactively')
+    .option('--project-name <name>', 'Project name to select non-interactively')
+    .option('--project-index <number>', '1-based project index to select non-interactively', (value) => parseInt(value, 10))
+    .option('--yes', 'Run non-interactively when enough information is available')
+    .action(async (options) => {
+        await new InitCommand().run(options);
     });
 
 // switch - Switch between projects

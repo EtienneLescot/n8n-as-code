@@ -21,13 +21,29 @@ npm install -g n8nac
 ## Commands
 
 ### `init`
-Interactive wizard — configure the connection to an n8n instance and pick the active project.
+Interactive wizard by default — configure the connection to an n8n instance and pick the active project.
 
 ```bash
 n8nac init
 ```
 
-Creates `n8nac.json` in the current folder and stores the API key outside the repo.
+Creates `n8nac-config.json` in the current folder and stores the API key outside the repo.
+
+For automation and AI agents, `init` also supports a non-interactive mode:
+
+```bash
+n8nac init --yes --host http://localhost:5678 --api-key "$N8N_API_KEY"
+```
+
+If multiple projects are available, pass one of the project selectors:
+
+```bash
+n8nac init --yes --host http://localhost:5678 --api-key "$N8N_API_KEY" --project-id <projectId>
+n8nac init --yes --host http://localhost:5678 --api-key "$N8N_API_KEY" --project-name "Personal"
+n8nac init --yes --host http://localhost:5678 --api-key "$N8N_API_KEY" --project-index 1
+```
+
+If no project selector is provided, `init --yes` will auto-select the only available project, or the single personal project when that choice is unambiguous. Otherwise it fails with a list of available projects.
 
 ---
 

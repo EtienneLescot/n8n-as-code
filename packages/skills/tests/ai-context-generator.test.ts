@@ -141,8 +141,10 @@ describe('AiContextGenerator', () => {
 
             expect(agentsContent).toContain('Look for `n8nac-config.json` in the workspace root.');
             expect(skillContent).toContain('Look for `n8nac-config.json` in the workspace root.');
-            expect(agentsContent).toContain('Only after initialization is complete, continue with workflow discovery, pull, edit, validate, and push steps.');
-            expect(skillContent).toContain('Only after initialization is complete, continue with workflow discovery, pull, edit, validate, and push steps.');
+            expect(agentsContent).toContain('Never write `n8nac-config.json` by hand.');
+            expect(skillContent).toContain('Never write `n8nac-config.json` by hand.');
+            expect(agentsContent).toContain('init --yes');
+            expect(skillContent).toContain('init --yes');
         });
     });
 });
