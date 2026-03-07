@@ -1,5 +1,12 @@
 # @n8n-as-code/transformer
 
+## [0.2.8](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.7...@n8n-as-code/transformer@v0.2.8) (2026-03-07)
+
+
+### Bug Fixes
+
+* **cli:** update push command to require full workflow file path ([d28ded0](https://github.com/EtienneLescot/n8n-as-code/commit/d28ded0afb5fa0f223c8bfd5ae15e9f6b64ce004))
+
 ## [0.2.7](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.6...@n8n-as-code/transformer@v0.2.7) (2026-03-07)
 
 

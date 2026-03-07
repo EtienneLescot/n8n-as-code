@@ -1,6 +1,6 @@
 {
     "name": "@n8n-as-code/skills",
-    "version": "0.16.14",
+    "version": "0.16.15",
     "description": "AI Agent skills library for n8nac (internal — use npx n8nac skills)",
     "type": "module",
     "main": "dist/index.js",
@@ -14,7 +14,7 @@
         "build:adapters": "node scripts/build-claude-adapter.js"
     },
     "dependencies": {
-        "@n8n-as-code/transformer": "0.2.7",
+        "@n8n-as-code/transformer": "0.2.8",
         "chalk": "^4.1.2",
         "commander": "^11.1.0",
         "flexsearch": "^0.8.212"

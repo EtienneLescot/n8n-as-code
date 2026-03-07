@@ -1,5 +1,26 @@
 # @n8n-as-code/cli
 
+## [0.11.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.11.1...n8nac@v0.11.2) (2026-03-07)
+
+
+### Features
+
+* **ci:** add live integration tests and update CI workflows ([f83ecf6](https://github.com/EtienneLescot/n8n-as-code/commit/f83ecf6495c1f12d6991de62f25087e65620ef38))
+* **cli:** enhance test scripts with integration testing capabilities ([f83ecf6](https://github.com/EtienneLescot/n8n-as-code/commit/f83ecf6495c1f12d6991de62f25087e65620ef38))
+
+
+### Bug Fixes
+
+* **cli:** update push command to require full workflow file path ([d28ded0](https://github.com/EtienneLescot/n8n-as-code/commit/d28ded0afb5fa0f223c8bfd5ae15e9f6b64ce004))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.14 to 0.16.15
+    * @n8n-as-code/transformer bumped from 0.2.7 to 0.2.8
+
 ## [0.11.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.11.0...n8nac@v0.11.1) (2026-03-07)
 
 

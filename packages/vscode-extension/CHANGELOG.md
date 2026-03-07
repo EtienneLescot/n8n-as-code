@@ -1,5 +1,20 @@
 # n8n-as-code
 
+## [0.16.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.16.1...n8n-as-code@v0.16.2) (2026-03-07)
+
+
+### Bug Fixes
+
+* **cli:** update push command to require full workflow file path ([d28ded0](https://github.com/EtienneLescot/n8n-as-code/commit/d28ded0afb5fa0f223c8bfd5ae15e9f6b64ce004))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.14 to 0.16.15
+    * n8nac bumped from 0.11.1 to 0.11.2
+
 ## [0.16.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.16.0...n8n-as-code@v0.16.1) (2026-03-07)
 
 
