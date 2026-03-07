@@ -1,5 +1,27 @@
 # @n8n-as-code/cli
 
+## [0.11.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.11.0...n8nac@v0.11.1) (2026-03-07)
+
+
+### Features
+
+* **cli:** add non-interactive init for agents ([9ccc8e0](https://github.com/EtienneLescot/n8n-as-code/commit/9ccc8e0941b4151432142cd95fee9dfe988286b1))
+* **cli:** push workflows by filename ([0422619](https://github.com/EtienneLescot/n8n-as-code/commit/0422619f098bcbf583a963b2d261388dfde0b626))
+
+
+### Bug Fixes
+
+* **cli:** address Claude plugin review feedback ([5fb588e](https://github.com/EtienneLescot/n8n-as-code/commit/5fb588ee988bd5b9e3f7b7cf8213d4298a974b5b))
+* **sync:** refresh local workflow mapping before push ([90e2472](https://github.com/EtienneLescot/n8n-as-code/commit/90e2472f68bd8006a86ac53296984cce32bf1c5b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.13 to 0.16.14
+    * @n8n-as-code/transformer bumped from 0.2.6 to 0.2.7
+
 ## [0.11.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.10.7...n8nac@v0.11.0) (2026-03-06)
 
 

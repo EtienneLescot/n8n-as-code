@@ -1,5 +1,25 @@
 # n8n-as-code
 
+## [0.16.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.16.0...n8n-as-code@v0.16.1) (2026-03-07)
+
+
+### Features
+
+* **cli:** push workflows by filename ([0422619](https://github.com/EtienneLescot/n8n-as-code/commit/0422619f098bcbf583a963b2d261388dfde0b626))
+
+
+### Bug Fixes
+
+* **cli:** address Claude plugin review feedback ([5fb588e](https://github.com/EtienneLescot/n8n-as-code/commit/5fb588ee988bd5b9e3f7b7cf8213d4298a974b5b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.13 to 0.16.14
+    * n8nac bumped from 0.11.0 to 0.11.1
+
 ## [0.16.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.15.7...n8n-as-code@v0.16.0) (2026-03-06)
 
 

@@ -1,5 +1,30 @@
 # @n8n-as-code/skills
 
+## [0.16.14](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.13...@n8n-as-code/skills@v0.16.14) (2026-03-07)
+
+
+### Features
+
+* **claude-plugin:** add marketplace-ready plugin packaging ([31d81bb](https://github.com/EtienneLescot/n8n-as-code/commit/31d81bb6fd99d393b6cc7f19d6f6a8e92519e884))
+* **cli:** add non-interactive init for agents ([9ccc8e0](https://github.com/EtienneLescot/n8n-as-code/commit/9ccc8e0941b4151432142cd95fee9dfe988286b1))
+* **cli:** push workflows by filename ([0422619](https://github.com/EtienneLescot/n8n-as-code/commit/0422619f098bcbf583a963b2d261388dfde0b626))
+
+
+### Bug Fixes
+
+* **claude-plugin:** agent must never ask user to run init manually ([2ef9bf0](https://github.com/EtienneLescot/n8n-as-code/commit/2ef9bf0162311d89426ef4bbed7a0d6335f12ad4))
+* **claude-plugin:** require init before workflow actions ([8ab72b3](https://github.com/EtienneLescot/n8n-as-code/commit/8ab72b32331b554561d42816f7fc049f7f40e127))
+* **claude-plugin:** ship a slim marketplace plugin root ([e24a8c6](https://github.com/EtienneLescot/n8n-as-code/commit/e24a8c6ea867accd42d3e27845fe19a6fa3e90a1))
+* **cli:** address Claude plugin review feedback ([5fb588e](https://github.com/EtienneLescot/n8n-as-code/commit/5fb588ee988bd5b9e3f7b7cf8213d4298a974b5b))
+* **skills:** add custom nodes debug diagnostics ([d5938b5](https://github.com/EtienneLescot/n8n-as-code/commit/d5938b59dcfa158263ae5e0ee80567b964b5a5fa))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/transformer bumped from 0.2.6 to 0.2.7
+
 ## [0.16.13](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.12...@n8n-as-code/skills@v0.16.13) (2026-03-06)
 
 

@@ -1,5 +1,13 @@
 # @n8n-as-code/transformer
 
+## [0.2.7](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.6...@n8n-as-code/transformer@v0.2.7) (2026-03-07)
+
+
+### Bug Fixes
+
+* align transformer tag input types ([0a4e5d0](https://github.com/EtienneLescot/n8n-as-code/commit/0a4e5d0689cefd6ddc6fe179b821401e3edb69f4))
+* preserve workflow tags in TypeScript sync ([fbf4877](https://github.com/EtienneLescot/n8n-as-code/commit/fbf487706a57dc1e92db8782c73061284f57b48f))
+
 ## [0.2.6](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.5...@n8n-as-code/transformer@v0.2.6) (2026-03-06)
 
 
