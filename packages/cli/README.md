@@ -73,25 +73,11 @@ Status values:
 |---|---|---|
 | `TRACKED`             | Workflow exists on both sides, in sync                              | Nothing to do |
 | `CONFLICT`            | Both sides changed — detected at push/pull time | `n8nac resolve <id> --mode keep-current` (keep local) or `keep-incoming` (keep remote) |
-| `EXIST_ONLY_LOCALLY`  | New local file not yet in n8n (or remote was deleted) | `n8nac push <id>` or `n8nac push --filename <file>` if brand-new |
+| `EXIST_ONLY_LOCALLY`  | New local file not yet in n8n (or remote was deleted) | `n8nac push <file>` |
 | `EXIST_ONLY_REMOTELY` | Remote workflow not yet local (or local was deleted) | `n8nac pull <workflowId>` to download |
 
-> **Git-like sync**: Status is a point-in-time observation. Use `fetch` to update remote state cache.
+> **Git-like sync**: Status is a point-in-time observation. `n8nac` refreshes the remote state it needs under the hood.
 > **For agents**: always run `n8nac list` first to get workflow IDs and their current status before pulling or pushing.
-
----
-
-### `fetch <workflowId>`
-Update remote state cache for a specific workflow (internal reference for comparison).
-
-```bash
-n8nac fetch <workflowId>          # Fetch specific workflow's remote state
-```
-
-- Updates internal comparison cache for the specified workflow only
-- Use before `list` to ensure status reflects latest remote state for that workflow
-- Required for accurate conflict detection
-- For heavy instances, fetch individual workflows rather than all at once
 
 ---
 
@@ -110,15 +96,11 @@ n8nac pull <workflowId>
 Upload a single local workflow file to n8n.
 
 ```bash
-# Existing workflow (has an ID in n8nac list)
-n8nac push <workflowId>
-
-# Brand-new local file never pushed before (no remote ID yet)
-n8nac push --filename my-workflow.workflow.ts
+n8nac push my-workflow.workflow.ts
 ```
 
-> **Which form to use?** If `n8nac list` shows a workflow with an ID, always use `push <id>`.
-> Only use `--filename` for files that have never been pushed and have no entry in `.n8n-state.json`.
+> Pass only the workflow filename. Do not pass a path. `n8nac` resolves the real local path from `n8nac-config.json` and the active sync scope.
+> The filename is the local entry point; the workflow ID remains the remote source of truth.
 
 ---
 
@@ -183,7 +165,7 @@ n8nac pull <workflowId>
 # 3. Edit the local .workflow.ts file
 
 # 4. Push it back
-n8nac push <workflowId>
+n8nac push my-workflow.workflow.ts
 ```
 
 ---

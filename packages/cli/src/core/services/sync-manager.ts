@@ -242,6 +242,10 @@ export class SyncManager extends EventEmitter {
         await this.syncEngine!.forcePull(workflowId, filename);
     }
 
+    public getWorkflowIdForFilename(filename: string): string | undefined {
+        return this.watcher?.getWorkflowIdForFilename(filename);
+    }
+
     /**
      * Explicit single-workflow push (user-triggered).
      *
@@ -250,43 +254,57 @@ export class SyncManager extends EventEmitter {
      *  2. EXIST_ONLY_LOCALLY with an ID     → CREATE on remote (POST) — e.g. remote was deleted
      *  3. Known on both sides               → UPDATE on remote (PUT, with OCC check)
      *
-     * @param workflowId - Workflow ID (pass empty string or undefined for new workflows)
-     * @param filename   - Explicit filename — required when workflowId is empty/unknown
+     * @param filename - Filename inside the active sync scope
      */
-    public async push(workflowId?: string, filename?: string): Promise<void> {
+    public async push(filename: string): Promise<string> {
         await this.ensureInitialized();
 
-        // Normalise empty string to undefined ("brand new" sentinel)
-        const effectiveId = workflowId || undefined;
+        const targetFilename = this.normalizePushFilename(filename);
+        const filePath = path.join(this.watcher!.getDirectory(), targetFilename);
 
-        // Resolve filename: use explicit parameter first, then look up via watcher
-        const targetFilename = filename || (effectiveId ? this.watcher!.getFilenameForId(effectiveId) : undefined);
-
-        if (!targetFilename) {
+        if (!fs.existsSync(filePath)) {
             throw new Error(
-                `Cannot push workflow ${effectiveId ?? '(new)'}: local file not found. ` +
+                `Cannot push workflow "${targetFilename}": local file not found in the active sync scope. ` +
                 `Run 'n8nac list' to verify the workflow exists locally.`
             );
         }
 
-        if (!effectiveId) {
-            // Case 1: brand-new workflow (no ID) — let SyncEngine create it
-            await this.syncEngine!.push(targetFilename, undefined, undefined);
-        } else {
-            // Case 2 & 3: workflow has an ID locally
-            // Ensure we know if it exists on remote (git-like sync starts with empty cache)
-            if (!this.watcher!.isRemoteKnown(effectiveId)) {
-                await this.fetch(effectiveId);
-            }
+        const effectiveId = this.watcher!.getWorkflowIdForFilename(targetFilename);
 
-            if (!this.watcher!.isRemoteKnown(effectiveId)) {
-                // Truly doesn't exist on remote → create
-                await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.EXIST_ONLY_LOCALLY);
-            } else {
-                // Known on both sides → update (with OCC check)
-                await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.TRACKED);
-            }
+        if (!effectiveId) {
+            // Case 1: brand-new workflow (no ID mapping yet) — let SyncEngine create it
+            return await this.syncEngine!.push(targetFilename, undefined, undefined);
         }
+
+        // Case 2 & 3: workflow has an ID locally
+        // Ensure we know if it exists on remote (git-like sync starts with empty cache)
+        if (!this.watcher!.isRemoteKnown(effectiveId)) {
+            await this.fetch(effectiveId);
+        }
+
+        if (!this.watcher!.isRemoteKnown(effectiveId)) {
+            // Truly doesn't exist on remote → create
+            return await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.EXIST_ONLY_LOCALLY);
+        }
+
+        // Known on both sides → update (with OCC check)
+        return await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.TRACKED);
+    }
+
+    private normalizePushFilename(filename: string): string {
+        const trimmed = filename.trim();
+        if (!trimmed) {
+            throw new Error('Missing filename. Use `n8nac push <filename.workflow.ts>`.');
+        }
+
+        if (path.isAbsolute(trimmed) || trimmed.includes('/') || trimmed.includes('\\')) {
+            throw new Error(
+                `Invalid filename "${filename}". Use only the workflow filename from the active sync scope, ` +
+                `not a path. Example: n8nac push my-workflow.workflow.ts`
+            );
+        }
+
+        return trimmed;
     }
 
     public async resolveConflict(workflowId: string, filename: string, resolution: 'local' | 'remote'): Promise<void> {

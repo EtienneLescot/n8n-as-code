@@ -70,6 +70,28 @@ program.command('init')
         await new InitCommand().run(options);
     });
 
+program.command('init-auth')
+    .description('Save n8n host/API credentials and list available projects')
+    .option('--host <url>', 'n8n instance URL')
+    .option('--api-key <key>', 'n8n API key (or set N8N_API_KEY)')
+    .option('--sync-folder <path>', 'Default local folder for workflows')
+    .action(async (options) => {
+        await new InitCommand().runAuthSetup(options);
+    });
+
+program.command('init-project')
+    .description('Select the active n8n project and local sync folder')
+    .option('--host <url>', 'n8n instance URL (optional if already saved)')
+    .option('--api-key <key>', 'n8n API key (optional if already saved)')
+    .option('--sync-folder <path>', 'Local folder for workflows')
+    .option('--project-id <id>', 'Project ID to select non-interactively')
+    .option('--project-name <name>', 'Project name to select non-interactively')
+    .option('--project-index <number>', '1-based project index to select non-interactively', (value) => parseInt(value, 10))
+    .option('--yes', 'Run non-interactively when enough information is available')
+    .action(async (options) => {
+        await new InitCommand().runProjectSetup(options);
+    });
+
 // switch - Switch between projects
 new SwitchCommand(program);
 
@@ -94,19 +116,14 @@ program.command('pull')
         await new SyncCommand().pullOne(workflowId);
     });
 
-// push - Upload a single workflow by ID, or a brand-new local file by filename
+// push - Upload a single local workflow file to n8n
 program.command('push')
     .description('Upload a single local workflow to n8n')
-    .argument('[workflowId]', 'Workflow ID to push (omit for brand-new files)')
-    .option('--filename <filename>', 'Filename to push (use only if no workflowId)')
+    .argument('<filename>', 'Workflow filename inside the active sync scope')
     .option('--verify', 'After pushing, fetch the workflow from n8n and validate it against the local schema')
-    .action(async (workflowId, options) => {
-        if (!workflowId && !options.filename) {
-            console.error(chalk.red('❌ Provide a workflow ID or --filename <name> for new files.'));
-            process.exit(1);
-        }
+    .action(async (filename, options) => {
         const cmd = new SyncCommand();
-        await cmd.pushOne(workflowId, options.filename);
+        const workflowId = await cmd.pushOne(filename);
         if (options.verify && workflowId) {
             console.log(chalk.dim('\n── Post-push verification ──────────────────────────────'));
             const ok = await cmd.verifyRemote(workflowId);

@@ -46,55 +46,43 @@ export class SyncCommand extends BaseCommand {
         }
     }
 
-    async pushOne(workflowId?: string, filename?: string): Promise<void> {
+    async pushOne(filename: string): Promise<string> {
         const syncConfig = await this.getSyncConfig();
         const syncManager = new SyncManager(this.client, syncConfig);
 
         // Populate local hash cache FIRST — required for accurate status in CLI mode
         await syncManager.refreshLocalState();
 
-        if (!workflowId) {
-            // Brand-new file: no ID yet, push directly by filename
-            const label = filename ?? '(unknown)';
-            const spinner = ora(`Pushing new workflow "${label}"...`).start();
-            try {
-                await syncManager.push(undefined, filename);
-                spinner.succeed(chalk.green(`✔ Pushed "${label}" to n8n.`));
-            } catch (e: any) {
-                spinner.fail(`Push failed: ${e.message}`);
-                process.exit(1);
-            }
-            return;
-        }
+        const workflowId = syncManager.getWorkflowIdForFilename(filename);
 
-        // Warm up the remote cache for this specific workflow
-        await syncManager.fetch(workflowId);
+        if (workflowId) {
+            await syncManager.fetch(workflowId);
 
-        // Conflict check before pushing
-        const resolvedFilename = syncManager.getFilenameForId(workflowId);
-        if (resolvedFilename) {
-            const status = await syncManager.getSingleWorkflowDetailedStatus(workflowId, resolvedFilename);
+            const status = await syncManager.getSingleWorkflowDetailedStatus(workflowId, filename);
             if (status.status === WorkflowSyncStatus.CONFLICT) {
                 console.log(chalk.red(`💥 Conflict detected for workflow ${workflowId}.`));
                 console.log(chalk.yellow(`To resolve the conflict you can either:`));
                 console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
                 console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
-                return;
+                return workflowId;
             }
         }
 
-        const spinner = ora(`Pushing workflow ${workflowId}...`).start();
+        const spinner = ora(`Pushing workflow ${filename}...`).start();
         try {
-            await syncManager.push(workflowId);
-            spinner.succeed(chalk.green(`✔ Pushed workflow ${workflowId}.`));
+            const finalWorkflowId = await syncManager.push(filename);
+            spinner.succeed(chalk.green(`✔ Pushed workflow ${filename}.`));
+            return finalWorkflowId;
         } catch (e: any) {
             if (e.message.includes('modified in the n8n UI')) {
                 spinner.stop();
                 console.log(chalk.red(`\n💥 Conflict detected: ${e.message}`));
                 console.log(chalk.yellow(`To resolve the conflict you can either:`));
-                console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
-                console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
-                return;
+                if (workflowId) {
+                    console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
+                    console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
+                    return workflowId;
+                }
             }
             spinner.fail(`Push failed: ${e.message}`);
             process.exit(1);

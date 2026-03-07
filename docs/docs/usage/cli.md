@@ -49,11 +49,7 @@ This command:
 
 ### Upload a Local Workflow to n8n
 ```bash
-# Existing workflow (has an ID in n8nac list)
-n8nac push <workflowId>
-
-# Brand-new local file never pushed before
-n8nac push --filename my-workflow.workflow.ts
+n8nac push my-workflow.workflow.ts
 ```
 
 This command:
@@ -61,9 +57,9 @@ This command:
 2. Uses Optimistic Concurrency Control — rejected if the remote was modified since last pull
 3. Suggests `n8nac resolve` if a conflict is detected
 
-:::tip Which form to use?
-If `n8nac list` shows the workflow with an ID → always use `push <id>`.
-Only use `--filename` for files that have **never been pushed** and have no entry in `.n8n-state.json`.
+:::tip How `push` resolves the file
+Pass only the workflow filename, for example `my-workflow.workflow.ts`.
+Do not pass a path. `n8nac` derives the effective local sync path from `n8nac-config.json` (`syncFolder`, `instanceIdentifier`, `projectName`) and resolves the file under the hood.
 :::
 
 ## 📋 Command Reference
@@ -150,38 +146,19 @@ Upload a local workflow to n8n.
 Uploads a single workflow from local to your n8n instance. Uses Optimistic Concurrency Control (OCC) — the push is rejected if the remote was modified since the last pull.
 
 **Options:**
-- `<workflowId>` (**required for existing workflows**): The ID of the workflow to push
-- `--filename <name>`: Push a brand-new local workflow file that has no remote ID yet
+- `<filename>` (**required**): The workflow filename inside the active sync scope
 
 **Example:**
 ```bash
-n8nac push abc123          # Push an existing workflow
-n8nac push --filename my-workflow.workflow.ts  # Push a brand-new local file
+n8nac push my-workflow.workflow.ts
 ```
 
 **Behavior:**
-1. Fetches the current remote state for the workflow
-2. Checks for conflict — if remote was modified since last sync, aborts with instructions
-3. Uploads the local workflow on success
-4. Reports the `n8nac resolve` commands to use if a conflict is detected
-
-### `fetch`
-Update the remote state cache for a specific workflow.
-
-**Description:**
-Fetches the latest remote metadata for a specific workflow without downloading the file. This is done automatically by `push` and `pull` — you rarely need to call this manually. It can be useful as a lightweight sanity check to verify a workflow still exists on remote.
-
-:::note
-`push` and `pull` both call `fetch` internally before operating. You do not need to run `fetch` manually before a push or pull.
-:::
-
-**Options:**
-- `<workflowId>` (**required**): The ID of the workflow to fetch
-
-**Example:**
-```bash
-n8nac fetch abc123
-```
+1. Resolves the effective local file path from `n8nac-config.json`
+2. Finds the tracked workflow ID for that filename when one exists
+3. Checks for conflict — if remote was modified since last sync, aborts with instructions
+4. Uploads the local workflow on success
+5. Reports the `n8nac resolve` commands to use if a conflict is detected
 
 ### `resolve`
 Force-resolve a sync conflict for a specific workflow.
@@ -369,7 +346,7 @@ if [ "$DEPLOY_TO_PROD" = "true" ]; then
   export N8N_HOST="https://prod.n8n.example.com"
   export N8N_API_KEY="$PROD_API_KEY"
   n8nac init
-  n8nac push <workflowId>
+  n8nac push my-workflow.workflow.ts
 fi
 ```
 
@@ -388,7 +365,7 @@ for workflow in workflows/*.json; do
 done
 
 # Push changes to n8n
-n8nac push <workflowId>
+n8nac push my-workflow.workflow.ts
 ```
 
 ## 🎯 Best Practices
@@ -448,14 +425,11 @@ chmod -R 755 workflows/
 # Check workflow status
 n8nac list
 
-# Fetch remote state to update cache for a specific workflow
-n8nac fetch <workflowId>
-
 # Pull a specific workflow
 n8nac pull <workflowId>
 
-# Push local changes for a specific workflow
-n8nac push <workflowId>
+# Push local changes for a specific workflow file
+n8nac push my-workflow.workflow.ts
 
 # Resolve a conflict
 n8nac resolve <workflowId> --mode keep-current
@@ -469,7 +443,7 @@ Enable debug logging for detailed output:
 DEBUG=n8n-as-code:* n8nac pull <workflowId>
 
 # Debug specific operations
-DEBUG=axios,n8n-as-code:* n8nac push <workflowId>
+DEBUG=axios,n8n-as-code:* n8nac push my-workflow.workflow.ts
 ```
 
 ## 📚 Next Steps

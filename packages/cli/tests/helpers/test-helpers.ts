@@ -115,9 +115,10 @@ export class MockSyncManager extends EventEmitter {
     }
 
     /** Mirror of SyncManager.push() */
-    async push(_workflowId: string, _filename: string): Promise<void> {
+    async push(_filename: string): Promise<string> {
         if (this.shouldFail) throw new Error('SyncManager Error');
         this.emit('log', 'Pushing workflow...');
+        return '1';
     }
 
     /** Mirror of SyncManager.fetch() */

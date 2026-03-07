@@ -97,6 +97,10 @@ export class WorkflowStateTracker extends EventEmitter {
         return this.idToFileMap.get(id);
     }
 
+    public getWorkflowIdForFilename(filename: string): string | undefined {
+        return this.fileToIdMap.get(filename);
+    }
+
     public async refreshLocalState() {
         if (!fs.existsSync(this.directory)) {
             console.log(`[DEBUG] refreshLocalState: Directory missing: ${this.directory}`);
