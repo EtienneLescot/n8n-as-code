@@ -1,0 +1,214 @@
+{
+  "folders": [
+    {
+      "path": ".",
+      "name": "n8n-as-code"
+    },
+    {
+      "path": "packages/cli",
+      "name": "cli"
+    },
+    {
+      "path": "packages/skills",
+      "name": "skills"
+    },
+    {
+      "path": "packages/transformer",
+      "name": "transformer"
+    },
+    {
+      "path": "packages/vscode-extension",
+      "name": "vscode-extension"
+    },
+    {
+      "path": "docs",
+      "name": "docs"
+    }
+  ],
+  "settings": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "[typescript]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[json]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "typescript.enablePromptUseWorkspaceTsdk": true,
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/.n8n-cache": true,
+      "**/dist": true,
+      "**/out": true
+    },
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/.n8n-cache": true,
+      "**/dist": true,
+      "**/out": true
+    }
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Debug CLI",
+        "type": "node",
+        "request": "launch",
+        "program": "${workspaceFolder:cli}/dist/index.js",
+        "restart": true,
+        "console": "integratedTerminal",
+        "internalConsoleOptions": "neverOpen",
+        "cwd": "${workspaceFolder}"
+      },
+      {
+        "name": "Debug Tests (Transformer)",
+        "type": "node",
+        "request": "launch",
+        "program": "${workspaceFolder:transformer}/node_modules/.bin/vitest",
+        "args": ["run"],
+        "console": "integratedTerminal",
+        "internalConsoleOptions": "neverOpen",
+        "cwd": "${workspaceFolder:transformer}"
+      },
+      {
+        "name": "Debug Tests (CLI)",
+        "type": "node",
+        "request": "launch",
+        "program": "${workspaceFolder:cli}/node_modules/.bin/vitest",
+        "args": ["run"],
+        "console": "integratedTerminal",
+        "internalConsoleOptions": "neverOpen",
+        "cwd": "${workspaceFolder:cli}"
+      },
+      {
+        "name": "Debug Tests (Skills)",
+        "type": "node",
+        "request": "launch",
+        "program": "node",
+        "args": [
+          "--experimental-vm-modules",
+          "node_modules/jest/bin/jest.js"
+        ],
+        "console": "integratedTerminal",
+        "internalConsoleOptions": "neverOpen",
+        "cwd": "${workspaceFolder:skills}"
+      },
+      {
+        "name": "Debug Extension",
+        "type": "extensionHost",
+        "request": "launch",
+        "args": [
+          "--extensionDevelopmentPath=${workspaceFolder:vscode-extension}"
+        ],
+        "outFiles": [
+          "${workspaceFolder:vscode-extension}/out/**/*.js"
+        ],
+        "preLaunchTask": "npm: build",
+        "presentation": {
+          "hidden": false,
+          "group": "debugging",
+          "order": 1
+        }
+      }
+    ],
+    "compounds": [
+      {
+        "name": "Debug All Tests",
+        "configurations": [
+          "Debug Tests (Transformer)",
+          "Debug Tests (CLI)",
+          "Debug Tests (Skills)"
+        ],
+        "stopOnEntry": false,
+        "preLaunchTask": "pnpm: build"
+      }
+    ]
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "pnpm: install",
+        "type": "shell",
+        "command": "pnpm",
+        "args": ["install"],
+        "problemMatcher": [],
+        "presentation": {
+          "reveal": "always",
+          "panel": "new"
+        }
+      },
+      {
+        "label": "pnpm: build",
+        "type": "shell",
+        "command": "pnpm",
+        "args": ["build"],
+        "problemMatcher": ["$tsc"],
+        "presentation": {
+          "reveal": "always",
+          "panel": "new"
+        },
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        }
+      },
+      {
+        "label": "pnpm: test",
+        "type": "shell",
+        "command": "pnpm",
+        "args": ["test"],
+        "problemMatcher": [],
+        "presentation": {
+          "reveal": "always",
+          "panel": "new"
+        },
+        "group": {
+          "kind": "test",
+          "isDefault": true
+        }
+      },
+      {
+        "label": "pnpm: clean",
+        "type": "shell",
+        "command": "pnpm",
+        "args": ["clean"],
+        "problemMatcher": [],
+        "presentation": {
+          "reveal": "always",
+          "panel": "new"
+        }
+      },
+      {
+        "label": "pnpm: watch",
+        "type": "shell",
+        "command": "pnpm",
+        "args": ["run", "watch"],
+        "isBackground": true,
+        "problemMatcher": {
+          "pattern": "$tsc",
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "^.*",
+            "endsPattern": "^.*"
+          }
+        },
+        "presentation": {
+          "reveal": "always",
+          "panel": "new"
+        }
+      }
+    ]
+  },
+  "extensions": {
+    "recommendations": [
+      "esbenp.prettier-vscode",
+      "dbaeumer.vscode-eslint",
+      "ms-vscode.vscode-typescript-next",
+      "orta.vscode-jest",
+      "vitest.explorer"
+    ]
+  }
+}
