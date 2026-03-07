@@ -84,14 +84,11 @@ The interactive wizard will guide you through:
 # List workflows to see current status
 n8nac list
 
-# Fetch remote state for a specific workflow
-n8nac fetch <workflowId>
-
 # Pull that workflow locally
 n8nac pull <workflowId>
 
 # After editing, push changes back
-n8nac push <workflowId>
+n8nac push my-workflow.workflow.ts
 ```
 
 ## ⚙️ Configuration Files
@@ -124,7 +121,7 @@ This will:
 Send your local modifications back to n8n:
 
 - **VS Code Extension**: Use the context menu on workflow items (right-click → Push)
-- **CLI**: Use `n8nac push <workflowId>` command
+- **CLI**: Use `n8nac push <filename>` command
 
 ### Git-like Sync Workflow
 
@@ -134,24 +131,21 @@ Follow this git-like pattern for synchronization:
 # 1. Check status
 n8nac list
 
-# 2. Fetch remote state for specific workflows
-n8nac fetch <workflowId>
-
-# 3. Pull remote changes
+# 2. Pull remote changes
 n8nac pull <workflowId>
 
-# 4. Edit workflow locally
+# 3. Edit workflow locally
 # ... make changes ...
 
-# 5. Push local changes
-n8nac push <workflowId>
+# 4. Push local changes
+n8nac push my-workflow.workflow.ts
 
-# 6. If a conflict is reported, resolve it
+# 5. If a conflict is reported, resolve it
 n8nac resolve <workflowId> --mode keep-current   # keep local
 n8nac resolve <workflowId> --mode keep-incoming  # keep remote
 ```
 
-This explicit command pattern gives you full control over when to sync, similar to git workflow. For heavy instances, fetch individual workflows rather than all at once.
+This explicit command pattern gives you full control over when to sync, similar to git workflow. `pull` always starts from a remote workflow ID, while `push` always starts from a local filename in the active sync scope.
 
 ## 🎨 VS Code Extension Features
 
@@ -205,9 +199,9 @@ your-project/
 **Problem**: Changes not syncing properly
 **Solution**:
 - Use `n8nac list` to check workflow status
-- Use `n8nac fetch <workflowId>` to update remote state cache for specific workflows
+- Use `n8nac list` to refresh status and identify the workflow ID you need
 - Use `n8nac pull <workflowId>` to get fresh copy
-- Use `n8nac push <workflowId>` to send local changes
+- Use `n8nac push <filename>` to send local changes
 - Use `n8nac resolve <workflowId> --mode keep-current|keep-incoming` if a conflict is reported
 - Check network connectivity to n8n instance
 

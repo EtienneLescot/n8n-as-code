@@ -141,7 +141,7 @@ cat n8nac-config.json
    n8nac pull <workflowId>
    
    # Or push:
-   n8nac push <workflowId>
+   n8nac push my-workflow.workflow.ts
    ```
 
 3. **Check File Permissions:**
@@ -210,7 +210,7 @@ cat n8nac-config.json
 **Solutions:**
 1. **Fetch then pull the updated workflow:**
    ```bash
-   n8nac fetch <workflowId>
+   n8nac list
    n8nac pull <workflowId>
    ```
 
@@ -413,7 +413,7 @@ n8nac pull <workflowId>  # Pull the specific workflow
 
 3. **Work Incrementally:**
    - Fetch and pull only the specific workflows you need
-   - Use `n8nac fetch <workflowId>` to update cache for individual workflows
+   - Use `n8nac list` to refresh status and discover the tracked workflow ID
    - Use `n8nac pull <workflowId>` to pull only what you need
 
 ### High Memory Usage
@@ -462,7 +462,7 @@ n8nac pull <workflowId>
 # 1. Check if it exists in n8n UI
 # 2. If deleted from n8n, restore from backup
 # 3. If local copy exists, push it back
-n8nac push <workflowId>
+n8nac push my-workflow.workflow.ts
 ```
 
 ---

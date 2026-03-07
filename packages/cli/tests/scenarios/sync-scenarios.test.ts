@@ -143,7 +143,7 @@ describe('Synchronization Scenarios', () => {
             ]);
 
             const pushSpy = vi.spyOn(mockSyncManager, 'push');
-            await mockSyncManager.push('1', 'workflow.workflow.ts');
+            await mockSyncManager.push('workflow.workflow.ts');
 
             expect(pushSpy).toHaveBeenCalledOnce();
         });

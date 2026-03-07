@@ -137,7 +137,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
-        // n8nac push <id>
+        // n8nac push <filename>
         vscode.commands.registerCommand('n8n.pushWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
                 vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
@@ -148,9 +148,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
             statusBar.showSyncing();
             try {
-                // Pass wf.filename so SyncManager can handle both new (no-ID) and existing workflows.
-                // IDs are the canonical identifier — names are NOT unique in n8n.
-                await cli.push(wf.id, wf.filename);
+                await cli.push(wf.filename);
                 if (wf.id) WorkflowWebview.reloadIfMatching(wf.id, outputChannel);
                 outputChannel.appendLine(`[n8n] Push successful: ${wf.name} (${wf.id})`);
                 const workflows = await cli.list();

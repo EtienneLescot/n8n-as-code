@@ -3,9 +3,9 @@
  *
  * Provides a named API surface that mirrors exactly the CLI commands:
  *   n8nac list               → CliApi.list()
- *   n8nac fetch <id> → CliApi.fetch()
- *   n8nac pull <id>  → CliApi.pull()
- *   n8nac push <id>  → CliApi.push()
+ *   n8nac fetch <id>       → CliApi.fetch()
+ *   n8nac pull <id>        → CliApi.pull()
+ *   n8nac push <filename>  → CliApi.push()
  *
  * This is the single contract that must be used by all VSCode extension
  * command handlers. It ensures there is zero code duplication between the
@@ -77,7 +77,7 @@ export class CliApi {
     // ── push ──────────────────────────────────────────────────────────────────
 
     /**
-     * Mirrors `n8nac push <id>`
+     * Mirrors `n8nac push <filename>`
      *
      * Uploads the local `.workflow.ts` file to n8n.
      * Automatically handles three cases:
@@ -85,11 +85,10 @@ export class CliApi {
      *  • Local-only with ID (remote deleted) → re-creates on remote
      *  • Both sides exist                    → updates remote (with OCC check)
      *
-     * @param workflowId - Pass empty string for brand-new workflows (no remote ID yet)
-     * @param filename   - Required when workflowId is empty; optional otherwise
+     * @param filename - Workflow filename inside the active sync scope
      */
-    async push(workflowId: string, filename?: string): Promise<void> {
-        return this.syncManager.push(workflowId || undefined, filename);
+    async push(filename: string): Promise<string> {
+        return this.syncManager.push(filename);
     }
 
     // ── conflict resolution (extension-only, no CLI equivalent) ──────────────

@@ -135,9 +135,8 @@ Claude Code uses the same `n8nac` CLI and ships the `n8n-architect` skill throug
 ```bash
 npx n8nac init                              # Connect your n8n instance
 npx n8nac list                              # See sync status at a glance
-npx n8nac fetch --all                       # Refresh remote state
 npx n8nac pull <id>                         # Pull remote → local
-npx n8nac push <id>                         # Push local → remote
+npx n8nac push my-workflow.workflow.ts      # Push local → remote
 npx n8nac resolve <id> --mode keep-current  # Explicit conflict resolution
 ```
 

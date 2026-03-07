@@ -87,6 +87,24 @@ export class ConfigService {
     }
 
     /**
+     * Save partial bootstrap state before a project is selected.
+     * This intentionally resets project-specific fields when auth changes.
+     */
+    saveBootstrapState(host: string, syncFolder = 'workflows'): void {
+        const current = this.getLocalConfig();
+        const bootstrapState: Partial<ILocalConfig> = {
+            host,
+            syncFolder,
+        };
+
+        if (current.customNodesPath) {
+            bootstrapState.customNodesPath = current.customNodesPath;
+        }
+
+        fs.writeFileSync(this.localConfigPath, JSON.stringify(bootstrapState, null, 2));
+    }
+
+    /**
      * Get API key for a specific host from the global store
      */
     getApiKey(host: string): string | undefined {

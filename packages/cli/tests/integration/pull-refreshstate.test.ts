@@ -34,10 +34,10 @@ describe('Pull with refreshState', () => {
         const pushSpy = vi.spyOn(mockSyncManager, 'push');
 
         await mockSyncManager.refreshRemoteState();
-        await mockSyncManager.push('1', 'test.workflow.ts');
+        await mockSyncManager.push('test.workflow.ts');
 
         expect(refreshRemoteStateSpy).toHaveBeenCalled();
-        expect(pushSpy).toHaveBeenCalledWith('1', 'test.workflow.ts');
+        expect(pushSpy).toHaveBeenCalledWith('test.workflow.ts');
     });
 
     it('should handle force pull correctly', async () => {

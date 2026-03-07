@@ -41,6 +41,154 @@ export class InitCommand {
         await this.runInteractive(currentLocal, currentApiKey);
     }
 
+    async runAuthSetup(options: InitCommandOptions = {}): Promise<void> {
+        console.log(chalk.cyan('\n🔐 n8n-as-code authentication setup'));
+        console.log(chalk.gray('This step stores your n8n host and API key, then lists available projects.\n'));
+
+        const currentLocal = this.configService.getLocalConfig();
+        const currentApiKey = currentLocal.host ? this.configService.getApiKey(currentLocal.host) : '';
+        const resolvedOptions = this.resolveOptions(options, currentLocal, currentApiKey);
+
+        if (!resolvedOptions.host) {
+            console.error(chalk.red('❌ Missing n8n host. Pass --host <url> or set N8N_HOST.'));
+            return;
+        }
+
+        const hostValidation = this.validateHost(resolvedOptions.host);
+        if (hostValidation !== true) {
+            console.error(chalk.red(`❌ ${hostValidation}`));
+            return;
+        }
+
+        if (!resolvedOptions.apiKey) {
+            console.error(chalk.red('❌ Missing n8n API key. Pass --api-key <key> or set N8N_API_KEY.'));
+            return;
+        }
+
+        const spinner = ora('Testing connection to n8n...').start();
+
+        try {
+            const client = new N8nApiClient({
+                host: resolvedOptions.host,
+                apiKey: resolvedOptions.apiKey,
+            });
+
+            const isConnected = await client.testConnection();
+            if (!isConnected) {
+                spinner.fail(chalk.red('Failed to connect to n8n. Please check your URL and API Key.'));
+                return;
+            }
+
+            spinner.succeed(chalk.green('Successfully connected to n8n!'));
+
+            spinner.start('Fetching available projects...');
+            const projects = await client.getProjects();
+            spinner.succeed(chalk.green(`Found ${projects.length} project(s)`));
+
+            if (projects.length === 0) {
+                console.log(chalk.yellow('No projects found yet. Create a project in n8n, then run n8nac init-project.'));
+            }
+
+            this.configService.saveApiKey(resolvedOptions.host, resolvedOptions.apiKey);
+            this.configService.saveBootstrapState(resolvedOptions.host, resolvedOptions.syncFolder || 'workflows');
+
+            console.log(chalk.green('\n✔ Credentials saved successfully!'));
+            console.log(chalk.blue('📁 Workspace bootstrap:') + ' n8nac-config.json');
+            console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
+
+            if (projects.length > 0) {
+                this.printAvailableProjects(projects);
+            }
+
+            console.log(chalk.yellow('Next step:'));
+            console.log(`Run ${chalk.bold('n8nac init-project')} to select the project and sync folder.`);
+            console.log(chalk.gray('You can pass --project-id, --project-name, or --project-index for non-interactive project selection.\n'));
+        } catch (error: any) {
+            spinner.fail(chalk.red(`An error occurred: ${error.message}`));
+        }
+    }
+
+    async runProjectSetup(options: InitCommandOptions = {}): Promise<void> {
+        console.log(chalk.cyan('\n📁 n8n-as-code project setup'));
+        console.log(chalk.gray('This step selects the active n8n project and the local sync folder.\n'));
+
+        const currentLocal = this.configService.getLocalConfig();
+        const currentApiKey = currentLocal.host ? this.configService.getApiKey(currentLocal.host) : '';
+        const resolvedOptions = this.resolveOptions(options, currentLocal, currentApiKey);
+
+        if (!resolvedOptions.host) {
+            console.error(chalk.red('❌ Missing saved n8n host. Run n8nac init-auth first, or pass --host <url>.'));
+            return;
+        }
+
+        const hostValidation = this.validateHost(resolvedOptions.host);
+        if (hostValidation !== true) {
+            console.error(chalk.red(`❌ ${hostValidation}`));
+            return;
+        }
+
+        if (!resolvedOptions.apiKey) {
+            console.error(chalk.red('❌ Missing saved n8n API key. Run n8nac init-auth first, or pass --api-key <key>.'));
+            return;
+        }
+
+        const spinner = ora('Testing connection to n8n...').start();
+
+        try {
+            const client = new N8nApiClient({
+                host: resolvedOptions.host,
+                apiKey: resolvedOptions.apiKey,
+            });
+
+            const isConnected = await client.testConnection();
+            if (!isConnected) {
+                spinner.fail(chalk.red('Failed to connect to n8n. Please check your URL and API Key.'));
+                return;
+            }
+
+            spinner.succeed(chalk.green('Successfully connected to n8n!'));
+
+            spinner.start('Fetching available projects...');
+            const projects = await client.getProjects();
+            spinner.succeed(chalk.green(`Found ${projects.length} project(s)`));
+
+            if (projects.length === 0) {
+                spinner.fail(chalk.red('No projects found. Please create a project in n8n first.'));
+                return;
+            }
+
+            const nonInteractive = !!(
+                options.yes ||
+                options.projectId ||
+                options.projectName ||
+                options.projectIndex !== undefined ||
+                options.syncFolder
+            );
+
+            const selectedProject = nonInteractive
+                ? this.resolveProjectSelection(projects, resolvedOptions)
+                : await this.promptForProject(projects);
+
+            if (!selectedProject) {
+                spinner.fail(chalk.red('Project selection failed.'));
+                return;
+            }
+
+            const syncFolder = nonInteractive
+                ? (resolvedOptions.syncFolder || 'workflows')
+                : await this.promptForSyncFolder(currentLocal.syncFolder || resolvedOptions.syncFolder || 'workflows');
+
+            await this.finalizeProjectSetup({
+                host: resolvedOptions.host,
+                apiKey: resolvedOptions.apiKey,
+                syncFolder,
+                selectedProject,
+            });
+        } catch (error: any) {
+            spinner.fail(chalk.red(`An error occurred: ${error.message}`));
+        }
+    }
+
     private resolveOptions(
         options: InitCommandOptions,
         currentLocal: Partial<ILocalConfig>,
@@ -207,38 +355,53 @@ export class InitCommand {
             }
 
             const selectedProjectDisplayName = getDisplayProjectName(selectedProject);
-            console.log(chalk.green(`\n✓ Selected project: ${selectedProjectDisplayName}\n`));
-
-            const localConfig: ILocalConfig = {
+            await this.finalizeProjectSetup({
                 host: input.host,
+                apiKey: input.apiKey,
                 syncFolder: input.syncFolder,
-                projectId: selectedProject.id,
-                projectName: selectedProjectDisplayName
-            };
-
-            this.configService.saveLocalConfig(localConfig);
-            this.configService.saveApiKey(input.host, input.apiKey);
-
-            console.log('\n' + chalk.green('✔ Configuration saved successfully!'));
-            console.log(chalk.blue('📁 Project config:') + ' n8nac-config.json');
-            console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
-
-            spinner.start('Generating instance identifier...');
-            const instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(input.host);
-            spinner.succeed(chalk.green(`Instance identifier: ${instanceIdentifier}`));
-            console.log(chalk.gray('(n8nac-config.json will be kept up to date automatically)\n'));
-
-            console.log(chalk.cyan('🤖 Bootstrapping AI Context...'));
-            const updateAi = new UpdateAiCommand(new Command());
-            await updateAi.run({}, { host: input.host, apiKey: input.apiKey });
-
-            console.log(chalk.yellow('\nNext steps:'));
-            console.log(`1. Run ${chalk.bold('n8nac pull')} to download your workflows`);
-            console.log(`2. Run ${chalk.bold('n8nac start')} to start real-time monitoring and synchronization`);
-            console.log(chalk.gray(`(Legacy command 'n8n-as-code' is also available but deprecated)\n`));
+                selectedProject,
+            });
         } catch (error: any) {
             spinner.fail(chalk.red(`An error occurred: ${error.message}`));
         }
+    }
+
+    private async finalizeProjectSetup(input: {
+        host: string;
+        apiKey: string;
+        syncFolder: string;
+        selectedProject: IProject;
+    }): Promise<void> {
+        const selectedProjectDisplayName = getDisplayProjectName(input.selectedProject);
+        console.log(chalk.green(`\n✓ Selected project: ${selectedProjectDisplayName}\n`));
+
+        const localConfig: ILocalConfig = {
+            host: input.host,
+            syncFolder: input.syncFolder,
+            projectId: input.selectedProject.id,
+            projectName: selectedProjectDisplayName
+        };
+
+        this.configService.saveLocalConfig(localConfig);
+        this.configService.saveApiKey(input.host, input.apiKey);
+
+        console.log('\n' + chalk.green('✔ Configuration saved successfully!'));
+        console.log(chalk.blue('📁 Project config:') + ' n8nac-config.json');
+        console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
+
+        const spinner = ora('Generating instance identifier...').start();
+        const instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(input.host);
+        spinner.succeed(chalk.green(`Instance identifier: ${instanceIdentifier}`));
+        console.log(chalk.gray('(n8nac-config.json will be kept up to date automatically)\n'));
+
+        console.log(chalk.cyan('🤖 Bootstrapping AI Context...'));
+        const updateAi = new UpdateAiCommand(new Command());
+        await updateAi.run({}, { host: input.host, apiKey: input.apiKey });
+
+        console.log(chalk.yellow('\nNext steps:'));
+        console.log(`1. Run ${chalk.bold('n8nac pull')} to download your workflows`);
+        console.log(`2. Run ${chalk.bold('n8nac start')} to start real-time monitoring and synchronization`);
+        console.log(chalk.gray(`(Legacy command 'n8n-as-code' is also available but deprecated)\n`));
     }
 
     private async promptForProject(projects: IProject[]): Promise<IProject | undefined> {
@@ -255,6 +418,19 @@ export class InitCommand {
         ]);
 
         return projects.find((project) => project.id === selectedProjectId);
+    }
+
+    private async promptForSyncFolder(defaultSyncFolder: string): Promise<string> {
+        const { syncFolder } = await inquirer.prompt([
+            {
+                type: 'input',
+                name: 'syncFolder',
+                message: 'Local folder for workflows:',
+                default: defaultSyncFolder,
+            }
+        ]);
+
+        return syncFolder;
     }
 
     private resolveProjectSelection(
