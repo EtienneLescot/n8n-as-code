@@ -104,10 +104,10 @@ Natural-language workflow work in Claude Code, powered by the same `n8nac` CLI a
 
 ```bash
 # Your agent can search nodes, docs, and templates instantly
-npx n8nac skills search "send slack message when google sheet is updated"
-npx n8nac skills node-info slack          # Full schema + docs + examples
-npx n8nac skills examples search "AI agent"  # Search 7,702 templates
-npx n8nac skills validate workflow.json   # Validate before deploying
+npx --yes n8nac skills search "send slack message when google sheet is updated"
+npx --yes n8nac skills node-info slack          # Full schema + docs + examples
+npx --yes n8nac skills examples search "AI agent"  # Search 7,702 templates
+npx --yes n8nac skills validate workflow.json   # Validate before deploying
 ```
 
 Claude Code uses the same `n8nac` CLI and ships the `n8n-architect` skill through the `n8n-as-code` plugin, so natural-language workflow work and terminal automation stay aligned.
