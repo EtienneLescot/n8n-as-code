@@ -269,6 +269,11 @@ export class SyncManager extends EventEmitter {
             );
         }
 
+        // Rebuild file<->id mappings from the current local files before resolving
+        // the workflow ID so first-run pushes and post-rename pushes do not create
+        // duplicate remote workflows from stale watcher state.
+        await this.watcher!.refreshLocalState();
+
         const effectiveId = this.watcher!.getWorkflowIdForFilename(targetFilename);
 
         if (!effectiveId) {
