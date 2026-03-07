@@ -46,7 +46,7 @@ export class SyncCommand extends BaseCommand {
         }
     }
 
-    async pushOne(filename: string): Promise<string> {
+    async pushOne(filename: string): Promise<string | undefined> {
         const syncConfig = await this.getSyncConfig();
         const syncManager = new SyncManager(this.client, syncConfig);
 
@@ -64,7 +64,7 @@ export class SyncCommand extends BaseCommand {
                 console.log(chalk.yellow(`To resolve the conflict you can either:`));
                 console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
                 console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
-                return workflowId;
+                return undefined;
             }
         }
 
@@ -81,7 +81,7 @@ export class SyncCommand extends BaseCommand {
                 if (workflowId) {
                     console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
                     console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
-                    return workflowId;
+                    return undefined;
                 }
             }
             spinner.fail(`Push failed: ${e.message}`);

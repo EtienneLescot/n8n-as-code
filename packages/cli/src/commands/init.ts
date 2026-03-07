@@ -51,17 +51,20 @@ export class InitCommand {
 
         if (!resolvedOptions.host) {
             console.error(chalk.red('❌ Missing n8n host. Pass --host <url> or set N8N_HOST.'));
+            process.exitCode = 1;
             return;
         }
 
         const hostValidation = this.validateHost(resolvedOptions.host);
         if (hostValidation !== true) {
             console.error(chalk.red(`❌ ${hostValidation}`));
+            process.exitCode = 1;
             return;
         }
 
         if (!resolvedOptions.apiKey) {
             console.error(chalk.red('❌ Missing n8n API key. Pass --api-key <key> or set N8N_API_KEY.'));
+            process.exitCode = 1;
             return;
         }
 
@@ -76,6 +79,7 @@ export class InitCommand {
             const isConnected = await client.testConnection();
             if (!isConnected) {
                 spinner.fail(chalk.red('Failed to connect to n8n. Please check your URL and API Key.'));
+                process.exitCode = 1;
                 return;
             }
 
@@ -105,6 +109,7 @@ export class InitCommand {
             console.log(chalk.gray('You can pass --project-id, --project-name, or --project-index for non-interactive project selection.\n'));
         } catch (error: any) {
             spinner.fail(chalk.red(`An error occurred: ${error.message}`));
+            process.exitCode = 1;
         }
     }
 
@@ -118,17 +123,20 @@ export class InitCommand {
 
         if (!resolvedOptions.host) {
             console.error(chalk.red('❌ Missing saved n8n host. Run n8nac init-auth first, or pass --host <url>.'));
+            process.exitCode = 1;
             return;
         }
 
         const hostValidation = this.validateHost(resolvedOptions.host);
         if (hostValidation !== true) {
             console.error(chalk.red(`❌ ${hostValidation}`));
+            process.exitCode = 1;
             return;
         }
 
         if (!resolvedOptions.apiKey) {
             console.error(chalk.red('❌ Missing saved n8n API key. Run n8nac init-auth first, or pass --api-key <key>.'));
+            process.exitCode = 1;
             return;
         }
 
@@ -143,6 +151,7 @@ export class InitCommand {
             const isConnected = await client.testConnection();
             if (!isConnected) {
                 spinner.fail(chalk.red('Failed to connect to n8n. Please check your URL and API Key.'));
+                process.exitCode = 1;
                 return;
             }
 
@@ -154,6 +163,7 @@ export class InitCommand {
 
             if (projects.length === 0) {
                 spinner.fail(chalk.red('No projects found. Please create a project in n8n first.'));
+                process.exitCode = 1;
                 return;
             }
 
@@ -171,6 +181,7 @@ export class InitCommand {
 
             if (!selectedProject) {
                 spinner.fail(chalk.red('Project selection failed.'));
+                process.exitCode = 1;
                 return;
             }
 
@@ -186,6 +197,7 @@ export class InitCommand {
             });
         } catch (error: any) {
             spinner.fail(chalk.red(`An error occurred: ${error.message}`));
+            process.exitCode = 1;
         }
     }
 
@@ -268,17 +280,20 @@ export class InitCommand {
     private async runNonInteractive(options: InitCommandOptions): Promise<void> {
         if (!options.host) {
             console.error(chalk.red('❌ Missing n8n host. Pass --host <url> or set N8N_HOST.'));
+            process.exitCode = 1;
             return;
         }
 
         const hostValidation = this.validateHost(options.host);
         if (hostValidation !== true) {
             console.error(chalk.red(`❌ ${hostValidation}`));
+            process.exitCode = 1;
             return;
         }
 
         if (!options.apiKey) {
             console.error(chalk.red('❌ Missing n8n API key. Pass --api-key <key> or set N8N_API_KEY.'));
+            process.exitCode = 1;
             return;
         }
 
@@ -316,6 +331,7 @@ export class InitCommand {
             if (!isConnected) {
                 spinner.fail(chalk.red('Failed to connect to n8n. Please check your URL and API Key.'));
                 if (nonInteractive) {
+                    process.exitCode = 1;
                     return;
                 }
 
@@ -342,6 +358,7 @@ export class InitCommand {
 
             if (projects.length === 0) {
                 spinner.fail(chalk.red('No projects found. Please create a project in n8n first.'));
+                process.exitCode = 1;
                 return;
             }
 
@@ -351,6 +368,7 @@ export class InitCommand {
 
             if (!selectedProject) {
                 spinner.fail(chalk.red('Project selection failed.'));
+                process.exitCode = 1;
                 return;
             }
 
@@ -363,6 +381,7 @@ export class InitCommand {
             });
         } catch (error: any) {
             spinner.fail(chalk.red(`An error occurred: ${error.message}`));
+            process.exitCode = 1;
         }
     }
 
@@ -441,6 +460,7 @@ export class InitCommand {
             const byId = projects.find((project) => project.id === options.projectId);
             if (!byId) {
                 console.error(chalk.red(`❌ Project ID not found: ${options.projectId}`));
+                process.exitCode = 1;
                 this.printAvailableProjects(projects);
             }
             return byId;
@@ -453,15 +473,24 @@ export class InitCommand {
             });
             if (!byName) {
                 console.error(chalk.red(`❌ Project name not found: ${options.projectName}`));
+                process.exitCode = 1;
                 this.printAvailableProjects(projects);
             }
             return byName;
         }
 
         if (options.projectIndex !== undefined) {
+            if (!Number.isFinite(options.projectIndex) || !Number.isInteger(options.projectIndex) || options.projectIndex < 1) {
+                console.error(chalk.red(`❌ Invalid project index: ${options.projectIndex}`));
+                process.exitCode = 1;
+                this.printAvailableProjects(projects);
+                return undefined;
+            }
+
             const index = options.projectIndex - 1;
             if (index < 0 || index >= projects.length) {
                 console.error(chalk.red(`❌ Project index out of range: ${options.projectIndex}`));
+                process.exitCode = 1;
                 this.printAvailableProjects(projects);
                 return undefined;
             }
@@ -479,6 +508,7 @@ export class InitCommand {
         }
 
         console.error(chalk.red('❌ Multiple projects are available. Re-run init with --project-id, --project-name, or --project-index.'));
+        process.exitCode = 1;
         this.printAvailableProjects(projects);
         return undefined;
     }

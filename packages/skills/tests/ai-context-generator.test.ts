@@ -141,10 +141,14 @@ describe('AiContextGenerator', () => {
 
             expect(agentsContent).toContain('Look for `n8nac-config.json` in the workspace root.');
             expect(skillContent).toContain('Look for `n8nac-config.json` in the workspace root.');
+            expect(agentsContent).toContain('does not yet contain `projectId` and `projectName`');
+            expect(skillContent).toContain('does not yet contain `projectId` and `projectName`');
             expect(agentsContent).toContain('Never write `n8nac-config.json` by hand.');
             expect(skillContent).toContain('Never write `n8nac-config.json` by hand.');
-            expect(agentsContent).toContain('init --yes');
-            expect(skillContent).toContain('init --yes');
+            expect(agentsContent).toContain('npx --yes n8nac init-auth');
+            expect(skillContent).toContain('npx --yes n8nac init-auth');
+            expect(agentsContent).toContain('npx --yes n8nac init-project');
+            expect(skillContent).toContain('npx --yes n8nac init-project');
         });
     });
 });
