@@ -14,6 +14,13 @@ const _dirname = typeof __dirname !== 'undefined'
 export class AiContextGenerator {
   constructor() { }
 
+  private getCommandRefs(distTag?: string): { cliCmd: string; skillsCmd: string } {
+    return {
+      skillsCmd: distTag ? `npx --yes n8nac@${distTag} skills` : 'npx --yes n8nac skills',
+      cliCmd: distTag ? `npx --yes n8nac@${distTag}` : 'npx --yes n8nac',
+    };
+  }
+
   /**
    * Returns the canonical AI Agent workflow example TypeScript code.
    * Shared between AGENTS.md and the skill prompt to keep both in sync.
@@ -87,6 +94,109 @@ export class AiContextGenerator {
     ].join('\n');
   }
 
+  private getWorkspaceBootstrapLines(cliCmd: string): string[] {
+    return [
+      `## 🚀 Workspace Bootstrap (MANDATORY)`,
+      ``,
+      `Before using any \`n8nac\` workflow command, check whether the workspace is initialized.`,
+      ``,
+      `### Initialization Check`,
+      `- Look for \`n8nac-config.json\` in the workspace root.`,
+      `- If \`n8nac-config.json\` is missing, the workspace is not initialized yet.`,
+      `- In that case, stop and tell the user to run \`${cliCmd} init\` before you continue.`,
+      `- Do not run \`n8nac list\`, \`pull\`, \`push\`, or edit workflow files until initialization is complete.`,
+      `- Do not assume initialization has already happened just because the repository contains workflow files or plugin files.`,
+      ``,
+      `### Required Order`,
+      `1. Check for \`n8nac-config.json\`.`,
+      `2. If missing, instruct the user to run \`${cliCmd} init\`.`,
+      `3. Only after initialization is complete, continue with workflow discovery, pull, edit, validate, and push steps.`,
+      ``,
+      `---`,
+      ``,
+    ];
+  }
+
+  private getWorkflowMapGuidanceLines(): string[] {
+    return [
+      `## 🗺️ Reading Workflow Files Efficiently`,
+      ``,
+      `Every \`.workflow.ts\` file starts with a \`<workflow-map>\` block — a compact index generated automatically at each sync. Always read this block first before opening the rest of the file.`,
+      ``,
+      `\`\`\``,
+      `// <workflow-map>`,
+      `// Workflow : My Workflow`,
+      `// Nodes   : 12  |  Connections: 14`,
+      `//`,
+      `// NODE INDEX`,
+      `// ──────────────────────────────────────────────────────────────────`,
+      `// Property name                    Node type (short)         Flags`,
+      `// ScheduleTrigger                  scheduleTrigger`,
+      `// AgentGenerateApplication         agent                      [AI] [creds]`,
+      `// OpenaiChatModel                  lmChatOpenAi               [creds] [ai_languageModel]`,
+      `// Memory                           memoryBufferWindow         [ai_memory]`,
+      `// GithubCheckBranchRef             httpRequest                [onError→out(1)]`,
+      `//`,
+      `// ROUTING MAP`,
+      `// ──────────────────────────────────────────────────────────────────`,
+      `// ⚠️ Nodes flagged [ai_*] are NOT in the → routing — they connect via .uses()`,
+      `// ScheduleTrigger`,
+      `//   → Configuration1`,
+      `//     → BuildProfileSources → LoopOverProfileSources`,
+      `//       .out(1) → JinaReadProfileSource → LoopOverProfileSources (↩ loop)`,
+      `//`,
+      `// AI CONNECTIONS`,
+      `// AgentGenerateApplication.uses({ ai_languageModel: OpenaiChatModel, ai_memory: Memory })`,
+      `// </workflow-map>`,
+      `\`\`\``,
+      ``,
+      `### How to navigate a workflow as an agent`,
+      ``,
+      `1. Read \`<workflow-map>\` only — locate the property name you need.`,
+      `2. Search for that property name in the file (for example \`AgentGenerateApplication =\`).`,
+      `3. Read only that section — do not load the entire file into context.`,
+      ``,
+      `This avoids loading 1500+ lines when you only need to patch 10.`,
+      ``,
+    ];
+  }
+
+  private getSharedToolGuidanceLines(skillsCmd: string): string[] {
+    return [
+      `### AI Tool Nodes`,
+      ``,
+      `When an AI agent uses tool nodes:`,
+      ``,
+      `- ✅ Search for the exact tool node first.`,
+      `- ✅ Run \`${skillsCmd} node-info <nodeName>\` before writing parameters.`,
+      `- ✅ Connect tool nodes as arrays: \`this.Agent.uses({ ai_tool: [this.Tool.output] })\`.`,
+      `- ❌ Do not assume tool parameter names or reuse stale node-specific guidance.`,
+      ``,
+    ];
+  }
+
+  private getSharedResponseFormatLines(cliCmd: string): string[] {
+    return [
+      `## 📝 Response Format`,
+      ``,
+      `When helping users:`,
+      ``,
+      `1. Acknowledge what they want to achieve.`,
+      `2. Check initialization by verifying whether \`n8nac-config.json\` exists in the workspace root.`,
+      `3. If not initialized, stop and ask for \`${cliCmd} init\`.`,
+      `4. Pull the workflow before any modification and show the command.`,
+      `5. Search for the relevant nodes and show the command you are running.`,
+      `6. Retrieve the exact schema.`,
+      `7. Generate the TypeScript configuration using the schema.`,
+      `8. Explain the key parameters and any credentials needed.`,
+      `9. Push the workflow after modification and show the command.`,
+      ``,
+      `---`,
+      ``,
+      `Remember: Check initialization first. Pull before you modify. Push after you modify. Never guess parameters — always verify against the schema.`,
+    ];
+  }
+
   async generate(projectRoot: string, n8nVersion: string = "Unknown", distTag?: string): Promise<void> {
     const agentsContent = this.getAgentsContent(n8nVersion, distTag);
 
@@ -123,8 +233,7 @@ export class AiContextGenerator {
   }
 
   private getAgentsContent(n8nVersion: string, distTag?: string): string {
-    const cmd = distTag ? `npx --yes n8nac@${distTag} skills` : 'npx --yes n8nac skills';
-    const cliCmd = distTag ? `npx --yes n8nac@${distTag}` : 'npx --yes n8nac';
+    const { cliCmd, skillsCmd: cmd } = this.getCommandRefs(distTag);
     return [
       `## 🎭 Role: Expert n8n Workflow Engineer`,
       ``,
@@ -137,23 +246,7 @@ export class AiContextGenerator {
       ``,
       `---`,
       ``,
-      `## 🚀 Workspace Bootstrap (MANDATORY)`,
-      ``,
-      `Before using any \`n8nac\` workflow command, check whether the workspace is initialized.`,
-      ``,
-      `### Initialization Check`,
-      `- Look for \`n8nac-config.json\` in the workspace root.`,
-      `- If \`n8nac-config.json\` is missing, the workspace is NOT initialized yet.`,
-      `- In that case, STOP and tell the user they must initialize the workspace first with \`${cliCmd} init\` before you can list, pull, create, edit, or push workflows safely.`,
-      `- Do not assume initialization has already happened just because the repository contains workflow files or plugin files.`,
-      ``,
-      `### Command Order`,
-      `1. Check for \`n8nac-config.json\`.`,
-      `2. If missing: ask the user to run \`${cliCmd} init\` and wait for that prerequisite to be satisfied.`,
-      `3. Only after initialization: continue with \`${cliCmd} list\`, \`${cliCmd} pull\`, \`${cliCmd} push\`, or workflow edits.`,
-      ``,
-      `---`,
-      ``,
+      ...this.getWorkspaceBootstrapLines(cliCmd),
       `## 🧠 Knowledge Base Priority`,
       ``,
       `1. **PRIMARY SOURCE** (MANDATORY): Use \`${cmd}\` tools for accuracy`,
@@ -292,48 +385,7 @@ export class AiContextGenerator {
       ``,
       `---`,
       ``,
-      `## �️ Reading Workflow Files Efficiently`,
-      ``,
-      `Every \`.workflow.ts\` file starts with a \`<workflow-map>\` block — a compact index`,
-      `generated automatically at each sync. **Always read this block first** before`,
-      `opening the rest of the file.`,
-      ``,
-      `\`\`\``,
-      `// <workflow-map>`,
-      `// Workflow : My Workflow`,
-      `// Nodes   : 12  |  Connections: 14`,
-      `//`,
-      `// NODE INDEX`,
-      `// ──────────────────────────────────────────────────────────────────`,
-      `// Property name                    Node type (short)         Flags`,
-      `// ScheduleTrigger                  scheduleTrigger`,
-      `// AgentGenerateApplication         agent                      [AI] [creds]`,
-      `// OpenaiChatModel                  lmChatOpenAi               [creds] [ai_languageModel]`,
-      `// Memory                           memoryBufferWindow         [ai_memory]`,
-      `// GithubCheckBranchRef             httpRequest                [onError→out(1)]`,
-      `//`,
-      `// ROUTING MAP`,
-      `// ──────────────────────────────────────────────────────────────────`,
-      `// ⚠️ Nodes flagged [ai_*] are NOT in the → routing — they connect via .uses()`,
-      `// ScheduleTrigger`,
-      `//   → Configuration1`,
-      `//     → BuildProfileSources → LoopOverProfileSources`,
-      `//       .out(1) → JinaReadProfileSource → LoopOverProfileSources (↩ loop)`,
-      `//`,
-      `// AI CONNECTIONS`,
-      `// AgentGenerateApplication.uses({ ai_languageModel: OpenaiChatModel, ai_memory: Memory })`,
-
-      `// </workflow-map>`,
-      `\`\`\``,
-      ``,
-      `### How to navigate a workflow as an agent`,
-      ``,
-      `1. **Read \`<workflow-map>\` only** — locate the property name you need`,
-      `2. **Search for that property name** in the file (e.g. \`AgentGenerateApplication =\`)`,
-      `3. **Read only that section** — do not load the entire file into context`,
-      ``,
-      `This avoids loading 1500+ lines when you only need to patch 10.`,
-      ``,
+      ...this.getWorkflowMapGuidanceLines(),
       `---`,
       ``,
       `## 📝 Minimal Workflow Structure`,
@@ -420,12 +472,7 @@ export class AiContextGenerator {
       `  - Example: \`this.RAG.uses({ ai_embedding: this.Embedding.output, ai_vectorStore: this.VectorStore.output, ai_retriever: this.Retriever.output })\``,
       `- ❌ Never use \`.out().to()\` for AI sub-node connections`,
       ``,
-      `### AI Tool Nodes`,
-      `- ✅ Search for the exact tool node first, then inspect its schema before configuring it`,
-      `- ✅ Tool nodes connect to agents via \`ai_tool: [this.Tool.output]\``,
-      `- ✅ Use the exact \`type\`, \`version\`, and parameter names returned by the schema`,
-      `- ❌ Do not rely on node-specific assumptions or older examples when configuring tools`,
-      ``,
+      ...this.getSharedToolGuidanceLines(cmd),
       `---`,
       ``,
       `## 📚 Available Tools`,
@@ -482,6 +529,7 @@ export class AiContextGenerator {
   }
 
   getSkillContent(): string {
+    const { cliCmd, skillsCmd } = this.getCommandRefs();
     return `---
 name: n8n-architect
 description: Expert assistant for n8n workflow development. Use when the user asks about n8n workflows, nodes, automation, or needs help creating/editing n8n JSON configurations. Provides access to complete n8n node documentation and prevents parameter hallucination.
@@ -496,23 +544,7 @@ You are an expert n8n workflow engineer. Your role is to help users create, edit
 - **Workflow Format**: TypeScript files using \`@workflow\`, \`@node\`, \`@links\` decorators
 - **Tool Access**: You have access to the complete n8n node documentation via CLI commands
 
-## 🚀 Workspace Bootstrap (MANDATORY)
-
-Before using any \`n8nac\` workflow command, check whether the workspace is initialized.
-
-### Initialization Check
-
-- Look for \`n8nac-config.json\` in the workspace root.
-- If \`n8nac-config.json\` is missing, the workspace is **not initialized** yet.
-- In that case, stop and tell the user to run \`npx --yes n8nac init\` before you continue.
-- Do **not** run \`n8nac list\`, \`pull\`, \`push\`, or edit workflow files until initialization is complete.
-- Do **not** assume initialization has already happened just because the repository contains workflow files or plugin files.
-
-### Required Order
-
-1. Check for \`n8nac-config.json\`.
-2. If missing, instruct the user to run \`npx --yes n8nac init\`.
-3. Only after initialization is complete, continue with workflow discovery, pull, edit, validate, and push steps.
+${this.getWorkspaceBootstrapLines(cliCmd).join('\n')}
 
 ## 🔄 Sync Discipline (MANDATORY)
 
@@ -586,44 +618,7 @@ This returns the full JSON schema including all parameters, types, defaults, val
 
 Use the retrieved schema as the **absolute source of truth** when generating or modifying workflow TypeScript. Never add parameters that aren't in the schema.
 
-## 🗺️ Reading Workflow Files Efficiently
-
-Every \`.workflow.ts\` file starts with a \`<workflow-map>\` block — a compact index generated automatically at each sync. **Always read this block first** before opening the rest of the file.
-
-\`\`\`
-// <workflow-map>
-// Workflow : My Workflow
-// Nodes   : 12  |  Connections: 14
-//
-// NODE INDEX
-// ──────────────────────────────────────────────────────────────────
-// Property name                    Node type (short)         Flags
-// ScheduleTrigger                  scheduleTrigger
-// AgentGenerateApplication         agent                      [AI] [creds]
-// OpenaiChatModel                  lmChatOpenAi               [creds] [ai_languageModel]
-// Memory                           memoryBufferWindow         [ai_memory]
-// GithubCheckBranchRef             httpRequest                [onError→out(1)]
-//
-// ROUTING MAP
-// ──────────────────────────────────────────────────────────────────
-// ⚠️ Nodes flagged [ai_*] are NOT in the → routing — they connect via .uses()
-// ScheduleTrigger
-//   → Configuration1
-//     → BuildProfileSources → LoopOverProfileSources
-//       .out(1) → JinaReadProfileSource → LoopOverProfileSources (↩ loop)
-//
-// AI CONNECTIONS
-// AgentGenerateApplication.uses({ ai_languageModel: OpenaiChatModel, ai_memory: Memory })
-// </workflow-map>
-\`\`\`
-
-### How to navigate a workflow as an agent
-
-1. **Read \`<workflow-map>\` only** — locate the property name you need
-2. **Search for that property name** in the file (e.g. \`AgentGenerateApplication =\`)
-3. **Read only that section** — do not load the entire file into context
-
-This avoids loading 1500+ lines when you only need to patch 10.
+${this.getWorkflowMapGuidanceLines().join('\n')}
 
 ## 🛠 Coding Standards
 
@@ -682,14 +677,7 @@ ${this.getAiAgentWorkflowExampleCode()}
 - ✅ AI sub-nodes: \`this.Agent.uses({ ai_languageModel: this.Model.output })\`
 - ❌ Never use \`.out().to()\` for AI sub-node connections
 
-### AI Tool Nodes
-
-When an AI agent uses tool nodes:
-
-- ✅ Search for the exact tool node first
-- ✅ Run \`npx --yes n8nac skills node-info <nodeName>\` before writing parameters
-- ✅ Connect tool nodes as arrays: \`this.Agent.uses({ ai_tool: [this.Tool.output] })\`
-- ❌ Do not assume tool parameter names or reuse stale node-specific guidance
+${this.getSharedToolGuidanceLines(skillsCmd).join('\n')}
 
 ## 🚀 Best Practices
 
@@ -719,23 +707,7 @@ If you're unsure about any node:
    npx --yes n8nac skills node-info "nodeName"
    \`\`\`
 
-## 📝 Response Format
-
-When helping users:
-
-1. **Acknowledge** what they want to achieve
-2. **Check initialization** by verifying whether \`n8nac-config.json\` exists in the workspace root
-3. **If not initialized, stop and ask for** \`npx --yes n8nac init\`
-4. **Pull** the workflow before any modification (show the command)
-5. **Search** for the relevant nodes (show the command you're running)
-6. **Retrieve** the exact schema
-7. **Generate** the TypeScript configuration using the schema
-8. **Explain** the key parameters and any credentials needed
-9. **Push** the workflow after modification (show the command)
-
----
-
-**Remember**: Check initialization first. Pull before you modify. Push after you modify. Never guess parameters — always verify against the schema.
+${this.getSharedResponseFormatLines(cliCmd).join('\n')}
 `;
   }
 

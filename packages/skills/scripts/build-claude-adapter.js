@@ -28,7 +28,6 @@ async function getAiContextGenerator() {
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
 const DIST_DIR = path.join(PACKAGE_ROOT, 'dist', 'adapters', 'claude');
 const SKILL_OUTPUT_DIR = path.join(DIST_DIR, 'n8n-architect');
-const ROOT_SKILL_DIR = path.join(WORKSPACE_ROOT, 'skills', 'n8n-architect');
 const PLUGIN_SKILL_DIR = path.join(WORKSPACE_ROOT, 'plugins', 'claude', 'n8n-as-code', 'skills', 'n8n-architect');
 
 // Colors for terminal output
@@ -60,7 +59,6 @@ function createSkillStructure() {
 
     // Create main skill directory
     fs.mkdirSync(SKILL_OUTPUT_DIR, { recursive: true });
-    fs.mkdirSync(ROOT_SKILL_DIR, { recursive: true });
     fs.mkdirSync(PLUGIN_SKILL_DIR, { recursive: true });
 
     // Create scripts subdirectory
@@ -76,13 +74,11 @@ async function generateSkillMd() {
     const generator = await getAiContextGenerator();
     const skillContent = generator.getSkillContent();
     const distPath = path.join(SKILL_OUTPUT_DIR, 'SKILL.md');
-    const rootPath = path.join(ROOT_SKILL_DIR, 'SKILL.md');
     const pluginPath = path.join(PLUGIN_SKILL_DIR, 'SKILL.md');
 
     fs.writeFileSync(distPath, skillContent);
-    fs.writeFileSync(rootPath, skillContent);
     fs.writeFileSync(pluginPath, skillContent);
-    log('   ✓ SKILL.md generated for dist, root skill, and slim plugin', 'green');
+    log('   ✓ SKILL.md generated for dist and slim plugin', 'green');
 }
 
 function generateReadme() {
@@ -208,7 +204,6 @@ function printSummary() {
     log(`   │   ├── SKILL.md`, 'yellow');
     log(`   │   └── README.md`, 'yellow');
     log(`   └── install.sh`, 'yellow');
-    log(`   ${ROOT_SKILL_DIR}/SKILL.md`, 'yellow');
     log(`   ${PLUGIN_SKILL_DIR}/SKILL.md`, 'yellow');
 
     log('\n' + '='.repeat(60) + '\n', 'cyan');

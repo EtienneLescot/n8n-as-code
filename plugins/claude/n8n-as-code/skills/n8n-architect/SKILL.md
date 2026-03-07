@@ -17,18 +17,19 @@ You are an expert n8n workflow engineer. Your role is to help users create, edit
 Before using any `n8nac` workflow command, check whether the workspace is initialized.
 
 ### Initialization Check
-
 - Look for `n8nac-config.json` in the workspace root.
-- If `n8nac-config.json` is missing, the workspace is **not initialized** yet.
+- If `n8nac-config.json` is missing, the workspace is not initialized yet.
 - In that case, stop and tell the user to run `npx --yes n8nac init` before you continue.
-- Do **not** run `n8nac list`, `pull`, `push`, or edit workflow files until initialization is complete.
-- Do **not** assume initialization has already happened just because the repository contains workflow files or plugin files.
+- Do not run `n8nac list`, `pull`, `push`, or edit workflow files until initialization is complete.
+- Do not assume initialization has already happened just because the repository contains workflow files or plugin files.
 
 ### Required Order
-
 1. Check for `n8nac-config.json`.
 2. If missing, instruct the user to run `npx --yes n8nac init`.
 3. Only after initialization is complete, continue with workflow discovery, pull, edit, validate, and push steps.
+
+---
+
 
 ## 🔄 Sync Discipline (MANDATORY)
 
@@ -104,7 +105,7 @@ Use the retrieved schema as the **absolute source of truth** when generating or 
 
 ## 🗺️ Reading Workflow Files Efficiently
 
-Every `.workflow.ts` file starts with a `<workflow-map>` block — a compact index generated automatically at each sync. **Always read this block first** before opening the rest of the file.
+Every `.workflow.ts` file starts with a `<workflow-map>` block — a compact index generated automatically at each sync. Always read this block first before opening the rest of the file.
 
 ```
 // <workflow-map>
@@ -135,11 +136,12 @@ Every `.workflow.ts` file starts with a `<workflow-map>` block — a compact ind
 
 ### How to navigate a workflow as an agent
 
-1. **Read `<workflow-map>` only** — locate the property name you need
-2. **Search for that property name** in the file (e.g. `AgentGenerateApplication =`)
-3. **Read only that section** — do not load the entire file into context
+1. Read `<workflow-map>` only — locate the property name you need.
+2. Search for that property name in the file (for example `AgentGenerateApplication =`).
+3. Read only that section — do not load the entire file into context.
 
 This avoids loading 1500+ lines when you only need to patch 10.
+
 
 ## 🛠 Coding Standards
 
@@ -265,10 +267,11 @@ export class AIAgentWorkflow {
 
 When an AI agent uses tool nodes:
 
-- ✅ Search for the exact tool node first
-- ✅ Run `npx --yes n8nac skills node-info <nodeName>` before writing parameters
-- ✅ Connect tool nodes as arrays: `this.Agent.uses({ ai_tool: [this.Tool.output] })`
-- ❌ Do not assume tool parameter names or reuse stale node-specific guidance
+- ✅ Search for the exact tool node first.
+- ✅ Run `npx --yes n8nac skills node-info <nodeName>` before writing parameters.
+- ✅ Connect tool nodes as arrays: `this.Agent.uses({ ai_tool: [this.Tool.output] })`.
+- ❌ Do not assume tool parameter names or reuse stale node-specific guidance.
+
 
 ## 🚀 Best Practices
 
@@ -302,16 +305,16 @@ If you're unsure about any node:
 
 When helping users:
 
-1. **Acknowledge** what they want to achieve
-2. **Check initialization** by verifying whether `n8nac-config.json` exists in the workspace root
-3. **If not initialized, stop and ask for** `npx --yes n8nac init`
-4. **Pull** the workflow before any modification (show the command)
-5. **Search** for the relevant nodes (show the command you're running)
-6. **Retrieve** the exact schema
-7. **Generate** the TypeScript configuration using the schema
-8. **Explain** the key parameters and any credentials needed
-9. **Push** the workflow after modification (show the command)
+1. Acknowledge what they want to achieve.
+2. Check initialization by verifying whether `n8nac-config.json` exists in the workspace root.
+3. If not initialized, stop and ask for `npx --yes n8nac init`.
+4. Pull the workflow before any modification and show the command.
+5. Search for the relevant nodes and show the command you are running.
+6. Retrieve the exact schema.
+7. Generate the TypeScript configuration using the schema.
+8. Explain the key parameters and any credentials needed.
+9. Push the workflow after modification and show the command.
 
 ---
 
-**Remember**: Check initialization first. Pull before you modify. Push after you modify. Never guess parameters — always verify against the schema.
+Remember: Check initialization first. Pull before you modify. Push after you modify. Never guess parameters — always verify against the schema.
