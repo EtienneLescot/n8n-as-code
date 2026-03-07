@@ -98,6 +98,24 @@ function renameWorkflowInLocalFile(filePath, previousName, nextName) {
     fs.writeFileSync(filePath, updatedContent, 'utf-8');
 }
 
+function renameLocalWorkflowFile(filePath, nextFilename) {
+    const nextPath = path.join(path.dirname(filePath), nextFilename);
+    fs.renameSync(filePath, nextPath);
+    return nextPath;
+}
+
+function copyLocalWorkflowFile(sourcePath, targetFilename) {
+    const targetPath = path.join(path.dirname(sourcePath), targetFilename);
+    fs.copyFileSync(sourcePath, targetPath);
+    return targetPath;
+}
+
+function extractWorkflowIdFromLocalFile(filePath) {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const idMatch = content.match(/id:\s*['"]([^'"]+)['"]/);
+    return idMatch?.[1];
+}
+
 async function resolveWritableProject(apiClient) {
     const projects = await apiClient.getProjects();
     const project = projects.find((entry) => entry.type === 'personal')
@@ -232,6 +250,67 @@ async function main() {
 
             const remoteWorkflow = await fetchRemoteWorkflow(workflowId);
             assert.equal(remoteWorkflow.name, updatedName);
+        });
+
+        await runScenario('pushes a renamed local file back to the same remote workflow', async () => {
+            const workflowName = `${testRunPrefix} rename file`;
+            const originalFilename = `a-${workflowName}.workflow.ts`;
+            const renamedFilename = `z-${workflowName}.workflow.ts`;
+            const originalFilePath = writeLocalWorkflow(originalFilename, workflowName);
+
+            const workflowId = await syncManager.push(inputPathForPush(originalFilePath));
+            createdWorkflowIds.add(workflowId);
+
+            const renamedFilePath = renameLocalWorkflowFile(originalFilePath, renamedFilename);
+
+            await syncManager.refreshLocalState();
+            assert.equal(syncManager.getWorkflowIdForFilename(originalFilename), undefined);
+            assert.equal(syncManager.getWorkflowIdForFilename(renamedFilename), workflowId);
+
+            const pushedWorkflowId = await syncManager.push(inputPathForPush(renamedFilePath));
+            assert.equal(pushedWorkflowId, workflowId);
+
+            const remoteWorkflow = await fetchRemoteWorkflow(workflowId);
+            assert.equal(remoteWorkflow.name, workflowName);
+
+            const localWorkflowId = extractWorkflowIdFromLocalFile(renamedFilePath);
+            assert.equal(localWorkflowId, workflowId);
+        });
+
+        await runScenario('pushes a copied local workflow as a brand-new remote workflow with a rewritten id', async () => {
+            const sourceWorkflowName = `${testRunPrefix} copy source`;
+            const copiedWorkflowName = `${testRunPrefix} copy clone`;
+            const sourceFilename = `a-${sourceWorkflowName}.workflow.ts`;
+            const copiedFilename = `z-${copiedWorkflowName}.workflow.ts`;
+            const sourceFilePath = writeLocalWorkflow(sourceFilename, sourceWorkflowName);
+
+            const sourceWorkflowId = await syncManager.push(inputPathForPush(sourceFilePath));
+            createdWorkflowIds.add(sourceWorkflowId);
+
+            const copiedFilePath = copyLocalWorkflowFile(sourceFilePath, copiedFilename);
+            renameWorkflowInLocalFile(copiedFilePath, sourceWorkflowName, copiedWorkflowName);
+
+            await syncManager.refreshLocalState();
+            assert.equal(syncManager.getWorkflowIdForFilename(sourceFilename), sourceWorkflowId);
+            assert.equal(syncManager.getWorkflowIdForFilename(copiedFilename), undefined);
+
+            const copiedWorkflowId = await syncManager.push(inputPathForPush(copiedFilePath));
+            createdWorkflowIds.add(copiedWorkflowId);
+
+            assert.notEqual(copiedWorkflowId, sourceWorkflowId);
+
+            const copiedRemoteWorkflow = await fetchRemoteWorkflow(copiedWorkflowId);
+            assert.equal(copiedRemoteWorkflow.name, copiedWorkflowName);
+
+            const sourceRemoteWorkflow = await fetchRemoteWorkflow(sourceWorkflowId);
+            assert.equal(sourceRemoteWorkflow.name, sourceWorkflowName);
+
+            const rewrittenLocalId = extractWorkflowIdFromLocalFile(copiedFilePath);
+            assert.equal(rewrittenLocalId, copiedWorkflowId);
+
+            await syncManager.refreshLocalState();
+            assert.equal(syncManager.getWorkflowIdForFilename(sourceFilename), sourceWorkflowId);
+            assert.equal(syncManager.getWorkflowIdForFilename(copiedFilename), copiedWorkflowId);
         });
 
         await runScenario('fetches and pulls a remote-only workflow into the local sync directory', async () => {
