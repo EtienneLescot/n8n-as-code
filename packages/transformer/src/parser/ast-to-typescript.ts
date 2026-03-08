@@ -361,7 +361,7 @@ export class AstToTypeScriptGenerator {
     }
 
     private formatPropertyKey(key: string): string {
-        return /^[$A-Z_][0-9A-Z_$]*$/i.test(key) ? key : JSON.stringify(key);
+        return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? key : JSON.stringify(key);
     }
 
     private formatString(value: string): string {
@@ -369,10 +369,10 @@ export class AstToTypeScriptGenerator {
             return JSON.stringify(value);
         }
 
-        return `\`${value
-            .replace(/\\/g, '\\\\')
-            .replace(/`/g, '\\`')
-            .replace(/\$\{/g, '\\${')}\``;
+        return `\`${value.replace(/[`\\]|\$\{/g, (match) => {
+            if (match === '\\') return '\\\\';
+            return `\\${match}`;
+        })}\``;
     }
     
     /**

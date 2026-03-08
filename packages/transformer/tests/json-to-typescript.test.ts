@@ -220,8 +220,9 @@ export class AiTestWorkflow {
             commentStyle: 'minimal',
         });
 
-        expect(tsCode).toContain('jsCode: `const template = \\`Hello \\${name}\\`;');
-        expect(tsCode).toContain('return \\`value: \\${template}\\`;`');
+        expect(tsCode).toContain(
+            'jsCode: `const template = \\`Hello \\${name}\\`;\nreturn \\`value: \\${template}\\`;`'
+        );
         expect(tsCode).not.toContain('jsCode: "const template');
     });
 });
