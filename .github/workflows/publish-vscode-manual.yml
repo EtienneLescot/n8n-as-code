@@ -17,6 +17,11 @@ on:
         required: true
         default: false
         type: boolean
+      publish_openvsx:
+        description: Also publish to Open VSX
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -56,6 +61,9 @@ jobs:
           if [[ '${{ inputs.pre_release }}' == 'true' ]]; then
             echo "ℹ️ Pre-release publish selected. Prefer the VS Marketplace convention even minor = stable, odd minor = pre-release."
           fi
+          if [[ '${{ inputs.pre_release }}' == 'true' && '${{ inputs.publish_openvsx }}' == 'true' ]]; then
+            echo "⚠️ Open VSX does not provide a safe preview channel separation. This will publish a normal Open VSX version."
+          fi
 
       - name: Build/package/publish extension
         env:
@@ -87,12 +95,13 @@ jobs:
             npx @vscode/vsce publish --no-dependencies --pat "$VSCE_TOKEN"
           fi
 
-          # Publish only stable builds to Open VSX. Preview metadata exists there,
-          # but downstream clients can still resolve the highest version by default.
-          if [[ '${{ inputs.pre_release }}' == 'true' ]]; then
-            echo "ℹ️ Skipping Open VSX publish for pre-release builds."
+          if [[ '${{ inputs.publish_openvsx }}' != 'true' ]]; then
+            echo "ℹ️ Skipping Open VSX publish."
           elif [[ -z "$OVSX_TOKEN" ]]; then
             echo "⚠️ OVSX_TOKEN is missing, skipping Open VSX publish."
           else
+            if [[ '${{ inputs.pre_release }}' == 'true' ]]; then
+              echo "⚠️ Publishing a pre-release build to Open VSX as a normal registry version."
+            fi
             npx ovsx publish *.vsix -p "$OVSX_TOKEN"
           fi
