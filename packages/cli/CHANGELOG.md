@@ -1,5 +1,25 @@
 # @n8n-as-code/cli
 
+## [0.11.3](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.11.2...n8nac@v0.11.3) (2026-03-08)
+
+
+### Features
+
+* **tests:** add workflow file rename and copy scenarios to integration tests ([f89b05e](https://github.com/EtienneLescot/n8n-as-code/commit/f89b05eabb90cbbced9cbc4009b1487a52e1dacd))
+
+
+### Bug Fixes
+
+* **cli:** preserve workflow tags on pull ([d6b1379](https://github.com/EtienneLescot/n8n-as-code/commit/d6b13797c29eb4a478744eec3bcb03c5477a0e52))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.15 to 0.16.16
+    * @n8n-as-code/transformer bumped from 0.2.8 to 0.2.9
+
 ## [0.11.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.11.1...n8nac@v0.11.2) (2026-03-07)
 
 
