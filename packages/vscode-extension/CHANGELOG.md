@@ -1,5 +1,111 @@
 # n8n-as-code
 
+## [0.19.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.18.0...n8n-as-code@v0.19.0) (2026-03-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* **agent-cli:** This update introduces a new type field to node schemas and improves schema handling, which may require adjustments in dependent packages. The version has been bumped to 0.10.0 to reflect these changes.
+* **agent-cli:** The agent-cli bundle path has changed from 'dist/cli.js' to 'out/agent-cli/cli.js' in the VS Code extension context. Users with custom configurations will need to update their paths accordingly.
+* **agent-cli:** Test expectations for empty search results now use more flexible assertions
+* **agent-cli:** Search behavior completely overhauled with new unified approach
+* **agent-cli:** Extension size increases to 5.2 MB due to enriched data
+* **vscode-extension:** The vscode-extension now requires agent-cli assets to be built and available during the extension build process. The build system will automatically copy required assets from the agent-cli package.
+* **agent-cli:** This update introduces significant changes to the agent-cli package and requires all dependent packages to update to version 0.3.0 or higher.
+* **vscode:** The UIEventBus has been completely removed and replaced with Redux Toolkit. All components now use the Redux store for state management and communication.
+* **vscode:** The tree provider API has changed significantly with new event-driven architecture. Extensions using the tree provider directly will need to update to use the new event bus system.
+* **vscode:** Extension now requires manual initialization via "Init N8N as code" button
+
+### Features
+
+* add 'prettier' as an external dependency for esbuild configuration ([6542067](https://github.com/EtienneLescot/n8n-as-code/commit/65420672aeafcb6c795222cee14a5576ae16ad84))
+* add alias for prettier to ensure CJS compatibility in build configuration ([70c18bd](https://github.com/EtienneLescot/n8n-as-code/commit/70c18bd25b63571a8da26af44408f01eedcd1ddd))
+* add build configuration for n8nac CLI and update promise handling ([1a0af08](https://github.com/EtienneLescot/n8n-as-code/commit/1a0af083a1955f8a55caf0e7096bb595b1246e15))
+* **agent-cli:** add AI-powered node discovery with enriched documentation ([6de05ed](https://github.com/EtienneLescot/n8n-as-code/commit/6de05ed9b73ea0d8578e17ba2d69e7be8a794cf7))
+* **agent-cli:** add search intelligence integration and improve path resolution ([f636f4e](https://github.com/EtienneLescot/n8n-as-code/commit/f636f4e60d3b39759aa3eb739b2fdc7e0d77a286))
+* **agent-cli:** add type field to node schema and improve schema handling ([a48185a](https://github.com/EtienneLescot/n8n-as-code/commit/a48185a1bf9fb69da602fd773ba0a00514ba246e))
+* **agent-cli:** expand capabilities with community workflows and refined CLI ([5766e0c](https://github.com/EtienneLescot/n8n-as-code/commit/5766e0c7c7082a0bf4a82762f903de6ac437d8db))
+* **agent-cli:** major refactor with unified FlexSearch integration ([37fa447](https://github.com/EtienneLescot/n8n-as-code/commit/37fa447eb776b823cd9c8faba553fc657c808d42))
+* **agent-cli:** optimize package size and enable enriched index ([0d668db](https://github.com/EtienneLescot/n8n-as-code/commit/0d668db0e2d6e8aa464496b11c0ebf99a231bc12))
+* **agent-cli:** support community nodes with validation warnings ([b98887f](https://github.com/EtienneLescot/n8n-as-code/commit/b98887fefff207964a0d704c5b50287f36418ee9))
+* **cli:** push workflows by filename ([0422619](https://github.com/EtienneLescot/n8n-as-code/commit/0422619f098bcbf583a963b2d261388dfde0b626))
+* enhance AiContextGenerator to support pre-release detection and update CLI command usage ([bde29b9](https://github.com/EtienneLescot/n8n-as-code/commit/bde29b9001839df9166e5309b076140678dcdb46))
+* enhance configuration management by implementing unified config file for CLI and VSCode alignment ([50dce35](https://github.com/EtienneLescot/n8n-as-code/commit/50dce352891f7886972aaa91c0de150a7b0287dd))
+* enhance conflict resolution by removing 'Mark as Resolved' action and updating workflow status handling ([18ba868](https://github.com/EtienneLescot/n8n-as-code/commit/18ba86886fba3b6449c843170628e15f27f1b9bc))
+* enhance push functionality to handle new and existing workflows with filename support ([6900770](https://github.com/EtienneLescot/n8n-as-code/commit/6900770cab1d8d7709ce4ae3125f84ae6f983bb3))
+* enhance skills assets copying logic and include n8n-workflows.d.ts from CLI package ([fd002f6](https://github.com/EtienneLescot/n8n-as-code/commit/fd002f641fb3c27b703a3156ed857184926826be))
+* enhance workflow handling with AI dependency extraction and filename-based key support ([615c37b](https://github.com/EtienneLescot/n8n-as-code/commit/615c37b98a4d4f064d2d944ada99369cc4680024))
+* implement auto-push and conflict resolution in SyncManager; update VSCode extension for improved workflow handling ([9ff944a](https://github.com/EtienneLescot/n8n-as-code/commit/9ff944a0b949143ae16d3296217406c4651c943d))
+* implement CliApi to unify CLI command handling in VSCode extension ([4eb2a50](https://github.com/EtienneLescot/n8n-as-code/commit/4eb2a502d5811260a3f94b7215038fd93fb124f5))
+* implement fetch command to update remote state cache for workflows ([cc6c064](https://github.com/EtienneLescot/n8n-as-code/commit/cc6c0640a9b0beda48de7c2ee3672b206aa1ba06))
+* implement force refresh method and update sync logic across commands; add Pull-on-Focus feature in VSCode extension ([f110a9b](https://github.com/EtienneLescot/n8n-as-code/commit/f110a9b9d50f74256839a42d86dcc1d5e8e8db2e))
+* implement git-like sync architecture with conflict resolution for workflows ([894b0a6](https://github.com/EtienneLescot/n8n-as-code/commit/894b0a6c58f91db989d5486b5abd048b4ac3faef))
+* implement Git-like sync architecture; disable auto-push and update sync logic in StartCommand and SyncManager ([3711d3e](https://github.com/EtienneLescot/n8n-as-code/commit/3711d3eea46c81d12db013a1187089f895277ace))
+* implement lightweight workflow listing to optimize status retrieval ([289e9bf](https://github.com/EtienneLescot/n8n-as-code/commit/289e9bfa3b3d1866aa16b5c794ea69b416688cc2))
+* improve VS Code extension configuration UX with automatic project loading and pre-selection ([91fcee5](https://github.com/EtienneLescot/n8n-as-code/commit/91fcee5d5eb3abfc57b66386c1b846ce4703ac01))
+* optimize remote state fetching for workflows in activate function ([c3b936e](https://github.com/EtienneLescot/n8n-as-code/commit/c3b936ef2bd0c44162ae6c3caade7ebf60afb1e3))
+* optimize workflow synchronization by removing force refresh and using cached state ([40ae940](https://github.com/EtienneLescot/n8n-as-code/commit/40ae940d9c3803fe7fe8e3e02157f3d64897401a))
+* Refactor AiContextGenerator to remove shim generation and update command usage ([b5f6fa1](https://github.com/EtienneLescot/n8n-as-code/commit/b5f6fa1ed161a98e0f8cc38e57640ecd3db936b6))
+* refactor StartCommand and SyncCommand to streamline conflict resolution; update VSCode extension for improved user experience and action handling ([e10a6e8](https://github.com/EtienneLescot/n8n-as-code/commit/e10a6e84f5404bdf218ed8b4f4eca5e48135a67d))
+* remove sync package references and integrate sync logic into cli package; update related documentation and tests ([89901ce](https://github.com/EtienneLescot/n8n-as-code/commit/89901ce03f953c0e8e162214e041a3638e980a0f))
+* Restrict local workflow file watching and discovery to `.workflow.ts` files and refresh remote state on startup. ([77137f7](https://github.com/EtienneLescot/n8n-as-code/commit/77137f71ec3afc7cdae164ceb79480d8269552c6))
+* single config point — VS Code extension syncs credentials to CLI store ([2b51743](https://github.com/EtienneLescot/n8n-as-code/commit/2b51743730dff7bf04bde16c1151dcb429173cb3))
+* **skills:** integrate skills CLI into VS Code extension ([6ec2302](https://github.com/EtienneLescot/n8n-as-code/commit/6ec230280ab5c265c32b02c0406645ba7cabf2a0))
+* transition to git-like sync architecture for n8n workflows ([9d1cd51](https://github.com/EtienneLescot/n8n-as-code/commit/9d1cd516eea5024ce949c050ad6d62b1655be02f))
+* unify configuration management by migrating to n8nac-config.json and removing legacy files ([58a0bb4](https://github.com/EtienneLescot/n8n-as-code/commit/58a0bb4ccceb0f806736ef6eded3a11586536ded))
+* update build script to generate SKILL.md dynamically and remove template file; enhance AiContextGenerator for workflow context ([2cfec72](https://github.com/EtienneLescot/n8n-as-code/commit/2cfec72dac9e09bca362a6fb8fd84ec6adcb600e))
+* update command handling for remote-only workflows in WorkflowItem ([eaed8e2](https://github.com/EtienneLescot/n8n-as-code/commit/eaed8e291676eca169f58143c4ee3b5c720beb41))
+* update documentation to reflect breaking changes for TypeScript workflow format across all packages ([48062d1](https://github.com/EtienneLescot/n8n-as-code/commit/48062d1c2f38e2d018e5e8da3fcec46a38f6d441))
+* update Open VSX publish logic and enhance package.json metadata ([27a116e](https://github.com/EtienneLescot/n8n-as-code/commit/27a116e7f5b3b3c65adbc02cf4aa83efd6be806b))
+* update package versions and changelogs for n8n-as-code ecosystem ([986996b](https://github.com/EtienneLescot/n8n-as-code/commit/986996b38dbaec5cc525d6d0aafbbd00f52959a6))
+* update version numbers and changelogs for dependencies across packages ([10dd3b3](https://github.com/EtienneLescot/n8n-as-code/commit/10dd3b325f6ecbf1ee8fb5c20e77f472c619e74e))
+* update version numbers and changelogs for pagination implementation across packages ([f4b3b29](https://github.com/EtienneLescot/n8n-as-code/commit/f4b3b29f64520657673f373aef6396e7c579c950))
+* update vscode-extension to version 0.18.0 and adjust pre-release versioning logic ([e490a29](https://github.com/EtienneLescot/n8n-as-code/commit/e490a291adcbb82c9842869a0e9f172e1d7a40a5))
+* **vscode:** implement event-driven architecture with UI event bus and enhanced workflow tree provider ([365e7c1](https://github.com/EtienneLescot/n8n-as-code/commit/365e7c11a03ecb62e72aca0c2d52e6d64f77bf62))
+* **vscode:** implement non-intrusive extension initialization ([e76a512](https://github.com/EtienneLescot/n8n-as-code/commit/e76a512dd5389455d4645cd33b65be388474616f))
+* **vscode:** reorder menu commands and simplify delete workflow logic ([e53a61b](https://github.com/EtienneLescot/n8n-as-code/commit/e53a61b6557c781939b3b8b8cca56e2b257d07aa))
+* **vscode:** replace event bus with Redux store for state management ([b3ccd20](https://github.com/EtienneLescot/n8n-as-code/commit/b3ccd202ed48498b418e882be1e484e10abe32c7))
+* **vscode:** watch .n8n-state.json to react to CLI push/pull/resolve ([82c0e0d](https://github.com/EtienneLescot/n8n-as-code/commit/82c0e0d10efaca913ef1534c92953c18211a9444))
+
+
+### Bug Fixes
+
+* **agent-cli:** update asset paths and build configuration for VS Code extension ([e72c3b9](https://github.com/EtienneLescot/n8n-as-code/commit/e72c3b9847733f86d84a08ec4337516ce18d5357))
+* bundle prettier to prevent activation failure when installed from store ([76b1389](https://github.com/EtienneLescot/n8n-as-code/commit/76b1389c3a76ca36262111c5a9057f4398714f1b))
+* **cli:** address Claude plugin review feedback ([5fb588e](https://github.com/EtienneLescot/n8n-as-code/commit/5fb588ee988bd5b9e3f7b7cf8213d4298a974b5b))
+* **cli:** update push command to require full workflow file path ([d28ded0](https://github.com/EtienneLescot/n8n-as-code/commit/d28ded0afb5fa0f223c8bfd5ae15e9f6b64ce004))
+* **dependencies:** update version pinning logic for inter-package dependencies and adjust AGENTS.md generation for pre-release builds ([a7a7a0d](https://github.com/EtienneLescot/n8n-as-code/commit/a7a7a0d96a1ae5a61887263dee8631b3dc75e7cd))
+* improve activation flow by registering commands before async initialization to prevent delays ([39bb77b](https://github.com/EtienneLescot/n8n-as-code/commit/39bb77be6149863de2b4367844b0e40487aa4f19))
+* load prettier lazily in formatTypeScript and update external dependencies in esbuild config ([5c8614a](https://github.com/EtienneLescot/n8n-as-code/commit/5c8614ab478cfdbccdc1235c1f3c20ce52cb8b79))
+* resolve race condition during initialization by managing async state ([1919858](https://github.com/EtienneLescot/n8n-as-code/commit/1919858a104a695bea62ad6db75faf987e0cd4ef))
+* **sync:** refresh local workflow mapping before push ([90e2472](https://github.com/EtienneLescot/n8n-as-code/commit/90e2472f68bd8006a86ac53296984cce32bf1c5b))
+* update esbuild configuration to enforce CommonJS export conditions for all packages ([a6e4d28](https://github.com/EtienneLescot/n8n-as-code/commit/a6e4d284c4030ace3507dc549eef6b41b80b6b58))
+* update n8n spacer command title for clarity ([9d7bf4f](https://github.com/EtienneLescot/n8n-as-code/commit/9d7bf4f170be89985dbd6bc3bc8142eb612dbeb0))
+* update package versions and changelogs for [@n8n-as-code](https://github.com/n8n-as-code) ecosystem ([02d7fbd](https://github.com/EtienneLescot/n8n-as-code/commit/02d7fbd8fd0f214c3f73726c5d4e14b49ee0a152))
+* update package versions and changelogs for @n8n-as-code/cli, @n8n-as-code/skills, and @n8n-as-code/sync ([e8b7b7e](https://github.com/EtienneLescot/n8n-as-code/commit/e8b7b7e38fd2908c51d5ecf023d4376e34f286eb))
+* update SyncManager comment and handle workflow conflict resolution ([68ad67a](https://github.com/EtienneLescot/n8n-as-code/commit/68ad67a642487da913e3d4be6bf5d76d7ddc4e88))
+* update version to 0.13.0 and add changelog entry for race condition resolution ([22bde68](https://github.com/EtienneLescot/n8n-as-code/commit/22bde68793d0ded14c15e640e165f016665660a2))
+* **vscode-extension:** copy n8n-workflows.d.ts to extension assets during build ([bead064](https://github.com/EtienneLescot/n8n-as-code/commit/bead064151e92844bdc5e94c90b3d0a6f8dd5ee4))
+* **vscode-extension:** improve board webview clipboard and focus handling on macOS ([8f64af6](https://github.com/EtienneLescot/n8n-as-code/commit/8f64af603225c99e7b671db535b7b3b52e24fbeb))
+* **vscode-extension:** improve no-workspace initialization UX ([74cd5f6](https://github.com/EtienneLescot/n8n-as-code/commit/74cd5f6972854efe8e225867e6d6ad25c3f8d328))
+* **vscode-extension:** re-publish stable release after pre-release conflict ([e518679](https://github.com/EtienneLescot/n8n-as-code/commit/e518679eca186072eaf1f6fccd9b4b54a659ff6f))
+* **vscode-extension:** unify deletion confirmation terminology and enhance filename mapping stability ([528604f](https://github.com/EtienneLescot/n8n-as-code/commit/528604ffc8b8183312eb082d0f96fa3374899853))
+* **vscode-extension:** use 'src' as safer fallback for iframe permission origin ([307225a](https://github.com/EtienneLescot/n8n-as-code/commit/307225a07f5a30d0ff60ac34bf74569464e518d2))
+* **vscode-extension:** use explicit iframe origin in allow policy ([27a5d16](https://github.com/EtienneLescot/n8n-as-code/commit/27a5d161eff349a8248bee2372c6ad2ba135b5a9))
+
+
+### Build System
+
+* **vscode-extension:** implement automated asset copying via esbuild plugin ([cc6363e](https://github.com/EtienneLescot/n8n-as-code/commit/cc6363e086e3f9cac26d92b9ff789d03b730b375))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @n8n-as-code/skills bumped from 0.16.15 to 0.16.16
+    * n8nac bumped from 0.11.2 to 0.11.3
+
 ## [0.16.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.16.1...n8n-as-code@v0.16.2) (2026-03-07)
 
 
