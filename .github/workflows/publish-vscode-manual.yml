@@ -63,14 +63,60 @@ jobs:
             echo "pre_release=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Fetch registry versions
+        id: registry-versions
+        run: |
+          MARKETPLACE_VERSIONS=$(curl -s -X POST 'https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery?api-version=7.2-preview.1' \
+            -H 'Content-Type: application/json' \
+            -d '{"filters":[{"criteria":[{"filterType":7,"value":"etienne-lescot.n8n-as-code"}]}],"flags":529}' \
+            | node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(0,"utf8")); process.stdout.write(JSON.stringify((p.results?.[0]?.extensions?.[0]?.versions||[]).map(v => v.version)));')
+          OPENVSX_VERSIONS=$(curl -fsSL https://open-vsx.org/api/etienne-lescot/n8n-as-code \
+            | node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(0,"utf8")); process.stdout.write(JSON.stringify(Object.keys(p.allVersions || {}).filter(v => /^\d+\.\d+\.\d+$/.test(v))));')
+          echo "marketplace=$MARKETPLACE_VERSIONS" >> "$GITHUB_OUTPUT"
+          echo "openvsx=$OPENVSX_VERSIONS" >> "$GITHUB_OUTPUT"
+
       - name: Compute target version
         id: target-version
+        env:
+          MARKETPLACE_VERSIONS: ${{ steps.registry-versions.outputs.marketplace }}
+          OPENVSX_VERSIONS: ${{ steps.registry-versions.outputs.openvsx }}
         run: |
           VERSION=$(node -e '
+            const fs = require("fs");
+
+            function parseVersion(version) {
+              const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version || "");
+              if (!match) return null;
+              return {
+                major: Number(match[1]),
+                minor: Number(match[2]),
+                patch: Number(match[3]),
+              };
+            }
+
+            function compareVersions(left, right) {
+              if (left.major !== right.major) return left.major - right.major;
+              if (left.minor !== right.minor) return left.minor - right.minor;
+              return left.patch - right.patch;
+            }
+
+            function maxVersion(versions) {
+              return versions.reduce((highest, current) => {
+                if (!highest) return current;
+                return compareVersions(current, highest) > 0 ? current : highest;
+              }, null);
+            }
+
             const pkg = require("./packages/vscode-extension/package.json");
-            const [major, minor, patch] = pkg.version.split("-")[0].split(".").map(Number);
+            const localVersion = parseVersion(pkg.version.split("-")[0]);
+            const marketplaceVersions = JSON.parse(process.env.MARKETPLACE_VERSIONS || "[]").map(parseVersion).filter(Boolean);
+            const openvsxVersions = JSON.parse(process.env.OPENVSX_VERSIONS || "[]").map(parseVersion).filter(Boolean);
             const bump = process.argv[1];
-            const nextVersion = { major, minor, patch };
+            const baseVersion = maxVersion([localVersion, ...marketplaceVersions, ...openvsxVersions]);
+            if (!baseVersion) {
+              throw new Error("Unable to determine base version.");
+            }
+            const nextVersion = { ...baseVersion };
             if (bump === "major") {
               nextVersion.major += 1;
               nextVersion.minor = 0;
@@ -104,6 +150,7 @@ jobs:
         env:
           VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
           OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
+          MARKETPLACE_VERSIONS: ${{ steps.registry-versions.outputs.marketplace }}
         run: |
           if [[ '${{ inputs.publish_vscode }}' == 'true' && -z "$VSCE_TOKEN" ]]; then
             echo "❌ VSCE_TOKEN is missing in the selected environment secrets."
@@ -126,6 +173,8 @@ jobs:
 
           if [[ '${{ inputs.publish_vscode }}' != 'true' ]]; then
             echo "ℹ️ Skipping VS Code Marketplace publish."
+          elif echo "$MARKETPLACE_VERSIONS" | node -e 'const fs=require("fs"); const versions=JSON.parse(fs.readFileSync(0,"utf8")); process.exit(versions.includes(process.argv[1]) ? 0 : 1);' '${{ steps.target-version.outputs.version }}'; then
+            echo "⚠️ VS Code Marketplace version ${{ steps.target-version.outputs.version }} already exists, skipping Marketplace publish."
           elif [[ '${{ steps.publish-mode.outputs.pre_release }}' == 'true' ]]; then
             npx @vscode/vsce publish --no-dependencies --pre-release --pat "$VSCE_TOKEN"
           else
