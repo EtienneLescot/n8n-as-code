@@ -1,5 +1,12 @@
 # @n8n-as-code/transformer
 
+## [0.2.9](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.8...@n8n-as-code/transformer@v0.2.9) (2026-03-08)
+
+
+### Features
+
+* emit multiline jsCode as template literals ([b5a8223](https://github.com/EtienneLescot/n8n-as-code/commit/b5a82231714d3cbfca8b39dd00170c7721c06e26))
+
 ## [0.2.8](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.7...@n8n-as-code/transformer@v0.2.8) (2026-03-07)
 
 
