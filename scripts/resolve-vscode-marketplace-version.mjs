@@ -8,8 +8,8 @@ import { fileURLToPath } from 'node:url';
 const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const extensionPackageJsonPath = path.join(workspaceRoot, 'packages', 'vscode-extension', 'package.json');
 const extensionId = 'etienne-lescot.n8n-as-code';
-const defaultConfigFile = 'release-please-vscode-config.json';
-const defaultManifestFile = '.release-please-vscode-manifest.json';
+const defaultConfigFile = 'release-please-config.json';
+const defaultManifestFile = '.release-please-manifest.json';
 
 function parseArgs(argv) {
   const args = {};

@@ -23,6 +23,11 @@
       "package-name": "n8nac",
       "component": "n8nac",
       "changelog-path": "CHANGELOG.md"
+    },
+    "packages/vscode-extension": {
+      "package-name": "n8n-as-code",
+      "component": "n8n-as-code",
+      "changelog-path": "CHANGELOG.md"
     }
   },
   "plugins": [
