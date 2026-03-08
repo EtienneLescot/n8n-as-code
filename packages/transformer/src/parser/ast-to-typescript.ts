@@ -285,10 +285,7 @@ export class AstToTypeScriptGenerator {
         lines.push(`@node(${decoratorContent})`);
         
         // Property declaration
-        const params = JSON.stringify(node.parameters, null, 4)
-            .split('\n')
-            .map((line, i) => i === 0 ? line : '    ' + line)
-            .join('\n');
+        const params = this.formatValue(node.parameters, 1);
         
         lines.push(`${node.propertyName} = ${params};`);
         
@@ -325,6 +322,57 @@ export class AstToTypeScriptGenerator {
         }
         
         return `{\n        ${parts.join(',\n        ')}\n    }`;
+    }
+
+    private formatValue(value: any, indentLevel = 0): string {
+        if (typeof value === 'string') {
+            return this.formatString(value);
+        }
+
+        if (Array.isArray(value)) {
+            if (value.length === 0) return '[]';
+
+            const indent = '    '.repeat(indentLevel);
+            const childIndent = '    '.repeat(indentLevel + 1);
+
+            return `[\n${value
+                .map((item) => `${childIndent}${this.formatValue(item, indentLevel + 1)}`)
+                .join(',\n')}\n${indent}]`;
+        }
+
+        if (value && typeof value === 'object') {
+            const entries = Object.entries(value);
+
+            if (entries.length === 0) return '{}';
+
+            const indent = '    '.repeat(indentLevel);
+            const childIndent = '    '.repeat(indentLevel + 1);
+
+            return `{\n${entries
+                .map(([key, item]) => `${childIndent}${this.formatPropertyKey(key)}: ${this.formatValue(item, indentLevel + 1)}`)
+                .join(',\n')}\n${indent}}`;
+        }
+
+        if (value === undefined) {
+            return 'undefined';
+        }
+
+        return JSON.stringify(value);
+    }
+
+    private formatPropertyKey(key: string): string {
+        return /^[$A-Z_][0-9A-Z_$]*$/i.test(key) ? key : JSON.stringify(key);
+    }
+
+    private formatString(value: string): string {
+        if (!value.includes('\n') && !value.includes('\r')) {
+            return JSON.stringify(value);
+        }
+
+        return `\`${value
+            .replace(/\\/g, '\\\\')
+            .replace(/`/g, '\\`')
+            .replace(/\$\{/g, '\\${')}\``;
     }
     
     /**
