@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
-import { IN8nCredentials, IWorkflow, IProject } from '../types.js';
+import { IN8nCredentials, IWorkflow, IProject, ITag } from '../types.js';
 
 export class N8nApiClient {
     private client: AxiosInstance;
@@ -389,8 +389,18 @@ export class N8nApiClient {
     async getWorkflow(id: string): Promise<IWorkflow | null> {
         try {
             const res = await this.client.get(`/api/v1/workflows/${id}`);
+            const workflow = res.data;
+
+            // Tag payloads have varied across n8n versions and endpoints.
+            // Fetch the dedicated workflow-tags endpoint so pull stays consistent.
+            try {
+                workflow.tags = await this.getWorkflowTags(id);
+            } catch {
+                // Keep the workflow payload if the dedicated tags endpoint is unavailable.
+            }
+
             // Enrich with organization metadata
-            return await this.enrichWorkflowMetadata(res.data);
+            return await this.enrichWorkflowMetadata(workflow);
         } catch (error: any) {
             // 404 is expected if workflow deleted remotely
             if (error.response && error.response.status === 404) {
@@ -444,6 +454,78 @@ export class N8nApiClient {
     async createWorkflow(payload: Partial<IWorkflow>): Promise<IWorkflow> {
         const res = await this.client.post('/api/v1/workflows', payload);
         return res.data;
+    }
+
+    async getTags(): Promise<ITag[]> {
+        const tags: ITag[] = [];
+        let cursor: string | undefined;
+
+        do {
+            const res = await this.client.get('/api/v1/tags', {
+                params: cursor ? { cursor } : undefined
+            });
+
+            const data = Array.isArray(res.data?.data) ? res.data.data : [];
+            for (const tag of data) {
+                if (tag?.id && tag?.name) {
+                    tags.push({ id: tag.id, name: tag.name });
+                }
+            }
+
+            cursor = res.data?.nextCursor || undefined;
+        } while (cursor);
+
+        return tags;
+    }
+
+    async createTag(name: string): Promise<ITag> {
+        try {
+            const res = await this.client.post('/api/v1/tags', { name });
+            return {
+                id: res.data.id,
+                name: res.data.name
+            };
+        } catch (error: any) {
+            if (error.response?.status === 409) {
+                const existing = (await this.getTags()).find((tag) => tag.name === name);
+                if (existing) {
+                    return existing;
+                }
+            }
+
+            throw error;
+        }
+    }
+
+    async deleteTag(id: string): Promise<boolean> {
+        try {
+            await this.client.delete(`/api/v1/tags/${id}`);
+            return true;
+        } catch (error) {
+            console.error(`Failed to delete tag ${id}:`, error);
+            return false;
+        }
+    }
+
+    async getWorkflowTags(id: string): Promise<ITag[]> {
+        const res = await this.client.get(`/api/v1/workflows/${id}/tags`);
+        const tags = Array.isArray(res.data) ? res.data : [];
+
+        return tags
+            .filter((tag: any) => tag?.id && tag?.name)
+            .map((tag: any) => ({ id: tag.id, name: tag.name }));
+    }
+
+    async updateWorkflowTags(id: string, tags: Array<Pick<ITag, 'id'>>): Promise<ITag[]> {
+        const res = await this.client.put(
+            `/api/v1/workflows/${id}/tags`,
+            tags.map((tag) => ({ id: tag.id }))
+        );
+
+        const updatedTags = Array.isArray(res.data) ? res.data : [];
+        return updatedTags
+            .filter((tag: any) => tag?.id && tag?.name)
+            .map((tag: any) => ({ id: tag.id, name: tag.name }));
     }
 
     async updateWorkflow(id: string, payload: Partial<IWorkflow>): Promise<IWorkflow> {

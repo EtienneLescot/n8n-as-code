@@ -110,6 +110,10 @@ function copyLocalWorkflowFile(sourcePath, targetFilename) {
     return targetPath;
 }
 
+function escapeRegExp(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function extractWorkflowIdFromLocalFile(filePath) {
     const content = fs.readFileSync(filePath, 'utf-8');
     const idMatch = content.match(/id:\s*['"]([^'"]+)['"]/);
@@ -161,6 +165,7 @@ async function main() {
     });
 
     const createdWorkflowIds = new Set();
+    const createdTagIds = new Set();
     const syncErrors = [];
     const testRunPrefix = `n8nac-live-${Date.now()}`;
     const scenarioFailures = [];
@@ -331,6 +336,47 @@ async function main() {
             assert.match(fs.readFileSync(localPath, 'utf-8'), new RegExp(workflowName));
         });
 
+        await runScenario('pull preserves remote workflow tags in the local TypeScript file', async () => {
+            const workflowName = `${testRunPrefix} tagged remote`;
+            const tagName = `${testRunPrefix}-tag`;
+            const remoteWorkflow = await apiClient.createWorkflow(await buildRemoteWorkflowPayload(workflowName));
+            createdWorkflowIds.add(remoteWorkflow.id);
+
+            let tag;
+            try {
+                tag = await apiClient.createTag(tagName);
+            } catch (error) {
+                if (error?.response?.status === 409) {
+                    console.log(`[SKIP] tags API could not provision a unique tag on this instance (${error.response.data?.message || '409 Conflict'}).`);
+                    return;
+                }
+                throw error;
+            }
+
+            createdTagIds.add(tag.id);
+
+            const updatedTags = await apiClient.updateWorkflowTags(remoteWorkflow.id, [{ id: tag.id }]);
+            assert.deepEqual(updatedTags.map((entry) => entry.name), [tagName]);
+
+            const remoteWithTags = await fetchRemoteWorkflow(remoteWorkflow.id);
+            assert.deepEqual((remoteWithTags.tags || []).map((entry) => entry.name), [tagName]);
+
+            const remoteKnown = await syncManager.fetch(remoteWorkflow.id);
+            assert.equal(remoteKnown, true);
+
+            const filename = syncManager.getFilenameForId(remoteWorkflow.id);
+            assert.ok(filename, 'Expected a filename after fetch.');
+
+            await syncManager.pull(remoteWorkflow.id);
+
+            const localPath = localFilePath(filename);
+            const localContent = fs.readFileSync(localPath, 'utf-8');
+            assert.match(
+                localContent,
+                new RegExp(`tags:\\s*\\[[^\\]]*"${escapeRegExp(tagName)}"[^\\]]*\\]`)
+            );
+        });
+
         await runScenario('detects a conflict and resolves it by keeping local', async () => {
             const initialName = `${testRunPrefix} keep local base`;
             const remoteName = `${testRunPrefix} keep local remote`;
@@ -435,6 +481,14 @@ async function main() {
                 await apiClient.deleteWorkflow(workflowId);
             } catch {
                 // Ignore cleanup failures for already-deleted workflows.
+            }
+        }
+
+        for (const tagId of createdTagIds) {
+            try {
+                await apiClient.deleteTag(tagId);
+            } catch {
+                // Ignore cleanup failures for already-deleted tags.
             }
         }
 
