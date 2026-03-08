@@ -12,8 +12,8 @@ permissions:
   id-token: write  # Required for npm trusted publishing (OIDC)
 
 jobs:
-  release-please:
-    name: Release Please
+  release-please-core:
+    name: Release Please Core
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
@@ -23,22 +23,63 @@ jobs:
       cli_release_created: ${{ steps.release.outputs['packages/cli--release_created'] }}
       skills_release_created: ${{ steps.release.outputs['packages/skills--release_created'] }}
       transformer_release_created: ${{ steps.release.outputs['packages/transformer--release_created'] }}
-      vscode_release_created: ${{ steps.release.outputs['packages/vscode-extension--release_created'] }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  resolve-vscode-release-as:
+    name: Resolve VS Code Release-As
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.14'
+
+      - name: Resolve VS Code release version
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node scripts/resolve-vscode-marketplace-version.mjs --mode release-as --repo-url "${GITHUB_REPOSITORY}" --target-branch main)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  release-please-vscode:
+    name: Release Please VS Code
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: resolve-vscode-release-as
+    outputs:
+      release_created: ${{ steps.release.outputs['packages/vscode-extension--release_created'] }}
+      version: ${{ steps.release.outputs['packages/vscode-extension--version'] }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target-branch: main
+          config-file: release-please-vscode-config.json
+          manifest-file: .release-please-vscode-manifest.json
+          release-as: ${{ needs.resolve-vscode-release-as.outputs.version }}
+
   publish:
     name: Publish
     runs-on: ubuntu-latest
-    needs: release-please
+    needs: [release-please-core, release-please-vscode]
     # Run on next (pre-release) OR on main when release-please created releases
     if: |
       always() && (
         github.ref == 'refs/heads/next' ||
-        (needs.release-please.result == 'success' && needs.release-please.outputs.releases_created == 'true')
+        (needs.release-please-core.result == 'success' && needs.release-please-core.outputs.releases_created == 'true') ||
+        (needs.release-please-vscode.result == 'success' && needs.release-please-vscode.outputs.release_created == 'true')
       )
     environment: ${{ github.ref == 'refs/heads/next' && 'next' || 'prod' }}
     steps:
@@ -121,15 +162,25 @@ jobs:
           npm pkg set "dependencies.@n8n-as-code/skills=${SKILLS_VERSION}" --workspace=n8nac
           npm pkg set "dependencies.@n8n-as-code/transformer=${TRANSFORMER_VERSION}" --workspace=n8nac
 
-      - name: Normalize VS Code pre-release version (next only)
+      - name: Resolve VS Code publish version
+        id: vscode-version
         if: github.ref == 'refs/heads/next'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Publish next builds as proper semver pre-releases of the upcoming stable.
-          # Example: 0.18.0 -> 0.18.0-next.123
-          # This keeps preview builds below the eventual stable release while still
-          # giving each CI run a unique, monotonically increasing suffix.
-          BASE=$(node -p "require('./packages/vscode-extension/package.json').version.replace(/-next.*$/, '')")
-          npm version "$BASE-next.${{ github.run_number }}" --no-git-tag-version --workspace=n8n-as-code
+          if [[ "$GITHUB_REF" == "refs/heads/next" ]]; then
+            MODE=preview
+            TARGET_BRANCH=next
+          else
+            MODE=stable
+            TARGET_BRANCH=main
+          fi
+          VERSION=$(node scripts/resolve-vscode-marketplace-version.mjs --mode "$MODE" --repo-url "${GITHUB_REPOSITORY}" --target-branch "$TARGET_BRANCH")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Apply VS Code publish version
+        if: github.ref == 'refs/heads/next'
+        run: npm version "${{ steps.vscode-version.outputs.version }}" --no-git-tag-version --workspace=n8n-as-code
 
       - name: Build all packages
         run: npm run build
@@ -137,19 +188,19 @@ jobs:
       # Publish in dependency order: transformer → skills → cli
       # Authentication via OIDC trusted publishing — no token needed
       - name: Publish @n8n-as-code/transformer
-        if: github.ref == 'refs/heads/next' || needs.release-please.outputs.transformer_release_created == 'true'
+        if: github.ref == 'refs/heads/next' || needs.release-please-core.outputs.transformer_release_created == 'true'
         run: cd packages/transformer && npm publish --access public --tag ${{ steps.dist.outputs.tag }}
 
       - name: Publish @n8n-as-code/skills
-        if: github.ref == 'refs/heads/next' || needs.release-please.outputs.skills_release_created == 'true'
+        if: github.ref == 'refs/heads/next' || needs.release-please-core.outputs.skills_release_created == 'true'
         run: cd packages/skills && npm publish --access public --tag ${{ steps.dist.outputs.tag }}
 
       - name: Publish n8nac
-        if: github.ref == 'refs/heads/next' || needs.release-please.outputs.cli_release_created == 'true'
+        if: github.ref == 'refs/heads/next' || needs.release-please-core.outputs.cli_release_created == 'true'
         run: cd packages/cli && npm publish --access public --tag ${{ steps.dist.outputs.tag }}
 
       - name: Remove "private" flag for VS Code packaging
-        if: github.ref == 'refs/heads/next' || needs.release-please.outputs.vscode_release_created == 'true'
+        if: github.ref == 'refs/heads/next' || needs.release-please-vscode.outputs.release_created == 'true'
         run: |
           node -e "
             const fs = require('fs');
@@ -188,7 +239,7 @@ jobs:
           echo "ℹ️ Only stable releases from main are published to Open VSX."
 
       - name: Publish VS Code Extension (stable)
-        if: github.ref == 'refs/heads/main' && needs.release-please.outputs.vscode_release_created == 'true'
+        if: github.ref == 'refs/heads/main' && needs.release-please-vscode.outputs.release_created == 'true'
         env:
           VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
         run: |
@@ -210,7 +261,7 @@ jobs:
           npx @vscode/vsce publish --no-dependencies --pat "$VSCE_TOKEN"
 
       - name: Publish VS Code Extension (stable) to Open VSX
-        if: github.ref == 'refs/heads/main' && needs.release-please.outputs.vscode_release_created == 'true'
+        if: github.ref == 'refs/heads/main' && needs.release-please-vscode.outputs.release_created == 'true'
         env:
           OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
         run: |

@@ -49,9 +49,12 @@ jobs:
       - name: Validate version format
         run: |
           VERSION='${{ inputs.version }}'
-          if [[ '${{ inputs.pre_release }}' != 'true' && "$VERSION" == *-* ]]; then
-            echo "❌ Stable publish requires a plain semver version (no hyphen): got '$VERSION'"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ VS Code Marketplace requires plain major.minor.patch versions, got '$VERSION'"
             exit 1
+          fi
+          if [[ '${{ inputs.pre_release }}' == 'true' ]]; then
+            echo "ℹ️ Pre-release publish selected. Prefer the VS Marketplace convention even minor = stable, odd minor = pre-release."
           fi
 
       - name: Build/package/publish extension

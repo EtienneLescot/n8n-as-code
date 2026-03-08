@@ -11,7 +11,8 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run generate:nodes && tsc -b --force && npm run build --workspace=packages/skills --workspace=packages/cli --workspace=packages/vscode-extension",
+    "sync:brand-assets": "node scripts/sync-brand-assets.mjs",
+    "build": "npm run sync:brand-assets && npm run generate:nodes && tsc -b --force && npm run build --workspace=packages/skills --workspace=packages/cli --workspace=packages/vscode-extension",
     "build:cli": "cd packages/cli && npm run build",
     "build:claude-plugin": "npm run build --workspace=packages/skills && npm run build:adapters --workspace=packages/skills",
     "build:extension": "cd packages/vscode-extension && npm run build",
@@ -23,7 +24,7 @@
     "test:ci-local": "node scripts/test-ci-local.js",
     "validate-schema": "node scripts/validate-schema.js --schema ./packages/cli/src/core/assets/n8n-nodes-index.json",
     "generate:nodes": "node scripts/ensure-n8n-cache.cjs && node scripts/generate-n8n-index.cjs && node scripts/download-complete-docs.cjs && node scripts/build-complete-index.cjs && node scripts/enrich-nodes-technical.cjs && node scripts/build-knowledge-index.cjs && node scripts/build-workflow-index.cjs && node scripts/compare-extraction.mjs",
-    "clean": "npm run clean --workspaces --if-present && rm -rf packages/*/dist packages/*/out packages/**/tsconfig.tsbuildinfo .n8n-cache/ node_modules/.cache",
+    "clean": "npm run clean --workspaces --if-present && rm -rf packages/*/dist packages/*/out packages/**/tsconfig.tsbuildinfo .n8n-cache/ node_modules/.cache docs/static/img/logo.png",
     "release": "npm run build",
     "check-versions": "node scripts/check-version-consistency.js",
     "docs": "cd docs && npm start",

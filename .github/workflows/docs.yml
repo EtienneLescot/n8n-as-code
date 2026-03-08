@@ -5,19 +5,25 @@ on:
     branches: [ main ]
     paths:
       - 'docs/**'
+      - 'res/**'
+      - 'package.json'
       - 'packages/**/*.ts'
       - 'packages/**/*.tsx'
       - 'typedoc.json'
       - 'scripts/generate-api-docs.cjs'
+      - 'scripts/sync-brand-assets.mjs'
       - '.github/workflows/docs.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'docs/**'
+      - 'res/**'
+      - 'package.json'
       - 'packages/**/*.ts'
       - 'packages/**/*.tsx'
       - 'typedoc.json'
       - 'scripts/generate-api-docs.cjs'
+      - 'scripts/sync-brand-assets.mjs'
   # Allow manual triggering
   workflow_dispatch:
 
