@@ -3,14 +3,6 @@ name: Publish VS Code Extension (Manual)
 on:
   workflow_dispatch:
     inputs:
-      release_branch:
-        description: Branch to publish from
-        required: true
-        default: main
-        type: choice
-        options:
-          - main
-          - next
       bump_type:
         description: Semver bump to apply
         required: true
@@ -38,13 +30,11 @@ jobs:
   publish-vscode:
     name: Publish VS Code Extension
     runs-on: ubuntu-latest
-    environment: ${{ inputs.release_branch == 'next' && 'next' || 'prod' }}
+    environment: ${{ github.ref_name == 'next' && 'next' || 'prod' }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.release_branch }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -62,7 +52,12 @@ jobs:
       - name: Compute publish mode
         id: publish-mode
         run: |
-          if [[ '${{ inputs.release_branch }}' == 'next' ]]; then
+          if [[ "$GITHUB_REF_NAME" != 'main' && "$GITHUB_REF_NAME" != 'next' ]]; then
+            echo "❌ This workflow must be run from main or next, got '$GITHUB_REF_NAME'."
+            exit 1
+          fi
+
+          if [[ "$GITHUB_REF_NAME" == 'next' ]]; then
             echo "pre_release=true" >> "$GITHUB_OUTPUT"
           else
             echo "pre_release=false" >> "$GITHUB_OUTPUT"
@@ -94,9 +89,9 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "ℹ️ Target version: $VERSION"
           if [[ '${{ steps.publish-mode.outputs.pre_release }}' == 'true' ]]; then
-            echo "ℹ️ Publishing from next as a VS Marketplace pre-release."
+            echo "ℹ️ Publishing from $GITHUB_REF_NAME as a VS Marketplace pre-release."
           else
-            echo "ℹ️ Publishing from main as a stable release."
+            echo "ℹ️ Publishing from $GITHUB_REF_NAME as a stable release."
           fi
           if [[ '${{ inputs.publish_vscode }}' != 'true' && '${{ inputs.publish_openvsx }}' != 'true' ]]; then
             echo "❌ Select at least one publish target."
