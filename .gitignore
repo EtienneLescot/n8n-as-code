@@ -81,6 +81,8 @@ conversation.md
 
 packages/vscode-extension/packages/
 packages/vscode-extension/assets/
+docs/static/api/*
+!docs/static/api/.gitkeep
 docs/static/img/logo.png
 packages/skills/extraction-report.md
 n8nac.cmd
