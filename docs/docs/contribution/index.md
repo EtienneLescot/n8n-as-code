@@ -8,9 +8,9 @@ This section contains documentation for developers and contributors working on n
 - **[Architecture Overview](architecture.md)**: Understand the n8n-as-code monorepo architecture, component interactions, and design decisions.
 
 ### Internal Packages
-- **[Sync Package](sync.md)**: Internal documentation for the Sync package that provides shared business logic for all n8n-as-code components.
-- **[Skills CLI](skills.md)**: Internal documentation for the Skills CLI package used by AI assistants to generate context and snippets.
-- **[Claude Skill](claude-skill.md)**: Internal documentation for the Claude Agent Skill package.
+- **[Sync Engine](sync.md)**: Internal documentation for the sync engine embedded in `n8nac` and reused by the VS Code extension.
+- **[Skills Library](skills.md)**: Internal documentation for `@n8n-as-code/skills`, the internal library exposed through `n8nac skills`.
+- **[Claude Adapter](claude-skill.md)**: Internal documentation for the Claude adapter generated from the Skills library.
 
 ## 🛠 Development Setup
 
@@ -32,8 +32,11 @@ n8n-as-code is organized as a monorepo with the following packages:
 | Package | Purpose | Primary Users |
 |---------|---------|---------------|
 | **CLI** (`n8nac`) | Command-line interface + embedded sync engine | Terminal users, automation |
-| **VS Code Extension** | Integrated development environment | VS Code users |
-| **Skills Library** (`@n8n-as-code/skills`, accessed via `n8nac skills`) | AI context generation and node schemas | AI assistants, developers |
+| **Skills Library** (`@n8n-as-code/skills`) | Internal AI tooling library exposed through `n8nac skills` | AI assistants, developers |
+| **Transformer** (`@n8n-as-code/transformer`) | TypeScript workflow decorators, conversion, and code generation primitives | Workflow authors, package maintainers |
+| **VS Code Extension** (`n8n-as-code`) | Integrated editor experience built on top of `n8nac` and `@n8n-as-code/skills` | VS Code users |
+
+There is no longer a standalone `Claude Skill` package in `packages/`. Claude-specific distribution is generated from `packages/skills` as an adapter artifact.
 
 ## 🧪 Testing
 
@@ -61,158 +64,112 @@ npm run build
 
 ### Watch Mode (Development)
 ```bash
-npm run dev
+# CLI watch mode
+cd packages/cli && npm run watch
+
+# Rebuild the VS Code extension
+cd packages/vscode-extension && npm run build
 ```
 
 ## 📦 Version Management
 
-n8n-as-code uses **Changeset** with independent package versioning. Each package evolves independently while Changeset automatically manages internal dependencies.
+n8n-as-code uses a custom commit-driven release flow with independent package versioning. Each package evolves independently while the release automation keeps internal dependencies aligned.
 
 ### Current Package Versions
 
 Packages evolve **independently** with their own version numbers:
-- **n8nac**: `0.9.3` (embeds sync engine, exposes `n8nac skills` subgroup)
-- **@n8n-as-code/skills**: `0.2.0` (internal library, used by `n8nac`)
-- **VS Code Extension**: `0.2.0`
+- **n8nac**: `0.11.3` (embeds sync engine, exposes `n8nac skills`)
+- **@n8n-as-code/skills**: `0.16.16` (internal library, consumed by `n8nac` and the VS Code extension)
+- **VS Code Extension**: `0.20.0`
 
-> **Note**: Each package has its own version number. Changeset ensures that when a package depends on another internal package, it always references the **current version** of that dependency.
+> **Note**: Each package has its own version number. The release workflow updates internal dependency pins automatically whenever an upstream package version changes.
 
 ### Package Publication Strategy
 
-The project includes different types of packages:
+The project uses a custom commit-driven release flow.
 
-| Package | Published To | Managed By Changeset |
-|---------|-------------|---------------------|
-| `n8nac` | NPM Registry | ✅ Yes |
-| `@n8n-as-code/skills` | NPM Registry | ✅ Yes |
-| `n8n-as-code` (VS Code Extension) | VS Code Marketplace | ✅ Yes (versioning only) |
-| `n8n-as-code-monorepo` (root) | Not published | ❌ No (ignored) |
-| `docs` | Not published | ❌ No (private) |
-
-**Important**: The VS Code extension is marked as `"private": true` to prevent accidental NPM publication, but **it is still managed by Changeset** for version numbering and dependency synchronization. Changeset automatically skips private packages during `changeset publish`.
+| Package | Published To | Version Source |
+|---------|-------------|----------------|
+| `@n8n-as-code/transformer` | NPM Registry | Conventional commits + dependency propagation |
+| `@n8n-as-code/skills` | NPM Registry | Conventional commits + dependency propagation |
+| `n8nac` | NPM Registry | Conventional commits + dependency propagation |
+| `n8n-as-code` (VS Code Extension) | VS Code Marketplace / Open VSX | `packages/vscode-extension/package.json` + commit-driven bump |
+| Claude adapter artifacts | GitHub repository / plugin distribution flow | Built from `packages/skills/scripts/build-claude-adapter.js` |
+| `n8n-as-code-monorepo` (root) | Not published | Not released |
+| `docs` | Not published | Not released |
 
 ### Release Workflow
 
-#### Step 1: Create Changeset (Developer)
+#### Push to `next`
 
-After modifying code, document your changes:
+- Every push to `next` computes prerelease bumps from commit messages.
+- Internal dependency versions are re-pinned automatically.
+- Changed public packages are published to npm with the `next` dist-tag.
+- The VS Code extension is published to the Marketplace as a prerelease.
+- Open VSX prereleases remain disabled.
 
-```bash
-npm run changeset
-```
+#### Push to `main`
 
-This command:
-- Creates a file `.changeset/random-name-123.md`
-- Prompts you to select affected packages (including VS Code extension if modified)
-- Asks for version bump type: `patch` (0.3.0→0.3.1), `minor` (0.3.0→0.4.0), `major` (0.3.0→1.0.0)
-- Requests a changelog message
+- Stable release creation is only allowed when `next` is not ahead of `main`.
+- A push to `main` creates or updates a single release PR when commit history requires version bumps.
+- The release PR updates package versions and internal dependency versions together.
 
-**Important**: Commit this changeset file with your code changes.
+#### Merge the release PR
 
-#### Step 2: Version Packages PR (Automated)
-
-When changesets are pushed to `main`, the CI creates a **"Version Packages"** Pull Request automatically:
-
-- Reads all `.changeset/*.md` files
-- Updates `package.json` versions for ALL packages (including private ones)
-- Automatically updates internal dependencies across all packages
-- Generates/updates `CHANGELOG.md` files
-- Deletes processed changeset files
-- Creates a single PR with all these changes
-
-#### Step 3: Merge & Publish (Automated)
-
-When the "Version Packages" PR is merged:
-
-1. **NPM Publication**:
-   - Builds all packages
-   - Publishes public packages to NPM registry (`n8nac`, `@n8n-as-code/skills`)
-   - Skips private packages automatically (monorepo root, VS Code extension, docs)
-   - Creates Git tags for each published package (e.g., `n8nac@0.9.3`)
-
-2. **VS Code Extension**:
-   - Separately publishes to VS Code Marketplace using the version from package.json
-   - No Git tag created for the extension (private package)
-
-3. **GitHub Releases**:
-   - **ENABLED** - One GitHub Release is created per published package
-   - Each package has its own release timeline (e.g., `n8nac@0.9.4`, `@n8n-as-code/skills@0.3.0`)
-   - Release notes are automatically extracted from each package's CHANGELOG.md
-   - Private packages (VS Code extension) do not get GitHub Releases automatically
+1. The merged `package.json` versions become the stable source of truth.
+2. Changed npm packages are published in dependency order.
+3. The VS Code extension is published from the exact version committed in `packages/vscode-extension/package.json`.
+4. Stable git tags are pushed for each released package.
+5. The workflow force-aligns `next` back to `main`, or recreates `next` if it was deleted.
 
 ### Example: How Internal Dependencies Stay Synchronized
 
 Let's say you fix a bug in the sync engine (embedded in `n8nac`):
 
 ```bash
-# 1. Create a changeset for the fix
-npm run changeset
-# Select: n8nac
-# Type: patch (0.9.3 → 0.9.4)
+# 1. Push a conventional commit to next
+git commit -m "fix(cli): handle sync edge case"
 
-# 2. Apply versions
-npm run version-packages
+# 2. Merge next into main
+# 3. Let the release PR bump versions automatically
 ```
 
 **Result:**
-- `n8nac`: `0.9.3` → `0.9.4` ✅
+- `n8nac`: `0.11.3` → `0.11.4` ✅
 - `@n8n-as-code/skills`: (unchanged, no dependency on n8nac) ✅
-- `VS Code Extension`: `0.14.1` → `0.14.2` (auto-bumped because it depends on n8nac) ✅
+- `VS Code Extension`: `0.20.0` → `0.20.1` (auto-bumped because it depends on n8nac) ✅
 
 All packages that depend on `n8nac` will have their `package.json` updated to reference `"n8nac": "0.9.4"`.
 
 ### Workflow Summary Diagram
 
 ```
-Developer makes changes
+Developer pushes conventional commits to next
        ↓
-npm run changeset (creates .changeset/xyz.md)
+CI publishes prereleases from next
        ↓
-git commit + git push
+next is merged into main
        ↓
-CI detects changeset files → Creates "Version Packages" PR
+CI creates or updates a release PR
        ↓
-Maintainer reviews & merges PR
+Maintainer merges the release PR
        ↓
 CI automatically:
-  ├─→ Publishes to NPM (n8nac, @n8n-as-code/skills)
-  ├─→ Creates Git tags (one per package)
-  └─→ Publishes VS Code extension to Marketplace
+  ├─→ Publishes stable npm packages in dependency order
+  ├─→ Tags released package versions
+  ├─→ Publishes the VS Code extension from package.json
+  └─→ Re-aligns next on top of main
 ```
 
 ### Key Rules
-- **Never manually edit versions** in package.json
-- **Always use Changeset** even for small fixes
-- **Include VS Code extension in changesets** when you modify it - this ensures dependencies stay synchronized
-- **Internal dependencies are automatically updated** thanks to `"updateInternalDependencies": "patch"` in Changeset config
-- **Private packages are safe** - Changeset will manage their versions but never publish them to NPM
+- **Never manually edit release versions in PRs by hand** unless you are intentionally repairing the release flow
+- **Use conventional commits** so the CI can derive `major`, `minor`, or `patch` automatically
+- **The VS Code extension version line is driven from `packages/vscode-extension/package.json`**
+- **Internal dependencies are automatically re-pinned** whenever an upstream package is bumped
+- **Private packages remain safe** - they can participate in version orchestration without npm publication
 - **Use `npm run check-versions`** to verify all internal dependencies are up-to-date
 - **Git tags are created automatically** for each published NPM package
-- **GitHub Releases are created automatically** - One release per package with its own timeline
 - **Each package has independent releases** - No global monorepo release
-
-### GitHub Releases per Package
-
-When a "Version Packages" PR is merged, Changeset automatically creates:
-
-**For each published NPM package:**
-- ✅ GitHub Release (e.g., `n8nac@0.9.4`)
-- ✅ Git Tag with the same name
-- ✅ Release notes extracted from the package's CHANGELOG.md
-
-**For private packages (VS Code extension):**
-- ❌ No GitHub Release (private packages are skipped)
-- ℹ️  You can create manual releases if needed
-
-**Example timeline on GitHub:**
-```
-Releases
-├─ n8nac@0.9.4                     (Jan 20, 2024)
-├─ @n8n-as-code/skills@0.3.0       (Jan 18, 2024)
-└─ n8nac@0.9.3                     (Jan 15, 2024)
-```
-
-Each package maintains its own release history!
 
 ## 📝 Contribution Guidelines
 
@@ -237,7 +194,6 @@ Each package maintains its own release history!
 - [GitHub Repository](https://github.com/EtienneLescot/n8n-as-code)
 - [Issue Tracker](https://github.com/EtienneLescot/n8n-as-code/issues)
 - [Discussion Forum](https://github.com/EtienneLescot/n8n-as-code/discussions)
-- [Changeset Documentation](https://github.com/changesets/changesets)
 - [Release Workflow](https://github.com/EtienneLescot/n8n-as-code/blob/main/.github/workflows/release.yml)
 
 ## ❓ Need Help?
