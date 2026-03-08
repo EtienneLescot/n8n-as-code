@@ -12,6 +12,7 @@ const PACKAGES = [
     name: '@n8n-as-code/transformer',
     path: 'packages/transformer',
     packageJsonPath: 'packages/transformer/package.json',
+    changelogPath: 'packages/transformer/CHANGELOG.md',
     publishTarget: 'npm',
     tagPrefix: '@n8n-as-code/transformer@',
     internalDependencies: [],
@@ -20,6 +21,7 @@ const PACKAGES = [
     name: '@n8n-as-code/skills',
     path: 'packages/skills',
     packageJsonPath: 'packages/skills/package.json',
+    changelogPath: 'packages/skills/CHANGELOG.md',
     publishTarget: 'npm',
     tagPrefix: '@n8n-as-code/skills@',
     internalDependencies: ['@n8n-as-code/transformer'],
@@ -28,6 +30,7 @@ const PACKAGES = [
     name: 'n8nac',
     path: 'packages/cli',
     packageJsonPath: 'packages/cli/package.json',
+    changelogPath: 'packages/cli/CHANGELOG.md',
     publishTarget: 'npm',
     tagPrefix: 'n8nac@',
     internalDependencies: ['@n8n-as-code/skills', '@n8n-as-code/transformer'],
@@ -36,6 +39,7 @@ const PACKAGES = [
     name: 'n8n-as-code',
     path: 'packages/vscode-extension',
     packageJsonPath: 'packages/vscode-extension/package.json',
+    changelogPath: 'packages/vscode-extension/CHANGELOG.md',
     publishTarget: 'vscode',
     tagPrefix: 'n8n-as-code@',
     internalDependencies: ['@n8n-as-code/skills', 'n8nac'],
@@ -45,6 +49,62 @@ const PACKAGES = [
 const PATCH_TYPES = new Set(['fix', 'perf', 'refactor', 'revert', 'deps', 'build']);
 const BUMP_PRIORITY = { none: 0, patch: 1, minor: 2, major: 3 };
 const extensionPackage = PACKAGES.find(pkg => pkg.name === 'n8n-as-code');
+
+const CROSS_PACKAGE_RULES = [
+  {
+    matches(file) {
+      return file.startsWith('res/') || file === 'scripts/sync-brand-assets.mjs' || file === 'scripts/build-and-install.js' || file === 'scripts/setup-dev-link.js';
+    },
+    packages: ['n8n-as-code'],
+  },
+  {
+    matches(file) {
+      return file === '.claude-plugin/marketplace.json' || file.startsWith('plugins/claude/') || file === 'CLAUDE_PLUGIN_SUBMISSION_DRAFT.md';
+    },
+    packages: ['@n8n-as-code/skills'],
+  },
+  {
+    matches(file) {
+      return file === 'scripts/ensure-n8n-cache.cjs'
+        || file === 'scripts/generate-n8n-index.cjs'
+        || file === 'scripts/download-complete-docs.cjs'
+        || file === 'scripts/build-complete-index.cjs'
+        || file === 'scripts/enrich-nodes-technical.cjs'
+        || file === 'scripts/build-knowledge-index.cjs'
+        || file === 'scripts/build-workflow-index.cjs'
+        || file === 'scripts/compare-extraction.mjs';
+    },
+    packages: ['@n8n-as-code/skills'],
+  },
+  {
+    matches(file) {
+      return file.startsWith('packages/cli/src/core/assets/') || file === 'scripts/test-ci-local.js';
+    },
+    packages: ['n8nac'],
+  },
+  {
+    matches(file) {
+      return file.startsWith('docs/docs/usage/claude-skill') || file.startsWith('docs/docs/contribution/claude-skill');
+    },
+    packages: ['@n8n-as-code/skills'],
+  },
+];
+
+const CHANGELOG_SECTION_TITLES = new Map([
+  ['major', '### ⚠ BREAKING CHANGES'],
+  ['minor', '### Features'],
+  ['patch', '### Bug Fixes'],
+]);
+
+const COMMIT_SECTION_BY_TYPE = new Map([
+  ['feat', 'minor'],
+  ['fix', 'patch'],
+  ['perf', 'patch'],
+  ['refactor', 'patch'],
+  ['revert', 'patch'],
+  ['deps', 'patch'],
+  ['build', 'patch'],
+]);
 
 function git(args) {
   return execFileSync('git', args, {
@@ -106,6 +166,10 @@ function compareVersions(left, right) {
 
 function formatVersion(version) {
   return `${version.major}.${version.minor}.${version.patch}`;
+}
+
+function getTodayDate() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function incrementVersion(version, bump) {
@@ -175,8 +239,15 @@ function getCommitDetails(sha) {
   }
 
   const message = git(['show', '-s', '--format=%B', sha]);
+  const subject = git(['show', '-s', '--format=%s', sha]);
   const files = gitLines(['show', '--format=', '--name-only', '--no-renames', sha]);
-  const details = { sha, message, files };
+  const details = {
+    sha,
+    message,
+    subject,
+    files,
+    conventional: parseConventionalCommit(message),
+  };
   commitCache.set(sha, details);
   return details;
 }
@@ -191,43 +262,145 @@ function getAffectedPackageNames(files) {
       }
     }
 
-    if (file.startsWith('res/')) {
-      affected.add('n8n-as-code');
+    for (const rule of CROSS_PACKAGE_RULES) {
+      if (rule.matches(file)) {
+        for (const pkgName of rule.packages) {
+          affected.add(pkgName);
+        }
+      }
     }
   }
 
   return affected;
 }
 
-function parseCommitBump(message) {
+function parseConventionalCommit(message) {
   const normalized = message.trim();
-  if (!normalized) {
+  const subject = normalized.split('\n')[0]?.trim() || '';
+  const match = /^([a-z]+)(\(([^)]*)\))?(!)?:\s(.+)$/.exec(subject);
+  const body = normalized.split('\n').slice(1).join('\n').trim();
+  const breaking = Boolean(match?.[4]) || /^BREAKING CHANGE:/m.test(normalized) || /^BREAKING-CHANGE:/m.test(normalized);
+
+  return {
+    raw: normalized,
+    subject,
+    body,
+    type: match?.[1] || null,
+    scope: match?.[3] || null,
+    description: match?.[5] || subject,
+    breaking,
+  };
+}
+
+function parseCommitBump(message) {
+  const conventional = parseConventionalCommit(message);
+  if (!conventional.raw) {
     return null;
   }
 
-  if (/^BREAKING CHANGE:/m.test(normalized) || /^BREAKING-CHANGE:/m.test(normalized)) {
+  if (conventional.breaking) {
     return 'major';
   }
 
-  const subject = normalized.split('\n')[0].trim();
-  const match = /^([a-z]+)(\([^)]*\))?(!)?:\s/.exec(subject);
-  if (!match) {
+  if (!conventional.type) {
     return null;
   }
 
-  if (match[3]) {
-    return 'major';
-  }
-
-  const type = match[1];
-  if (type === 'feat') {
+  if (conventional.type === 'feat') {
     return 'minor';
   }
-  if (PATCH_TYPES.has(type)) {
+  if (PATCH_TYPES.has(conventional.type)) {
     return 'patch';
   }
 
   return null;
+}
+
+function getCommitUrl(sha) {
+  return `https://github.com/EtienneLescot/n8n-as-code/commit/${sha}`;
+}
+
+function formatCommitBullet(commit) {
+  const details = getCommitDetails(commit.sha);
+  const conventional = details.conventional;
+  const scope = conventional.scope ? `**${conventional.scope}:** ` : '';
+  return `* ${scope}${conventional.description} ([${commit.sha.slice(0, 7)}](${getCommitUrl(commit.sha)}))`;
+}
+
+function groupCommitsForChangelog(commits) {
+  const grouped = {
+    major: [],
+    minor: [],
+    patch: [],
+  };
+
+  for (const commit of commits) {
+    const details = getCommitDetails(commit.sha);
+    const conventional = details.conventional;
+    if (conventional.breaking) {
+      grouped.major.push(commit);
+      continue;
+    }
+
+    const section = COMMIT_SECTION_BY_TYPE.get(conventional.type || '') || null;
+    if (section) {
+      grouped[section].push(commit);
+    }
+  }
+
+  return grouped;
+}
+
+function buildDependencyChangelogSection(pkg, plan) {
+  const dependencyLines = [];
+
+  for (const dependencyName of pkg.internalDependencies) {
+    const dependencyPlan = plan.packages.find(item => item.name === dependencyName);
+    if (!dependencyPlan?.changed) {
+      continue;
+    }
+
+    dependencyLines.push(`    * ${dependencyName} bumped from ${dependencyPlan.currentVersion} to ${dependencyPlan.targetVersion}`);
+  }
+
+  if (dependencyLines.length === 0) {
+    return '';
+  }
+
+  return ['### Dependencies', '', '* The following workspace dependencies were updated', ...dependencyLines, ''].join('\n');
+}
+
+function buildChangelogEntry(pkg, pkgPlan, plan) {
+  const previousTag = pkgPlan.latestStableTag || `${pkg.tagPrefix}v${pkgPlan.currentVersion}`;
+  const title = `## [${pkgPlan.targetVersion}](https://github.com/EtienneLescot/n8n-as-code/compare/${previousTag}...${pkg.tagPrefix}v${pkgPlan.targetVersion}) (${getTodayDate()})`;
+  const grouped = groupCommitsForChangelog(pkgPlan.commits);
+  const sections = [title, ''];
+
+  for (const [groupKey, heading] of CHANGELOG_SECTION_TITLES.entries()) {
+    if (grouped[groupKey].length === 0) {
+      continue;
+    }
+
+    sections.push(heading, '');
+    for (const commit of grouped[groupKey]) {
+      sections.push(formatCommitBullet(commit));
+    }
+    sections.push('');
+  }
+
+  const dependencySection = buildDependencyChangelogSection(pkg, plan);
+  if (dependencySection) {
+    sections.push(dependencySection);
+  }
+
+  return `${sections.join('\n').trimEnd()}\n\n`;
+}
+
+function prependChangelogEntry(changelogPath, entry) {
+  const absolutePath = path.join(workspaceRoot, changelogPath);
+  const existing = fs.readFileSync(absolutePath, 'utf8');
+  const next = `${existing.split('\n')[0]}\n\n${entry}${existing.split('\n').slice(2).join('\n')}`;
+  fs.writeFileSync(absolutePath, next.endsWith('\n') ? next : `${next}\n`);
 }
 
 function getCommitsSinceTag(tag) {
@@ -323,7 +496,14 @@ function computeStablePlan() {
     const latestTag = getLatestStableTag(pkg);
     const bumpInfo = resolvedBumps.get(pkg.name) || { bump: null, commits: [], reasons: [] };
     const directInfo = directBumps.get(pkg.name) || { bump: null, commits: [] };
-    const targetVersion = bumpInfo.bump ? formatVersion(incrementVersion(currentStableVersion, bumpInfo.bump)) : currentVersion.replace(/-.*$/, '');
+    const currentStableString = currentVersion.replace(/-.*$/, '');
+    const versionAheadOfTag = latestTag ? compareVersions(currentStableVersion, latestTag.version) > 0 : false;
+    const targetVersion = bumpInfo.bump ? formatVersion(incrementVersion(currentStableVersion, bumpInfo.bump)) : currentStableString;
+    const changed = Boolean(bumpInfo.bump) || versionAheadOfTag;
+    const reasons = [...bumpInfo.reasons];
+    if (versionAheadOfTag && !reasons.includes('version-ahead-of-tag')) {
+      reasons.push('version-ahead-of-tag');
+    }
 
     return {
       ...pkg,
@@ -332,10 +512,10 @@ function computeStablePlan() {
       latestStableVersion: latestTag ? formatVersion(latestTag.version) : null,
       bump: bumpInfo.bump,
       directBump: directInfo.bump,
-      changed: Boolean(bumpInfo.bump),
+      changed,
       targetVersion,
       commits: directInfo.commits,
-      reasons: bumpInfo.reasons,
+      reasons,
     };
   });
 
@@ -444,6 +624,18 @@ function applyPlan(plan, versionKey) {
     }
 
     writeJson(pkg.packageJsonPath, packageJson);
+  }
+
+  if (versionKey === 'targetVersion') {
+    for (const pkg of PACKAGES) {
+      const pkgPlan = plan.packages.find(item => item.name === pkg.name);
+      if (!pkgPlan?.changed) {
+        continue;
+      }
+
+      const changelogEntry = buildChangelogEntry(pkg, pkgPlan, plan);
+      prependChangelogEntry(pkg.changelogPath, changelogEntry);
+    }
   }
 
   return plan;

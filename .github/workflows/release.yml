@@ -265,9 +265,13 @@ jobs:
           base: main
           add-paths: |
             package-lock.json
+            packages/cli/CHANGELOG.md
             packages/cli/package.json
+            packages/skills/CHANGELOG.md
             packages/skills/package.json
+            packages/transformer/CHANGELOG.md
             packages/transformer/package.json
+            packages/vscode-extension/CHANGELOG.md
             packages/vscode-extension/package.json
 
   publish-prerelease:
