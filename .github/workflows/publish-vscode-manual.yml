@@ -3,11 +3,6 @@ name: Publish VS Code Extension (Manual)
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: Git ref to publish from (branch, tag, or SHA)
-        required: true
-        default: main
-        type: string
       version:
         description: Extension version to publish (e.g. 0.14.9)
         required: true
@@ -35,8 +30,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
