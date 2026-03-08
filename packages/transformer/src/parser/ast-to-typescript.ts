@@ -369,10 +369,15 @@ export class AstToTypeScriptGenerator {
             return JSON.stringify(value);
         }
 
-        return `\`${value.replace(/[`\\]|\$\{/g, (match) => {
-            if (match === '\\') return '\\\\';
-            return `\\${match}`;
-        })}\``;
+        // Preserve carriage returns by emitting them as \r escape sequences
+        const escaped = value
+            .replace(/\r/g, '\\r')
+            .replace(/[`\\]|\$\{/g, (match) => {
+                if (match === '\\') return '\\\\';
+                return `\\${match}`;
+            });
+
+        return `\`${escaped}\``;
     }
     
     /**
