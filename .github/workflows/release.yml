@@ -133,10 +133,10 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"filters":[{"criteria":[{"filterType":7,"value":"etienne-lescot.n8n-as-code"}]}],"flags":529}' \
             | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).results?.[0]?.extensions?.[0]?.versions?.map(v => v.version).join('\n') || ''")
+          npx @vscode/vsce package --no-dependencies
           if echo "$EXISTING" | grep -qxF "$VERSION"; then
             echo "ℹ️ VS Code Marketplace already contains $VERSION, skipping publish."
           else
-            npx @vscode/vsce package --no-dependencies
             npx @vscode/vsce publish --no-dependencies --pat "$VSCE_TOKEN"
           fi
 
@@ -150,7 +150,11 @@ jobs:
             exit 0
           fi
           cd packages/vscode-extension
-          npx ovsx publish *.vsix -p "$OVSX_TOKEN"
+          if compgen -G "*.vsix" > /dev/null; then
+            npx ovsx publish *.vsix -p "$OVSX_TOKEN"
+          else
+            echo "⚠️ No VSIX artifact found, skipping Open VSX publish."
+          fi
 
       - name: Push stable tags
         if: steps.pending.outputs.pending == 'true'

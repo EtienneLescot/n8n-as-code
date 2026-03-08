@@ -338,8 +338,57 @@ function parseCommitBump(message) {
   return null;
 }
 
+let repositoryBaseUrlCache = null;
+
+function normalizeGitHubRepositoryUrl(remoteUrl) {
+  let repoPath = remoteUrl.trim();
+
+  if (repoPath.startsWith('git@github.com:')) {
+    repoPath = repoPath.replace(/^git@github\.com:/, '');
+  } else if (repoPath.startsWith('https://github.com/')) {
+    repoPath = repoPath.replace(/^https:\/\/github\.com\//, '');
+  } else if (repoPath.startsWith('http://github.com/')) {
+    repoPath = repoPath.replace(/^http:\/\/github\.com\//, '');
+  }
+
+  if (repoPath.endsWith('.git')) {
+    repoPath = repoPath.slice(0, -4);
+  }
+
+  if (!repoPath || repoPath.includes('://')) {
+    return null;
+  }
+
+  return `https://github.com/${repoPath}`;
+}
+
+function getRepositoryBaseUrl() {
+  if (repositoryBaseUrlCache) {
+    return repositoryBaseUrlCache;
+  }
+
+  const envRepository = process.env.GITHUB_REPOSITORY;
+  if (envRepository) {
+    repositoryBaseUrlCache = `https://github.com/${envRepository}`;
+    return repositoryBaseUrlCache;
+  }
+
+  try {
+    const remoteUrl = execFileSync('git', ['config', '--get', 'remote.origin.url'], {
+      cwd: workspaceRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+    repositoryBaseUrlCache = normalizeGitHubRepositoryUrl(remoteUrl) || 'https://github.com/EtienneLescot/n8n-as-code';
+    return repositoryBaseUrlCache;
+  } catch {
+    repositoryBaseUrlCache = 'https://github.com/EtienneLescot/n8n-as-code';
+    return repositoryBaseUrlCache;
+  }
+}
+
 function getCommitUrl(sha) {
-  return `https://github.com/EtienneLescot/n8n-as-code/commit/${sha}`;
+  return `${getRepositoryBaseUrl()}/commit/${sha}`;
 }
 
 function formatCommitBullet(commit) {
@@ -394,7 +443,7 @@ function buildDependencyChangelogSection(pkg, plan) {
 
 function buildChangelogEntry(pkg, pkgPlan, plan) {
   const previousTag = pkgPlan.latestStableTag || `${pkg.tagPrefix}v${pkgPlan.currentVersion}`;
-  const title = `## [${pkgPlan.targetVersion}](https://github.com/EtienneLescot/n8n-as-code/compare/${previousTag}...${pkg.tagPrefix}v${pkgPlan.targetVersion}) (${getTodayDate()})`;
+  const title = `## [${pkgPlan.targetVersion}](${getRepositoryBaseUrl()}/compare/${previousTag}...${pkg.tagPrefix}v${pkgPlan.targetVersion}) (${getTodayDate()})`;
   const grouped = groupCommitsForChangelog(pkgPlan.commits);
   const sections = [title, ''];
 
@@ -630,6 +679,8 @@ function applyPlan(plan, versionKey) {
 
   for (const pkg of PACKAGES) {
     const packageJson = readJson(pkg.packageJsonPath);
+    const originalJson = JSON.stringify(packageJson);
+
     const nextVersion = changedVersions.get(pkg.name);
     if (nextVersion) {
       packageJson.version = nextVersion;
@@ -647,7 +698,10 @@ function applyPlan(plan, versionKey) {
       }
     }
 
-    writeJson(pkg.packageJsonPath, packageJson);
+    // Only write if content actually changed (avoid formatting-only diffs)
+    if (JSON.stringify(packageJson) !== originalJson) {
+      writeJson(pkg.packageJsonPath, packageJson);
+    }
   }
 
   if (versionKey === 'targetVersion') {

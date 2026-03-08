@@ -1,5 +1,16 @@
 # n8n-as-code
 
+## [0.20.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.19.0...n8n-as-code@v0.20.0) (2026-03-09)
+
+### Features
+
+* align the VS Code extension release line with the new commit-driven publishing workflow and seed the next stable Marketplace version
+
+### Bug Fixes
+
+* always package a VSIX before conditional Marketplace publish so Open VSX can reuse the build artifact safely
+* derive changelog and commit links from CI or git remote metadata instead of hardcoding the repository URL
+
 ## [0.19.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.18.0...n8n-as-code@v0.19.0) (2026-03-08)
 
 
