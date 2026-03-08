@@ -66,26 +66,25 @@ jobs:
       - name: Compute target version
         id: target-version
         run: |
-          BUMP_TYPE='${{ inputs.bump_type }}'
-          VERSION=$(node -e "
-            const pkg = require('./packages/vscode-extension/package.json');
-            const [major, minor, patch] = pkg.version.split('-')[0].split('.').map(Number);
-            const bump = process.env.BUMP_TYPE;
+          VERSION=$(node -e '
+            const pkg = require("./packages/vscode-extension/package.json");
+            const [major, minor, patch] = pkg.version.split("-")[0].split(".").map(Number);
+            const bump = process.argv[1];
             const nextVersion = { major, minor, patch };
-            if (bump === 'major') {
+            if (bump === "major") {
               nextVersion.major += 1;
               nextVersion.minor = 0;
               nextVersion.patch = 0;
-            } else if (bump === 'minor') {
+            } else if (bump === "minor") {
               nextVersion.minor += 1;
               nextVersion.patch = 0;
-            } else if (bump === 'patch') {
+            } else if (bump === "patch") {
               nextVersion.patch += 1;
             } else {
-              throw new Error('Unsupported bump type: ' + bump);
+              throw new Error("Unsupported bump type: " + bump);
             }
-            process.stdout.write(`${nextVersion.major}.${nextVersion.minor}.${nextVersion.patch}`);
-          " )
+            process.stdout.write([nextVersion.major, nextVersion.minor, nextVersion.patch].join("."));
+          ' '${{ inputs.bump_type }}')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "ℹ️ Target version: $VERSION"
           if [[ '${{ steps.publish-mode.outputs.pre_release }}' == 'true' ]]; then
