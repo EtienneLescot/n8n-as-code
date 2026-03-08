@@ -365,7 +365,7 @@ sequenceDiagram
 1. **Linting**: ESLint with TypeScript support
 2. **Testing**: Jest with coverage reporting
 3. **Building**: TypeScript compilation
-4. **Publishing**: Changesets for version management
+4. **Publishing**: Custom commit-driven release automation
 
 ## 🔐 Security Architecture
 
@@ -411,7 +411,7 @@ npm run docs
 ### Package Management
 - **Workspaces**: npm workspaces for monorepo
 - **Dependencies**: Shared and package-specific deps
-- **Versioning**: Independent versioning with changesets
+- **Versioning**: Independent versioning with commit-driven release automation
 
 
 ## 📚 Related Documentation

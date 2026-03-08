@@ -9,52 +9,277 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 permissions:
   contents: write
   pull-requests: write
-  id-token: write  # Required for npm trusted publishing (OIDC)
+  id-token: write
 
 jobs:
-  release-please:
-    name: Release Please
+  publish-stable:
+    name: Publish Stable
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: prod
     outputs:
-      releases_created: ${{ steps.release.outputs.releases_created }}
-      paths_released: ${{ steps.release.outputs.paths_released }}
-      # Per-package outputs
-      cli_release_created: ${{ steps.release.outputs['packages/cli--release_created'] }}
-      skills_release_created: ${{ steps.release.outputs['packages/skills--release_created'] }}
-      transformer_release_created: ${{ steps.release.outputs['packages/transformer--release_created'] }}
-      vscode_release_created: ${{ steps.release.outputs['packages/vscode-extension--release_created'] }}
+      pending: ${{ steps.pending.outputs.pending }}
     steps:
-      - uses: googleapis/release-please-action@v4
-        id: release
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-  publish:
-    name: Publish
-    runs-on: ubuntu-latest
-    needs: release-please
-    # Run on next (pre-release) OR on main when release-please created releases
-    if: |
-      always() && (
-        github.ref == 'refs/heads/next' ||
-        (needs.release-please.result == 'success' && needs.release-please.outputs.releases_created == 'true')
-      )
-    environment: ${{ github.ref == 'refs/heads/next' && 'next' || 'prod' }}
-    steps:
-      - name: Set dist-tag
-        id: dist
-        run: |
-          if [[ "$GITHUB_REF" == "refs/heads/next" ]]; then
-            echo "tag=next" >> $GITHUB_OUTPUT
-            echo "prerelease=true" >> $GITHUB_OUTPUT
-          else
-            echo "tag=latest" >> $GITHUB_OUTPUT
-            echo "prerelease=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce next alignment
+        run: |
+          git fetch origin main next || true
+          if git show-ref --verify --quiet refs/remotes/origin/next; then
+            if ! git merge-base --is-ancestor origin/next HEAD; then
+              echo "❌ next is ahead of main. Stable release is blocked until main includes every next commit."
+              exit 1
+            fi
+          fi
+
+      - name: Detect pending stable publish
+        id: pending
+        run: |
+          node scripts/release/workspace-release.mjs pending-stable > release-plan.json
+          echo "pending=$(node -p \"const fs=require('fs'); JSON.parse(fs.readFileSync('release-plan.json','utf8')).changed ? 'true' : 'false'\")" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        if: steps.pending.outputs.pending == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.14'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Upgrade npm for trusted publishing
+        if: steps.pending.outputs.pending == 'true'
+        run: |
+          npm install -g npm@^11.5.1
+          npm --version
+
+      - name: Install pnpm
+        if: steps.pending.outputs.pending == 'true'
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Install dependencies
+        if: steps.pending.outputs.pending == 'true'
+        run: npm install
+
+      - name: Cache n8n repository
+        if: steps.pending.outputs.pending == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .n8n-cache
+          key: ${{ runner.os }}-n8n-cache-${{ hashFiles('scripts/ensure-n8n-cache.cjs') }}
+          restore-keys: |
+            ${{ runner.os }}-n8n-cache-
+
+      - name: Build all packages
+        if: steps.pending.outputs.pending == 'true'
+        run: npm run build
+
+      - name: Publish npm packages
+        if: steps.pending.outputs.pending == 'true'
+        run: |
+          should_publish() {
+            node -e "const fs=require('fs'); const plan=JSON.parse(fs.readFileSync('release-plan.json','utf8')); const pkg=plan.packages.find(item => item.name === process.argv[1]); process.exit(pkg && pkg.changed ? 0 : 1);" "$1"
+          }
+
+          publish_npm() {
+            local pkg_name="$1"
+            local pkg_dir="$2"
+            local version
+            version=$(node -p "require('./${pkg_dir}/package.json').version")
+            if npm view "${pkg_name}@${version}" version >/dev/null 2>&1; then
+              echo "ℹ️ ${pkg_name}@${version} already exists on npm, skipping publish."
+              return 0
+            fi
+            (cd "$pkg_dir" && npm publish --access public --tag latest)
+          }
+
+          if should_publish '@n8n-as-code/transformer'; then
+            publish_npm '@n8n-as-code/transformer' 'packages/transformer'
+          fi
+          if should_publish '@n8n-as-code/skills'; then
+            publish_npm '@n8n-as-code/skills' 'packages/skills'
+          fi
+          if should_publish 'n8nac'; then
+            publish_npm 'n8nac' 'packages/cli'
+          fi
+
+      - name: Remove private flag for extension packaging
+        if: steps.pending.outputs.pending == 'true'
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('packages/vscode-extension/package.json', 'utf8'));
+            delete pkg.private;
+            fs.writeFileSync('packages/vscode-extension/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Publish VS Code Marketplace stable release
+        if: steps.pending.outputs.pending == 'true'
+        env:
+          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
+        run: |
+          if [[ -z "$VSCE_TOKEN" ]]; then
+            echo "❌ VSCE_TOKEN is missing in prod secrets."
+            exit 1
+          fi
+
+          cd packages/vscode-extension
+          VERSION=$(node -p "require('./package.json').version")
+          EXISTING=$(curl -s -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery?api-version=7.2-preview.1" \
+            -H "Content-Type: application/json" \
+            -d '{"filters":[{"criteria":[{"filterType":7,"value":"etienne-lescot.n8n-as-code"}]}],"flags":529}' \
+            | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).results?.[0]?.extensions?.[0]?.versions?.map(v => v.version).join('\n') || ''")
+          if echo "$EXISTING" | grep -qxF "$VERSION"; then
+            echo "ℹ️ VS Code Marketplace already contains $VERSION, skipping publish."
+          else
+            npx @vscode/vsce package --no-dependencies
+            npx @vscode/vsce publish --no-dependencies --pat "$VSCE_TOKEN"
+          fi
+
+      - name: Publish Open VSX stable release
+        if: steps.pending.outputs.pending == 'true'
+        env:
+          OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
+        run: |
+          if [[ -z "$OVSX_TOKEN" ]]; then
+            echo "⚠️ OVSX_TOKEN is missing, skipping Open VSX publish."
+            exit 0
+          fi
+          cd packages/vscode-extension
+          npx ovsx publish *.vsix -p "$OVSX_TOKEN"
+
+      - name: Push stable tags
+        if: steps.pending.outputs.pending == 'true'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          node <<'NODE'
+          const fs = require('fs');
+          const { execFileSync } = require('child_process');
+          const plan = JSON.parse(fs.readFileSync('release-plan.json', 'utf8'));
+          const prefixByName = {
+            '@n8n-as-code/transformer': '@n8n-as-code/transformer@v',
+            '@n8n-as-code/skills': '@n8n-as-code/skills@v',
+            'n8nac': 'n8nac@v',
+            'n8n-as-code': 'n8n-as-code@v',
+          };
+          for (const pkg of plan.packages) {
+            if (!pkg.changed) continue;
+            const tag = `${prefixByName[pkg.name]}${pkg.targetVersion}`;
+            try {
+              execFileSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], { stdio: 'ignore' });
+            } catch {
+              execFileSync('git', ['tag', tag], { stdio: 'inherit' });
+            }
+          }
+          NODE
+          git push origin --tags
+
+      - name: Sync next to main
+        if: steps.pending.outputs.pending == 'true'
+        run: |
+          git fetch origin main next || true
+          git push origin HEAD:refs/heads/next --force
+
+  create-release-pr:
+    name: Create Release PR
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: publish-stable
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Skip when a stable publish is pending
+        if: needs.publish-stable.outputs.pending == 'true'
+        run: echo "Stable versions are already ahead of tags on main; skipping release PR creation."
+
+      - name: Enforce next alignment
+        if: needs.publish-stable.outputs.pending != 'true'
+        run: |
+          git fetch origin main next || true
+          if git show-ref --verify --quiet refs/remotes/origin/next; then
+            if ! git merge-base --is-ancestor origin/next HEAD; then
+              echo "❌ next is ahead of main. Release PR creation is blocked until main includes every next commit."
+              exit 1
+            fi
+          fi
+
+      - name: Setup Node.js
+        if: needs.publish-stable.outputs.pending != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.14'
+
+      - name: Install pnpm
+        if: needs.publish-stable.outputs.pending != 'true'
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Prepare release plan
+        if: needs.publish-stable.outputs.pending != 'true'
+        id: release-plan
+        run: |
+          node scripts/release/workspace-release.mjs stable-pr --apply > release-plan.json
+          echo "changed=$(node -p \"const fs=require('fs'); JSON.parse(fs.readFileSync('release-plan.json','utf8')).changed ? 'true' : 'false'\")" >> "$GITHUB_OUTPUT"
+
+      - name: Refresh lockfile
+        if: needs.publish-stable.outputs.pending != 'true' && steps.release-plan.outputs.changed == 'true'
+        run: npm install --package-lock-only
+
+      - name: Build release PR body
+        if: needs.publish-stable.outputs.pending != 'true' && steps.release-plan.outputs.changed == 'true'
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const plan = JSON.parse(fs.readFileSync('release-plan.json', 'utf8'));
+          const lines = [
+            '## Release plan',
+            '',
+            'Commit-driven version bumps computed from the current main branch state.',
+            '',
+          ];
+          for (const pkg of plan.packages.filter(item => item.changed)) {
+            lines.push(`- ${pkg.name}: ${pkg.currentVersion} -> ${pkg.targetVersion} (${pkg.bump})`);
+          }
+          lines.push('', 'This PR was generated automatically after a push to main.');
+          fs.writeFileSync('release-pr-body.md', `${lines.join('\n')}\n`);
+          NODE
+
+      - name: Create or update release PR
+        if: needs.publish-stable.outputs.pending != 'true' && steps.release-plan.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: release/main
+          delete-branch: true
+          commit-message: 'chore: release main'
+          title: 'chore: release main'
+          body-path: release-pr-body.md
+          base: main
+          add-paths: |
+            package-lock.json
+            packages/cli/package.json
+            packages/skills/package.json
+            packages/transformer/package.json
+            packages/vscode-extension/package.json
+
+  publish-prerelease:
+    name: Publish Prerelease
+    if: github.ref == 'refs/heads/next'
+    runs-on: ubuntu-latest
+    environment: next
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -83,83 +308,47 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-n8n-cache-
 
-      - name: Compute pre-release versions (next only)
-        if: github.ref == 'refs/heads/next'
+      - name: Prepare prerelease plan
+        id: prerelease-plan
         run: |
-          SHA=$(git rev-parse --short HEAD)
-          for pkg in packages/transformer packages/skills packages/cli; do
-            NAME=$(node -p "require('./$pkg/package.json').name")
-            BASE=$(node -p "require('./$pkg/package.json').version.split('-')[0] + '-next'")
-            # --no-package-lock prevents npm from resolving the new version against
-            # the registry (the version doesn't exist yet — it's published later).
-            npm version "${BASE}.${SHA}" --no-git-tag-version --no-package-lock --workspace="$NAME"
-          done
-
-      - name: Pin inter-package dependencies (next only)
-        if: github.ref == 'refs/heads/next'
-        run: |
-          TRANSFORMER_VERSION=$(node -p "require('./packages/transformer/package.json').version")
-          SKILLS_VERSION=$(node -p "require('./packages/skills/package.json').version")
-          CLI_VERSION=$(node -p "require('./packages/cli/package.json').version")
-          # Pin skills -> transformer
-          npm pkg set "dependencies.@n8n-as-code/transformer=${TRANSFORMER_VERSION}" --workspace=@n8n-as-code/skills
-          # Pin cli -> skills and transformer
-          npm pkg set "dependencies.@n8n-as-code/skills=${SKILLS_VERSION}" --workspace=n8nac
-          npm pkg set "dependencies.@n8n-as-code/transformer=${TRANSFORMER_VERSION}" --workspace=n8nac
-          # Pin vscode-extension -> cli (ensures npm workspace symlinks the local
-          # bumped n8nac instead of falling back to the published registry version)
-          npm pkg set "dependencies.n8nac=${CLI_VERSION}" --workspace=n8n-as-code
-
-      - name: Pin inter-package dependencies (main)
-        if: github.ref == 'refs/heads/main'
-        run: |
-          TRANSFORMER_VERSION=$(node -p "require('./packages/transformer/package.json').version")
-          SKILLS_VERSION=$(node -p "require('./packages/skills/package.json').version")
-          # Pin skills -> transformer
-          npm pkg set "dependencies.@n8n-as-code/transformer=${TRANSFORMER_VERSION}" --workspace=@n8n-as-code/skills
-          # Pin cli -> skills and transformer
-          npm pkg set "dependencies.@n8n-as-code/skills=${SKILLS_VERSION}" --workspace=n8nac
-          npm pkg set "dependencies.@n8n-as-code/transformer=${TRANSFORMER_VERSION}" --workspace=n8nac
-
-      - name: Resolve VS Code publish version
-        id: vscode-version
-        if: github.ref == 'refs/heads/next'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [[ "$GITHUB_REF" == "refs/heads/next" ]]; then
-            MODE=preview
-            TARGET_BRANCH=next
-          else
-            MODE=stable
-            TARGET_BRANCH=main
-          fi
-          VERSION=$(node scripts/resolve-vscode-marketplace-version.mjs --mode "$MODE" --repo-url "${GITHUB_REPOSITORY}" --target-branch "$TARGET_BRANCH")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Apply VS Code publish version
-        if: github.ref == 'refs/heads/next'
-        run: node scripts/set-version-if-needed.mjs --target "${{ steps.vscode-version.outputs.version }}" --package-json packages/vscode-extension/package.json --workspace packages/vscode-extension
+          node scripts/release/workspace-release.mjs prerelease --apply > prerelease-plan.json
+          echo "changed=$(node -p \"const fs=require('fs'); JSON.parse(fs.readFileSync('prerelease-plan.json','utf8')).changed ? 'true' : 'false'\")" >> "$GITHUB_OUTPUT"
 
       - name: Build all packages
+        if: steps.prerelease-plan.outputs.changed == 'true'
         run: npm run build
 
-      # Publish in dependency order: transformer → skills → cli
-      # Authentication via OIDC trusted publishing — no token needed
-      - name: Publish @n8n-as-code/transformer
-        if: github.ref == 'refs/heads/next' || needs.release-please.outputs.transformer_release_created == 'true'
-        run: cd packages/transformer && npm publish --access public --tag ${{ steps.dist.outputs.tag }}
+      - name: Publish npm prereleases
+        if: steps.prerelease-plan.outputs.changed == 'true'
+        run: |
+          should_publish() {
+            node -e "const fs=require('fs'); const plan=JSON.parse(fs.readFileSync('prerelease-plan.json','utf8')); const pkg=plan.packages.find(item => item.name === process.argv[1]); process.exit(pkg && pkg.changed ? 0 : 1);" "$1"
+          }
 
-      - name: Publish @n8n-as-code/skills
-        if: github.ref == 'refs/heads/next' || needs.release-please.outputs.skills_release_created == 'true'
-        run: cd packages/skills && npm publish --access public --tag ${{ steps.dist.outputs.tag }}
+          publish_npm() {
+            local pkg_name="$1"
+            local pkg_dir="$2"
+            local version
+            version=$(node -p "require('./${pkg_dir}/package.json').version")
+            if npm view "${pkg_name}@${version}" version >/dev/null 2>&1; then
+              echo "ℹ️ ${pkg_name}@${version} already exists on npm, skipping publish."
+              return 0
+            fi
+            (cd "$pkg_dir" && npm publish --access public --tag next)
+          }
 
-      - name: Publish n8nac
-        if: github.ref == 'refs/heads/next' || needs.release-please.outputs.cli_release_created == 'true'
-        run: cd packages/cli && npm publish --access public --tag ${{ steps.dist.outputs.tag }}
+          if should_publish '@n8n-as-code/transformer'; then
+            publish_npm '@n8n-as-code/transformer' 'packages/transformer'
+          fi
+          if should_publish '@n8n-as-code/skills'; then
+            publish_npm '@n8n-as-code/skills' 'packages/skills'
+          fi
+          if should_publish 'n8nac'; then
+            publish_npm 'n8nac' 'packages/cli'
+          fi
 
-      - name: Remove "private" flag for VS Code packaging
-        if: github.ref == 'refs/heads/next' || needs.release-please.outputs.vscode_release_created == 'true'
+      - name: Remove private flag for extension packaging
+        if: steps.prerelease-plan.outputs.changed == 'true'
         run: |
           node -e "
             const fs = require('fs');
@@ -168,65 +357,32 @@ jobs:
             fs.writeFileSync('packages/vscode-extension/package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
 
-      - name: Publish VS Code Extension (pre-release)
-        if: github.ref == 'refs/heads/next'
+      - name: Publish VS Code Marketplace prerelease
+        if: steps.prerelease-plan.outputs.changed == 'true'
         env:
           VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
         run: |
-          cd packages/vscode-extension
           if [[ -z "$VSCE_TOKEN" ]]; then
-            echo "❌ VSCE_TOKEN is missing. Add it to GitHub Environment secrets for '${{ github.ref == 'refs/heads/next' && 'next' || 'prod' }}'."
+            echo "❌ VSCE_TOKEN is missing in next secrets."
             exit 1
           fi
+
+          cd packages/vscode-extension
           VERSION=$(node -p "require('./package.json').version")
           EXISTING=$(curl -s -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery?api-version=7.2-preview.1" \
             -H "Content-Type: application/json" \
             -d '{"filters":[{"criteria":[{"filterType":7,"value":"etienne-lescot.n8n-as-code"}]}],"flags":529}' \
-            | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).results[0].extensions[0].versions.map(v=>v.version).join('\n')")
+            | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).results?.[0]?.extensions?.[0]?.versions?.map(v => v.version).join('\n') || ''")
           if echo "$EXISTING" | grep -qxF "$VERSION"; then
-            echo "⚠️ VS Code Extension v$VERSION already exists on Marketplace, skipping publish."
-            exit 0
+            echo "ℹ️ VS Code Marketplace already contains $VERSION, skipping publish."
+          else
+            npx @vscode/vsce package --no-dependencies
+            npx @vscode/vsce publish --no-dependencies --pre-release --pat "$VSCE_TOKEN"
           fi
-          npx @vscode/vsce package --no-dependencies
-          npx @vscode/vsce publish --no-dependencies --pre-release --pat "$VSCE_TOKEN"
 
-      - name: Skip Open VSX publish for pre-release
-        if: github.ref == 'refs/heads/next'
+      - name: Skip Open VSX prereleases
+        if: steps.prerelease-plan.outputs.changed == 'true'
         run: |
           echo "ℹ️ Skipping Open VSX publish for next builds."
           echo "ℹ️ Open VSX exposes preview metadata, but downstream clients can still resolve the highest version by default."
           echo "ℹ️ Only stable releases from main are published to Open VSX."
-
-      - name: Publish VS Code Extension (stable)
-        if: github.ref == 'refs/heads/main' && needs.release-please.outputs.vscode_release_created == 'true'
-        env:
-          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
-        run: |
-          cd packages/vscode-extension
-          if [[ -z "$VSCE_TOKEN" ]]; then
-            echo "❌ VSCE_TOKEN is missing. Add it to GitHub Environment secrets for 'prod'."
-            exit 1
-          fi
-          VERSION=$(node -p "require('./package.json').version")
-          EXISTING=$(curl -s -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery?api-version=7.2-preview.1" \
-            -H "Content-Type: application/json" \
-            -d '{"filters":[{"criteria":[{"filterType":7,"value":"etienne-lescot.n8n-as-code"}]}],"flags":529}' \
-            | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).results[0].extensions[0].versions.map(v=>v.version).join('\n')")
-          if echo "$EXISTING" | grep -qxF "$VERSION"; then
-            echo "⚠️ VS Code Extension v$VERSION already exists on Marketplace, skipping publish."
-            exit 0
-          fi
-          npx @vscode/vsce package --no-dependencies
-          npx @vscode/vsce publish --no-dependencies --pat "$VSCE_TOKEN"
-
-      - name: Publish VS Code Extension (stable) to Open VSX
-        if: github.ref == 'refs/heads/main' && needs.release-please.outputs.vscode_release_created == 'true'
-        env:
-          OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
-        run: |
-          cd packages/vscode-extension
-          if [[ -z "$OVSX_TOKEN" ]]; then
-            echo "⚠️ OVSX_TOKEN is missing, skipping Open VSX publish."
-            exit 0
-          fi
-          npx ovsx publish *.vsix -p "$OVSX_TOKEN"

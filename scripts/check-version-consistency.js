@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Script to check version consistency across all packages in the monorepo.
- * This ensures that internal dependencies are properly synchronized by Changeset.
+ * This ensures that internal dependencies stay aligned with the custom release flow.
  */
 
 import { readFileSync } from 'fs';
@@ -102,8 +102,8 @@ function main() {
   console.log('');
   if (hasErrors) {
     log('red', '❌ Outdated internal dependencies detected!');
-    log('yellow', '\n💡 Solution: Run `npm run version-packages` to update internal dependencies.');
-    log('yellow', '   Changeset will automatically update dependencies to reference current versions.');
+    log('yellow', '\n💡 Solution: run the release preparation flow to re-pin workspace dependencies.');
+    log('yellow', '   The custom release automation updates internal dependency versions automatically.');
     process.exit(1);
   } else {
     log('green', `✅ All internal dependencies are up-to-date! (${checkedDeps.length} dependencies checked)`);
