@@ -182,4 +182,40 @@ export class WebhookTsWorkflow {
 
         expect(resultJson.tags).toEqual(['ops', 'production']);
     });
+
+    it('should preserve multiline jsCode through JSON → TS → JSON roundtrip', async () => {
+        const originalJson = {
+            id: 'wf-code-roundtrip',
+            name: 'Code Roundtrip Workflow',
+            active: false,
+            nodes: [
+                {
+                    id: 'node-code-roundtrip',
+                    name: 'Code',
+                    type: 'n8n-nodes-base.code',
+                    typeVersion: 2,
+                    position: [0, 0] as [number, number],
+                    parameters: {
+                        jsCode: "const template = `Hello ${name}`;\nreturn `value: ${template}`;",
+                    },
+                },
+            ],
+            connections: {},
+            settings: {},
+        };
+
+        const jsonParser = new JsonToAstParser();
+        const ast1 = jsonParser.parse(originalJson as any);
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast1, { format: false });
+
+        expect(tsCode).toContain('jsCode: `const template = \\`Hello \\${name}\\`;');
+
+        const tsParser = new TypeScriptParser();
+        const ast2 = await tsParser.parseCode(tsCode);
+        const builder = new WorkflowBuilder();
+        const resultJson = builder.build(ast2);
+
+        expect(resultJson.nodes[0].parameters.jsCode).toBe(originalJson.nodes[0].parameters.jsCode);
+    });
 });
