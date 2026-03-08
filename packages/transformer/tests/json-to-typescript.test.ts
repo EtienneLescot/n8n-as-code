@@ -189,4 +189,39 @@ export class AiTestWorkflow {
 
         expect(tsCode).toContain('tags: ["ops","production"]');
     });
+
+    it('should emit multiline strings as template literals for readable jsCode', async () => {
+        const workflowJson = {
+            id: 'wf-code-1',
+            name: 'Code Workflow',
+            active: false,
+            nodes: [
+                {
+                    id: 'node-code-1',
+                    name: 'Code',
+                    type: 'n8n-nodes-base.code',
+                    typeVersion: 2,
+                    position: [100, 200],
+                    parameters: {
+                        jsCode: "const template = `Hello ${name}`;\nreturn `value: ${template}`;",
+                    },
+                },
+            ],
+            connections: {},
+            settings: {},
+        };
+
+        const parser = new JsonToAstParser();
+        const ast = parser.parse(workflowJson as any);
+
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast, {
+            format: false,
+            commentStyle: 'minimal',
+        });
+
+        expect(tsCode).toContain('jsCode: `const template = \\`Hello \\${name}\\`;');
+        expect(tsCode).toContain('return \\`value: \\${template}\\`;`');
+        expect(tsCode).not.toContain('jsCode: "const template');
+    });
 });
