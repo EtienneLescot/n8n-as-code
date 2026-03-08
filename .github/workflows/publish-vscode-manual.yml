@@ -77,7 +77,13 @@ jobs:
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
 
-          npm version '${{ inputs.version }}' --no-git-tag-version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          TARGET_VERSION='${{ inputs.version }}'
+          if [[ "$CURRENT_VERSION" == "$TARGET_VERSION" ]]; then
+            echo "ℹ️ VS Code extension version already set to $TARGET_VERSION, skipping version update."
+          else
+            npm version "$TARGET_VERSION" --no-git-tag-version
+          fi
           npm run build
           npx @vscode/vsce package --no-dependencies
 

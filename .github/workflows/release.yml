@@ -139,7 +139,14 @@ jobs:
 
       - name: Apply VS Code publish version
         if: github.ref == 'refs/heads/next'
-        run: npm version "${{ steps.vscode-version.outputs.version }}" --no-git-tag-version --workspace=n8n-as-code
+        run: |
+          TARGET_VERSION='${{ steps.vscode-version.outputs.version }}'
+          CURRENT_VERSION=$(node -p "require('./packages/vscode-extension/package.json').version")
+          if [[ "$CURRENT_VERSION" == "$TARGET_VERSION" ]]; then
+            echo "ℹ️ VS Code extension version already set to $TARGET_VERSION, skipping version update."
+          else
+            npm version "$TARGET_VERSION" --no-git-tag-version --workspace=n8n-as-code
+          fi
 
       - name: Build all packages
         run: npm run build
