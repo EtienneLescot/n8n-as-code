@@ -3,17 +3,30 @@ name: Publish VS Code Extension (Manual)
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: Extension version to publish (e.g. 0.14.9)
+      release_branch:
+        description: Branch to publish from
         required: true
-        type: string
-      pre_release:
-        description: Publish as pre-release
+        default: main
+        type: choice
+        options:
+          - main
+          - next
+      bump_type:
+        description: Semver bump to apply
         required: true
-        default: false
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      publish_vscode:
+        description: Publish to VS Code Marketplace
+        required: true
+        default: true
         type: boolean
       publish_openvsx:
-        description: Also publish to Open VSX
+        description: Publish to Open VSX
         required: true
         default: false
         type: boolean
@@ -25,11 +38,13 @@ jobs:
   publish-vscode:
     name: Publish VS Code Extension
     runs-on: ubuntu-latest
-    environment: ${{ inputs.pre_release && 'next' || 'prod' }}
+    environment: ${{ inputs.release_branch == 'next' && 'next' || 'prod' }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_branch }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -44,17 +59,50 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Validate version format
+      - name: Compute publish mode
+        id: publish-mode
         run: |
-          VERSION='${{ inputs.version }}'
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "❌ VS Code Marketplace requires plain major.minor.patch versions, got '$VERSION'"
+          if [[ '${{ inputs.release_branch }}' == 'next' ]]; then
+            echo "pre_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pre_release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compute target version
+        id: target-version
+        run: |
+          BUMP_TYPE='${{ inputs.bump_type }}'
+          VERSION=$(node -e "
+            const pkg = require('./packages/vscode-extension/package.json');
+            const [major, minor, patch] = pkg.version.split('-')[0].split('.').map(Number);
+            const bump = process.env.BUMP_TYPE;
+            const nextVersion = { major, minor, patch };
+            if (bump === 'major') {
+              nextVersion.major += 1;
+              nextVersion.minor = 0;
+              nextVersion.patch = 0;
+            } else if (bump === 'minor') {
+              nextVersion.minor += 1;
+              nextVersion.patch = 0;
+            } else if (bump === 'patch') {
+              nextVersion.patch += 1;
+            } else {
+              throw new Error('Unsupported bump type: ' + bump);
+            }
+            process.stdout.write(`${nextVersion.major}.${nextVersion.minor}.${nextVersion.patch}`);
+          " )
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "ℹ️ Target version: $VERSION"
+          if [[ '${{ steps.publish-mode.outputs.pre_release }}' == 'true' ]]; then
+            echo "ℹ️ Publishing from next as a VS Marketplace pre-release."
+          else
+            echo "ℹ️ Publishing from main as a stable release."
+          fi
+          if [[ '${{ inputs.publish_vscode }}' != 'true' && '${{ inputs.publish_openvsx }}' != 'true' ]]; then
+            echo "❌ Select at least one publish target."
             exit 1
           fi
-          if [[ '${{ inputs.pre_release }}' == 'true' ]]; then
-            echo "ℹ️ Pre-release publish selected. Prefer the VS Marketplace convention even minor = stable, odd minor = pre-release."
-          fi
-          if [[ '${{ inputs.pre_release }}' == 'true' && '${{ inputs.publish_openvsx }}' == 'true' ]]; then
+          if [[ '${{ steps.publish-mode.outputs.pre_release }}' == 'true' && '${{ inputs.publish_openvsx }}' == 'true' ]]; then
             echo "⚠️ Open VSX does not provide a safe preview channel separation. This will publish a normal Open VSX version."
           fi
 
@@ -63,7 +111,7 @@ jobs:
           VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
           OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
         run: |
-          if [[ -z "$VSCE_TOKEN" ]]; then
+          if [[ '${{ inputs.publish_vscode }}' == 'true' && -z "$VSCE_TOKEN" ]]; then
             echo "❌ VSCE_TOKEN is missing in the selected environment secrets."
             exit 1
           fi
@@ -78,11 +126,13 @@ jobs:
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
 
-          node ../../scripts/set-version-if-needed.mjs --target '${{ inputs.version }}' --package-json package.json
+          node ../../scripts/set-version-if-needed.mjs --target '${{ steps.target-version.outputs.version }}' --package-json package.json
           npm run build
           npx @vscode/vsce package --no-dependencies
 
-          if [[ '${{ inputs.pre_release }}' == 'true' ]]; then
+          if [[ '${{ inputs.publish_vscode }}' != 'true' ]]; then
+            echo "ℹ️ Skipping VS Code Marketplace publish."
+          elif [[ '${{ steps.publish-mode.outputs.pre_release }}' == 'true' ]]; then
             npx @vscode/vsce publish --no-dependencies --pre-release --pat "$VSCE_TOKEN"
           else
             npx @vscode/vsce publish --no-dependencies --pat "$VSCE_TOKEN"
@@ -93,7 +143,7 @@ jobs:
           elif [[ -z "$OVSX_TOKEN" ]]; then
             echo "⚠️ OVSX_TOKEN is missing, skipping Open VSX publish."
           else
-            if [[ '${{ inputs.pre_release }}' == 'true' ]]; then
+            if [[ '${{ steps.publish-mode.outputs.pre_release }}' == 'true' ]]; then
               echo "⚠️ Publishing a pre-release build to Open VSX as a normal registry version."
             fi
             npx ovsx publish *.vsix -p "$OVSX_TOKEN"
