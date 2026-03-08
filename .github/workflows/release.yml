@@ -39,7 +39,8 @@ jobs:
         id: pending
         run: |
           node scripts/release/workspace-release.mjs pending-stable > release-plan.json
-          echo "pending=$(node -p \"const fs=require('fs'); JSON.parse(fs.readFileSync('release-plan.json','utf8')).changed ? 'true' : 'false'\")" >> "$GITHUB_OUTPUT"
+          PENDING=$(node -e "const fs=require('fs'); process.stdout.write(JSON.parse(fs.readFileSync('release-plan.json','utf8')).changed ? 'true' : 'false');")
+          echo "pending=$PENDING" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         if: steps.pending.outputs.pending == 'true'
@@ -227,7 +228,8 @@ jobs:
         id: release-plan
         run: |
           node scripts/release/workspace-release.mjs stable-pr --apply > release-plan.json
-          echo "changed=$(node -p \"const fs=require('fs'); JSON.parse(fs.readFileSync('release-plan.json','utf8')).changed ? 'true' : 'false'\")" >> "$GITHUB_OUTPUT"
+          CHANGED=$(node -e "const fs=require('fs'); process.stdout.write(JSON.parse(fs.readFileSync('release-plan.json','utf8')).changed ? 'true' : 'false');")
+          echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
 
       - name: Refresh lockfile
         if: needs.publish-stable.outputs.pending != 'true' && steps.release-plan.outputs.changed == 'true'
@@ -316,7 +318,8 @@ jobs:
         id: prerelease-plan
         run: |
           node scripts/release/workspace-release.mjs prerelease --apply > prerelease-plan.json
-          echo "changed=$(node -p \"const fs=require('fs'); JSON.parse(fs.readFileSync('prerelease-plan.json','utf8')).changed ? 'true' : 'false'\")" >> "$GITHUB_OUTPUT"
+          CHANGED=$(node -e "const fs=require('fs'); process.stdout.write(JSON.parse(fs.readFileSync('prerelease-plan.json','utf8')).changed ? 'true' : 'false');")
+          echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
 
       - name: Build all packages
         if: steps.prerelease-plan.outputs.changed == 'true'

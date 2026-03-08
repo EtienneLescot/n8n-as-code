@@ -202,8 +202,30 @@ function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(workspaceRoot, relativePath), 'utf8'));
 }
 
+function getJsonIndent(content) {
+  const match = content.match(/^([ \t]+)"/m);
+  return match ? match[1] : '  ';
+}
+
 function writeJson(relativePath, value) {
-  fs.writeFileSync(path.join(workspaceRoot, relativePath), `${JSON.stringify(value, null, 2)}\n`);
+  const absolutePath = path.join(workspaceRoot, relativePath);
+  const existingContent = fs.readFileSync(absolutePath, 'utf8');
+  const existingValue = JSON.parse(existingContent);
+
+  if (JSON.stringify(existingValue) === JSON.stringify(value)) {
+    return;
+  }
+
+  const indent = getJsonIndent(existingContent);
+  fs.writeFileSync(absolutePath, `${JSON.stringify(value, null, indent)}\n`);
+}
+
+function buildVscodePrereleaseVersion(version, sequence) {
+  return formatVersion({
+    major: version.major,
+    minor: version.minor,
+    patch: version.patch + Math.max(1, sequence),
+  });
 }
 
 function parseTagVersion(tag, prefix) {
@@ -549,7 +571,9 @@ function computePrereleasePlan() {
 
     return {
       ...pkg,
-      prereleaseVersion: `${pkg.targetVersion}-next.${sequence}`,
+      prereleaseVersion: pkg.publishTarget === 'vscode'
+        ? buildVscodePrereleaseVersion(parseVersion(pkg.targetVersion), sequence)
+        : `${pkg.targetVersion}-next.${sequence}`,
     };
   });
 
