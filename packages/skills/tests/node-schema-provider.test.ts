@@ -1,4 +1,5 @@
 import { NodeSchemaProvider } from '../src/services/node-schema-provider';
+import { TypeScriptFormatter } from '../src/services/typescript-formatter';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -198,5 +199,70 @@ describe('NodeSchemaProvider - custom nodes', () => {
         expect(diagnostics.customNodeCount).toBe(1);
         expect(diagnostics.totalNodeCount).toBe(2);
         expect(diagnostics.customNodeKeys).toContain('myCustomNode');
+    });
+});
+
+// ─── TypeScriptFormatter — nested fixedcollection support ──────────────────────
+
+describe('TypeScriptFormatter — nested fixedcollection', () => {
+    /**
+     * Simulates the `formFields` fixedcollection of the Wait node, which contains
+     * a nested `fieldOptions` fixedcollection inside each row.
+     * Before the fix, `mapTypeToTypeScript` produced `fieldOptions?: 'values'`
+     * (treating the group name as an enum value). After the fix it must produce
+     * `fieldOptions?: { values?: Array<{ option?: string }> }`.
+     */
+    const formFieldsProp = {
+        name: 'formFields',
+        type: 'fixedCollection',
+        options: [
+            {
+                name: 'values',
+                displayName: 'Values',
+                values: [
+                    { name: 'fieldName', type: 'string' },
+                    {
+                        name: 'fieldType',
+                        type: 'options',
+                        options: [
+                            { value: 'text' },
+                            { value: 'dropdown' },
+                            { value: 'textarea' },
+                        ],
+                    },
+                    {
+                        // nested fixedcollection: fieldOptions inside formFields
+                        name: 'fieldOptions',
+                        type: 'fixedCollection',
+                        options: [
+                            {
+                                name: 'values',
+                                values: [{ name: 'option', type: 'string' }],
+                            },
+                        ],
+                    },
+                    { name: 'requiredField', type: 'boolean' },
+                ],
+            },
+        ],
+    };
+
+    test('mapTypeToTypeScript: fieldOptions should show nested object type, not group name as string literal', () => {
+        const tsType = (TypeScriptFormatter as any).mapTypeToTypeScript(formFieldsProp);
+        // Must NOT produce `fieldOptions?: 'values'` (group name treated as enum)
+        expect(tsType).not.toContain("'values'");
+        // Must produce the nested structure
+        expect(tsType).toContain('fieldOptions?:');
+        expect(tsType).toContain('option?:');
+    });
+
+    test('expandFixedCollectionValue: fieldOptions should show { values: [...] } structure', () => {
+        const expanded = TypeScriptFormatter.expandFixedCollectionValue(formFieldsProp, '  ');
+        // Must NOT produce a plain empty object for fieldOptions
+        expect(expanded).not.toMatch(/fieldOptions:\s*'?values'?,/);
+        // Must contain the nested values key
+        expect(expanded).toContain('values: [');
+        // The option field inside fieldOptions must appear
+        expect(expanded).toContain('option:');
     });
 });
