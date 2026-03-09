@@ -1,5 +1,11 @@
 # n8n-as-code
 
+## [0.32.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.30.0...n8n-as-code@v0.32.0) (2026-03-09)
+
+### Bug Fixes
+
+* improve workspace initialization handling; reset state if config file is missing ([4bd0834](https://github.com/EtienneLescot/n8n-as-code/commit/4bd0834992cbe3ca9be054f2fca6da4a6e0a511f))
+
 ## [0.30.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.28.0...n8n-as-code@v0.30.0) (2026-03-09)
 
 ### Features
