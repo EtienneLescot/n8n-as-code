@@ -256,6 +256,27 @@ describe('TypeScriptFormatter — nested fixedcollection', () => {
         expect(tsType).toContain('option?:');
     });
 
+    test('mapTypeToTypeScript: options type shows ALL enum values without | string', () => {
+        // fieldType has 12 valid values; we must show all of them — no slice, no | string
+        const optionsProp = {
+            name: 'fieldType',
+            type: 'options',
+            options: [
+                { value: 'checkbox' }, { value: 'html' }, { value: 'date' },
+                { value: 'dropdown' }, { value: 'email' }, { value: 'file' },
+                { value: 'hiddenField' }, { value: 'number' }, { value: 'password' },
+                { value: 'radio' }, { value: 'text' }, { value: 'textarea' },
+            ],
+        };
+        const tsType = (TypeScriptFormatter as any).mapTypeToTypeScript(optionsProp);
+        // All 12 values must appear
+        expect(tsType).toContain("'text'");
+        expect(tsType).toContain("'textarea'");
+        expect(tsType).toContain("'checkbox'");
+        // No | string escape hatch (options is a strict enum)
+        expect(tsType).not.toContain('| string');
+    });
+
     test('expandFixedCollectionValue: fieldOptions should show { values: [...] } structure', () => {
         const expanded = TypeScriptFormatter.expandFixedCollectionValue(formFieldsProp, '  ');
         // Must NOT produce a plain empty object for fieldOptions

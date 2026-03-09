@@ -288,8 +288,8 @@ ${nodeProp} = { /* parameters */ };`;
             case 'options':
             case 'multioptions':
                 if (prop.options && Array.isArray(prop.options)) {
-                    const values = prop.options.map((o: any) => `'${o.value || o.name}'`).slice(0, 5);
-                    return values.join(' | ') + (prop.options.length > 5 ? ' | string' : '');
+                    // Show ALL valid enum values — `options` is a strict enum, never add | string
+                    return prop.options.map((o: any) => `'${o.value || o.name}'`).join(' | ');
                 }
                 return 'string';
             case 'json':
@@ -325,8 +325,8 @@ ${nodeProp} = { /* parameters */ };`;
                     .map(({ field: f, allOptions, typeSet }) => {
                         let t: string;
                         if (allOptions.length > 0) {
-                            t = allOptions.slice(0, 10).map((o: any) => `'${o.value ?? o.name}'`).join(' | ');
-                            if (allOptions.length > 10) t += ' | string';
+                            // Show ALL valid enum values — strict enum, never add | string
+                            t = allOptions.map((o: any) => `'${o.value ?? o.name}'`).join(' | ');
                         } else if (typeSet.size > 1) {
                             // Field used with multiple types across dataType groups — build a union
                             t = Array.from(typeSet)
