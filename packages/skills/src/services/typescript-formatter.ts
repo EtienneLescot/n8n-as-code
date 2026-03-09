@@ -37,7 +37,7 @@ export class TypeScriptFormatter {
         // Priority 2: Required params (up to 7 total including resource/operation)
         for (const prop of allProps) {
             if (uniqueParams.length >= 7) break;
-            if (prop.required && !seenNames.has(prop.name)) {
+            if (prop.required && !seenNames.has(prop.name) && prop.type?.toLowerCase() !== 'notice') {
                 seenNames.add(prop.name);
                 uniqueParams.push(prop);
             }
@@ -46,7 +46,8 @@ export class TypeScriptFormatter {
         // Priority 3: Common optional params (to reach ~7 total)
         for (const prop of allProps) {
             if (uniqueParams.length >= 7) break;
-            if (!seenNames.has(prop.name)) {
+            // Skip UI-only notice banners — they are not settable runtime parameters
+            if (!seenNames.has(prop.name) && prop.type?.toLowerCase() !== 'notice') {
                 seenNames.add(prop.name);
                 uniqueParams.push(prop);
             }
@@ -127,12 +128,12 @@ export class MyWorkflow {
             return `interface ${this.toPascalCase(schema.name)}Parameters {\n  [key: string]: any;\n}\n`;
         }
 
-        // Remove duplicates by name (keep first occurrence)
+        // Remove duplicates by name (keep first occurrence); skip UI-only notice banners
         const seenNames = new Set<string>();
         const uniqueProperties: any[] = [];
         
         for (const prop of schema.properties) {
-            if (!seenNames.has(prop.name)) {
+            if (!seenNames.has(prop.name) && prop.type?.toLowerCase() !== 'notice') {
                 seenNames.add(prop.name);
                 uniqueProperties.push(prop);
             }
@@ -296,6 +297,10 @@ ${nodeProp} = { /* parameters */ };`;
                 return 'object';
             case 'collection':
                 return 'any[]';
+            // assignmentCollection is the Set node's special type (v3+).
+            // At runtime the JSON structure is { assignments: Array<{id,name,value,type}> }
+            case 'assignmentcollection':
+                return `{ assignments: Array<{ id?: string; name: string; value: string | number | boolean; type?: 'string' | 'number' | 'boolean' | 'array' | 'object' }> }`;
             case 'fixedcollection': {
                 const opts = prop.options as any[] | undefined;
                 if (!opts || opts.length === 0) return 'Record<string, any>';
@@ -417,6 +422,12 @@ ${nodeProp} = { /* parameters */ };`;
 
     private static generateDefaultValue(prop: any): string {
         const type = prop.type?.toLowerCase();
+
+        // assignmentCollection's schema default is `{}` but the runtime structure needs the
+        // full assignments array — always override regardless of prop.default.
+        if (type === 'assignmentcollection') {
+            return `{\n    assignments: [\n      {\n        id: '1',\n        name: 'fieldName',\n        value: 'fieldValue',\n        type: 'string',  // valid: string | number | boolean | array | object\n      }\n    ]\n  }`;
+        }
 
         if (prop.default !== undefined && prop.default !== null) {
             if (typeof prop.default === 'string') {

@@ -112,7 +112,11 @@ function extractDescription(module) {
 
                 // Handle VersionedNodeType
                 if (instance.nodeVersions) {
-                    const defaultVersion = instance.defaultVersion || Object.keys(instance.nodeVersions)[0];
+                    // When defaultVersion is not set, fall back to the highest version key
+                    // (not the first key, which is the lowest/oldest version).
+                    const versionKeys = Object.keys(instance.nodeVersions);
+                    const defaultVersion = instance.defaultVersion ?? versionKeys.reduce((best, k) =>
+                        parseFloat(k) > parseFloat(best) ? k : best, versionKeys[0]);
                     const version = instance.nodeVersions[defaultVersion];
 
                     if (version && version.description) {
