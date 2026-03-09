@@ -63,8 +63,23 @@ export class TypeScriptFormatter {
             if (comment) {
                 paramLines.push(comment);
             }
-            
-            const value = this.generateDefaultValue(prop);
+
+            const isFixedColl = prop.type?.toLowerCase() === 'fixedcollection';
+            let renderProp = prop;
+            if (isFixedColl) {
+                // n8n stores per-dataType fixedCollection rules as separate properties with the
+                // same name but different displayOptions. Merge their options groups so we can
+                // show all valid operation values in one snippet.
+                const siblings = allProps.filter((p: any) =>
+                    p.name === prop.name && p.type?.toLowerCase() === 'fixedcollection');
+                if (siblings.length > 1) {
+                    const mergedOptions = (siblings as any[]).flatMap((p: any) => p.options || []);
+                    renderProp = { ...prop, options: mergedOptions };
+                }
+            }
+            const value = isFixedColl
+                ? TypeScriptFormatter.expandFixedCollectionValue(renderProp, '  ')
+                : this.generateDefaultValue(prop);
             paramLines.push(`  ${prop.name}: ${value},${typeHint}${requiredLabel}`);
         }
 
@@ -124,11 +139,22 @@ export class MyWorkflow {
         }
 
         const interfaceLines: string[] = [];
+        const allProps = schema.properties || [];
         
         for (const prop of uniqueProperties) {
             const optional = prop.required ? '' : '?';
             const description = prop.description ? `  /** ${prop.description} */\n` : '';
-            const tsType = this.mapTypeToTypeScript(prop);
+            // Merge same-name fixedCollection siblings so all dataType groups appear in the type
+            let renderProp = prop;
+            if (prop.type?.toLowerCase() === 'fixedcollection') {
+                const siblings = allProps.filter((p: any) =>
+                    p.name === prop.name && p.type?.toLowerCase() === 'fixedcollection');
+                if (siblings.length > 1) {
+                    const mergedOptions = (siblings as any[]).flatMap((p: any) => p.options || []);
+                    renderProp = { ...prop, options: mergedOptions };
+                }
+            }
+            const tsType = this.mapTypeToTypeScript(renderProp);
             
             interfaceLines.push(`${description}  ${prop.name}${optional}: ${tsType};`);
         }
@@ -253,6 +279,7 @@ ${nodeProp} = { /* parameters */ };`;
         switch (type) {
             case 'string':
             case 'hidden':
+            case 'datetime':
                 return 'string';
             case 'number':
                 return 'number';
@@ -269,11 +296,112 @@ ${nodeProp} = { /* parameters */ };`;
                 return 'object';
             case 'collection':
                 return 'any[]';
-            case 'fixedcollection':
-                return 'Record<string, any>';
+            case 'fixedcollection': {
+                const opts = prop.options as any[] | undefined;
+                if (!opts || opts.length === 0) return 'Record<string, any>';
+                const collKey = opts[0].name as string;
+                // Merge field definitions across all groups, aggregating option values and primitive types
+                const fieldMap = new Map<string, { field: any; allOptions: any[]; typeSet: Set<string> }>();
+                for (const group of opts) {
+                    for (const f of (group.values as any[] || [])) {
+                        if (!fieldMap.has(f.name)) {
+                            fieldMap.set(f.name, { field: f, allOptions: f.options ? [...f.options] : [], typeSet: new Set([f.type]) });
+                        } else {
+                            const existing = fieldMap.get(f.name)!;
+                            if (f.type) existing.typeSet.add(f.type);
+                            for (const opt of (f.options || [])) {
+                                if (!existing.allOptions.find((o: any) => o.value === opt.value)) existing.allOptions.push(opt);
+                            }
+                        }
+                    }
+                }
+                if (fieldMap.size === 0) return 'Record<string, any>';
+                const itemFields = Array.from(fieldMap.values())
+                    .map(({ field: f, allOptions, typeSet }) => {
+                        let t: string;
+                        if (allOptions.length > 0) {
+                            t = allOptions.slice(0, 10).map((o: any) => `'${o.value ?? o.name}'`).join(' | ');
+                            if (allOptions.length > 10) t += ' | string';
+                        } else if (typeSet.size > 1) {
+                            // Field used with multiple types across dataType groups — build a union
+                            t = Array.from(typeSet)
+                                .map(tp => TypeScriptFormatter.mapTypeToTypeScript({ ...f, type: tp }))
+                                .filter((v, i, arr) => arr.indexOf(v) === i)
+                                .join(' | ');
+                        } else {
+                            t = TypeScriptFormatter.mapTypeToTypeScript(f);
+                        }
+                        return `${f.name}?: ${t}`;
+                    }).join('; ');
+                return `{ ${collKey}?: Array<{ ${itemFields} }> }`;
+            }
             default:
                 return 'any';
         }
+    }
+
+    /**
+     * Expand a fixedCollection property into a readable multi-line TypeScript value,
+     * showing the internal structure with all valid option values as inline comments.
+     * Picks the most informative option group (prefers 'string' group, falls back to largest).
+     * Aggregates all operation values across groups into the comment for the `operation` field.
+     */
+    static expandFixedCollectionValue(prop: any, baseIndent: string): string {
+        const options = prop.options as any[] | undefined;
+        if (!options || options.length === 0) return '{}';
+
+        // Pick the most informative group: prefer one whose displayName matches 'string',
+        // otherwise pick the group with the most fields
+        let selectedGroup = options.find((g: any) => /string/i.test(g.displayName || g.name));
+        if (!selectedGroup) {
+            selectedGroup = options.reduce((best: any, g: any) =>
+                (g.values?.length || 0) > (best.values?.length || 0) ? g : best, options[0]);
+        }
+
+        // The outer collection key is shared across all groups (e.g. 'rules' in Switch)
+        const outerKey = options[0].name as string;
+
+        // Aggregate ALL operation values from ALL groups for the operation field comment
+        const allOpValues: string[] = [];
+        for (const group of options) {
+            const opField = (group.values as any[] | undefined)?.find((v: any) => v.name === 'operation');
+            for (const opt of (opField?.options || [])) {
+                const val = opt.value ?? opt.name;
+                if (!allOpValues.includes(val)) allOpValues.push(val);
+            }
+        }
+
+        const values = selectedGroup.values as any[] | undefined;
+        if (!values || values.length === 0) return '{}';
+
+        const inner      = baseIndent + '  ';   // collection key level
+        const itemIndent = baseIndent + '    '; // item object level
+        const fieldInd   = baseIndent + '      '; // field level inside item
+
+        const fieldLines: string[] = [];
+        const renderedFields = new Set<string>();
+        for (const field of values) {
+            if (renderedFields.has(field.name)) continue; // n8n reuses field names for conditional variants
+            renderedFields.add(field.name);
+            const value = TypeScriptFormatter.generateDefaultValue(field);
+            let note = '';
+            if (field.name === 'operation' && allOpValues.length > 0) {
+                note = `  // valid: ${allOpValues.join(' | ')}`;
+            } else if ((field.options as any[] | undefined)?.length) {
+                note = `  // valid: ${(field.options as any[]).map((o: any) => o.value ?? o.name).join(' | ')}`;
+            }
+            fieldLines.push(`${fieldInd}${field.name}: ${value},${note}`);
+        }
+
+        return [
+            `{`,
+            `${inner}${outerKey}: [`,
+            `${itemIndent}{`,
+            ...fieldLines,
+            `${itemIndent}}`,
+            `${inner}]`,
+            `${baseIndent}}`
+        ].join('\n');
     }
 
     private static generateDefaultValue(prop: any): string {
