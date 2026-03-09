@@ -27,8 +27,9 @@ jobs:
 
       - name: Enforce next alignment
         run: |
-          git fetch origin main next || true
-          if git show-ref --verify --quiet refs/remotes/origin/next; then
+          git fetch origin main
+          if git ls-remote --exit-code --heads origin next >/dev/null 2>&1; then
+            git fetch origin next:refs/remotes/origin/next
             if ! git merge-base --is-ancestor origin/next HEAD; then
               echo "❌ next is ahead of main. Stable release is blocked until main includes every next commit."
               exit 1
@@ -186,7 +187,7 @@ jobs:
       - name: Sync next to main
         if: steps.pending.outputs.pending == 'true'
         run: |
-          git fetch origin main next || true
+          git fetch origin main
           git push origin HEAD:refs/heads/next --force
 
   create-release-pr:
@@ -207,8 +208,9 @@ jobs:
       - name: Enforce next alignment
         if: needs.publish-stable.outputs.pending != 'true'
         run: |
-          git fetch origin main next || true
-          if git show-ref --verify --quiet refs/remotes/origin/next; then
+          git fetch origin main
+          if git ls-remote --exit-code --heads origin next >/dev/null 2>&1; then
+            git fetch origin next:refs/remotes/origin/next
             if ! git merge-base --is-ancestor origin/next HEAD; then
               echo "❌ next is ahead of main. Release PR creation is blocked until main includes every next commit."
               exit 1
