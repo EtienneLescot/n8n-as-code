@@ -18,11 +18,16 @@ export class AiContextGenerator {
 
   /**
    * Lazily loads n8n-nodes-technical.json and returns the nodes map.
+   * Resolution order mirrors NodeSchemaProvider:
+   *   1. N8N_AS_CODE_ASSETS_DIR env var
+   *   2. Relative sibling paths (dist/assets, then ../../assets)
    * Returns an empty object when the asset is unavailable (e.g. in tests).
    */
   private loadNodesIndex(): Record<string, any> {
     if (this.nodesIndex) return this.nodesIndex;
+    const envAssetsDir = process.env.N8N_AS_CODE_ASSETS_DIR;
     const candidates = [
+      ...(envAssetsDir ? [path.join(envAssetsDir, 'n8n-nodes-technical.json')] : []),
       path.resolve(_dirname, '../assets/n8n-nodes-technical.json'),
       path.resolve(_dirname, '../../assets/n8n-nodes-technical.json'),
     ];
@@ -466,18 +471,18 @@ export class AiContextGenerator {
       `## 🚫 Common Mistakes to AVOID`,
       ``,
       `1. ❌ **Wrong node type** - Missing package prefix causes "?" icon. Always use the EXACT \`type\` from \`node-schema\` (with full package prefix: \`n8n-nodes-base.switch\`, not \`switch\`).`,
-      `3. ❌ **Outdated typeVersion** - Use highest version from schema`,
-      `4. ❌ **Non-existent typeVersion** - e.g. \`typeVersion: 1.6\` when schema only has \`[1, 1.1, 2, 2.2]\`. Causes "Could not find workflow" in n8n. Always pick a value **from the exact array in \`node-schema\`**.`,
-      `5. ❌ **Invalid operation/resource value** - e.g. \`operation: 'post'\` on Slack node when the valid string for that resource is \`'create'\`. n8n will show "Could not find property option". Always verify the exact string appears in the \`options[].value\` list returned by \`${cmd} node-schema <node>\`.`,
-      `6. ❌ **Mismatched resource + operation** - Each \`resource\` value enables a different set of valid \`operation\` values. Combining an operation from the wrong resource causes "Could not find property option" in n8n.`,
-      `7. ❌ **Guessing parameter structure** - Check if nested objects required`,
-      `8. ❌ **Wrong connection names** - Must match EXACT node \`name\` field`,
-      `9. ❌ **Inventing non-existent nodes** - Use \`search\` to verify`,
-      `10. ❌ **Wrong \`.uses()\` syntax for tools** - \`ai_tool\` and \`ai_document\` are ALWAYS arrays: \`ai_tool: [this.Tool.output]\`. All other AI connection types (\`ai_languageModel\`, \`ai_memory\`, etc.) are single refs: \`ai_languageModel: this.Model.output\`. Never wrap single refs in an array.`,
-      `11. ❌ **Connecting AI sub-nodes with \`.out().to()\`** — any node flagged \`[ai_*]\` in the NODE INDEX MUST use \`.uses()\`, never \`.out().to()\`. Doing so produces invisible/broken connections in n8n.`,
-      `12. ❌ **Guessing fixedCollection values without checking** — Fields like \`rules\` (Switch/If) or \`formFields\` (Wait) expand into nested structures with specific valid option values. Always run \`node-info <node>\` first — the schema now shows the full internal structure and all valid values. Never invent operation names like \`'contained'\`.`,
-      `13. ❌ **Inverting \`value1\`/\`value2\` in Switch/If rules** — \`value1\` is ALWAYS the expression being evaluated (e.g. \`={{ $json.myField }}\`). \`value2\` is ALWAYS the literal comparison value (e.g. \`'auto_send_ok'\`). Swapping them causes rules to never match.`,
-      `14. ❌ **Wrong \`formFields\` structure for Wait (form) nodes** — \`formFields\` must use \`{ values: [...] }\` (flat array). Do NOT use \`formFieldsUi.fieldItems\` — that legacy structure causes "Could not find property option" in n8n.`,
+      `2. ❌ **Outdated typeVersion** - Use highest version from schema`,
+      `3. ❌ **Non-existent typeVersion** - e.g. \`typeVersion: 1.6\` when schema only has \`[1, 1.1, 2, 2.2]\`. Causes "Could not find workflow" in n8n. Always pick a value **from the exact array in \`node-schema\`**.`,
+      `4. ❌ **Invalid operation/resource value** - e.g. \`operation: 'post'\` on Slack node when the valid string for that resource is \`'create'\`. n8n will show "Could not find property option". Always verify the exact string appears in the \`options[].value\` list returned by \`${cmd} node-schema <node>\`.`,
+      `5. ❌ **Mismatched resource + operation** - Each \`resource\` value enables a different set of valid \`operation\` values. Combining an operation from the wrong resource causes "Could not find property option" in n8n.`,
+      `6. ❌ **Guessing parameter structure** - Check if nested objects required`,
+      `7. ❌ **Wrong connection names** - Must match EXACT node \`name\` field`,
+      `8. ❌ **Inventing non-existent nodes** - Use \`search\` to verify`,
+      `9. ❌ **Wrong \`.uses()\` syntax for tools** - \`ai_tool\` and \`ai_document\` are ALWAYS arrays: \`ai_tool: [this.Tool.output]\`. All other AI connection types (\`ai_languageModel\`, \`ai_memory\`, etc.) are single refs: \`ai_languageModel: this.Model.output\`. Never wrap single refs in an array.`,
+      `10. ❌ **Connecting AI sub-nodes with \`.out().to()\`** — any node flagged \`[ai_*]\` in the NODE INDEX MUST use \`.uses()\`, never \`.out().to()\`. Doing so produces invisible/broken connections in n8n.`,
+      `11. ❌ **Guessing fixedCollection values without checking** — Fields like \`rules\` (Switch/If) or \`formFields\` (Wait) expand into nested structures with specific valid option values. Always run \`node-info <node>\` first — the schema now shows the full internal structure and all valid values. Never invent operation names like \`'contained'\`.`,
+      `12. ❌ **Inverting \`value1\`/\`value2\` in Switch/If rules** — \`value1\` is ALWAYS the expression being evaluated (e.g. \`={{ $json.myField }}\`). \`value2\` is ALWAYS the literal comparison value (e.g. \`'auto_send_ok'\`). Swapping them causes rules to never match.`,
+      `13. ❌ **Wrong \`formFields\` structure for Wait (form) nodes** — \`formFields\` must use \`{ values: [...] }\` (flat array). Do NOT use \`formFieldsUi.fieldItems\` — that legacy structure causes "Could not find property option" in n8n.`,
       ``,
       `---`,
       ``,
