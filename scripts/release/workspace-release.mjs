@@ -46,7 +46,7 @@ const PACKAGES = [
   },
 ];
 
-const PATCH_TYPES = new Set(['fix', 'perf', 'refactor', 'revert', 'deps', 'build']);
+const PATCH_TYPES = new Set(['fix', 'perf', 'refactor', 'revert', 'deps', 'build', 'docs']);
 const BUMP_PRIORITY = { none: 0, patch: 1, minor: 2, major: 3 };
 const extensionPackage = PACKAGES.find(pkg => pkg.name === 'n8n-as-code');
 

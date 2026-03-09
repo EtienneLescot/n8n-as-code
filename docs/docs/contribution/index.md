@@ -168,6 +168,7 @@ CI automatically:
 ### Key Rules
 - **Never manually edit release versions in PRs by hand** unless you are intentionally repairing the release flow
 - **Use conventional commits** so the CI can derive `major`, `minor`, or `patch` automatically
+- **Package-scoped `docs(...)` commits also count as patch releases** when they touch files inside a released package
 - **The VS Code extension uses `stable = patch 0` and `prerelease = patch > 0`**
 - **The VS Code extension version line is driven from `packages/vscode-extension/package.json`**
 - **Internal dependencies are automatically re-pinned** whenever an upstream package is bumped
