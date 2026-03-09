@@ -94,7 +94,7 @@ The project uses a custom commit-driven release flow.
 | `@n8n-as-code/transformer` | NPM Registry | Conventional commits + dependency propagation |
 | `@n8n-as-code/skills` | NPM Registry | Conventional commits + dependency propagation |
 | `n8nac` | NPM Registry | Conventional commits + dependency propagation |
-| `n8n-as-code` (VS Code Extension) | VS Code Marketplace / Open VSX | `packages/vscode-extension/package.json` with stable `x.y.0` releases and prerelease `x.y.z` patch increments |
+| `n8n-as-code` (VS Code Extension) | VS Code Marketplace / Open VSX | `packages/vscode-extension/package.json` with even-minor stable lines and odd-minor prerelease lines |
 | Claude adapter artifacts | GitHub repository / plugin distribution flow | Built from `packages/skills/scripts/build-claude-adapter.js` |
 | `n8n-as-code-monorepo` (root) | Not published | Not released |
 | `docs` | Not published | Not released |
@@ -106,8 +106,9 @@ The project uses a custom commit-driven release flow.
 - Every push to `next` computes prerelease bumps from commit messages.
 - Internal dependency versions are re-pinned automatically.
 - Changed public packages are published to npm with the `next` dist-tag.
-- The VS Code extension is published to the Marketplace as a prerelease on the current stable line, using patch increments greater than `0`.
-- Example: if the current stable extension is `0.20.0`, prereleases on `next` become `0.20.1`, `0.20.2`, `0.20.3`, and so on.
+- The VS Code extension follows the official Marketplace recommendation: stable releases use even minor lines and prereleases use odd minor lines.
+- The prerelease line is intentionally kept above the stable version that the same changes will later publish from `main`, so preview users are not forced back to stable.
+- Example: if the current stable extension is `0.21.0`, the next stable release becomes `0.22.0` and prereleases on `next` become `0.23.1`, `0.23.2`, `0.23.3`, and so on.
 - Open VSX prereleases remain disabled.
 
 #### Push to `main`
@@ -115,8 +116,8 @@ The project uses a custom commit-driven release flow.
 - If any package version in `package.json` is already ahead of its latest stable tag, `main` publishes that version directly instead of opening a new release PR.
 - A push to `main` creates or updates a single release PR only when no package is already ahead of its latest stable tag and commit history requires version bumps.
 - The release PR updates package versions and internal dependency versions together.
-- For the VS Code extension, stable releases always land on patch `0` of the next stable line.
-- Example: after a `0.20.x` prerelease cycle, the next stable extension release becomes `0.21.0`.
+- For the VS Code extension, stable releases always land on patch `0` of the next even minor line.
+- Example: after prereleases on `0.23.x`, the next stable extension release becomes `0.22.0`, and the following cycle starts with prereleases on `0.25.x`.
 
 #### Merge the release PR
 
@@ -141,7 +142,7 @@ git commit -m "fix(cli): handle sync edge case"
 **Result:**
 - `n8nac`: `0.11.4` → `0.11.5` ✅
 - `@n8n-as-code/skills`: (unchanged, no dependency on n8nac) ✅
-- `VS Code Extension`: `0.20.1` → `0.21.0` (next stable line, patch reset to `0`) ✅
+- `VS Code Extension`: `0.21.0` → `0.22.0` on `main`, while `next` prereleases are published on `0.23.x` ✅
 
 All packages that depend on `n8nac` will have their `package.json` updated to reference the newly released stable version.
 
@@ -169,7 +170,8 @@ CI automatically:
 - **Never manually edit release versions in PRs by hand** unless you are intentionally repairing the release flow
 - **Use conventional commits** so the CI can derive `major`, `minor`, or `patch` automatically
 - **Package-scoped `docs(...)` commits also count as patch releases** when they touch files inside a released package
-- **The VS Code extension uses `stable = patch 0` and `prerelease = patch > 0`**
+- **The VS Code extension uses even minor lines for stable releases and odd minor lines for prereleases**
+- **The prerelease line must stay numerically above the stable release that will be published next**
 - **The VS Code extension version line is driven from `packages/vscode-extension/package.json`**
 - **Internal dependencies are automatically re-pinned** whenever an upstream package is bumped
 - **Private packages remain safe** - they can participate in version orchestration without npm publication

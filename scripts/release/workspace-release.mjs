@@ -220,11 +220,35 @@ function writeJson(relativePath, value) {
   fs.writeFileSync(absolutePath, `${JSON.stringify(value, null, indent)}\n`);
 }
 
-function buildVscodePrereleaseVersion(version, sequence) {
-  return formatVersion({
+function getNextEvenMinor(minor) {
+  return minor % 2 === 0 ? minor + 2 : minor + 1;
+}
+
+function getNextOddMinor(minor) {
+  return minor % 2 === 0 ? minor + 1 : minor + 2;
+}
+
+function buildNextVscodeStableVersion(version, bump) {
+  if (bump === 'major') {
+    return {
+      major: version.major + 1,
+      minor: 0,
+      patch: 0,
+    };
+  }
+
+  return {
     major: version.major,
-    minor: version.minor,
-    patch: version.patch + Math.max(1, sequence),
+    minor: getNextEvenMinor(version.minor),
+    patch: 0,
+  };
+}
+
+function buildVscodePrereleaseVersion(stableVersion, sequence) {
+  return formatVersion({
+    major: stableVersion.major,
+    minor: getNextOddMinor(stableVersion.minor),
+    patch: Math.max(1, sequence),
   });
 }
 
@@ -575,7 +599,7 @@ function computeStablePlan() {
           versionAheadOfTag
             ? currentStableString
             : changed
-              ? formatVersion(incrementVersion(currentStableVersion, bumpInfo.bump === 'major' ? 'major' : 'minor'))
+              ? formatVersion(buildNextVscodeStableVersion(currentStableVersion, bumpInfo.bump))
               : currentStableString
         )
       : (bumpInfo.bump ? formatVersion(incrementVersion(currentStableVersion, bumpInfo.bump)) : currentStableString);
@@ -583,8 +607,8 @@ function computeStablePlan() {
     if (versionAheadOfTag && !reasons.includes('version-ahead-of-tag')) {
       reasons.push('version-ahead-of-tag');
     }
-    if (pkg.publishTarget === 'vscode' && changed && !versionAheadOfTag && !reasons.includes('stable-vscode-minor-line')) {
-      reasons.push('stable-vscode-minor-line');
+    if (pkg.publishTarget === 'vscode' && changed && !versionAheadOfTag && !reasons.includes('stable-vscode-even-minor-line')) {
+      reasons.push('stable-vscode-even-minor-line');
     }
 
     return {
@@ -632,7 +656,7 @@ function computePrereleasePlan() {
     return {
       ...pkg,
       prereleaseVersion: pkg.publishTarget === 'vscode'
-        ? buildVscodePrereleaseVersion(parseVersion(pkg.currentVersion), sequence)
+        ? buildVscodePrereleaseVersion(parseVersion(pkg.targetVersion), sequence)
         : `${pkg.targetVersion}-next.${sequence}`,
     };
   });
