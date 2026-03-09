@@ -304,13 +304,18 @@ ${nodeProp} = { /* parameters */ };`;
                 const fieldMap = new Map<string, { field: any; allOptions: any[]; typeSet: Set<string> }>();
                 for (const group of opts) {
                     for (const f of (group.values as any[] || [])) {
+                        // For nested fixedcollection fields, f.options contains groups (not enum values).
+                        // Don't populate allOptions with group names — that would produce `field?: 'groupName'`.
+                        const isNestedFixedColl = f.type?.toLowerCase() === 'fixedcollection';
                         if (!fieldMap.has(f.name)) {
-                            fieldMap.set(f.name, { field: f, allOptions: f.options ? [...f.options] : [], typeSet: new Set([f.type]) });
+                            fieldMap.set(f.name, { field: f, allOptions: (!isNestedFixedColl && f.options) ? [...f.options] : [], typeSet: new Set([f.type]) });
                         } else {
                             const existing = fieldMap.get(f.name)!;
                             if (f.type) existing.typeSet.add(f.type);
-                            for (const opt of (f.options || [])) {
-                                if (!existing.allOptions.find((o: any) => o.value === opt.value)) existing.allOptions.push(opt);
+                            if (!isNestedFixedColl) {
+                                for (const opt of (f.options || [])) {
+                                    if (!existing.allOptions.find((o: any) => o.value === opt.value)) existing.allOptions.push(opt);
+                                }
                             }
                         }
                     }
@@ -383,12 +388,18 @@ ${nodeProp} = { /* parameters */ };`;
         for (const field of values) {
             if (renderedFields.has(field.name)) continue; // n8n reuses field names for conditional variants
             renderedFields.add(field.name);
-            const value = TypeScriptFormatter.generateDefaultValue(field);
+            let value: string;
             let note = '';
-            if (field.name === 'operation' && allOpValues.length > 0) {
-                note = `  // valid: ${allOpValues.join(' | ')}`;
-            } else if ((field.options as any[] | undefined)?.length) {
-                note = `  // valid: ${(field.options as any[]).map((o: any) => o.value ?? o.name).join(' | ')}`;
+            if (field.type?.toLowerCase() === 'fixedcollection') {
+                // Recursively expand nested fixedcollections (e.g. fieldOptions inside formFields)
+                value = TypeScriptFormatter.expandFixedCollectionValue(field, fieldInd);
+            } else {
+                value = TypeScriptFormatter.generateDefaultValue(field);
+                if (field.name === 'operation' && allOpValues.length > 0) {
+                    note = `  // valid: ${allOpValues.join(' | ')}`;
+                } else if ((field.options as any[] | undefined)?.length) {
+                    note = `  // valid: ${(field.options as any[]).map((o: any) => o.value ?? o.name).join(' | ')}`;
+                }
             }
             fieldLines.push(`${fieldInd}${field.name}: ${value},${note}`);
         }
