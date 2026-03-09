@@ -12,7 +12,44 @@ const _dirname = typeof __dirname !== 'undefined'
   : (_filename ? path.dirname(_filename as string) : '');
 
 export class AiContextGenerator {
+  private nodesIndex: Record<string, any> | null = null;
+
   constructor() { }
+
+  /**
+   * Lazily loads n8n-nodes-technical.json and returns the nodes map.
+   * Returns an empty object when the asset is unavailable (e.g. in tests).
+   */
+  private loadNodesIndex(): Record<string, any> {
+    if (this.nodesIndex) return this.nodesIndex;
+    const candidates = [
+      path.resolve(_dirname, '../assets/n8n-nodes-technical.json'),
+      path.resolve(_dirname, '../../assets/n8n-nodes-technical.json'),
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        try {
+          this.nodesIndex = JSON.parse(fs.readFileSync(p, 'utf-8')).nodes ?? {};
+          return this.nodesIndex!;
+        } catch { /* ignore parse errors */ }
+      }
+    }
+    this.nodesIndex = {};
+    return this.nodesIndex;
+  }
+
+  /**
+   * Returns the highest typeVersion for a node looked up by its short name
+   * (the key in n8n-nodes-technical.json, e.g. 'lmChatOpenAi').
+   * Falls back to the given fallback when the node is not found.
+   */
+  private latestVersion(nodeShortName: string, fallback: number): number {
+    const nodes = this.loadNodesIndex();
+    const node = nodes[nodeShortName];
+    if (!node) return fallback;
+    const versions = Array.isArray(node.version) ? node.version : [node.version];
+    return Math.max(...versions.map((v: any) => Number(v)));
+  }
 
   private getCommandRefs(distTag?: string): { cliCmd: string; skillsCmd: string } {
     return {
@@ -24,8 +61,18 @@ export class AiContextGenerator {
   /**
    * Returns the canonical AI Agent workflow example TypeScript code.
    * Shared between AGENTS.md and the skill prompt to keep both in sync.
+   * Node versions are resolved dynamically from n8n-nodes-technical.json
+   * so the example never goes stale.
    */
   private getAiAgentWorkflowExampleCode(): string {
+    // Resolve latest typeVersion for each node used in the example
+    const vChatTrigger        = this.latestVersion('chatTrigger', 1.1);
+    const vAgent              = this.latestVersion('agent', 3);
+    const vLmChatOpenAi       = this.latestVersion('lmChatOpenAi', 1.3);
+    const vMemoryBufferWindow = this.latestVersion('memoryBufferWindow', 1.3);
+    const vHttpRequestTool    = this.latestVersion('httpRequestTool', 1.1);
+    const vOutputParser       = this.latestVersion('outputParserStructured', 1.3);
+
     return [
       `import { workflow, node, links } from '@n8n-as-code/transformer';`,
       ``,
@@ -54,27 +101,27 @@ export class AiContextGenerator {
       ``,
       `@workflow({ name: 'AI Agent', active: false })`,
       `export class AIAgentWorkflow {`,
-      `  @node({ name: 'Chat Trigger', type: '@n8n/n8n-nodes-langchain.chatTrigger', version: 1.1, position: [0, 0] })`,
+      `  @node({ name: 'Chat Trigger', type: '@n8n/n8n-nodes-langchain.chatTrigger', version: ${vChatTrigger}, position: [0, 0] })`,
       `  ChatTrigger = {};`,
       ``,
-      `  @node({ name: 'AI Agent', type: '@n8n/n8n-nodes-langchain.agent', version: 3, position: [200, 0] })`,
+      `  @node({ name: 'AI Agent', type: '@n8n/n8n-nodes-langchain.agent', version: ${vAgent}, position: [200, 0] })`,
       `  AiAgent = {`,
       `    promptType: 'define',`,
       `    text: '={{ $json.chatInput }}',`,
       `    options: { systemMessage: 'You are a helpful assistant.' },`,
       `  };`,
       ``,
-      `  @node({ name: 'OpenAI Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', version: 1.3, position: [200, 200],`,
+      `  @node({ name: 'OpenAI Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', version: ${vLmChatOpenAi}, position: [200, 200],`,
       `    credentials: { openAiApi: { id: 'xxx', name: 'OpenAI' } } })`,
       `  OpenaiModel = { model: { mode: 'list', value: 'gpt-4o-mini' }, options: {} };`,
       ``,
-      `  @node({ name: 'Memory', type: '@n8n/n8n-nodes-langchain.memoryBufferWindow', version: 1.3, position: [300, 200] })`,
+      `  @node({ name: 'Memory', type: '@n8n/n8n-nodes-langchain.memoryBufferWindow', version: ${vMemoryBufferWindow}, position: [300, 200] })`,
       `  Memory = { sessionIdType: 'customKey', sessionKey: '={{ $execution.id }}', contextWindowLength: 10 };`,
       ``,
-      `  @node({ name: 'Search Tool', type: 'n8n-nodes-base.httpRequestTool', version: 1.1, position: [400, 200] })`,
+      `  @node({ name: 'Search Tool', type: 'n8n-nodes-base.httpRequestTool', version: ${vHttpRequestTool}, position: [400, 200] })`,
       `  SearchTool = { url: 'https://api.example.com/search', toolDescription: 'Search for information' };`,
       ``,
-      `  @node({ name: 'Output Parser', type: '@n8n/n8n-nodes-langchain.outputParserStructured', version: 1.3, position: [500, 200] })`,
+      `  @node({ name: 'Output Parser', type: '@n8n/n8n-nodes-langchain.outputParserStructured', version: ${vOutputParser}, position: [500, 200] })`,
       `  OutputParser = { schemaType: 'manual', inputSchema: '{ "type": "object", "properties": { "answer": { "type": "string" } } }' };`,
       ``,
       `  @links()`,
