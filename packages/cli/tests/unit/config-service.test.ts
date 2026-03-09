@@ -4,9 +4,22 @@ import fs from 'fs';
 import path from 'path';
 import Conf from 'conf';
 
+const { mockResolveInstanceIdentifier, mockCreateFallbackInstanceIdentifier } = vi.hoisted(() => ({
+    mockResolveInstanceIdentifier: vi.fn(),
+    mockCreateFallbackInstanceIdentifier: vi.fn()
+}));
+
 // Mock dependencies
 vi.mock('fs');
 vi.mock('conf');
+vi.mock('../../src/core/index.js', async () => {
+    const actual = await vi.importActual<typeof import('../../src/core/index.js')>('../../src/core/index.js');
+    return {
+        ...actual,
+        resolveInstanceIdentifier: mockResolveInstanceIdentifier,
+        createFallbackInstanceIdentifier: mockCreateFallbackInstanceIdentifier
+    };
+});
 
 describe('ConfigService', () => {
     let configService: ConfigService;
@@ -15,6 +28,8 @@ describe('ConfigService', () => {
     beforeEach(() => {
         // Reset mocks
         vi.clearAllMocks();
+        mockResolveInstanceIdentifier.mockReset();
+        mockCreateFallbackInstanceIdentifier.mockReset();
 
         // Mock Conf instance
         mockConf = {
@@ -207,16 +222,28 @@ describe('ConfigService', () => {
     });
 
     describe('getOrCreateInstanceIdentifier', () => {
-        it('should return existing instance identifier from config', async () => {
+        it('should recompute instance identifier from current instance settings', async () => {
             (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
             (fs.readFileSync as any).mockReturnValue(JSON.stringify({
                 host: 'http://localhost:5678',
                 instanceIdentifier: 'existing-id'
             }));
+            mockConf.get.mockReturnValue({
+                'http://localhost:5678': 'test-key'
+            });
+            mockResolveInstanceIdentifier.mockResolvedValue({
+                identifier: 'recomputed-id',
+                usedFallback: false
+            });
 
             const result = await configService.getOrCreateInstanceIdentifier('http://localhost:5678');
 
-            expect(result).toBe('existing-id');
+            expect(result).toBe('recomputed-id');
+            expect(mockResolveInstanceIdentifier).toHaveBeenCalledWith({
+                host: 'http://localhost:5678',
+                apiKey: 'test-key'
+            });
+            expect(fs.writeFileSync).toHaveBeenCalled();
         });
 
         it('should create new instance identifier when not exists', async () => {
@@ -227,27 +254,14 @@ describe('ConfigService', () => {
             mockConf.get.mockReturnValue({
                 'http://localhost:5678': 'test-key'
             });
-
-            // Mock the Sync imports
-            const mockCreateInstanceIdentifier = vi.fn().mockReturnValue('local_5678_user');
-            const mockN8nApiClient = vi.fn().mockImplementation(() => ({
-                getCurrentUser: vi.fn().mockResolvedValue({
-                    id: '1',
-                    email: 'user@example.com',
-                    firstName: 'Test',
-                    lastName: 'User'
-                })
-            }));
-
-            vi.doMock('../../../src/core/index.js', () => ({
-                N8nApiClient: mockN8nApiClient,
-                createInstanceIdentifier: mockCreateInstanceIdentifier,
-                createFallbackInstanceIdentifier: vi.fn()
-            }));
+            mockResolveInstanceIdentifier.mockResolvedValue({
+                identifier: 'local_5678_user',
+                usedFallback: false
+            });
 
             const result = await configService.getOrCreateInstanceIdentifier('http://localhost:5678');
 
-            expect(result).toBeTruthy();
+            expect(result).toBe('local_5678_user');
             expect(fs.writeFileSync).toHaveBeenCalled();
         });
     });

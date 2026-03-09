@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
 import { N8nApiClient, ConfigService, type IN8nCredentials } from 'n8nac';
-import { getWorkspaceRoot, isFolderPreviouslyInitialized, getExistingInstanceIdentifier } from '../utils/state-detection.js';
-import fs from 'fs';
-import path from 'path';
+import { getWorkspaceRoot, isFolderPreviouslyInitialized } from '../utils/state-detection.js';
+import { writeUnifiedWorkspaceConfig } from '../utils/unified-config.js';
 
 type UiProject = {
   id: string;
@@ -141,30 +140,14 @@ export class ConfigurationWebview {
 
             // Write unified config file for CLI alignment
             if (workspaceRoot) {
-              const unifiedPath = path.join(workspaceRoot, 'n8nac-config.json');
-              const storedSyncFolder = syncFolder && syncFolder.startsWith(workspaceRoot)
-                ? path.relative(workspaceRoot, syncFolder) || 'workflows'
-                : (syncFolder || 'workflows');
-
-              let existing: any = {};
-              try {
-                if (fs.existsSync(unifiedPath)) {
-                  existing = JSON.parse(fs.readFileSync(unifiedPath, 'utf-8'));
-                }
-              } catch {
-                existing = {};
-              }
-
-              const unified = {
-                ...existing,
-                host: host || existing.host || '',
-                syncFolder: storedSyncFolder || existing.syncFolder || 'workflows',
-                projectId: projectId || existing.projectId || '',
-                projectName: projectName || existing.projectName || '',
-                instanceIdentifier: getExistingInstanceIdentifier(workspaceRoot) || existing.instanceIdentifier
-              };
-
-              fs.writeFileSync(unifiedPath, JSON.stringify(unified, null, 2), 'utf-8');
+              await writeUnifiedWorkspaceConfig({
+                workspaceRoot,
+                host,
+                apiKey,
+                syncFolder: syncFolder || 'workflows',
+                projectId,
+                projectName,
+              });
             }
 
             if (shouldAutoApply) {

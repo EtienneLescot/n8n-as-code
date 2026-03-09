@@ -6,7 +6,7 @@ import * as fs from 'fs';
 declare const __N8NAC_VERSION__: string;
 import {
     SyncManager, CliApi, N8nApiClient, IN8nCredentials, WorkflowSyncStatus,
-    createInstanceIdentifier, createFallbackInstanceIdentifier
+    resolveInstanceIdentifier
 } from 'n8nac';
 import { AiContextGenerator, SnippetGenerator } from '@n8n-as-code/skills';
 
@@ -19,6 +19,7 @@ import { ProxyService } from './services/proxy-service.js';
 import { ExtensionState } from './types.js';
 import { validateN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from './utils/state-detection.js';
 import { NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION } from './constants/workspace.js';
+import { writeUnifiedWorkspaceConfig } from './utils/unified-config.js';
 
 import {
     store,
@@ -578,22 +579,29 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
     let instanceIdentifier: string;
     try {
-        const user = await client.getCurrentUser();
-        if (user) {
-            instanceIdentifier = createInstanceIdentifier(host, user);
-            outputChannel.appendLine(`[n8n] Instance identifier: ${instanceIdentifier}`);
-        } else {
-            instanceIdentifier = createFallbackInstanceIdentifier(host, apiKey);
-        }
+        const resolution = await resolveInstanceIdentifier(credentials, {
+            client,
+            throwOnConnectionError: true
+        });
+        instanceIdentifier = resolution.identifier;
+        outputChannel.appendLine(
+            resolution.usedFallback
+                ? `[n8n] Instance identifier (fallback): ${instanceIdentifier}`
+                : `[n8n] Instance identifier: ${instanceIdentifier}`
+        );
     } catch (error: any) {
-        const isConnectionError = !error.response ||
-            error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT';
-        if (isConnectionError) {
-            throw new Error(`Cannot connect to n8n instance at "${host}". Please check if n8n is running.`);
-        }
-        instanceIdentifier = createFallbackInstanceIdentifier(host, apiKey);
-        outputChannel.appendLine(`[n8n] Instance identifier (fallback): ${instanceIdentifier}`);
+        throw new Error(`Cannot connect to n8n instance at "${host}". Please check if n8n is running.`);
     }
+
+    await writeUnifiedWorkspaceConfig({
+        workspaceRoot,
+        host,
+        apiKey,
+        syncFolder: folder,
+        projectId: projectId!,
+        projectName: projectName!,
+        instanceIdentifier
+    });
 
     // Create SyncManager (the stateful engine: WorkflowStateTracker, events, etc.)
     syncManager = new SyncManager(client, {

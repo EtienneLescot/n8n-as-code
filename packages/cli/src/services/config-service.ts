@@ -148,38 +148,18 @@ export class ConfigService {
     async getOrCreateInstanceIdentifier(host: string): Promise<string> {
         const local = this.getLocalConfig();
 
-        // If already exists in local config, return it
-        if (local.instanceIdentifier) {
-            return local.instanceIdentifier;
-        }
-
-        // Generate new instance identifier using Sync's functions
         try {
             const apiKey = this.getApiKey(host);
             if (!apiKey) {
                 throw new Error('API key not found');
             }
 
-            // Import Sync utilities
-            const { N8nApiClient, createInstanceIdentifier, createFallbackInstanceIdentifier } = await import('../core/index.js');
+            const { resolveInstanceIdentifier } = await import('../core/index.js');
+            const { identifier } = await resolveInstanceIdentifier({ host, apiKey });
 
-            // Try to get current user from n8n API
-            const client = new N8nApiClient({ host, apiKey });
-            const user = await client.getCurrentUser();
-
-            let identifier: string;
-
-            if (user) {
-                // Use user info to create identifier
-                identifier = createInstanceIdentifier(host, user);
-            } else {
-                // Fallback to API key hash
-                identifier = createFallbackInstanceIdentifier(host, apiKey);
-            }
-
-            // Save to local config
             this.saveLocalConfig({
                 ...local as ILocalConfig,
+                host,
                 instanceIdentifier: identifier
             });
 
@@ -190,9 +170,9 @@ export class ConfigService {
             const { createFallbackInstanceIdentifier } = await import('../core/index.js');
             const fallbackIdentifier = createFallbackInstanceIdentifier(host, apiKey);
 
-            // Save fallback identifier to local config
             this.saveLocalConfig({
                 ...local as ILocalConfig,
+                host,
                 instanceIdentifier: fallbackIdentifier
             });
 
