@@ -10,7 +10,7 @@
 
 1.  **Installation**: Install the extension from the Marketplace.
 2.  **Workspace**: Open a folder or a `.code-workspace` in VS Code before initialization. The extension requires an active workspace to index files and settings.
-3.  **Connection**: Click the **n8n** icon in the Activity Bar, then click the **Gear (⚙️)** to configure your `Host` and `API Key`. Your projects load automatically, with the Personal project pre-selected by default.
+3.  **Connection**: Click the **n8n** icon in the Activity Bar, then click the **Gear (⚙️)** or the configure button to configure your `Host` and `API Key`. Your projects load automatically, with the Personal project pre-selected by default.
 4.  **Import**: Use the refresh button (**Refresh**) to see your existing workflows.
 
 ---
