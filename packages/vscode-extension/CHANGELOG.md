@@ -1,5 +1,11 @@
 # n8n-as-code
 
+## [0.21.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.20.2...n8n-as-code@v0.21.0) (2026-03-09)
+
+### Bug Fixes
+
+* reset the VS Code extension stable line to `0.21.0` after the `0.20.2` prerelease and stable publish collided in the Marketplace
+
 ## [0.20.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.20.1...n8n-as-code@v0.20.2) (2026-03-09)
 
 ### Bug Fixes
