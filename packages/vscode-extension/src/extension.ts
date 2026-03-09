@@ -24,9 +24,11 @@ import { writeUnifiedWorkspaceConfig } from './utils/unified-config.js';
 import {
     store,
     setSyncManager,
+    clearSyncManager,
     setWorkflows,
     addConflict,
-    removeConflict
+    removeConflict,
+    clearConflicts
 } from './services/workflow-store.js';
 
 // ------- Module-level singletons -------
@@ -418,12 +420,73 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         })
     );
+
+    if (vscode.workspace.workspaceFolders?.length) {
+        const configWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], 'n8nac-config.json'),
+            false,
+            false,
+            false
+        );
+
+        const refreshFromConfigFile = async () => {
+            outputChannel.appendLine('[n8n] Workspace config changed. Refreshing extension state...');
+            await refreshStateFromWorkspaceConfig(context);
+        };
+
+        configWatcher.onDidCreate(refreshFromConfigFile);
+        configWatcher.onDidChange(refreshFromConfigFile);
+        configWatcher.onDidDelete(refreshFromConfigFile);
+        context.subscriptions.push(configWatcher);
+    }
 }
 
 function updateContextKeys() {
     const state = enhancedTreeProvider.getExtensionState();
     vscode.commands.executeCommand('setContext', 'n8n.state', state);
     vscode.commands.executeCommand('setContext', 'n8n.initialized', state === ExtensionState.INITIALIZED);
+}
+
+function resetExtensionRuntimeState(): void {
+    if (syncManager) {
+        syncManager.removeAllListeners();
+    }
+
+    syncManager = undefined;
+    cli = undefined;
+    conflictStore.clear();
+    enhancedTreeProvider.setSyncManager(undefined);
+    clearSyncManager();
+    store.dispatch(setWorkflows([]));
+    store.dispatch(clearConflicts());
+}
+
+async function refreshStateFromWorkspaceConfig(context: vscode.ExtensionContext): Promise<void> {
+    if (initializingPromise) {
+        outputChannel.appendLine('[n8n] Ignoring config refresh while initialization is already in progress.');
+        return;
+    }
+
+    const workspaceRoot = getWorkspaceRoot();
+
+    if (!workspaceRoot) {
+        resetExtensionRuntimeState();
+        enhancedTreeProvider.setExtensionState(ExtensionState.UNINITIALIZED);
+        statusBar.hide();
+        updateContextKeys();
+        return;
+    }
+
+    const hasUnifiedConfig = fs.existsSync(path.join(workspaceRoot, 'n8nac-config.json'));
+    if (!hasUnifiedConfig) {
+        resetExtensionRuntimeState();
+        enhancedTreeProvider.setExtensionState(ExtensionState.CONFIGURING);
+        statusBar.showConfiguring();
+        updateContextKeys();
+        return;
+    }
+
+    await determineInitialState(context);
 }
 
 async function determineInitialState(context: vscode.ExtensionContext) {
@@ -495,7 +558,8 @@ async function handleInitializeCommand(context: vscode.ExtensionContext) {
     statusBar.showLoading();
 
     try {
-        await initializeSyncManager(context);
+        initializingPromise = initializeSyncManager(context);
+        await initializingPromise;
         enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZED);
         updateContextKeys();
         statusBar.showSynced();
@@ -507,6 +571,8 @@ async function handleInitializeCommand(context: vscode.ExtensionContext) {
         enhancedTreeProvider.setExtensionState(ExtensionState.ERROR, error.message);
         statusBar.showError(error.message);
         vscode.window.showErrorMessage(`Initialization failed: ${error.message}`);
+    } finally {
+        initializingPromise = undefined;
     }
 }
 
@@ -755,10 +821,16 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
 async function reinitializeSyncManager(context: vscode.ExtensionContext) {
     if (!syncManager) return;
+    if (initializingPromise) {
+        await initializingPromise;
+        return;
+    }
+
     outputChannel.appendLine('[n8n] Reinitializing with new settings...');
     try {
         syncManager.removeAllListeners();
-        await initializeSyncManager(context);
+        initializingPromise = initializeSyncManager(context);
+        await initializingPromise;
         enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZED);
         updateContextKeys();
         enhancedTreeProvider.refresh();
@@ -768,6 +840,8 @@ async function reinitializeSyncManager(context: vscode.ExtensionContext) {
         enhancedTreeProvider.setExtensionState(ExtensionState.ERROR, error.message);
         updateContextKeys();
         vscode.window.showErrorMessage(`Failed to update settings: ${error.message}`);
+    } finally {
+        initializingPromise = undefined;
     }
 }
 

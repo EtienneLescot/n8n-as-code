@@ -80,7 +80,7 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
   /**
    * Set the sync manager (when initialized)
    */
-  setSyncManager(manager: SyncManager): void {
+  setSyncManager(manager: SyncManager | undefined): void {
     this.syncManager = manager;
     this.invalidateCache();
     this.refresh();

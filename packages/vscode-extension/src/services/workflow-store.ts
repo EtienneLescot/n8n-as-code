@@ -152,6 +152,10 @@ export function setSyncManager(manager: SyncManager) {
     syncManagerRef = manager;
 }
 
+export function clearSyncManager() {
+    syncManagerRef = null;
+}
+
 // Load workflows from SyncManager
 export const loadWorkflows = createAsyncThunk(
     'workflows/load',
