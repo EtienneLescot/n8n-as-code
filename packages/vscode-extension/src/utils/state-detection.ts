@@ -150,6 +150,14 @@ export function determineInitialState(workspaceRoot?: string): {
     };
   }
 
+  if (!fs.existsSync(path.join(workspaceRoot, 'n8nac-config.json'))) {
+    return {
+      state: 'configuring',
+      hasValidConfig: false,
+      isPreviouslyInitialized: false
+    };
+  }
+
   const isPreviouslyInitialized = isFolderPreviouslyInitialized(workspaceRoot);
 
   if (isPreviouslyInitialized && hasValidConfig) {

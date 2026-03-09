@@ -37,7 +37,6 @@ let syncManager: SyncManager | undefined;
  *  list, fetch, pull, push. This is the only object the command handlers touch. */
 let cli: CliApi | undefined;
 let initializingPromise: Promise<void> | undefined;
-let configRefreshTimeout: NodeJS.Timeout | undefined;
 let lastConfigRefreshSignature: string | undefined;
 let runtimeDisposables: vscode.Disposable[] = [];
 
@@ -405,13 +404,11 @@ export async function activate(context: vscode.ExtensionContext) {
                     enhancedTreeProvider.setExtensionState(ExtensionState.SETTINGS_CHANGED);
                     statusBar.showSettingsChanged();
                 } else {
-                    const valid = validateN8nConfig().isValid;
                     const root = getWorkspaceRoot();
-                    const wasInit = root ? isFolderPreviouslyInitialized(root) : false;
-                    if (valid && wasInit) {
-                        enhancedTreeProvider.setExtensionState(ExtensionState.UNINITIALIZED);
-                        statusBar.showNotInitialized();
-                    } else if (!valid) {
+                    const hasUnifiedConfig = root ? fs.existsSync(path.join(root, 'n8nac-config.json')) : false;
+                    const valid = validateN8nConfig().isValid;
+                    if (!hasUnifiedConfig || !valid) {
+                        resetExtensionRuntimeState();
                         enhancedTreeProvider.setExtensionState(ExtensionState.CONFIGURING);
                         statusBar.showConfiguring();
                     } else {
@@ -433,15 +430,8 @@ export async function activate(context: vscode.ExtensionContext) {
         );
 
         const refreshFromConfigFile = async () => {
-            if (configRefreshTimeout) {
-                clearTimeout(configRefreshTimeout);
-            }
-
-            configRefreshTimeout = setTimeout(async () => {
-                outputChannel.appendLine('[n8n] Workspace config changed. Refreshing extension state...');
-                await refreshStateFromWorkspaceConfig(context);
-                configRefreshTimeout = undefined;
-            }, 150);
+            outputChannel.appendLine('[n8n] Workspace config changed. Refreshing extension state...');
+            await refreshStateFromWorkspaceConfig(context);
         };
 
         configWatcher.onDidCreate(refreshFromConfigFile);
@@ -539,8 +529,18 @@ async function determineInitialState(context: vscode.ExtensionContext) {
     lastConfigRefreshSignature = getConfigRefreshSignature(workspaceRoot);
 
     if (!workspaceRoot) {
+        resetExtensionRuntimeState();
         enhancedTreeProvider.setExtensionState(ExtensionState.UNINITIALIZED);
         statusBar.hide();
+        updateContextKeys();
+        return;
+    }
+
+    const hasUnifiedConfig = fs.existsSync(path.join(workspaceRoot, 'n8nac-config.json'));
+    if (!hasUnifiedConfig) {
+        resetExtensionRuntimeState();
+        enhancedTreeProvider.setExtensionState(ExtensionState.CONFIGURING);
+        statusBar.showConfiguring();
         updateContextKeys();
         return;
     }
@@ -893,10 +893,6 @@ async function reinitializeSyncManager(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-    if (configRefreshTimeout) {
-        clearTimeout(configRefreshTimeout);
-        configRefreshTimeout = undefined;
-    }
     disposeRuntimeDisposables();
     proxyService.stop();
 }
