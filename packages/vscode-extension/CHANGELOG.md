@@ -1,5 +1,20 @@
 # n8n-as-code
 
+## [0.26.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.24.0...n8n-as-code@v0.26.0) (2026-03-09)
+
+### Features
+
+* implement instance identifier resolution and unify workspace config handling ([2d4574e](https://github.com/EtienneLescot/n8n-as-code/commit/2d4574e0b69e1ffd42f05d94df3fd8789fb76e3d))
+
+### Bug Fixes
+
+* address PR review comments ([8a10a9a](https://github.com/EtienneLescot/n8n-as-code/commit/8a10a9a50a02c30c4b22c40a64d3e511e7f5ca3e))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * n8nac bumped from 0.11.6 to 0.12.0
+
 ## [0.24.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.22.0...n8n-as-code@v0.24.0) (2026-03-09)
 
 ### Dependencies
