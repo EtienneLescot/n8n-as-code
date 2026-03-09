@@ -172,6 +172,54 @@ export class AiContextGenerator {
     ];
   }
 
+  private getSwitchIfReferenceLines(): string[] {
+    return [
+      `### Switch and If Node — Rule Operations Reference`,
+      ``,
+      `> ⚠️ These values are NOT exposed by \`node-info\` or \`node-schema\` (the \`rules\` field is opaque). Always copy from this table — never invent values.`,
+      ``,
+      `**String operations** (\`dataType: 'string'\`):`,
+      `\`\`\``,
+      `equal | notEqual | contains | notContains | startsWith | endsWith | regex | isEmpty | isNotEmpty`,
+      `\`\`\``,
+      `**Number operations** (\`dataType: 'number'\`):`,
+      `\`\`\``,
+      `equal | notEqual | smaller | smallerEqual | larger | largerEqual | isEmpty | isNotEmpty`,
+      `\`\`\``,
+      `**Boolean operations** (\`dataType: 'boolean'\`):`,
+      `\`\`\``,
+      `true | false`,
+      `\`\`\``,
+      `**DateTime operations** (\`dataType: 'dateTime'\`):`,
+      `\`\`\``,
+      `equal | notEqual | after | before | afterOrEqual | beforeOrEqual | isEmpty | isNotEmpty`,
+      `\`\`\``,
+      ``,
+      `**Rule structure** (Switch v3.x):`,
+      `\`\`\`typescript`,
+      `// ✅ Correct — value1 = expression, value2 = literal`,
+      `{ operation: 'equal', value1: '={{ $json.status }}', type: 'string', value2: 'active' }`,
+      ``,
+      `// ❌ Wrong — value1 and value2 are swapped`,
+      `{ operation: 'equal', value1: 'active', type: 'string', value2: '={{ $json.status }}' }`,
+      ``,
+      `// ❌ Wrong — 'contained' does not exist`,
+      `{ operation: 'contained', value1: 'active', type: 'string', value2: '={{ $json.status }}' }`,
+      `\`\`\``,
+      ``,
+      `**Wait node (form) — correct \`formFields\` structure:**`,
+      `\`\`\`typescript`,
+      `// ✅ Correct`,
+      `formFields: { values: [{ fieldLabel: 'Decision', fieldType: 'dropdown', requiredField: true, fieldOptions: { values: [{ option: 'approve' }] } }] }`,
+      ``,
+      `// ❌ Wrong — legacy structure causes "Could not find property option"`,
+      `formFields: { formFieldsUi: { fieldItems: [...] } }`,
+      `\`\`\``,
+      ``,
+      `---`,
+    ];
+  }
+
   private getSharedToolGuidanceLines(skillsCmd: string): string[] {
     return [
       `### AI Tool Nodes`,
@@ -467,6 +515,9 @@ export class AiContextGenerator {
       `9. ❌ **Inventing non-existent nodes** - Use \`search\` to verify`,
       `10. ❌ **Wrong \`.uses()\` syntax for tools** - \`ai_tool\` and \`ai_document\` are ALWAYS arrays: \`ai_tool: [this.Tool.output]\`. All other AI connection types (\`ai_languageModel\`, \`ai_memory\`, etc.) are single refs: \`ai_languageModel: this.Model.output\`. Never wrap single refs in an array.`,
       `11. ❌ **Connecting AI sub-nodes with \`.out().to()\`** — any node flagged \`[ai_*]\` in the NODE INDEX MUST use \`.uses()\`, never \`.out().to()\`. Doing so produces invisible/broken connections in n8n.`,
+      `12. ❌ **Hallucinating Switch/If rule \`operation\` values** — The \`rules\` field is \`Record<string, any>\` in the schema, so tools won't flag bad values. \`operation: 'contained'\` does NOT exist. Use ONLY the values from the reference table in Best Practices. n8n will silently break or show "Could not find property option".`,
+      `13. ❌ **Inverting \`value1\`/\`value2\` in Switch/If rules** — \`value1\` is ALWAYS the expression being evaluated (e.g. \`={{ $json.myField }}\`). \`value2\` is ALWAYS the literal comparison value (e.g. \`'auto_send_ok'\`). Swapping them causes rules to never match.`,
+      `14. ❌ **Wrong \`formFields\` structure for Wait (form) nodes** — \`formFields\` must use \`{ values: [...] }\` (flat array). Do NOT use \`formFieldsUi.fieldItems\` — that legacy structure causes "Could not find property option" in n8n.`,
       ``,
       `---`,
       ``,
@@ -493,6 +544,8 @@ export class AiContextGenerator {
       `  - Array types: \`ai_tool\`, \`ai_document\``,
       `  - Example: \`this.RAG.uses({ ai_embedding: this.Embedding.output, ai_vectorStore: this.VectorStore.output, ai_retriever: this.Retriever.output })\``,
       `- ❌ Never use \`.out().to()\` for AI sub-node connections`,
+      ``,
+      ...this.getSwitchIfReferenceLines(),
       ``,
       ...this.getSharedToolGuidanceLines(cmd),
       `---`,
@@ -704,6 +757,8 @@ ${this.getAiAgentWorkflowExampleCode()}
 - ✅ Regular: \`this.NodeA.out(0).to(this.NodeB.in(0))\`
 - ✅ AI sub-nodes: \`this.Agent.uses({ ai_languageModel: this.Model.output })\`
 - ❌ Never use \`.out().to()\` for AI sub-node connections
+
+${this.getSwitchIfReferenceLines().join('\n')}
 
 ${this.getSharedToolGuidanceLines(skillsCmd).join('\n')}
 
