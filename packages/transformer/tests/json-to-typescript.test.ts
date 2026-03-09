@@ -124,6 +124,14 @@ export class AiTestWorkflow {
 
         // Regular trigger should have no AI flags
         expect(output).not.toMatch(/\/\/ Trigger\s+manualTrigger\s+\[/);
+
+        // AI CONNECTIONS section: consumer node calls .uses(), sub-nodes are values
+        // Correct:   Agent.uses({ ai_languageModel: Model, ai_memory: Memory, ai_tool: [Tool] })
+        // Incorrect: Model.uses({ ai_languageModel: Agent })  ← was the old inverted bug
+        expect(output).toContain('// Agent.uses({ ai_languageModel: Model, ai_memory: Memory, ai_tool: [Tool] })');
+        expect(output).not.toContain('// Model.uses(');
+        expect(output).not.toContain('// Memory.uses(');
+        expect(output).not.toContain('// Tool.uses(');
     });
 
     it('should preserve webhookId in node decorator metadata', async () => {

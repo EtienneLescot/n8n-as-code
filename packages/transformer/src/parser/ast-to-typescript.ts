@@ -164,28 +164,25 @@ export class AstToTypeScriptGenerator {
             }
         }
 
-        // AI connections — group by consumer (agent node), aiDeps are stored on the sub-node
-        // e.g. OpenaiChatModel.aiDependencies = { ai_languageModel: "AgentIa" }
-        // means: AgentIa.uses({ ai_languageModel: OpenaiChatModel })
-        const aiSubNodes = ast.nodes.filter(n => n.aiDependencies && Object.keys(n.aiDependencies).length > 0);
-        if (aiSubNodes.length > 0) {
-            // Invert: group { consumer → { role → subNode } }
-            const consumers = new Map<string, string[]>();
-            for (const subNode of aiSubNodes) {
-                for (const [role, consumer] of Object.entries(subNode.aiDependencies!)) {
-                    const consumerName = Array.isArray(consumer) ? consumer[0] : consumer as string;
-                    if (!consumerName) continue;
-                    if (!consumers.has(consumerName)) consumers.set(consumerName, []);
-                    const val = Array.isArray(consumer)
-                        ? `${role}: [${(consumer as string[]).join(', ')}]`
-                        : `${role}: ${subNode.propertyName}`;
-                    consumers.get(consumerName)!.push(val);
-                }
-            }
+        // AI connections — aiDependencies is stored on the CONSUMER node
+        // e.g. ExtractKeyDetails.aiDependencies = { ai_languageModel: 'ExtractorModel' }
+        // so no inversion needed: just emit consumerNode.uses({ role: subNode })
+        const aiConsumers = ast.nodes.filter(n => n.aiDependencies && Object.keys(n.aiDependencies).length > 0);
+        if (aiConsumers.length > 0) {
             lines.push('//');
             lines.push('// AI CONNECTIONS');
-            for (const [consumer, deps] of consumers) {
-                lines.push(`// ${consumer}.uses({ ${deps.join(', ')} })`);
+            for (const consumerNode of aiConsumers) {
+                const deps: string[] = [];
+                for (const [role, subNodeRef] of Object.entries(consumerNode.aiDependencies!)) {
+                    if (Array.isArray(subNodeRef)) {
+                        deps.push(`${role}: [${(subNodeRef as string[]).join(', ')}]`);
+                    } else {
+                        deps.push(`${role}: ${subNodeRef as string}`);
+                    }
+                }
+                if (deps.length > 0) {
+                    lines.push(`// ${consumerNode.propertyName}.uses({ ${deps.join(', ')} })`);
+                }
             }
         }
 
