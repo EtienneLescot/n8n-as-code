@@ -54,6 +54,19 @@ export function toStoredSyncFolder(workspaceRoot: string, syncFolder: string): s
         : syncFolder;
 }
 
+function setOptionalField(
+    target: UnifiedWorkspaceConfig,
+    key: keyof UnifiedWorkspaceConfig,
+    value?: string
+): void {
+    if (typeof value === 'string' && value.trim() !== '') {
+        target[key] = value;
+        return;
+    }
+
+    delete target[key];
+}
+
 export async function buildUnifiedWorkspaceConfig(
     input: BuildUnifiedWorkspaceConfigInput
 ): Promise<UnifiedWorkspaceConfig> {
@@ -61,12 +74,13 @@ export async function buildUnifiedWorkspaceConfig(
     const storedSyncFolder = toStoredSyncFolder(input.workspaceRoot, input.syncFolder || 'workflows');
 
     const unified: UnifiedWorkspaceConfig = {
-        ...existing,
-        host: input.host,
-        syncFolder: storedSyncFolder,
-        projectId: input.projectId || existing.projectId || '',
-        projectName: input.projectName || existing.projectName || ''
+        ...existing
     };
+
+    setOptionalField(unified, 'host', input.host);
+    setOptionalField(unified, 'syncFolder', storedSyncFolder);
+    setOptionalField(unified, 'projectId', input.projectId);
+    setOptionalField(unified, 'projectName', input.projectName);
 
     if (input.instanceIdentifier) {
         unified.instanceIdentifier = input.instanceIdentifier;

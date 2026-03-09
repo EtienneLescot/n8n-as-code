@@ -264,6 +264,21 @@ describe('ConfigService', () => {
             expect(result).toBe('local_5678_user');
             expect(fs.writeFileSync).toHaveBeenCalled();
         });
+
+        it('should throw a clear error when API key is missing', async () => {
+            (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
+            (fs.readFileSync as any).mockReturnValue(JSON.stringify({
+                host: 'http://localhost:5678'
+            }));
+            mockConf.get.mockReturnValue({});
+
+            await expect(
+                configService.getOrCreateInstanceIdentifier('http://localhost:5678')
+            ).rejects.toThrow('API key not found');
+
+            expect(mockResolveInstanceIdentifier).not.toHaveBeenCalled();
+            expect(mockCreateFallbackInstanceIdentifier).not.toHaveBeenCalled();
+        });
     });
 
     describe('getInstanceConfigPath', () => {

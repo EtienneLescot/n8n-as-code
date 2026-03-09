@@ -147,13 +147,13 @@ export class ConfigService {
      */
     async getOrCreateInstanceIdentifier(host: string): Promise<string> {
         const local = this.getLocalConfig();
+        const apiKey = this.getApiKey(host);
+
+        if (!apiKey) {
+            throw new Error('API key not found');
+        }
 
         try {
-            const apiKey = this.getApiKey(host);
-            if (!apiKey) {
-                throw new Error('API key not found');
-            }
-
             const { resolveInstanceIdentifier } = await import('../core/index.js');
             const { identifier } = await resolveInstanceIdentifier({ host, apiKey });
 
@@ -166,7 +166,6 @@ export class ConfigService {
             return identifier;
         } catch (error) {
             console.warn('Could not fetch user info, using fallback identifier');
-            const apiKey = this.getApiKey(host)!;
             const { createFallbackInstanceIdentifier } = await import('../core/index.js');
             const fallbackIdentifier = createFallbackInstanceIdentifier(host, apiKey);
 
