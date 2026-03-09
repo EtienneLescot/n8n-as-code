@@ -22,7 +22,7 @@ The extension follows a git-like model: **List**, **Pull**, and **Push**. You ha
 
 ### 🛡️ Conflict Management
 The system intelligently detects conflicts to prevent data loss:
-- **Protection**: If a workflow is modified simultaneously on n8n and locally, synchronization stops.
+- **Protection**: If a workflow is edited simultaneously on n8n and locally, synchronization stops.
 - **Resolution**: An interface allows you to compare versions (Diff View) and choose which one to keep (Force Push/Pull).
 
 ### 🗂️ Multi-Instance Support
