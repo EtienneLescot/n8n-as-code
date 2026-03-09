@@ -1,5 +1,17 @@
 # n8n-as-code
 
+## [0.28.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.26.0...n8n-as-code@v0.28.0) (2026-03-09)
+
+### Bug Fixes
+
+* **docs:** clarify connection instructions in README.md ([40a0755](https://github.com/EtienneLescot/n8n-as-code/commit/40a0755b063f4ea1907c86387635d70604fd8d4b))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 0.16.17 to 0.17.0
+    * n8nac bumped from 0.12.0 to 0.12.1
+
 ## [0.26.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.24.0...n8n-as-code@v0.26.0) (2026-03-09)
 
 ### Features

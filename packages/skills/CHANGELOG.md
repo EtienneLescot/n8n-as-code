@@ -1,5 +1,19 @@
 # @n8n-as-code/skills
 
+## [0.17.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.17...@n8n-as-code/skills@v0.17.0) (2026-03-09)
+
+### Features
+
+* **skills:** resolve AI Agent example versions dynamically from node schema ([1de7f22](https://github.com/EtienneLescot/n8n-as-code/commit/1de7f22b6b1b13a5f9ffd8e31d74fc84d1d40517))
+* remove deprecated n8nac files and add Switch/If node operations reference ([1b26ac3](https://github.com/EtienneLescot/n8n-as-code/commit/1b26ac3d796b433f8c0e620ef6a9281d353c0572))
+
+### Bug Fixes
+
+* **skills:** loadNodesIndex respects N8N_AS_CODE_ASSETS_DIR; renumber common mistakes ([08feece](https://github.com/EtienneLescot/n8n-as-code/commit/08feecea45e7e989a5cd1c00002d12c9951a544c))
+* **skills:** reduce AGENTS.md redundancy (-53 lines) ([ec6ca73](https://github.com/EtienneLescot/n8n-as-code/commit/ec6ca73895475e8e7d1ce1b7de4d69259e49b6e7))
+* **skills:** remove hardcoded Switch/If reference table from AGENTS.md ([01aadcd](https://github.com/EtienneLescot/n8n-as-code/commit/01aadcd6b4ed27f5d0941762232a4bce8946ce3b))
+* **skills:** expand fixedCollection internal structure in node snippets ([bcc1ec1](https://github.com/EtienneLescot/n8n-as-code/commit/bcc1ec1e58f41240930edd726dbd2bb0fd08f4f8))
+
 ## [0.16.17](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.16...@n8n-as-code/skills@v0.16.17) (2026-03-09)
 
 ## [0.16.16](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.15...@n8n-as-code/skills@v0.16.16) (2026-03-08)
