@@ -12,6 +12,12 @@ No installation required — run directly with npx:
 npx n8nac <command>
 ```
 
+For CI, scripts, and AI agents, prefer `npx --yes` to avoid interactive install prompts:
+
+```bash
+npx --yes n8nac <command>
+```
+
 Or install globally if you prefer:
 
 ```bash
