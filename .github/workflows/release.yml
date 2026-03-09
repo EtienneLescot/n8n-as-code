@@ -25,17 +25,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Enforce next alignment
-        run: |
-          git fetch origin main
-          if git ls-remote --exit-code --heads origin next >/dev/null 2>&1; then
-            git fetch origin next:refs/remotes/origin/next
-            if ! git merge-base --is-ancestor origin/next HEAD; then
-              echo "❌ next is ahead of main. Stable release is blocked until main includes every next commit."
-              exit 1
-            fi
-          fi
-
       - name: Detect pending stable publish
         id: pending
         run: |
@@ -204,18 +193,6 @@ jobs:
       - name: Skip when a stable publish is pending
         if: needs.publish-stable.outputs.pending == 'true'
         run: echo "Stable versions are already ahead of tags on main; skipping release PR creation."
-
-      - name: Enforce next alignment
-        if: needs.publish-stable.outputs.pending != 'true'
-        run: |
-          git fetch origin main
-          if git ls-remote --exit-code --heads origin next >/dev/null 2>&1; then
-            git fetch origin next:refs/remotes/origin/next
-            if ! git merge-base --is-ancestor origin/next HEAD; then
-              echo "❌ next is ahead of main. Release PR creation is blocked until main includes every next commit."
-              exit 1
-            fi
-          fi
 
       - name: Setup Node.js
         if: needs.publish-stable.outputs.pending != 'true'
@@ -403,34 +380,3 @@ jobs:
           echo "ℹ️ Skipping Open VSX publish for next builds."
           echo "ℹ️ Open VSX exposes preview metadata, but downstream clients can still resolve the highest version by default."
           echo "ℹ️ Only stable releases from main are published to Open VSX."
-
-      - name: Persist prerelease versions on next
-        if: steps.prerelease-plan.outputs.changed == 'true'
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add package-lock.json packages/cli/package.json packages/skills/package.json packages/transformer/package.json packages/vscode-extension/package.json
-          if git diff --cached --quiet; then
-            echo "ℹ️ No prerelease version changes to persist."
-            exit 0
-          fi
-          git commit -m 'chore: persist prerelease versions [skip ci]'
-
-          node <<'NODE'
-          const fs = require('fs');
-          const { execFileSync } = require('child_process');
-          const plan = JSON.parse(fs.readFileSync('prerelease-plan.json', 'utf8'));
-          const extension = plan.packages.find(pkg => pkg.name === 'n8n-as-code');
-          if (!extension?.changed || !extension.prereleaseVersion) {
-            process.exit(0);
-          }
-          const tag = `n8n-as-code@next-v${extension.prereleaseVersion}`;
-          try {
-            execFileSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], { stdio: 'ignore' });
-          } catch {
-            execFileSync('git', ['tag', tag], { stdio: 'inherit' });
-          }
-          NODE
-
-          git push origin HEAD:refs/heads/next
-          git push origin --tags
