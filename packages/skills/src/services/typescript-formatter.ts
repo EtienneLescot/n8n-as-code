@@ -300,7 +300,7 @@ ${nodeProp} = { /* parameters */ };`;
             // assignmentCollection is the Set node's special type (v3+).
             // At runtime the JSON structure is { assignments: Array<{id,name,value,type}> }
             case 'assignmentcollection':
-                return `{ assignments: Array<{ id?: string; name: string; value: string | number | boolean; type?: 'string' | 'number' | 'boolean' | 'array' | 'object' }> }`;
+                return `{ assignments: Array<{ id?: string; name: string; value: string | number | boolean | unknown[] | Record<string, unknown>; type?: 'string' | 'number' | 'boolean' | 'array' | 'object' }> }`;
             case 'fixedcollection': {
                 const opts = prop.options as any[] | undefined;
                 if (!opts || opts.length === 0) return 'Record<string, any>';

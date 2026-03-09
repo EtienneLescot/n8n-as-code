@@ -37,6 +37,9 @@ let syncManager: SyncManager | undefined;
  *  list, fetch, pull, push. This is the only object the command handlers touch. */
 let cli: CliApi | undefined;
 let initializingPromise: Promise<void> | undefined;
+let configRefreshTimeout: NodeJS.Timeout | undefined;
+let lastConfigRefreshSignature: string | undefined;
+let runtimeDisposables: vscode.Disposable[] = [];
 
 const statusBar = new StatusBar();
 const proxyService = new ProxyService();
@@ -430,8 +433,15 @@ export async function activate(context: vscode.ExtensionContext) {
         );
 
         const refreshFromConfigFile = async () => {
-            outputChannel.appendLine('[n8n] Workspace config changed. Refreshing extension state...');
-            await refreshStateFromWorkspaceConfig(context);
+            if (configRefreshTimeout) {
+                clearTimeout(configRefreshTimeout);
+            }
+
+            configRefreshTimeout = setTimeout(async () => {
+                outputChannel.appendLine('[n8n] Workspace config changed. Refreshing extension state...');
+                await refreshStateFromWorkspaceConfig(context);
+                configRefreshTimeout = undefined;
+            }, 150);
         };
 
         configWatcher.onDidCreate(refreshFromConfigFile);
@@ -447,10 +457,39 @@ function updateContextKeys() {
     vscode.commands.executeCommand('setContext', 'n8n.initialized', state === ExtensionState.INITIALIZED);
 }
 
+function disposeRuntimeDisposables(): void {
+    for (const disposable of runtimeDisposables) {
+        disposable.dispose();
+    }
+    runtimeDisposables = [];
+}
+
+function getConfigRefreshSignature(workspaceRoot?: string): string {
+    if (!workspaceRoot) {
+        return 'no-workspace';
+    }
+
+    const configPath = path.join(workspaceRoot, 'n8nac-config.json');
+    if (!fs.existsSync(configPath)) {
+        return 'missing-config';
+    }
+
+    const resolvedConfig = getResolvedN8nConfig(workspaceRoot);
+    return JSON.stringify({
+        host: resolvedConfig.host,
+        hasApiKey: Boolean(resolvedConfig.apiKey),
+        syncFolder: resolvedConfig.syncFolder,
+        projectId: resolvedConfig.projectId,
+        projectName: resolvedConfig.projectName,
+    });
+}
+
 function resetExtensionRuntimeState(): void {
     if (syncManager) {
         syncManager.removeAllListeners();
     }
+
+    disposeRuntimeDisposables();
 
     syncManager = undefined;
     cli = undefined;
@@ -468,6 +507,11 @@ async function refreshStateFromWorkspaceConfig(context: vscode.ExtensionContext)
     }
 
     const workspaceRoot = getWorkspaceRoot();
+    const nextSignature = getConfigRefreshSignature(workspaceRoot);
+    if (lastConfigRefreshSignature === nextSignature) {
+        return;
+    }
+    lastConfigRefreshSignature = nextSignature;
 
     if (!workspaceRoot) {
         resetExtensionRuntimeState();
@@ -492,6 +536,7 @@ async function refreshStateFromWorkspaceConfig(context: vscode.ExtensionContext)
 async function determineInitialState(context: vscode.ExtensionContext) {
     const configValidation = validateN8nConfig();
     const workspaceRoot = getWorkspaceRoot();
+    lastConfigRefreshSignature = getConfigRefreshSignature(workspaceRoot);
 
     if (!workspaceRoot) {
         enhancedTreeProvider.setExtensionState(ExtensionState.UNINITIALIZED);
@@ -587,6 +632,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     if (syncManager) {
         syncManager.removeAllListeners();
     }
+    disposeRuntimeDisposables();
 
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     if (!workspaceRoot) throw new Error(NO_WORKSPACE_ERROR_MESSAGE);
@@ -656,6 +702,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         projectName: projectName!,
         instanceIdentifier
     });
+    lastConfigRefreshSignature = getConfigRefreshSignature(workspaceRoot);
 
     // Create SyncManager (the stateful engine: WorkflowStateTracker, events, etc.)
     syncManager = new SyncManager(client, {
@@ -731,7 +778,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         };
         fileWatcher.onDidCreate(reloadList);
         fileWatcher.onDidDelete(reloadList);
-        context.subscriptions.push(fileWatcher);
+        runtimeDisposables.push(fileWatcher);
     }
 
     // 3. State file watcher: .n8n-state.json is written by the CLI after every push/pull/resolve.
@@ -770,7 +817,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
                 console.error('[n8n] State watcher: failed to refresh after CLI operation', err);
             }
         });
-        context.subscriptions.push(stateWatcher);
+        runtimeDisposables.push(stateWatcher);
     }
 
     // Remote polling — lightweight `list` every 60 seconds to surface new/deleted remote workflows.
@@ -783,7 +830,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             console.error('[n8n] Polling: failed to refresh list', err);
         }
     }, 60_000);
-    context.subscriptions.push({ dispose: () => clearInterval(pollingInterval) });
+    runtimeDisposables.push({ dispose: () => clearInterval(pollingInterval) });
 
     statusBar.setWatchMode(false);
 
@@ -846,5 +893,10 @@ async function reinitializeSyncManager(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
+    if (configRefreshTimeout) {
+        clearTimeout(configRefreshTimeout);
+        configRefreshTimeout = undefined;
+    }
+    disposeRuntimeDisposables();
     proxyService.stop();
 }
