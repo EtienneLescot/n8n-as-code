@@ -8,8 +8,7 @@ import {
     IN8nCredentials
 } from '../core/index.js';
 import {
-    AiContextGenerator,
-    SnippetGenerator
+    AiContextGenerator
 } from '@n8n-as-code/skills';
 import dotenv from 'dotenv';
 
@@ -68,19 +67,8 @@ export class UpdateAiCommand {
             await aiContextGenerator.generate(projectRoot, version, getDistTag());
             console.log(chalk.green('   ✅ AI context files created.'));
 
-            // 3. Generate VS Code Snippets
-            console.log(chalk.gray('   - Generating VS Code Snippets...'));
-            try {
-                const snippetGen = new SnippetGenerator();
-                await snippetGen.generate(projectRoot);
-                console.log(chalk.green('   ✅ .vscode/n8n.code-snippets created.'));
-            } catch (snippetError: any) {
-                console.log(chalk.yellow(`   ⚠️  Snippet generation skipped: ${snippetError.message}`));
-            }
-
             console.log(chalk.green('\n✨ AI Context Updated Successfully!'));
             console.log(chalk.gray('   ✔ AGENTS.md: Complete AI agent guidelines'));
-            console.log(chalk.gray('   ✔ .vscode/n8n.code-snippets: Code completion snippets'));
             console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/skills)\n'));
 
         } catch (error: any) {

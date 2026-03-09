@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { N8nApiClient, ConfigService, type IN8nCredentials } from 'n8nac';
-import { getWorkspaceRoot, isFolderPreviouslyInitialized } from '../utils/state-detection.js';
+import { getResolvedN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from '../utils/state-detection.js';
 import { writeUnifiedWorkspaceConfig } from '../utils/unified-config.js';
 
 type UiProject = {
@@ -16,6 +16,24 @@ function normalizeHost(host: string): string {
 
 function toDisplayName(project: UiProject): string {
   return project.type === 'personal' ? 'Personal' : project.name;
+}
+
+async function clearLegacyWorkspaceSettings(): Promise<void> {
+  const config = vscode.workspace.getConfiguration('n8n');
+  const keys: Array<'host' | 'apiKey' | 'syncFolder' | 'projectId' | 'projectName'> = [
+    'host',
+    'apiKey',
+    'syncFolder',
+    'projectId',
+    'projectName',
+  ];
+
+  for (const key of keys) {
+    const inspected = config.inspect<string>(key);
+    if (inspected?.workspaceValue !== undefined) {
+      await config.update(key, undefined, vscode.ConfigurationTarget.Workspace);
+    }
+  }
 }
 
 function getNonce() {
@@ -71,9 +89,9 @@ export class ConfigurationWebview {
               type: p.type,
             }));
 
-            const config = vscode.workspace.getConfiguration('n8n');
-            const selectedProjectId = (config.get<string>('projectId') || '').trim();
-            const selectedProjectName = (config.get<string>('projectName') || '').trim();
+            const resolvedConfig = getResolvedN8nConfig(getWorkspaceRoot());
+            const selectedProjectId = resolvedConfig.projectId;
+            const selectedProjectName = resolvedConfig.projectName;
 
             this._panel.webview.postMessage({
               type: 'projectsLoaded',
@@ -90,22 +108,10 @@ export class ConfigurationWebview {
 
             const syncFolder = (message.syncFolder || '').trim();
 
-            const config = vscode.workspace.getConfiguration('n8n');
-
-            // If the workspace was previously initialized, we can treat "Save" as "Apply":
-            // write settings once, then immediately reinitialize sync.
             const workspaceRoot = getWorkspaceRoot();
             const shouldAutoApply = !!workspaceRoot && isFolderPreviouslyInitialized(workspaceRoot);
-            if (shouldAutoApply) {
+            if (workspaceRoot) {
               await this._context.workspaceState.update('n8n.suppressSettingsChangedOnce', true);
-            }
-
-            // Persist to VS Code settings for UI/connection, and to unified file for CLI compatibility.
-            await config.update('host', host, vscode.ConfigurationTarget.Workspace);
-            await config.update('apiKey', apiKey, vscode.ConfigurationTarget.Workspace);
-
-            if (syncFolder) {
-              await config.update('syncFolder', syncFolder, vscode.ConfigurationTarget.Workspace);
             }
 
             // Project can be picked from the dropdown, but if missing, we’ll default to Personal.
@@ -121,11 +127,6 @@ export class ConfigurationWebview {
                 projectId = fallback.id;
                 projectName = fallback.type === 'personal' ? 'Personal' : fallback.name;
               }
-            }
-
-            if (projectId && projectName) {
-              await config.update('projectId', projectId, vscode.ConfigurationTarget.Workspace);
-              await config.update('projectName', projectName, vscode.ConfigurationTarget.Workspace);
             }
 
             // Sync API key to CLI global store so the CLI works without `n8nac init`
@@ -148,6 +149,8 @@ export class ConfigurationWebview {
                 projectId,
                 projectName,
               });
+
+              await clearLegacyWorkspaceSettings();
             }
 
             if (shouldAutoApply) {
@@ -209,16 +212,11 @@ export class ConfigurationWebview {
   }
 
   private async postInitialState() {
-    const config = vscode.workspace.getConfiguration('n8n');
-    const host = normalizeHost(config.get<string>('host') || process.env.N8N_HOST || '');
-    const apiKey = (config.get<string>('apiKey') || process.env.N8N_API_KEY || '').trim();
-    const projectId = (config.get<string>('projectId') || '').trim();
-    const projectName = (config.get<string>('projectName') || '').trim();
-    const syncFolder = (config.get<string>('syncFolder') || 'workflows').trim();
+    const { host, apiKey, projectId, projectName, syncFolder } = getResolvedN8nConfig(getWorkspaceRoot());
 
     this._panel.webview.postMessage({
       type: 'init',
-      config: { host, apiKey, projectId, projectName, syncFolder },
+      config: { host: normalizeHost(host), apiKey: apiKey.trim(), projectId, projectName, syncFolder },
     });
 
     // If we already have host + apiKey, proactively load projects.

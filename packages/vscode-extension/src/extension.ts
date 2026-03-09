@@ -8,7 +8,7 @@ import {
     SyncManager, CliApi, N8nApiClient, IN8nCredentials, WorkflowSyncStatus,
     resolveInstanceIdentifier
 } from 'n8nac';
-import { AiContextGenerator, SnippetGenerator } from '@n8n-as-code/skills';
+import { AiContextGenerator } from '@n8n-as-code/skills';
 
 import { StatusBar } from './ui/status-bar.js';
 import { EnhancedWorkflowTreeProvider } from './ui/enhanced-workflow-tree-provider.js';
@@ -17,7 +17,7 @@ import { ConfigurationWebview } from './ui/configuration-webview.js';
 import { WorkflowDecorationProvider } from './ui/workflow-decoration-provider.js';
 import { ProxyService } from './services/proxy-service.js';
 import { ExtensionState } from './types.js';
-import { validateN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from './utils/state-detection.js';
+import { getN8nConfig, getResolvedN8nConfig, validateN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from './utils/state-detection.js';
 import { NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION } from './constants/workspace.js';
 import { writeUnifiedWorkspaceConfig } from './utils/unified-config.js';
 
@@ -293,8 +293,6 @@ export async function activate(context: vscode.ExtensionContext) {
                     progress?.report({ message: 'Generating AGENTS.md...' });
                     const distTag = (typeof __N8NAC_VERSION__ !== 'undefined' && __N8NAC_VERSION__ === 'next') ? 'next' : undefined;
                     await new AiContextGenerator().generate(rootPath, version, distTag);
-                    progress?.report({ message: 'Generating Snippets...' });
-                    await new SnippetGenerator().generate(rootPath);
                     context.workspaceState.update('n8n.lastInitVersion', version);
                     enhancedTreeProvider.setAIContextInfo(version, false);
                     if (!options?.silent) vscode.window.showInformationMessage(`✨ n8n AI Context Initialized! (v${version})`);
@@ -519,26 +517,21 @@ async function showNoWorkspaceError() {
     }
 }
 
-function getN8nConfig(): { host: string; apiKey: string } {
-    const config = vscode.workspace.getConfiguration('n8n');
-    let host = config.get<string>('host') || process.env.N8N_HOST || '';
-    const apiKey = config.get<string>('apiKey') || process.env.N8N_API_KEY || '';
-    if (host.endsWith('/')) host = host.slice(0, -1);
-    return { host, apiKey };
-}
-
 async function initializeSyncManager(context: vscode.ExtensionContext) {
     if (syncManager) {
         syncManager.removeAllListeners();
     }
 
-    const { host, apiKey } = getN8nConfig();
-    const config = vscode.workspace.getConfiguration('n8n');
-    const folder = config.get<string>('syncFolder') || 'workflows';
-    let projectId = config.get<string>('projectId');
-    let projectName = config.get<string>('projectName');
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+    if (!workspaceRoot) throw new Error(NO_WORKSPACE_ERROR_MESSAGE);
 
-    if (!host || !apiKey) throw new Error('Host/API Key missing. Please check Settings.');
+    const resolvedConfig = getResolvedN8nConfig(workspaceRoot);
+    const { host, apiKey } = resolvedConfig;
+    const folder = resolvedConfig.syncFolder || 'workflows';
+    let projectId = resolvedConfig.projectId || undefined;
+    let projectName = resolvedConfig.projectName || undefined;
+
+    if (!host || !apiKey) throw new Error('Host/API Key missing. Please configure n8n.');
 
     const credentials: IN8nCredentials = { host, apiKey };
     const client = new N8nApiClient(credentials);
@@ -567,13 +560,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         if (!selectedProject) throw new Error('No project selected.');
         projectId = selectedProject.id;
         projectName = selectedProject.type === 'personal' ? 'Personal' : selectedProject.name;
-        await config.update('projectId', projectId, vscode.ConfigurationTarget.Workspace);
-        await config.update('projectName', projectName, vscode.ConfigurationTarget.Workspace);
         outputChannel.appendLine(`[n8n] Selected project: ${projectName} (${projectId})`);
     }
-
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-    if (!workspaceRoot) throw new Error(NO_WORKSPACE_ERROR_MESSAGE);
 
     const absDirectory = path.join(workspaceRoot, folder);
 
@@ -661,10 +649,9 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     //    refreshes list and reloads the open webview (handles agent-driven CLI operations).
     // 3. Remote polling every 60s: discovers workflows created/deleted on the n8n instance.
     if (vscode.workspace.workspaceFolders?.length) {
-        const syncFolder = config.get<string>('syncFolder') || 'workflows';
         const pattern = new vscode.RelativePattern(
             vscode.workspace.workspaceFolders[0],
-            `${syncFolder}/**/*.workflow.ts`
+            `${folder}/**/*.workflow.ts`
         );
         const fileWatcher = vscode.workspace.createFileSystemWatcher(pattern, false, true, false);
         const reloadList = async () => {
@@ -688,10 +675,9 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     //    The webview is only reloaded when the workflow it is currently displaying is the one
     //    whose lastSyncedAt changed — unrelated operations do not trigger a reload.
     if (vscode.workspace.workspaceFolders?.length) {
-        const syncFolder = config.get<string>('syncFolder') || 'workflows';
         const statePattern = new vscode.RelativePattern(
             vscode.workspace.workspaceFolders[0],
-            `${syncFolder}/**/.n8n-state.json`
+            `${folder}/**/.n8n-state.json`
         );
         // ignoreCreate=true, ignoreChange=false, ignoreDelete=true — only react to writes
         const stateWatcher = vscode.workspace.createFileSystemWatcher(statePattern, true, false, true);
@@ -746,11 +732,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     }
 
     // AI context check
-    const aiFiles = [
-        path.join(workspaceRoot, 'AGENTS.md'),
-        path.join(workspaceRoot, '.vscode', 'n8n.code-snippets')
-    ];
-    const missingAny = aiFiles.some(f => !fs.existsSync(f));
+    const missingAny = !fs.existsSync(path.join(workspaceRoot, 'AGENTS.md'));
     const lastVersion = context.workspaceState.get<string>('n8n.lastInitVersion');
     let currentVersion: string | undefined;
     try { currentVersion = (await client.getHealth()).version; } catch { }
