@@ -1,7 +1,53 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { ConfigService } from 'n8nac';
 import { ConfigValidationResult } from '../types.js';
+import { readUnifiedWorkspaceConfig } from './unified-config.js';
+
+export interface ResolvedN8nWorkspaceConfig {
+  host: string;
+  apiKey: string;
+  syncFolder: string;
+  projectId: string;
+  projectName: string;
+}
+
+function readString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeHost(host: string): string {
+  const trimmed = readString(host).replace(/^['"]|['"]$/g, '');
+  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
+}
+
+function getSettingsValue(key: 'host' | 'apiKey' | 'syncFolder' | 'projectId' | 'projectName'): string {
+  return readString(vscode.workspace.getConfiguration('n8n').get<string>(key));
+}
+
+function getEnvValue(key: 'N8N_HOST' | 'N8N_API_KEY'): string {
+  return readString(process.env[key]).replace(/^['"]|['"]$/g, '');
+}
+
+export function getResolvedN8nConfig(workspaceRoot = getWorkspaceRoot()): ResolvedN8nWorkspaceConfig {
+  const unified = workspaceRoot ? readUnifiedWorkspaceConfig(workspaceRoot) : {};
+  const host = normalizeHost(
+    readString(unified.host) || getSettingsValue('host') || getEnvValue('N8N_HOST')
+  );
+  const configService = new ConfigService();
+  const apiKey = (host ? configService.getApiKey(host) : undefined)
+    || getSettingsValue('apiKey')
+    || getEnvValue('N8N_API_KEY');
+
+  return {
+    host,
+    apiKey,
+    syncFolder: readString(unified.syncFolder) || getSettingsValue('syncFolder') || 'workflows',
+    projectId: readString(unified.projectId) || getSettingsValue('projectId'),
+    projectName: readString(unified.projectName) || getSettingsValue('projectName'),
+  };
+}
 
 /**
  * Get the current workspace root path
@@ -15,18 +61,10 @@ export function getWorkspaceRoot(): string | undefined {
 }
 
 /**
- * Get normalized n8n configuration from settings
+ * Get normalized n8n connection credentials.
  */
 export function getN8nConfig(): { host: string; apiKey: string } {
-  const config = vscode.workspace.getConfiguration('n8n');
-  let host = config.get<string>('host') || process.env.N8N_HOST || '';
-  const apiKey = config.get<string>('apiKey') || process.env.N8N_API_KEY || '';
-
-  // Normalize: remove trailing slash
-  if (host.endsWith('/')) {
-    host = host.slice(0, -1);
-  }
-
+  const { host, apiKey } = getResolvedN8nConfig();
   return { host, apiKey };
 }
 
@@ -90,12 +128,7 @@ export function hasAIContextFiles(workspaceRoot: string): boolean {
     return false;
   }
 
-  const aiFiles = [
-    path.join(workspaceRoot, 'AGENTS.md'),
-    path.join(workspaceRoot, '.vscode', 'n8n.code-snippets')
-  ];
-
-  return aiFiles.every(f => fs.existsSync(f));
+  return fs.existsSync(path.join(workspaceRoot, 'AGENTS.md'));
 }
 
 /**
@@ -152,8 +185,7 @@ export function getSyncDirectoryPath(): string | undefined {
     return undefined;
   }
 
-  const config = vscode.workspace.getConfiguration('n8n');
-  const folder = config.get<string>('syncFolder') || 'workflows';
+  const folder = getResolvedN8nConfig(workspaceRoot).syncFolder;
   
   return path.join(workspaceRoot, folder);
 }
