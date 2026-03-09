@@ -18,6 +18,12 @@ For CI, scripts, and AI agents, prefer `npx --yes` to avoid interactive install 
 npx --yes n8nac <command>
 ```
 
+If you need fully repeatable automation, pin an explicit package version instead of relying on whatever `npx` resolves that day:
+
+```bash
+npx --yes n8nac@0.11.4 <command>
+```
+
 Or install globally if you prefer:
 
 ```bash
