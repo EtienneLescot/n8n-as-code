@@ -1,5 +1,11 @@
 # n8n-as-code
 
+## [0.20.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.20.1...n8n-as-code@v0.20.2) (2026-03-09)
+
+### Bug Fixes
+
+* update README for clarity in conflict protection description ([833fa6a](https://github.com/EtienneLescot/n8n-as-code/commit/833fa6a9b8f32a475b7239dfea1a3b4972654cea))
+
 ## [0.20.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.20.0...n8n-as-code@v0.20.1) (2026-03-09)
 
 ### Dependencies
