@@ -33,6 +33,9 @@ async function clearLegacyWorkspaceSettings(): Promise<void> {
     if (inspected?.workspaceValue !== undefined) {
       await config.update(key, undefined, vscode.ConfigurationTarget.Workspace);
     }
+    if (inspected?.workspaceFolderValue !== undefined) {
+      await config.update(key, undefined, vscode.ConfigurationTarget.WorkspaceFolder);
+    }
   }
 }
 
