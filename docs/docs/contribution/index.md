@@ -111,7 +111,8 @@ The project uses a custom commit-driven release flow.
 #### Push to `main`
 
 - Stable release creation is only allowed when `next` is not ahead of `main`.
-- A push to `main` creates or updates a single release PR when commit history requires version bumps.
+- If any package version in `package.json` is already ahead of its latest stable tag, `main` publishes that version directly instead of opening a new release PR.
+- A push to `main` creates or updates a single release PR only when no package is already ahead of its latest stable tag and commit history requires version bumps.
 - The release PR updates package versions and internal dependency versions together.
 
 #### Merge the release PR
