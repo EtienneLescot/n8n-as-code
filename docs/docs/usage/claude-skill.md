@@ -124,16 +124,18 @@ The important point is that **`AGENTS.md` is the standard instruction file gener
 /plugin marketplace add EtienneLescot/n8n-as-code
 /plugin install n8n-as-code@n8nac-marketplace
 
-# 2) Initialize the workspace (recommended: env vars or interactive auth)
-export N8N_HOST="<your-n8n-url>"
-export N8N_API_KEY="<your-api-key>"
-
+# 2) Initialize the workspace (recommended for most users: interactive auth)
 npx --yes n8nac init-auth
 npx --yes n8nac init-project
 
 # 3) Optional: refresh the shared agent instructions later
 npx --yes n8nac update-ai
 
+# Optional for non-interactive setups: prefer env vars over CLI args for the API key
+# export N8N_HOST="<your-n8n-url>"
+# export N8N_API_KEY="<your-api-key>"
+# npx --yes n8nac init-auth
+#
 # Alternative (less secure, exposes secrets via shell history/process listings):
 # npx --yes n8nac init-auth --host <your-n8n-url> --api-key <your-api-key>
 ```
@@ -154,16 +156,12 @@ Some agent frameworks look for `CLAUDE.md` or a similar repo-level instruction f
 
 For any n8n planning or implementation task in this repository:
 
-1. After workspace initialization, read `./AGENTS.md` and treat it as the source of truth for n8n-as-code usage.
-2. Never invent n8n nodes, parameters, versions, or connections.
-3. Before proposing workflow logic, run:
-   - `npx --yes n8nac skills search "<task or integration>"`
-   - `npx --yes n8nac skills node-info "<exactNodeName>"`
-4. Pull before editing an existing workflow, and push/verify after editing.
-5. If the schema has not been checked yet, stop and fetch it before writing code.
+1. Read `./AGENTS.md` before planning, coding, or reviewing.
+2. Treat `./AGENTS.md` as mandatory and authoritative for all n8n-as-code behavior in this repo.
+3. If `AGENTS.md` has not been read yet, stop and read it before continuing.
 ```
 
-This keeps the handoff instructions small while ensuring the actual node rules continue to come from `AGENTS.md` and the live `n8nac skills` schemas.
+This keeps the handoff instructions small while ensuring the actual node rules, schema lookup steps, and sync protocol continue to come from `AGENTS.md`.
 
 #### Best practices for planning + coding agent handoffs
 
@@ -176,9 +174,9 @@ This keeps the handoff instructions small while ensuring the actual node rules c
 
 If an agent still hallucinates nodes or leaves them mostly empty, ask it to show:
 
-1. The exact `n8nac skills search` command it used
-2. The exact `n8nac skills node-info` command it used
-3. The section of `AGENTS.md` it is following
+1. The section of `AGENTS.md` it is following
+2. The concrete schema-validation evidence required by `AGENTS.md`
+3. Where in its plan or code it applied those `AGENTS.md` instructions
 
 If it cannot show those three things, it is not yet using the n8n-as-code skill flow correctly.
 
