@@ -107,6 +107,15 @@ export async function writeUnifiedWorkspaceConfig(
     input: BuildUnifiedWorkspaceConfigInput
 ): Promise<UnifiedWorkspaceConfig> {
     const unified = await buildUnifiedWorkspaceConfig(input);
-    fs.writeFileSync(getUnifiedConfigPath(input.workspaceRoot), JSON.stringify(unified, null, 2), 'utf-8');
+    const unifiedPath = getUnifiedConfigPath(input.workspaceRoot);
+    const nextContent = JSON.stringify(unified, null, 2);
+    const existingContent = fs.existsSync(unifiedPath)
+        ? fs.readFileSync(unifiedPath, 'utf-8')
+        : null;
+
+    if (existingContent !== nextContent) {
+        fs.writeFileSync(unifiedPath, nextContent, 'utf-8');
+    }
+
     return unified;
 }

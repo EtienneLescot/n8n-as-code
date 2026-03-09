@@ -153,13 +153,15 @@ export class ConfigurationWebview {
               await clearLegacyWorkspaceSettings();
             }
 
-            if (shouldAutoApply) {
-              await vscode.commands.executeCommand('n8n.applySettings');
-              await vscode.window.showInformationMessage('✅ Settings applied. Sync resumed.');
+            if (host && apiKey) {
+              if (shouldAutoApply) {
+                await vscode.commands.executeCommand('n8n.applySettings');
+                await vscode.window.showInformationMessage('✅ Settings applied. Sync resumed.');
+              } else {
+                await vscode.commands.executeCommand('n8n.init');
+              }
             } else {
-              await vscode.window.showInformationMessage(
-                '✅ Settings saved. Click “Initialize n8n as code” in the n8n view to start syncing.'
-              );
+              await vscode.window.showInformationMessage('✅ Settings saved.');
             }
 
             this._panel.webview.postMessage({ type: 'saved' });
