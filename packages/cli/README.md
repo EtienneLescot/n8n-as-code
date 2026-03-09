@@ -48,7 +48,7 @@ If no project selector is provided, `init --yes` will auto-select the only avail
 ---
 
 ### `switch`
-Switch the active n8n project (updates `projectId` / `projectName` in `n8nac.json`).
+Switch the active n8n project (updates `projectId` / `projectName` in `n8nac-config.json`).
 
 ```bash
 n8nac switch
