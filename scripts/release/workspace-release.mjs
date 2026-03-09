@@ -49,6 +49,7 @@ const PACKAGES = [
 const PATCH_TYPES = new Set(['fix', 'perf', 'refactor', 'revert', 'deps', 'build']);
 const BUMP_PRIORITY = { none: 0, patch: 1, minor: 2, major: 3 };
 const extensionPackage = PACKAGES.find(pkg => pkg.name === 'n8n-as-code');
+const VSCODE_PRERELEASE_TAG_PREFIX = 'n8n-as-code@next-v';
 
 const CROSS_PACKAGE_RULES = [
   {
@@ -241,6 +242,31 @@ function getLatestStableTag(pkg) {
 
   for (const tag of tags) {
     const version = parseTagVersion(tag, pkg.tagPrefix);
+    if (!version) {
+      continue;
+    }
+
+    if (!latest || compareVersions(version, latest.version) > 0) {
+      latest = { tag, version };
+    }
+  }
+
+  return latest;
+}
+
+function getLatestPublishedVscodeVersion() {
+  const tags = gitLines(['tag', '--list', 'n8n-as-code@*']);
+  let latest = null;
+
+  for (const tag of tags) {
+    let version = null;
+
+    if (tag.startsWith(VSCODE_PRERELEASE_TAG_PREFIX)) {
+      version = parseVersion(tag.slice(VSCODE_PRERELEASE_TAG_PREFIX.length));
+    } else {
+      version = parseTagVersion(tag, extensionPackage.tagPrefix);
+    }
+
     if (!version) {
       continue;
     }
@@ -569,11 +595,16 @@ function computeStablePlan() {
     const directInfo = directBumps.get(pkg.name) || { bump: null, commits: [] };
     const currentStableString = currentVersion.replace(/-.*$/, '');
     const versionAheadOfTag = latestTag ? compareVersions(currentStableVersion, latestTag.version) > 0 : false;
-    const targetVersion = bumpInfo.bump ? formatVersion(incrementVersion(currentStableVersion, bumpInfo.bump)) : currentStableString;
     const changed = Boolean(bumpInfo.bump) || versionAheadOfTag;
+    const targetVersion = pkg.publishTarget === 'vscode'
+      ? (changed ? formatVersion(incrementVersion(currentStableVersion, 'patch')) : currentStableString)
+      : (bumpInfo.bump ? formatVersion(incrementVersion(currentStableVersion, bumpInfo.bump)) : currentStableString);
     const reasons = [...bumpInfo.reasons];
     if (versionAheadOfTag && !reasons.includes('version-ahead-of-tag')) {
       reasons.push('version-ahead-of-tag');
+    }
+    if (pkg.publishTarget === 'vscode' && changed && !reasons.includes('sequential-vscode-version')) {
+      reasons.push('sequential-vscode-version');
     }
 
     return {
@@ -621,7 +652,7 @@ function computePrereleasePlan() {
     return {
       ...pkg,
       prereleaseVersion: pkg.publishTarget === 'vscode'
-        ? buildVscodePrereleaseVersion(parseVersion(pkg.targetVersion), sequence)
+        ? pkg.targetVersion
         : `${pkg.targetVersion}-next.${sequence}`,
     };
   });
@@ -645,13 +676,17 @@ function computePendingStablePlan() {
 
     const latestTag = getLatestStableTag(pkg);
     const latestStableVersion = latestTag ? formatVersion(latestTag.version) : null;
-    const changed = latestTag ? compareVersions(currentStableVersion, latestTag.version) > 0 : false;
+    const latestPublishedVersion = pkg.publishTarget === 'vscode'
+      ? getLatestPublishedVscodeVersion()
+      : latestTag;
+    const changed = latestPublishedVersion ? compareVersions(currentStableVersion, latestPublishedVersion.version) > 0 : false;
 
     return {
       ...pkg,
       currentVersion,
       latestStableTag: latestTag?.tag ?? null,
       latestStableVersion,
+      latestPublishedVersion: latestPublishedVersion ? formatVersion(latestPublishedVersion.version) : null,
       targetVersion: formatVersion(currentStableVersion),
       changed,
     };
@@ -719,7 +754,7 @@ function applyPlan(plan, versionKey) {
   return plan;
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
   const command = args._[0];
   const apply = Boolean(args.apply);
@@ -745,4 +780,7 @@ function main() {
   process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
 }
 
-main();
+main().catch(error => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+});
