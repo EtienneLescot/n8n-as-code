@@ -1,5 +1,17 @@
 # @n8n-as-code/cli
 
+## [0.13.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.12.1...n8nac@v0.13.0) (2026-03-09)
+
+### Features
+
+* remove SnippetGenerator and related functionality from AI context updates ([b5d3781](https://github.com/EtienneLescot/n8n-as-code/commit/b5d37819608435d4d4e9e5bc73a2973aa631c537))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 0.17.0 to 0.18.0
+    * @n8n-as-code/transformer bumped from 0.2.9 to 0.2.10
+
 ## [0.12.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.12.0...n8nac@v0.12.1) (2026-03-09)
 
 ### Dependencies

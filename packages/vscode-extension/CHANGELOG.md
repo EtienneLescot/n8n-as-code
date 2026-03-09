@@ -1,5 +1,22 @@
 # n8n-as-code
 
+## [0.30.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.28.0...n8n-as-code@v0.30.0) (2026-03-09)
+
+### Features
+
+* enhance workspace configuration handling and sync manager management ([3ebb62d](https://github.com/EtienneLescot/n8n-as-code/commit/3ebb62d8534c2b31493db20f492271d9f5f995fd))
+* remove SnippetGenerator and related functionality from AI context updates ([b5d3781](https://github.com/EtienneLescot/n8n-as-code/commit/b5d37819608435d4d4e9e5bc73a2973aa631c537))
+
+### Bug Fixes
+
+* stabilize unified config refresh in vscode extension ([45593e2](https://github.com/EtienneLescot/n8n-as-code/commit/45593e27342351741b79d955896822a44f8d977b))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 0.17.0 to 0.18.0
+    * n8nac bumped from 0.12.1 to 0.13.0
+
 ## [0.28.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.26.0...n8n-as-code@v0.28.0) (2026-03-09)
 
 ### Bug Fixes

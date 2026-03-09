@@ -1,5 +1,11 @@
 # @n8n-as-code/transformer
 
+## [0.2.10](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.9...@n8n-as-code/transformer@v0.2.10) (2026-03-09)
+
+### Bug Fixes
+
+* **transformer:** correct inverted AI CONNECTIONS in workflow-map ([b38b1d7](https://github.com/EtienneLescot/n8n-as-code/commit/b38b1d728524b69d7733f57752d2a1d9a59029a5))
+
 ## [0.2.9](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.8...@n8n-as-code/transformer@v0.2.9) (2026-03-08)
 
 

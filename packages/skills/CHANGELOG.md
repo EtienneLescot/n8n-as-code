@@ -1,5 +1,23 @@
 # @n8n-as-code/skills
 
+## [0.18.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.17.0...@n8n-as-code/skills@v0.18.0) (2026-03-09)
+
+### Features
+
+* remove SnippetGenerator and related functionality from AI context updates ([b5d3781](https://github.com/EtienneLescot/n8n-as-code/commit/b5d37819608435d4d4e9e5bc73a2973aa631c537))
+
+### Bug Fixes
+
+* stabilize unified config refresh in vscode extension ([45593e2](https://github.com/EtienneLescot/n8n-as-code/commit/45593e27342351741b79d955896822a44f8d977b))
+* **skills:** extract highest node version in indexer; handle assignmentCollection type ([d6ff0d0](https://github.com/EtienneLescot/n8n-as-code/commit/d6ff0d03477f5bc4a6f1713fc6d52029d7f96005))
+* **skills:** show all enum values for options type; remove | string escape hatch ([a864ead](https://github.com/EtienneLescot/n8n-as-code/commit/a864ead003acb0f3e7a2980e1f7f7c6a08b17441))
+* **skills:** nested fixedcollection fields no longer emit group name as string literal type ([f9ff98d](https://github.com/EtienneLescot/n8n-as-code/commit/f9ff98d60fbef2248c0f48d4c483210baf985cf3))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/transformer bumped from 0.2.9 to 0.2.10
+
 ## [0.17.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.17...@n8n-as-code/skills@v0.17.0) (2026-03-09)
 
 ### Features
