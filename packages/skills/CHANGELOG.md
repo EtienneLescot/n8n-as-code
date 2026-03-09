@@ -1,5 +1,7 @@
 # @n8n-as-code/skills
 
+## [0.16.17](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.16...@n8n-as-code/skills@v0.16.17) (2026-03-09)
+
 ## [0.16.16](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.16.15...@n8n-as-code/skills@v0.16.16) (2026-03-08)
 
 
