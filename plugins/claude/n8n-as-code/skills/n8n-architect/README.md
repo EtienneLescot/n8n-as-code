@@ -6,6 +6,18 @@ Claude Code skill shipped by the `n8n-as-code` plugin.
 
 Turns Claude into a specialized n8n workflow engineer using the `n8nac` CLI and the prebuilt `n8n-as-code` knowledge base.
 
+## Recommended Claude Code setup
+
+After installing the plugin, initialize the workspace and regenerate the shared AI context:
+
+```bash
+npx --yes n8nac init-auth --host <your-n8n-url> --api-key <your-api-key>
+npx --yes n8nac init-project
+npx --yes n8nac update-ai
+```
+
+That creates `AGENTS.md` in the project root. For multi-agent setups that use a repo-level `CLAUDE.md`, keep it small and point it back to `AGENTS.md` so planners and coding agents use the generated n8n-as-code instructions instead of inventing node schemas.
+
 ## Source Repository
 
 https://github.com/EtienneLescot/n8n-as-code
