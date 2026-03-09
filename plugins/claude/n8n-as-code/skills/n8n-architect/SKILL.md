@@ -219,10 +219,10 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 
 @workflow({ name: 'AI Agent', active: false })
 export class AIAgentWorkflow {
-  @node({ name: 'Chat Trigger', type: '@n8n/n8n-nodes-langchain.chatTrigger', version: 1.1, position: [0, 0] })
+  @node({ name: 'Chat Trigger', type: '@n8n/n8n-nodes-langchain.chatTrigger', version: 1.4, position: [0, 0] })
   ChatTrigger = {};
 
-  @node({ name: 'AI Agent', type: '@n8n/n8n-nodes-langchain.agent', version: 3, position: [200, 0] })
+  @node({ name: 'AI Agent', type: '@n8n/n8n-nodes-langchain.agent', version: 3.1, position: [200, 0] })
   AiAgent = {
     promptType: 'define',
     text: '={{ $json.chatInput }}',
@@ -236,7 +236,7 @@ export class AIAgentWorkflow {
   @node({ name: 'Memory', type: '@n8n/n8n-nodes-langchain.memoryBufferWindow', version: 1.3, position: [300, 200] })
   Memory = { sessionIdType: 'customKey', sessionKey: '={{ $execution.id }}', contextWindowLength: 10 };
 
-  @node({ name: 'Search Tool', type: 'n8n-nodes-base.httpRequestTool', version: 1.1, position: [400, 200] })
+  @node({ name: 'Search Tool', type: 'n8n-nodes-base.httpRequestTool', version: 4.3, position: [400, 200] })
   SearchTool = { url: 'https://api.example.com/search', toolDescription: 'Search for information' };
 
   @node({ name: 'Output Parser', type: '@n8n/n8n-nodes-langchain.outputParserStructured', version: 1.3, position: [500, 200] })
