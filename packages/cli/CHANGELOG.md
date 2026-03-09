@@ -1,5 +1,11 @@
 # @n8n-as-code/cli
 
+## [0.11.4](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.11.3...n8nac@v0.11.4) (2026-03-09)
+
+### Bug Fixes
+
+* update README to correct configuration file name for project switching ([b6dc5ad](https://github.com/EtienneLescot/n8n-as-code/commit/b6dc5adbe06b381fa63c8350ab3bca4d1f9b13d2))
+
 ## [0.11.3](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.11.2...n8nac@v0.11.3) (2026-03-08)
 
 

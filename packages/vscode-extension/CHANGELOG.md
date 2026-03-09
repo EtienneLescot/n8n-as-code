@@ -1,5 +1,12 @@
 # n8n-as-code
 
+## [0.20.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.20.0...n8n-as-code@v0.20.1) (2026-03-09)
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * n8nac bumped from 0.11.3 to 0.11.4
+
 ## [0.20.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.19.0...n8n-as-code@v0.20.0) (2026-03-09)
 
 ### Features
