@@ -15,6 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const crypto = require('crypto');
 const { promisify } = require('util');
 
 const writeFile = promisify(fs.writeFile);
@@ -25,6 +26,7 @@ const LLMS_TXT_URL = 'https://docs.n8n.io/llms.txt';
 const OUTPUT_DIR = path.join(__dirname, '../packages/skills/src/assets/n8n-docs-cache');
 const PAGES_DIR = path.join(OUTPUT_DIR, 'pages');
 const METADATA_FILE = path.join(OUTPUT_DIR, 'metadata.json');
+const LLMS_TXT_FILE = path.join(OUTPUT_DIR, 'llms.txt');
 
 // Rate limiting
 const DELAY_BETWEEN_REQUESTS = 100; // ms
@@ -214,10 +216,20 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function computeHash(content) {
+    return crypto.createHash('sha256').update(content).digest('hex');
+}
+
+function removeDirectoryIfExists(targetPath) {
+    if (fs.existsSync(targetPath)) {
+        fs.rmSync(targetPath, { recursive: true, force: true });
+    }
+}
+
 /**
  * Download all pages with rate limiting
  */
-async function downloadAllPages(links) {
+async function downloadAllPages(links, llmsHash) {
     const results = [];
     const errors = [];
 
@@ -225,10 +237,14 @@ async function downloadAllPages(links) {
     if (fs.existsSync(METADATA_FILE)) {
         try {
             const metadata = JSON.parse(fs.readFileSync(METADATA_FILE, 'utf-8'));
-            if (metadata.totalPages > 0 && fs.existsSync(PAGES_DIR)) {
+            if (metadata.llmsHash === llmsHash && metadata.totalPages > 0 && fs.existsSync(PAGES_DIR)) {
                 console.log(`\n✅ Cache found with ${metadata.totalPages} pages. Skipping all downloads.`);
                 return { results: Object.values(metadata.pages), errors: [] };
             }
+
+            console.log('\n🔄 llms.txt changed since the last snapshot. Refreshing documentation pages...');
+            removeDirectoryIfExists(PAGES_DIR);
+            await mkdir(PAGES_DIR, { recursive: true });
         } catch (e) {
             console.log('⚠️ Failed to read metadata, proceeding with download.');
         }
@@ -301,7 +317,7 @@ async function downloadAllPages(links) {
 /**
  * Generate metadata.json
  */
-async function generateMetadata(pages, errors) {
+async function generateMetadata(pages, errors, llmsHash) {
     console.log('\n📊 Generating metadata...');
 
     // Group by category
@@ -325,6 +341,7 @@ async function generateMetadata(pages, errors) {
     const metadata = {
         generatedAt: new Date().toISOString(),
         sourceUrl: LLMS_TXT_URL,
+        llmsHash,
         totalPages: pages.length,
         errors: errors.length,
         statistics: {
@@ -371,8 +388,9 @@ async function main() {
         // Download llms.txt
         console.log(`📥 Downloading ${LLMS_TXT_URL}...`);
         const llmsTxtContent = await downloadContent(LLMS_TXT_URL);
-        await writeFile(path.join(OUTPUT_DIR, 'llms.txt'), llmsTxtContent);
+        await writeFile(LLMS_TXT_FILE, llmsTxtContent);
         console.log('✅ llms.txt downloaded');
+        const llmsHash = computeHash(llmsTxtContent);
 
         // Parse links
         console.log('\n📋 Parsing documentation links...');
@@ -380,10 +398,10 @@ async function main() {
         console.log(`✅ Found ${links.length} documentation pages`);
 
         // Download all pages
-        const { results: pages, errors } = await downloadAllPages(links);
+        const { results: pages, errors } = await downloadAllPages(links, llmsHash);
 
         // Generate metadata
-        await generateMetadata(pages, errors);
+        await generateMetadata(pages, errors, llmsHash);
 
         console.log('\n✨ Complete! Documentation downloaded successfully.');
         console.log(`   Output directory: ${OUTPUT_DIR}`);

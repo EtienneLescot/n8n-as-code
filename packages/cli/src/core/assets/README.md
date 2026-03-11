@@ -11,6 +11,8 @@ This file contains the optimized, pruned node definitions extracted from n8n's n
 2. The pipeline ensures an up-to-date local n8n cache (`scripts/ensure-n8n-cache.cjs`) and then generates the index (`scripts/generate-n8n-index.cjs`)
 3. The schema is committed to the repository and bundled with the package
 
+By default, the cache script resolves the latest stable `n8n` release at build time. Set `N8N_VERSION` or `N8N_STABLE_TAG` only when you need to reproduce or debug against a specific upstream version.
+
 ### File Characteristics
 - **Size**: Target < 3MB (pruned from ~20-30MB raw)
 - **Optimization**: Removes icons, colors, and heavy metadata
