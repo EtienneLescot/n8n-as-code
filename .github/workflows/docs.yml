@@ -45,6 +45,8 @@ jobs:
   # Build job
   build:
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,7 +74,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .n8n-cache
-          key: ${{ runner.os }}-n8n-cache-${{ steps.n8n-tag.outputs.tag }}
+          key: ${{ runner.os }}-n8n-cache-${{ steps.n8n-tag.outputs.tag }}-${{ hashFiles('scripts/ensure-n8n-cache.cjs') }}
           restore-keys: |
             ${{ runner.os }}-n8n-cache-
 

@@ -17,6 +17,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: prod
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
     outputs:
       pending: ${{ steps.pending.outputs.pending }}
     steps:
@@ -65,7 +67,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .n8n-cache
-          key: ${{ runner.os }}-n8n-cache-${{ steps.n8n-tag.outputs.tag }}
+          key: ${{ runner.os }}-n8n-cache-${{ steps.n8n-tag.outputs.tag }}-${{ hashFiles('scripts/ensure-n8n-cache.cjs') }}
           restore-keys: |
             ${{ runner.os }}-n8n-cache-
 
@@ -331,6 +333,8 @@ jobs:
     if: github.ref == 'refs/heads/next' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     environment: next
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -364,7 +368,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .n8n-cache
-          key: ${{ runner.os }}-n8n-cache-${{ steps.n8n-tag.outputs.tag }}
+          key: ${{ runner.os }}-n8n-cache-${{ steps.n8n-tag.outputs.tag }}-${{ hashFiles('scripts/ensure-n8n-cache.cjs') }}
           restore-keys: |
             ${{ runner.os }}-n8n-cache-
 

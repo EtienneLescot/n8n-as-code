@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync, execSync } = require('child_process');
 const https = require('https');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
@@ -23,23 +23,66 @@ function normalizeTag(rawTag) {
     return rawTag.startsWith('n8n@') ? rawTag : `n8n@${rawTag}`;
 }
 
+function validateTag(tag) {
+    const safeTagPattern = /^[0-9A-Za-z._\-\/@]+$/;
+
+    if (typeof tag !== 'string' || !safeTagPattern.test(tag)) {
+        throw new Error(
+            `Invalid tag "${tag}". Tags may only contain letters, numbers, ".", "_", "-", "/", and "@".`,
+        );
+    }
+}
+
 function downloadJson(url) {
     return new Promise((resolve, reject) => {
-        const request = https.get(url, {
-            headers: {
-                'User-Agent': 'n8n-as-code/1.0',
-                'Accept': 'application/vnd.github+json',
-            },
-        }, (response) => {
-            if (response.statusCode !== 200) {
-                reject(new Error(`Failed to fetch ${url}: ${response.statusCode}`));
-                response.resume();
-                return;
-            }
+        const headers = {
+            'User-Agent': 'n8n-as-code/1.0',
+            'Accept': 'application/vnd.github+json',
+        };
+        const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
 
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        }
+
+        const request = https.get(url, {
+            headers,
+        }, (response) => {
             let data = '';
+
             response.on('data', chunk => data += chunk);
             response.on('end', () => {
+                const status = response.statusCode || 0;
+
+                if (status !== 200) {
+                    let message = `Failed to fetch ${url}: ${status}`;
+
+                    if (status === 403 || status === 429) {
+                        const details = [];
+                        const rateLimitLimit = response.headers['x-ratelimit-limit'];
+                        const rateLimitRemaining = response.headers['x-ratelimit-remaining'];
+                        const rateLimitReset = response.headers['x-ratelimit-reset'];
+                        const requestId = response.headers['x-github-request-id'];
+
+                        if (rateLimitLimit !== undefined) details.push(`limit=${rateLimitLimit}`);
+                        if (rateLimitRemaining !== undefined) details.push(`remaining=${rateLimitRemaining}`);
+                        if (rateLimitReset !== undefined) details.push(`reset=${rateLimitReset}`);
+                        if (requestId) details.push(`requestId=${requestId}`);
+
+                        if (details.length) {
+                            message += ` (rate limit details: ${details.join(', ')})`;
+                        }
+                    }
+
+                    const trimmedBody = data.slice(0, 200).trim();
+                    if (trimmedBody) {
+                        message += `; response body: ${trimmedBody}`;
+                    }
+
+                    reject(new Error(message));
+                    return;
+                }
+
                 try {
                     resolve(JSON.parse(data));
                 } catch (error) {
@@ -110,9 +153,13 @@ function writeCacheMetadata(metadata) {
 }
 
 function cloneCacheAtTag(tag) {
+    validateTag(tag);
     removeDirectory(CACHE_DIR);
     console.log(`🚀 Cloning n8n repository (depth 1, tag ${tag})...`);
-    run(`git clone --depth 1 --branch ${tag} ${N8N_REPO_URL} .n8n-cache`);
+    execFileSync('git', ['clone', '--depth', '1', '--branch', tag, N8N_REPO_URL, '.n8n-cache'], {
+        cwd: ROOT_DIR,
+        stdio: 'inherit',
+    });
     writeCacheMetadata({
         resolvedTag: tag,
         resolvedAt: new Date().toISOString(),

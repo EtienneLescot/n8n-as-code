@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'next' }}
     env:
+      GITHUB_TOKEN: ${{ github.token }}
       N8N_HOST: ${{ vars.N8N_HOST }}
       N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
 
