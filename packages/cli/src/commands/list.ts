@@ -65,7 +65,7 @@ export function applyListCommandOptions(workflows: IWorkflowStatus[], options?: 
     filtered = filtered.filter(workflow => matchesWorkflowSearch(workflow, options?.search));
     filtered = sortWorkflows(filtered, options?.sort ?? 'status');
 
-    if (options?.limit && options.limit > 0) {
+    if (options?.limit) {
         filtered = filtered.slice(0, options.limit);
     }
 
