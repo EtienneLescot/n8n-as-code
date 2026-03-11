@@ -2,17 +2,22 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 // Configuration
 const ROOT_DIR = path.resolve(__dirname, '..');
 const TEMP_DIR = path.join(ROOT_DIR, '.temp-workflows');
 const REPO_URL = 'https://github.com/nusquama/n8nworkflows.xyz.git';
 const OUTPUT_FILE = path.resolve(ROOT_DIR, 'packages/skills/src/assets/workflows-index.json');
+const DEFAULT_REF = process.env.N8N_COMMUNITY_WORKFLOWS_REF || 'main';
 
 // Argument parsing
 const args = process.argv.slice(2);
 const shallowFlag = args.includes('--shallow');
+const refArgIndex = args.indexOf('--ref');
+const sourceRef = refArgIndex !== -1 && args[refArgIndex + 1]
+    ? args[refArgIndex + 1]
+    : DEFAULT_REF;
 const CLONE_DEPTH = shallowFlag ? 1 : undefined; // Full clone by default for complete history
 
 function removeGitDirectory(dir) {
@@ -29,27 +34,41 @@ function removeGitDirectory(dir) {
 function ensureRepository() {
     console.log('📦 Ensuring workflows repository...');
 
+    console.log(`   ↻ Refresh strategy: clean snapshot from ref "${sourceRef}" on every run`);
+
     if (fs.existsSync(TEMP_DIR)) {
-        console.log('   ✓ Repository exists, pulling latest changes...');
-        try {
-            execSync('git pull', { cwd: TEMP_DIR, stdio: 'inherit' });
-            removeGitDirectory(TEMP_DIR);
-        } catch (error) {
-            console.warn('   ⚠️  Pull failed, removing and re-cloning...');
-            fs.rmSync(TEMP_DIR, { recursive: true, force: true });
-            cloneRepository();
-        }
-    } else {
-        cloneRepository();
+        console.log('   🧹 Removing previous snapshot...');
+        fs.rmSync(TEMP_DIR, { recursive: true, force: true });
     }
+
+    cloneRepository();
+
+    const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: TEMP_DIR,
+        encoding: 'utf-8',
+    }).trim();
+
+    console.log(`   ✓ Snapshot locked to commit ${sourceCommit}`);
+    removeGitDirectory(TEMP_DIR);
+
+    return {
+        sourceRef,
+        sourceCommit,
+        refreshStrategy: 'fresh-clone-per-build',
+    };
 }
 
 function cloneRepository() {
     console.log(`   📥 Cloning ${REPO_URL}...`);
-    const depthArg = CLONE_DEPTH ? `--depth ${CLONE_DEPTH}` : '';
-    execSync(`git clone ${depthArg} ${REPO_URL} ${TEMP_DIR}`, { stdio: 'inherit' });
+    const cloneArgs = ['clone'];
+
+    if (CLONE_DEPTH) {
+        cloneArgs.push('--depth', String(CLONE_DEPTH));
+    }
+
+    cloneArgs.push('--branch', sourceRef, REPO_URL, TEMP_DIR);
+    execFileSync('git', cloneArgs, { stdio: 'inherit' });
     console.log('   ✓ Clone complete');
-    removeGitDirectory(TEMP_DIR);
 }
 
 /**
@@ -78,6 +97,8 @@ function findMetadataFiles() {
         process.exit(1);
     }
 
+    const workflowsRoot = path.relative(TEMP_DIR, workflowsDir).split(path.sep).join('/');
+
     const metadataFiles = [];
     const workflowDirs = fs.readdirSync(workflowsDir, { withFileTypes: true });
 
@@ -102,7 +123,8 @@ function findMetadataFiles() {
             metadataFiles.push({
                 metadataPath,
                 slug: dirent.name,
-                workflowDir: dirPath
+                workflowDir: dirPath,
+                workflowsRoot,
             });
         }
     }
@@ -151,6 +173,7 @@ function parseMetadata(file) {
             description: null, // Not available in this metadata format
             hasWorkflow,
             workflowFile: workflowJsonFile || null,
+            workflowPath: hasWorkflow ? `${file.workflowsRoot}/${file.slug}/${workflowJsonFile}` : null,
             url: metadata.url || metadata.url_n8n || null,
             nodeTypes: metadata.nodeTypes ? Object.keys(metadata.nodeTypes) : []
         };
@@ -166,7 +189,7 @@ function parseMetadata(file) {
 function buildIndex() {
     console.log('\n🏗️  Building workflow index...');
 
-    ensureRepository();
+    const sourceSnapshot = ensureRepository();
     const metadataFiles = findMetadataFiles();
 
     const workflows = [];
@@ -196,6 +219,9 @@ function buildIndex() {
     const outputData = {
         generatedAt: new Date().toISOString(),
         repository: REPO_URL,
+        sourceRef: sourceSnapshot.sourceRef,
+        sourceCommit: sourceSnapshot.sourceCommit,
+        refreshStrategy: sourceSnapshot.refreshStrategy,
         totalWorkflows: workflows.length,
         workflows: workflows.sort((a, b) => {
             // Sort by ID (numeric) if available, otherwise by slug
