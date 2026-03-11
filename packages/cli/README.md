@@ -75,9 +75,19 @@ Display workflow status in a git-like model. By default shows combined local and
 n8nac list                    # Combined view (default)
 n8nac list --local            # Show only local workflows
 n8nac list --remote           # Show only remote workflows (alias: --distant)
+n8nac list --search billing   # Filter by partial name, ID, or filename
+n8nac list --sort name        # Strict alphabetical sorting
+n8nac find billing --limit 5  # Search-oriented shortcut
 ```
 
 Output columns: `Status` · `ID` · `Name` · `Local Path`
+
+Search and filter options:
+
+- `--search <query>`: case-insensitive partial match against workflow name, ID, or local filename
+- `--sort <status|name>`: keep the default sync-oriented status ordering, or switch to alphabetical name sorting
+- `--limit <n>`: cap the number of results returned
+- `--raw`: output the filtered result set as JSON for scripts and pipes
 
 Status values:
 

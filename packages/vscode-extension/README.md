@@ -25,6 +25,9 @@ The system intelligently detects conflicts to prevent data loss:
 - **Protection**: If a workflow is edited simultaneously on n8n and locally, synchronization stops.
 - **Resolution**: An interface allows you to compare versions (Diff View) and choose which one to keep (Force Push/Pull).
 
+### 🔎 Fast Workflow Finder
+Use **Find Workflow** from the n8n view or Command Palette to jump straight to a workflow by partial name, workflow ID, or local filename instead of scrolling long trees.
+
 ### 🗂️ Multi-Instance Support
 Your workflows are automatically organized by instance to avoid mixing files from different environments:
 `workflows/instance_name_user/my_workflow.json`

@@ -20,12 +20,14 @@ import { ExtensionState } from './types.js';
 import { getN8nConfig, getResolvedN8nConfig, validateN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from './utils/state-detection.js';
 import { NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION } from './constants/workspace.js';
 import { writeUnifiedWorkspaceConfig } from './utils/unified-config.js';
+import { buildWorkflowQuickPickItems, getWorkflowFinderCommand } from './utils/workflow-finder.js';
 
 import {
     store,
     setSyncManager,
     clearSyncManager,
     setWorkflows,
+    selectAllWorkflows,
     addConflict,
     removeConflict,
     clearConflicts
@@ -272,6 +274,56 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage(`Refresh failed: ${error.message}`);
             }
             enhancedTreeProvider.refresh();
+        }),
+
+        vscode.commands.registerCommand('n8n.findWorkflow', async () => {
+            if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
+                vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
+                return;
+            }
+
+            let workflows = selectAllWorkflows(store.getState());
+            if (!workflows.length && cli) {
+                try {
+                    workflows = await cli.list({ fetchRemote: true });
+                    store.dispatch(setWorkflows(workflows));
+                    enhancedTreeProvider.refresh();
+                } catch (error: any) {
+                    vscode.window.showErrorMessage(`Unable to load workflows: ${error.message}`);
+                    return;
+                }
+            }
+
+            if (!workflows.length) {
+                const message = cli
+                    ? 'No workflows available to search.'
+                    : 'n8n as code is not initialized. Please configure and initialize first.';
+                vscode.window.showInformationMessage(message);
+                return;
+            }
+
+            const picked = await vscode.window.showQuickPick(
+                buildWorkflowQuickPickItems(workflows),
+                {
+                    title: `Find Workflow (${workflows.length})`,
+                    placeHolder: 'Search by workflow name, ID, or local filename',
+                    ignoreFocusOut: true,
+                    matchOnDescription: true,
+                    matchOnDetail: true,
+                }
+            );
+
+            if (!picked) {
+                return;
+            }
+
+            const command = getWorkflowFinderCommand(picked.workflow);
+            if (!command) {
+                vscode.window.showWarningMessage(`"${picked.workflow.name}" cannot be opened from the current search result.`);
+                return;
+            }
+
+            await vscode.commands.executeCommand(command, picked.workflow);
         }),
 
         vscode.commands.registerCommand('n8n.initializeAI', async (options?: { silent?: boolean }) => {
