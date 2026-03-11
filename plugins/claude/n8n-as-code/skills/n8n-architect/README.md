@@ -8,7 +8,7 @@ Turns Claude into a specialized n8n workflow engineer using the `n8nac` CLI and 
 
 ## Recommended Claude Code setup
 
-After installing the plugin, initialize the workspace. In Claude Code terminal sessions, Claude should ask the user for the n8n host and API key, then run `init-auth`; `init-project` bootstraps `AGENTS.md` automatically, and `update-ai` is there when you want to refresh that generated context later:
+After installing the plugin, initialize the workspace. In Claude Code terminal sessions, Claude should ask the user for the n8n host and API key, then run `init-auth`. `init-project` bootstraps `AGENTS.md` automatically. Use `update-ai` later when you want to refresh that generated context:
 
 ```bash
 # Claude collects the n8n host + API key from the user, then initializes auth non-interactively
