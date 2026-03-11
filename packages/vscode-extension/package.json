@@ -101,6 +101,11 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "n8n.findWorkflow",
+        "title": "Find Workflow",
+        "icon": "$(search)"
+      },
+      {
         "command": "n8n.openSettings",
         "title": "n8n: Open Settings",
         "icon": "$(gear)"
@@ -144,13 +149,18 @@
           "when": "view == n8n-explorer.workflows && n8n.state == initialized"
         },
         {
-          "command": "n8n.spacer",
+          "command": "n8n.findWorkflow",
           "group": "navigation@2",
+          "when": "view == n8n-explorer.workflows && n8n.state == initialized"
+        },
+        {
+          "command": "n8n.spacer",
+          "group": "navigation@3",
           "when": "view == n8n-explorer.workflows"
         },
         {
           "command": "n8n.configure",
-          "group": "navigation@3",
+          "group": "navigation@4",
           "when": "view == n8n-explorer.workflows"
         }
       ],

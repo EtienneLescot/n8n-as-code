@@ -51,6 +51,14 @@ const getSkillsAssetsDir = (): string => {
 
 const program = new Command();
 
+const parsePositiveIntegerOption = (value: string, optionName: string): number => {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        throw new Error(`${optionName} must be a positive integer.`);
+    }
+    return parsed;
+};
+
 program
     .name('n8nac')
     .description('N8N Sync Command Line Interface - Manage n8n workflows as code')
@@ -101,11 +109,50 @@ program.command('list')
     .option('--local', 'Show only local workflows')
     .option('--remote', 'Show only remote workflows')
     .option('--distant', 'Alias for --remote')
+    .option('--search <query>', 'Filter by workflow name, ID, or local filename (case-insensitive partial match)')
+    .option('--sort <mode>', 'Sort by "status" (default) or "name"', 'status')
+    .option('--limit <number>', 'Limit the number of returned workflows', (value) => parsePositiveIntegerOption(value, '--limit'))
     .option('--raw', 'Output full JSON instead of a table')
     .action(async (options) => {
         // Combine remote and distant flags
         const remote = options.remote || options.distant;
-        await new ListCommand().run({ local: options.local, remote, raw: options.raw });
+        if (options.sort !== 'status' && options.sort !== 'name') {
+            console.error(chalk.red('❌ Invalid sort mode. Use "status" or "name".'));
+            process.exit(1);
+        }
+        await new ListCommand().run({
+            local: options.local,
+            remote,
+            raw: options.raw,
+            search: options.search,
+            sort: options.sort,
+            limit: options.limit
+        });
+    });
+
+program.command('find')
+    .description('Find workflows quickly by partial name, workflow ID, or local filename')
+    .argument('<query>', 'Search query')
+    .option('--local', 'Show only local workflows')
+    .option('--remote', 'Show only remote workflows')
+    .option('--distant', 'Alias for --remote')
+    .option('--sort <mode>', 'Sort by "status" or "name"', 'name')
+    .option('--limit <number>', 'Limit the number of returned workflows', (value) => parsePositiveIntegerOption(value, '--limit'))
+    .option('--raw', 'Output full JSON instead of a table')
+    .action(async (query, options) => {
+        const remote = options.remote || options.distant;
+        if (options.sort !== 'status' && options.sort !== 'name') {
+            console.error(chalk.red('❌ Invalid sort mode. Use "status" or "name".'));
+            process.exit(1);
+        }
+        await new ListCommand().run({
+            local: options.local,
+            remote,
+            raw: options.raw,
+            search: query,
+            sort: options.sort,
+            limit: options.limit
+        });
     });
 
 // pull - Download a single workflow by ID
