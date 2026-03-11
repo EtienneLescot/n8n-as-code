@@ -55,12 +55,17 @@ jobs:
         if: steps.pending.outputs.pending == 'true'
         run: npm install
 
+      - name: Resolve n8n stable tag
+        if: steps.pending.outputs.pending == 'true'
+        id: n8n-tag
+        run: echo "tag=$(node scripts/ensure-n8n-cache.cjs --print-tag)" >> "$GITHUB_OUTPUT"
+
       - name: Cache n8n repository
         if: steps.pending.outputs.pending == 'true'
         uses: actions/cache@v4
         with:
           path: .n8n-cache
-          key: ${{ runner.os }}-n8n-cache-${{ hashFiles('scripts/ensure-n8n-cache.cjs') }}
+          key: ${{ runner.os }}-n8n-cache-${{ steps.n8n-tag.outputs.tag }}
           restore-keys: |
             ${{ runner.os }}-n8n-cache-
 
@@ -351,11 +356,15 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Resolve n8n stable tag
+        id: n8n-tag
+        run: echo "tag=$(node scripts/ensure-n8n-cache.cjs --print-tag)" >> "$GITHUB_OUTPUT"
+
       - name: Cache n8n repository
         uses: actions/cache@v4
         with:
           path: .n8n-cache
-          key: ${{ runner.os }}-n8n-cache-${{ hashFiles('scripts/ensure-n8n-cache.cjs') }}
+          key: ${{ runner.os }}-n8n-cache-${{ steps.n8n-tag.outputs.tag }}
           restore-keys: |
             ${{ runner.os }}-n8n-cache-
 
