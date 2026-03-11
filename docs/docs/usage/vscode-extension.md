@@ -100,10 +100,17 @@ If connection fails, check the Output panel (View > Output, select "n8n-as-code"
 2. Right-click a workflow and select **Pull** to download it locally
 3. Workflows are organized by instance in your local directory
 
+### Finding Workflows Fast
+When your workspace contains hundreds of workflows, use **Find Workflow** from the n8n view title bar or the Command Palette.
+
+- Search is fuzzy and case-insensitive
+- Matches workflow name, workflow ID, and local filename/path
+- Selecting a result opens the local file immediately when available, or opens the workflow in n8n for remote-only entries
+
 ### Editing Workflows
 1. Click a workflow in the tree view to open the JSON editor
 2. For split view with canvas preview:
-   - Click **"Open Workspace"** action button
+    - Click **"Open Workspace"** action button
    - Or use the context menu option
 3. The split view shows:
    - **Left**: JSON editor

@@ -3,9 +3,77 @@ import { SyncManager, WorkflowSyncStatus, IWorkflowStatus, formatWorkflowNameWit
 import chalk from 'chalk';
 import ora from 'ora';
 import Table from 'cli-table3';
- 
+
+export type WorkflowListSortMode = 'status' | 'name';
+
+export interface ListCommandOptions {
+    local?: boolean;
+    remote?: boolean;
+    raw?: boolean;
+    search?: string;
+    sort?: WorkflowListSortMode;
+    limit?: number;
+}
+
+export function matchesWorkflowSearch(workflow: IWorkflowStatus, query?: string): boolean {
+    const normalizedQuery = query?.trim().toLowerCase();
+    if (!normalizedQuery) {
+        return true;
+    }
+
+    return [workflow.name, workflow.id, workflow.filename]
+        .filter((value): value is string => Boolean(value))
+        .some(value => value.toLowerCase().includes(normalizedQuery));
+}
+
+export function sortWorkflows(workflows: IWorkflowStatus[], sortMode: WorkflowListSortMode = 'status'): IWorkflowStatus[] {
+    const statusPriority: Record<WorkflowSyncStatus, number> = {
+        [WorkflowSyncStatus.CONFLICT]: 1,
+        [WorkflowSyncStatus.EXIST_ONLY_LOCALLY]: 2,
+        [WorkflowSyncStatus.EXIST_ONLY_REMOTELY]: 3,
+        [WorkflowSyncStatus.TRACKED]: 4,
+    };
+
+    return [...workflows].sort((a, b) => {
+        if (sortMode === 'name') {
+            return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+        }
+
+        const priorityDiff = statusPriority[a.status] - statusPriority[b.status];
+        if (priorityDiff !== 0) return priorityDiff;
+        return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+}
+
+export function applyListCommandOptions(workflows: IWorkflowStatus[], options?: ListCommandOptions): IWorkflowStatus[] {
+    let filtered = [...workflows];
+
+    if (options?.local) {
+        filtered = filtered.filter(w =>
+            w.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY ||
+            w.status === WorkflowSyncStatus.TRACKED ||
+            w.status === WorkflowSyncStatus.CONFLICT
+        );
+    } else if (options?.remote) {
+        filtered = filtered.filter(w =>
+            w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY ||
+            w.status === WorkflowSyncStatus.TRACKED ||
+            w.status === WorkflowSyncStatus.CONFLICT
+        );
+    }
+
+    filtered = filtered.filter(workflow => matchesWorkflowSearch(workflow, options?.search));
+    filtered = sortWorkflows(filtered, options?.sort ?? 'status');
+
+    if (options?.limit && options.limit > 0) {
+        filtered = filtered.slice(0, options.limit);
+    }
+
+    return filtered;
+}
+
 export class ListCommand extends BaseCommand {
-    async run(options?: { local?: boolean; remote?: boolean; raw?: boolean }): Promise<void> {
+    async run(options?: ListCommandOptions): Promise<void> {
         const spinner = ora('Listing workflows...').start();
 
         try {
@@ -14,22 +82,12 @@ export class ListCommand extends BaseCommand {
 
             // Get lightweight workflow list: no hash computation, no TypeScript compilation.
             // Fetches fresh remote metadata on each call for an up-to-date view.
-            let workflows = await syncManager.listWorkflows({ fetchRemote: true });
-            
-            // Apply filters based on options
-            if (options?.local) {
-                workflows = workflows.filter(w =>
-                    w.status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY ||
-                    w.status === WorkflowSyncStatus.TRACKED ||
-                    w.status === WorkflowSyncStatus.CONFLICT
-                );
-            } else if (options?.remote) {
-                workflows = workflows.filter(w =>
-                    w.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY ||
-                    w.status === WorkflowSyncStatus.TRACKED ||
-                    w.status === WorkflowSyncStatus.CONFLICT
-                );
-            }
+            const allWorkflows = await syncManager.listWorkflows({ fetchRemote: true });
+            const matchingCount = applyListCommandOptions(allWorkflows, {
+                ...options,
+                limit: undefined
+            }).length;
+            const workflows = applyListCommandOptions(allWorkflows, options);
 
             spinner.stop();
 
@@ -57,22 +115,8 @@ export class ListCommand extends BaseCommand {
                 wordWrap: true
             });
 
-            // Sort workflows by status priority, then by name
-            const statusPriority: Record<WorkflowSyncStatus, number> = {
-                [WorkflowSyncStatus.CONFLICT]: 1,
-                [WorkflowSyncStatus.EXIST_ONLY_LOCALLY]: 2,
-                [WorkflowSyncStatus.EXIST_ONLY_REMOTELY]: 3,
-                [WorkflowSyncStatus.TRACKED]: 4,
-            };
-
-            const sorted = workflows.sort((a: IWorkflowStatus, b: IWorkflowStatus) => {
-                const priorityDiff = statusPriority[a.status] - statusPriority[b.status];
-                if (priorityDiff !== 0) return priorityDiff;
-                return a.name.localeCompare(b.name);
-            });
-
             // Add rows with color coding
-            for (const workflow of sorted) {
+            for (const workflow of workflows) {
                 const { icon, color } = this.getStatusDisplay(workflow.status);
                 const statusText = `${icon} ${workflow.status}`;
                 
@@ -102,6 +146,9 @@ export class ListCommand extends BaseCommand {
             console.log(chalk.yellow(`  + Local Only: ${summary.onlyLocal}`));
             console.log(chalk.yellow(`  - Remote Only: ${summary.onlyRemote}`));
             console.log(chalk.bold(`  Total: ${workflows.length}\n`));
+            if (options?.limit && matchingCount > workflows.length) {
+                console.log(chalk.gray(`Showing first ${workflows.length} of ${matchingCount} matching workflows.\n`));
+            }
 
         } catch (error: any) {
             spinner.fail(chalk.red(`Failed to list workflows: ${error.message}`));

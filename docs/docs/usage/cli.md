@@ -99,6 +99,9 @@ Shows a color-coded table of all workflows with their sync status, helping you u
 **Options:**
 - `--local`: Show only workflows that exist locally (including `EXIST_ONLY_LOCALLY`, `TRACKED`, `CONFLICT`)
 - `--remote` / `--distant`: Show only workflows that exist remotely (including `EXIST_ONLY_REMOTELY`, `TRACKED`, `CONFLICT`)
+- `--search <query>`: Case-insensitive partial match on workflow name, workflow ID, or local filename
+- `--sort <status|name>`: Keep the default sync-oriented ordering or force alphabetical sorting
+- `--limit <n>`: Return only the first `n` matching workflows after filtering/sorting
 - `--raw`: Output raw JSON for scripting/automation
 
 **Example:**
@@ -106,6 +109,8 @@ Shows a color-coded table of all workflows with their sync status, helping you u
 n8nac list                    # Show all workflows
 n8nac list --local            # Show only local workflows
 n8nac list --remote           # Show only remote workflows
+n8nac list --search billing   # Find workflows by partial name, ID, or filename
+n8nac list --sort name        # Sort alphabetically
 n8nac list --raw              # Output raw JSON
 ```
 
@@ -113,6 +118,27 @@ n8nac list --raw              # Output raw JSON
 - Status indicators with icons (✔ Tracked, 💥 Conflicts, + Local Only, - Remote Only)
 - Workflow ID, name, and local path
 - Summary statistics showing counts by status
+
+### `find`
+Search workflows quickly using the same case-insensitive partial matching used by `list --search`.
+
+**Description:**
+Optimized for large installations where you already know part of the workflow name, ID, or filename and want search-oriented results immediately.
+
+**Options:**
+- `<query>` (**required**): Search text
+- `--local`: Limit results to workflows with a local file
+- `--remote` / `--distant`: Limit results to workflows known remotely
+- `--sort <status|name>`: Sort search results by sync status or alphabetically (defaults to `name`)
+- `--limit <n>`: Return only the first `n` matching workflows
+- `--raw`: Output the filtered result set as JSON
+
+**Example:**
+```bash
+n8nac find billing
+n8nac find wf-123 --raw
+n8nac find importer --limit 10
+```
 
 **Status Types:**
 - `TRACKED` - Both local and remote exist (in sync)
