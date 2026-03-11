@@ -32,8 +32,7 @@
         "typescript": "^5.3.3"
     },
     "files": [
-        "dist/",
-        "src/assets/"
+        "dist/"
     ],
     "repository": {
         "type": "git",
