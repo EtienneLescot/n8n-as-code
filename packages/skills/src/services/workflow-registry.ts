@@ -22,11 +22,15 @@ export interface WorkflowMetadata {
     description: string | null;
     hasWorkflow: boolean;
     workflowFile: string | null;
+    workflowPath?: string | null;
 }
 
 interface WorkflowIndex {
     generatedAt: string;
     repository: string;
+    sourceRef?: string;
+    sourceCommit?: string;
+    refreshStrategy?: string;
     totalWorkflows: number;
     workflows: WorkflowMetadata[];
 }
@@ -141,8 +145,9 @@ export class WorkflowRegistry {
      */
     getRawUrl(workflow: WorkflowMetadata, branch: string = 'main'): string {
         const baseUrl = 'https://raw.githubusercontent.com/nusquama/n8nworkflows.xyz';
-        const filename = workflow.workflowFile || 'workflow.json';
-        return `${baseUrl}/${branch}/workflows/${workflow.slug}/${filename}`;
+        const resolvedRef = this.index.sourceCommit || branch;
+        const workflowPath = workflow.workflowPath || `workflows/${workflow.slug}/${workflow.workflowFile || 'workflow.json'}`;
+        return `${baseUrl}/${resolvedRef}/${workflowPath}`;
     }
 
     /**
@@ -152,6 +157,9 @@ export class WorkflowRegistry {
         return {
             generatedAt: this.index.generatedAt,
             repository: this.index.repository,
+            sourceRef: this.index.sourceRef,
+            sourceCommit: this.index.sourceCommit,
+            refreshStrategy: this.index.refreshStrategy,
             totalWorkflows: this.index.totalWorkflows,
         };
     }
