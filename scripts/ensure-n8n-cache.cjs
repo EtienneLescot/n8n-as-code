@@ -1,11 +1,71 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const https = require('https');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const CACHE_DIR = path.resolve(ROOT_DIR, '.n8n-cache');
+const CACHE_METADATA_PATH = path.join(CACHE_DIR, '.cache-metadata.json');
 const N8N_REPO_URL = 'https://github.com/n8n-io/n8n.git';
-const N8N_STABLE_TAG = 'n8n@2.4.4'; // Updated to latest stable version to include all nodes including Google Gemini image generation and httpRequestTool (n8n-nodes-base.httpRequestTool)
+const N8N_RELEASES_API_URL = 'https://api.github.com/repos/n8n-io/n8n/releases/latest';
+
+function parseArgs(argv) {
+    return {
+        printTag: argv.includes('--print-tag'),
+    };
+}
+
+function normalizeTag(rawTag) {
+    if (!rawTag) {
+        return null;
+    }
+
+    return rawTag.startsWith('n8n@') ? rawTag : `n8n@${rawTag}`;
+}
+
+function downloadJson(url) {
+    return new Promise((resolve, reject) => {
+        const request = https.get(url, {
+            headers: {
+                'User-Agent': 'n8n-as-code/1.0',
+                'Accept': 'application/vnd.github+json',
+            },
+        }, (response) => {
+            if (response.statusCode !== 200) {
+                reject(new Error(`Failed to fetch ${url}: ${response.statusCode}`));
+                response.resume();
+                return;
+            }
+
+            let data = '';
+            response.on('data', chunk => data += chunk);
+            response.on('end', () => {
+                try {
+                    resolve(JSON.parse(data));
+                } catch (error) {
+                    reject(new Error(`Failed to parse JSON from ${url}: ${error.message}`));
+                }
+            });
+        });
+
+        request.on('error', reject);
+    });
+}
+
+async function resolveStableTag() {
+    const overrideTag = normalizeTag(process.env.N8N_VERSION || process.env.N8N_STABLE_TAG);
+    if (overrideTag) {
+        return { tag: overrideTag, source: 'env' };
+    }
+
+    const release = await downloadJson(N8N_RELEASES_API_URL);
+    const latestTag = normalizeTag(release.tag_name);
+    if (!latestTag) {
+        throw new Error('GitHub latest release response did not include a valid tag_name.');
+    }
+
+    return { tag: latestTag, source: 'github-release' };
+}
 
 function run(command, cwd = ROOT_DIR) {
     console.log(`> ${command}`);
@@ -17,6 +77,13 @@ function run(command, cwd = ROOT_DIR) {
     }
 }
 
+function removeDirectory(dir) {
+    if (fs.existsSync(dir)) {
+        console.log(`🗑️  Removing ${dir}...`);
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+}
+
 function removeGitDirectory(dir) {
     const gitDir = path.join(dir, '.git');
     if (fs.existsSync(gitDir)) {
@@ -25,41 +92,61 @@ function removeGitDirectory(dir) {
     }
 }
 
+function readCacheMetadata() {
+    if (!fs.existsSync(CACHE_METADATA_PATH)) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(fs.readFileSync(CACHE_METADATA_PATH, 'utf8'));
+    } catch (error) {
+        console.warn(`⚠️  Could not read cache metadata: ${error.message}`);
+        return null;
+    }
+}
+
+function writeCacheMetadata(metadata) {
+    fs.writeFileSync(CACHE_METADATA_PATH, `${JSON.stringify(metadata, null, 2)}\n`);
+}
+
+function cloneCacheAtTag(tag) {
+    removeDirectory(CACHE_DIR);
+    console.log(`🚀 Cloning n8n repository (depth 1, tag ${tag})...`);
+    run(`git clone --depth 1 --branch ${tag} ${N8N_REPO_URL} .n8n-cache`);
+    writeCacheMetadata({
+        resolvedTag: tag,
+        resolvedAt: new Date().toISOString(),
+    });
+    removeGitDirectory(CACHE_DIR);
+}
+
 async function main() {
+    const args = parseArgs(process.argv);
+    const resolved = await resolveStableTag();
+
+    if (args.printTag) {
+        process.stdout.write(`${resolved.tag}\n`);
+        return;
+    }
+
     console.log('🔍 Checking n8n cache...');
+    console.log(`🎯 Target n8n stable tag: ${resolved.tag} (${resolved.source})`);
+
+    const cacheMetadata = readCacheMetadata();
+    const cacheMatchesTarget = cacheMetadata?.resolvedTag === resolved.tag;
 
     if (!fs.existsSync(CACHE_DIR)) {
-        console.log(`🚀 Cache missing. Cloning n8n repository (depth 1, tag ${N8N_STABLE_TAG})...`);
-        run(`git clone --depth 1 --branch ${N8N_STABLE_TAG} ${N8N_REPO_URL} .n8n-cache`);
-        removeGitDirectory(CACHE_DIR);
+        cloneCacheAtTag(resolved.tag);
     } else {
         console.log('✅ Cache directory found.');
 
-        // Try to update if it's a git repo
-        if (fs.existsSync(path.join(CACHE_DIR, '.git'))) {
-            console.log(`🔄 Checking for updates in n8n repository (target: ${N8N_STABLE_TAG})...`);
-            try {
-                const local = execSync('git rev-parse HEAD', { cwd: CACHE_DIR }).toString().trim();
-                const target = execSync(`git rev-parse ${N8N_STABLE_TAG}`, { cwd: CACHE_DIR }).toString().trim();
-
-                if (local !== target) {
-                    console.log('⬇️  Updating cache to stable tag...');
-                    run(`git fetch --depth 1 origin ${N8N_STABLE_TAG}`, CACHE_DIR);
-                    run(`git reset --hard ${N8N_STABLE_TAG}`, CACHE_DIR);
-                    // Force rebuild of nodes-base if updated
-                    process.env.FORCE_REBUILD_NODES = 'true';
-                    removeGitDirectory(CACHE_DIR);
-                } else {
-                    console.log('✨ Cache is already at the correct stable tag.');
-                    removeGitDirectory(CACHE_DIR);
-                }
-            } catch (e) {
-                console.warn('⚠️  Could not check for updates. Using existing cache.');
-                // Still remove .git if it exists
-                removeGitDirectory(CACHE_DIR);
-            }
+        if (!cacheMatchesTarget) {
+            console.log(`⬇️  Cache tag mismatch (${cacheMetadata?.resolvedTag || 'unknown'} -> ${resolved.tag}). Refreshing cache...`);
+            process.env.FORCE_REBUILD_NODES = 'true';
+            cloneCacheAtTag(resolved.tag);
         } else {
-            // .git doesn't exist, nothing to do
+            console.log('✨ Cache already matches the latest stable tag.');
+            removeGitDirectory(CACHE_DIR);
         }
     }
 
