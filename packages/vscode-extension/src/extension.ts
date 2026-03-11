@@ -297,7 +297,7 @@ export async function activate(context: vscode.ExtensionContext) {
             if (!workflows.length) {
                 const message = cli
                     ? 'No workflows available to search.'
-                    : 'n8n as code is not initialized. Please configure and initialize first.';
+                    : 'n8n as code is not initialized. Run "Initialize n8n as code" or configure your settings first.';
                 vscode.window.showInformationMessage(message);
                 return;
             }
@@ -319,7 +319,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
             const command = getWorkflowFinderCommand(picked.workflow);
             if (!command) {
-                vscode.window.showWarningMessage(`"${picked.workflow.name}" cannot be opened from the current search result.`);
+                vscode.window.showWarningMessage(`Cannot open workflow "${picked.workflow.name}": no local file or remote ID is available.`);
                 return;
             }
 
