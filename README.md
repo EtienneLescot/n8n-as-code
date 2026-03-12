@@ -69,16 +69,19 @@ No install needed. Best for scripts, CI, GitOps, and explicit sync workflows.
 </td>
 <td width="33%" valign="top">
 
-### ✴️ Claude Code / Desktop
+### ✴️ Claude Code
 
 ```text
-Beta / Pending Review
-Add marketplace
-Install plugin
-today
+1. /plugin marketplace add
+2. /plugin install
+3. npx --yes n8nac init
+4. Ask Claude for changes
 ```
 
-Natural-language workflow work in Claude Code, powered by the same `n8nac` CLI, `n8n-architect` skill, and local MCP server.
+Alternative marketplace install today:
+`EtienneLescot/n8n-as-code` → `n8n-as-code@n8nac-marketplace`
+
+Natural-language workflow work in Claude Code, powered by the same `n8nac` CLI and `n8n-architect` skill. Claude Desktop / MCP setup is documented below.
 
 </td>
 </tr>
