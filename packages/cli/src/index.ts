@@ -13,6 +13,7 @@ import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { createRequire } from 'module';
+import { parsePositiveIntegerOption } from './utils/option-parsers.js';
 
 /**
  * Get version from package.json
@@ -50,14 +51,6 @@ const getSkillsAssetsDir = (): string => {
 };
 
 const program = new Command();
-
-const parsePositiveIntegerOption = (value: string, optionName: string): number => {
-    const parsed = Number.parseInt(value, 10);
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-        throw new Error(`${optionName} must be a positive integer.`);
-    }
-    return parsed;
-};
 
 program
     .name('n8nac')
