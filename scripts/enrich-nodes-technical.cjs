@@ -21,6 +21,45 @@ function normalizeNodeName(name) {
         .trim();
 }
 
+function extractToolKeywords(node) {
+    if (!node.name || !node.name.endsWith('Tool')) {
+        return [];
+    }
+
+    const keywords = new Set(['tool', 'agent', 'ai']);
+    const displayName = node.displayName || '';
+    const compactName = normalizeNodeName(node.name);
+    const compactDisplayName = normalizeNodeName(displayName);
+
+    if (compactName) keywords.add(compactName);
+    if (compactDisplayName) keywords.add(compactDisplayName);
+
+    const baseName = node.name.slice(0, -4);
+    const baseWords = baseName
+        .replace(/([A-Z])/g, ' $1')
+        .toLowerCase()
+        .split(/[\s-_]+/)
+        .filter(Boolean);
+
+    const toolWords = [...baseWords, 'tool'];
+    toolWords.forEach((word) => keywords.add(word));
+    if (toolWords.length > 1) {
+        keywords.add(toolWords.join(' '));
+        keywords.add(toolWords.join(''));
+    }
+
+    if (baseWords.length > 0 && baseWords[baseWords.length - 1].endsWith('s')) {
+        const singularWords = [...baseWords];
+        singularWords[singularWords.length - 1] = singularWords[singularWords.length - 1].slice(0, -1);
+        const singularToolWords = [...singularWords, 'tool'];
+        singularToolWords.forEach((word) => keywords.add(word));
+        keywords.add(singularToolWords.join(' '));
+        keywords.add(singularToolWords.join(''));
+    }
+
+    return Array.from(keywords);
+}
+
 /**
  * Try to match a node from the schema with documentation
  * Returns the best matching doc or null
@@ -283,25 +322,9 @@ async function enrichNodesIndex() {
         // Combine keywords from both sources
         const allKeywords = new Set([...schemaKeywords]);
 
-        // Boost keywords for virtual / tool nodes that agents need to discover
-        if (node.name === 'httpRequestTool') {
-            ['http', 'request', 'tool', 'api', 'fetch', 'agent', 'ai'].forEach(k => allKeywords.add(k));
-        }
-        if (node.name === 'googleSheetsTool') {
-            [
-                'google',
-                'sheet',
-                'sheets',
-                'tool',
-                'spreadsheet',
-                'agent',
-                'ai',
-                'googlesheettool',
-                'googlesheetstool',
-                'google sheet tool',
-                'google sheets tool'
-            ].forEach(k => allKeywords.add(k));
-        }
+        // Boost keywords for tool variants so both exact and singular/plural
+        // tool prompts map to the correct node instead of the base node.
+        extractToolKeywords(node).forEach((keyword) => allKeywords.add(keyword));
 
         let operations = [];
         let useCases = [];
@@ -325,6 +348,7 @@ async function enrichNodesIndex() {
             version: node.version,
             group: node.group,
             icon: node.icon,
+            usableAsTool: Boolean(node.usableAsTool),
 
             // Full schema for generation
             schema: {
