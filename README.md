@@ -72,8 +72,8 @@ No install needed. Best for scripts, CI, GitOps, and explicit sync workflows.
 ### ✴️ Claude Code
 
 ```text
-1. /plugin marketplace add
-2. /plugin install
+1. /plugin marketplace add EtienneLescot/n8n-as-code
+2. /plugin install n8n-as-code@n8nac-marketplace
 3. npx --yes n8nac init
 4. Ask Claude for changes
 ```
