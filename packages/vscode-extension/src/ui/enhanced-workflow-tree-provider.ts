@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Store } from '@reduxjs/toolkit';
-import { SyncManager, WorkflowSyncStatus } from 'n8nac';
+import { IWorkflowStatus, SyncManager, WorkflowSyncStatus } from 'n8nac';
 import { ExtensionState } from '../types.js';
 import { validateN8nConfig } from '../utils/state-detection.js';
 
@@ -287,14 +287,32 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     return element;
   }
 
-  async getWorkflowItemById(workflowId: string): Promise<WorkflowItem | undefined> {
+  async getWorkflowItem(workflow: IWorkflowStatus): Promise<WorkflowItem | undefined> {
     if (this.extensionState !== ExtensionState.INITIALIZED) {
       return undefined;
     }
 
     const items = await this.getInitializedItems();
+
+    if (workflow.id) {
+      const itemById = items.find(
+        (item): item is WorkflowItem => item instanceof WorkflowItem && item.workflow.id === workflow.id
+      );
+
+      if (itemById) {
+        return itemById;
+      }
+    }
+
+    if (!workflow.filename) {
+      return undefined;
+    }
+
     return items.find(
-      (item): item is WorkflowItem => item instanceof WorkflowItem && item.workflow.id === workflowId
+      (item): item is WorkflowItem =>
+        item instanceof WorkflowItem
+        && !item.workflow.id
+        && item.workflow.filename === workflow.filename
     );
   }
 

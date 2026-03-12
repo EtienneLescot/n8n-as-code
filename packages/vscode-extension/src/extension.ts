@@ -510,7 +510,7 @@ async function revealWorkflowInTree(workflow: IWorkflowStatus): Promise<void> {
         return;
     }
 
-    const item = await enhancedTreeProvider.getWorkflowItemById(workflow.id);
+    const item = await enhancedTreeProvider.getWorkflowItem(workflow);
     if (!item) {
         return;
     }
