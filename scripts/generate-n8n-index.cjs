@@ -278,6 +278,16 @@ async function extractNodes() {
             displayName: 'HTTP Request Tool',
             description: 'Makes HTTP requests and returns the response data to the AI agent. Useful for fetching data from APIs or services.',
         },
+        {
+            // n8n-nodes-base.googleSheetsTool
+            // Google Sheets is also exposed as an AI tool alias in n8n, but it
+            // is not emitted as a physical .node.js file in the cache build.
+            name: 'googleSheetsTool',
+            fullType: 'n8n-nodes-base.googleSheetsTool',
+            cloneFrom: 'googleSheets',
+            displayName: 'Google Sheets Tool',
+            description: 'Read and write Google Sheets data and return the results to the AI agent.',
+        },
     ];
 
     for (const vNode of VIRTUAL_NODES) {
