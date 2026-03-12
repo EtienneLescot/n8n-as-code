@@ -1,5 +1,11 @@
 # @n8n-as-code/skills
 
+## [1.1.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.0.0...@n8n-as-code/skills@v1.1.0) (2026-03-12)
+
+### Features
+
+* **readme:** add community workflow sources section with metadata and licensing details ([d587410](https://github.com/EtienneLescot/n8n-as-code/commit/d58741092a4497414f9a6bc08a24c479d9601841))
+
 ## [1.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.18.0...@n8n-as-code/skills@v1.0.0) (2026-03-10)
 
 ### Dependencies
