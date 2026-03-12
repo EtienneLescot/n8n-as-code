@@ -101,7 +101,16 @@ export class SkillsMcpService {
 
     async validateWorkflow({ workflowContent, format = 'auto' }: ValidateWorkflowOptions) {
         const isTypeScript = detectWorkflowFormat(workflowContent, format);
-        const workflowInput = isTypeScript ? workflowContent : JSON.parse(workflowContent);
+        let workflowInput: string | object;
+        if (isTypeScript) {
+            workflowInput = workflowContent;
+        } else {
+            try {
+                workflowInput = JSON.parse(workflowContent);
+            } catch (error: any) {
+                throw new Error(`Invalid JSON workflow content: ${error.message}`);
+            }
+        }
         return this.validator.validateWorkflow(workflowInput, isTypeScript);
     }
 

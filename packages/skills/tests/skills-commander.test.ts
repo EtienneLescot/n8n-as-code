@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { resolveCustomNodesConfig } from '../src/commands/skills-commander';
+import { resolveCustomNodesConfig } from '../src/services/custom-nodes-config';
 
 describe('resolveCustomNodesConfig', () => {
     let tempDir: string;
