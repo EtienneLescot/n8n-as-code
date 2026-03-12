@@ -23,16 +23,6 @@ function normalizeTag(rawTag) {
     return rawTag.startsWith('n8n@') ? rawTag : `n8n@${rawTag}`;
 }
 
-function validateTag(tag) {
-    const safeTagPattern = /^[0-9A-Za-z._\-\/@]+$/;
-
-    if (typeof tag !== 'string' || !safeTagPattern.test(tag)) {
-        throw new Error(
-            `Invalid tag "${tag}". Tags may only contain letters, numbers, ".", "_", "-", "/", and "@".`,
-        );
-    }
-}
-
 function downloadJson(url) {
     return new Promise((resolve, reject) => {
         const headers = {
@@ -101,13 +91,24 @@ async function resolveStableTag() {
         return { tag: overrideTag, source: 'env' };
     }
 
-    const release = await downloadJson(N8N_RELEASES_API_URL);
-    const latestTag = normalizeTag(release.tag_name);
-    if (!latestTag) {
-        throw new Error('GitHub latest release response did not include a valid tag_name.');
+    try {
+        const release = await downloadJson(N8N_RELEASES_API_URL);
+        const latestTag = normalizeTag(release.tag_name);
+        if (latestTag) {
+            return { tag: latestTag, source: 'github-api' };
+        }
+    } catch (error) {
+        console.warn(`⚠️  Failed to resolve latest stable tag from GitHub API: ${error.message}`);
     }
 
-    return { tag: latestTag, source: 'github-release' };
+    // Fallback to cached tag if available
+    const cacheMetadata = readCacheMetadata();
+    if (cacheMetadata?.resolvedTag) {
+        console.log(`ℹ️  Falling back to cached tag: ${cacheMetadata.resolvedTag}`);
+        return { tag: cacheMetadata.resolvedTag, source: 'cache-fallback' };
+    }
+
+    throw new Error('Could not resolve n8n stable tag (API failed and no cache metadata found).');
 }
 
 function run(command, cwd = ROOT_DIR) {
@@ -164,7 +165,6 @@ function validateTag(tag) {
 }
 
 function cloneCacheAtTag(tag) {
-    validateTag(tag);
     validateTag(tag);
     removeDirectory(CACHE_DIR);
     console.log(`🚀 Cloning n8n repository (depth 1, tag ${tag})...`);
