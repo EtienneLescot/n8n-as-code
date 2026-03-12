@@ -19,7 +19,7 @@ function parseArgs() {
 async function main() {
   const { env, count, prefix } = parseArgs();
 
-  console.log(`Creating ${count} workflows using prefix "${prefix}"`);
+  console.log(`Creating ${count} workflows using prefix "${prefix}" with descriptive names`);
   const created = await createWorkflows({ envPath: env, count, prefix });
   for (const wf of created) {
     console.log(`Created ${wf.name} -> id=${wf.id}`);
