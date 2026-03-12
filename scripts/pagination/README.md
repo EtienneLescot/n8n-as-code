@@ -9,9 +9,9 @@ node scripts/pagination/create-workflows.cjs --env .env.test --count 150 --prefi
 ```
 
 Example generated names:
-- `Auto Workflow 001 Finance Invoice Review Slack`
-- `Auto Workflow 002 End-of-Day Support Ticket Triage`
-- `Auto Workflow 003 APAC Marketing Campaign Approval`
+- `Auto Workflow 001 Support Invoice Review Slack`
+- `Auto Workflow 002 Priority IT Contract Validation`
+- `Auto Workflow 003 Europe Legal Vendor Sync`
 
 ## Delete workflows (dry run)
 
