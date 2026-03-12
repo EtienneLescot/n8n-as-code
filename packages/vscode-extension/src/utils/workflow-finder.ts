@@ -1,5 +1,5 @@
 import type { QuickPickItem } from 'vscode';
-import { IWorkflowStatus } from 'n8nac';
+import { IWorkflowStatus, WorkflowSyncStatus } from 'n8nac';
 
 export interface WorkflowQuickPickItem extends QuickPickItem {
     workflow: IWorkflowStatus;
@@ -19,13 +19,9 @@ export function buildWorkflowQuickPickItems(workflows: IWorkflowStatus[]): Workf
 }
 
 export function getWorkflowFinderCommand(workflow: IWorkflowStatus): string | undefined {
-    if (workflow.filename) {
-        return 'n8n.openJson';
+    if (workflow.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY) {
+        return workflow.id ? 'n8n.openBoard' : undefined;
     }
 
-    if (workflow.id) {
-        return 'n8n.openBoard';
-    }
-
-    return undefined;
+    return workflow.filename ? 'n8n.openJson' : (workflow.id ? 'n8n.openBoard' : undefined);
 }

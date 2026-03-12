@@ -20,7 +20,8 @@ import { ExtensionState } from './types.js';
 import { getN8nConfig, getResolvedN8nConfig, validateN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from './utils/state-detection.js';
 import { NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION } from './constants/workspace.js';
 import { writeUnifiedWorkspaceConfig } from './utils/unified-config.js';
-import { buildWorkflowQuickPickItems, getWorkflowFinderCommand } from './utils/workflow-finder.js';
+import { buildWorkflowQuickPickItems } from './utils/workflow-finder.js';
+import { IWorkflowStatus } from 'n8nac';
 
 import {
     store,
@@ -47,6 +48,7 @@ const proxyService = new ProxyService();
 const enhancedTreeProvider = new EnhancedWorkflowTreeProvider();
 const decorationProvider = new WorkflowDecorationProvider();
 const outputChannel = vscode.window.createOutputChannel("n8n-as-code");
+let workflowsTreeView: vscode.TreeView<any> | undefined;
 
 const conflictStore = new Map<string, string>();
 
@@ -63,7 +65,11 @@ export async function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    vscode.window.registerTreeDataProvider('n8n-explorer.workflows', enhancedTreeProvider);
+    workflowsTreeView = vscode.window.createTreeView('n8n-explorer.workflows', {
+        treeDataProvider: enhancedTreeProvider,
+        showCollapseAll: false,
+    });
+    context.subscriptions.push(workflowsTreeView);
 
     context.subscriptions.push(
         vscode.window.registerFileDecorationProvider(decorationProvider)
@@ -110,14 +116,16 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('n8n.openJson', async (arg: any) => {
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf || !syncManager) return;
-            if (wf.filename) {
-                const uri = vscode.Uri.file(path.join(syncManager.getInstanceDirectory(), wf.filename));
+            const uri = getExistingWorkflowFileUri(wf);
+            if (uri) {
                 try {
                     const doc = await vscode.workspace.openTextDocument(uri);
                     await vscode.window.showTextDocument(doc);
                 } catch (e: any) {
                     vscode.window.showErrorMessage(`Could not open file: ${e.message}`);
                 }
+            } else if (wf.id) {
+                vscode.window.showInformationMessage(`No local file found for "${wf.name}".`);
             }
         }),
 
@@ -125,8 +133,8 @@ export async function activate(context: vscode.ExtensionContext) {
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf || !syncManager) return;
             const { host } = getN8nConfig();
-            if (wf.filename) {
-                const uri = vscode.Uri.file(path.join(syncManager.getInstanceDirectory(), wf.filename));
+            const uri = getExistingWorkflowFileUri(wf);
+            if (uri) {
                 try {
                     const doc = await vscode.workspace.openTextDocument(uri);
                     await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One });
@@ -317,13 +325,8 @@ export async function activate(context: vscode.ExtensionContext) {
                 return;
             }
 
-            const command = getWorkflowFinderCommand(picked.workflow);
-            if (!command) {
-                vscode.window.showWarningMessage(`Cannot open workflow "${picked.workflow.name}": no local file or remote ID is available.`);
-                return;
-            }
-
-            await vscode.commands.executeCommand(command, picked.workflow);
+            await revealWorkflowInTree(picked.workflow);
+            await openWorkflowFromFinder(picked.workflow);
         }),
 
         vscode.commands.registerCommand('n8n.initializeAI', async (options?: { silent?: boolean }) => {
@@ -491,6 +494,52 @@ export async function activate(context: vscode.ExtensionContext) {
         configWatcher.onDidDelete(refreshFromConfigFile);
         context.subscriptions.push(configWatcher);
     }
+}
+
+function getExistingWorkflowFileUri(workflow: IWorkflowStatus): vscode.Uri | undefined {
+    if (!syncManager || !workflow.filename) {
+        return undefined;
+    }
+
+    const filePath = path.join(syncManager.getInstanceDirectory(), workflow.filename);
+    return fs.existsSync(filePath) ? vscode.Uri.file(filePath) : undefined;
+}
+
+async function revealWorkflowInTree(workflow: IWorkflowStatus): Promise<void> {
+    if (!workflowsTreeView) {
+        return;
+    }
+
+    const item = await enhancedTreeProvider.getWorkflowItemById(workflow.id);
+    if (!item) {
+        return;
+    }
+
+    try {
+        await workflowsTreeView.reveal(item, {
+            select: true,
+            focus: true,
+            expand: true,
+        });
+    } catch (error: any) {
+        outputChannel.appendLine(`[n8n] Unable to reveal workflow ${workflow.name}: ${error.message}`);
+    }
+}
+
+async function openWorkflowFromFinder(workflow: IWorkflowStatus): Promise<void> {
+    const localUri = getExistingWorkflowFileUri(workflow);
+
+    if (localUri) {
+        await vscode.commands.executeCommand('n8n.openJson', workflow);
+        return;
+    }
+
+    if (workflow.id) {
+        await vscode.commands.executeCommand('n8n.openBoard', workflow);
+        return;
+    }
+
+    vscode.window.showWarningMessage(`Cannot open workflow "${workflow.name}": no local file or remote ID is available.`);
 }
 
 function updateContextKeys() {

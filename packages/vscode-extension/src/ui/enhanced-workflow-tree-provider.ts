@@ -287,6 +287,17 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     return element;
   }
 
+  async getWorkflowItemById(workflowId: string): Promise<WorkflowItem | undefined> {
+    if (this.extensionState !== ExtensionState.INITIALIZED) {
+      return undefined;
+    }
+
+    const items = await this.getInitializedItems();
+    return items.find(
+      (item): item is WorkflowItem => item instanceof WorkflowItem && item.workflow.id === workflowId
+    );
+  }
+
   /**
    * Get conflict data for a workflow (helper for hooks)
    */
