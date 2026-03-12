@@ -152,7 +152,19 @@ function writeCacheMetadata(metadata) {
     fs.writeFileSync(CACHE_METADATA_PATH, `${JSON.stringify(metadata, null, 2)}\n`);
 }
 
+function validateTag(tag) {
+    // Allow only common safe characters for git tags/branches (e.g. v1.2.3, n8n@1.2.3)
+    // This prevents shell metacharacters from being injected into command strings.
+    const SAFE_TAG_REGEX = /^[0-9A-Za-z._\-\/@]+$/;
+    if (typeof tag !== 'string' || !SAFE_TAG_REGEX.test(tag)) {
+        throw new Error(
+            `Invalid tag "${tag}". Tags may only contain letters, numbers, ".", "_", "-", "/", and "@".`,
+        );
+    }
+}
+
 function cloneCacheAtTag(tag) {
+    validateTag(tag);
     validateTag(tag);
     removeDirectory(CACHE_DIR);
     console.log(`🚀 Cloning n8n repository (depth 1, tag ${tag})...`);
