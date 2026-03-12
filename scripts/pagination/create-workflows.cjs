@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { createWorkflows, DEFAULT_PREFIX } = require('./workflow-seeder.cjs');
+const { createWorkflows, DEFAULT_PREFIX, loadEnv } = require('./workflow-seeder.cjs');
 
 // Simple script to create multiple workflows using n8n REST API
 // Usage: node scripts/pagination/create-workflows.cjs --env .env.test --count 60 --prefix "Auto Workflow "
@@ -18,8 +18,10 @@ function parseArgs() {
 
 async function main() {
   const { env, count, prefix } = parseArgs();
+  const cfg = loadEnv(env);
+  const nameStyle = cfg.NAME_STYLE || 'descriptive';
 
-  console.log(`Creating ${count} workflows using prefix "${prefix}" with descriptive names`);
+  console.log(`Creating ${count} workflows using prefix "${prefix}" with ${nameStyle} names`);
   const created = await createWorkflows({ envPath: env, count, prefix });
   for (const wf of created) {
     console.log(`Created ${wf.name} -> id=${wf.id}`);
