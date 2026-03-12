@@ -111,6 +111,23 @@ Welcome! You've downloaded the official n8n workflow development skill for Claud
 
 3. Claude Code will auto-discover the skill
 
+### For Claude Desktop / MCP
+
+Use the local MCP server exposed by \`n8nac\`:
+
+\`\`\`json
+{
+  "mcpServers": {
+    "n8n-as-code": {
+      "command": "npx",
+      "args": ["--yes", "n8nac", "skills", "mcp"]
+    }
+  }
+}
+\`\`\`
+
+If you want Claude Desktop to resolve \`n8nac-config.json\` and any custom node sidecars from a specific project, also set \`N8N_AS_CODE_PROJECT_DIR\` in the server environment.
+
 ## ✨ What This Skill Does
 
 When installed, Claude becomes an expert n8n developer who can:
@@ -142,7 +159,7 @@ This skill runs **100% locally**:
 
 ## 📚 Documentation
 
-Full documentation: https://github.com/EtienneLescot/n8n-as-code
+Full documentation: https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/
 
 ## 🤝 Support
 

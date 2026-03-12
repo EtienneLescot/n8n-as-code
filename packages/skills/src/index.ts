@@ -5,6 +5,8 @@ export { WorkflowValidator } from './services/workflow-validator.js';
 export { DocsProvider } from './services/docs-provider.js';
 export { KnowledgeSearch } from './services/knowledge-search.js';
 export { TypeScriptFormatter } from './services/typescript-formatter.js';
+export { SkillsMcpService } from './services/mcp-service.js';
+export { startSkillsMcpServer } from './services/mcp-server.js';
 
 // CLI Command Registration (used by unified n8nac CLI)
 export { registerSkillsCommands } from './commands/skills-commander.js';
