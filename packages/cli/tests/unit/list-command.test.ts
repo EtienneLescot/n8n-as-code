@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyListCommandOptions, matchesWorkflowSearch, sortWorkflows } from '../../src/commands/list.js';
+import { applyListCommandOptions, countMatchingWorkflows, matchesWorkflowSearch, sortWorkflows } from '../../src/commands/list.js';
 import { IWorkflowStatus, WorkflowSyncStatus } from '../../src/core/types.js';
 
 const workflows: IWorkflowStatus[] = [
@@ -66,5 +66,15 @@ describe('list command helpers', () => {
         expect(applyListCommandOptions(workflows, { remote: true, search: 'remote' }).map(workflow => workflow.id)).toEqual([
             'remote-44',
         ]);
+    });
+
+    it('counts matching workflows without sorting or slicing', () => {
+        expect(countMatchingWorkflows(workflows, { search: 'wf-' })).toBe(3);
+        expect(countMatchingWorkflows(workflows, { remote: true, search: 'remote' })).toBe(1);
+        expect(countMatchingWorkflows(workflows, { search: 'missing' })).toBe(0);
+    });
+
+    it('ignores sort and limit when counting matches', () => {
+        expect(countMatchingWorkflows(workflows, { search: 'wf-', sort: 'name', limit: 1 })).toBe(3);
     });
 });
