@@ -4,11 +4,43 @@ Slim Claude Code plugin package for `n8n-as-code`.
 
 This directory is the actual plugin root used by the marketplace entry, so Claude Code installs only the plugin files instead of copying the whole monorepo.
 
+> **Status:** Beta / Pending Review  
+> Until the official Claude Code listing is approved, this folder is the recommended custom-store install source.
+
 ## Included
 
 - `.claude-plugin/plugin.json`
 - `skills/n8n-architect/SKILL.md`
 - `skills/n8n-architect/README.md`
+
+## Manual Install
+
+```bash
+mkdir -p ~/.claude/skills
+cp -r plugins/claude/n8n-as-code/skills/n8n-architect ~/.claude/skills/
+```
+
+Then initialize your workspace with:
+
+```bash
+npx --yes n8nac init
+npx --yes n8nac update-ai
+```
+
+For Claude Desktop or other MCP clients, use:
+
+```json
+{
+  "mcpServers": {
+    "n8n-as-code": {
+      "command": "npx",
+      "args": ["--yes", "n8nac", "skills", "mcp"]
+    }
+  }
+}
+```
+
+Full documentation: https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/
 
 ## Source Repository
 
