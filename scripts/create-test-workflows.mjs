@@ -2,31 +2,57 @@
 import fs from 'fs/promises';
 import path from 'path';
 import dotenv from 'dotenv';
+import workflowNameGenerator from './workflow-name-generator.cjs';
 
-const ENV_PATH = path.resolve(process.cwd(), '.env.test');
 const OUT_FILE = path.resolve(process.cwd(), 'scripts', 'created_test_workflows.json');
+const { buildWorkflowName } = workflowNameGenerator;
+
+async function resolveEnvPath() {
+  const explicitPath = process.env.ENV_FILE;
+  if (explicitPath) {
+    return path.resolve(process.cwd(), explicitPath);
+  }
+
+  const defaultPath = path.resolve(process.cwd(), '.env');
+  const fallbackPath = path.resolve(process.cwd(), '.env.test');
+
+  try {
+    await fs.access(defaultPath);
+    return defaultPath;
+  } catch {
+    return fallbackPath;
+  }
+}
 
 function sleep(ms) {
   return new Promise((res) => setTimeout(res, ms));
 }
 
+function getEnvValue(name, fallback) {
+  return Object.prototype.hasOwnProperty.call(process.env, name)
+    ? process.env[name]
+    : fallback;
+}
+
 async function main() {
-  // Load environment variables from .env.test
-  dotenv.config({ path: ENV_PATH });
+  const envPath = await resolveEnvPath();
+  dotenv.config({ path: envPath });
 
   const host = process.env.N8N_HOST;
   const apiKey = process.env.N8N_API_KEY;
   if (!host || !apiKey) {
-    console.error('Missing N8N_HOST or N8N_API_KEY in .env.test');
+    console.error(`Missing N8N_HOST or N8N_API_KEY in ${path.basename(envPath)}`);
     process.exit(1);
   }
 
   const normalizedHost = host.replace(/['"]+/g, '').replace(/\/+$/,'');
   const total = Number(process.env.TOTAL || 300);
   const concurrency = Number(process.env.CONCURRENCY || 10);
-  const prefix = process.env.PREFIX || `iac-test-${Date.now()}`;
+  const prefix = getEnvValue('PREFIX', '');
+  const nameStyle = process.env.NAME_STYLE || 'descriptive';
+  const includeSerial = getEnvValue('NAME_INCLUDE_SERIAL', 'false') !== 'false';
 
-  console.log(`Creating ${total} workflows on ${normalizedHost} (concurrency=${concurrency})`);
+  console.log(`Creating ${total} workflows on ${normalizedHost} (concurrency=${concurrency}, nameStyle=${nameStyle}, includeSerial=${includeSerial}, prefix=${prefix ? 'set' : 'empty'})`);
 
   // Allow explicit override via env vars to avoid probing (useful for cloud instances)
   const overrideHeader = process.env.AUTH_HEADER;
@@ -118,7 +144,7 @@ async function main() {
   const created = [];
 
   async function createOne(i) {
-    const name = `${prefix}-${i}`;
+    const name = buildWorkflowName({ prefix, index: i, style: nameStyle, includeSerial });
     const body = {
       name,
       nodes: [],
