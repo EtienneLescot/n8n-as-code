@@ -1,12 +1,17 @@
 ---
 sidebar_position: 4
 title: Claude Plugin
-description: Use the n8n-as-code Claude Code plugin to create, update, and fix n8n workflows from high-level user requests.
+description: Install n8n-as-code in Claude Code today via the custom store path, or use the local MCP server in Claude Desktop.
 ---
 
 # Claude Plugin
 
+> **Status:** Beta / Pending Review  
+> The official Claude Code marketplace submission is still under review, so the recommended path today is the **custom store** flow below: manual Claude Code install or the local MCP server for Claude Desktop.
+
 The `n8n-as-code` Claude Code plugin adds the `n8n-architect` skill and turns Claude into an n8n workflow expert.
+
+The same repository now also exposes a local **MCP server** via `n8nac skills mcp`, so Claude Desktop and other MCP-compatible clients can use the offline n8n knowledge base immediately while the official store listing is pending.
 
 The important point is that this stays **high-level for the user**. The user does not need to think in terms of TypeScript decorators, `n8nac skills search`, or exact node schemas. Those are implementation details used by the agent behind the scenes.
 
@@ -26,8 +31,9 @@ Claude Code plugins can bundle skills, manifests, and marketplace metadata. In t
 1. **A plugin marketplace manifest** in `.claude-plugin/marketplace.json`
 2. **A slim installable plugin root** in `plugins/claude/n8n-as-code/.claude-plugin/plugin.json`
 3. **The `n8n-architect` skill** in `plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md`
+4. **A local MCP server entrypoint** exposed by `npx --yes n8nac skills mcp`
 
-This lets users install the plugin directly from GitHub through Claude Code, while keeping the CLI alias `n8nac` for the underlying commands.
+This lets users install the plugin directly from GitHub through Claude Code today, or wire the same knowledge base into Claude Desktop through MCP, while keeping the CLI alias `n8nac` for the underlying commands.
 
 ## ✨ What the User Experiences
 
@@ -58,7 +64,7 @@ Claude validates and pushes the workflow back to n8n
 
 The user stays at the level of intent. The TypeScript workflow representation is an implementation detail that helps the agent make safe, reviewable edits.
 
-## 📦 Plugin Source of Truth
+## 📦 Plugin Source of Truth / Community Listing Metadata
 
 The canonical public plugin repository is:
 
@@ -75,6 +81,13 @@ https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/
 ```
 
 This is the correct **Plugin homepage** field for submissions.
+
+When submitting to community registries such as **Glama** or **MCP-get**, use:
+
+- **Repository / source URL** → `https://github.com/EtienneLescot/n8n-as-code`
+- **Installable plugin root** → `plugins/claude/n8n-as-code/`
+- **Homepage / docs URL** → `https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/`
+- **Current release channel** → `Beta / Pending Review`
 
 The public privacy policy page for submissions is:
 
@@ -96,14 +109,110 @@ This builds the skills package and regenerates the distributable adapter under `
 
 ## 🚀 Installation
 
-### For Claude Code (Marketplace Install)
+### Recommended Today: Claude Code (Custom Store / Manual Install)
+
+Use this until the official marketplace review completes.
+
+#### Option A — Install from the repository checkout
+
+1. **Clone the repository and build the Claude assets:**
+   ```bash
+   git clone https://github.com/EtienneLescot/n8n-as-code.git
+   cd n8n-as-code
+   npm install
+   npm run build:claude-plugin
+   ```
+
+2. **Install the Claude skill into Claude Code:**
+   ```bash
+   mkdir -p ~/.claude/skills
+   cp -r plugins/claude/n8n-as-code/skills/n8n-architect ~/.claude/skills/
+   ```
+
+3. **Initialize the CLI in your n8n project:**
+   ```bash
+   cd /path/to/your/n8n-project
+   npx --yes n8nac init
+   npx --yes n8nac update-ai
+   ```
+
+4. **Restart Claude Code** and ask for an n8n workflow change.
+
+#### Option B — Install just the built skill globally
+
+If you only want the skill files and not the slim plugin wrapper:
+
+```bash
+npm install
+npm run build:claude-plugin
+./packages/skills/dist/adapters/claude/install.sh
+```
+
+That script copies `n8n-architect/` into `~/.claude/skills/`.
+
+### Claude Desktop / MCP (Custom Store)
+
+Use the MCP server when you want Claude Desktop or another MCP-compatible client to access the local n8n knowledge base directly.
+
+1. **Install the CLI once (global) or rely on `npx`:**
+   ```bash
+   npm install -g n8nac
+   # or use: npx --yes n8nac skills mcp
+   ```
+
+2. **Add the server to `claude_desktop_config.json`:**
+   ```json
+   {
+     "mcpServers": {
+       "n8n-as-code": {
+         "command": "npx",
+         "args": ["--yes", "n8nac", "skills", "mcp"],
+         "env": {
+           "N8N_AS_CODE_PROJECT_DIR": "/absolute/path/to/your/n8n-project"
+         }
+       }
+     }
+   }
+   ```
+
+   `N8N_AS_CODE_PROJECT_DIR` is optional, but recommended when you want the server to pick up the correct `n8nac-config.json` and any `n8nac-custom-nodes.json` sidecar from your workspace.
+
+3. **Optional: point Claude at an unreleased local knowledge base build**
+
+   If you are testing a local checkout instead of the published package assets, also set:
+
+   ```json
+   {
+     "N8N_AS_CODE_ASSETS_DIR": "/absolute/path/to/n8n-as-code/packages/skills/src/assets"
+   }
+   ```
+
+4. **Initialize your n8n workspace once:**
+   ```bash
+   cd /absolute/path/to/your/n8n-project
+   npx --yes n8nac init
+   npx --yes n8nac update-ai
+   ```
+
+5. **Restart Claude Desktop** so it reloads the MCP server.
+
+The MCP server exposes offline tools for:
+
+- node and docs search
+- full node schema lookup
+- community workflow example search
+- workflow validation from JSON or `.workflow.ts` content
+
+### Later: Claude Code (Marketplace Install)
+
+Once the official listing is approved, the install path will stay:
 
 ```text
 /plugin marketplace add EtienneLescot/n8n-as-code
 /plugin install n8n-as-code@n8nac-marketplace
 ```
 
-This is the recommended install path for Claude Code.
+Until then, prefer the custom store path above.
 
 ### For Claude Code CLI + Multi-Agent Setups (BMAD / GSD / planners)
 
@@ -218,6 +327,20 @@ If it cannot show those three things, it is not yet using the n8n-as-code skill 
 3. **Verify:**
    The skill loads automatically. Ask about n8n to test.
 
+### Configure the CLI and Local Knowledge Base
+
+Whether you use Claude Code or Claude Desktop, the underlying `n8nac` setup is the same:
+
+```bash
+npx --yes n8nac init
+npx --yes n8nac list
+npx --yes n8nac update-ai
+```
+
+- `n8nac init` saves the n8n host, API key, project selection, and sync folder
+- `n8nac update-ai` refreshes `AGENTS.md` so local coding agents have the same n8n guidance as Claude
+- `N8N_AS_CODE_ASSETS_DIR` can override the bundled knowledge base when you want Claude to use a local unreleased build
+
 ### For Claude API
 
 When using the Claude API with the [`skills` beta](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills/use-skills-with-the-claude-api):
@@ -311,7 +434,7 @@ For the current plugin package, the safe marketplace submission choice is:
 - `Claude Code`: yes
 - `Claude Cowork`: only if you have explicitly tested and validated this plugin in Cowork
 
-The repository and published docs currently describe a Claude Code plugin first. Do not claim Cowork support in the submission unless you have verified the install and runtime behavior there.
+The repository and published docs currently describe a Claude Code plugin first, with a Claude Desktop MCP fallback while review is pending. Do not claim Cowork support in the submission unless you have verified the install and runtime behavior there.
 - ⚠️ Requires Node.js and npm on the machine
 - ⚠️ First run downloads `n8nac` via NPX
 
@@ -334,6 +457,12 @@ The repository and published docs currently describe a Claude Code plugin first.
 - Verify folder exists: `ls ~/.claude/skills/n8n-architect/`
 - Check SKILL.md has YAML frontmatter
 - Restart Claude Code
+
+**Claude Desktop / MCP:**
+- Validate the config JSON syntax
+- Confirm `npx --yes n8nac skills mcp` starts without errors in a terminal
+- If using project-specific custom nodes, set `N8N_AS_CODE_PROJECT_DIR`
+- If using a local checkout, verify `N8N_AS_CODE_ASSETS_DIR` points to the generated assets directory
 
 ### NPX commands fail
 

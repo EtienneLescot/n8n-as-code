@@ -12,6 +12,7 @@
 [![Open VSX](https://img.shields.io/open-vsx/v/etienne-lescot/n8n-as-code?label=Open%20VSX&logo=eclipseide)](https://open-vsx.org/extension/etienne-lescot/n8n-as-code)
 [![npm: cli](https://img.shields.io/npm/v/@n8n-as-code/cli?label=cli&logo=npm)](https://www.npmjs.com/package/@n8n-as-code/cli)
 [![npm: skills](https://img.shields.io/npm/v/@n8n-as-code/skills?label=skills&logo=npm)](https://www.npmjs.com/package/@n8n-as-code/skills)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-Beta%20%2F%20Pending%20Review-orange)](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
 <br>
@@ -68,22 +69,51 @@ No install needed. Best for scripts, CI, GitOps, and explicit sync workflows.
 </td>
 <td width="33%" valign="top">
 
-### ✴️ Claude Code (Available soon)
+### ✴️ Claude Code / Desktop
 
 ```text
-Marketplace
-Release
-in
-Progress
+Beta / Pending Review
+Use manual install
+or local MCP
+today
 ```
 
-Natural-language workflow work in Claude Code, powered by the same `n8nac` CLI and `n8n-architect` skill.
+Natural-language workflow work in Claude Code, powered by the same `n8nac` CLI, `n8n-architect` skill, and local MCP server.
 
 </td>
 </tr>
 </table>
 
 📖 [Full Getting Started Guide](https://etiennelescot.github.io/n8n-as-code/docs/getting-started)
+
+---
+
+## 🛍️ Claude Custom Store (Beta / Pending Review)
+
+While the official Claude Code review is still pending, you can install `n8n-as-code` manually right now:
+
+- **Claude Code skill**: copy `plugins/claude/n8n-as-code/skills/n8n-architect/` into your Claude skills directory, or follow the packaged steps in the [Claude Plugin guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/)
+- **Claude Desktop / any MCP client**: point it at the local MCP server with:
+
+```json
+{
+  "mcpServers": {
+    "n8n-as-code": {
+      "command": "npx",
+      "args": ["--yes", "n8nac", "skills", "mcp"]
+    }
+  }
+}
+```
+
+Initialize your workspace first so Claude has both the sync config and AI context it needs:
+
+```bash
+npx --yes n8nac init
+npx --yes n8nac update-ai
+```
+
+➡️ Full instructions, config-path notes, and optional local-assets overrides: [Claude Plugin / Custom Store docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/)
 
 ---
 
