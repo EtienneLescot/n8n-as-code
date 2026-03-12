@@ -193,6 +193,81 @@ export class NodeSchemaProvider {
             if (foundShort) return this.formatNode(this.index.nodes[foundShort]);
         }
 
+        // Generic synthesis for *Tool variants that are not explicitly in the index
+        const synthetic = this.tryAsSyntheticToolNode(nodeName);
+        if (synthetic) return synthetic;
+
+        return null;
+    }
+
+    /**
+     * Generically synthesize a schema for any node whose name ends with 'Tool'
+     * by locating the corresponding base node and cloning its schema with
+     * tool-appropriate overrides.  Handles plural/singular base-name variants
+     * (e.g. 'googleSheetTool' → base 'googleSheets') and always returns the
+     * canonical Tool name so that aliases resolve to the same entry.
+     */
+    private tryAsSyntheticToolNode(nodeName: string): any | null {
+        const shortName = nodeName.includes('.')
+            ? nodeName.substring(nodeName.lastIndexOf('.') + 1)
+            : nodeName;
+
+        if (!shortName.endsWith('Tool')) return null;
+
+        const baseName = shortName.slice(0, -'Tool'.length);
+
+        // Generate candidate base names to handle plural/singular discrepancies
+        // (e.g. 'googleSheet' → try 'googleSheet' then 'googleSheets')
+        const baseCandidates: string[] = [baseName];
+        if (!baseName.endsWith('s')) {
+            baseCandidates.push(baseName + 's');
+        } else if (baseName.length > 1) {
+            baseCandidates.push(baseName.slice(0, -1));
+        }
+
+        for (const candidate of baseCandidates) {
+            const donorKey = Object.keys(this.index.nodes).find(
+                k => k.toLowerCase() === candidate.toLowerCase()
+            );
+            if (!donorKey) continue;
+
+            const donor = this.index.nodes[donorKey];
+
+            // Prefer an already-indexed canonical Tool variant over synthesis
+            const canonicalName = donorKey + 'Tool';
+            if (this.index.nodes[canonicalName]) {
+                return this.formatNode(this.index.nodes[canonicalName]);
+            }
+
+            // Synthesize: clone donor schema with tool-appropriate overrides
+            const typePrefix = (donor.type || '')
+                .split('.')
+                .slice(0, -1)
+                .join('.');
+            const syntheticType = typePrefix
+                ? `${typePrefix}.${canonicalName}`
+                : canonicalName;
+
+            return this.formatNode({
+                ...donor,
+                name: canonicalName,
+                type: syntheticType,
+                displayName: `${donor.displayName} Tool`,
+                metadata: {
+                    ...donor.metadata,
+                    keywords: Array.from(
+                        new Set([
+                            ...(donor.metadata?.keywords || []),
+                            'tool',
+                            'ai',
+                            'agent',
+                            baseName.toLowerCase()
+                        ])
+                    )
+                }
+            });
+        }
+
         return null;
     }
 
@@ -317,6 +392,27 @@ export class NodeSchemaProvider {
                     useCases: node.metadata?.useCases || [],
                     relevanceScore: score,
                     score
+                });
+            }
+        }
+
+        // If the query itself looks like a Tool node name, try to synthesize it
+        // and inject it at the top so callers always discover the tool variant.
+        const syntheticTool = this.tryAsSyntheticToolNode(query);
+        if (syntheticTool) {
+            const alreadyPresent = scoredResults.some(r => r.name === syntheticTool.name);
+            if (!alreadyPresent) {
+                scoredResults.push({
+                    name: syntheticTool.name,
+                    type: syntheticTool.type,
+                    displayName: syntheticTool.displayName,
+                    description: syntheticTool.description || '',
+                    version: syntheticTool.version,
+                    keywords: syntheticTool.metadata?.keywords || [],
+                    operations: syntheticTool.metadata?.operations || [],
+                    useCases: syntheticTool.metadata?.useCases || [],
+                    relevanceScore: 1000,
+                    score: 1000
                 });
             }
         }

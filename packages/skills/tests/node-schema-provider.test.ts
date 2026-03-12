@@ -202,7 +202,149 @@ describe('NodeSchemaProvider - custom nodes', () => {
     });
 });
 
-// ─── TypeScriptFormatter — nested fixedcollection support ──────────────────────
+// ─── NodeSchemaProvider — generic *Tool synthesis ─────────────────────────────
+
+describe('NodeSchemaProvider - generic Tool node synthesis', () => {
+    let tempDir: string;
+    let indexPath: string;
+
+    const mockIndex = {
+        nodes: {
+            googleSheets: {
+                name: 'googleSheets',
+                displayName: 'Google Sheets',
+                description: 'Read, update and append spreadsheet data',
+                type: 'n8n-nodes-base.googleSheets',
+                version: [1, 2],
+                group: ['transform'],
+                schema: {
+                    properties: [
+                        { name: 'documentId', type: 'string', required: true },
+                        { name: 'sheetName', type: 'string', required: true }
+                    ]
+                },
+                metadata: {
+                    keywords: ['google', 'sheets', 'spreadsheet'],
+                    operations: ['append', 'read'],
+                    useCases: ['sync spreadsheet data'],
+                    keywordScore: 30
+                }
+            },
+            slack: {
+                name: 'slack',
+                displayName: 'Slack',
+                description: 'Send Slack messages',
+                type: 'n8n-nodes-base.slack',
+                version: 1,
+                group: ['output'],
+                schema: { properties: [] },
+                metadata: {
+                    keywords: ['slack', 'message', 'chat'],
+                    operations: [],
+                    useCases: [],
+                    keywordScore: 20
+                }
+            }
+        }
+    };
+
+    beforeAll(() => {
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8n-tool-synthesis-test-'));
+        indexPath = path.join(tempDir, 'n8n-nodes-technical.json');
+        fs.writeFileSync(indexPath, JSON.stringify(mockIndex));
+    });
+
+    afterAll(() => {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    test('should synthesize googleSheetsTool from googleSheets when absent from the index', () => {
+        const provider = new NodeSchemaProvider(indexPath);
+        const schema = provider.getNodeSchema('googleSheetsTool');
+
+        expect(schema).toBeDefined();
+        expect(schema?.name).toBe('googleSheetsTool');
+        expect(schema?.type).toBe('n8n-nodes-base.googleSheetsTool');
+        expect(schema?.displayName).toBe('Google Sheets Tool');
+        expect(schema?.schema?.properties).toEqual(mockIndex.nodes.googleSheets.schema.properties);
+    });
+
+    test('should resolve googleSheetTool (singular alias) to googleSheetsTool (canonical)', () => {
+        const provider = new NodeSchemaProvider(indexPath);
+        const schema = provider.getNodeSchema('googleSheetTool');
+
+        expect(schema).toBeDefined();
+        expect(schema?.name).toBe('googleSheetsTool');
+        expect(schema?.type).toBe('n8n-nodes-base.googleSheetsTool');
+    });
+
+    test('should synthesize slackTool from slack', () => {
+        const provider = new NodeSchemaProvider(indexPath);
+        const schema = provider.getNodeSchema('slackTool');
+
+        expect(schema).toBeDefined();
+        expect(schema?.name).toBe('slackTool');
+        expect(schema?.type).toBe('n8n-nodes-base.slackTool');
+        expect(schema?.displayName).toBe('Slack Tool');
+    });
+
+    test('synthesized tool node should include tool/ai/agent keywords', () => {
+        const provider = new NodeSchemaProvider(indexPath);
+        const schema = provider.getNodeSchema('googleSheetsTool');
+
+        expect(schema?.metadata?.keywords).toContain('tool');
+        expect(schema?.metadata?.keywords).toContain('ai');
+        expect(schema?.metadata?.keywords).toContain('agent');
+    });
+
+    test('should prefer an already-indexed Tool variant over synthesis', () => {
+        const indexWithTool = {
+            nodes: {
+                ...mockIndex.nodes,
+                googleSheetsTool: {
+                    name: 'googleSheetsTool',
+                    displayName: 'Google Sheets Tool (indexed)',
+                    description: 'Already in index',
+                    type: 'n8n-nodes-base.googleSheetsTool',
+                    version: 1,
+                    schema: { properties: [] },
+                    metadata: { keywords: [], operations: [], useCases: [], keywordScore: 0 }
+                }
+            }
+        };
+        const withToolPath = path.join(tempDir, 'with-tool.json');
+        fs.writeFileSync(withToolPath, JSON.stringify(indexWithTool));
+
+        const provider = new NodeSchemaProvider(withToolPath);
+        const schema = provider.getNodeSchema('googleSheetsTool');
+
+        expect(schema?.displayName).toBe('Google Sheets Tool (indexed)');
+    });
+
+    test('should return null for a *Tool name whose base node does not exist', () => {
+        const provider = new NodeSchemaProvider(indexPath);
+        const schema = provider.getNodeSchema('unknownServiceTool');
+        expect(schema).toBeNull();
+    });
+
+    test('searchNodes with a Tool-name query should include the synthesized tool variant', () => {
+        const provider = new NodeSchemaProvider(indexPath);
+        const results = provider.searchNodes('googleSheetsTool', 5);
+
+        expect(results.length).toBeGreaterThan(0);
+        expect(results[0]?.name).toBe('googleSheetsTool');
+    });
+
+    test('searchNodes with alias Tool query should return canonical synthesized variant', () => {
+        const provider = new NodeSchemaProvider(indexPath);
+        const results = provider.searchNodes('googleSheetTool', 5);
+
+        expect(results.length).toBeGreaterThan(0);
+        expect(results[0]?.name).toBe('googleSheetsTool');
+    });
+});
+
+
 
 describe('TypeScriptFormatter — nested fixedcollection', () => {
     /**
