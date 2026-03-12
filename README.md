@@ -73,8 +73,8 @@ No install needed. Best for scripts, CI, GitOps, and explicit sync workflows.
 
 ```text
 Beta / Pending Review
-Use manual install
-or local MCP
+Add marketplace
+Install plugin
 today
 ```
 
@@ -90,7 +90,16 @@ Natural-language workflow work in Claude Code, powered by the same `n8nac` CLI, 
 
 ## 🛍️ Claude Custom Store (Beta / Pending Review)
 
-While the official Claude Code review is still pending, you can install `n8n-as-code` manually right now:
+While the official Claude Code review is still pending, the repository already provides an **alternative marketplace** for Claude Code:
+
+```text
+/plugin marketplace add EtienneLescot/n8n-as-code
+/plugin install n8n-as-code@n8nac-marketplace
+```
+
+That is the recommended Claude Code install path right now.
+
+Fallbacks are still available if needed:
 
 - **Claude Code skill**: copy `plugins/claude/n8n-as-code/skills/n8n-architect/` into your Claude skills directory, or follow the packaged steps in the [Claude Plugin guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/)
 - **Claude Desktop / any MCP client**: point it at the local MCP server with:
