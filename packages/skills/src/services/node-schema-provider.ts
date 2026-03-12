@@ -233,8 +233,9 @@ export class NodeSchemaProvider {
     }
 
     private createSyntheticToolNode(node: any, toolName: string): any {
-        const typePrefix = node.type.includes('.')
-            ? node.type.slice(0, node.type.lastIndexOf('.'))
+        const rawType = typeof node.type === 'string' ? node.type : '';
+        const typePrefix = rawType && rawType.includes('.')
+            ? rawType.slice(0, rawType.lastIndexOf('.'))
             : 'n8n-nodes-base';
 
         return {

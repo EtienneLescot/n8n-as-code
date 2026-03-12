@@ -341,6 +341,8 @@ async function extractNodes() {
     // ── Inject virtual / synthetic tool nodes ───────────────────────────
     // n8n can expose a tool variant for nodes flagged usableAsTool even when
     // there is no physical *.node.js file for the suffixed type.
+    let injectedToolCount = 0;
+
     for (const entry of Array.from(resultsMap.values())) {
         if (!entry.usableAsTool || entry.name.endsWith('Tool')) {
             continue;
@@ -355,7 +357,14 @@ async function extractNodes() {
         const toolEntry = createToolVariantEntry(entry);
         resultsMap.set(toolEntry.name, toolEntry);
         successCount++;
-        console.log(`   🧩 Injected virtual node: ${toolEntry.name} (${toolEntry.fullType})`);
+        injectedToolCount++;
+        if (process.env.DEBUG) {
+            console.log(`   🧩 Injected virtual node: ${toolEntry.name} (${toolEntry.fullType})`);
+        }
+    }
+
+    if (injectedToolCount > 0) {
+        console.log(`   🧩 Injected ${injectedToolCount} synthetic tool node${injectedToolCount === 1 ? '' : 's'}`);
     }
 
     console.log('\n\n✨ Extraction complete!');
