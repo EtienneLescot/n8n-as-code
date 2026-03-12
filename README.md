@@ -104,10 +104,7 @@ While the official Claude Code review is still pending, the repository already p
 
 That is the recommended Claude Code install path right now.
 
-Fallbacks are still available if needed:
-
-- **Claude Code skill**: copy `plugins/claude/n8n-as-code/skills/n8n-architect/` into your Claude skills directory, or follow the packaged steps in the [Claude Plugin guide](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/)
-- **Claude Desktop / any MCP client**: point it at the local MCP server with:
+If you are using Claude Desktop or another MCP client instead of Claude Code, point it at the local MCP server with:
 
 ```json
 {
