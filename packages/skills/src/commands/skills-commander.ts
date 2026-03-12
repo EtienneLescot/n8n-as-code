@@ -22,8 +22,6 @@ import fs, { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { join } from 'path';
 
-export { resolveCustomNodesConfig, type CustomNodesResolution } from '../services/custom-nodes-config.js';
-
 function printCustomNodesWarnings(customNodesConfig: CustomNodesResolution): void {
     if (customNodesConfig.warnings.length === 0) {
         return;
