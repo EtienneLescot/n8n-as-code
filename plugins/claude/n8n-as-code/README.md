@@ -12,7 +12,7 @@ This directory is the actual plugin root used by the marketplace entry, so Claud
 > /plugin install n8n-as-code@n8nac-marketplace
 > ```
 >
-> This folder remains the install payload behind that marketplace entry and a fallback source for manual installs.
+> This folder remains the install payload behind that marketplace entry.
 
 ## Included
 
@@ -20,14 +20,9 @@ This directory is the actual plugin root used by the marketplace entry, so Claud
 - `skills/n8n-architect/SKILL.md`
 - `skills/n8n-architect/README.md`
 
-## Manual Install
+## After Install
 
-```bash
-mkdir -p ~/.claude/skills
-cp -r plugins/claude/n8n-as-code/skills/n8n-architect ~/.claude/skills/
-```
-
-Then initialize your workspace with:
+Initialize your workspace with:
 
 ```bash
 npx --yes n8nac init
