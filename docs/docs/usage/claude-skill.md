@@ -138,39 +138,7 @@ npx --yes n8nac update-ai
 
 After that, restart Claude Code if needed and ask for an n8n workflow change.
 
-### Fallback: Claude Code (Manual Skill Copy)
-
-Use this only if the alternative marketplace flow above is unavailable in your environment.
-
-1. **Clone the repository and build the Claude assets:**
-   ```bash
-   git clone https://github.com/EtienneLescot/n8n-as-code.git
-   cd n8n-as-code
-   npm install
-   npm run build:claude-plugin
-   ```
-
-2. **Install the Claude skill into Claude Code:**
-   ```bash
-   mkdir -p ~/.claude/skills
-   cp -r plugins/claude/n8n-as-code/skills/n8n-architect ~/.claude/skills/
-   ```
-
-3. **Restart Claude Code** and ask for an n8n workflow change.
-
-#### Optional shortcut for the fallback path
-
-If you only want the built skill files and not the repository checkout:
-
-```bash
-npm install
-npm run build:claude-plugin
-./packages/skills/dist/adapters/claude/install.sh
-```
-
-That script copies `n8n-architect/` into `~/.claude/skills/`.
-
-### Claude Desktop / MCP (Custom Store)
+### Claude Desktop / MCP
 
 Use the MCP server when you want Claude Desktop or another MCP-compatible client to access the local n8n knowledge base directly.
 
