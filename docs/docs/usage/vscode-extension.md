@@ -111,7 +111,7 @@ When your workspace contains hundreds of workflows, use **Find Workflow** from t
 1. Click a workflow in the tree view to open the JSON editor
 2. For split view with canvas preview:
     - Click **"Open Workspace"** action button
-   - Or use the context menu option
+    - Or use the context menu option
 3. The split view shows:
    - **Left**: JSON editor
    - **Right**: n8n canvas preview
