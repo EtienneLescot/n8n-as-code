@@ -236,7 +236,7 @@ export class AIAgentWorkflow {
   @node({ name: 'Memory', type: '@n8n/n8n-nodes-langchain.memoryBufferWindow', version: 1.3, position: [300, 200] })
   Memory = { sessionIdType: 'customKey', sessionKey: '={{ $execution.id }}', contextWindowLength: 10 };
 
-  @node({ name: 'Search Tool', type: 'n8n-nodes-base.httpRequestTool', version: 4.3, position: [400, 200] })
+  @node({ name: 'Search Tool', type: 'n8n-nodes-base.httpRequestTool', version: 4.4, position: [400, 200] })
   SearchTool = { url: 'https://api.example.com/search', toolDescription: 'Search for information' };
 
   @node({ name: 'Output Parser', type: '@n8n/n8n-nodes-langchain.outputParserStructured', version: 1.3, position: [500, 200] })
