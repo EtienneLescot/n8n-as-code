@@ -3,17 +3,33 @@ import fs from 'fs/promises';
 import path from 'path';
 import dotenv from 'dotenv';
 
-const ENV_PATH = path.resolve(process.cwd(), '.env.test');
 const IN_FILE = path.resolve(process.cwd(), 'scripts', 'created_test_workflows.json');
 
+async function resolveEnvPath() {
+  const explicitPath = process.env.ENV_FILE;
+  if (explicitPath) {
+    return path.resolve(process.cwd(), explicitPath);
+  }
+
+  const defaultPath = path.resolve(process.cwd(), '.env');
+  const fallbackPath = path.resolve(process.cwd(), '.env.test');
+
+  try {
+    await fs.access(defaultPath);
+    return defaultPath;
+  } catch {
+    return fallbackPath;
+  }
+}
+
 async function main() {
-  // Load environment variables from .env.test
-  dotenv.config({ path: ENV_PATH });
+  const envPath = await resolveEnvPath();
+  dotenv.config({ path: envPath });
 
   const host = process.env.N8N_HOST;
   const apiKey = process.env.N8N_API_KEY;
   if (!host || !apiKey) {
-    console.error('Missing N8N_HOST or N8N_API_KEY in .env.test');
+    console.error(`Missing N8N_HOST or N8N_API_KEY in ${path.basename(envPath)}`);
     process.exit(1);
   }
 

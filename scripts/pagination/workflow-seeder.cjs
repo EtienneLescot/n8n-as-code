@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const https = require('https');
+const { buildWorkflowName } = require('../workflow-name-generator.cjs');
 
 const DEFAULT_PREFIX = 'Auto Workflow ';
 
@@ -64,15 +65,19 @@ async function createWorkflows(options) {
     envPath = '.env',
     count = 150,
     prefix = DEFAULT_PREFIX,
+    nameStyle,
+    includeSerial,
     delayMs = 120
   } = options || {};
 
   const cfg = loadEnv(envPath);
   const { client, host } = createClient(cfg);
+  const resolvedNameStyle = nameStyle || cfg.NAME_STYLE || 'descriptive';
+  const resolvedIncludeSerial = includeSerial ?? cfg.NAME_INCLUDE_SERIAL !== 'false';
 
   const created = [];
   for (let i = 1; i <= count; i++) {
-    const name = `${prefix}${String(i).padStart(3, '0')}`;
+    const name = buildWorkflowName({ prefix, index: i, style: resolvedNameStyle, includeSerial: resolvedIncludeSerial });
     const payload = {
       name,
       nodes: [
