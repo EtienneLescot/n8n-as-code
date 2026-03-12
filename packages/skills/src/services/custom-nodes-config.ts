@@ -38,9 +38,12 @@ export function resolveCustomNodesConfig(cwd: string = process.cwd()): CustomNod
     if (resolution.configExists) {
         try {
             const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-            if (typeof config.customNodesPath === 'string' && config.customNodesPath.trim().length > 0) {
-                resolution.configuredPath = config.customNodesPath;
-                resolution.resolvedConfiguredPath = resolve(cwd, config.customNodesPath);
+            const trimmedCustomNodesPath = typeof config.customNodesPath === 'string'
+                ? config.customNodesPath.trim()
+                : '';
+            if (trimmedCustomNodesPath) {
+                resolution.configuredPath = trimmedCustomNodesPath;
+                resolution.resolvedConfiguredPath = resolve(cwd, trimmedCustomNodesPath);
                 const resolved = resolution.resolvedConfiguredPath;
                 if (existsSync(resolved)) {
                     resolution.resolvedPath = resolved;
