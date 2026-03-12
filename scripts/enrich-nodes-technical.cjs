@@ -287,6 +287,21 @@ async function enrichNodesIndex() {
         if (node.name === 'httpRequestTool') {
             ['http', 'request', 'tool', 'api', 'fetch', 'agent', 'ai'].forEach(k => allKeywords.add(k));
         }
+        if (node.name === 'googleSheetsTool') {
+            [
+                'google',
+                'sheet',
+                'sheets',
+                'tool',
+                'spreadsheet',
+                'agent',
+                'ai',
+                'googlesheettool',
+                'googlesheetstool',
+                'google sheet tool',
+                'google sheets tool'
+            ].forEach(k => allKeywords.add(k));
+        }
 
         let operations = [];
         let useCases = [];

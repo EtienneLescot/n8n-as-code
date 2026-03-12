@@ -202,6 +202,73 @@ describe('NodeSchemaProvider - custom nodes', () => {
     });
 });
 
+describe('NodeSchemaProvider - synthetic tool nodes', () => {
+    let tempDir: string;
+    let indexPath: string;
+
+    const mockIndex = {
+        nodes: {
+            googleSheets: {
+                name: 'googleSheets',
+                displayName: 'Google Sheets',
+                description: 'Read, update and append spreadsheet data',
+                type: 'n8n-nodes-base.googleSheets',
+                version: [1, 2],
+                group: ['transform'],
+                schema: {
+                    properties: [
+                        { name: 'documentId', type: 'string', required: true },
+                        { name: 'sheetName', type: 'string', required: true }
+                    ]
+                },
+                metadata: {
+                    keywords: ['google', 'sheets', 'spreadsheet'],
+                    operations: ['append', 'read'],
+                    useCases: ['sync spreadsheet data'],
+                    keywordScore: 30
+                }
+            }
+        }
+    };
+
+    beforeAll(() => {
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8n-synthetic-test-'));
+        indexPath = path.join(tempDir, 'n8n-nodes-technical.json');
+        fs.writeFileSync(indexPath, JSON.stringify(mockIndex));
+    });
+
+    afterAll(() => {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    test('should synthesize googleSheetsTool from googleSheets when missing from the index', () => {
+        const provider = new NodeSchemaProvider(indexPath);
+        const schema = provider.getNodeSchema('googleSheetsTool');
+
+        expect(schema).toBeDefined();
+        expect(schema?.name).toBe('googleSheetsTool');
+        expect(schema?.type).toBe('n8n-nodes-base.googleSheetsTool');
+        expect(schema?.displayName).toBe('Google Sheets Tool');
+        expect(schema?.schema?.properties).toEqual(mockIndex.nodes.googleSheets.schema.properties);
+    });
+
+    test('should resolve googleSheetTool alias to googleSheetsTool', () => {
+        const provider = new NodeSchemaProvider(indexPath);
+        const schema = provider.getNodeSchema('googleSheetTool');
+
+        expect(schema).toBeDefined();
+        expect(schema?.name).toBe('googleSheetsTool');
+    });
+
+    test('should rank googleSheetsTool ahead of googleSheets for googleSheetTool-style searches', () => {
+        const provider = new NodeSchemaProvider(indexPath);
+        const results = provider.searchNodes('googleSheetTool', 5);
+
+        expect(results[0]?.name).toBe('googleSheetsTool');
+        expect(results.some((result) => result.name === 'googleSheets')).toBe(true);
+    });
+});
+
 // ─── TypeScriptFormatter — nested fixedcollection support ──────────────────────
 
 describe('TypeScriptFormatter — nested fixedcollection', () => {

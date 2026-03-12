@@ -57,6 +57,39 @@ export interface NodeSchemaDiagnostics {
     customNodeKeys: string[];
 }
 
+interface SyntheticNodeDefinition {
+    name: string;
+    fullType: string;
+    displayName: string;
+    description: string;
+    cloneFrom: string;
+    metadataKeywords?: string[];
+    aliases?: string[];
+}
+
+const SYNTHETIC_NODES: SyntheticNodeDefinition[] = [
+    {
+        name: 'googleSheetsTool',
+        fullType: 'n8n-nodes-base.googleSheetsTool',
+        displayName: 'Google Sheets Tool',
+        description: 'Read and write Google Sheets data and return the results to the AI agent.',
+        cloneFrom: 'googleSheets',
+        metadataKeywords: [
+            'google',
+            'sheet',
+            'sheets',
+            'tool',
+            'ai',
+            'agent',
+            'googlesheettool',
+            'googlesheetstool',
+            'google sheet tool',
+            'google sheets tool'
+        ],
+        aliases: ['googleSheetTool']
+    }
+];
+
 export class NodeSchemaProvider {
     private index: any = null;
     private enrichedIndex: any = null;
@@ -141,6 +174,8 @@ export class NodeSchemaProvider {
             }
         }
 
+        this.injectSyntheticNodes();
+
         this.diagnostics = {
             enrichedIndexPath: this.enrichedIndexPath,
             customNodesPath: this.customNodesPath,
@@ -151,6 +186,54 @@ export class NodeSchemaProvider {
             customNodesLoaded,
             customNodeKeys
         };
+    }
+
+    private injectSyntheticNodes(): void {
+        for (const syntheticNode of SYNTHETIC_NODES) {
+            if (this.index.nodes[syntheticNode.name]) {
+                continue;
+            }
+
+            const donor = this.index.nodes[syntheticNode.cloneFrom];
+            if (!donor) {
+                continue;
+            }
+
+            const donorKeywords = donor.metadata?.keywords || [];
+            const syntheticKeywords = syntheticNode.metadataKeywords || [];
+            const aliasKeywords = (syntheticNode.aliases || []).map((alias) => alias.toLowerCase());
+
+            this.index.nodes[syntheticNode.name] = {
+                ...donor,
+                name: syntheticNode.name,
+                type: syntheticNode.fullType,
+                displayName: syntheticNode.displayName,
+                description: syntheticNode.description,
+                metadata: {
+                    ...donor.metadata,
+                    keywords: Array.from(new Set([
+                        ...donorKeywords,
+                        ...syntheticKeywords,
+                        ...aliasKeywords
+                    ]))
+                }
+            };
+        }
+    }
+
+    private getAliasCandidates(nodeName: string): string[] {
+        const candidates = new Set<string>();
+        const shortName = nodeName.substring(nodeName.lastIndexOf('.') + 1);
+
+        for (const syntheticNode of SYNTHETIC_NODES) {
+            for (const alias of syntheticNode.aliases || []) {
+                if (alias === shortName || alias.toLowerCase() === shortName.toLowerCase()) {
+                    candidates.add(syntheticNode.name);
+                }
+            }
+        }
+
+        return Array.from(candidates);
     }
 
     public getDiagnostics(): NodeSchemaDiagnostics {
@@ -191,6 +274,12 @@ export class NodeSchemaProvider {
             const shortLower = nodeName.substring(dotIdx + 1).toLowerCase();
             const foundShort = Object.keys(this.index.nodes).find(k => k.toLowerCase() === shortLower);
             if (foundShort) return this.formatNode(this.index.nodes[foundShort]);
+        }
+
+        for (const aliasCandidate of this.getAliasCandidates(nodeName)) {
+            if (this.index.nodes[aliasCandidate]) {
+                return this.formatNode(this.index.nodes[aliasCandidate]);
+            }
         }
 
         return null;
