@@ -81,6 +81,8 @@ No install needed. Best for scripts, CI, GitOps, and explicit sync workflows.
 Alternative marketplace install today:
 `EtienneLescot/n8n-as-code` → `n8n-as-code@n8nac-marketplace`
 
+The plugin uses the `n8n-as-code` CLI (`n8nac`) for workspace setup and workflow operations.
+
 Natural-language workflow work in Claude Code, powered by the same `n8nac` CLI and `n8n-architect` skill. Claude Desktop / MCP setup is documented below.
 
 </td>
