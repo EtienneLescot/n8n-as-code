@@ -45,8 +45,8 @@ export function sortWorkflows(workflows: IWorkflowStatus[], sortMode: WorkflowLi
     });
 }
 
-export function applyListCommandOptions(workflows: IWorkflowStatus[], options?: ListCommandOptions): IWorkflowStatus[] {
-    let filtered = [...workflows];
+function filterWorkflowsByScopeAndSearch(workflows: IWorkflowStatus[], options?: ListCommandOptions): IWorkflowStatus[] {
+    let filtered = workflows;
 
     if (options?.local) {
         filtered = filtered.filter(w =>
@@ -62,14 +62,21 @@ export function applyListCommandOptions(workflows: IWorkflowStatus[], options?: 
         );
     }
 
-    filtered = filtered.filter(workflow => matchesWorkflowSearch(workflow, options?.search));
-    filtered = sortWorkflows(filtered, options?.sort ?? 'status');
+    return filtered.filter(workflow => matchesWorkflowSearch(workflow, options?.search));
+}
+
+export function applyListCommandOptions(workflows: IWorkflowStatus[], options?: ListCommandOptions): IWorkflowStatus[] {
+    let filtered = sortWorkflows(filterWorkflowsByScopeAndSearch(workflows, options), options?.sort ?? 'status');
 
     if (options?.limit) {
         filtered = filtered.slice(0, options.limit);
     }
 
     return filtered;
+}
+
+export function countMatchingWorkflows(workflows: IWorkflowStatus[], options?: ListCommandOptions): number {
+    return filterWorkflowsByScopeAndSearch(workflows, options).length;
 }
 
 export class ListCommand extends BaseCommand {
@@ -83,11 +90,12 @@ export class ListCommand extends BaseCommand {
             // Get lightweight workflow list: no hash computation, no TypeScript compilation.
             // Fetches fresh remote metadata on each call for an up-to-date view.
             const allWorkflows = await syncManager.listWorkflows({ fetchRemote: true });
-            const matchingCount = applyListCommandOptions(allWorkflows, {
-                ...options,
-                limit: undefined
-            }).length;
             const workflows = applyListCommandOptions(allWorkflows, options);
+            // When no limit is applied, `workflows` already reflects the full filtered/sorted result set,
+            // so its length is the number of matches without doing an extra pass.
+            const matchingCount = options?.limit
+                ? countMatchingWorkflows(allWorkflows, options)
+                : workflows.length;
 
             spinner.stop();
 
