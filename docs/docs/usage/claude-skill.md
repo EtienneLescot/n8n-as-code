@@ -7,7 +7,7 @@ description: Install n8n-as-code in Claude Code today via the custom store path,
 # Claude Plugin
 
 > **Status:** Beta / Pending Review  
-> The official Claude Code marketplace submission is still under review, so the recommended path today is the **custom store** flow below: manual Claude Code install or the local MCP server for Claude Desktop.
+> The official Claude Code marketplace submission is still under review, so the recommended path today is the **alternative marketplace** hosted in this repository. For Claude Desktop, use the local MCP server below.
 
 The `n8n-as-code` Claude Code plugin adds the `n8n-architect` skill and turns Claude into an n8n workflow expert.
 
@@ -109,11 +109,38 @@ This builds the skills package and regenerates the distributable adapter under `
 
 ## 🚀 Installation
 
-### Recommended Today: Claude Code (Custom Store / Manual Install)
+### Recommended Today: Claude Code (Alternative Marketplace)
 
-Use this until the official marketplace review completes.
+This repository already ships the alternative marketplace manifest Claude Code expects, so the install can stay simple even while the official review is pending:
 
-#### Option A — Install from the repository checkout
+```text
+/plugin marketplace add EtienneLescot/n8n-as-code
+/plugin install n8n-as-code@n8nac-marketplace
+```
+
+That is the preferred Claude Code install path right now.
+
+#### Why this is the right approach
+
+- The repo root contains the marketplace manifest: `.claude-plugin/marketplace.json`
+- The installable plugin payload lives at: `plugins/claude/n8n-as-code/`
+- Users get the same two-step workflow they would use with any other Claude marketplace:
+  1. add marketplace
+  2. install plugin
+
+#### After install: initialize your n8n workspace once
+
+```bash
+cd /path/to/your/n8n-project
+npx --yes n8nac init
+npx --yes n8nac update-ai
+```
+
+After that, restart Claude Code if needed and ask for an n8n workflow change.
+
+### Fallback: Claude Code (Manual Skill Copy)
+
+Use this only if the alternative marketplace flow above is unavailable in your environment.
 
 1. **Clone the repository and build the Claude assets:**
    ```bash
@@ -129,18 +156,11 @@ Use this until the official marketplace review completes.
    cp -r plugins/claude/n8n-as-code/skills/n8n-architect ~/.claude/skills/
    ```
 
-3. **Initialize the CLI in your n8n project:**
-   ```bash
-   cd /path/to/your/n8n-project
-   npx --yes n8nac init
-   npx --yes n8nac update-ai
-   ```
+3. **Restart Claude Code** and ask for an n8n workflow change.
 
-4. **Restart Claude Code** and ask for an n8n workflow change.
+#### Optional shortcut for the fallback path
 
-#### Option B — Install just the built skill globally
-
-If you only want the skill files and not the slim plugin wrapper:
+If you only want the built skill files and not the repository checkout:
 
 ```bash
 npm install
@@ -203,16 +223,16 @@ The MCP server exposes offline tools for:
 - community workflow example search
 - workflow validation from JSON or `.workflow.ts` content
 
-### Later: Claude Code (Marketplace Install)
+### Later: Official Claude Code Marketplace Install
 
-Once the official listing is approved, the install path will stay:
+Once the official listing is approved, the user-facing install path stays effectively the same:
 
 ```text
 /plugin marketplace add EtienneLescot/n8n-as-code
 /plugin install n8n-as-code@n8nac-marketplace
 ```
 
-Until then, prefer the custom store path above.
+Until then, prefer the alternative marketplace path above.
 
 ### For Claude Code CLI + Multi-Agent Setups (BMAD / GSD / planners)
 
@@ -310,22 +330,6 @@ If it cannot show those three things, it is not yet using the n8n-as-code skill 
    Start a new chat and ask: "Can you help me with n8n?"
    
    Claude should acknowledge the n8n context automatically.
-
-### For Claude Code (Manual Install)
-
-1. **Build and install:**
-   ```bash
-  npm run build:claude-plugin
-   
-   # Install globally
-   mkdir -p ~/.claude/skills
-  cp -r packages/skills/dist/adapters/claude/n8n-architect ~/.claude/skills/
-   ```
-
-2. **Restart Claude Code**
-
-3. **Verify:**
-   The skill loads automatically. Ask about n8n to test.
 
 ### Configure the CLI and Local Knowledge Base
 
