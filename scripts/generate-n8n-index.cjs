@@ -146,6 +146,80 @@ function extractDescription(module) {
     return description;
 }
 
+function cloneValue(value) {
+    return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
+function createToolVariantProperties(entry) {
+    const properties = cloneValue(entry.properties || []);
+    const hasToolDescription = properties.some((prop) => prop.name === 'toolDescription');
+
+    if (hasToolDescription) {
+        return properties;
+    }
+
+    const hasResource = properties.some((prop) => prop.name === 'resource');
+    const hasOperation = properties.some((prop) => prop.name === 'operation');
+
+    if (hasResource || hasOperation) {
+        properties.push({
+            displayName: 'Tool Description',
+            name: 'descriptionType',
+            type: 'options',
+            options: [
+                {
+                    name: 'Set Automatically',
+                    value: 'auto',
+                    description: 'Automatically set based on resource and operation',
+                },
+                {
+                    name: 'Set Manually',
+                    value: 'manual',
+                    description: 'Manually set the description',
+                },
+            ],
+            default: 'auto',
+        });
+    }
+
+    const toolDescription = {
+        displayName: 'Description',
+        name: 'toolDescription',
+        type: 'string',
+        default: entry.description || '',
+        required: true,
+        description: 'Explain to the LLM what this tool does so it can choose and use it correctly.',
+    };
+
+    if (hasResource || hasOperation) {
+        toolDescription.displayOptions = {
+            show: {
+                descriptionType: ['manual'],
+            },
+        };
+    }
+
+    properties.push(toolDescription);
+    return properties;
+}
+
+function createToolVariantEntry(entry) {
+    const typePrefix = entry.fullType.includes('.')
+        ? entry.fullType.slice(0, entry.fullType.lastIndexOf('.'))
+        : 'n8n-nodes-base';
+
+    return {
+        ...entry,
+        name: `${entry.name}Tool`,
+        fullType: `${typePrefix}.${entry.name}Tool`,
+        displayName: entry.displayName.endsWith(' Tool') ? entry.displayName : `${entry.displayName} Tool`,
+        description: entry.description || `${entry.displayName} tool variant`,
+        properties: createToolVariantProperties(entry),
+        sourcePath: entry.sourcePath || '(virtual)',
+        usableAsTool: false,
+    };
+}
+
 async function extractNodes() {
     console.log('🚀 Starting Native Node Extraction...');
     console.log(`📂 Scanning directories:`);
@@ -243,7 +317,8 @@ async function extractNodes() {
                         group: description.group,
                         version: description.allVersions || description.version || 1,
                         properties: description.properties || [],
-                        sourcePath: fullPath.replace(ROOT_DIR, '')
+                        sourcePath: fullPath.replace(ROOT_DIR, ''),
+                        usableAsTool: Boolean(description.usableAsTool)
                     });
                     if (!existing) successCount++;
                 } else if (process.env.DEBUG && existing) {
@@ -263,54 +338,24 @@ async function extractNodes() {
         }
     }
 
-    // ── Inject virtual / synthetic nodes ────────────────────────────────
-    // n8n defines several node types that have no physical .node.js file.
-    // They are runtime aliases referencing another node's implementation.
-    // We must inject them explicitly so they appear in the index.
-    const VIRTUAL_NODES = [
-        {
-            // n8n-nodes-base.httpRequestTool  (HTTP_REQUEST_AS_TOOL_NODE_TYPE)
-            // This is httpRequest running in "AI tool" mode.  n8n registers it
-            // under a separate type so the agent node can discover it.
-            name: 'httpRequestTool',
-            fullType: 'n8n-nodes-base.httpRequestTool',
-            cloneFrom: 'httpRequest',        // inherit properties
-            displayName: 'HTTP Request Tool',
-            description: 'Makes HTTP requests and returns the response data to the AI agent. Useful for fetching data from APIs or services.',
-        },
-        {
-            // n8n-nodes-base.googleSheetsTool
-            // Google Sheets is also exposed as an AI tool alias in n8n, but it
-            // is not emitted as a physical .node.js file in the cache build.
-            name: 'googleSheetsTool',
-            fullType: 'n8n-nodes-base.googleSheetsTool',
-            cloneFrom: 'googleSheets',
-            displayName: 'Google Sheets Tool',
-            description: 'Read and write Google Sheets data and return the results to the AI agent.',
-        },
-    ];
-
-    for (const vNode of VIRTUAL_NODES) {
-        if (resultsMap.has(vNode.name)) {
-            if (process.env.DEBUG) console.log(`   ⏭️  Virtual node ${vNode.name} already in index, skipping`);
+    // ── Inject virtual / synthetic tool nodes ───────────────────────────
+    // n8n can expose a tool variant for nodes flagged usableAsTool even when
+    // there is no physical *.node.js file for the suffixed type.
+    for (const entry of Array.from(resultsMap.values())) {
+        if (!entry.usableAsTool || entry.name.endsWith('Tool')) {
             continue;
         }
 
-        const donor = vNode.cloneFrom ? resultsMap.get(vNode.cloneFrom) : null;
-        const entry = {
-            name: vNode.name,
-            fullType: vNode.fullType,
-            displayName: vNode.displayName,
-            description: vNode.description,
-            icon: donor?.icon || 'file:httprequest.svg',
-            group: donor?.group || ['output'],
-            version: donor?.version || 1,
-            properties: donor?.properties || [],
-            sourcePath: donor?.sourcePath || '(virtual)',
-        };
-        resultsMap.set(vNode.name, entry);
+        const toolName = `${entry.name}Tool`;
+        if (resultsMap.has(toolName)) {
+            if (process.env.DEBUG) console.log(`   ⏭️  Virtual node ${toolName} already in index, skipping`);
+            continue;
+        }
+
+        const toolEntry = createToolVariantEntry(entry);
+        resultsMap.set(toolEntry.name, toolEntry);
         successCount++;
-        console.log(`   🧩 Injected virtual node: ${vNode.name} (${vNode.fullType})`);
+        console.log(`   🧩 Injected virtual node: ${toolEntry.name} (${toolEntry.fullType})`);
     }
 
     console.log('\n\n✨ Extraction complete!');

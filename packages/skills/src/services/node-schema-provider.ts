@@ -29,6 +29,7 @@ export interface IEnrichedNode {
     displayName: string;
     description: string;
     version: number | number[];
+    usableAsTool?: boolean;
     group?: string[];
     icon?: string;
     schema: {
@@ -56,39 +57,6 @@ export interface NodeSchemaDiagnostics {
     customNodesLoaded: boolean;
     customNodeKeys: string[];
 }
-
-interface SyntheticNodeDefinition {
-    name: string;
-    fullType: string;
-    displayName: string;
-    description: string;
-    cloneFrom: string;
-    metadataKeywords?: string[];
-    aliases?: string[];
-}
-
-const SYNTHETIC_NODES: SyntheticNodeDefinition[] = [
-    {
-        name: 'googleSheetsTool',
-        fullType: 'n8n-nodes-base.googleSheetsTool',
-        displayName: 'Google Sheets Tool',
-        description: 'Read and write Google Sheets data and return the results to the AI agent.',
-        cloneFrom: 'googleSheets',
-        metadataKeywords: [
-            'google',
-            'sheet',
-            'sheets',
-            'tool',
-            'ai',
-            'agent',
-            'googlesheettool',
-            'googlesheetstool',
-            'google sheet tool',
-            'google sheets tool'
-        ],
-        aliases: ['googleSheetTool']
-    }
-];
 
 export class NodeSchemaProvider {
     private index: any = null;
@@ -174,7 +142,7 @@ export class NodeSchemaProvider {
             }
         }
 
-        this.injectSyntheticNodes();
+        this.injectSyntheticToolNodes();
 
         this.diagnostics = {
             enrichedIndexPath: this.enrichedIndexPath,
@@ -188,52 +156,135 @@ export class NodeSchemaProvider {
         };
     }
 
-    private injectSyntheticNodes(): void {
-        for (const syntheticNode of SYNTHETIC_NODES) {
-            if (this.index.nodes[syntheticNode.name]) {
-                continue;
-            }
+    private isToolCapableNode(node: any): boolean {
+        return Boolean(node?.usableAsTool);
+    }
 
-            const donor = this.index.nodes[syntheticNode.cloneFrom];
-            if (!donor) {
-                continue;
-            }
+    private getShortName(nodeName: string): string {
+        return nodeName.substring(nodeName.lastIndexOf('.') + 1);
+    }
 
-            const donorKeywords = donor.metadata?.keywords || [];
-            const syntheticKeywords = syntheticNode.metadataKeywords || [];
-            const aliasKeywords = (syntheticNode.aliases || []).map((alias) => alias.toLowerCase());
+    private normalizeToolAlias(nodeName: string): string {
+        const shortName = this.getShortName(nodeName).toLowerCase();
+        if (!shortName.endsWith('tool')) {
+            return shortName;
+        }
 
-            this.index.nodes[syntheticNode.name] = {
-                ...donor,
-                name: syntheticNode.name,
-                type: syntheticNode.fullType,
-                displayName: syntheticNode.displayName,
-                description: syntheticNode.description,
-                metadata: {
-                    ...donor.metadata,
-                    keywords: Array.from(new Set([
-                        ...donorKeywords,
-                        ...syntheticKeywords,
-                        ...aliasKeywords
-                    ]))
+        const stem = shortName.slice(0, -4);
+        const normalizedStem = stem.endsWith('s') ? stem.slice(0, -1) : stem;
+        return `${normalizedStem}tool`;
+    }
+
+    private cloneValue<T>(value: T): T {
+        return value == null ? value : JSON.parse(JSON.stringify(value));
+    }
+
+    private buildToolVariantProperties(node: any): any[] {
+        const properties = this.cloneValue(node.schema?.properties || []);
+        const hasToolDescription = properties.some((prop: any) => prop.name === 'toolDescription');
+
+        if (hasToolDescription) {
+            return properties;
+        }
+
+        const hasResource = properties.some((prop: any) => prop.name === 'resource');
+        const hasOperation = properties.some((prop: any) => prop.name === 'operation');
+
+        if (hasResource || hasOperation) {
+            properties.push({
+                displayName: 'Tool Description',
+                name: 'descriptionType',
+                type: 'options',
+                options: [
+                    {
+                        name: 'Set Automatically',
+                        value: 'auto',
+                        description: 'Automatically set based on resource and operation',
+                    },
+                    {
+                        name: 'Set Manually',
+                        value: 'manual',
+                        description: 'Manually set the description',
+                    },
+                ],
+                default: 'auto',
+            });
+        }
+
+        const toolDescription: any = {
+            displayName: 'Description',
+            name: 'toolDescription',
+            type: 'string',
+            default: node.description || '',
+            required: true,
+            description: 'Explain to the LLM what this tool does so it can choose and use it correctly.',
+        };
+
+        if (hasResource || hasOperation) {
+            toolDescription.displayOptions = {
+                show: {
+                    descriptionType: ['manual']
                 }
             };
+        }
+
+        properties.push(toolDescription);
+        return properties;
+    }
+
+    private createSyntheticToolNode(node: any, toolName: string): any {
+        const typePrefix = node.type.includes('.')
+            ? node.type.slice(0, node.type.lastIndexOf('.'))
+            : 'n8n-nodes-base';
+
+        return {
+            ...node,
+            name: toolName,
+            type: `${typePrefix}.${toolName}`,
+            displayName: node.displayName.endsWith(' Tool') ? node.displayName : `${node.displayName} Tool`,
+            schema: {
+                ...node.schema,
+                properties: this.buildToolVariantProperties(node),
+            },
+            metadata: {
+                ...node.metadata,
+                keywords: Array.from(new Set([
+                    ...(node.metadata?.keywords || []),
+                    this.normalizeToolAlias(toolName),
+                    this.normalizeToolAlias(toolName).replace(/tool$/, ' tool'),
+                ])),
+            },
+            usableAsTool: false,
+        };
+    }
+
+    private injectSyntheticToolNodes(): void {
+        for (const [key, node] of Object.entries<any>(this.index.nodes)) {
+            if (!this.isToolCapableNode(node)) {
+                continue;
+            }
+
+            const baseName = node.name || key;
+            if (baseName.endsWith('Tool')) {
+                continue;
+            }
+
+            const toolName = `${baseName}Tool`;
+            if (this.index.nodes[toolName]) {
+                continue;
+            }
+
+            this.index.nodes[toolName] = this.createSyntheticToolNode(node, toolName);
         }
     }
 
     private getAliasCandidates(nodeName: string): string[] {
-        const candidates = new Set<string>();
-        const shortName = nodeName.substring(nodeName.lastIndexOf('.') + 1);
-
-        for (const syntheticNode of SYNTHETIC_NODES) {
-            for (const alias of syntheticNode.aliases || []) {
-                if (alias === shortName || alias.toLowerCase() === shortName.toLowerCase()) {
-                    candidates.add(syntheticNode.name);
-                }
-            }
+        const normalizedQuery = this.normalizeToolAlias(nodeName);
+        if (!normalizedQuery.endsWith('tool')) {
+            return [];
         }
 
-        return Array.from(candidates);
+        return Object.keys(this.index.nodes).filter((key) => this.normalizeToolAlias(key) === normalizedQuery);
     }
 
     public getDiagnostics(): NodeSchemaDiagnostics {
@@ -292,6 +343,7 @@ export class NodeSchemaProvider {
             displayName: node.displayName,
             description: node.description,
             version: node.version,
+            usableAsTool: node.usableAsTool,
             group: node.group,
             icon: node.icon,
             schema: node.schema,
@@ -305,6 +357,10 @@ export class NodeSchemaProvider {
     private calculateRelevance(query: string, node: any, key: string): number {
         const lowerQuery = query.toLowerCase();
         let score = 0;
+
+        if (this.normalizeToolAlias(query) === this.normalizeToolAlias(key)) {
+            score += 900;
+        }
 
         // Exact name match (highest priority)
         if (key.toLowerCase() === lowerQuery) {

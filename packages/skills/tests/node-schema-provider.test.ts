@@ -202,7 +202,7 @@ describe('NodeSchemaProvider - custom nodes', () => {
     });
 });
 
-describe('NodeSchemaProvider - synthetic tool nodes', () => {
+describe('NodeSchemaProvider - synthesized tool variants', () => {
     let tempDir: string;
     let indexPath: string;
 
@@ -214,25 +214,40 @@ describe('NodeSchemaProvider - synthetic tool nodes', () => {
                 description: 'Read, update and append spreadsheet data',
                 type: 'n8n-nodes-base.googleSheets',
                 version: [1, 2],
+                usableAsTool: true,
                 group: ['transform'],
                 schema: {
                     properties: [
+                        {
+                            name: 'resource',
+                            type: 'options',
+                            options: [{ value: 'sheet' }],
+                        },
+                        {
+                            name: 'operation',
+                            type: 'options',
+                            options: [{ value: 'append' }],
+                        },
                         { name: 'documentId', type: 'string', required: true },
                         { name: 'sheetName', type: 'string', required: true }
-                    ]
+                    ],
+                    sourcePath: '/virtual/googleSheets.node.js'
                 },
                 metadata: {
                     keywords: ['google', 'sheets', 'spreadsheet'],
                     operations: ['append', 'read'],
                     useCases: ['sync spreadsheet data'],
-                    keywordScore: 30
+                    keywordScore: 30,
+                    hasDocumentation: true,
+                    markdownUrl: null,
+                    markdownFile: null,
                 }
             }
         }
     };
 
     beforeAll(() => {
-        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8n-synthetic-test-'));
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8n-synthetic-tool-test-'));
         indexPath = path.join(tempDir, 'n8n-nodes-technical.json');
         fs.writeFileSync(indexPath, JSON.stringify(mockIndex));
     });
@@ -241,7 +256,7 @@ describe('NodeSchemaProvider - synthetic tool nodes', () => {
         fs.rmSync(tempDir, { recursive: true, force: true });
     });
 
-    test('should synthesize googleSheetsTool from googleSheets when missing from the index', () => {
+    test('should synthesize a tool variant from any usableAsTool base node', () => {
         const provider = new NodeSchemaProvider(indexPath);
         const schema = provider.getNodeSchema('googleSheetsTool');
 
@@ -249,10 +264,11 @@ describe('NodeSchemaProvider - synthetic tool nodes', () => {
         expect(schema?.name).toBe('googleSheetsTool');
         expect(schema?.type).toBe('n8n-nodes-base.googleSheetsTool');
         expect(schema?.displayName).toBe('Google Sheets Tool');
-        expect(schema?.schema?.properties).toEqual(mockIndex.nodes.googleSheets.schema.properties);
+        expect(schema?.schema?.properties.some((prop: any) => prop.name === 'descriptionType')).toBe(true);
+        expect(schema?.schema?.properties.some((prop: any) => prop.name === 'toolDescription')).toBe(true);
     });
 
-    test('should resolve googleSheetTool alias to googleSheetsTool', () => {
+    test('should resolve singular tool aliases generically', () => {
         const provider = new NodeSchemaProvider(indexPath);
         const schema = provider.getNodeSchema('googleSheetTool');
 
@@ -260,7 +276,7 @@ describe('NodeSchemaProvider - synthetic tool nodes', () => {
         expect(schema?.name).toBe('googleSheetsTool');
     });
 
-    test('should rank googleSheetsTool ahead of googleSheets for googleSheetTool-style searches', () => {
+    test('should rank the synthesized tool variant ahead of the base node', () => {
         const provider = new NodeSchemaProvider(indexPath);
         const results = provider.searchNodes('googleSheetTool', 5);
 
