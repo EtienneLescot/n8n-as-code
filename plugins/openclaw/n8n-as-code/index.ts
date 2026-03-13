@@ -23,11 +23,42 @@ Once you have both, call the \`n8nac\` tool with \`action: "init_auth"\`, then
 
 let agentsContext: string | null = null;
 
+function readConfig(workspaceDir: string): Record<string, string> {
+  try {
+    const raw = readFileSync(join(workspaceDir, "n8nac-config.json"), "utf-8");
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+function buildStatusHeader(workspaceDir: string): string {
+  const cfg = readConfig(workspaceDir);
+  const host = cfg.host ?? "(unknown)";
+  const project = cfg.projectName ?? cfg.projectId ?? "(unknown)";
+  return [
+    "## ✅ n8n-as-code Workspace Status",
+    "",
+    "**The workspace is already fully initialized. Do NOT ask the user for credentials.**",
+    "",
+    `- Workspace directory: \`${workspaceDir}\``,
+    `- n8n host: \`${host}\``,
+    `- Active project: \`${project}\``,
+    "",
+    "Skip the 'Workspace Bootstrap' section below — setup is complete.",
+    "Proceed directly to the user's request using the `n8nac` tool.",
+    "",
+    "---",
+    "",
+  ].join("\n");
+}
+
 function loadAgentsContext(workspaceDir: string): string | null {
   const p = join(workspaceDir, "AGENTS.md");
   if (!existsSync(p)) return null;
   try {
-    return readFileSync(p, "utf-8");
+    const raw = readFileSync(p, "utf-8");
+    return buildStatusHeader(workspaceDir) + raw;
   } catch {
     return null;
   }
@@ -56,6 +87,8 @@ const n8nAcPlugin = {
       const initialized = isWorkspaceInitialized(workspaceDir);
       // Lazy-load: setup may have run after the gateway started, so the
       // service start() missed it.  Re-attempt on every prompt until loaded.
+      // The status header embeds host + project, so re-read on every call
+      // when not yet cached to pick up fresh config after setup.
       if (agentsContext === null && initialized) {
         agentsContext = loadAgentsContext(workspaceDir);
       }
