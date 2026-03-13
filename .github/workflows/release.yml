@@ -103,6 +103,9 @@ jobs:
           if should_publish 'n8nac'; then
             publish_npm 'n8nac' 'packages/cli'
           fi
+          if should_publish '@n8n-as-code/openclaw-plugin'; then
+            publish_npm '@n8n-as-code/openclaw-plugin' 'plugins/openclaw/n8n-as-code'
+          fi
 
       - name: Remove private flag for extension packaging
         if: steps.pending.outputs.pending == 'true'
@@ -165,6 +168,7 @@ jobs:
           const prefixByName = {
             '@n8n-as-code/transformer': '@n8n-as-code/transformer@v',
             '@n8n-as-code/skills': '@n8n-as-code/skills@v',
+            '@n8n-as-code/openclaw-plugin': '@n8n-as-code/openclaw-plugin@v',
             'n8nac': 'n8nac@v',
             'n8n-as-code': 'n8n-as-code@v',
           };
@@ -327,6 +331,8 @@ jobs:
             packages/transformer/package.json
             packages/vscode-extension/CHANGELOG.md
             packages/vscode-extension/package.json
+            plugins/openclaw/n8n-as-code/CHANGELOG.md
+            plugins/openclaw/n8n-as-code/package.json
 
   publish-prerelease:
     name: Publish Prerelease
@@ -414,6 +420,9 @@ jobs:
           fi
           if should_publish 'n8nac'; then
             publish_npm 'n8nac' 'packages/cli'
+          fi
+          if should_publish '@n8n-as-code/openclaw-plugin'; then
+            publish_npm '@n8n-as-code/openclaw-plugin' 'plugins/openclaw/n8n-as-code'
           fi
 
       - name: Remove private flag for extension packaging

@@ -18,6 +18,9 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
+    "build": "npm run typecheck",
+    "clean": "rm -rf node_modules/.vitest",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -27,8 +30,17 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "openclaw": "^2026.2.26",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "vitest": "^1.6.1"
   },
+  "files": [
+    "CHANGELOG.md",
+    "README.md",
+    "index.ts",
+    "openclaw.plugin.json",
+    "src/",
+    "tsconfig.json"
+  ],
   "peerDependencies": {
     "openclaw": ">=2026.2.0"
   },

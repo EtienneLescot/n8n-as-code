@@ -8,11 +8,12 @@
     "n8n-as-code": "./packages/cli/dist/index.js"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "plugins/openclaw/n8n-as-code"
   ],
   "scripts": {
     "sync:brand-assets": "node scripts/sync-brand-assets.mjs",
-    "build": "npm run sync:brand-assets && npm run generate:nodes && tsc -b --force && npm run build --workspace=packages/skills --workspace=packages/cli --workspace=packages/vscode-extension",
+    "build": "npm run sync:brand-assets && npm run generate:nodes && tsc -b --force && npm run build --workspace=packages/skills --workspace=packages/cli --workspace=packages/vscode-extension --workspace=plugins/openclaw/n8n-as-code",
     "build:cli": "cd packages/cli && npm run build",
     "build:claude-plugin": "npm run build --workspace=packages/skills && npm run build:adapters --workspace=packages/skills",
     "build:extension": "cd packages/vscode-extension && npm run build",

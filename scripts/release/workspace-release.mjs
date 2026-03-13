@@ -44,6 +44,15 @@ const PACKAGES = [
     tagPrefix: 'n8n-as-code@',
     internalDependencies: ['@n8n-as-code/skills', 'n8nac'],
   },
+  {
+    name: '@n8n-as-code/openclaw-plugin',
+    path: 'plugins/openclaw/n8n-as-code',
+    packageJsonPath: 'plugins/openclaw/n8n-as-code/package.json',
+    changelogPath: 'plugins/openclaw/n8n-as-code/CHANGELOG.md',
+    publishTarget: 'npm',
+    tagPrefix: '@n8n-as-code/openclaw-plugin@',
+    internalDependencies: [],
+  },
 ];
 
 const PATCH_TYPES = new Set(['fix', 'perf', 'refactor', 'revert', 'deps', 'build', 'docs']);

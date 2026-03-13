@@ -13,6 +13,6 @@
     "strict": true,
     "target": "es2023"
   },
-  "include": ["index.ts", "src/**/*"],
+  "include": ["index.ts", "src/**/*", "tests/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

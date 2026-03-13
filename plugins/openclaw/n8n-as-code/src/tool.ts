@@ -162,7 +162,7 @@ function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
-function splitArgv(input: string): string[] | null {
+export function splitArgv(input: string): string[] | null {
   const args: string[] = [];
   let current = "";
   let quote: '"' | "'" | null = null;

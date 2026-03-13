@@ -13,6 +13,7 @@ const testSuites = [
     { section: 'Unit Tests', name: 'transformer', pkg: '@n8n-as-code/transformer', cmd: 'npm', args: ['test', '--workspace=@n8n-as-code/transformer'] },
     { section: 'Unit Tests', name: 'skills', pkg: '@n8n-as-code/skills', cmd: 'npm', args: ['test', '--workspace=@n8n-as-code/skills', '--', '--ci', '--reporters', 'default'] },
     { section: 'Unit Tests', name: 'cli', pkg: 'n8nac', cmd: 'npm', args: ['test', '--workspace=n8nac'] },
+    { section: 'Unit Tests', name: 'openclaw', pkg: '@n8n-as-code/openclaw-plugin', cmd: 'npm', args: ['test', '--workspace=@n8n-as-code/openclaw-plugin'] },
     { section: 'Unit Tests', name: 'vscode-unit', pkg: 'n8n-as-code', cmd: 'npm', args: ['run', 'test', '--workspace=packages/vscode-extension'] },
     { section: 'Integration Tests', name: 'cli-live', pkg: 'n8nac', cmd: 'npm', args: ['run', 'test:integration', '--workspace=n8nac'] }
 ];

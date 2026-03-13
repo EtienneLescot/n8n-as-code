@@ -28,6 +28,11 @@
       "package-name": "n8n-as-code",
       "component": "n8n-as-code",
       "changelog-path": "CHANGELOG.md"
+    },
+    "plugins/openclaw/n8n-as-code": {
+      "package-name": "@n8n-as-code/openclaw-plugin",
+      "component": "@n8n-as-code/openclaw-plugin",
+      "changelog-path": "CHANGELOG.md"
     }
   },
   "plugins": [
