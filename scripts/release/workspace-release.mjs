@@ -601,8 +601,9 @@ function computeStablePlan() {
     const bumpInfo = resolvedBumps.get(pkg.name) || { bump: null, commits: [], reasons: [] };
     const directInfo = directBumps.get(pkg.name) || { bump: null, commits: [] };
     const currentStableString = currentVersion.replace(/-.*$/, '');
+    const initialRelease = latestTag === null;
     const versionAheadOfTag = latestTag ? compareVersions(currentStableVersion, latestTag.version) > 0 : false;
-    const changed = Boolean(bumpInfo.bump) || versionAheadOfTag;
+    const changed = Boolean(bumpInfo.bump) || versionAheadOfTag || initialRelease;
     const targetVersion = pkg.publishTarget === 'vscode'
       ? (
           versionAheadOfTag
@@ -613,6 +614,9 @@ function computeStablePlan() {
         )
       : (bumpInfo.bump ? formatVersion(incrementVersion(currentStableVersion, bumpInfo.bump)) : currentStableString);
     const reasons = [...bumpInfo.reasons];
+    if (initialRelease && !reasons.includes('initial-release')) {
+      reasons.push('initial-release');
+    }
     if (versionAheadOfTag && !reasons.includes('version-ahead-of-tag')) {
       reasons.push('version-ahead-of-tag');
     }
@@ -689,7 +693,7 @@ function computePendingStablePlan() {
 
     const latestTag = getLatestStableTag(pkg);
     const latestStableVersion = latestTag ? formatVersion(latestTag.version) : null;
-    const changed = latestTag ? compareVersions(currentStableVersion, latestTag.version) > 0 : false;
+    const changed = latestTag ? compareVersions(currentStableVersion, latestTag.version) > 0 : true;
 
     return {
       ...pkg,
