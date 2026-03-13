@@ -2,11 +2,13 @@ import { mkdirSync } from "node:fs";
 import { spawn } from "node:child_process";
 import type { ChildProcess, ChildProcessWithoutNullStreams } from "node:child_process";
 import * as p from "@clack/prompts";
-import type { Command } from "commander";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { isWorkspaceInitialized } from "./workspace.js";
 
+type CliProgram = Parameters<Parameters<OpenClawPluginApi["registerCli"]>[0]>[0]["program"];
+
 type CliOpts = {
-  program: Command;
+  program: CliProgram;
   workspaceDir: string;
 };
 
