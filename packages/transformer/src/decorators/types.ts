@@ -35,6 +35,9 @@ export interface WorkflowDecoratorMetadata {
 export interface NodeDecoratorMetadata {
     webhookId?: string;
 
+    /** Unique identifier of the node (matches workflow JSON) */
+    id?: string;
+
     /** Display name of the node */
     name: string;
     
