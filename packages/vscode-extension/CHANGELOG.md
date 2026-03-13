@@ -1,5 +1,17 @@
 # n8n-as-code
 
+## [1.4.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.2.0...n8n-as-code@v1.4.0) (2026-03-13)
+
+### Documentation
+
+* align editor and integration release messaging ([e1d6198](https://github.com/EtienneLescot/n8n-as-code/commit/e1d6198c3c6c942afe024f34b4ad419005ed991c))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.1.0 to 1.1.1
+    * n8nac bumped from 1.1.0 to 1.1.1
+
 ## [1.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.0.0...n8n-as-code@v1.2.0) (2026-03-13)
 
 ### Features
