@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { Type } from "@sinclair/typebox";
 import { isWorkspaceInitialized } from "./workspace.js";
 
@@ -17,6 +17,8 @@ const ACTIONS = [
   "skills",
   "validate",
 ] as const;
+
+const LIST_SCOPES = ["all", "local", "remote", "distant"] as const;
 
 const N8nAcToolSchema = Type.Object({
   action: Type.Unsafe<(typeof ACTIONS)[number]>({
@@ -46,6 +48,13 @@ const N8nAcToolSchema = Type.Object({
   projectIndex: Type.Optional(
     Type.Number({ description: "n8n project index, 1-based (for init_project, default: 1)" }),
   ),
+  listScope: Type.Optional(
+    Type.Unsafe<(typeof LIST_SCOPES)[number]>({
+      type: "string",
+      enum: [...LIST_SCOPES],
+      description: "Workflow list scope (for list). One of: all, local, remote, distant.",
+    }),
+  ),
   // pull / verify
   workflowId: Type.Optional(Type.String({ description: "Workflow ID (for pull, verify)" })),
   // push
@@ -64,6 +73,13 @@ const N8nAcToolSchema = Type.Object({
         "Examples: 'search telegram', 'node-info googleSheets', 'examples search slack', 'docs OpenAI'",
     }),
   ),
+  skillsArgv: Type.Optional(
+    Type.Array(Type.String(), {
+      description:
+        "Array form of arguments for the n8nac skills subcommand (preferred when values contain spaces). " +
+        'Example: ["examples", "search", "slack notification"]',
+    }),
+  ),
   // validate
   validateFile: Type.Optional(
     Type.String({ description: "Workflow file path to validate (for validate action)" }),
@@ -74,21 +90,52 @@ const N8nAcToolSchema = Type.Object({
 // Helpers
 // ---------------------------------------------------------------------------
 
+type RunResult = {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  timedOut: boolean;
+};
+
 function runNpx(
   args: string[],
   cwd: string,
-): { stdout: string; stderr: string; exitCode: number } {
-  const result = spawnSync("npx", ["--yes", "n8nac", ...args], {
-    cwd,
-    encoding: "utf-8",
-    timeout: 120_000,
-    env: { ...process.env },
+  env?: NodeJS.ProcessEnv,
+): Promise<RunResult> {
+  return new Promise((resolve) => {
+    const child = spawn("npx", ["--yes", "n8nac", ...args], {
+      cwd,
+      env: { ...process.env, ...env },
+      stdio: "pipe",
+    });
+
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+    }, 120_000);
+
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      resolve({ stdout, stderr: error.message || stderr, exitCode: 1, timedOut });
+    });
+
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({ stdout, stderr, exitCode: code ?? 1, timedOut });
+    });
   });
-  return {
-    stdout: (result.stdout ?? "").toString(),
-    stderr: (result.stderr ?? "").toString(),
-    exitCode: result.status ?? 1,
-  };
 }
 
 function ok(data: unknown) {
@@ -100,6 +147,55 @@ function ok(data: unknown) {
 
 function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
+}
+
+function splitArgv(input: string): string[] | null {
+  const args: string[] = [];
+  let current = "";
+  let quote: '"' | "'" | null = null;
+  let escaping = false;
+
+  for (const ch of input) {
+    if (escaping) {
+      current += ch;
+      escaping = false;
+      continue;
+    }
+
+    if (ch === "\\" && quote !== "'") {
+      escaping = true;
+      continue;
+    }
+
+    if (quote) {
+      if (ch === quote) {
+        quote = null;
+      } else {
+        current += ch;
+      }
+      continue;
+    }
+
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+
+    if (/\s/.test(ch)) {
+      if (current) {
+        args.push(current);
+        current = "";
+      }
+      continue;
+    }
+
+    current += ch;
+  }
+
+  if (escaping) current += "\\";
+  if (quote) return null;
+  if (current) args.push(current);
+  return args;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,14 +237,14 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
         if (!host || !key) {
           return ok({ error: "n8nHost and n8nApiKey are required for init_auth" });
         }
-        const r = runNpx(["init-auth", "--host", host, "--api-key", key], workspaceDir);
+        const r = await runNpx(["init-auth", "--host", host], workspaceDir, { N8N_API_KEY: key });
         if (r.exitCode !== 0) {
           return ok({ error: r.stderr || r.stdout, exitCode: r.exitCode });
         }
         return ok({
           ok: true,
           output: r.stdout,
-          next: "Credentials saved. Now call init_project. If unsure which project, use projectIndex: 1 for a single-project setup, or list --remote first.",
+          next: "Credentials saved. Now call init_project. If you need to inspect remote workflows first, use list with listScope: 'remote'.",
         });
       }
 
@@ -162,12 +258,21 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
         else if (name) args.push("--project-name", name);
         else args.push("--project-index", String(idx));
 
-        const r = runNpx(args, workspaceDir);
+        const r = await runNpx(args, workspaceDir);
         if (r.exitCode !== 0) {
           return ok({ error: r.stderr || r.stdout, exitCode: r.exitCode });
         }
         // Refresh AGENTS.md after successful init
-        runNpx(["update-ai"], workspaceDir);
+        const ai = await runNpx(["update-ai"], workspaceDir);
+        if (ai.exitCode !== 0) {
+          return ok({
+            ok: true,
+            output: r.stdout,
+            warning: ai.stderr || ai.stdout || "AGENTS.md regeneration failed.",
+            next:
+              "Workspace initialized, but AI context regeneration failed. Run `npx --yes n8nac update-ai` before relying on agent-guided workflow work.",
+          });
+        }
         return ok({
           ok: true,
           output: r.stdout,
@@ -177,7 +282,12 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
 
       // ---- list ---------------------------------------------------------
       if (action === "list") {
-        const r = runNpx(["list"], workspaceDir);
+        const scope = str(params.listScope) || "all";
+        const args = ["list"];
+        if (scope === "local" || scope === "remote" || scope === "distant") {
+          args.push(`--${scope}`);
+        }
+        const r = await runNpx(args, workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 
@@ -185,7 +295,7 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
       if (action === "pull") {
         const id = str(params.workflowId);
         if (!id) return ok({ error: "workflowId is required for pull" });
-        const r = runNpx(["pull", id], workspaceDir);
+        const r = await runNpx(["pull", id], workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 
@@ -193,7 +303,7 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
       if (action === "push") {
         const file = str(params.filename);
         if (!file) return ok({ error: "filename is required for push (e.g. my-flow.workflow.ts)" });
-        const r = runNpx(["push", file, "--verify"], workspaceDir);
+        const r = await runNpx(["push", file, "--verify"], workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 
@@ -201,21 +311,28 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
       if (action === "verify") {
         const id = str(params.workflowId);
         if (!id) return ok({ error: "workflowId is required for verify" });
-        const r = runNpx(["verify", id], workspaceDir);
+        const r = await runNpx(["verify", id], workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 
       // ---- skills -------------------------------------------------------
       if (action === "skills") {
+        const skillsArgv = Array.isArray(params.skillsArgv)
+          ? params.skillsArgv.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+          : [];
         const skillsArgs = str(params.skillsArgs);
-        if (!skillsArgs) {
+        if (!skillsArgv.length && !skillsArgs) {
           return ok({
             error:
-              "skillsArgs is required. Examples: 'search telegram', 'node-info googleSheets', 'examples search slack notification'",
+              "skillsArgv or skillsArgs is required. Examples: skillsArgv: ['examples', 'search', 'slack notification']",
           });
         }
-        const args = ["skills", ...skillsArgs.split(/\s+/).filter(Boolean)];
-        const r = runNpx(args, workspaceDir);
+        const parsedArgs = skillsArgv.length ? skillsArgv : splitArgv(skillsArgs);
+        if (!parsedArgs) {
+          return ok({ error: "skillsArgs contains an unterminated quote. Prefer skillsArgv when values contain spaces." });
+        }
+        const args = ["skills", ...parsedArgs];
+        const r = await runNpx(args, workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 
@@ -223,7 +340,7 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
       if (action === "validate") {
         const file = str(params.validateFile);
         if (!file) return ok({ error: "validateFile is required for validate" });
-        const r = runNpx(["skills", "validate", file], workspaceDir);
+        const r = await runNpx(["skills", "validate", file], workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 

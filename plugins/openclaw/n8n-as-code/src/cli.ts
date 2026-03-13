@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
+import type { ChildProcess, ChildProcessWithoutNullStreams } from "node:child_process";
 import * as p from "@clack/prompts";
 import type { Command } from "commander";
 import { isWorkspaceInitialized } from "./workspace.js";
@@ -8,6 +9,66 @@ type CliOpts = {
   program: Command;
   workspaceDir: string;
 };
+
+type RunResult = {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  timedOut: boolean;
+};
+
+function runN8nac(
+  args: string[],
+  opts: {
+    cwd: string;
+    timeout: number;
+    env?: NodeJS.ProcessEnv;
+    stdio?: "pipe" | "inherit";
+  },
+): Promise<RunResult> {
+  return new Promise((resolve) => {
+    const baseOptions = {
+      cwd: opts.cwd,
+      env: { ...process.env, ...opts.env },
+    };
+
+    const child: ChildProcess | ChildProcessWithoutNullStreams =
+      opts.stdio === "inherit"
+        ? spawn("npx", ["--yes", "n8nac", ...args], { ...baseOptions, stdio: "inherit" })
+        : spawn("npx", ["--yes", "n8nac", ...args], { ...baseOptions, stdio: "pipe" });
+
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+
+    if ("stdout" in child && child.stdout) {
+      child.stdout.on("data", (chunk: Buffer) => {
+        stdout += chunk.toString();
+      });
+    }
+
+    if ("stderr" in child && child.stderr) {
+      child.stderr.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+    }
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+    }, opts.timeout);
+
+    child.on("error", (error: Error) => {
+      clearTimeout(timer);
+      resolve({ stdout, stderr: error.message || stderr, exitCode: 1, timedOut });
+    });
+
+    child.on("close", (code: number | null) => {
+      clearTimeout(timer);
+      resolve({ stdout, stderr, exitCode: code ?? 1, timedOut });
+    });
+  });
+}
 
 export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
   // -------------------------------------------------------------------------
@@ -34,8 +95,8 @@ export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
     .description("Initialize or reconfigure the n8n-as-code workspace")
     .option("--host <url>", "n8n host URL (skip prompt)")
     .option("--api-key <key>", "n8n API key (skip prompt)")
-    .option("--project-index <n>", "Project index to select (default: 1)", "1")
-    .action(async (opts: { host?: string; apiKey?: string; projectIndex: string }) => {
+    .option("--project-index <n>", "Project index to select non-interactively")
+    .action(async (opts: { host?: string; apiKey?: string; projectIndex?: string }) => {
       p.intro("n8n-as-code setup");
 
       // Ensure workspace dir exists.
@@ -78,14 +139,17 @@ export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
       const authSpinner = p.spinner();
       authSpinner.start("Saving credentials…");
 
-      const authResult = spawnSync(
-        "npx",
-        ["--yes", "n8nac", "init-auth", "--host", host, "--api-key", apiKey],
-        { cwd: workspaceDir, encoding: "utf-8", timeout: 60_000 },
-      );
+      const authResult = await runN8nac(["init-auth", "--host", host], {
+        cwd: workspaceDir,
+        timeout: 60_000,
+        env: { N8N_API_KEY: apiKey },
+      });
 
-      if (authResult.status !== 0) {
+      if (authResult.exitCode !== 0) {
         authSpinner.stop("Failed to save credentials.");
+        if (authResult.timedOut) {
+          p.log.error("n8nac init-auth timed out.");
+        }
         p.log.error(authResult.stderr || authResult.stdout || "Unknown error.");
         p.outro("Setup failed. Check your host URL and API key and try again.");
         process.exit(1);
@@ -94,35 +158,42 @@ export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
 
       // ------------------------------------------------------------------
       // Step 3: init-project
-      // Spawn with inherited stdio so n8nac's own project picker appears
-      // when there are multiple projects.  For a known single project or
-      // when the user passed --project-index, run non-interactively.
+      // If the user passed --project-index, run non-interactively.
+      // Otherwise inherit stdio so n8nac's own interactive project picker can appear.
       // ------------------------------------------------------------------
-      const projectIdx = parseInt(opts.projectIndex, 10) || 1;
       const projectSpinner = p.spinner();
-      projectSpinner.start("Selecting project…");
+      const projectArgs = ["init-project", "--sync-folder", "workflows"];
+      let projectResult: RunResult;
 
-      const projectResult = spawnSync(
-        "npx",
-        [
-          "--yes",
-          "n8nac",
-          "init-project",
-          "--project-index",
-          String(projectIdx),
-          "--sync-folder",
-          "workflows",
-        ],
-        { cwd: workspaceDir, encoding: "utf-8", timeout: 60_000 },
-      );
+      if (opts.projectIndex) {
+        const projectIdx = Number.parseInt(opts.projectIndex, 10);
+        if (!Number.isInteger(projectIdx) || projectIdx < 1) {
+          p.log.error("--project-index must be a positive integer.");
+          p.outro("Setup failed.");
+          process.exit(1);
+        }
+        projectSpinner.start("Selecting project…");
+        projectResult = await runN8nac([...projectArgs, "--project-index", String(projectIdx)], {
+          cwd: workspaceDir,
+          timeout: 120_000,
+        });
+      } else {
+        projectSpinner.start("Opening project picker…");
+        projectSpinner.stop("Project picker ready");
+        projectResult = await runN8nac(projectArgs, {
+          cwd: workspaceDir,
+          timeout: 120_000,
+          stdio: "inherit",
+        });
+      }
 
-      if (projectResult.status !== 0) {
+      if (projectResult.exitCode !== 0) {
         projectSpinner.stop("Failed to select project.");
+        if (projectResult.timedOut) {
+          p.log.error("n8nac init-project timed out.");
+        }
         p.log.error(projectResult.stderr || projectResult.stdout || "Unknown error.");
-        p.log.info(
-          "If you have multiple projects, rerun with --project-index <n>. " +
-            "Check available indexes with: npx n8nac list --remote",
-        );
+        p.log.info("If you have multiple projects, rerun with --project-index <n>.");
         p.outro("Setup failed.");
         process.exit(1);
       }
@@ -133,11 +204,23 @@ export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
       // ------------------------------------------------------------------
       const aiSpinner = p.spinner();
       aiSpinner.start("Generating AI context (AGENTS.md)…");
-      spawnSync("npx", ["--yes", "n8nac", "update-ai"], {
+      const aiResult = await runN8nac(["update-ai"], {
         cwd: workspaceDir,
-        encoding: "utf-8",
         timeout: 60_000,
       });
+
+      if (aiResult.exitCode !== 0) {
+        aiSpinner.stop("Failed to generate AI context.");
+        if (aiResult.timedOut) {
+          p.log.error("n8nac update-ai timed out.");
+        }
+        p.log.error(aiResult.stderr || aiResult.stdout || "Unknown error.");
+        p.outro(
+          "Setup partially completed: credentials and project were saved, but AGENTS.md generation failed. " +
+            "Run `npx --yes n8nac update-ai` after fixing the issue.",
+        );
+        process.exit(1);
+      }
       aiSpinner.stop("AI context ready ✓");
 
       p.log.step("What's next?");
