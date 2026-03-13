@@ -1,5 +1,11 @@
 # @n8n-as-code/transformer
 
+## [1.0.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v1.0.0...@n8n-as-code/transformer@v1.0.1) (2026-03-13)
+
+### Bug Fixes
+
+* preserve alwaysOutputData, executeOnce, retryOnFail, maxTries, waitBetweenTries through pull→push roundtrip ([31c62d3](https://github.com/EtienneLescot/n8n-as-code/commit/31c62d375023653de7bf98670cccc4e833f6964c))
+
 ## [1.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.10...@n8n-as-code/transformer@v1.0.0) (2026-03-10)
 
 ## [0.2.10](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v0.2.9...@n8n-as-code/transformer@v0.2.10) (2026-03-09)

@@ -1,5 +1,24 @@
 # @n8n-as-code/cli
 
+## [1.1.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.0.0...n8nac@v1.1.0) (2026-03-13)
+
+### Features
+
+* add workflow search to cli and extension ([ca196fc](https://github.com/EtienneLescot/n8n-as-code/commit/ca196fc613a0b2e326f66403585693ed72729a39))
+
+### Bug Fixes
+
+* preserve alwaysOutputData, executeOnce, retryOnFail, maxTries, waitBetweenTries through pull→push roundtrip ([31c62d3](https://github.com/EtienneLescot/n8n-as-code/commit/31c62d375023653de7bf98670cccc4e833f6964c))
+* **build:** refresh docs cache when llms index changes ([87b30ca](https://github.com/EtienneLescot/n8n-as-code/commit/87b30ca97f7bda86fd41e0fb83a870fc86d98c26))
+* validate cli limit input strictly ([b751ee8](https://github.com/EtienneLescot/n8n-as-code/commit/b751ee80531bd5d8c5577c0a32d802ef408eece0))
+* optimize workflow list match counting ([92cd987](https://github.com/EtienneLescot/n8n-as-code/commit/92cd9871212191262e626b64af5766604bdbb557))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.0.0 to 1.1.0
+    * @n8n-as-code/transformer bumped from 1.0.0 to 1.0.1
+
 ## [1.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v0.13.0...n8nac@v1.0.0) (2026-03-10)
 
 ### Dependencies

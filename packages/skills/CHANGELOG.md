@@ -1,5 +1,27 @@
 # @n8n-as-code/skills
 
+## [1.1.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.0.0...@n8n-as-code/skills@v1.1.0) (2026-03-13)
+
+### Features
+
+* **build:** resolve latest stable n8n dynamically ([cbaf62b](https://github.com/EtienneLescot/n8n-as-code/commit/cbaf62b26dd74b63951e0b78aa3a5d21d1fbb77d))
+* **readme:** add community workflow sources section with metadata and licensing details ([d587410](https://github.com/EtienneLescot/n8n-as-code/commit/d58741092a4497414f9a6bc08a24c479d9601841))
+
+### Bug Fixes
+
+* **build:** address review feedback on cache resolution and documentation ([83324d0](https://github.com/EtienneLescot/n8n-as-code/commit/83324d0537b8c3c01c2b308c5ada1718404b88e1))
+* **build:** harden n8n cache resolution in CI ([09e1ff5](https://github.com/EtienneLescot/n8n-as-code/commit/09e1ff58e27ffe2f868e2249d7addca3cad2c6b7))
+* **skills:** pin community workflow downloads to indexed snapshot ([1388433](https://github.com/EtienneLescot/n8n-as-code/commit/1388433793e9f6b7fe83e6caeeb82f429b80049b))
+* **build:** refresh docs cache when llms index changes ([87b30ca](https://github.com/EtienneLescot/n8n-as-code/commit/87b30ca97f7bda86fd41e0fb83a870fc86d98c26))
+* address PR review feedback ([699647f](https://github.com/EtienneLescot/n8n-as-code/commit/699647fd3da31a12524296eef63ac6bf5633f7c0))
+* generalize AI tool variant schema discovery ([2f5760e](https://github.com/EtienneLescot/n8n-as-code/commit/2f5760e5b942a87ad0550452efb2598bf481ded8))
+* restore google sheets ai tool schema discovery ([94a7df4](https://github.com/EtienneLescot/n8n-as-code/commit/94a7df46a001d27ac301727df783c2853b673c16))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/transformer bumped from 1.0.0 to 1.0.1
+
 ## [1.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v0.18.0...@n8n-as-code/skills@v1.0.0) (2026-03-10)
 
 ### Dependencies

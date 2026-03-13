@@ -1,5 +1,22 @@
 # n8n-as-code
 
+## [1.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.0.0...n8n-as-code@v1.2.0) (2026-03-13)
+
+### Features
+
+* enhance workflow search functionality with new tree view and command handling ([d687bd5](https://github.com/EtienneLescot/n8n-as-code/commit/d687bd5fe8f9febfc5a64e28ba7df7cfe91240d8))
+* add workflow search to cli and extension ([ca196fc](https://github.com/EtienneLescot/n8n-as-code/commit/ca196fc613a0b2e326f66403585693ed72729a39))
+
+### Bug Fixes
+
+* **vscode:** reveal local-only workflows from search ([4e97642](https://github.com/EtienneLescot/n8n-as-code/commit/4e97642dc49aa35de171586b7988dc30cbb8e680))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.0.0 to 1.1.0
+    * n8nac bumped from 1.0.0 to 1.1.0
+
 ## [1.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v0.32.0...n8n-as-code@v1.0.0) (2026-03-10)
 
 ### Dependencies
