@@ -171,6 +171,47 @@ export class AiTestWorkflow {
         expect(tsCode).toContain('webhookId: "wh_123456"');
     });
 
+    it('should escape quoted names in generated decorator metadata and preserve them on reparse', async () => {
+        const workflowJson = {
+            id: 'wf-quotes-1',
+            name: 'Workflow "Quotes"',
+            active: false,
+            nodes: [
+                {
+                    id: 'node-quotes-1',
+                    name: 'Save "Rencontre" in Pipedrive',
+                    type: 'n8n-nodes-base.executeWorkflow',
+                    typeVersion: 1.3,
+                    position: [1280, 5872],
+                    parameters: {},
+                    onError: 'continueRegularOutput',
+                },
+            ],
+            connections: {},
+            settings: {},
+        };
+
+        const parser = new JsonToAstParser();
+        const ast = parser.parse(workflowJson as any);
+
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast, {
+            format: false,
+            commentStyle: 'minimal',
+        });
+
+        expect(tsCode).toContain('name: "Workflow \\"Quotes\\""');
+        expect(tsCode).toContain('name: "Save \\"Rencontre\\" in Pipedrive"');
+        expect(tsCode).toContain('onError: "continueRegularOutput"');
+
+        const tsParser = new TypeScriptParser();
+        const reparsedAst = await tsParser.parseCode(tsCode);
+
+        expect(reparsedAst.metadata.name).toBe('Workflow "Quotes"');
+        expect(reparsedAst.nodes[0].displayName).toBe('Save "Rencontre" in Pipedrive');
+        expect(reparsedAst.nodes[0].onError).toBe('continueRegularOutput');
+    });
+
     it('should include workflow tags in generated TypeScript metadata', async () => {
         const workflowJson = {
             id: 'wf-tags-1',
