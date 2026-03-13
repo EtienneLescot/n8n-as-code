@@ -235,8 +235,8 @@ export class AstToTypeScriptGenerator {
     private formatWorkflowDecorator(metadata: any): string {
         const parts: string[] = [];
         
-        parts.push(`id: "${metadata.id}"`);
-        parts.push(`name: "${metadata.name}"`);
+        parts.push(`id: ${JSON.stringify(metadata.id)}`);
+        parts.push(`name: ${JSON.stringify(metadata.name)}`);
         parts.push(`active: ${metadata.active}`);
 
         if (metadata.tags && metadata.tags.length > 0) {
@@ -304,8 +304,8 @@ export class AstToTypeScriptGenerator {
         if (node.webhookId) {
             parts.push(`webhookId: ${JSON.stringify(node.webhookId)}`);
         }
-        parts.push(`name: "${node.displayName}"`);
-        parts.push(`type: "${node.type}"`);
+        parts.push(`name: ${JSON.stringify(node.displayName)}`);
+        parts.push(`type: ${JSON.stringify(node.type)}`);
         parts.push(`version: ${node.version}`);
         
         if (node.position) {
@@ -318,7 +318,7 @@ export class AstToTypeScriptGenerator {
         }
         
         if (node.onError) {
-            parts.push(`onError: "${node.onError}"`);
+            parts.push(`onError: ${JSON.stringify(node.onError)}`);
         }
         
         if (node.alwaysOutputData !== undefined) {
