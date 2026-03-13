@@ -1,5 +1,11 @@
 # @n8n-as-code/skills
 
+## [1.1.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.1.1...@n8n-as-code/skills@v1.1.2) (2026-03-13)
+
+### Documentation
+
+* update documentation links and add OpenClaw plugin guide ([04046d2](https://github.com/EtienneLescot/n8n-as-code/commit/04046d29355b9fbfc9221d71367ce9f91292c5ae))
+
 ## [1.1.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.1.0...@n8n-as-code/skills@v1.1.1) (2026-03-13)
 
 ### Documentation
