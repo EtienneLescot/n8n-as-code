@@ -99,7 +99,8 @@ openclaw gateway restart
 </tr>
 </table>
 
-Then simply use your agent or the CLI to build, change, validate, or sync your n8n workflows.
+> **Then simply tell your agent what you want to do with your n8n workflows.**
+> Build new flows, update existing ones, search nodes and templates, validate changes, pull from n8n, push updates, and keep everything in sync.
 
 ### ⌨️ CLI
 
