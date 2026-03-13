@@ -55,9 +55,7 @@ Open the n8n view
 Enter Host + API Key
 ```
 
-```text
-Start editing
-```
+Ask Agent for Changes
 
 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) · [Open VSX](https://open-vsx.org/extension/etienne-lescot/n8n-as-code)
 
@@ -78,9 +76,7 @@ Start editing
 npx --yes n8nac init
 ```
 
-```text
-Ask Claude for changes
-```
+Ask Claude for Changes
 
 [Claude setup docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/)
 
@@ -101,9 +97,7 @@ openclaw n8nac:setup
 openclaw gateway restart
 ```
 
-```text
-Ask OpenClaw for a workflow
-```
+Ask OpenClaw for a Workflow
 
 [OpenClaw plugin guide](plugins/openclaw/n8n-as-code/README.md)
 
