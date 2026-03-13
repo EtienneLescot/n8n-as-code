@@ -4,7 +4,7 @@
 
 ### The AI Skill that gives your coding agent n8n superpowers.
 
-**GitOps · AI Skills · TypeScript Workflows · VS Code · Claude Code**
+**GitOps · AI Skills · TypeScript Workflows · VS Code · Claude Code · OpenClaw**
 
 [![CI](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/ci.yml/badge.svg)](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/ci.yml)
 [![Documentation](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/docs.yml/badge.svg)](https://etiennelescot.github.io/n8n-as-code/)
@@ -55,39 +55,47 @@ Choose the entry point that matches how you already work.
 </td>
 <td width="33%" valign="top">
 
-### ⌨️ CLI
+### ✴️ Claude Code
 
 ```text
-1. npx n8nac init
-2. Enter Host + API Key
-3. Select your project
-4. Start syncing
+1. Add the marketplace
+2. Install the plugin
+3. Run npx n8nac init
+4. Ask Claude for changes
 ```
 
-No install needed. Best for scripts, CI, GitOps, and explicit sync workflows.
+[Claude setup docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/)
 
 </td>
 <td width="33%" valign="top">
 
-### ✴️ Claude Code
+### 🦞 OpenClaw
 
 ```text
-1. /plugin marketplace add EtienneLescot/n8n-as-code
-2. /plugin install n8n-as-code@n8nac-marketplace
-3. npx --yes n8nac init
-4. Ask Claude for changes
+1. Install the plugin
+2. Run openclaw n8nac:setup
+3. Restart the gateway
+4. Ask OpenClaw for a workflow
 ```
 
-Alternative marketplace install today:
-`EtienneLescot/n8n-as-code` → `n8n-as-code@n8nac-marketplace`
-
-The plugin uses the `n8n-as-code` CLI (`n8nac`) for workspace setup and workflow operations.
-
-Natural-language workflow work in Claude Code, powered by the same `n8nac` CLI and `n8n-architect` skill. Claude Desktop / MCP setup is documented below.
+[OpenClaw plugin guide](plugins/openclaw/n8n-as-code/README.md)
 
 </td>
 </tr>
 </table>
+
+### ⌨️ CLI
+
+Prefer a more explicit terminal workflow? The CLI stays the shared backbone behind every integration.
+
+```bash
+npx --yes n8nac init
+npx --yes n8nac list
+npx --yes n8nac pull <workflow-id>
+npx --yes n8nac push my-workflow.workflow.ts
+```
+
+Best for scripts, CI, GitOps pipelines, and direct sync operations.
 
 📖 [Full Getting Started Guide](https://etiennelescot.github.io/n8n-as-code/docs/getting-started)
 
@@ -103,6 +111,8 @@ While the official Claude Code review is still pending, the repository already p
 ```
 
 That is the recommended Claude Code install path right now.
+
+The Claude plugin uses the same `n8nac` CLI for workspace setup and workflow operations, so natural-language edits and terminal sync stay aligned.
 
 If you are using Claude Desktop or another MCP client instead of Claude Code, point it at the local MCP server with:
 
@@ -266,6 +276,7 @@ n8nac pull <id> > workflow.json && n8nac convert workflow.json --format typescri
 |:--------|:-------------|:--------|
 | **[n8nac](packages/cli)** | CLI — sync, convert, validate, search | `npx n8nac` |
 | **[VS Code Extension](packages/vscode-extension)** | Visual UI — sidebar, canvas, push-on-save | [Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) |
+| **[@n8n-as-code/openclaw-plugin](plugins/openclaw/n8n-as-code)** | OpenClaw plugin — setup wizard, prompt context, workflow operations | `openclaw plugins install @n8n-as-code/openclaw-plugin` |
 | **[@n8n-as-code/skills](packages/skills)** | AI Skill — knowledge base, search, schemas | `npm i @n8n-as-code/skills` |
 | **[@n8n-as-code/transformer](packages/transformer)** | JSON ↔ TypeScript converter | `npm i @n8n-as-code/transformer` |
 
@@ -274,28 +285,28 @@ n8nac pull <id> > workflow.json && n8nac convert workflow.json --format typescri
 ## 🏗 Architecture
 
 ```
-+----------------------------------------------------------+
-|                    User Interfaces                       |
-|                                                          |
-|  [CLI (n8nac)]           [VS Code Extension]             |
-|  sync / convert / search canvas / sidebar / push         |
-+-----------+----------------------+-----------------------+
-            |                      |
-            v                      v
-+-----------+----------------------+-----------------------+
-|                     Core Services                        |
-|                                                          |
-|  [Sync Engine]           [Transformer]                   |
-|  3-way merge / conflicts JSON <-> TypeScript             |
-+---------------------------+------------------------------+
-                            |
-                            v
-+----------------------------------------------------------+
-|                     AI Skills Layer                      |
-|                                                          |
-|  537 nodes / 10,209 properties / 1,243 docs / 7,702 wf   |
-|  FlexSearch (~5ms) / Schema validation / Node info       |
-+----------------------------------------------------------+
++------------------------------------------------------------------+
+|                         User Interfaces                          |
+|                                                                  |
+|  [CLI]        [VS Code]        [Claude Code]      [OpenClaw]     |
+|  sync/search  canvas/sidebar   plugin workflow    plugin workflow |
++-------------------+----------------------+-----------------------+
+                    |                      |
+                    v                      v
++-------------------+----------------------+-----------------------+
+|                          Core Services                          |
+|                                                                  |
+|  [Sync Engine]                 [Transformer]                     |
+|  3-way merge / conflicts       JSON <-> TypeScript              |
++-------------------------------+----------------------------------+
+                                |
+                                v
++------------------------------------------------------------------+
+|                           AI Skills Layer                        |
+|                                                                  |
+|  537 nodes / 10,209 properties / 1,243 docs / 7,702 workflows    |
+|  FlexSearch (~5ms) / Schema validation / Node info / examples    |
++------------------------------------------------------------------+
 ```
 
 ---
