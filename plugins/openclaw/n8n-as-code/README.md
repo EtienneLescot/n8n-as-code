@@ -43,7 +43,7 @@ Options for `n8nac:setup`:
 ```
 --host <url>          n8n host URL (skip prompt)
 --api-key <key>       n8n API key (skip prompt)
---project-index <n>   Project to select (default: 1)
+--project-index <n>   Project to select non-interactively
 ```
 
 ## Workspace
