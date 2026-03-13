@@ -1,0 +1,40 @@
+{
+  "name": "@n8n-as-code/openclaw-plugin",
+  "version": "2026.3.0",
+  "description": "OpenClaw plugin for n8n-as-code — create and manage n8n workflows from OpenClaw",
+  "keywords": [
+    "n8n",
+    "workflow",
+    "automation",
+    "openclaw",
+    "openclaw-plugin",
+    "n8nac"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EtienneLescot/n8n-as-code.git",
+    "directory": "plugins/openclaw/n8n-as-code"
+  },
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.0.1",
+    "@sinclair/typebox": "0.34.48"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "openclaw": "^2026.2.26",
+    "typescript": "^5.8.0"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.2.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
