@@ -41,10 +41,6 @@ Choose the entry point that matches how you already work.
 <tr>
 <td width="33%" valign="top">
 
-<table width="100%" height="100%">
-<tr>
-<td valign="top">
-
 ### 💻 VS Code, Cursor, Windsurf
 
 ```text
@@ -59,25 +55,10 @@ Open the n8n view
 Enter Host + API Key
 ```
 
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-Ask Agent for Changes
-
 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) · [Open VSX](https://open-vsx.org/extension/etienne-lescot/n8n-as-code)
 
 </td>
-</tr>
-</table>
-
-</td>
 <td width="33%" valign="top">
-
-<table width="100%" height="100%">
-<tr>
-<td valign="top">
 
 ### ✴️ Claude Code
 
@@ -93,25 +74,10 @@ Ask Agent for Changes
 npx --yes n8nac init
 ```
 
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-Ask Claude for Changes
-
 [Claude setup docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/)
 
 </td>
-</tr>
-</table>
-
-</td>
 <td width="33%" valign="top">
-
-<table width="100%" height="100%">
-<tr>
-<td valign="top">
 
 ### 🦞 OpenClaw
 
@@ -127,22 +93,13 @@ openclaw n8nac:setup
 openclaw gateway restart
 ```
 
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-Ask OpenClaw for a Workflow
-
 [OpenClaw plugin guide](plugins/openclaw/n8n-as-code/README.md)
 
 </td>
 </tr>
 </table>
 
-</td>
-</tr>
-</table>
+Then simply use your agent or the CLI to build, change, validate, or sync your n8n workflows.
 
 ### ⌨️ CLI
 
