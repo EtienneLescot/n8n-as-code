@@ -140,9 +140,28 @@ export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
       });
       aiSpinner.stop("AI context ready ✓");
 
+      p.log.step("What's next?");
+      p.log.message(
+        [
+          "  1. Restart the OpenClaw gateway to activate the plugin:",
+          "       openclaw gateway restart",
+          "",
+          "  2. Ask OpenClaw to create a workflow in plain language, for example:",
+          '       "Create an n8n workflow that sends a Slack message every morning"',
+          "",
+          "  3. Useful commands:",
+          "       openclaw n8nac:status   — check workspace + connection health",
+          "       openclaw n8nac:setup    — reconfigure host / API key",
+          "",
+          "  4. Manage workflows directly:",
+          "       npx n8nac list          — list local & remote workflows",
+          "       npx n8nac pull <id>     — download a workflow from n8n",
+          "       npx n8nac push <file>   — upload a workflow to n8n",
+        ].join("\n"),
+      );
+
       p.outro(
         `Setup complete!\n` +
-          `Restart the OpenClaw gateway to activate the n8n-as-code plugin.\n` +
           `Workspace: ${workspaceDir}`,
       );
     });
