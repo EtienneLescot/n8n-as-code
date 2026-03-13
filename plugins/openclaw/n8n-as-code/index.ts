@@ -53,7 +53,13 @@ const n8nAcPlugin = {
     // -- Context injection ---------------------------------------------------
     // Prepend n8n-architect instructions to every prompt build.
     api.on("before_prompt_build", () => {
-      const context = agentsContext ?? (isWorkspaceInitialized(workspaceDir) ? null : BOOTSTRAP_CONTEXT);
+      const initialized = isWorkspaceInitialized(workspaceDir);
+      // Lazy-load: setup may have run after the gateway started, so the
+      // service start() missed it.  Re-attempt on every prompt until loaded.
+      if (agentsContext === null && initialized) {
+        agentsContext = loadAgentsContext(workspaceDir);
+      }
+      const context = agentsContext ?? (initialized ? null : BOOTSTRAP_CONTEXT);
       if (!context) return;
       return { prependContext: context };
     });
