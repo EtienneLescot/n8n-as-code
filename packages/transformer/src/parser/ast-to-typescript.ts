@@ -106,6 +106,9 @@ export class AstToTypeScriptGenerator {
             if (n.onError === 'continueErrorOutput') flags.push('[onError→out(1)]');
             if (n.onError === 'continueRegularOutput') flags.push('[onError→regular]');
             if (n.credentials && Object.keys(n.credentials).length > 0) flags.push('[creds]');
+            if (n.alwaysOutputData) flags.push('[alwaysOutput]');
+            if (n.executeOnce) flags.push('[executeOnce]');
+            if (n.retryOnFail) flags.push('[retry]');
             for (const role of subNodeRoles.get(n.propertyName) ?? []) flags.push(`[${role}]`);
             lines.push(`// ${prop} ${t} ${flags.join(' ')}`);
         }
@@ -316,6 +319,22 @@ export class AstToTypeScriptGenerator {
         
         if (node.onError) {
             parts.push(`onError: "${node.onError}"`);
+        }
+        
+        if (node.alwaysOutputData !== undefined) {
+            parts.push(`alwaysOutputData: ${node.alwaysOutputData}`);
+        }
+        if (node.executeOnce !== undefined) {
+            parts.push(`executeOnce: ${node.executeOnce}`);
+        }
+        if (node.retryOnFail !== undefined) {
+            parts.push(`retryOnFail: ${node.retryOnFail}`);
+        }
+        if (node.maxTries !== undefined) {
+            parts.push(`maxTries: ${node.maxTries}`);
+        }
+        if (node.waitBetweenTries !== undefined) {
+            parts.push(`waitBetweenTries: ${node.waitBetweenTries}`);
         }
         
         return `{\n        ${parts.join(',\n        ')}\n    }`;

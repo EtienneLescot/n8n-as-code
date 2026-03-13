@@ -89,7 +89,12 @@ export class JsonToAstParser {
             position: node.position || [0, 0],
             parameters: node.parameters || {},
             credentials: node.credentials,
-            onError: node.onError
+            onError: node.onError,
+            ...(node.alwaysOutputData !== undefined && { alwaysOutputData: node.alwaysOutputData }),
+            ...(node.executeOnce !== undefined && { executeOnce: node.executeOnce }),
+            ...(node.retryOnFail !== undefined && { retryOnFail: node.retryOnFail }),
+            ...(node.maxTries !== undefined && { maxTries: node.maxTries }),
+            ...(node.waitBetweenTries !== undefined && { waitBetweenTries: node.waitBetweenTries }),
         };
     }
     

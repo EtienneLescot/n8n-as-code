@@ -87,6 +87,21 @@ export class WorkflowBuilder {
             if (node.onError) {
                 n8nNode.onError = node.onError;
             }
+            if (node.alwaysOutputData !== undefined) {
+                n8nNode.alwaysOutputData = node.alwaysOutputData;
+            }
+            if (node.executeOnce !== undefined) {
+                n8nNode.executeOnce = node.executeOnce;
+            }
+            if (node.retryOnFail !== undefined) {
+                n8nNode.retryOnFail = node.retryOnFail;
+            }
+            if (node.maxTries !== undefined) {
+                n8nNode.maxTries = node.maxTries;
+            }
+            if (node.waitBetweenTries !== undefined) {
+                n8nNode.waitBetweenTries = node.waitBetweenTries;
+            }
             
             return n8nNode;
         });
