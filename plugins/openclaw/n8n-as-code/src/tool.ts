@@ -112,6 +112,16 @@ function runNpx(
     let stdout = "";
     let stderr = "";
     let timedOut = false;
+    let settled = false;
+    let killTimer: NodeJS.Timeout | undefined;
+
+    const finish = (result: RunResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
+      resolve(result);
+    };
 
     child.stdout.on("data", (chunk) => {
       stdout += chunk.toString();
@@ -124,16 +134,19 @@ function runNpx(
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGTERM");
+      killTimer = setTimeout(() => {
+        if (settled) return;
+        child.kill("SIGKILL");
+        finish({ stdout, stderr: stderr || "Process timed out.", exitCode: 1, timedOut: true });
+      }, 2_000);
     }, 120_000);
 
     child.on("error", (error) => {
-      clearTimeout(timer);
-      resolve({ stdout, stderr: error.message || stderr, exitCode: 1, timedOut });
+      finish({ stdout, stderr: error.message || stderr, exitCode: 1, timedOut });
     });
 
     child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve({ stdout, stderr, exitCode: code ?? 1, timedOut });
+      finish({ stdout, stderr, exitCode: code ?? 1, timedOut });
     });
   });
 }

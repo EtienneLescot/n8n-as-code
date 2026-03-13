@@ -40,6 +40,16 @@ function runN8nac(
     let stdout = "";
     let stderr = "";
     let timedOut = false;
+    let settled = false;
+    let killTimer: NodeJS.Timeout | undefined;
+
+    const finish = (result: RunResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
+      resolve(result);
+    };
 
     if ("stdout" in child && child.stdout) {
       child.stdout.on("data", (chunk: Buffer) => {
@@ -56,16 +66,19 @@ function runN8nac(
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGTERM");
+      killTimer = setTimeout(() => {
+        if (settled) return;
+        child.kill("SIGKILL");
+        finish({ stdout, stderr: stderr || "Process timed out.", exitCode: 1, timedOut: true });
+      }, 2_000);
     }, opts.timeout);
 
     child.on("error", (error: Error) => {
-      clearTimeout(timer);
-      resolve({ stdout, stderr: error.message || stderr, exitCode: 1, timedOut });
+      finish({ stdout, stderr: error.message || stderr, exitCode: 1, timedOut });
     });
 
     child.on("close", (code: number | null) => {
-      clearTimeout(timer);
-      resolve({ stdout, stderr, exitCode: code ?? 1, timedOut });
+      finish({ stdout, stderr, exitCode: code ?? 1, timedOut });
     });
   });
 }

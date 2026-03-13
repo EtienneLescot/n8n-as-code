@@ -21,6 +21,18 @@ Once you have both, call the \`n8nac\` tool with \`action: "init_auth"\`, then
 \`action: "init_project"\` to finish setup.
 `;
 
+const MISSING_AGENTS_CONTEXT = `\
+## n8n-as-code — AI Context Missing
+
+The workspace is initialized, but the generated AI context file (\`AGENTS.md\`) is missing or unreadable.
+
+**Tell the user:**
+> "Your n8n-as-code workspace is connected, but the AI context needs to be regenerated before I can safely guide workflow changes."
+
+Ask the user to run \`npx --yes n8nac update-ai\` in the OpenClaw workspace, or rerun
+\`openclaw n8nac:setup\` if they want the setup wizard to repair it.
+`;
+
 let agentsContext: string | null = null;
 
 function readConfig(workspaceDir: string): Record<string, string> {
@@ -92,7 +104,7 @@ const n8nAcPlugin = {
       if (agentsContext === null && initialized) {
         agentsContext = loadAgentsContext(workspaceDir);
       }
-      const context = agentsContext ?? (initialized ? null : BOOTSTRAP_CONTEXT);
+      const context = agentsContext ?? (initialized ? MISSING_AGENTS_CONTEXT : BOOTSTRAP_CONTEXT);
       if (!context) return;
       return { prependContext: context };
     });
@@ -116,7 +128,11 @@ const n8nAcPlugin = {
         agentsContext = null;
         if (isWorkspaceInitialized(workspaceDir)) {
           agentsContext = loadAgentsContext(workspaceDir);
-          api.logger.info("[n8nac] Workspace ready — AI context loaded.");
+          if (agentsContext) {
+            api.logger.info("[n8nac] Workspace ready — AI context loaded.");
+          } else {
+            api.logger.warn("[n8nac] Workspace ready, but AGENTS.md is missing or unreadable.");
+          }
         } else {
           api.logger.info("[n8nac] Workspace not initialized. Run `openclaw n8nac:setup`.");
         }
