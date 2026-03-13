@@ -73,6 +73,82 @@ The plugin registers the `n8nac` tool with these actions:
 | `skills` | Run any `npx n8nac skills` subcommand |
 | `validate` | Validate a local `.workflow.ts` file |
 
+## Local development
+
+This section covers how to load the plugin from source during development so
+that changes take effect immediately without an npm publish cycle.
+
+### 1. Link the plugin directory
+
+OpenClaw's `--link` flag registers a local path instead of installing a copy.
+jiti is used to run TypeScript directly, so no build step is needed.
+
+```bash
+openclaw plugins install --link \
+  /home/etienne/repos/n8n-as-code/plugins/openclaw/n8n-as-code
+```
+
+What this does:
+- Adds the path to `plugins.load.paths` in `~/.openclaw/openclaw.json`
+- Registers a `source: "path"` install record bound to the plugin ID `n8nac`
+- No file copy — OpenClaw loads `index.ts` directly from the source tree
+
+### 2. Verify the plugin is registered
+
+```bash
+openclaw plugins info n8nac
+```
+
+You should see status `loaded` and the tool `n8nac` in the tools list.
+
+### 3. Run the setup wizard
+
+```bash
+openclaw n8n:setup
+```
+
+Enter your n8n host and API key when prompted. The wizard writes
+`~/.openclaw/n8nac/n8nac-config.json` and generates `AGENTS.md`.
+
+### 4. Iterate on the code
+
+- Edit any `.ts` file in `plugins/openclaw/n8n-as-code/`
+- **Restart the gateway** to reload: `openclaw stop && openclaw start` (or the
+  equivalent service restart on your setup)
+- The `before_prompt_build` hook, tool schema, and CLI commands all reload on
+  gateway start
+
+### 5. Check gateway logs
+
+```bash
+tail -f ~/.openclaw/logs/openclaw-$(date +%Y-%m-%d).log | grep n8nac
+```
+
+The plugin prefixes all `api.logger` calls with `[n8nac]`.
+
+### 6. Inspect the n8nac workspace
+
+```
+~/.openclaw/n8nac/
+  n8nac-config.json   ← written by init-project
+  AGENTS.md           ← written by update-ai
+  workflows/          ← .workflow.ts files
+```
+
+To reset and redo setup from scratch:
+
+```bash
+rm -rf ~/.openclaw/n8nac && openclaw n8n:setup
+```
+
+### 7. Unlink when done
+
+```bash
+openclaw plugins uninstall n8nac
+```
+
+---
+
 ## Source
 
 Part of the [n8n-as-code](https://github.com/EtienneLescot/n8n-as-code) monorepo.
