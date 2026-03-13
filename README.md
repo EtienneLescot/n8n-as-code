@@ -50,6 +50,10 @@ Choose the entry point that matches how you already work.
 4. Start editing
 ```
 
+```bash
+ext install etienne-lescot.n8n-as-code
+```
+
 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) · [Open VSX](https://open-vsx.org/extension/etienne-lescot/n8n-as-code)
 
 </td>
@@ -64,6 +68,10 @@ Choose the entry point that matches how you already work.
 4. Ask Claude for changes
 ```
 
+```bash
+/plugin install n8n-as-code@n8nac-marketplace
+```
+
 [Claude setup docs](https://etiennelescot.github.io/n8n-as-code/docs/usage/claude-skill/)
 
 </td>
@@ -76,6 +84,10 @@ Choose the entry point that matches how you already work.
 2. Run openclaw n8nac:setup
 3. Restart the gateway
 4. Ask OpenClaw for a workflow
+```
+
+```bash
+openclaw plugins install @n8n-as-code/openclaw-plugin
 ```
 
 [OpenClaw plugin guide](plugins/openclaw/n8n-as-code/README.md)
