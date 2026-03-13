@@ -72,6 +72,13 @@ export interface NodeAST {
     // Optional metadata
     credentials?: Record<string, CredentialReference>;
     onError?: 'continueErrorOutput' | 'continueRegularOutput' | 'stopWorkflow';
+
+    // Node execution settings
+    alwaysOutputData?: boolean;
+    executeOnce?: boolean;
+    retryOnFail?: boolean;
+    maxTries?: number;
+    waitBetweenTries?: number;
     
     // Node parameters (property value in TypeScript)
     parameters: Record<string, any>;
@@ -172,6 +179,13 @@ export interface N8nNode {
     parameters: Record<string, any>;
     credentials?: Record<string, CredentialReference>;
     onError?: 'continueErrorOutput' | 'continueRegularOutput' | 'stopWorkflow';
+
+    // Node execution settings
+    alwaysOutputData?: boolean;
+    executeOnce?: boolean;
+    retryOnFail?: boolean;
+    maxTries?: number;
+    waitBetweenTries?: number;
 }
 
 /**

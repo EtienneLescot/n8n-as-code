@@ -151,6 +151,11 @@ export class TypeScriptParser {
                 position: metadata.position || [0, 0],
                 credentials: metadata.credentials,
                 onError: metadata.onError,
+                ...(metadata.alwaysOutputData !== undefined && { alwaysOutputData: metadata.alwaysOutputData }),
+                ...(metadata.executeOnce !== undefined && { executeOnce: metadata.executeOnce }),
+                ...(metadata.retryOnFail !== undefined && { retryOnFail: metadata.retryOnFail }),
+                ...(metadata.maxTries !== undefined && { maxTries: metadata.maxTries }),
+                ...(metadata.waitBetweenTries !== undefined && { waitBetweenTries: metadata.waitBetweenTries }),
                 parameters
                 // aiDependencies will be added by extractAIDependencies()
             });

@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { JsonToAstParser } from '../src/parser/json-to-ast.js';
 import { AstToTypeScriptGenerator } from '../src/parser/ast-to-typescript.js';
 import { TypeScriptParser } from '../src/compiler/typescript-parser.js';
+import { WorkflowBuilder } from '../src/compiler/workflow-builder.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -232,5 +233,145 @@ export class AiTestWorkflow {
             'jsCode: `const template = \\`Hello \\${name}\\`;\nreturn \\`value: \\${template}\\`;`'
         );
         expect(tsCode).not.toContain('jsCode: "const template');
+    });
+
+    it('should preserve node execution settings through JSON → AST → TypeScript', async () => {
+        const workflowJson = {
+            id: 'wf-exec-1',
+            name: 'Exec Settings Workflow',
+            active: false,
+            nodes: [
+                {
+                    id: 'node-exec-1',
+                    name: 'Data Table',
+                    type: 'n8n-nodes-base.set',
+                    typeVersion: 3,
+                    position: [100, 200],
+                    parameters: { mode: 'manual' },
+                    alwaysOutputData: true,
+                    executeOnce: false,
+                    retryOnFail: true,
+                    maxTries: 5,
+                    waitBetweenTries: 2000,
+                },
+            ],
+            connections: {},
+            settings: {},
+        };
+
+        const parser = new JsonToAstParser();
+        const ast = parser.parse(workflowJson as any);
+
+        // Verify AST captures the execution settings
+        expect(ast.nodes[0].alwaysOutputData).toBe(true);
+        expect(ast.nodes[0].executeOnce).toBe(false);
+        expect(ast.nodes[0].retryOnFail).toBe(true);
+        expect(ast.nodes[0].maxTries).toBe(5);
+        expect(ast.nodes[0].waitBetweenTries).toBe(2000);
+
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast, { format: false, commentStyle: 'minimal' });
+
+        // Verify the @node decorator contains the execution settings
+        expect(tsCode).toContain('alwaysOutputData: true');
+        expect(tsCode).toContain('executeOnce: false');
+        expect(tsCode).toContain('retryOnFail: true');
+        expect(tsCode).toContain('maxTries: 5');
+        expect(tsCode).toContain('waitBetweenTries: 2000');
+    });
+
+    it('should preserve node execution settings through full pull→push roundtrip', async () => {
+        const workflowJson = {
+            id: 'wf-roundtrip-1',
+            name: 'Roundtrip Workflow',
+            active: false,
+            nodes: [
+                {
+                    id: 'node-rt-1',
+                    name: 'My Node',
+                    type: 'n8n-nodes-base.set',
+                    typeVersion: 3,
+                    position: [100, 200],
+                    parameters: { mode: 'manual' },
+                    alwaysOutputData: true,
+                    retryOnFail: true,
+                    maxTries: 3,
+                    waitBetweenTries: 1000,
+                },
+            ],
+            connections: {},
+            settings: {},
+        };
+
+        // JSON → AST → TypeScript
+        const jsonParser = new JsonToAstParser();
+        const ast1 = jsonParser.parse(workflowJson as any);
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast1, { format: false, commentStyle: 'minimal' });
+
+        // TypeScript → AST → JSON
+        const tsParser = new TypeScriptParser();
+        const ast2 = await tsParser.parseCode(tsCode);
+
+        // Verify execution settings are preserved in the re-parsed AST
+        expect(ast2.nodes[0].alwaysOutputData).toBe(true);
+        expect(ast2.nodes[0].retryOnFail).toBe(true);
+        expect(ast2.nodes[0].maxTries).toBe(3);
+        expect(ast2.nodes[0].waitBetweenTries).toBe(1000);
+        // executeOnce was not set, so it should be undefined
+        expect(ast2.nodes[0].executeOnce).toBeUndefined();
+
+        const builder = new WorkflowBuilder();
+        const rebuilt = builder.build(ast2);
+
+        // Verify the rebuilt JSON preserves execution settings
+        const rebuiltNode = rebuilt.nodes[0];
+        expect(rebuiltNode.alwaysOutputData).toBe(true);
+        expect(rebuiltNode.retryOnFail).toBe(true);
+        expect(rebuiltNode.maxTries).toBe(3);
+        expect(rebuiltNode.waitBetweenTries).toBe(1000);
+        expect(rebuiltNode.executeOnce).toBeUndefined();
+    });
+
+    it('should emit [alwaysOutput] and [retry] flags in workflow-map for execution-setting nodes', async () => {
+        const workflowJson = {
+            id: 'wf-flags-1',
+            name: 'Flags Workflow',
+            active: false,
+            nodes: [
+                {
+                    id: 'node-flags-1',
+                    name: 'Always Output Node',
+                    type: 'n8n-nodes-base.set',
+                    typeVersion: 3,
+                    position: [0, 0],
+                    parameters: {},
+                    alwaysOutputData: true,
+                    retryOnFail: true,
+                    maxTries: 2,
+                },
+                {
+                    id: 'node-flags-2',
+                    name: 'Once Node',
+                    type: 'n8n-nodes-base.set',
+                    typeVersion: 3,
+                    position: [200, 0],
+                    parameters: {},
+                    executeOnce: true,
+                },
+            ],
+            connections: {},
+            settings: {},
+        };
+
+        const parser = new JsonToAstParser();
+        const ast = parser.parse(workflowJson as any);
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast, { format: false });
+
+        // The naming generator converts "Always Output Node" → "AlwaysOutputNode"
+        // and "Once Node" → "OnceNode"
+        expect(tsCode).toMatch(/AlwaysOutputNode\s+set\s+.*\[alwaysOutput\].*\[retry\]/);
+        expect(tsCode).toMatch(/OnceNode\s+set\s+.*\[executeOnce\]/);
     });
 });

@@ -52,6 +52,21 @@ export interface NodeDecoratorMetadata {
     
     /** Error handling behavior */
     onError?: 'continueErrorOutput' | 'continueRegularOutput' | 'stopWorkflow';
+
+    /** Always output data even when the node has no results */
+    alwaysOutputData?: boolean;
+
+    /** Execute this node only once, for the first item */
+    executeOnce?: boolean;
+
+    /** Retry on failure */
+    retryOnFail?: boolean;
+
+    /** Maximum number of retry attempts (used with retryOnFail) */
+    maxTries?: number;
+
+    /** Milliseconds to wait between retries (used with retryOnFail) */
+    waitBetweenTries?: number;
 }
 
 // =====================================================================
