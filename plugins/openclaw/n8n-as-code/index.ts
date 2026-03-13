@@ -64,7 +64,7 @@ const n8nAcPlugin = {
     // -- CLI wizard ----------------------------------------------------------
     api.registerCli(
       ({ program }) => registerN8nAcCli({ program, workspaceDir }),
-      { commands: ["n8n:setup", "n8n:status"] },
+      { commands: ["n8nac:setup", "n8nac:status"] },
     );
 
     // -- Service -------------------------------------------------------------
@@ -79,7 +79,7 @@ const n8nAcPlugin = {
           agentsContext = loadAgentsContext(workspaceDir);
           api.logger.info("[n8nac] Workspace ready — AI context loaded.");
         } else {
-          api.logger.info("[n8nac] Workspace not initialized. Run `openclaw n8n:setup`.");
+          api.logger.info("[n8nac] Workspace not initialized. Run `openclaw n8nac:setup`.");
         }
       },
       stop: async () => {

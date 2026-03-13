@@ -11,26 +11,26 @@ type CliOpts = {
 
 export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
   // -------------------------------------------------------------------------
-  // n8n:status — quick health check
+  // n8nac:status — quick health check
   // -------------------------------------------------------------------------
   program
-    .command("n8n:status")
+    .command("n8nac:status")
     .description("Show n8n-as-code workspace status")
     .action(() => {
       const initialized = isWorkspaceInitialized(workspaceDir);
       console.log(`\nn8n-as-code workspace: ${workspaceDir}`);
       console.log(`Status: ${initialized ? "✓  Initialized" : "✗  Not initialized"}`);
       if (!initialized) {
-        console.log("\nRun `openclaw n8n:setup` to connect your n8n instance.");
+        console.log("\nRun `openclaw n8nac:setup` to connect your n8n instance.");
       }
       console.log();
     });
 
   // -------------------------------------------------------------------------
-  // n8n:setup — interactive wizard
+  // n8nac:setup — interactive wizard
   // -------------------------------------------------------------------------
   program
-    .command("n8n:setup")
+    .command("n8nac:setup")
     .description("Initialize or reconfigure the n8n-as-code workspace")
     .option("--host <url>", "n8n host URL (skip prompt)")
     .option("--api-key <key>", "n8n API key (skip prompt)")

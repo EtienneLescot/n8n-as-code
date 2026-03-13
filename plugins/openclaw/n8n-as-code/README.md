@@ -11,7 +11,7 @@ openclaw plugins install @n8n-as-code/openclaw-plugin
 Restart the gateway, then run the setup wizard:
 
 ```bash
-openclaw n8n:setup
+openclaw n8nac:setup
 ```
 
 The wizard asks for your n8n host URL and API key once, saves them via
@@ -35,10 +35,10 @@ so the AI knows the exact `n8nac` workflow (init-check → pull → edit → pus
 
 | Command | Description |
 |---|---|
-| `openclaw n8n:setup` | Interactive setup wizard |
-| `openclaw n8n:status` | Show workspace status |
+| `openclaw n8nac:setup` | Interactive setup wizard |
+| `openclaw n8nac:status` | Show workspace status |
 
-Options for `n8n:setup`:
+Options for `n8nac:setup`:
 
 ```
 --host <url>          n8n host URL (skip prompt)
@@ -104,7 +104,7 @@ You should see status `loaded` and the tool `n8nac` in the tools list.
 ### 3. Run the setup wizard
 
 ```bash
-openclaw n8n:setup
+openclaw n8nac:setup
 ```
 
 Enter your n8n host and API key when prompted. The wizard writes
@@ -138,7 +138,7 @@ The plugin prefixes all `api.logger` calls with `[n8nac]`.
 To reset and redo setup from scratch:
 
 ```bash
-rm -rf ~/.openclaw/n8nac && openclaw n8n:setup
+rm -rf ~/.openclaw/n8nac && openclaw n8nac:setup
 ```
 
 ### 7. Unlink when done
