@@ -5,6 +5,7 @@ import { IN8nCredentials, IWorkflow, IProject, ITag } from '../types.js';
 export class N8nApiClient {
     private client: AxiosInstance;
     private projectsCache: Map<string, IProject> | null = null;
+    private projectsCachePromise: Promise<Map<string, IProject>> | null = null;
 
     constructor(credentials: IN8nCredentials) {
         let host = credentials.host;
@@ -40,7 +41,7 @@ export class N8nApiClient {
         // Try /me first (modern n8n)
         try {
             const res = await this.client.get('/api/v1/users/me');
-            console.debug('[N8nApiClient] getCurrentUser: Successfully retrieved user from /me endpoint');
+            if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Successfully retrieved user from /me endpoint');
             if (res.data && res.data.id) {
                 return {
                     id: res.data.id,
@@ -50,17 +51,17 @@ export class N8nApiClient {
                 };
             }
         } catch (error: any) {
-            console.debug('[N8nApiClient] getCurrentUser: /me endpoint failed:', error.message);
+            if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: /me endpoint failed:', error.message);
             // If it's a connection error, throw immediately
             if (!error.response) throw error;
         }
 
         // Fallback: get all users and take the first one (assuming the API key belongs to an admin or the only user)
-        console.debug('[N8nApiClient] getCurrentUser: Trying /api/v1/users endpoint');
+        if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Trying /api/v1/users endpoint');
         try {
             const res = await this.client.get('/api/v1/users');
             if (res.data && res.data.data && res.data.data.length > 0) {
-                console.debug('[N8nApiClient] getCurrentUser: Found', res.data.data.length, 'users');
+                if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Found', res.data.data.length, 'users');
                 const user = res.data.data[0];
                 return {
                     id: user.id,
@@ -70,12 +71,12 @@ export class N8nApiClient {
                 };
             }
         } catch (error: any) {
-            console.debug('[N8nApiClient] getCurrentUser: /api/v1/users endpoint failed:', error.message);
+            if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: /api/v1/users endpoint failed:', error.message);
             // If it's a connection error, throw immediately
             if (!error.response) throw error;
         }
         
-        console.debug('[N8nApiClient] getCurrentUser: All attempts failed, returning null');
+        if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: All attempts failed, returning null');
         return null;
     }
 
@@ -115,7 +116,7 @@ export class N8nApiClient {
                         if (wf.shared && Array.isArray(wf.shared) && wf.shared.length > 0) {
                             const projectId = wf.shared[0].projectId;
                             if (projectId) {
-                                console.debug(`[N8nApiClient] Found personal project ID from workflows: ${projectId}`);
+                                if (process.env.DEBUG) console.debug(`[N8nApiClient] Found personal project ID from workflows: ${projectId}`);
                                 return [{
                                     id: projectId,
                                     name: 'Personal',
@@ -127,7 +128,7 @@ export class N8nApiClient {
                         }
                     }
                 } catch (innerError: any) {
-                    console.debug(`[N8nApiClient] Could not fetch workflows to discover project ID: ${innerError.message}`);
+                    if (process.env.DEBUG) console.debug(`[N8nApiClient] Could not fetch workflows to discover project ID: ${innerError.message}`);
                 }
                 
                 // Fallback: return a placeholder personal project
@@ -159,7 +160,16 @@ export class N8nApiClient {
         if (this.projectsCache !== null) {
             return this.projectsCache;
         }
+        // Memoize the in-flight promise so concurrent calls (e.g. Promise.all over workflows)
+        // don't each trigger their own API call and log the license warning N times.
+        if (this.projectsCachePromise !== null) {
+            return this.projectsCachePromise;
+        }
+        this.projectsCachePromise = this._fetchProjectsCache();
+        return this.projectsCachePromise;
+    }
 
+    private async _fetchProjectsCache(): Promise<Map<string, IProject>> {
         try {
             const res = await this.client.get('/api/v1/projects');
             const projects = res.data.data || [];
@@ -179,6 +189,7 @@ export class N8nApiClient {
             if (process.env.DEBUG) {
                 console.debug(`[N8nApiClient] Cached ${this.projectsCache.size} projects`);
             }
+            this.projectsCachePromise = null;
             return this.projectsCache;
         } catch (error: any) {
             // Check if this is a license restriction error (common on local n8n instances)
@@ -199,7 +210,7 @@ export class N8nApiClient {
                         if (wf.shared && Array.isArray(wf.shared) && wf.shared.length > 0) {
                             const projectId = wf.shared[0].projectId;
                             if (projectId) {
-                                console.debug(`[N8nApiClient] Found personal project ID from workflows for cache: ${projectId}`);
+                                if (process.env.DEBUG) console.debug(`[N8nApiClient] Found personal project ID from workflows for cache: ${projectId}`);
                                 this.projectsCache = new Map();
                                 this.projectsCache.set(projectId, {
                                     id: projectId,
@@ -213,7 +224,7 @@ export class N8nApiClient {
                         }
                     }
                 } catch (innerError: any) {
-                    console.debug(`[N8nApiClient] Could not fetch workflows to discover project ID for cache: ${innerError.message}`);
+                    if (process.env.DEBUG) console.debug(`[N8nApiClient] Could not fetch workflows to discover project ID for cache: ${innerError.message}`);
                 }
                 
                 // Fallback: create a placeholder personal project
@@ -438,7 +449,7 @@ export class N8nApiClient {
                     enriched.homeProject = project;
                     enriched.projectName = project.name;
                 } else {
-                    console.debug(`[N8nApiClient] Project ${firstShare.projectId} not found in cache`);
+                    if (process.env.DEBUG) console.debug(`[N8nApiClient] Project ${firstShare.projectId} not found in cache`);
                 }
             }
         }

@@ -476,18 +476,20 @@ export class WorkflowStateTracker extends EventEmitter {
         const key = workflowId || filename;
         const lastStatus = this.lastKnownStatuses.get(key);
 
-        console.log(`[WorkflowStateTracker] Status for ${filename}: ${status} (last: ${lastStatus || 'none'})`);
+        if (process.env.DEBUG) {
+            console.debug(`[WorkflowStateTracker] Status for ${filename}: ${status} (last: ${lastStatus || 'none'})`);
+        }
 
         if (status !== lastStatus) {
-            console.log(`[WorkflowStateTracker] 🔔 Status changed! Emitting statusChange event`);
+            if (process.env.DEBUG) {
+                console.debug(`[WorkflowStateTracker] 🔔 Status changed! Emitting statusChange event`);
+            }
             this.lastKnownStatuses.set(key, status);
             this.emit('statusChange', {
                 filename,
                 workflowId,
                 status
             });
-        } else {
-            console.log(`[WorkflowStateTracker] Status unchanged, not emitting event`);
         }
     }
 
@@ -552,7 +554,7 @@ export class WorkflowStateTracker extends EventEmitter {
 
         const invalidCharMatches = safeName.match(/[\u0000-\u001f\u007f<>:"/\\|?*]/g) || [];
         if (invalidCharMatches.length > 0) {
-            console.log(
+            if (process.env.DEBUG) console.debug(
                 `[WorkflowStateTracker] Sanitizing filename "${originalName}": replacing invalid characters ` +
                 `[${invalidCharMatches.map(char => JSON.stringify(char)).join(', ')}] with "_"`
             );
@@ -561,7 +563,7 @@ export class WorkflowStateTracker extends EventEmitter {
 
         const collapsedWhitespace = safeName.replace(/\s+/g, ' ').trim();
         if (collapsedWhitespace !== safeName) {
-            console.log(
+            if (process.env.DEBUG) console.debug(
                 `[WorkflowStateTracker] Sanitizing filename "${originalName}": normalizing whitespace -> "${collapsedWhitespace}"`
             );
             safeName = collapsedWhitespace;
@@ -571,7 +573,7 @@ export class WorkflowStateTracker extends EventEmitter {
 
         const withoutTrailingDotsOrSpaces = safeName.replace(/[. ]+$/g, '');
         if (withoutTrailingDotsOrSpaces !== safeName) {
-            console.log(
+            if (process.env.DEBUG) console.debug(
                 `[WorkflowStateTracker] Sanitizing filename "${originalName}": removing trailing dots/spaces -> "${withoutTrailingDotsOrSpaces}"`
             );
             safeName = withoutTrailingDotsOrSpaces;
@@ -580,7 +582,7 @@ export class WorkflowStateTracker extends EventEmitter {
         }
 
         if (!safeName) {
-            console.log(
+            if (process.env.DEBUG) console.debug(
                 `[WorkflowStateTracker] Sanitizing filename "${originalName}": result was empty, using fallback "workflow"`
             );
             safeName = 'workflow';
@@ -591,7 +593,7 @@ export class WorkflowStateTracker extends EventEmitter {
         const rest = firstDotIndex === -1 ? '' : safeName.slice(firstDotIndex);
 
         if (WINDOWS_RESERVED_FILENAMES.has(baseName.toUpperCase())) {
-            console.log(
+            if (process.env.DEBUG) console.debug(
                 `[WorkflowStateTracker] Sanitizing filename "${originalName}": "${baseName}" is a reserved Windows device name, appending "_"`
             );
             safeName = `${baseName}_` + rest;
@@ -599,7 +601,7 @@ export class WorkflowStateTracker extends EventEmitter {
 
         const finalName = safeName.replace(/[. ]+$/g, '') || 'workflow';
         if (finalName !== originalName) {
-            console.log(
+            if (process.env.DEBUG) console.debug(
                 `[WorkflowStateTracker] Final sanitized filename segment: "${originalName}" -> "${finalName}"`
             );
         }
