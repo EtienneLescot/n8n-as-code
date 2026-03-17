@@ -1,5 +1,11 @@
 # @n8n-as-code/skills
 
+## [1.1.4](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.1.3...@n8n-as-code/skills@v1.1.4) (2026-03-17)
+
+### Bug Fixes
+
+* generate OpenClaw skill from shared SSOT ([b6678bd](https://github.com/EtienneLescot/n8n-as-code/commit/b6678bd45c7da338b5ea4b6d5082be8b6d5105d4))
+
 ## [1.1.3](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.1.2...@n8n-as-code/skills@v1.1.3) (2026-03-17)
 
 ### Documentation

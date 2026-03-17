@@ -1,5 +1,16 @@
 # @n8n-as-code/cli
 
+## [1.1.4](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.1.3...n8nac@v1.1.4) (2026-03-17)
+
+### Bug Fixes
+
+* **cli:** suppress API warning spam in n8nac list output ([a23cfa7](https://github.com/EtienneLescot/n8n-as-code/commit/a23cfa7bbd15139b3572c7148602a9e3ed8d2b11))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.1.3 to 1.1.4
+
 ## [1.1.3](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.1.2...n8nac@v1.1.3) (2026-03-17)
 
 ### Bug Fixes
