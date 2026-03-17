@@ -27,6 +27,9 @@ The wizard asks for your n8n host URL and API key once, saves them via
 `n8nac init-auth`, selects your project, and generates an AI context file
 (`AGENTS.md`) in the workspace (`~/.openclaw/n8nac/`).
 
+To activate that full AI context in OpenClaw, make sure your current session is
+using the same `~/.openclaw/n8nac/` workspace.
+
 ## Usage
 
 Once setup is done, just talk to OpenClaw:
@@ -37,8 +40,10 @@ Once setup is done, just talk to OpenClaw:
 
 > "What operations does the Google Sheets node support?"
 
-The plugin injects the full n8n-architect instructions into every conversation
-so the AI knows the exact `n8nac` workflow (init-check → pull → edit → push → verify).
+The plugin injects the full generated `AGENTS.md` workflow context only when the
+active OpenClaw workspace is the dedicated `~/.openclaw/n8nac/` workspace, so
+general conversations in other workspaces do not inherit the full n8n
+workflow-authoring prompt by default.
 
 ## CLI commands
 

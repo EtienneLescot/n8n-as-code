@@ -11,7 +11,7 @@ The `@n8n-as-code/n8nac` package gives OpenClaw native access to the same `n8nac
 It is the right entry point when you want OpenClaw to:
 
 - bootstrap an n8n workspace for you
-- carry the generated `AGENTS.md` context into prompts automatically
+- carry the generated `AGENTS.md` context into prompts when the active OpenClaw workspace is the n8n workspace
 - run workflow operations through the shared `n8nac` CLI and tool surface
 
 ## What It Adds
@@ -20,7 +20,7 @@ Once installed, the plugin gives OpenClaw:
 
 - an `n8nac` tool for setup, workflow sync, validation, and skills access
 - an `openclaw n8nac:setup` wizard for host, API key, and project selection
-- automatic prompt grounding from the generated `AGENTS.md`
+- automatic prompt grounding from the generated `AGENTS.md` when you are in the n8n workspace
 - an OpenClaw-native workspace rooted at `~/.openclaw/n8nac/`
 
 ## Install
@@ -56,7 +56,9 @@ The setup wizard walks through the same core steps as the CLI:
 3. Generate `AGENTS.md` with `n8nac update-ai`.
 4. Point OpenClaw at the initialized workspace in `~/.openclaw/n8nac/`.
 
-After that, you can ask for workflow work in plain language, for example:
+After that, switch OpenClaw to the `~/.openclaw/n8nac/` workspace when you want
+the full generated workflow-authoring context, then ask for workflow work in
+plain language, for example:
 
 - `Create an n8n workflow that sends a Slack message when a GitHub issue is opened`
 - `Pull workflow 42 and add retry handling before the HTTP Request node`

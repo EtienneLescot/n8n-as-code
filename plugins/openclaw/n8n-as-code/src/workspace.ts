@@ -10,6 +10,10 @@ export function getWorkspaceDir(): string {
   return join(homedir(), ".openclaw", "n8nac");
 }
 
+export function isActiveN8nWorkspace(activeWorkspaceDir: string | undefined, workspaceDir: string): boolean {
+  return typeof activeWorkspaceDir === "string" && activeWorkspaceDir.trim() === workspaceDir;
+}
+
 /**
  * Returns true when n8nac has been initialized in the given directory,
  * meaning the config exists and contains a selected project + sync folder.

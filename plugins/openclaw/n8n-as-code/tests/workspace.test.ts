@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { isWorkspaceInitialized } from "../src/workspace.js";
+import { isActiveN8nWorkspace, isWorkspaceInitialized } from "../src/workspace.js";
 
 const tempDirs: string[] = [];
 
@@ -50,5 +50,16 @@ describe("isWorkspaceInitialized", () => {
     fs.writeFileSync(path.join(workspaceDir, "n8nac-config.json"), "{not-json");
 
     expect(isWorkspaceInitialized(workspaceDir)).toBe(false);
+  });
+});
+
+describe("isActiveN8nWorkspace", () => {
+  it("returns true only when the active workspace matches the n8n workspace", () => {
+    const workspaceDir = createWorkspaceDir();
+
+    expect(isActiveN8nWorkspace(workspaceDir, workspaceDir)).toBe(true);
+    expect(isActiveN8nWorkspace(`${workspaceDir} `, workspaceDir)).toBe(true);
+    expect(isActiveN8nWorkspace(undefined, workspaceDir)).toBe(false);
+    expect(isActiveN8nWorkspace(createWorkspaceDir(), workspaceDir)).toBe(false);
   });
 });

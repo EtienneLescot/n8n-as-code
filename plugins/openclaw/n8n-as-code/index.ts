@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { registerN8nAcCli } from "./src/cli.js";
 import { createN8nAcTool } from "./src/tool.js";
-import { getWorkspaceDir, isWorkspaceInitialized } from "./src/workspace.js";
+import { getWorkspaceDir, isActiveN8nWorkspace, isWorkspaceInitialized } from "./src/workspace.js";
 
 // ---------------------------------------------------------------------------
 // AGENTS.md context injection — populated once on service start
@@ -94,8 +94,10 @@ const n8nAcPlugin = {
     mkdirSync(workspaceDir, { recursive: true });
 
     // -- Context injection ---------------------------------------------------
-    // Prepend n8n-architect instructions to every prompt build.
-    api.on("before_prompt_build", () => {
+    // Only inject full n8n workflow context when the active OpenClaw session
+    // is operating in the dedicated n8n-as-code workspace.
+    api.on("before_prompt_build", (_event, ctx) => {
+      if (!isActiveN8nWorkspace(ctx.workspaceDir, workspaceDir)) return;
       const initialized = isWorkspaceInitialized(workspaceDir);
       // Lazy-load: setup may have run after the gateway started, so the
       // service start() missed it.  Re-attempt on every prompt until loaded.
