@@ -31,6 +31,10 @@ Install the published plugin package:
 openclaw plugins install @n8n-as-code/n8nac
 ```
 
+:::note Existing installs
+If you previously installed `@n8n-as-code/openclaw-plugin`, uninstall the old package first and then install `@n8n-as-code/n8nac` so OpenClaw stores the plugin under the canonical `n8nac` ID without repeated mismatch warnings.
+:::
+
 Then run the setup wizard:
 
 ```bash

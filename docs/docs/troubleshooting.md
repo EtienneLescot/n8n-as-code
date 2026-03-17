@@ -122,6 +122,7 @@ This usually means `AGENTS.md` is missing or outdated:
    ```bash
    openclaw plugins install @n8n-as-code/n8nac
    ```
+   If you migrated from `@n8n-as-code/openclaw-plugin`, run `openclaw plugins uninstall n8nac` first and then reinstall the package.
 2. Check that `n8nac` (or `npx n8nac`) is available in your PATH
 3. Verify your n8n instance URL and API key
 
