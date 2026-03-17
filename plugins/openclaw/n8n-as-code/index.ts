@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { accessSync, constants, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { registerN8nAcCli } from "./src/cli.js";
@@ -46,7 +46,13 @@ function buildStatusHeader(workspaceDir: string): string {
 }
 
 function hasAgentsContext(workspaceDir: string): boolean {
-  return existsSync(join(workspaceDir, "AGENTS.md"));
+  const agentsPath = join(workspaceDir, "AGENTS.md");
+  try {
+    accessSync(agentsPath, constants.R_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function buildPromptContext(workspaceDir: string): string {
