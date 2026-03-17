@@ -157,7 +157,7 @@ describe('AiContextGenerator', () => {
             expect(content).toContain('Use this skill only for explicit n8n workflow work.');
             expect(content).toContain('use the `n8nac` tool with `action: "init_auth"` and `action: "init_project"`');
             expect(content).toContain('Treat `AGENTS.md` as the authoritative workflow-engineering protocol once this skill is active.');
-            expect(content).toContain('### AI Tool Nodes');
+            expect(content).toContain('### AI tool nodes');
         });
     });
 });

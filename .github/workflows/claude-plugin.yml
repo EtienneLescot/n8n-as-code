@@ -129,7 +129,7 @@ jobs:
           do
             if ! git diff --quiet --exit-code -- "$file"; then
               echo "Error: $file was modified by the plugin build."
-              echo 'Please run "npm run build:claude-plugin" locally and commit the updated generated skill file.'
+              echo 'Please run "npm run build && npm run build:adapters --workspace=packages/skills" from the workspace root and commit the updated generated skill file.'
               exit 1
             fi
           done
