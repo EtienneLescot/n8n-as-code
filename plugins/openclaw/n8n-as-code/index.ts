@@ -81,7 +81,7 @@ function loadAgentsContext(workspaceDir: string): string | null {
 // ---------------------------------------------------------------------------
 
 const n8nAcPlugin = {
-  id: "openclaw-plugin",
+  id: "n8nac",
   name: "n8n-as-code",
   description:
     "Create and manage n8n workflows from OpenClaw using n8n-as-code (n8nac). " +

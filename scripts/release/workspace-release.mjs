@@ -45,12 +45,12 @@ const PACKAGES = [
     internalDependencies: ['@n8n-as-code/skills', 'n8nac'],
   },
   {
-    name: '@n8n-as-code/openclaw-plugin',
+    name: '@n8n-as-code/n8nac',
     path: 'plugins/openclaw/n8n-as-code',
     packageJsonPath: 'plugins/openclaw/n8n-as-code/package.json',
     changelogPath: 'plugins/openclaw/n8n-as-code/CHANGELOG.md',
     publishTarget: 'npm',
-    tagPrefix: '@n8n-as-code/openclaw-plugin@',
+    tagPrefix: '@n8n-as-code/n8nac@',
     internalDependencies: [],
   },
 ];

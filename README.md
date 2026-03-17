@@ -81,7 +81,7 @@ OpenClaw-native plugin and workspace bootstrap flow.
 **Best for:** OpenClaw users who want built-in grounding and setup
 
 **Run**  
-<code>openclaw plugins install <wbr>@n8n-as-code/openclaw-plugin</code><br>
+<code>openclaw plugins install <wbr>@n8n-as-code/n8nac</code><br>
 <code>openclaw n8nac:setup</code><br>
 <code>openclaw gateway restart</code>
 
@@ -275,7 +275,7 @@ n8nac pull <id> > workflow.json && n8nac convert workflow.json --format typescri
 |:--------|:-------------|:--------|
 | **[n8nac](packages/cli)** | CLI — sync, convert, validate, search | `npx n8nac` |
 | **[VS Code Extension](packages/vscode-extension)** | Visual UI — sidebar, canvas, push-on-save | [Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) |
-| **[@n8n-as-code/openclaw-plugin](plugins/openclaw/n8n-as-code)** | OpenClaw plugin — setup wizard, prompt context, workflow operations | `openclaw plugins install @n8n-as-code/openclaw-plugin` |
+| **[@n8n-as-code/n8nac](plugins/openclaw/n8n-as-code)** | OpenClaw plugin — setup wizard, prompt context, workflow operations | `openclaw plugins install @n8n-as-code/n8nac` |
 | **[@n8n-as-code/skills](packages/skills)** | AI Skill — knowledge base, search, schemas | `npm i @n8n-as-code/skills` |
 | **[@n8n-as-code/transformer](packages/transformer)** | JSON ↔ TypeScript converter | `npm i @n8n-as-code/transformer` |
 

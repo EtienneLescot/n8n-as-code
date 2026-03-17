@@ -110,8 +110,8 @@ jobs:
           if should_publish 'n8nac'; then
             publish_npm 'n8nac' 'packages/cli'
           fi
-          if should_publish '@n8n-as-code/openclaw-plugin'; then
-            publish_npm '@n8n-as-code/openclaw-plugin' 'plugins/openclaw/n8n-as-code'
+          if should_publish '@n8n-as-code/n8nac'; then
+            publish_npm '@n8n-as-code/n8nac' 'plugins/openclaw/n8n-as-code'
           fi
 
       - name: Remove private flag for extension packaging
@@ -175,7 +175,7 @@ jobs:
           const prefixByName = {
             '@n8n-as-code/transformer': '@n8n-as-code/transformer@v',
             '@n8n-as-code/skills': '@n8n-as-code/skills@v',
-            '@n8n-as-code/openclaw-plugin': '@n8n-as-code/openclaw-plugin@v',
+            '@n8n-as-code/n8nac': '@n8n-as-code/n8nac@v',
             'n8nac': 'n8nac@v',
             'n8n-as-code': 'n8n-as-code@v',
           };
@@ -237,7 +237,7 @@ jobs:
               label: 'TypeScript Transformer',
               summary: 'Decorator-based round-trip conversion between n8n JSON and TypeScript workflows.',
             }],
-            ['@n8n-as-code/openclaw-plugin', {
+            ['@n8n-as-code/n8nac', {
               label: 'OpenClaw Plugin',
               summary: 'Native OpenClaw setup and workflow operations powered by the same n8nac stack.',
             }],
@@ -517,8 +517,8 @@ jobs:
           if should_publish 'n8nac'; then
             publish_npm 'n8nac' 'packages/cli'
           fi
-          if should_publish '@n8n-as-code/openclaw-plugin'; then
-            publish_npm '@n8n-as-code/openclaw-plugin' 'plugins/openclaw/n8n-as-code'
+          if should_publish '@n8n-as-code/n8nac'; then
+            publish_npm '@n8n-as-code/n8nac' 'plugins/openclaw/n8n-as-code'
           fi
 
       - name: Remove private flag for extension packaging

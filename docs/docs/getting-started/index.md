@@ -101,7 +101,7 @@ See the full [Claude Plugin guide](/docs/usage/claude-plugin).
 ### OpenClaw
 
 ```bash
-openclaw plugins install @n8n-as-code/openclaw-plugin
+openclaw plugins install @n8n-as-code/n8nac
 openclaw n8nac:setup
 openclaw gateway restart
 ```

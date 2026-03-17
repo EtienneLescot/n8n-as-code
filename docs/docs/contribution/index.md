@@ -75,7 +75,7 @@ To iterate on the OpenClaw plugin from this monorepo:
 ```bash
 openclaw plugins install --link /home/etienne/repos/n8n-as-code/plugins/openclaw/n8n-as-code
 openclaw gateway restart
-openclaw plugins info openclaw-plugin
+openclaw plugins info n8nac
 openclaw n8nac:status
 ```
 
