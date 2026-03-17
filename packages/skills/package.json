@@ -11,7 +11,7 @@
         "postbuild": "mkdir -p dist/assets && cp src/assets/*.json dist/assets/",
         "clean": "rm -rf dist tsconfig.tsbuildinfo",
         "test": "node --experimental-vm-modules ../../node_modules/.bin/jest",
-        "build:adapters": "node scripts/build-claude-adapter.js"
+        "build:adapters": "node scripts/build-skill-adapters.js"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.27.1",

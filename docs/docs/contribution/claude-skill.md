@@ -11,7 +11,7 @@ This page documents the Claude-specific adapter built from `packages/skills`. It
 ## 📦 Package Overview
 
 - **Source package**: `packages/skills/`
-- **Build script**: `packages/skills/scripts/build-claude-adapter.js`
+- **Build script**: `packages/skills/scripts/build-skill-adapters.js`
 - **Purpose**: Package shared n8n instructions as a [Claude Agent Skill](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills)
 - **Type**: Generated distribution artifact, not a published npm package
 - **Source of truth**: `AiContextGenerator.getSkillContent()`
@@ -23,7 +23,7 @@ This page documents the Claude-specific adapter built from `packages/skills`. It
 ```
 packages/skills/
 ├── src/services/ai-context-generator.ts
-├── scripts/build-claude-adapter.js
+├── scripts/build-skill-adapters.js
 ├── dist/adapters/claude/
 │   ├── n8n-architect/
 │   │   ├── SKILL.md
@@ -181,7 +181,7 @@ Workspace-level convenience script that builds the Skills package and its Claude
 
 The adapter follows the Skills package lifecycle:
 
-1. **Make changes** to `packages/skills/src/services/ai-context-generator.ts` or `packages/skills/scripts/build-claude-adapter.js`
+1. **Make changes** to `packages/skills/src/services/ai-context-generator.ts` or `packages/skills/scripts/build-skill-adapters.js`
 2. **Commit with a conventional message** so CI can infer the bump level
 3. **Push to `next`** for prerelease validation
 4. **Merge `next` into `main`** and let the release PR apply the final version bump

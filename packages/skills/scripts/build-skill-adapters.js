@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * Build Script for Claude Adapter (@n8n-as-code/skills)
+ * Build Script for generated skill adapters (@n8n-as-code/skills)
  * 
- * Generates a distributable Claude Agent Skill package:
- * - Copies SKILL.md with proper structure
- * - Creates a ZIP file for easy distribution
- * - Generates installation instructions
+ * Generates the distributable Claude Agent Skill package and mirrors the
+ * generated skill files into plugin trees that consume the same SSOT.
  */
 
 import fs from 'fs';
@@ -28,7 +26,8 @@ async function getAiContextGenerator() {
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
 const DIST_DIR = path.join(PACKAGE_ROOT, 'dist', 'adapters', 'claude');
 const SKILL_OUTPUT_DIR = path.join(DIST_DIR, 'n8n-architect');
-const PLUGIN_SKILL_DIR = path.join(WORKSPACE_ROOT, 'plugins', 'claude', 'n8n-as-code', 'skills', 'n8n-architect');
+const CLAUDE_PLUGIN_SKILL_DIR = path.join(WORKSPACE_ROOT, 'plugins', 'claude', 'n8n-as-code', 'skills', 'n8n-architect');
+const OPENCLAW_PLUGIN_SKILL_DIR = path.join(WORKSPACE_ROOT, 'plugins', 'openclaw', 'n8n-as-code', 'skills', 'n8n-architect');
 
 // Colors for terminal output
 const colors = {
@@ -59,7 +58,8 @@ function createSkillStructure() {
 
     // Create main skill directory
     fs.mkdirSync(SKILL_OUTPUT_DIR, { recursive: true });
-    fs.mkdirSync(PLUGIN_SKILL_DIR, { recursive: true });
+    fs.mkdirSync(CLAUDE_PLUGIN_SKILL_DIR, { recursive: true });
+    fs.mkdirSync(OPENCLAW_PLUGIN_SKILL_DIR, { recursive: true });
 
     // Create scripts subdirectory
     const scriptsDir = path.join(SKILL_OUTPUT_DIR, 'scripts');
@@ -73,12 +73,15 @@ async function generateSkillMd() {
 
     const generator = await getAiContextGenerator();
     const skillContent = generator.getSkillContent();
+    const openClawSkillContent = generator.getOpenClawSkillContent();
     const distPath = path.join(SKILL_OUTPUT_DIR, 'SKILL.md');
-    const pluginPath = path.join(PLUGIN_SKILL_DIR, 'SKILL.md');
+    const claudePluginPath = path.join(CLAUDE_PLUGIN_SKILL_DIR, 'SKILL.md');
+    const openClawPluginPath = path.join(OPENCLAW_PLUGIN_SKILL_DIR, 'SKILL.md');
 
     fs.writeFileSync(distPath, skillContent);
-    fs.writeFileSync(pluginPath, skillContent);
-    log('   ✓ SKILL.md generated for dist and slim plugin', 'green');
+    fs.writeFileSync(claudePluginPath, skillContent);
+    fs.writeFileSync(openClawPluginPath, openClawSkillContent);
+    log('   ✓ SKILL.md generated for dist, Claude plugin, and OpenClaw plugin', 'green');
 }
 
 function generateReadme() {
@@ -212,7 +215,7 @@ echo "For Claude.ai, upload the n8n-architect folder as a ZIP in Settings → Fe
 
 function printSummary() {
     log('\n' + '='.repeat(60), 'cyan');
-    log('✨ Claude Adapter Build Complete!', 'green');
+    log('✨ Skill Adapter Build Complete!', 'green');
     log('='.repeat(60), 'cyan');
 
     log('\n📦 Generated files:', 'blue');
@@ -221,7 +224,8 @@ function printSummary() {
     log(`   │   ├── SKILL.md`, 'yellow');
     log(`   │   └── README.md`, 'yellow');
     log(`   └── install.sh`, 'yellow');
-    log(`   ${PLUGIN_SKILL_DIR}/SKILL.md`, 'yellow');
+    log(`   ${CLAUDE_PLUGIN_SKILL_DIR}/SKILL.md`, 'yellow');
+    log(`   ${OPENCLAW_PLUGIN_SKILL_DIR}/SKILL.md`, 'yellow');
 
     log('\n' + '='.repeat(60) + '\n', 'cyan');
 }
@@ -229,7 +233,7 @@ function printSummary() {
 // Main build process
 (async () => {
     try {
-        log('\n🏗️  Building Claude Adapter...', 'blue');
+        log('\n🏗️  Building skill adapters...', 'blue');
         log(`   Root: ${PACKAGE_ROOT}`, 'gray');
 
         cleanDist();
@@ -241,7 +245,7 @@ function printSummary() {
 
         process.exit(0);
     } catch (error) {
-        log('\n❌ Build failed:', 'red');
+        log('\n❌ Skill adapter build failed:', 'red');
         console.error(error);
         process.exit(1);
     }

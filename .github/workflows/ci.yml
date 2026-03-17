@@ -47,6 +47,22 @@ jobs:
       - name: Build all packages
         run: npm run build
 
+      - name: Build skill adapters
+        run: npm run build:adapters --workspace=packages/skills
+
+      - name: Verify committed generated skills are up to date
+        run: |
+          for file in \
+            plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md \
+            plugins/openclaw/n8n-as-code/skills/n8n-architect/SKILL.md
+          do
+            if ! git diff --quiet --exit-code -- "$file"; then
+              echo "Error: $file was modified by the skills adapter build."
+              echo 'Please run "cd packages/skills && npm run build && npm run build:adapters" locally and commit the updated generated skill file.'
+              exit 1
+            fi
+          done
+          echo 'Committed generated skill files match the current SSOT.'
+
       - name: Run tests
         run: npm test
-

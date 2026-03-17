@@ -28,7 +28,7 @@ packages/skills/
 │   ├── services/                 # AiContextGenerator and related services
 │   └── assets/                   # Generated node/doc indexes copied to dist/
 ├── scripts/
-│   └── build-claude-adapter.js   # Builds Claude adapter artifacts
+│   └── build-skill-adapters.js   # Builds generated skill adapter artifacts
 ├── tests/
 ├── dist/
 │   ├── assets/
@@ -87,7 +87,7 @@ The package registers the `n8nac skills` subcommand tree consumed by the CLI pac
 - Generating and updating `AGENTS.md`
 - Emitting the shared research protocol used by agents
 - Defining canonical TypeScript workflow examples
-- Producing the Claude adapter `SKILL.md` through `getSkillContent()`
+- Producing the generated skill adapter outputs, including the Claude `SKILL.md` and the OpenClaw skill mirror
 
 This shared generator is the reason `AGENTS.md` and the Claude adapter stay aligned.
 
@@ -118,7 +118,7 @@ The same package also builds Claude artifacts under `packages/skills/dist/adapte
 - `n8n-architect/README.md`
 - `install.sh`
 
-The build script also mirrors `SKILL.md` into the plugin distribution tree under `plugins/claude/...`.
+The build script also mirrors generated skill files into the plugin distribution trees under `plugins/claude/...` and `plugins/openclaw/...`.
 
 ## 🔄 Integration With Other Packages
 
@@ -132,7 +132,7 @@ The VS Code extension depends on the same package for AI context generation and 
 
 ### Claude adapter
 
-Claude-specific distribution is not an independent package. It is a build artifact generated from `packages/skills/scripts/build-claude-adapter.js` using `AiContextGenerator.getSkillContent()`.
+Claude-specific distribution is not an independent package. It is a build artifact generated from `packages/skills/scripts/build-skill-adapters.js` using `AiContextGenerator.getSkillContent()`.
 
 ## 🧪 Build And Test
 

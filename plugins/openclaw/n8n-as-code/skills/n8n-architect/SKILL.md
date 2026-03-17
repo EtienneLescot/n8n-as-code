@@ -14,11 +14,59 @@ Use this skill only for explicit n8n workflow work.
 3. If `AGENTS.md` is missing or unreadable, regenerate it with `npx --yes n8nac update-ai` or run the `openclaw n8nac:setup` command before attempting workflow authoring.
 4. If the workspace is not initialized, ask the user for the n8n host URL and API key, then use the `n8nac` tool with `action: "init_auth"` and `action: "init_project"` to complete setup yourself.
 
-## Tooling
+## OpenClaw Tooling
 
-- Use the `n8nac` tool for setup checks, workflow list/pull/push/verify, and `skills` lookups.
-- Never guess node parameters. Use `action: "skills"` to search nodes and inspect exact schemas.
+- Prefer the `n8nac` tool for setup checks, workflow list/pull/push/verify, validation, and `skills` lookups.
+- Use `action: "skills"` whenever you need node search or schema details.
+- Never guess node parameters. The schema lookup is the source of truth.
+- Treat `AGENTS.md` as the authoritative workflow-engineering protocol once this skill is active.
 
-## Scope
+## 🗺️ Reading Workflow Files Efficiently
 
-Once active, follow `AGENTS.md` for the full workflow-engineering protocol and keep unrelated requests outside the n8n workflow lens.
+Every `.workflow.ts` file starts with a `<workflow-map>` block — a compact index generated automatically at each sync. Always read this block first before opening the rest of the file.
+
+```
+// <workflow-map>
+// Workflow : My Workflow
+// Nodes   : 12  |  Connections: 14
+//
+// NODE INDEX
+// ──────────────────────────────────────────────────────────────────
+// Property name                    Node type (short)         Flags
+// ScheduleTrigger                  scheduleTrigger
+// AgentGenerateApplication         agent                      [AI] [creds]
+// OpenaiChatModel                  lmChatOpenAi               [creds] [ai_languageModel]
+// Memory                           memoryBufferWindow         [ai_memory]
+// GithubCheckBranchRef             httpRequest                [onError→out(1)]
+//
+// ROUTING MAP
+// ──────────────────────────────────────────────────────────────────
+// ⚠️ Nodes flagged [ai_*] are NOT in the → routing — they connect via .uses()
+// ScheduleTrigger
+//   → Configuration1
+//     → BuildProfileSources → LoopOverProfileSources
+//       .out(1) → JinaReadProfileSource → LoopOverProfileSources (↩ loop)
+//
+// AI CONNECTIONS
+// AgentGenerateApplication.uses({ ai_languageModel: OpenaiChatModel, ai_memory: Memory })
+// </workflow-map>
+```
+
+### How to navigate a workflow as an agent
+
+1. Read `<workflow-map>` only — locate the property name you need.
+2. Search for that property name in the file (for example `AgentGenerateApplication =`).
+3. Read only that section — do not load the entire file into context.
+
+This avoids loading 1500+ lines when you only need to patch 10.
+
+
+### AI Tool Nodes
+
+When an AI agent uses tool nodes:
+
+- ✅ Search for the exact tool node first.
+- ✅ Run `npx --yes n8nac skills node-info <nodeName>` before writing parameters.
+- ✅ Connect tool nodes as arrays: `this.Agent.uses({ ai_tool: [this.Tool.output] })`.
+- ❌ Do not assume tool parameter names or reuse stale node-specific guidance.
+

@@ -6,7 +6,7 @@ on:
     paths:
       - '.claude-plugin/**'
       - 'plugins/claude/**'
-      - 'packages/skills/scripts/build-claude-adapter.js'
+      - 'packages/skills/scripts/build-skill-adapters.js'
       - 'packages/skills/src/services/ai-context-generator.ts'
       - 'packages/skills/tests/ai-context-generator.test.ts'
       - 'README.md'
@@ -17,7 +17,7 @@ on:
     paths:
       - '.claude-plugin/**'
       - 'plugins/claude/**'
-      - 'packages/skills/scripts/build-claude-adapter.js'
+      - 'packages/skills/scripts/build-skill-adapters.js'
       - 'packages/skills/src/services/ai-context-generator.ts'
       - 'packages/skills/tests/ai-context-generator.test.ts'
       - 'README.md'
@@ -123,12 +123,17 @@ jobs:
 
       - name: Verify committed skill not modified by build
         run: |
-          if ! git diff --quiet --exit-code -- plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md; then
-            echo 'Error: plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md was modified by the Claude plugin build.'
-            echo 'Please run "npm run build:claude-plugin" locally and commit the updated SKILL.md file.'
-            exit 1
-          fi
-          echo 'Committed SKILL.md matches the generated version (no changes from build).'
+          for file in \
+            plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md \
+            plugins/openclaw/n8n-as-code/skills/n8n-architect/SKILL.md
+          do
+            if ! git diff --quiet --exit-code -- "$file"; then
+              echo "Error: $file was modified by the plugin build."
+              echo 'Please run "npm run build:claude-plugin" locally and commit the updated generated skill file.'
+              exit 1
+            fi
+          done
+          echo 'Committed generated skill files match the build output (no changes from build).'
 
       - name: Bundle Claude plugin
         id: bundle

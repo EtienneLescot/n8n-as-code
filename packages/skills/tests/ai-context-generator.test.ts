@@ -150,5 +150,14 @@ describe('AiContextGenerator', () => {
             expect(agentsContent).toContain('npx --yes n8nac init-project');
             expect(skillContent).toContain('npx --yes n8nac init-project');
         });
+
+        test('getOpenClawSkillContent() should describe OpenClaw tool usage and AGENTS handoff', () => {
+            const content = generator.getOpenClawSkillContent();
+
+            expect(content).toContain('Use this skill only for explicit n8n workflow work.');
+            expect(content).toContain('use the `n8nac` tool with `action: "init_auth"` and `action: "init_project"`');
+            expect(content).toContain('Treat `AGENTS.md` as the authoritative workflow-engineering protocol once this skill is active.');
+            expect(content).toContain('### AI Tool Nodes');
+        });
     });
 });
