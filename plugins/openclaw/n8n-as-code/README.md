@@ -10,6 +10,13 @@ Use OpenClaw to build, update, validate, and manage n8n workflows with the same 
 openclaw plugins install @n8n-as-code/n8nac
 ```
 
+If you previously installed `@n8n-as-code/openclaw-plugin`, remove the old install first so OpenClaw re-registers the plugin cleanly under `n8nac`:
+
+```bash
+openclaw plugins uninstall n8nac
+openclaw plugins install @n8n-as-code/n8nac
+```
+
 Restart the gateway, then run the setup wizard:
 
 ```bash
