@@ -24,7 +24,7 @@ describe("OpenClaw plugin metadata", () => {
     const packageJson = readJson("package.json");
     const packageName = String(packageJson.name ?? "");
 
-    expect(packageName).toBeTruthy();
+    expect(packageName).toMatch(/\S+/);
     expect(manifest.id).toBe(getPackageBasename(packageName));
   });
 });
