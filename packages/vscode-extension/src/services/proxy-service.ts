@@ -2,17 +2,18 @@ import * as http from 'http';
 import httpProxy = require('http-proxy');
 import * as vscode from 'vscode';
 import { AddressInfo } from 'net';
+import { WebSocket, WebSocketServer } from 'ws';
 
 export class ProxyService {
     private server: http.Server | undefined;
     private proxy: httpProxy | undefined;
+    private wsServer: WebSocketServer | undefined;
     private port: number = 0;
     private target: string = '';
     private outputChannel: vscode.OutputChannel | undefined;
     private secrets: vscode.SecretStorage | undefined;
 
     private cookieJar = new Map<string, string>();
-
     constructor() { }
 
     public setSecrets(secrets: vscode.SecretStorage) {
@@ -74,6 +75,20 @@ export class ProxyService {
         } catch (e: any) {
             this.log(`[Proxy] Error loading persisted cookies: ${e.message}`);
         }
+    }
+
+    private buildMergedCookieHeader(clientCookies?: string): string | undefined {
+        const finalCookies: string[] = clientCookies ? [clientCookies] : [];
+
+        if (this.cookieJar.size > 0) {
+            for (const [key, value] of this.cookieJar) {
+                if (!clientCookies || !clientCookies.includes(key + '=')) {
+                    finalCookies.push(value);
+                }
+            }
+        }
+
+        return finalCookies.length > 0 ? finalCookies.join('; ') : undefined;
     }
 
     public async start(targetUrl: string): Promise<string> {
@@ -174,11 +189,11 @@ export class ProxyService {
 
         this.proxy.on('error', (err, _req, res) => {
             this.log(`[Proxy] ERROR: ${err.message}`);
-            // If it's a websocket error, res is a socket
             if ((res as any).writeHead) {
+                // HTTP error — send a 502 back to the client
                 const response = res as http.ServerResponse;
                 if (!response.headersSent) {
-                    response.writeHead(500, { 'Content-Type': 'text/plain' });
+                    response.writeHead(502, { 'Content-Type': 'text/plain' });
                 }
                 response.end('Proxy Error: ' + err.message);
             }
@@ -198,21 +213,9 @@ export class ProxyService {
             }
 
             if (this.proxy) {
-                // Merge cookies
-                const clientCookies = req.headers.cookie;
-                let finalCookies: string[] = clientCookies ? [clientCookies] : [];
-
-                if (this.cookieJar.size > 0) {
-                    for (const [key, value] of this.cookieJar) {
-                        // Avoid duplicates if client already sent this cookie
-                        if (!clientCookies || !clientCookies.includes(key + '=')) {
-                            finalCookies.push(value);
-                        }
-                    }
-                }
-
-                if (finalCookies.length > 0) {
-                    req.headers['cookie'] = finalCookies.join('; ');
+                const mergedCookies = this.buildMergedCookieHeader(req.headers.cookie);
+                if (mergedCookies) {
+                    req.headers['cookie'] = mergedCookies;
                 }
 
                 // Add Forwarding Headers - CRITICAL for n8n to know its external URL
@@ -220,32 +223,33 @@ export class ProxyService {
                 const targetIsHttps = this.target.startsWith('https');
                 const proto = targetIsHttps ? 'https' : 'http';
 
-                // IMPORTANT: Use consistent headers to avoid session invalidation
-                req.headers['host'] = proxyHost;
+                // Reconstruct headers for HTTP
                 req.headers['x-forwarded-host'] = proxyHost;
                 req.headers['x-forwarded-proto'] = proto;
                 req.headers['x-forwarded-port'] = this.port.toString();
-                req.headers['x-forwarded-for'] = req.socket.remoteAddress;
-
-                // Ensure n8n sees the proxy as the origin to match X-Forwarded-Host
-                // For HTTPS targets (cloud), using the target itself as origin often helps bypass CSRF/CORS checks
+                
+                // For HTTPS Cloudflare targets, we MUST spoof the host/origin to match target
+                if (targetIsHttps) {
+                    const targetHost = this.target.replace(/^https?:\/\//, '');
+                    req.headers['host'] = targetHost;
+                } else {
+                    req.headers['host'] = proxyHost;
+                }
+                
                 req.headers['origin'] = targetIsHttps ? this.target : `${proto}://${proxyHost}`;
 
-                // Keep the referer matching the proxy URL
-                if (req.headers['referer']) {
-                    req.headers['referer'] = req.headers['referer'].replace(new RegExp(`^http://localhost:[0-9]+`), `${proto}://${proxyHost}`);
-                }
-
-                /* if (req.headers['cookie']?.includes('n8n-auth')) {
-                    this.log(`[Proxy] Forwarding: ${req.method} ${url} (Cookie injected) [${proto}]`);
-                } else {
-                    this.log(`[Proxy] Forwarding: ${req.method} ${url} [${proto}]`);
-                } */
+                // Inject CORS for the webview
+                res.setHeader('access-control-allow-origin', '*');
+                res.setHeader('access-control-allow-credentials', 'true');
+                res.setHeader('access-control-allow-methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+                res.setHeader('access-control-allow-headers', '*');
 
                 // CRITICAL for SSE: Disable buffering
-                this.proxy.web(req, res, { buffer: undefined });
+                this.proxy.web(req, res, { buffer: undefined, changeOrigin: true, secure: false });
             }
         });
+
+        this.wsServer = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 
         return new Promise((resolve, reject) => {
             if (!this.server) return reject(new Error('Server not initialized'));
@@ -277,33 +281,97 @@ export class ProxyService {
 
             // Proxy WebSockets for real-time features
             this.server.on('upgrade', (req, socket, head) => {
-                if (this.proxy) {
-                    // this.log(`[Proxy] Upgrading to WebSocket: ${req.url}`);
-
-                    // Add same headers to WS upgrade request
-                    const proxyHost = `localhost:${this.port}`;
+                if (this.wsServer) {
                     const targetIsHttps = this.target.startsWith('https');
-                    const proto = targetIsHttps ? 'https' : 'http';
+                    const upstreamBaseUrl = this.target.replace(/^http/, 'ws');
+                    const upstreamUrl = new URL(req.url ?? '/', `${upstreamBaseUrl}/`).toString();
+                    const headers: Record<string, string> = {};
 
-                    req.headers['x-forwarded-host'] = proxyHost;
-                    req.headers['x-forwarded-proto'] = proto;
-                    req.headers['origin'] = targetIsHttps ? this.target : `${proto}://${proxyHost}`;
-
-                    // Inject cookies for WS as well
-                    if (this.cookieJar.size > 0) {
-                        const clientCookies = req.headers.cookie;
-                        let finalCookies: string[] = clientCookies ? [clientCookies] : [];
-                        for (const [key, value] of this.cookieJar) {
-                            if (!clientCookies || !clientCookies.includes(key + '=')) {
-                                finalCookies.push(value);
-                            }
-                        }
-                        if (finalCookies.length > 0) {
-                            req.headers['cookie'] = finalCookies.join('; ');
+                    for (const [key, value] of Object.entries(req.headers)) {
+                        if (value !== undefined && key !== 'sec-websocket-extensions') {
+                            headers[key] = Array.isArray(value) ? value.join(', ') : value;
                         }
                     }
 
-                    this.proxy.ws(req, socket, head);
+                    headers['host'] = this.target.replace(/^https?:\/\//, '');
+                    headers['origin'] = this.target;
+                    headers['connection'] = 'Upgrade';
+                    headers['upgrade'] = 'websocket';
+                    delete headers['sec-websocket-extensions'];
+
+                    const mergedCookies = this.buildMergedCookieHeader(headers['cookie']);
+                    if (mergedCookies) {
+                        headers['cookie'] = mergedCookies;
+                    }
+
+                    this.log(`[Proxy] WS Upgrade Request: ${req.url}`);
+
+                    this.wsServer.handleUpgrade(req, socket, head, (clientWs) => {
+                        const upstreamWs = new WebSocket(upstreamUrl, {
+                            headers,
+                            rejectUnauthorized: false,
+                            perMessageDeflate: false,
+                        });
+
+                        const pingTimer = setInterval(() => {
+                            if (upstreamWs.readyState === WebSocket.OPEN) {
+                                upstreamWs.ping();
+                            }
+                        }, 55_000);
+
+                        const clearPing = () => clearInterval(pingTimer);
+
+                        clientWs.on('message', (data, isBinary) => {
+                            if (upstreamWs.readyState === WebSocket.OPEN) {
+                                upstreamWs.send(data, { binary: isBinary });
+                            }
+                        });
+
+                        upstreamWs.on('message', (data, isBinary) => {
+                            if (clientWs.readyState === WebSocket.OPEN) {
+                                clientWs.send(data, { binary: isBinary });
+                            }
+                        });
+
+                        upstreamWs.on('open', () => {
+                            this.log(`[Proxy] WS Connection Open (Upstream)`);
+                        });
+
+                        upstreamWs.on('close', (code, reason) => {
+                            clearPing();
+                            this.log(`[Proxy] WS Connection Closed (Upstream): ${code}${reason.length > 0 ? ` ${reason.toString()}` : ''}`);
+                            if (clientWs.readyState === WebSocket.OPEN) {
+                                clientWs.close(code, reason);
+                            } else {
+                                clientWs.terminate();
+                            }
+                        });
+
+                        clientWs.on('close', (code, reason) => {
+                            clearPing();
+                            if (upstreamWs.readyState === WebSocket.OPEN || upstreamWs.readyState === WebSocket.CONNECTING) {
+                                upstreamWs.close(code, reason);
+                            }
+                        });
+
+                        upstreamWs.on('error', (err) => {
+                            clearPing();
+                            this.log(`[Proxy] WS Connection Error (Upstream): ${err.message}`);
+                            if (clientWs.readyState === WebSocket.OPEN) {
+                                clientWs.close(1011, 'Upstream proxy error');
+                            } else {
+                                clientWs.terminate();
+                            }
+                        });
+
+                        clientWs.on('error', (err) => {
+                            clearPing();
+                            this.log(`[Proxy] WS Connection Error (Client): ${err.message}`);
+                            if (upstreamWs.readyState === WebSocket.OPEN || upstreamWs.readyState === WebSocket.CONNECTING) {
+                                upstreamWs.terminate();
+                            }
+                        });
+                    });
                 }
             });
 
@@ -312,6 +380,10 @@ export class ProxyService {
     }
 
     public stop() {
+        if (this.wsServer) {
+            this.wsServer.close();
+            this.wsServer = undefined;
+        }
         if (this.server) {
             this.server.close();
             this.server = undefined;
