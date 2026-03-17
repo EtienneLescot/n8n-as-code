@@ -100,12 +100,11 @@ type RunResult = {
 function runNpx(
   args: string[],
   cwd: string,
-  env?: NodeJS.ProcessEnv,
+  stdinInput?: string,
 ): Promise<RunResult> {
   return new Promise((resolve) => {
     const child = spawn("npx", ["--yes", "n8nac", ...args], {
       cwd,
-      env: { ...process.env, ...env },
       stdio: "pipe",
     });
 
@@ -130,6 +129,11 @@ function runNpx(
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString();
     });
+
+    if (stdinInput !== undefined) {
+      child.stdin.write(`${stdinInput}\n`);
+      child.stdin.end();
+    }
 
     const timer = setTimeout(() => {
       timedOut = true;
@@ -250,7 +254,7 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
         if (!host || !key) {
           return ok({ error: "n8nHost and n8nApiKey are required for init_auth" });
         }
-        const r = await runNpx(["init-auth", "--host", host], workspaceDir, { N8N_API_KEY: key });
+        const r = await runNpx(["init-auth", "--host", host, "--api-key-stdin"], workspaceDir, key);
         if (r.exitCode !== 0) {
           return ok({ error: r.stderr || r.stdout, exitCode: r.exitCode });
         }

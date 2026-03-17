@@ -15,6 +15,21 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { createRequire } from 'module';
 import { parsePositiveIntegerOption } from './utils/option-parsers.js';
 
+async function readSecretFromStdin(): Promise<string> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+        chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    }
+    return Buffer.concat(chunks).toString('utf8').trim().replace(/^['"]|['"]$/g, '');
+}
+
+async function hydrateApiKeyFromStdin(options: { apiKey?: string; apiKeyStdin?: boolean }): Promise<void> {
+    if (options.apiKey || !options.apiKeyStdin) {
+        return;
+    }
+    options.apiKey = await readSecretFromStdin();
+}
+
 /**
  * Get version from package.json
  */
@@ -62,12 +77,14 @@ program.command('init')
     .description('Bootstrap the project (interactive by default, non-interactive with flags)')
     .option('--host <url>', 'n8n instance URL')
     .option('--api-key <key>', 'n8n API key (or set N8N_API_KEY)')
+    .option('--api-key-stdin', 'Read the n8n API key from stdin')
     .option('--sync-folder <path>', 'Local folder for workflows')
     .option('--project-id <id>', 'Project ID to select non-interactively')
     .option('--project-name <name>', 'Project name to select non-interactively')
     .option('--project-index <number>', '1-based project index to select non-interactively', (value) => parseInt(value, 10))
     .option('--yes', 'Run non-interactively when enough information is available')
     .action(async (options) => {
+        await hydrateApiKeyFromStdin(options);
         await new InitCommand().run(options);
     });
 
@@ -75,8 +92,10 @@ program.command('init-auth')
     .description('Save n8n host/API credentials and list available projects')
     .option('--host <url>', 'n8n instance URL')
     .option('--api-key <key>', 'n8n API key (or set N8N_API_KEY)')
+    .option('--api-key-stdin', 'Read the n8n API key from stdin')
     .option('--sync-folder <path>', 'Default local folder for workflows')
     .action(async (options) => {
+        await hydrateApiKeyFromStdin(options);
         await new InitCommand().runAuthSetup(options);
     });
 
@@ -84,12 +103,14 @@ program.command('init-project')
     .description('Select the active n8n project and local sync folder')
     .option('--host <url>', 'n8n instance URL (optional if already saved)')
     .option('--api-key <key>', 'n8n API key (optional if already saved)')
+    .option('--api-key-stdin', 'Read the n8n API key from stdin')
     .option('--sync-folder <path>', 'Local folder for workflows')
     .option('--project-id <id>', 'Project ID to select non-interactively')
     .option('--project-name <name>', 'Project name to select non-interactively')
     .option('--project-index <number>', '1-based project index to select non-interactively', (value) => parseInt(value, 10))
     .option('--yes', 'Run non-interactively when enough information is available')
     .action(async (options) => {
+        await hydrateApiKeyFromStdin(options);
         await new InitCommand().runProjectSetup(options);
     });
 

@@ -24,14 +24,13 @@ function runN8nac(
   opts: {
     cwd: string;
     timeout: number;
-    env?: NodeJS.ProcessEnv;
+    stdinInput?: string;
     stdio?: "pipe" | "inherit";
   },
 ): Promise<RunResult> {
   return new Promise((resolve) => {
     const baseOptions = {
       cwd: opts.cwd,
-      env: { ...process.env, ...opts.env },
     };
 
     const child: ChildProcess | ChildProcessWithoutNullStreams =
@@ -63,6 +62,11 @@ function runN8nac(
       child.stderr.on("data", (chunk: Buffer) => {
         stderr += chunk.toString();
       });
+    }
+
+    if (opts.stdinInput !== undefined && "stdin" in child && child.stdin) {
+      child.stdin.write(`${opts.stdinInput}\n`);
+      child.stdin.end();
     }
 
     const timer = setTimeout(() => {
@@ -154,10 +158,10 @@ export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
       const authSpinner = p.spinner();
       authSpinner.start("Saving credentials…");
 
-      const authResult = await runN8nac(["init-auth", "--host", host], {
+      const authResult = await runN8nac(["init-auth", "--host", host, "--api-key-stdin"], {
         cwd: workspaceDir,
         timeout: 60_000,
-        env: { N8N_API_KEY: apiKey },
+        stdinInput: apiKey,
       });
 
       if (authResult.exitCode !== 0) {
