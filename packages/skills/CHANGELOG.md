@@ -1,5 +1,16 @@
 # @n8n-as-code/skills
 
+## [1.1.3](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.1.2...@n8n-as-code/skills@v1.1.3) (2026-03-17)
+
+### Documentation
+
+* overhaul documentation — user-first structure and claude-plugin rename ([3e8fa98](https://github.com/EtienneLescot/n8n-as-code/commit/3e8fa98baf1f2802e531cf3004beb5816e0b5320))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/transformer bumped from 1.0.1 to 1.0.2
+
 ## [1.1.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.1.1...@n8n-as-code/skills@v1.1.2) (2026-03-13)
 
 ### Documentation

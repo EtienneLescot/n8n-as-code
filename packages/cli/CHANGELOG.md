@@ -1,5 +1,17 @@
 # @n8n-as-code/cli
 
+## [1.1.3](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.1.2...n8nac@v1.1.3) (2026-03-17)
+
+### Bug Fixes
+
+* **openclaw:** pass API key via stdin ([eccbc19](https://github.com/EtienneLescot/n8n-as-code/commit/eccbc199c834fa0a024d89e988666c3f8c6d9294))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.1.2 to 1.1.3
+    * @n8n-as-code/transformer bumped from 1.0.1 to 1.0.2
+
 ## [1.1.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.1.1...n8nac@v1.1.2) (2026-03-13)
 
 ### Dependencies

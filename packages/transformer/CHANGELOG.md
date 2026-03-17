@@ -1,5 +1,11 @@
 # @n8n-as-code/transformer
 
+## [1.0.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v1.0.1...@n8n-as-code/transformer@v1.0.2) (2026-03-17)
+
+### Bug Fixes
+
+* escape quoted decorator metadata ([7ddfcb1](https://github.com/EtienneLescot/n8n-as-code/commit/7ddfcb1fa160332cda0e7b47659dfcc34b4f0fdf))
+
 ## [1.0.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v1.0.0...@n8n-as-code/transformer@v1.0.1) (2026-03-13)
 
 ### Bug Fixes
