@@ -57,7 +57,7 @@ jobs:
             plugins/openclaw/n8n-as-code/skills/n8n-architect/SKILL.md
           do
             if ! git diff --quiet --exit-code -- "$file"; then
-              echo "Error: $file was modified by the skills adapter build."
+              echo "Error: $file was modified by the skill adapters build."
               echo 'Please run "npm run build && npm run build:adapters --workspace=packages/skills" from the workspace root and commit the updated generated skill file.'
               exit 1
             fi

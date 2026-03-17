@@ -19,7 +19,7 @@ const WORKSPACE_ROOT = path.resolve(__dirname, '..', '..', '..');
 async function getAiContextGenerator() {
     const distPath = path.resolve(__dirname, '..', 'dist', 'services', 'ai-context-generator.js');
     if (!fs.existsSync(distPath)) {
-        throw new Error('AiContextGenerator not found in dist/. Please run "npm run build --workspace=packages/skills" from the workspace root first.');
+        throw new Error('AiContextGenerator not found in dist/. Please run "npm run build" from the workspace root first.');
     }
     const mod = await import(distPath);
     return new mod.AiContextGenerator();
