@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import type { ChildProcess, ChildProcessWithoutNullStreams } from "node:child_process";
 import * as p from "@clack/prompts";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import { getChildEnv } from "./child-env.js";
 import { isWorkspaceInitialized } from "./workspace.js";
 
 type CliProgram = Parameters<Parameters<OpenClawPluginApi["registerCli"]>[0]>[0]["program"];
@@ -31,6 +32,7 @@ function runN8nac(
   return new Promise((resolve) => {
     const baseOptions = {
       cwd: opts.cwd,
+      env: getChildEnv(),
     };
 
     const child: ChildProcess | ChildProcessWithoutNullStreams =

@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { Type } from "@sinclair/typebox";
+import { getChildEnv } from "./child-env.js";
 import { isWorkspaceInitialized } from "./workspace.js";
 
 // ---------------------------------------------------------------------------
@@ -106,6 +107,7 @@ function runNpx(
     const child = spawn("npx", ["--yes", "n8nac", ...args], {
       cwd,
       stdio: "pipe",
+      env: getChildEnv(),
     });
 
     let stdout = "";
