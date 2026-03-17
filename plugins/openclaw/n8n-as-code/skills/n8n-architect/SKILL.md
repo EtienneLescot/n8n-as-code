@@ -14,14 +14,14 @@ Use this skill only for explicit n8n workflow work.
 3. If `AGENTS.md` is missing or unreadable, regenerate it with `npx --yes n8nac update-ai` or run the `openclaw n8nac:setup` command before attempting workflow authoring.
 4. If the workspace is not initialized, ask the user for the n8n host URL and API key, then use the `n8nac` tool with `action: "init_auth"` and `action: "init_project"` to complete setup yourself.
 
-## OpenClaw Tooling
+## Using the n8nac tool
 
-- Prefer the `n8nac` tool for setup checks, workflow list/pull/push/verify, validation, and `skills` lookups.
+- Use the `n8nac` tool for setup checks, workflow list/pull/push/verify, validation, and `skills` lookups.
 - Use `action: "skills"` whenever you need node search or schema details.
 - Never guess node parameters. The schema lookup is the source of truth.
 - Treat `AGENTS.md` as the authoritative workflow-engineering protocol once this skill is active.
 
-## 🗺️ Reading Workflow Files Efficiently
+## Reading workflow files efficiently
 
 Every `.workflow.ts` file starts with a `<workflow-map>` block — a compact index generated automatically at each sync. Always read this block first before opening the rest of the file.
 
@@ -61,7 +61,7 @@ Every `.workflow.ts` file starts with a `<workflow-map>` block — a compact ind
 This avoids loading 1500+ lines when you only need to patch 10.
 
 
-### AI Tool Nodes
+### AI tool nodes
 
 When an AI agent uses tool nodes:
 
