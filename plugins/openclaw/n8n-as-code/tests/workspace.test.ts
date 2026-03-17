@@ -58,6 +58,7 @@ describe("isActiveN8nWorkspace", () => {
     const workspaceDir = createWorkspaceDir();
 
     expect(isActiveN8nWorkspace(workspaceDir, workspaceDir)).toBe(true);
+    expect(isActiveN8nWorkspace(` ${workspaceDir}`, workspaceDir)).toBe(true);
     expect(isActiveN8nWorkspace(`${workspaceDir} `, workspaceDir)).toBe(true);
     expect(isActiveN8nWorkspace(undefined, workspaceDir)).toBe(false);
     expect(isActiveN8nWorkspace(createWorkspaceDir(), workspaceDir)).toBe(false);
