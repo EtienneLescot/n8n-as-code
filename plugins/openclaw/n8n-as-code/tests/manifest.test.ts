@@ -8,7 +8,11 @@ function readJson(relativePath: string): Record<string, unknown> {
 
 function getPackageBasename(packageName: string): string {
   if (packageName.startsWith("@")) {
-    return packageName.split("/")[1] ?? "";
+    const [, basename] = packageName.split("/");
+    if (!basename) {
+      throw new Error(`Expected a scoped package name with a basename, received "${packageName}"`);
+    }
+    return basename;
   }
 
   return packageName;
@@ -20,6 +24,7 @@ describe("OpenClaw plugin metadata", () => {
     const packageJson = readJson("package.json");
     const packageName = String(packageJson.name ?? "");
 
+    expect(packageName).toBeTruthy();
     expect(manifest.id).toBe(getPackageBasename(packageName));
   });
 });
