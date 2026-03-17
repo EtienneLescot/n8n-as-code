@@ -2,6 +2,9 @@
   "id": "n8nac",
   "name": "n8n-as-code",
   "description": "Create and manage n8n workflows from OpenClaw. Guides the AI through n8nac initialization and provides workflow tools.",
+  "skills": [
+    "skills"
+  ],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

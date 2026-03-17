@@ -27,4 +27,10 @@ describe("OpenClaw plugin metadata", () => {
     expect(packageName).toMatch(/\S+/);
     expect(manifest.id).toBe(getPackageBasename(packageName));
   });
+
+  it("declares its bundled skill directory", () => {
+    const manifest = readJson("openclaw.plugin.json");
+
+    expect(manifest.skills).toEqual(["skills"]);
+  });
 });

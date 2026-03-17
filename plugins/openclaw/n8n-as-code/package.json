@@ -38,6 +38,7 @@
     "README.md",
     "index.ts",
     "openclaw.plugin.json",
+    "skills/",
     "src/",
     "tsconfig.json"
   ],

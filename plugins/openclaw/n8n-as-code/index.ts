@@ -6,7 +6,7 @@ import { createN8nAcTool } from "./src/tool.js";
 import { getWorkspaceDir, isWorkspaceInitialized } from "./src/workspace.js";
 
 // ---------------------------------------------------------------------------
-// AGENTS.md context injection — populated once on service start
+// Lightweight prompt context
 // ---------------------------------------------------------------------------
 
 const BOOTSTRAP_CONTEXT = `\
@@ -20,20 +20,6 @@ The n8n-as-code plugin is installed but the workspace has not been initialized y
 Once you have both, call the \`n8nac\` tool with \`action: "init_auth"\`, then
 \`action: "init_project"\` to finish setup.
 `;
-
-const MISSING_AGENTS_CONTEXT = `\
-## n8n-as-code — AI Context Missing
-
-The workspace is initialized, but the generated AI context file (\`AGENTS.md\`) is missing or unreadable.
-
-**Tell the user:**
-> "Your n8n-as-code workspace is connected, but the AI context needs to be regenerated before I can safely guide workflow changes."
-
-Ask the user to run \`npx --yes n8nac update-ai\` in the OpenClaw workspace, or rerun
-\`openclaw n8nac:setup\` if they want the setup wizard to repair it.
-`;
-
-let agentsContext: string | null = null;
 
 function readConfig(workspaceDir: string): Record<string, string> {
   try {
@@ -56,24 +42,38 @@ function buildStatusHeader(workspaceDir: string): string {
     `- Workspace directory: \`${workspaceDir}\``,
     `- n8n host: \`${host}\``,
     `- Active project: \`${project}\``,
-    "",
-    "Skip the 'Workspace Bootstrap' section below — setup is complete.",
-    "Proceed directly to the user's request using the `n8nac` tool.",
-    "",
-    "---",
-    "",
   ].join("\n");
 }
 
-function loadAgentsContext(workspaceDir: string): string | null {
-  const p = join(workspaceDir, "AGENTS.md");
-  if (!existsSync(p)) return null;
-  try {
-    const raw = readFileSync(p, "utf-8");
-    return buildStatusHeader(workspaceDir) + raw;
-  } catch {
-    return null;
+function hasAgentsContext(workspaceDir: string): boolean {
+  return existsSync(join(workspaceDir, "AGENTS.md"));
+}
+
+export function buildPromptContext(workspaceDir: string): string {
+  if (!isWorkspaceInitialized(workspaceDir)) {
+    return BOOTSTRAP_CONTEXT;
   }
+
+  const agentsPath = join(workspaceDir, "AGENTS.md");
+  const guidanceLines = hasAgentsContext(workspaceDir)
+    ? [
+        "",
+        "Detailed workflow-authoring guidance is intentionally scoped to the `n8n-architect` skill.",
+        "Only use that deeper n8n workflow context when the user is explicitly working on n8n workflows, nodes, automation, or the `n8nac` tool.",
+        `When that happens, read \`${agentsPath}\` for workspace-specific instructions.`,
+      ]
+    : [
+        "",
+        "Detailed workflow-authoring guidance is intentionally scoped to the `n8n-architect` skill, but the generated workspace AI context file (`AGENTS.md`) is missing.",
+        "If the user starts explicit n8n workflow work, regenerate `AGENTS.md` with `npx --yes n8nac update-ai` or rerun `openclaw n8nac:setup` first.",
+      ];
+
+  return [
+    buildStatusHeader(workspaceDir),
+    ...guidanceLines,
+    "",
+    "For unrelated requests, ignore this plugin context.",
+  ].join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -94,19 +94,10 @@ const n8nAcPlugin = {
     mkdirSync(workspaceDir, { recursive: true });
 
     // -- Context injection ---------------------------------------------------
-    // Prepend n8n-architect instructions to every prompt build.
+    // Keep default context lightweight; full workflow-authoring guidance lives
+    // in the bundled `n8n-architect` skill and the workspace AGENTS.md file.
     api.on("before_prompt_build", () => {
-      const initialized = isWorkspaceInitialized(workspaceDir);
-      // Lazy-load: setup may have run after the gateway started, so the
-      // service start() missed it.  Re-attempt on every prompt until loaded.
-      // The status header embeds host + project, so re-read on every call
-      // when not yet cached to pick up fresh config after setup.
-      if (agentsContext === null && initialized) {
-        agentsContext = loadAgentsContext(workspaceDir);
-      }
-      const context = agentsContext ?? (initialized ? MISSING_AGENTS_CONTEXT : BOOTSTRAP_CONTEXT);
-      if (!context) return;
-      return { prependContext: context };
+      return { prependContext: buildPromptContext(workspaceDir) };
     });
 
     // -- Agent tool ----------------------------------------------------------
@@ -119,17 +110,12 @@ const n8nAcPlugin = {
     );
 
     // -- Service -------------------------------------------------------------
-    // On gateway start: refresh the AGENTS.md cache so the agent always has
-    // up-to-date node knowledge.
     api.registerService({
       id: "n8nac-context",
       start: async () => {
-        // Invalidate so next before_prompt_build re-reads from disk.
-        agentsContext = null;
         if (isWorkspaceInitialized(workspaceDir)) {
-          agentsContext = loadAgentsContext(workspaceDir);
-          if (agentsContext) {
-            api.logger.info("[n8nac] Workspace ready — AI context loaded.");
+          if (hasAgentsContext(workspaceDir)) {
+            api.logger.info("[n8nac] Workspace ready — lightweight prompt context enabled; n8n skill available.");
           } else {
             api.logger.warn("[n8nac] Workspace ready, but AGENTS.md is missing or unreadable.");
           }
@@ -137,9 +123,7 @@ const n8nAcPlugin = {
           api.logger.info("[n8nac] Workspace not initialized. Run `openclaw n8nac:setup`.");
         }
       },
-      stop: async () => {
-        agentsContext = null;
-      },
+      stop: async () => {},
     });
   },
 };

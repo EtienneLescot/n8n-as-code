@@ -37,8 +37,10 @@ Once setup is done, just talk to OpenClaw:
 
 > "What operations does the Google Sheets node support?"
 
-The plugin injects the full n8n-architect instructions into every conversation
-so the AI knows the exact `n8nac` workflow (init-check → pull → edit → push → verify).
+The plugin now keeps its default prompt hook lightweight. OpenClaw can activate
+the bundled `n8n-architect` skill for explicit n8n workflow sessions, and that
+skill then reads the generated workspace `AGENTS.md` for the full workflow
+engineering guidance.
 
 ## CLI commands
 
