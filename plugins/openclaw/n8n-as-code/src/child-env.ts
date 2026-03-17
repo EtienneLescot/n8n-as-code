@@ -7,9 +7,12 @@
 export function getChildEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   for (const key of Object.keys(process.env)) {
+    const upperKey = key.toUpperCase();
     if (
-      // Basic system vars needed by node/npx
-      /^(PATH|HOME|USERPROFILE|HOMEDRIVE|HOMEPATH|TMPDIR|TMP|TEMP|LANG|LC_ALL|SHELL|TERM|TERM_PROGRAM|NODE_PATH|NODE_OPTIONS)$/.test(key) ||
+      // Basic system vars needed by node/npx (case-insensitive, including Windows-specific ones)
+      /^(PATH|HOME|USERPROFILE|HOMEDRIVE|HOMEPATH|TMPDIR|TMP|TEMP|LANG|LC_ALL|SHELL|TERM|TERM_PROGRAM|NODE_PATH|NODE_OPTIONS|SYSTEMROOT|COMSPEC|PATHEXT)$/.test(
+        upperKey,
+      ) ||
       // npm/node config vars required by npx
       key.startsWith("npm_") ||
       key.startsWith("NODE_") ||
