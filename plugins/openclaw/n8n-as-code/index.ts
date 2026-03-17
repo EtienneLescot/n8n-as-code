@@ -59,7 +59,7 @@ export function buildPromptContext(workspaceDir: string): string {
     ? [
         "",
         "Detailed workflow-authoring guidance is intentionally scoped to the `n8n-architect` skill.",
-        "Only use that deeper n8n workflow context when the user is explicitly working on n8n workflows, nodes, automation, or the `n8nac` tool.",
+        "Only use that deeper n8n workflow context when the request is clearly about n8n workflow work.",
         `When that happens, read \`${agentsPath}\` for workspace-specific instructions.`,
       ]
     : [
