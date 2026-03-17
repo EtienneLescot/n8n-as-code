@@ -30,8 +30,8 @@
       "changelog-path": "CHANGELOG.md"
     },
     "plugins/openclaw/n8n-as-code": {
-      "package-name": "@n8n-as-code/openclaw-plugin",
-      "component": "@n8n-as-code/openclaw-plugin",
+      "package-name": "@n8n-as-code/n8nac",
+      "component": "@n8n-as-code/n8nac",
       "changelog-path": "CHANGELOG.md"
     }
   },

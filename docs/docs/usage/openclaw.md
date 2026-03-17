@@ -6,7 +6,7 @@ description: Install the n8n-as-code OpenClaw plugin, bootstrap the workspace, a
 
 # OpenClaw Plugin
 
-The `@n8n-as-code/openclaw-plugin` package gives OpenClaw native access to the same `n8nac` workflow model used across the rest of the project.
+The `@n8n-as-code/n8nac` package gives OpenClaw native access to the same `n8nac` workflow model used across the rest of the project.
 
 It is the right entry point when you want OpenClaw to:
 
@@ -28,7 +28,7 @@ Once installed, the plugin gives OpenClaw:
 Install the published plugin package:
 
 ```bash
-openclaw plugins install @n8n-as-code/openclaw-plugin
+openclaw plugins install @n8n-as-code/n8nac
 ```
 
 Then run the setup wizard:

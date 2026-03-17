@@ -120,7 +120,7 @@ This usually means `AGENTS.md` is missing or outdated:
 
 1. Make sure the plugin is installed:
    ```bash
-   openclaw plugins install @n8n-as-code/openclaw-plugin
+   openclaw plugins install @n8n-as-code/n8nac
    ```
 2. Check that `n8nac` (or `npx n8nac`) is available in your PATH
 3. Verify your n8n instance URL and API key
