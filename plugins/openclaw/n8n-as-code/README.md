@@ -92,13 +92,13 @@ openclaw plugins install --link \
 
 What this does:
 - Adds the path to `plugins.load.paths` in `~/.openclaw/openclaw.json`
-- Registers a `source: "path"` install record bound to the plugin ID `n8nac`
+- Registers a `source: "path"` install record bound to the plugin ID `openclaw-plugin`
 - No file copy — OpenClaw loads `index.ts` directly from the source tree
 
 ### 2. Verify the plugin is registered
 
 ```bash
-openclaw plugins info n8nac
+openclaw plugins info openclaw-plugin
 ```
 
 You should see status `loaded` and the tool `n8nac` in the tools list.
@@ -146,7 +146,7 @@ rm -rf ~/.openclaw/n8nac && openclaw n8nac:setup
 ### 7. Unlink when done
 
 ```bash
-openclaw plugins uninstall n8nac
+openclaw plugins uninstall openclaw-plugin
 ```
 
 ---
