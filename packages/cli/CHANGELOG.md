@@ -1,5 +1,12 @@
 # @n8n-as-code/cli
 
+## [1.1.5](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.1.4...n8nac@v1.1.5) (2026-03-18)
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.1.4 to 1.1.5
+
 ## [1.1.4](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.1.3...n8nac@v1.1.4) (2026-03-17)
 
 ### Bug Fixes

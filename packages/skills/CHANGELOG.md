@@ -1,5 +1,11 @@
 # @n8n-as-code/skills
 
+## [1.1.5](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.1.4...@n8n-as-code/skills@v1.1.5) (2026-03-18)
+
+### Bug Fixes
+
+* refactor tag normalization functions for consistency and clarity ([f171d23](https://github.com/EtienneLescot/n8n-as-code/commit/f171d23600dee79c6620b704dc753889cb5bd9e0))
+
 ## [1.1.4](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.1.3...@n8n-as-code/skills@v1.1.4) (2026-03-17)
 
 ### Bug Fixes
