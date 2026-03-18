@@ -1,5 +1,11 @@
 # n8n-as-code
 
+## [1.12.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.10.0...n8n-as-code@v1.12.0) (2026-03-18)
+
+### Documentation
+
+* add Yagr onboarding section and acknowledgements to README ([626a415](https://github.com/EtienneLescot/n8n-as-code/commit/626a41577de16815a8012c4af65bccaec4172ea9))
+
 ## [1.10.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.8.0...n8n-as-code@v1.10.0) (2026-03-17)
 
 ### Dependencies
