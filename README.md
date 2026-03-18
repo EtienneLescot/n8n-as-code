@@ -37,6 +37,33 @@ Zero external calls. Zero latency. Zero hallucination.
 
 Choose the entry point that matches how you already work.
 
+### ⭐ Preferred: Yagr
+
+<table>
+<tr>
+<td width="22%" align="center" valign="middle">
+<img src="res/yagr-logo.png" alt="Yagr logo" width="150">
+</td>
+<td width="78%" valign="top">
+
+**Yagr is the recommended way to get started.**  
+It gives your agent a guided onboarding flow, a persistent runtime, and the cleanest path into n8n-as-code.
+
+**Best for:** fastest setup, agent-first workflow, shared runtime across tools
+
+**Run**  
+<code>npm install -g @yagr/agent@latest</code><br>
+<code>yagr onboard</code><br>
+<code>yagr start</code>
+
+[Yagr docs](https://yagr.dev) · [Yagr repository](https://github.com/EtienneLescot/yagr)
+
+</td>
+</tr>
+</table>
+
+Yagr is still in beta. If you want the most proven setup today, choose one of the four options below.
+
 <table>
 <tr>
 <td width="50%" valign="top">
@@ -332,6 +359,14 @@ Contributions welcome!
 [Apache 2.0](LICENSE) — free to use, modify, and distribute.
 
 Third-party community workflow metadata and downloadable workflow files remain subject to their respective upstream licenses.
+
+---
+
+## Acknowledgements
+
+`n8n-as-code` exists because [n8n](https://n8n.io/) exists.
+Thanks to the n8n team and community for building and maintaining the workflow automation platform this project builds on.
+If you use this project, consider starring the [n8n repository](https://github.com/n8n-io/n8n).
 
 ---
 
