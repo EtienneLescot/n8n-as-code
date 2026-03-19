@@ -1,5 +1,11 @@
 # @n8n-as-code/skills
 
+## [1.1.6](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.1.5...@n8n-as-code/skills@v1.1.6) (2026-03-19)
+
+### Bug Fixes
+
+* enhance n8n version tracking in knowledge base rebuild process ([a537738](https://github.com/EtienneLescot/n8n-as-code/commit/a537738809a8f98ee1349f9c9690ab9d88536b38))
+
 ## [1.1.5](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.1.4...@n8n-as-code/skills@v1.1.5) (2026-03-18)
 
 ### Bug Fixes
