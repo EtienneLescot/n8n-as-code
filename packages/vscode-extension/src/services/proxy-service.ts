@@ -413,19 +413,6 @@ export class ProxyService {
     }
 
     /**
-     * Inject a clipboard bridge script into n8n's HTML responses.
-     *
-     * On macOS, Electron intercepts Cmd+C/V/X at the native menu level before
-     * keyboard events reach the webview. The Clipboard API also doesn't work
-     * inside cross-origin iframes in VS Code webviews.
-     *
-     * This bridge script:
-     * 1. Intercepts Cmd+V keydown in the iframe
-     * 2. Requests clipboard data from the parent webview via postMessage
-     * 3. Monkey-patches navigator.clipboard.readText so n8n reads our data
-     * 4. Dispatches synthetic keyboard and clipboard events to trigger n8n's paste handler
-     */
-    /**
      * Returns the injectable bridge script as a string.
      * Exported as a static helper so it can be unit-tested in isolation.
      *
@@ -534,6 +521,19 @@ export class ProxyService {
 <` + `/script>`;
     }
 
+    /**
+     * Inject a clipboard bridge script into n8n's HTML responses.
+     *
+     * On macOS, Electron intercepts Cmd+C/V/X at the native menu level before
+     * keyboard events reach the webview. The Clipboard API also doesn't work
+     * inside cross-origin iframes in VS Code webviews.
+     *
+     * This bridge script:
+     * 1. Intercepts Cmd+V keydown in the iframe
+     * 2. Requests clipboard data from the parent webview via postMessage
+     * 3. Monkey-patches navigator.clipboard.readText so n8n reads our data
+     * 4. Dispatches synthetic keyboard and clipboard events to trigger n8n's paste handler
+     */
     private injectClipboardBridge(html: string): string {
         const bridgeScript = ProxyService.buildBridgeScript();
 
