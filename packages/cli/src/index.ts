@@ -7,6 +7,7 @@ import { InitCommand } from './commands/init.js';
 import { SwitchCommand } from './commands/switch.js';
 import { ConvertCommand } from './commands/convert.js';
 import { TestCommand } from './commands/test.js';
+import { TestPlanCommand } from './commands/test-plan.js';
 import { registerSkillsCommands } from '@n8n-as-code/skills';
 import chalk from 'chalk';
 
@@ -216,6 +217,14 @@ program.command('test')
     .option('--data <json>', 'JSON body to send with the request (default: {})')
     .action(async (workflowId, options) => {
         await new TestCommand().run(workflowId, options);
+    });
+
+program.command('test-plan')
+    .description('Inspect how a workflow can be tested via HTTP and infer a suggested payload')
+    .argument('<workflowId>', 'Workflow ID to inspect')
+    .option('--json', 'Output the test plan as JSON for agents and scripts')
+    .action(async (workflowId, options) => {
+        await new TestPlanCommand().run(workflowId, options);
     });
 
 // fetch - Update remote state cache for a specific workflow

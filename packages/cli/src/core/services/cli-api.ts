@@ -17,7 +17,7 @@
  */
 
 import { SyncManager } from './sync-manager.js';
-import { IWorkflowStatus, WorkflowSyncStatus, ITestResult } from '../types.js';
+import { IWorkflowStatus, WorkflowSyncStatus, ITestPlan, ITestResult } from '../types.js';
 
 export class CliApi {
     private syncManager: SyncManager;
@@ -136,5 +136,9 @@ export class CliApi {
         options?: { data?: unknown; prod?: boolean }
     ): Promise<ITestResult> {
         return this.syncManager.getApiClient().testWorkflow(workflowId, options);
+    }
+
+    async getTestPlan(workflowId: string): Promise<ITestPlan> {
+        return this.syncManager.getApiClient().getTestPlan(workflowId);
     }
 }

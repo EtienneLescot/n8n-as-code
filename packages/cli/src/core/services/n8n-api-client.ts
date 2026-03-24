@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
-import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestResult, TriggerType } from '../types.js';
+import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField } from '../types.js';
 
 export class N8nApiClient {
     private client: AxiosInstance;
@@ -717,6 +717,77 @@ export class N8nApiClient {
         }
     }
 
+    buildProductionUrl(trigger: ITriggerInfo): string {
+        return this.buildTestUrl(trigger)
+            .replace('/webhook-test/', '/webhook/')
+            .replace('/form-test/', '/form/');
+    }
+
+    async getTestPlan(workflowId: string): Promise<ITestPlan> {
+        let workflow: IWorkflow | null;
+        try {
+            workflow = await this.getWorkflow(workflowId);
+        } catch (err: any) {
+            return {
+                workflowId,
+                testable: false,
+                reason: `Failed to fetch workflow ${workflowId}: ${err.message}`,
+                triggerInfo: null,
+                endpoints: {},
+                payload: null,
+            };
+        }
+
+        if (!workflow) {
+            return {
+                workflowId,
+                testable: false,
+                reason: `Workflow ${workflowId} not found`,
+                triggerInfo: null,
+                endpoints: {},
+                payload: null,
+            };
+        }
+
+        const triggerInfo = this.detectTrigger(workflow);
+        if (!triggerInfo) {
+            return {
+                workflowId,
+                workflowName: workflow.name,
+                testable: false,
+                reason: 'No trigger node found in this workflow.',
+                triggerInfo: null,
+                endpoints: {},
+                payload: null,
+            };
+        }
+
+        if (triggerInfo.type === 'schedule' || triggerInfo.type === 'unknown') {
+            return {
+                workflowId,
+                workflowName: workflow.name,
+                testable: false,
+                reason: `Trigger type "${triggerInfo.type}" cannot be invoked via HTTP.`,
+                triggerInfo,
+                endpoints: {},
+                payload: null,
+            };
+        }
+
+        return {
+            workflowId,
+            workflowName: workflow.name,
+            testable: true,
+            reason: null,
+            triggerInfo,
+            endpoints: {
+                testUrl: this.buildTestUrl(triggerInfo),
+                productionUrl: this.buildProductionUrl(triggerInfo),
+            },
+            payload: this.inferExpectedPayload(workflow),
+        };
+    }
+
     /**
      * Runs a workflow in test mode by:
      *   1. Fetching the workflow to detect its trigger.
@@ -783,7 +854,7 @@ export class N8nApiClient {
         // 3. Build URL
         const prod = options?.prod ?? false;
         const url = prod
-            ? this.buildTestUrl(triggerInfo).replace('/webhook-test/', '/webhook/').replace('/form-test/', '/form/')
+            ? this.buildProductionUrl(triggerInfo)
             : this.buildTestUrl(triggerInfo);
 
         if (!url) {
@@ -891,5 +962,116 @@ export class N8nApiClient {
         if (statusCode === 401 || statusCode === 403) return 'config-gap';
 
         return 'wiring-error';
+    }
+
+    private inferExpectedPayload(workflow: IWorkflow): IInferredPayload {
+        const fields = new Map<string, IInferredPayloadField>();
+        const nodes: any[] = workflow.nodes ?? [];
+
+        const ensureField = (source: IInferredPayloadField['source'], path: string, evidence: string) => {
+            const key = `${source}:${path}`;
+            const existing = fields.get(key);
+            if (existing) {
+                if (!existing.evidence.includes(evidence)) {
+                    existing.evidence.push(evidence);
+                }
+                return;
+            }
+
+            fields.set(key, {
+                path,
+                source,
+                required: true,
+                example: this.getExampleValueForPath(path),
+                evidence: [evidence],
+            });
+        };
+
+        for (const node of nodes) {
+            const params = node?.parameters ?? {};
+            const serialized = JSON.stringify(params, null, 2);
+            const sources: Array<{ source: IInferredPayloadField['source']; regex: RegExp }> = [
+                { source: 'body', regex: /\$json(?:\.body|\[['"]body['"]\])(?:\.([A-Za-z0-9_.-]+)|\[['"]([^'"[\]]+)['"]\])/g },
+                { source: 'query', regex: /\$json(?:\.query|\[['"]query['"]\])(?:\.([A-Za-z0-9_.-]+)|\[['"]([^'"[\]]+)['"]\])/g },
+                { source: 'headers', regex: /\$json(?:\.headers|\[['"]headers['"]\])(?:\.([A-Za-z0-9_.-]+)|\[['"]([^'"[\]]+)['"]\])/g },
+                { source: 'root', regex: /\$json\.([A-Za-z0-9_.-]+)/g },
+            ];
+
+            for (const { source, regex } of sources) {
+                for (const match of serialized.matchAll(regex)) {
+                    const path = match[1] || match[2];
+                    if (!path) continue;
+                    if (source === 'root' && ['body', 'query', 'headers'].includes(path.split('.')[0])) continue;
+                    ensureField(source, path, `${node.name}: ${match[0]}`);
+                }
+            }
+        }
+
+        const sortedFields = Array.from(fields.values()).sort((a, b) => {
+            const sourceOrder = ['body', 'query', 'headers', 'root'];
+            const sourceDiff = sourceOrder.indexOf(a.source) - sourceOrder.indexOf(b.source);
+            return sourceDiff !== 0 ? sourceDiff : a.path.localeCompare(b.path);
+        });
+
+        const inferred = sortedFields.length > 0
+            ? this.buildInferredPayloadObject(sortedFields)
+            : {};
+
+        return {
+            inferred,
+            confidence: sortedFields.length >= 3 ? 'medium' : sortedFields.length > 0 ? 'low' : 'low',
+            fields: sortedFields,
+            notes: sortedFields.length > 0
+                ? [
+                    'Payload is inferred heuristically from workflow expressions.',
+                    'Review the trigger node and downstream expressions before relying on this payload.',
+                ]
+                : [
+                    'No payload fields were inferred from workflow expressions.',
+                    'The workflow may still accept an empty JSON object or rely on query parameters/headers not referenced statically.',
+                ],
+        };
+    }
+
+    private buildInferredPayloadObject(fields: IInferredPayloadField[]): Record<string, unknown> {
+        const payload: Record<string, unknown> = {};
+
+        for (const field of fields) {
+            const rootKey = field.source === 'root' ? field.path : `${field.source}.${field.path}`;
+            this.setNestedValue(payload, rootKey, field.example);
+        }
+
+        return payload;
+    }
+
+    private setNestedValue(target: Record<string, unknown>, dottedPath: string, value: unknown): void {
+        const parts = dottedPath.split('.').filter(Boolean);
+        if (parts.length === 0) return;
+
+        let cursor: any = target;
+        for (let i = 0; i < parts.length - 1; i++) {
+            const part = parts[i];
+            if (!cursor[part] || typeof cursor[part] !== 'object' || Array.isArray(cursor[part])) {
+                cursor[part] = {};
+            }
+            cursor = cursor[part];
+        }
+        cursor[parts[parts.length - 1]] = value;
+    }
+
+    private getExampleValueForPath(path: string): unknown {
+        const last = path.split('.').pop()?.toLowerCase() ?? '';
+        if (last.includes('email')) return 'user@example.com';
+        if (last.includes('name')) return 'Example User';
+        if (last.includes('id')) return 'example-id';
+        if (last.includes('phone')) return '+33123456789';
+        if (last.includes('date')) return '2026-01-01';
+        if (last.includes('time')) return '09:00';
+        if (last.includes('url')) return 'https://example.com';
+        if (last.includes('token') || last.includes('key') || last.includes('secret')) return 'example-secret';
+        if (last.includes('count') || last.includes('limit') || last.includes('size')) return 1;
+        if (last.includes('enabled') || last.startsWith('is') || last.startsWith('has')) return true;
+        if (last.includes('message') || last.includes('text') || last.includes('prompt')) return 'example message';
+        return 'example';
     }
 }
