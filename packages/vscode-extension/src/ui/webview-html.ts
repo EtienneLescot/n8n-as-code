@@ -187,7 +187,7 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
                 var GRANT_TTL_MS = 5000;
 
                 function issuePasteGrant() {
-                    var token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+                    var token = crypto.randomUUID();
                     var expiry = Date.now() + GRANT_TTL_MS;
                     _pendingGrants.set(token, expiry);
                     // Auto-expire
@@ -234,9 +234,12 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
                     }
 
                     // Clipboard bridge: extension sends paste data back -> forward to iframe
-                    // Consume the one-time grant token before forwarding.
+                    // Reject messages that did not originate from the extension host
+                    // (i.e. reject any attempt by the iframe to spoof this path).
+                    // Then consume the one-time grant token before forwarding.
                     if (message.type === 'clipboard-paste' && typeof message.text === 'string'
                             && typeof message.grantToken === 'string') {
+                        if (event.origin !== window.origin) return;
                         if (!consumeGrant(message.grantToken)) return;
                         try {
                             var iframeWin = activeFrame.contentWindow;

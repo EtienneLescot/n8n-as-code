@@ -9,7 +9,7 @@ export class WorkflowWebview {
     private _workflowId: string;
     private _disposables: vscode.Disposable[] = [];
 
-    private _onClipboardPasteRequest: ((panel: vscode.WebviewPanel, grantToken: string) => void) | undefined;
+    private _onClipboardPasteRequest: ((panel: vscode.WebviewPanel, grantToken: string) => Promise<void>) | undefined;
 
     private constructor(panel: vscode.WebviewPanel, workflowId: string, url: string) {
         this._panel = panel;
@@ -25,7 +25,8 @@ export class WorkflowWebview {
             // The parent webview validates origin and issues one-time grant tokens;
             // here we only check that the message type is correct and grantToken is present.
             if (message.type === 'clipboard-paste-request' && typeof message.grantToken === 'string') {
-                this._onClipboardPasteRequest?.(this._panel, message.grantToken);
+                void this._onClipboardPasteRequest?.(this._panel, message.grantToken)
+                    ?.catch(e => console.error('[Webview] Clipboard paste handler error', e));
             }
         }, null, this._disposables);
     }
@@ -35,7 +36,7 @@ export class WorkflowWebview {
      * The callback receives the panel and the one-time grant token so it can
      * send clipboard data back, and the token is validated on the webview side.
      */
-    public static onClipboardPasteRequest(handler: (panel: vscode.WebviewPanel, grantToken: string) => void): void {
+    public static onClipboardPasteRequest(handler: (panel: vscode.WebviewPanel, grantToken: string) => Promise<void>): void {
         if (WorkflowWebview.currentPanel) {
             WorkflowWebview.currentPanel._onClipboardPasteRequest = handler;
         }

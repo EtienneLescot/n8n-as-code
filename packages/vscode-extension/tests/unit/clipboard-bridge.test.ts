@@ -159,20 +159,18 @@ test('Parent webview HTML: iframeOrigin reflects the supplied URL (panel reuse)'
 
 // ── 4 : macOS-only activation ───────────────────────────────────────────────
 
-test('registerClipboardHandler: is a no-op on non-darwin platforms', () => {
-    // The function guard `if (process.platform !== 'darwin') return;` is tested
-    // by simulating the same logic. On CI (Linux) this asserts the guard fires;
-    // on macOS it skips.
+test('registerClipboardHandler: guard skips registration on non-darwin platforms', () => {
+    // isClipboardBridgeRequired is the pure helper that gates registerClipboardHandler.
+    // Testing it directly exercises the production guard rather than a mock.
+    const { isClipboardBridgeRequired } = require('../../src/utils/clipboard-utils.js');
     if (process.platform === 'darwin') {
-        assert.strictEqual(process.platform, 'darwin');
+        assert.strictEqual(isClipboardBridgeRequired(), true,
+            'Must return true on macOS (darwin)');
         return;
     }
-    const platform = process.platform;
-    const callCount = { registered: 0 };
-    function mockRegisterClipboardHandler() {
-        if (platform !== 'darwin') return;
-        callCount.registered++;
-    }
-    mockRegisterClipboardHandler();
-    assert.strictEqual(callCount.registered, 0, 'Handler must not be registered on non-macOS platforms');
+    assert.strictEqual(
+        isClipboardBridgeRequired(),
+        false,
+        'Must return false on non-macOS platforms — handler must not be registered'
+    );
 });

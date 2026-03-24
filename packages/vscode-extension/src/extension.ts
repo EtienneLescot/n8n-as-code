@@ -21,6 +21,7 @@ import { getN8nConfig, getResolvedN8nConfig, validateN8nConfig, getWorkspaceRoot
 import { NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION } from './constants/workspace.js';
 import { writeUnifiedWorkspaceConfig } from './utils/unified-config.js';
 import { buildWorkflowQuickPickItems } from './utils/workflow-finder.js';
+import { isClipboardBridgeRequired } from './utils/clipboard-utils.js';
 import { IWorkflowStatus } from 'n8nac';
 
 import {
@@ -43,10 +44,15 @@ import {
  * back down to the iframe via the proxy's clipboard bridge script.
  */
 function registerClipboardHandler(): void {
-    if (process.platform !== 'darwin') return;
+    if (!isClipboardBridgeRequired()) return;
     WorkflowWebview.onClipboardPasteRequest(async (panel, grantToken) => {
-        const text = await vscode.env.clipboard.readText();
-        panel.webview.postMessage({ type: 'clipboard-paste', text, grantToken });
+        try {
+            const text = await vscode.env.clipboard.readText();
+            panel.webview.postMessage({ type: 'clipboard-paste', text, grantToken });
+        } catch (error) {
+            console.error('[Clipboard] Failed to read clipboard for paste request', error);
+            panel.webview.postMessage({ type: 'clipboard-error', grantToken });
+        }
     });
 }
 
