@@ -1,4 +1,6 @@
 import * as http from 'http';
+import * as os from 'os';
+import * as crypto from 'crypto';
 import httpProxy = require('http-proxy');
 import * as vscode from 'vscode';
 import { AddressInfo } from 'net';
@@ -15,20 +17,14 @@ export class ProxyService {
 
     private cookieJar = new Map<string, string>();
 
-    // macOS clipboard bridge: pending paste data for iframe communication
-    public _pasteWaiters: http.ServerResponse[] = [];
-    private _pendingPaste: { text: string; seq: number } | null = null;
-    private _pasteSeq = 0;
+    /** Session nonce for clipboard bridge message validation (regenerated per proxy start). */
+    private _clipboardNonce: string = '';
 
     constructor() { }
 
-    /**
-     * Queue paste data to be delivered to the iframe via the clipboard bridge.
-     * Called by the extension host when the user triggers Cmd+V.
-     */
-    public setPasteData(text: string): void {
-        this._pasteSeq++;
-        this._pendingPaste = { text, seq: this._pasteSeq };
+    /** Returns the current clipboard bridge nonce (used by webview HTML to validate messages). */
+    public get clipboardNonce(): string {
+        return this._clipboardNonce;
     }
 
     public setSecrets(secrets: vscode.SecretStorage) {
@@ -123,6 +119,11 @@ export class ProxyService {
         this.target = normalizedTarget;
         this.port = stablePort;
 
+        // Generate a fresh nonce for clipboard bridge message validation
+        this._clipboardNonce = crypto.randomBytes(16).toString('hex');
+
+        const isMacOS = os.platform() === 'darwin';
+
         // Load persisted cookies
         await this.loadCookies();
 
@@ -130,14 +131,15 @@ export class ProxyService {
             target: this.target,
             changeOrigin: true,
             secure: false,
-            selfHandleResponse: true, // Handle responses ourselves to inject clipboard bridge
+            // Only intercept responses on macOS where we need to inject the clipboard bridge
+            selfHandleResponse: isMacOS,
             cookieDomainRewrite: "", // Rewrite all domains to match localhost
             preserveHeaderKeyCase: true, // Preserve header casing
             autoRewrite: true, // Automatically rewrite redirects
             xfwd: true // Add x-forwarded headers automatically
         });
 
-        // Strip headers that block iframe embedding, manage cookies, and inject clipboard bridge
+        // Strip headers that block iframe embedding and manage cookies
         this.proxy.on('proxyRes', (proxyRes, _req, res) => {
             // Remove headers that prevent iframe embedding
             delete proxyRes.headers['x-frame-options'];
@@ -187,23 +189,39 @@ export class ProxyService {
             proxyRes.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH';
             proxyRes.headers['access-control-allow-headers'] = '*';
 
+            // On non-macOS, selfHandleResponse is false so http-proxy pipes automatically.
+            // On macOS, we handle responses ourselves to inject the clipboard bridge.
+            if (!isMacOS) return;
+
             const contentType = proxyRes.headers['content-type'] || '';
             const isHtml = contentType.includes('text/html');
             const httpRes = res as http.ServerResponse;
 
             if (isHtml) {
-                // Buffer HTML responses to inject clipboard bridge script
+                // Buffer HTML to inject clipboard bridge script
                 const chunks: Buffer[] = [];
                 proxyRes.on('data', (chunk: Buffer) => chunks.push(chunk));
                 proxyRes.on('end', () => {
-                    let html = Buffer.concat(chunks).toString('utf-8');
-                    html = this.injectClipboardBridge(html);
-                    delete proxyRes.headers['content-length'];
-                    httpRes.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
-                    httpRes.end(html);
+                    try {
+                        const raw = Buffer.concat(chunks);
+                        // Detect charset from Content-Type header (default utf-8)
+                        const charsetMatch = contentType.match(/charset=([^\s;]+)/i);
+                        const charset = (charsetMatch?.[1] || 'utf-8') as BufferEncoding;
+                        let html = raw.toString(charset);
+                        html = this.injectClipboardBridge(html);
+                        const encoded = Buffer.from(html, charset);
+                        delete proxyRes.headers['content-length'];
+                        delete proxyRes.headers['content-encoding'];
+                        httpRes.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+                        httpRes.end(encoded);
+                    } catch {
+                        // Injection failed — forward original response
+                        httpRes.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+                        httpRes.end(Buffer.concat(chunks));
+                    }
                 });
             } else {
-                // Non-HTML responses: pipe directly
+                // Non-HTML: pipe through directly
                 httpRes.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
                 proxyRes.pipe(httpRes);
             }
@@ -235,8 +253,10 @@ export class ProxyService {
             }
 
             if (this.proxy) {
-                // Request uncompressed responses so we can inject the clipboard bridge
-                delete req.headers['accept-encoding'];
+                // On macOS, request uncompressed responses so we can inject the clipboard bridge
+                if (isMacOS) {
+                    delete req.headers['accept-encoding'];
+                }
 
                 const mergedCookies = this.buildMergedCookieHeader(req.headers.cookie);
                 if (mergedCookies) {
@@ -418,8 +438,10 @@ export class ProxyService {
      * 4. Dispatches synthetic keyboard and clipboard events to trigger n8n's paste handler
      */
     private injectClipboardBridge(html: string): string {
+        const nonce = this._clipboardNonce;
         const bridgeScript = `<script>
 (function(){
+  var NONCE = "${nonce}";
   var _pasteInProgress = false;
 
   function handlePaste(text) {
@@ -480,31 +502,31 @@ export class ProxyService {
     }, 500);
   }
 
-  // Intercept Cmd+V in the iframe and request clipboard data from extension host
+  // Intercept Cmd+V only (macOS-specific bridge)
   document.addEventListener("keydown", function(e) {
-    if ((e.metaKey || e.ctrlKey) && e.key === "v") {
+    if (e.metaKey && e.key === "v") {
       if (_pasteInProgress) return;
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-      window.parent.postMessage({ type: "n8n-paste-request" }, "*");
+      window.parent.postMessage({ type: "n8n-paste-request", nonce: NONCE }, "*");
     }
-    if ((e.metaKey || e.ctrlKey) && e.key === "c") {
+    if (e.metaKey && e.key === "c") {
       setTimeout(function() {
         var sel = window.getSelection();
         var text = sel ? sel.toString() : "";
         if (text) {
-          window.parent.postMessage({ type: "n8n-clipboard-write", text: text }, "*");
+          window.parent.postMessage({ type: "n8n-clipboard-write", nonce: NONCE, text: text }, "*");
         }
       }, 50);
     }
   }, true);
 
-  // Listen for paste data from parent webview
+  // Listen for paste data from parent webview (validate nonce)
   window.addEventListener("message", function(e) {
     var msg = e.data;
     if (!msg || typeof msg !== "object") return;
-    if (msg.type === "n8n-clipboard-paste" && typeof msg.text === "string") {
+    if (msg.type === "n8n-clipboard-paste" && msg.nonce === NONCE && typeof msg.text === "string") {
       handlePaste(msg.text);
     }
   });

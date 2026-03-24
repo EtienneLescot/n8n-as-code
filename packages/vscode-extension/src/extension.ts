@@ -37,11 +37,13 @@ import {
 // ------- Clipboard bridge for macOS -------
 /**
  * Register the clipboard paste handler on the current WorkflowWebview panel.
+ * Only active on macOS where Electron intercepts Cmd+V at the native menu level.
  * When the n8n iframe intercepts Cmd+V, it sends a postMessage chain up to the
  * extension host. This handler reads the system clipboard and sends the text
  * back down to the iframe via the proxy's clipboard bridge script.
  */
 function registerClipboardHandler(): void {
+    if (process.platform !== 'darwin') return;
     WorkflowWebview.onClipboardPasteRequest(async (panel) => {
         const text = await vscode.env.clipboard.readText();
         panel.webview.postMessage({ type: 'clipboard-paste', text });
@@ -118,7 +120,7 @@ export async function activate(context: vscode.ExtensionContext) {
             if (host) {
                 try {
                     const proxyUrl = await proxyService.start(host);
-                    WorkflowWebview.createOrShow(wf, `${proxyUrl}/workflow/${wf.id}`);
+                    WorkflowWebview.createOrShow(wf, `${proxyUrl}/workflow/${wf.id}`, undefined, proxyService.clipboardNonce);
                     registerClipboardHandler();
                 } catch (e: any) {
                     vscode.window.showErrorMessage(`Failed to start proxy: ${e.message}`);
@@ -160,7 +162,7 @@ export async function activate(context: vscode.ExtensionContext) {
             if (host) {
                 try {
                     const proxyUrl = await proxyService.start(host);
-                    WorkflowWebview.createOrShow(wf, `${proxyUrl}/workflow/${wf.id}`, vscode.ViewColumn.Two);
+                    WorkflowWebview.createOrShow(wf, `${proxyUrl}/workflow/${wf.id}`, vscode.ViewColumn.Two, proxyService.clipboardNonce);
                     registerClipboardHandler();
                 } catch (e: any) {
                     vscode.window.showErrorMessage(`Failed to start proxy: ${e.message}`);
