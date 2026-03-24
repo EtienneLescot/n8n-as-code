@@ -107,6 +107,27 @@ describe('N8nApiClient test workflow support', () => {
         })).toBe('https://n8n.local/webhook-test/chat-path/chat');
     });
 
+    it('normalizes webhook paths with leading slashes and special characters', () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+
+        // Leading slash should be stripped
+        expect(client.buildTestUrl({
+            type: 'webhook',
+            nodeId: '1',
+            nodeName: 'Webhook',
+            webhookPath: '/my-path',
+            httpMethod: 'POST',
+        })).toBe('https://n8n.local/webhook-test/my-path');
+
+        // Multiple leading slashes
+        expect(client.buildTestUrl({
+            type: 'form',
+            nodeId: '2',
+            nodeName: 'Form',
+            webhookPath: '//form path with spaces',
+        })).toBe('https://n8n.local/form-test/form%20path%20with%20spaces');
+    });
+
     it('classifies missing credentials as a config gap', async () => {
         const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
         vi.spyOn(client, 'getWorkflow').mockResolvedValue(createMockWorkflow({

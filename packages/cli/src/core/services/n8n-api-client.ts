@@ -6,12 +6,18 @@ export class N8nApiClient {
     private client: AxiosInstance;
     private projectsCache: Map<string, IProject> | null = null;
     private projectsCachePromise: Promise<Map<string, IProject>> | null = null;
+    /** Shared HTTPS agent – allows self-signed certs in local/dev environments */
+    private httpsAgent: https.Agent;
 
     constructor(credentials: IN8nCredentials) {
         let host = credentials.host;
         if (host.endsWith('/')) {
             host = host.slice(0, -1);
         }
+
+        // Allow self-signed certificates by default to avoid issues in local environments.
+        // The same agent is reused for webhook test calls so TLS behaviour is consistent.
+        this.httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
         this.client = axios.create({
             baseURL: host,
@@ -20,10 +26,7 @@ export class N8nApiClient {
                 'Content-Type': 'application/json',
                 'User-Agent': 'n8n-as-code'
             },
-            // Allow self-signed certificates by default to avoid issues in local environments
-            httpsAgent: new https.Agent({  
-                rejectUnauthorized: false 
-            })
+            httpsAgent: this.httpsAgent,
         });
     }
 
@@ -703,15 +706,24 @@ export class N8nApiClient {
      */
     buildTestUrl(trigger: ITriggerInfo): string {
         const base = (this.client.defaults.baseURL ?? '').replace(/\/$/, '');
-        const path = trigger.webhookPath ?? '';
+
+        // Strip leading slashes and encode each path segment to avoid malformed URLs
+        // e.g. "/my path" → "my%20path"
+        const rawPath = trigger.webhookPath ?? '';
+        const normalizedPath = rawPath.replace(/^\/+/, '');
+        const encodedPath = normalizedPath
+            .split('/')
+            .filter((segment) => segment.length > 0)
+            .map((segment) => encodeURIComponent(segment))
+            .join('/');
 
         switch (trigger.type) {
             case 'webhook':
-                return `${base}/webhook-test/${path}`;
+                return `${base}/webhook-test/${encodedPath}`;
             case 'form':
-                return `${base}/form-test/${path}`;
+                return `${base}/form-test/${encodedPath}`;
             case 'chat':
-                return `${base}/webhook-test/${path}/chat`;
+                return `${base}/webhook-test/${encodedPath}/chat`;
             default:
                 return '';
         }
@@ -877,7 +889,8 @@ export class N8nApiClient {
                 data: ['GET', 'HEAD'].includes(method) ? undefined : body,
                 params: ['GET', 'HEAD'].includes(method) ? (body as any) : undefined,
                 validateStatus: () => true, // Don't throw on non-2xx
-                httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+                // Reuse the shared httpsAgent (same TLS policy as API calls).
+                httpsAgent: this.httpsAgent,
                 // Do NOT send the n8n API key when hitting the webhook URL.
                 // The webhook is a public endpoint and the API key header would
                 // be forwarded as workflow input data, which is wrong.

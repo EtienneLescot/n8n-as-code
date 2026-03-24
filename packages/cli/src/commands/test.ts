@@ -11,12 +11,16 @@ export class TestCommand extends BaseCommand {
      * Detects the workflow's trigger type, builds the appropriate test-mode
      * URL, and fires an HTTP request against it.
      *
+     * Returns the exit code instead of calling process.exit() directly,
+     * making the logic unit-testable. The commander action in index.ts calls
+     * process.exit() with the returned value.
+     *
      * Exit codes:
      *   0 — success OR Class A error (config gap — inform user, do not block)
      *   1 — Class B error (wiring error — agent should fix and re-test)
      *   1 — fatal infrastructure error (workflow not found, no trigger, etc.)
      */
-    async run(workflowId: string, options: { data?: string; prod?: boolean }): Promise<void> {
+    async run(workflowId: string, options: { data?: string; prod?: boolean }): Promise<number> {
         // Parse --data JSON if provided
         let parsedData: unknown = {};
         if (options.data) {
@@ -24,7 +28,7 @@ export class TestCommand extends BaseCommand {
                 parsedData = JSON.parse(options.data);
             } catch {
                 console.error(chalk.red(`❌ --data must be valid JSON. Got: ${options.data}`));
-                process.exit(1);
+                return 1;
             }
         }
 
@@ -39,7 +43,7 @@ export class TestCommand extends BaseCommand {
             });
         } catch (err: any) {
             spinner.fail(`Unexpected error: ${err.message}`);
-            process.exit(1);
+            return 1;
         }
 
         spinner.stop();
@@ -73,7 +77,7 @@ export class TestCommand extends BaseCommand {
                         : String(result.responseData);
                 console.log(chalk.white(formatted));
             }
-            process.exit(0);
+            return 0;
         }
 
         // ── Not HTTP-triggerable (schedule, unknown, no trigger) ──────────────
@@ -85,7 +89,7 @@ export class TestCommand extends BaseCommand {
                 }
             }
             // Not a failure — just untestable via HTTP. Exit 0.
-            process.exit(0);
+            return 0;
         }
 
         // ── Class A: config gap ───────────────────────────────────────────────
@@ -101,7 +105,7 @@ export class TestCommand extends BaseCommand {
                 console.log(chalk.dim(`\nHTTP status: ${result.statusCode}`));
             }
             // Exit 0 — this is informational, not something the agent can fix by editing code
-            process.exit(0);
+            return 0;
         }
 
         // ── Class B: wiring error ─────────────────────────────────────────────
@@ -123,6 +127,6 @@ export class TestCommand extends BaseCommand {
         console.log(chalk.dim(`  • Check node expressions and field names`));
         console.log(chalk.dim(`  • Fix the workflow, push it, and re-run: n8nac test ${workflowId}`));
         // Exit 1 — agent should iterate and fix this
-        process.exit(1);
+        return 1;
     }
 }
