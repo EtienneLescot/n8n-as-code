@@ -1,0 +1,178 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { N8nApiClient } from '../../src/core/services/n8n-api-client.js';
+import { createMockWorkflow } from '../helpers/test-helpers.js';
+
+const { mockAxiosCall, mockAxiosGet, mockAxiosCreate } = vi.hoisted(() => ({
+    mockAxiosCall: vi.fn(),
+    mockAxiosGet: vi.fn(),
+    mockAxiosCreate: vi.fn(),
+}));
+
+vi.mock('axios', () => {
+    mockAxiosCreate.mockImplementation((config?: { baseURL?: string; headers?: Record<string, string> }) => ({
+        defaults: { baseURL: config?.baseURL ?? '' },
+        get: mockAxiosGet,
+    }));
+
+    return {
+        default: Object.assign(mockAxiosCall, {
+            create: mockAxiosCreate,
+        }),
+    };
+});
+
+describe('N8nApiClient test workflow support', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('detects a webhook trigger and uses explicit path and HTTP method', () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+        const trigger = client.detectTrigger(createMockWorkflow({
+            nodes: [
+                {
+                    id: 'node-1',
+                    name: 'Inbound Webhook',
+                    type: 'n8n-nodes-base.webhook',
+                    parameters: {
+                        path: 'my-path',
+                        httpMethod: 'post',
+                    },
+                },
+            ],
+        }));
+
+        expect(trigger).toEqual({
+            type: 'webhook',
+            nodeId: 'node-1',
+            nodeName: 'Inbound Webhook',
+            webhookPath: 'my-path',
+            httpMethod: 'POST',
+        });
+    });
+
+    it('falls back to webhookId and node id when trigger path is missing', () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+
+        const withWebhookId = client.detectTrigger(createMockWorkflow({
+            nodes: [
+                {
+                    id: 'node-1',
+                    name: 'Chat Trigger',
+                    type: '@n8n/n8n-nodes-langchain.chatTrigger',
+                    webhookId: 'webhook-123',
+                    parameters: {},
+                },
+            ],
+        }));
+
+        const withNodeId = client.detectTrigger(createMockWorkflow({
+            nodes: [
+                {
+                    id: 'node-2',
+                    name: 'Form Trigger',
+                    type: 'n8n-nodes-base.formTrigger',
+                    parameters: {},
+                },
+            ],
+        }));
+
+        expect(withWebhookId?.webhookPath).toBe('webhook-123');
+        expect(withNodeId?.webhookPath).toBe('node-2');
+    });
+
+    it('builds the expected test URL for webhook, form and chat triggers', () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        expect(client.buildTestUrl({
+            type: 'webhook',
+            nodeId: '1',
+            nodeName: 'Webhook',
+            webhookPath: 'webhook-path',
+            httpMethod: 'POST',
+        })).toBe('https://n8n.local/webhook-test/webhook-path');
+
+        expect(client.buildTestUrl({
+            type: 'form',
+            nodeId: '2',
+            nodeName: 'Form',
+            webhookPath: 'form-path',
+        })).toBe('https://n8n.local/form-test/form-path');
+
+        expect(client.buildTestUrl({
+            type: 'chat',
+            nodeId: '3',
+            nodeName: 'Chat',
+            webhookPath: 'chat-path',
+        })).toBe('https://n8n.local/webhook-test/chat-path/chat');
+    });
+
+    it('classifies missing credentials as a config gap', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        vi.spyOn(client, 'getWorkflow').mockResolvedValue(createMockWorkflow({
+            nodes: [
+                {
+                    id: 'node-1',
+                    name: 'Webhook',
+                    type: 'n8n-nodes-base.webhook',
+                    parameters: { path: 'wf', httpMethod: 'POST' },
+                },
+            ],
+        }));
+        mockAxiosCall.mockResolvedValue({
+            status: 401,
+            data: { message: 'Credentials are missing for this node' },
+        });
+
+        const result = await client.testWorkflow('wf-1', { data: { foo: 'bar' } });
+
+        expect(result.success).toBe(false);
+        expect(result.errorClass).toBe('config-gap');
+        expect(result.statusCode).toBe(401);
+        expect(result.webhookUrl).toBe('https://n8n.local/webhook-test/wf');
+    });
+
+    it('classifies expression failures as wiring errors', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        vi.spyOn(client, 'getWorkflow').mockResolvedValue(createMockWorkflow({
+            nodes: [
+                {
+                    id: 'node-1',
+                    name: 'Webhook',
+                    type: 'n8n-nodes-base.webhook',
+                    parameters: { path: 'wf', httpMethod: 'POST' },
+                },
+            ],
+        }));
+        mockAxiosCall.mockResolvedValue({
+            status: 500,
+            data: { message: "Can't get data for expression" },
+        });
+
+        const result = await client.testWorkflow('wf-1', { data: { foo: 'bar' } });
+
+        expect(result.success).toBe(false);
+        expect(result.errorClass).toBe('wiring-error');
+        expect(result.statusCode).toBe(500);
+    });
+
+    it('returns a non-failing classification for schedule triggers', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        vi.spyOn(client, 'getWorkflow').mockResolvedValue(createMockWorkflow({
+            nodes: [
+                {
+                    id: 'node-1',
+                    name: 'Schedule Trigger',
+                    type: 'n8n-nodes-base.scheduleTrigger',
+                    parameters: {},
+                },
+            ],
+        }));
+
+        const result = await client.testWorkflow('wf-1');
+
+        expect(result.success).toBe(false);
+        expect(result.errorClass).toBeNull();
+        expect(result.errorMessage).toMatch(/cannot be called via HTTP/i);
+    });
+});
