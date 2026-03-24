@@ -181,7 +181,8 @@ export class ProxyService {
             // On macOS, we handle responses ourselves to inject the clipboard bridge.
             if (!isMacOS) return;
 
-            const contentType = proxyRes.headers['content-type'] || '';
+            const rawCT = proxyRes.headers['content-type'];
+            const contentType = Array.isArray(rawCT) ? rawCT[0] || '' : rawCT || '';
             const isHtml = contentType.includes('text/html');
             const httpRes = res as http.ServerResponse;
 

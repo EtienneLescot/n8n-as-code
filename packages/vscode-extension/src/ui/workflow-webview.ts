@@ -20,7 +20,11 @@ export class WorkflowWebview {
         // Handle messages from the webview (clipboard bridge on macOS)
         this._panel.webview.onDidReceiveMessage(async (message) => {
             if (message.type === 'clipboard-write' && typeof message.text === 'string') {
-                await vscode.env.clipboard.writeText(message.text);
+                try {
+                    await vscode.env.clipboard.writeText(message.text);
+                } catch (e) {
+                    console.error('[Webview] Clipboard write error', e);
+                }
             }
             // The parent webview validates origin and issues one-time grant tokens;
             // here we only check that the message type is correct and grantToken is present.
