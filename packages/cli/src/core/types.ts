@@ -109,3 +109,33 @@ export interface ITestResult {
     /** Extra detail to show in the CLI output */
     notes?: string[];
 }
+
+export type PayloadConfidence = 'low' | 'medium' | 'high';
+
+export interface IInferredPayloadField {
+    path: string;
+    source: 'body' | 'query' | 'headers' | 'root';
+    example: unknown;
+    required: boolean;
+    evidence: string[];
+}
+
+export interface IInferredPayload {
+    inferred: Record<string, unknown> | null;
+    confidence: PayloadConfidence;
+    fields: IInferredPayloadField[];
+    notes: string[];
+}
+
+export interface ITestPlan {
+    workflowId: string;
+    workflowName?: string;
+    testable: boolean;
+    reason: string | null;
+    triggerInfo: ITriggerInfo | null;
+    endpoints: {
+        testUrl?: string;
+        productionUrl?: string;
+    };
+    payload: IInferredPayload | null;
+}

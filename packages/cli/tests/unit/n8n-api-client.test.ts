@@ -175,4 +175,76 @@ describe('N8nApiClient test workflow support', () => {
         expect(result.errorClass).toBeNull();
         expect(result.errorMessage).toMatch(/cannot be called via HTTP/i);
     });
+
+    it('builds a test plan with inferred payload fields', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        vi.spyOn(client, 'getWorkflow').mockResolvedValue(createMockWorkflow({
+            name: 'Webhook Workflow',
+            nodes: [
+                {
+                    id: 'node-1',
+                    name: 'Webhook',
+                    type: 'n8n-nodes-base.webhook',
+                    parameters: { path: 'wf', httpMethod: 'POST' },
+                },
+                {
+                    id: 'node-2',
+                    name: 'Set',
+                    type: 'n8n-nodes-base.set',
+                    parameters: {
+                        values: {
+                            string: [
+                                { name: 'email', value: '={{ $json.body.email }}' },
+                                { name: 'message', value: '={{ $json.body.message }}' },
+                            ],
+                            boolean: [
+                                { name: 'isPriority', value: '={{ $json.query.priority }}' },
+                            ],
+                        },
+                    },
+                },
+            ],
+        }));
+
+        const plan = await client.getTestPlan('wf-1');
+
+        expect(plan.testable).toBe(true);
+        expect(plan.endpoints.testUrl).toBe('https://n8n.local/webhook-test/wf');
+        expect(plan.endpoints.productionUrl).toBe('https://n8n.local/webhook/wf');
+        expect(plan.payload?.inferred).toEqual({
+            body: {
+                email: 'user@example.com',
+                message: 'example message',
+            },
+            query: {
+                priority: 'example',
+            },
+        });
+        expect(plan.payload?.fields.map(field => `${field.source}.${field.path}`)).toEqual([
+            'body.email',
+            'body.message',
+            'query.priority',
+        ]);
+    });
+
+    it('returns a non-testable plan for schedule triggers', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        vi.spyOn(client, 'getWorkflow').mockResolvedValue(createMockWorkflow({
+            name: 'Schedule Workflow',
+            nodes: [
+                {
+                    id: 'node-1',
+                    name: 'Schedule Trigger',
+                    type: 'n8n-nodes-base.scheduleTrigger',
+                    parameters: {},
+                },
+            ],
+        }));
+
+        const plan = await client.getTestPlan('wf-1');
+
+        expect(plan.testable).toBe(false);
+        expect(plan.reason).toMatch(/cannot be invoked via HTTP/i);
+        expect(plan.payload).toBeNull();
+    });
 });
