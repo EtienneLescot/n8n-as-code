@@ -1,6 +1,5 @@
 import * as http from 'http';
 import * as os from 'os';
-import * as crypto from 'crypto';
 import httpProxy = require('http-proxy');
 import * as vscode from 'vscode';
 import { AddressInfo } from 'net';
@@ -17,15 +16,7 @@ export class ProxyService {
 
     private cookieJar = new Map<string, string>();
 
-    /** Session nonce for clipboard bridge message validation (regenerated per proxy start). */
-    private _clipboardNonce: string = '';
-
     constructor() { }
-
-    /** Returns the current clipboard bridge nonce (used by webview HTML to validate messages). */
-    public get clipboardNonce(): string {
-        return this._clipboardNonce;
-    }
 
     public setSecrets(secrets: vscode.SecretStorage) {
         this.secrets = secrets;
@@ -118,9 +109,6 @@ export class ProxyService {
         this.cookieJar.clear();
         this.target = normalizedTarget;
         this.port = stablePort;
-
-        // Generate a fresh nonce for clipboard bridge message validation
-        this._clipboardNonce = crypto.randomBytes(16).toString('hex');
 
         const isMacOS = os.platform() === 'darwin';
 
@@ -437,11 +425,20 @@ export class ProxyService {
      * 3. Monkey-patches navigator.clipboard.readText so n8n reads our data
      * 4. Dispatches synthetic keyboard and clipboard events to trigger n8n's paste handler
      */
-    private injectClipboardBridge(html: string): string {
-        const nonce = this._clipboardNonce;
-        const bridgeScript = `<script>
+    /**
+     * Returns the injectable bridge script as a string.
+     * Exported as a static helper so it can be unit-tested in isolation.
+     *
+     * Security model:
+     * - The bridge script intentionally carries no static secret because any
+     *   constant embedded here is readable by code running inside the iframe.
+     * - Origin validation, per-request one-time grant tokens, and rate-limiting
+     *   are all enforced in the parent webview (workflow-webview.ts), which is
+     *   extension-controlled and not accessible to iframe scripts.
+     */
+    static buildBridgeScript(): string {
+        return `<script>
 (function(){
-  var NONCE = "${nonce}";
   var _pasteInProgress = false;
 
   function handlePaste(text) {
@@ -502,36 +499,43 @@ export class ProxyService {
     }, 500);
   }
 
-  // Intercept Cmd+V only (macOS-specific bridge)
+  // Intercept Cmd+V only (macOS-specific bridge — no static secret here;
+  // origin validation and one-time grant tokens are enforced in the parent webview)
   document.addEventListener("keydown", function(e) {
     if (e.metaKey && e.key === "v") {
       if (_pasteInProgress) return;
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-      window.parent.postMessage({ type: "n8n-paste-request", nonce: NONCE }, "*");
+      window.parent.postMessage({ type: "n8n-paste-request" }, "*");
     }
     if (e.metaKey && e.key === "c") {
       setTimeout(function() {
         var sel = window.getSelection();
         var text = sel ? sel.toString() : "";
         if (text) {
-          window.parent.postMessage({ type: "n8n-clipboard-write", nonce: NONCE, text: text }, "*");
+          window.parent.postMessage({ type: "n8n-clipboard-write", text: text }, "*");
         }
       }, 50);
     }
   }, true);
 
-  // Listen for paste data from parent webview (validate nonce)
+  // Listen for paste data from parent webview
+  // The parent webview validates origin and uses one-time grant tokens;
+  // no additional secret is needed on this side.
   window.addEventListener("message", function(e) {
     var msg = e.data;
     if (!msg || typeof msg !== "object") return;
-    if (msg.type === "n8n-clipboard-paste" && msg.nonce === NONCE && typeof msg.text === "string") {
+    if (msg.type === "n8n-clipboard-paste" && typeof msg.text === "string") {
       handlePaste(msg.text);
     }
   });
 })();
 <` + `/script>`;
+    }
+
+    private injectClipboardBridge(html: string): string {
+        const bridgeScript = ProxyService.buildBridgeScript();
 
         if (html.includes('</head>')) {
             return html.replace('</head>', bridgeScript + '</head>');

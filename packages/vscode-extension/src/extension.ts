@@ -44,9 +44,9 @@ import {
  */
 function registerClipboardHandler(): void {
     if (process.platform !== 'darwin') return;
-    WorkflowWebview.onClipboardPasteRequest(async (panel) => {
+    WorkflowWebview.onClipboardPasteRequest(async (panel, grantToken) => {
         const text = await vscode.env.clipboard.readText();
-        panel.webview.postMessage({ type: 'clipboard-paste', text });
+        panel.webview.postMessage({ type: 'clipboard-paste', text, grantToken });
     });
 }
 
@@ -120,7 +120,7 @@ export async function activate(context: vscode.ExtensionContext) {
             if (host) {
                 try {
                     const proxyUrl = await proxyService.start(host);
-                    WorkflowWebview.createOrShow(wf, `${proxyUrl}/workflow/${wf.id}`, undefined, proxyService.clipboardNonce);
+                    WorkflowWebview.createOrShow(wf, `${proxyUrl}/workflow/${wf.id}`, undefined);
                     registerClipboardHandler();
                 } catch (e: any) {
                     vscode.window.showErrorMessage(`Failed to start proxy: ${e.message}`);
@@ -162,7 +162,7 @@ export async function activate(context: vscode.ExtensionContext) {
             if (host) {
                 try {
                     const proxyUrl = await proxyService.start(host);
-                    WorkflowWebview.createOrShow(wf, `${proxyUrl}/workflow/${wf.id}`, vscode.ViewColumn.Two, proxyService.clipboardNonce);
+                    WorkflowWebview.createOrShow(wf, `${proxyUrl}/workflow/${wf.id}`, vscode.ViewColumn.Two);
                     registerClipboardHandler();
                 } catch (e: any) {
                     vscode.window.showErrorMessage(`Failed to start proxy: ${e.message}`);
