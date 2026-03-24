@@ -7,11 +7,33 @@ export class WorkflowWebview {
     private _workflowId: string;
     private _disposables: vscode.Disposable[] = [];
 
+    private _onClipboardPasteRequest: ((panel: vscode.WebviewPanel) => void) | undefined;
+
     private constructor(panel: vscode.WebviewPanel, workflowId: string, url: string) {
         this._panel = panel;
         this._workflowId = workflowId;
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
         this._panel.webview.html = this.getHtmlForWebview(workflowId, url);
+
+        // Handle messages from the webview (clipboard bridge)
+        this._panel.webview.onDidReceiveMessage(async (message) => {
+            if (message.type === 'clipboard-write' && typeof message.text === 'string') {
+                await vscode.env.clipboard.writeText(message.text);
+            }
+            if (message.type === 'clipboard-paste-request') {
+                this._onClipboardPasteRequest?.(this._panel);
+            }
+        }, null, this._disposables);
+    }
+
+    /**
+     * Register a callback for when the iframe requests paste data.
+     * The callback receives the panel so it can send clipboard data back.
+     */
+    public static onClipboardPasteRequest(handler: (panel: vscode.WebviewPanel) => void): void {
+        if (WorkflowWebview.currentPanel) {
+            WorkflowWebview.currentPanel._onClipboardPasteRequest = handler;
+        }
     }
 
     public static createOrShow(workflow: IWorkflowStatus, url: string, viewColumn?: vscode.ViewColumn) {
@@ -234,19 +256,38 @@ export class WorkflowWebview {
                     pendingFrame.src = activeFrame.src;
                 }
 
-                // Handle messages from the extension
+                // Handle messages from the extension and iframe
                 window.addEventListener('message', (event) => {
                     const message = event.data;
-                    // console.log('Webview received message:', message);
-                    
+                    if (!message || typeof message !== 'object') return;
+
                     if (message.type === 'reload') {
-                        // 1. Try Soft Refresh first
                         const softRefreshWorked = attemptSoftRefresh();
-                        
                         if (!softRefreshWorked) {
-                            // 2. Fallback to Seamless Refresh (Double Buffering)
                             performSeamlessRefresh();
                         }
+                        return;
+                    }
+
+                    // Clipboard bridge: iframe requests paste data -> forward to extension host
+                    if (message.type === 'n8n-paste-request') {
+                        vscode.postMessage({ type: 'clipboard-paste-request' });
+                        return;
+                    }
+
+                    // Clipboard bridge: iframe sends copied text -> write to system clipboard
+                    if (message.type === 'n8n-clipboard-write' && typeof message.text === 'string') {
+                        vscode.postMessage({ type: 'clipboard-write', text: message.text });
+                        return;
+                    }
+
+                    // Clipboard bridge: extension sends paste data back -> forward to iframe
+                    if (message.type === 'clipboard-paste' && typeof message.text === 'string') {
+                        try {
+                            var iframeWin = activeFrame.contentWindow;
+                            if (iframeWin) iframeWin.postMessage({ type: 'n8n-clipboard-paste', text: message.text }, '*');
+                        } catch(e) {}
+                        return;
                     }
                 });
 
