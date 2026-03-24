@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
-import { IN8nCredentials, IWorkflow, IProject, ITag } from '../types.js';
+import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestResult, TriggerType } from '../types.js';
 
 export class N8nApiClient {
     private client: AxiosInstance;
@@ -625,5 +625,271 @@ export class N8nApiClient {
             // Fallback: If REST API not accessible, return empty
             return [];
         }
+    }
+
+    // ── Trigger detection & test execution ───────────────────────────────────
+
+    /**
+     * Inspects a workflow's nodes and returns information about its trigger node,
+     * following the same approach as czlonkowski/n8n-mcp:
+     *   1. Fetch the workflow via the public API.
+     *   2. Identify the trigger node by its type name.
+     *   3. Extract the webhook path (explicit path → webhookId → nodeId).
+     *
+     * n8n's public API has NO endpoint to launch a new execution, so the only
+     * way to test a webhook-driven workflow programmatically is to call the
+     * /webhook-test/{path} URL directly.
+     */
+    detectTrigger(workflow: IWorkflow): ITriggerInfo | null {
+        const nodes: any[] = workflow.nodes ?? [];
+
+        for (const node of nodes) {
+            const rawType: string = (node.type ?? '').toLowerCase();
+            // Strip package prefix for simplicity, e.g. "@n8n/n8n-nodes-langchain.chatTrigger"
+            const shortType = rawType.includes('.') ? rawType.split('.').pop()! : rawType;
+
+            let triggerType: TriggerType | null = null;
+
+            if (shortType === 'webhook' || shortType === 'webhooktrigger') {
+                triggerType = 'webhook';
+            } else if (shortType === 'formtrigger' || shortType === 'form') {
+                triggerType = 'form';
+            } else if (shortType === 'chattrigger') {
+                triggerType = 'chat';
+            } else if (shortType === 'scheduletrigger' || shortType === 'cron' || shortType === 'interval') {
+                triggerType = 'schedule';
+            } else if (shortType.endsWith('trigger') || shortType.endsWith('poll')) {
+                // Generic trigger / polling trigger — not directly hittable via HTTP
+                triggerType = 'unknown';
+            }
+
+            if (triggerType === null) continue;
+
+            const params = node.parameters ?? {};
+            const webhookId: string | undefined = node.webhookId;
+
+            // Priority: explicit path param → webhookId → node id
+            const rawPath: string | undefined =
+                typeof params.path === 'string' && params.path
+                    ? params.path
+                    : typeof webhookId === 'string' && webhookId
+                    ? webhookId
+                    : node.id;
+
+            const httpMethod: string =
+                typeof params.httpMethod === 'string'
+                    ? params.httpMethod.toUpperCase()
+                    : 'GET';
+
+            return {
+                type: triggerType,
+                nodeId: node.id,
+                nodeName: node.name,
+                webhookPath: triggerType !== 'schedule' && triggerType !== 'unknown' ? rawPath : undefined,
+                httpMethod: triggerType === 'webhook' ? httpMethod : undefined,
+            };
+        }
+
+        return null;
+    }
+
+    /**
+     * Build the test-mode URL for a given trigger.
+     *
+     * n8n test URLs:
+     *   webhook  → {base}/webhook-test/{path}
+     *   form     → {base}/form-test/{path}
+     *   chat     → {base}/webhook-test/{path}/chat
+     */
+    buildTestUrl(trigger: ITriggerInfo): string {
+        const base = (this.client.defaults.baseURL ?? '').replace(/\/$/, '');
+        const path = trigger.webhookPath ?? '';
+
+        switch (trigger.type) {
+            case 'webhook':
+                return `${base}/webhook-test/${path}`;
+            case 'form':
+                return `${base}/form-test/${path}`;
+            case 'chat':
+                return `${base}/webhook-test/${path}/chat`;
+            default:
+                return '';
+        }
+    }
+
+    /**
+     * Runs a workflow in test mode by:
+     *   1. Fetching the workflow to detect its trigger.
+     *   2. Calling the test webhook URL directly.
+     *
+     * Returns an ITestResult that classifies the outcome:
+     *   • success + responseData  → workflow ran and responded
+     *   • config-gap              → missing creds, model, env vars (inform user)
+     *   • wiring-error            → bad expression, HTTP failure (agent should fix)
+     */
+    async testWorkflow(
+        workflowId: string,
+        options?: { data?: unknown; prod?: boolean }
+    ): Promise<ITestResult> {
+        // 1. Fetch workflow
+        let workflow: IWorkflow | null;
+        try {
+            workflow = await this.getWorkflow(workflowId);
+        } catch (err: any) {
+            return {
+                success: false,
+                triggerInfo: null,
+                errorMessage: `Failed to fetch workflow ${workflowId}: ${err.message}`,
+                errorClass: 'wiring-error',
+            };
+        }
+
+        if (!workflow) {
+            return {
+                success: false,
+                triggerInfo: null,
+                errorMessage: `Workflow ${workflowId} not found`,
+                errorClass: 'wiring-error',
+            };
+        }
+
+        // 2. Detect trigger
+        const triggerInfo = this.detectTrigger(workflow);
+
+        if (!triggerInfo) {
+            return {
+                success: false,
+                triggerInfo: null,
+                errorMessage: 'No trigger node found in this workflow.',
+                errorClass: null,
+                notes: ['This workflow has no trigger node and cannot be tested via HTTP.'],
+            };
+        }
+
+        if (triggerInfo.type === 'schedule' || triggerInfo.type === 'unknown') {
+            return {
+                success: false,
+                triggerInfo,
+                errorMessage: `Trigger type "${triggerInfo.type}" cannot be called via HTTP.`,
+                errorClass: null,
+                notes: [
+                    `The trigger "${triggerInfo.nodeName}" (${triggerInfo.type}) is not a webhook/form/chat trigger.`,
+                    'Schedule and polling triggers must be activated and run by n8n at their configured intervals.',
+                    'Use `n8nac push` to upload, then activate the workflow in the n8n UI.',
+                ],
+            };
+        }
+
+        // 3. Build URL
+        const prod = options?.prod ?? false;
+        const url = prod
+            ? this.buildTestUrl(triggerInfo).replace('/webhook-test/', '/webhook/').replace('/form-test/', '/form/')
+            : this.buildTestUrl(triggerInfo);
+
+        if (!url) {
+            return {
+                success: false,
+                triggerInfo,
+                errorMessage: 'Could not build webhook URL for this trigger type.',
+                errorClass: null,
+            };
+        }
+
+        // 4. Call the webhook
+        const method = (triggerInfo.httpMethod ?? 'POST').toUpperCase();
+        const body = options?.data ?? {};
+
+        try {
+            const requestConfig: any = {
+                method,
+                url,
+                data: ['GET', 'HEAD'].includes(method) ? undefined : body,
+                params: ['GET', 'HEAD'].includes(method) ? (body as any) : undefined,
+                validateStatus: () => true, // Don't throw on non-2xx
+                httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+                // Do NOT send the n8n API key when hitting the webhook URL.
+                // The webhook is a public endpoint and the API key header would
+                // be forwarded as workflow input data, which is wrong.
+                headers: { 'Content-Type': 'application/json', 'User-Agent': 'n8n-as-code' },
+            };
+
+            const res = await axios(requestConfig);
+            const statusCode = res.status;
+            const responseData = res.data;
+
+            if (statusCode >= 200 && statusCode < 300) {
+                return {
+                    success: true,
+                    triggerInfo,
+                    webhookUrl: url,
+                    statusCode,
+                    responseData,
+                    errorClass: null,
+                };
+            }
+
+            // Non-2xx — classify the error
+            const errorMessage = typeof responseData === 'object' && responseData !== null
+                ? (responseData as any).message ?? JSON.stringify(responseData)
+                : String(responseData);
+
+            const errorClass = this.classifyTestError(statusCode, errorMessage, responseData);
+
+            return {
+                success: false,
+                triggerInfo,
+                webhookUrl: url,
+                statusCode,
+                responseData,
+                errorMessage,
+                errorClass,
+            };
+        } catch (err: any) {
+            return {
+                success: false,
+                triggerInfo,
+                webhookUrl: url,
+                errorMessage: err.message,
+                errorClass: 'wiring-error',
+            };
+        }
+    }
+
+    /**
+     * Heuristically classify a non-2xx test response as a config-gap or wiring-error.
+     *
+     * Class A (config-gap): missing credentials, unset LLM model, missing env vars.
+     *   → Inform the user, do NOT iterate.
+     *
+     * Class B (wiring-error): bad expression, wrong field reference, HTTP failure.
+     *   → Agent should fix and re-test.
+     */
+    private classifyTestError(statusCode: number, message: string, _data: unknown): 'config-gap' | 'wiring-error' {
+        const lc = message.toLowerCase();
+
+        const configGapPatterns = [
+            'credential',
+            'credentials',
+            'api key',
+            'authorization',
+            'no model',
+            'model not set',
+            'environment variable',
+            'env var',
+            'secret',
+            'token not',
+            'not authenticated',
+            'authentication failed',
+            'not found in credentials',
+        ];
+
+        for (const pattern of configGapPatterns) {
+            if (lc.includes(pattern)) return 'config-gap';
+        }
+
+        // 401/403 typically indicate auth/credentials issues
+        if (statusCode === 401 || statusCode === 403) return 'config-gap';
+
+        return 'wiring-error';
     }
 }

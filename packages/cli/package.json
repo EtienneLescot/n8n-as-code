@@ -11,7 +11,7 @@
     "license": "MIT",
     "scripts": {
         "copy-assets": "mkdir -p dist/core/assets && cp src/core/assets/n8n-workflows.d.ts dist/core/assets/",
-        "build": "tsc -b && npm run copy-assets",
+        "build": "tsc -b && npm run copy-assets && chmod +x dist/index.js",
         "watch": "tsc -b -w",
         "clean": "rm -rf dist tsconfig.tsbuildinfo",
         "test": "npm run test:unit",
