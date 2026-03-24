@@ -14,7 +14,22 @@ export class ProxyService {
     private secrets: vscode.SecretStorage | undefined;
 
     private cookieJar = new Map<string, string>();
+
+    // macOS clipboard bridge: pending paste data for iframe communication
+    public _pasteWaiters: http.ServerResponse[] = [];
+    private _pendingPaste: { text: string; seq: number } | null = null;
+    private _pasteSeq = 0;
+
     constructor() { }
+
+    /**
+     * Queue paste data to be delivered to the iframe via the clipboard bridge.
+     * Called by the extension host when the user triggers Cmd+V.
+     */
+    public setPasteData(text: string): void {
+        this._pasteSeq++;
+        this._pendingPaste = { text, seq: this._pasteSeq };
+    }
 
     public setSecrets(secrets: vscode.SecretStorage) {
         this.secrets = secrets;
@@ -115,16 +130,15 @@ export class ProxyService {
             target: this.target,
             changeOrigin: true,
             secure: false,
+            selfHandleResponse: true, // Handle responses ourselves to inject clipboard bridge
             cookieDomainRewrite: "", // Rewrite all domains to match localhost
             preserveHeaderKeyCase: true, // Preserve header casing
             autoRewrite: true, // Automatically rewrite redirects
             xfwd: true // Add x-forwarded headers automatically
         });
 
-        // Strip headers that block iframe embedding and manage cookies
-        this.proxy.on('proxyRes', (proxyRes, _req, _res) => {
-            // this.log(`[Proxy] ${req.method} ${path} -> ${proxyRes.statusCode}`);
-
+        // Strip headers that block iframe embedding, manage cookies, and inject clipboard bridge
+        this.proxy.on('proxyRes', (proxyRes, _req, res) => {
             // Remove headers that prevent iframe embedding
             delete proxyRes.headers['x-frame-options'];
             delete proxyRes.headers['content-security-policy'];
@@ -144,33 +158,20 @@ export class ProxyService {
                         ? `http://localhost:${this.port}${location}`
                         : location;
 
-                // this.log(`[Proxy] Redirect: ${location} -> ${newLocation}`);
                 proxyRes.headers['location'] = newLocation;
             }
 
             // CRITICAL: Capture and Fix cookies for iframe/webview context
             if (proxyRes.headers['set-cookie']) {
                 proxyRes.headers['set-cookie'] = proxyRes.headers['set-cookie'].map(cookie => {
-                    // Update our internal cookie store
                     const eqIdx = cookie.indexOf('=');
                     const scIdx = cookie.indexOf(';');
                     if (eqIdx !== -1) {
                         const key = cookie.substring(0, eqIdx).trim();
-                        // Capture the whole cookie string up to attributes
                         const valuePart = cookie.substring(0, scIdx !== -1 ? scIdx : undefined).trim();
                         this.cookieJar.set(key, valuePart);
-                        /* if (key === 'n8n-auth') {
-                            this.log(`[Proxy] Captured session cookie: ${key}`);
-                        } */
                     }
-
-                    // Save cookies whenever we get new ones
                     this.saveCookies();
-
-                    // For localhost proxy, we need to:
-                    // 1. Remove Domain so cookie applies to localhost
-                    // 2. Remove SameSite restrictions
-                    // 3. Remove Secure flag since we're on http://localhost
                     return cookie
                         .replace(/; Secure/gi, '')
                         .replace(/; SameSite=None/gi, '')
@@ -185,6 +186,27 @@ export class ProxyService {
             proxyRes.headers['access-control-allow-credentials'] = 'true';
             proxyRes.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH';
             proxyRes.headers['access-control-allow-headers'] = '*';
+
+            const contentType = proxyRes.headers['content-type'] || '';
+            const isHtml = contentType.includes('text/html');
+            const httpRes = res as http.ServerResponse;
+
+            if (isHtml) {
+                // Buffer HTML responses to inject clipboard bridge script
+                const chunks: Buffer[] = [];
+                proxyRes.on('data', (chunk: Buffer) => chunks.push(chunk));
+                proxyRes.on('end', () => {
+                    let html = Buffer.concat(chunks).toString('utf-8');
+                    html = this.injectClipboardBridge(html);
+                    delete proxyRes.headers['content-length'];
+                    httpRes.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+                    httpRes.end(html);
+                });
+            } else {
+                // Non-HTML responses: pipe directly
+                httpRes.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+                proxyRes.pipe(httpRes);
+            }
         });
 
         this.proxy.on('error', (err, _req, res) => {
@@ -213,6 +235,9 @@ export class ProxyService {
             }
 
             if (this.proxy) {
+                // Request uncompressed responses so we can inject the clipboard bridge
+                delete req.headers['accept-encoding'];
+
                 const mergedCookies = this.buildMergedCookieHeader(req.headers.cookie);
                 if (mergedCookies) {
                     req.headers['cookie'] = mergedCookies;
@@ -377,6 +402,121 @@ export class ProxyService {
 
             this.server.on('error', reject);
         });
+    }
+
+    /**
+     * Inject a clipboard bridge script into n8n's HTML responses.
+     *
+     * On macOS, Electron intercepts Cmd+C/V/X at the native menu level before
+     * keyboard events reach the webview. The Clipboard API also doesn't work
+     * inside cross-origin iframes in VS Code webviews.
+     *
+     * This bridge script:
+     * 1. Intercepts Cmd+V keydown in the iframe
+     * 2. Requests clipboard data from the parent webview via postMessage
+     * 3. Monkey-patches navigator.clipboard.readText so n8n reads our data
+     * 4. Dispatches synthetic keyboard and clipboard events to trigger n8n's paste handler
+     */
+    private injectClipboardBridge(html: string): string {
+        const bridgeScript = `<script>
+(function(){
+  var _pasteInProgress = false;
+
+  function handlePaste(text) {
+    var el = document.activeElement;
+
+    // Input/Textarea: direct value manipulation
+    if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) {
+      var s = el.selectionStart || 0;
+      var end = el.selectionEnd || 0;
+      el.value = el.value.substring(0, s) + text + el.value.substring(end);
+      el.selectionStart = el.selectionEnd = s + text.length;
+      el.dispatchEvent(new Event("input", {bubbles:true}));
+      el.dispatchEvent(new Event("change", {bubbles:true}));
+      return;
+    }
+
+    // Monkey-patch clipboard.readText so n8n gets our data
+    var origRT = navigator.clipboard && navigator.clipboard.readText;
+    try {
+      if (navigator.clipboard) {
+        navigator.clipboard.readText = function() {
+          navigator.clipboard.readText = origRT;
+          return Promise.resolve(text);
+        };
+      }
+    } catch(ex) {
+      try {
+        Object.defineProperty(navigator.clipboard, "readText", {
+          value: function() {
+            Object.defineProperty(navigator.clipboard, "readText", {
+              value: origRT, writable:true, configurable:true
+            });
+            return Promise.resolve(text);
+          }, writable:true, configurable:true
+        });
+      } catch(ex2) {}
+    }
+
+    // Dispatch synthetic keydown Cmd+V (with guard to prevent re-entry)
+    _pasteInProgress = true;
+    var kbOpts = {key:"v",code:"KeyV",keyCode:86,which:86,metaKey:true,ctrlKey:false,bubbles:true,cancelable:true};
+    var tgt = document.activeElement || document.body;
+    tgt.dispatchEvent(new KeyboardEvent("keydown", kbOpts));
+    document.dispatchEvent(new KeyboardEvent("keydown", kbOpts));
+
+    // Also dispatch paste ClipboardEvent
+    try {
+      var dt = new DataTransfer();
+      dt.setData("text/plain", text);
+      tgt.dispatchEvent(new ClipboardEvent("paste",{bubbles:true,cancelable:true,clipboardData:dt}));
+      document.dispatchEvent(new ClipboardEvent("paste",{bubbles:true,cancelable:true,clipboardData:dt}));
+    } catch(ex) {}
+
+    // Cleanup guard and monkey-patch after n8n has had time to read
+    setTimeout(function(){
+      _pasteInProgress = false;
+      try { if(origRT && navigator.clipboard) navigator.clipboard.readText = origRT; } catch(ex){}
+    }, 500);
+  }
+
+  // Intercept Cmd+V in the iframe and request clipboard data from extension host
+  document.addEventListener("keydown", function(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "v") {
+      if (_pasteInProgress) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      window.parent.postMessage({ type: "n8n-paste-request" }, "*");
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key === "c") {
+      setTimeout(function() {
+        var sel = window.getSelection();
+        var text = sel ? sel.toString() : "";
+        if (text) {
+          window.parent.postMessage({ type: "n8n-clipboard-write", text: text }, "*");
+        }
+      }, 50);
+    }
+  }, true);
+
+  // Listen for paste data from parent webview
+  window.addEventListener("message", function(e) {
+    var msg = e.data;
+    if (!msg || typeof msg !== "object") return;
+    if (msg.type === "n8n-clipboard-paste" && typeof msg.text === "string") {
+      handlePaste(msg.text);
+    }
+  });
+})();
+<` + `/script>`;
+
+        if (html.includes('</head>')) {
+            return html.replace('</head>', bridgeScript + '</head>');
+        } else if (html.includes('</body>')) {
+            return html.replace('</body>', bridgeScript + '</body>');
+        }
+        return html + bridgeScript;
     }
 
     public stop() {
