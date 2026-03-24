@@ -13,6 +13,11 @@
  *     extension-controlled and inaccessible to iframe code.
  */
 export function buildWebviewHtml(workflowId: string, url: string): string {
+    // Escape workflowId for safe interpolation in HTML and JS contexts
+    const htmlSafe = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const safeWorkflowIdHtml = htmlSafe(workflowId);
+    const safeWorkflowIdJs = JSON.stringify(workflowId);
+
     // url is the proxy URL pointing to the n8n workflow
     let iframePermissionOrigin = 'src';
     try {
@@ -28,7 +33,7 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
             <meta charset="UTF-8">
             <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval'; frame-src *; connect-src *; img-src * data:; style-src * 'unsafe-inline';">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>n8n: ${workflowId}</title>
+            <title>n8n: ${safeWorkflowIdHtml}</title>
             <style>
                 body, html { 
                     margin: 0; 
@@ -106,7 +111,7 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
                 let pendingFrame = document.getElementById('frame-2');
                 const loadingOverlay = document.getElementById('loading-overlay');
                 const initialLoading = document.getElementById('initial-loading');
-                const workflowId = "${workflowId}";
+                const workflowId = ${safeWorkflowIdJs};
                 
                 function focusActiveFrame() {
                     try {
@@ -180,7 +185,7 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
                 //     iframe page where hostile scripts could read and replay it.
                 //   - Rate limiting caps clipboard reads to one per PASTE_RATE_LIMIT_MS
                 //     to bound the worst-case exfiltration window.
-                var iframeOrigin = new URL("${url}").origin;
+                var iframeOrigin = ${JSON.stringify(iframePermissionOrigin)};
                 var PASTE_RATE_LIMIT_MS = 1000;
                 var _lastPasteMs = 0;
                 var _pendingGrants = new Map();
@@ -230,6 +235,12 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
                     if (message.type === 'n8n-clipboard-write' && typeof message.text === 'string') {
                         if (event.origin !== iframeOrigin) return;
                         vscode.postMessage({ type: 'clipboard-write', text: message.text });
+                        return;
+                    }
+
+                    // Clipboard bridge: extension reports clipboard read failure — consume the grant.
+                    if (message.type === 'clipboard-error' && typeof message.grantToken === 'string') {
+                        consumeGrant(message.grantToken);
                         return;
                     }
 
