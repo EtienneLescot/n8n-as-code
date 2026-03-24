@@ -42,7 +42,7 @@ export class TestCommand extends BaseCommand {
                 prod: options.prod ?? false,
             });
         } catch (err: any) {
-            spinner.fail(`Unexpected error: ${err.message}`);
+            spinner.fail(`Unexpected error: ${String(err?.message ?? err)}`);
             return 1;
         }
 

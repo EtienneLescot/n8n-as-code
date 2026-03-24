@@ -20,7 +20,7 @@ export class TestPlanCommand extends BaseCommand {
         try {
             plan = await this.client.getTestPlan(workflowId);
         } catch (err: any) {
-            spinner.fail(`Unexpected error: ${err.message}`);
+            spinner.fail(`Unexpected error: ${String(err?.message ?? err)}`);
             return 1;
         }
 
@@ -65,7 +65,7 @@ export class TestPlanCommand extends BaseCommand {
 
         if (plan.payload) {
             console.log(chalk.dim('\nSuggested payload:'));
-            console.log(chalk.white(JSON.stringify(plan.payload.inferred ?? {}, null, 2)));
+            console.log(chalk.white(JSON.stringify(plan.payload.inferred, null, 2)));
             console.log(chalk.dim(`Confidence: ${plan.payload.confidence}`));
 
             if (plan.payload.fields.length > 0) {
