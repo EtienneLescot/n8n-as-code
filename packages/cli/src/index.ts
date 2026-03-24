@@ -216,7 +216,7 @@ program.command('test')
     .option('--prod', 'Call the production webhook URL instead of the test URL')
     .option('--data <json>', 'JSON body to send with the request (default: {})')
     .action(async (workflowId, options) => {
-        await new TestCommand().run(workflowId, options);
+        process.exit(await new TestCommand().run(workflowId, options));
     });
 
 program.command('test-plan')
@@ -224,7 +224,7 @@ program.command('test-plan')
     .argument('<workflowId>', 'Workflow ID to inspect')
     .option('--json', 'Output the test plan as JSON for agents and scripts')
     .action(async (workflowId, options) => {
-        await new TestPlanCommand().run(workflowId, options);
+        process.exit(await new TestPlanCommand().run(workflowId, options));
     });
 
 // fetch - Update remote state cache for a specific workflow

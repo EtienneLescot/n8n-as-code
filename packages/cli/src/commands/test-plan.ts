@@ -4,7 +4,16 @@ import { BaseCommand } from './base.js';
 import { ITestPlan } from '../core/index.js';
 
 export class TestPlanCommand extends BaseCommand {
-    async run(workflowId: string, options: { json?: boolean }): Promise<void> {
+    /**
+     * Returns the exit code instead of calling process.exit() directly,
+     * making the logic unit-testable. The commander action in index.ts calls
+     * process.exit() with the returned value.
+     *
+     * Exit codes:
+     *   0 — workflow is testable via HTTP
+     *   1 — workflow is not testable (schedule, unknown trigger, or fetch error)
+     */
+    async run(workflowId: string, options: { json?: boolean }): Promise<number> {
         const spinner = ora(`Inspecting test plan for workflow ${workflowId}...`).start();
 
         let plan: ITestPlan;
@@ -12,14 +21,14 @@ export class TestPlanCommand extends BaseCommand {
             plan = await this.client.getTestPlan(workflowId);
         } catch (err: any) {
             spinner.fail(`Unexpected error: ${err.message}`);
-            process.exit(1);
+            return 1;
         }
 
         spinner.stop();
 
         if (options.json) {
             console.log(JSON.stringify(plan, null, 2));
-            process.exit(plan.testable ? 0 : 1);
+            return plan.testable ? 0 : 1;
         }
 
         if (plan.workflowName) {
@@ -36,7 +45,7 @@ export class TestPlanCommand extends BaseCommand {
                     chalk.dim(` [${plan.triggerInfo.type}]`)
                 );
             }
-            process.exit(1);
+            return 1;
         }
 
         const trigger = plan.triggerInfo!;
@@ -74,6 +83,6 @@ export class TestPlanCommand extends BaseCommand {
             }
         }
 
-        process.exit(0);
+        return 0;
     }
 }
