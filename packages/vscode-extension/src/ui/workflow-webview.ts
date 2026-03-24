@@ -6,21 +6,23 @@ export class WorkflowWebview {
     private readonly _panel: vscode.WebviewPanel;
     private _workflowId: string;
     private _disposables: vscode.Disposable[] = [];
+    private _clipboardNonce: string = '';
 
     private _onClipboardPasteRequest: ((panel: vscode.WebviewPanel) => void) | undefined;
 
-    private constructor(panel: vscode.WebviewPanel, workflowId: string, url: string) {
+    private constructor(panel: vscode.WebviewPanel, workflowId: string, url: string, clipboardNonce: string) {
         this._panel = panel;
         this._workflowId = workflowId;
+        this._clipboardNonce = clipboardNonce;
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
         this._panel.webview.html = this.getHtmlForWebview(workflowId, url);
 
-        // Handle messages from the webview (clipboard bridge)
+        // Handle messages from the webview (clipboard bridge on macOS)
         this._panel.webview.onDidReceiveMessage(async (message) => {
             if (message.type === 'clipboard-write' && typeof message.text === 'string') {
                 await vscode.env.clipboard.writeText(message.text);
             }
-            if (message.type === 'clipboard-paste-request') {
+            if (message.type === 'clipboard-paste-request' && message.nonce === this._clipboardNonce) {
                 this._onClipboardPasteRequest?.(this._panel);
             }
         }, null, this._disposables);
@@ -36,7 +38,7 @@ export class WorkflowWebview {
         }
     }
 
-    public static createOrShow(workflow: IWorkflowStatus, url: string, viewColumn?: vscode.ViewColumn) {
+    public static createOrShow(workflow: IWorkflowStatus, url: string, viewColumn?: vscode.ViewColumn, clipboardNonce: string = '') {
         const column = viewColumn || (vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined);
@@ -59,7 +61,7 @@ export class WorkflowWebview {
             }
         );
 
-        WorkflowWebview.currentPanel = new WorkflowWebview(panel, workflow.id, url);
+        WorkflowWebview.currentPanel = new WorkflowWebview(panel, workflow.id, url, clipboardNonce);
     }
 
     /**
@@ -257,6 +259,9 @@ export class WorkflowWebview {
                 }
 
                 // Handle messages from the extension and iframe
+                var NONCE = "${this._clipboardNonce}";
+                var iframeOrigin = new URL("${url}").origin;
+
                 window.addEventListener('message', (event) => {
                     const message = event.data;
                     if (!message || typeof message !== 'object') return;
@@ -270,13 +275,16 @@ export class WorkflowWebview {
                     }
 
                     // Clipboard bridge: iframe requests paste data -> forward to extension host
-                    if (message.type === 'n8n-paste-request') {
-                        vscode.postMessage({ type: 'clipboard-paste-request' });
+                    // Validate nonce and origin to prevent unauthorized clipboard reads
+                    if (message.type === 'n8n-paste-request' && message.nonce === NONCE) {
+                        if (event.origin !== iframeOrigin) return;
+                        vscode.postMessage({ type: 'clipboard-paste-request', nonce: NONCE });
                         return;
                     }
 
                     // Clipboard bridge: iframe sends copied text -> write to system clipboard
-                    if (message.type === 'n8n-clipboard-write' && typeof message.text === 'string') {
+                    if (message.type === 'n8n-clipboard-write' && message.nonce === NONCE && typeof message.text === 'string') {
+                        if (event.origin !== iframeOrigin) return;
                         vscode.postMessage({ type: 'clipboard-write', text: message.text });
                         return;
                     }
@@ -285,7 +293,7 @@ export class WorkflowWebview {
                     if (message.type === 'clipboard-paste' && typeof message.text === 'string') {
                         try {
                             var iframeWin = activeFrame.contentWindow;
-                            if (iframeWin) iframeWin.postMessage({ type: 'n8n-clipboard-paste', text: message.text }, '*');
+                            if (iframeWin) iframeWin.postMessage({ type: 'n8n-clipboard-paste', nonce: NONCE, text: message.text }, iframeOrigin);
                         } catch(e) {}
                         return;
                     }
