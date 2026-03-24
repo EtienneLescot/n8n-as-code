@@ -17,7 +17,7 @@
  */
 
 import { SyncManager } from './sync-manager.js';
-import { IWorkflowStatus, WorkflowSyncStatus } from '../types.js';
+import { IWorkflowStatus, WorkflowSyncStatus, ITestResult } from '../types.js';
 
 export class CliApi {
     private syncManager: SyncManager;
@@ -113,5 +113,28 @@ export class CliApi {
      */
     async getSingleWorkflowDetailedStatus(workflowId: string, filename: string) {
         return this.syncManager.getSingleWorkflowDetailedStatus(workflowId, filename);
+    }
+
+    // ── test ──────────────────────────────────────────────────────────────────
+
+    /**
+     * Mirrors `n8nac test <workflowId>`
+     *
+     * Detects the workflow's trigger type, builds the appropriate test-mode
+     * URL, and fires an HTTP request against it.
+     *
+     * Returns an ITestResult classifying the outcome:
+     *   • success                 → workflow ran and returned a 2xx response
+     *   • errorClass: config-gap  → missing credentials/model/env-vars (Class A)
+     *                               Inform the user — do NOT iterate.
+     *   • errorClass: wiring-error → bad expression, wrong field (Class B)
+     *                               Agent should fix and re-test.
+     *   • errorClass: null        → not an HTTP-triggerable workflow (schedule etc.)
+     */
+    async testWorkflow(
+        workflowId: string,
+        options?: { data?: unknown; prod?: boolean }
+    ): Promise<ITestResult> {
+        return this.syncManager.getApiClient().testWorkflow(workflowId, options);
     }
 }

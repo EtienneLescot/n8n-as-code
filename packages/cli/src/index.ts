@@ -6,6 +6,7 @@ import { InitAiCommand } from './commands/init-ai.js';
 import { InitCommand } from './commands/init.js';
 import { SwitchCommand } from './commands/switch.js';
 import { ConvertCommand } from './commands/convert.js';
+import { TestCommand } from './commands/test.js';
 import { registerSkillsCommands } from '@n8n-as-code/skills';
 import chalk from 'chalk';
 
@@ -199,6 +200,22 @@ program.command('verify')
     .action(async (workflowId) => {
         const ok = await new SyncCommand().verifyRemote(workflowId);
         if (!ok) process.exit(1);
+    });
+
+// test - Trigger a workflow in test mode and report the result
+program.command('test')
+    .description(
+        'Trigger a workflow via its webhook/chat/form URL and report the outcome.\n' +
+        'Distinguishes config gaps (Class A: missing credentials/model) from wiring errors\n' +
+        '(Class B: bad expressions, wrong field names).\n' +
+        'Class A → exit 0 (inform user, do not block).\n' +
+        'Class B → exit 1 (fixable, agent should iterate).'
+    )
+    .argument('<workflowId>', 'Workflow ID to test')
+    .option('--prod', 'Call the production webhook URL instead of the test URL')
+    .option('--data <json>', 'JSON body to send with the request (default: {})')
+    .action(async (workflowId, options) => {
+        await new TestCommand().run(workflowId, options);
     });
 
 // fetch - Update remote state cache for a specific workflow

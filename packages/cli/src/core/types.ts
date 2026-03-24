@@ -63,3 +63,49 @@ export interface ISyncConfig {
     projectId: string;           // REQUIRED: Project scope for sync
     projectName: string;         // REQUIRED: Project display name
 }
+
+// ── Execution / Test types ────────────────────────────────────────────────────
+
+/** Identifies how a workflow can be triggered externally */
+export type TriggerType = 'webhook' | 'form' | 'chat' | 'schedule' | 'unknown';
+
+/** Information extracted from a workflow's trigger node */
+export interface ITriggerInfo {
+    type: TriggerType;
+    nodeId: string;
+    nodeName: string;
+    /** Path segment used to build the webhook URL (undefined for schedule/unknown) */
+    webhookPath?: string;
+    /** HTTP method accepted by the trigger (default 'GET' for webhook) */
+    httpMethod?: string;
+}
+
+/** Classification of why a test execution failed */
+export type TestErrorClass =
+    /** Legitimate config gap: missing credentials, unset LLM model, env vars.
+     *  NOT fixable by the agent — inform the user instead. */
+    | 'config-gap'
+    /** Structural wiring error: bad expression, wrong field name, HTTP failure.
+     *  Agent SHOULD attempt to fix and re-test. */
+    | 'wiring-error'
+    | null;
+
+/** Result returned by a workflow test run */
+export interface ITestResult {
+    /** Whether the HTTP call to the webhook URL succeeded (2xx response) */
+    success: boolean;
+    /** Trigger info detected from the workflow definition */
+    triggerInfo: ITriggerInfo | null;
+    /** URL that was called */
+    webhookUrl?: string;
+    /** HTTP status code returned by n8n */
+    statusCode?: number;
+    /** Response body from the webhook call */
+    responseData?: unknown;
+    /** Human-readable error message (if any) */
+    errorMessage?: string;
+    /** Error classification (null when success === true) */
+    errorClass: TestErrorClass;
+    /** Extra detail to show in the CLI output */
+    notes?: string[];
+}

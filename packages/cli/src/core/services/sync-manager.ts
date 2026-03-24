@@ -192,6 +192,11 @@ export class SyncManager extends EventEmitter {
         return this.watcher.getFilenameForId(id);
     }
 
+    /** Expose the underlying API client (used by CliApi to call testWorkflow). */
+    public getApiClient(): N8nApiClient {
+        return this.client;
+    }
+
     /**
      * Populate the local hashes cache by scanning the local directory.
      * Must be called before getSingleWorkflowDetailedStatus() in CLI mode
