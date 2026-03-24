@@ -332,7 +332,11 @@ When helping users:
 8. Generate the TypeScript configuration using the schema.
 9. Explain the key parameters and any credentials needed.
 10. Push the workflow after modification and show the command.
+11. For webhook/chat/form workflows: run `npx --yes n8nac test-plan <id>` after pushing to inspect trigger, endpoints, and suggested payload.
+    - Then run `npx --yes n8nac test <id>` with the inferred payload when runtime validation is needed.
+    - If **Class A** (config gap): report what the user needs to configure — do NOT re-edit the code.
+    - If **Class B** (wiring error): fix the issue, push again, and re-test.
 
 ---
 
-Remember: Check initialization first. Pull before you modify. Push after you modify. Never guess parameters — always verify against the schema.
+Remember: Check initialization first. Pull before you modify. Push after you modify. Inspect then test webhook/chat/form workflows after push. Never guess parameters — always verify against the schema.
