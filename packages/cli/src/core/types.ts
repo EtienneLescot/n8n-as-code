@@ -110,7 +110,8 @@ export interface ITestResult {
     notes?: string[];
 }
 
-export type PayloadConfidence = 'low' | 'medium' | 'high';
+/** Confidence level for inferred payload. 'high' is reserved for future use. */
+export type PayloadConfidence = 'low' | 'medium';
 
 export interface IInferredPayloadField {
     path: string;
@@ -121,7 +122,8 @@ export interface IInferredPayloadField {
 }
 
 export interface IInferredPayload {
-    inferred: Record<string, unknown> | null;
+    /** Inferred request body. Always an object (may be empty \`{}\` when no fields were found). */
+    inferred: Record<string, unknown>;
     confidence: PayloadConfidence;
     fields: IInferredPayloadField[];
     notes: string[];

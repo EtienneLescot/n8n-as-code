@@ -647,15 +647,20 @@ export class N8nApiClient {
         const nodes: any[] = workflow.nodes ?? [];
 
         for (const node of nodes) {
+            // Skip disabled nodes — their webhooks are not active
+            if (node.disabled) continue;
+
             const rawType: string = (node.type ?? '').toLowerCase();
-            // Strip package prefix for simplicity, e.g. "@n8n/n8n-nodes-langchain.chatTrigger"
+            // Strip package prefix, e.g. "@n8n/n8n-nodes-langchain.chatTrigger" → "chattrigger"
             const shortType = rawType.includes('.') ? rawType.split('.').pop()! : rawType;
 
             let triggerType: TriggerType | null = null;
 
             if (shortType === 'webhook' || shortType === 'webhooktrigger') {
                 triggerType = 'webhook';
-            } else if (shortType === 'formtrigger' || shortType === 'form') {
+            } else if (shortType === 'formtrigger') {
+                // Note: 'form' (without suffix) is the form-step/response node, NOT the trigger.
+                // Only 'formTrigger' (type ends with 'Trigger') is the actual trigger node.
                 triggerType = 'form';
             } else if (shortType === 'chattrigger') {
                 triggerType = 'chat';
@@ -669,15 +674,18 @@ export class N8nApiClient {
             if (triggerType === null) continue;
 
             const params = node.parameters ?? {};
-            const webhookId: string | undefined = node.webhookId;
+            const webhookId: string | undefined =
+                typeof node.webhookId === 'string' && node.webhookId ? node.webhookId : undefined;
 
             // Priority: explicit path param → webhookId → node id
+            // Guard node.id: it must be a non-empty string, otherwise leave undefined
+            const nodeIdString: string | undefined =
+                typeof node.id === 'string' && node.id ? node.id : undefined;
+
             const rawPath: string | undefined =
                 typeof params.path === 'string' && params.path
                     ? params.path
-                    : typeof webhookId === 'string' && webhookId
-                    ? webhookId
-                    : node.id;
+                    : webhookId ?? nodeIdString;
 
             const httpMethod: string =
                 typeof params.httpMethod === 'string'
@@ -686,14 +694,28 @@ export class N8nApiClient {
 
             return {
                 type: triggerType,
-                nodeId: node.id,
-                nodeName: node.name,
+                nodeId: node.id ?? '',
+                nodeName: node.name ?? '',
                 webhookPath: triggerType !== 'schedule' && triggerType !== 'unknown' ? rawPath : undefined,
                 httpMethod: triggerType === 'webhook' ? httpMethod : undefined,
             };
         }
 
         return null;
+    }
+
+    /**
+     * Normalises a raw webhook path: strips leading slashes and percent-encodes
+     * each segment so the result is safe to embed in a URL.
+     */
+    private normalizeWebhookPath(webhookPath: string | undefined): string {
+        const raw = webhookPath ?? '';
+        return raw
+            .replace(/^\/+/, '') // strip leading slashes
+            .split('/')
+            .filter((segment) => segment.length > 0)
+            .map((segment) => encodeURIComponent(segment))
+            .join('/');
     }
 
     /**
@@ -706,16 +728,7 @@ export class N8nApiClient {
      */
     buildTestUrl(trigger: ITriggerInfo): string {
         const base = (this.client.defaults.baseURL ?? '').replace(/\/$/, '');
-
-        // Strip leading slashes and encode each path segment to avoid malformed URLs
-        // e.g. "/my path" → "my%20path"
-        const rawPath = trigger.webhookPath ?? '';
-        const normalizedPath = rawPath.replace(/^\/+/, '');
-        const encodedPath = normalizedPath
-            .split('/')
-            .filter((segment) => segment.length > 0)
-            .map((segment) => encodeURIComponent(segment))
-            .join('/');
+        const encodedPath = this.normalizeWebhookPath(trigger.webhookPath);
 
         switch (trigger.type) {
             case 'webhook':
@@ -723,16 +736,43 @@ export class N8nApiClient {
             case 'form':
                 return `${base}/form-test/${encodedPath}`;
             case 'chat':
-                return `${base}/webhook-test/${encodedPath}/chat`;
+                // When encodedPath is empty, omit the separator to avoid double-slash
+                return encodedPath
+                    ? `${base}/webhook-test/${encodedPath}/chat`
+                    : `${base}/webhook-test/chat`;
             default:
                 return '';
         }
     }
 
+    /**
+     * Build the production URL for a given trigger.
+     *
+     * Production URLs (same scheme as test, different path prefix):
+     *   webhook  → {base}/webhook/{path}
+     *   form     → {base}/form/{path}
+     *   chat     → {base}/webhook/{path}/chat
+     *
+     * Note: this rebuilds the URL from scratch rather than doing a string
+     * replacement on buildTestUrl()'s output, which would break when n8n is
+     * hosted under a sub-path containing the same prefix string.
+     */
     buildProductionUrl(trigger: ITriggerInfo): string {
-        return this.buildTestUrl(trigger)
-            .replace('/webhook-test/', '/webhook/')
-            .replace('/form-test/', '/form/');
+        const base = (this.client.defaults.baseURL ?? '').replace(/\/$/, '');
+        const encodedPath = this.normalizeWebhookPath(trigger.webhookPath);
+
+        switch (trigger.type) {
+            case 'webhook':
+                return `${base}/webhook/${encodedPath}`;
+            case 'form':
+                return `${base}/form/${encodedPath}`;
+            case 'chat':
+                return encodedPath
+                    ? `${base}/webhook/${encodedPath}/chat`
+                    : `${base}/webhook/chat`;
+            default:
+                return '';
+        }
     }
 
     async getTestPlan(workflowId: string): Promise<ITestPlan> {
@@ -743,7 +783,7 @@ export class N8nApiClient {
             return {
                 workflowId,
                 testable: false,
-                reason: `Failed to fetch workflow ${workflowId}: ${err.message}`,
+                reason: `Failed to fetch workflow ${workflowId}: ${String(err?.message ?? err)}`,
                 triggerInfo: null,
                 endpoints: {},
                 payload: null,
@@ -822,7 +862,7 @@ export class N8nApiClient {
             return {
                 success: false,
                 triggerInfo: null,
-                errorMessage: `Failed to fetch workflow ${workflowId}: ${err.message}`,
+                errorMessage: `Failed to fetch workflow ${workflowId}: ${String(err?.message ?? err)}`,
                 errorClass: 'wiring-error',
             };
         }
@@ -889,6 +929,7 @@ export class N8nApiClient {
                 data: ['GET', 'HEAD'].includes(method) ? undefined : body,
                 params: ['GET', 'HEAD'].includes(method) ? (body as any) : undefined,
                 validateStatus: () => true, // Don't throw on non-2xx
+                timeout: 30_000,             // Prevent indefinite hangs (e.g. chat trigger awaiting first message)
                 // Reuse the shared httpsAgent (same TLS policy as API calls).
                 httpsAgent: this.httpsAgent,
                 // Do NOT send the n8n API key when hitting the webhook URL.
@@ -933,7 +974,7 @@ export class N8nApiClient {
                 success: false,
                 triggerInfo,
                 webhookUrl: url,
-                errorMessage: err.message,
+                errorMessage: String(err?.message ?? err),
                 errorClass: 'wiring-error',
             };
         }
@@ -971,8 +1012,13 @@ export class N8nApiClient {
             if (lc.includes(pattern)) return 'config-gap';
         }
 
-        // 401/403 typically indicate auth/credentials issues
-        if (statusCode === 401 || statusCode === 403) return 'config-gap';
+        // 401 indicates an authentication/credential issue (config gap)
+        if (statusCode === 401) return 'config-gap';
+        // 403 from n8n's webhook-test typically means the workflow is not currently
+        // open in the n8n editor (test-mode webhooks are only active while the
+        // workflow is open). This is a wiring/state concern, not a credential gap.
+        // Leave it to fall through to 'wiring-error' so the exit code is 1 and the
+        // user gets explicit feedback to open the workflow in the n8n UI.
 
         return 'wiring-error';
     }
