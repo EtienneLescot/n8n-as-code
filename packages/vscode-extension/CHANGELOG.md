@@ -1,5 +1,22 @@
 # n8n-as-code
 
+## [1.14.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.12.0...n8n-as-code@v1.14.0) (2026-03-25)
+
+### Bug Fixes
+
+* **vscode-extension:** address second Copilot review round on #241 ([c37a450](https://github.com/EtienneLescot/n8n-as-code/commit/c37a4502b3d0ee8d0cd612a744774267096d95ae))
+* **vscode-extension:** add @types/ws to devDependencies ([05eab2a](https://github.com/EtienneLescot/n8n-as-code/commit/05eab2a5ac680ac51a11fbe7e43888b71e8ba9bb))
+* **vscode-extension:** address Copilot review feedback on PR #241 ([3973742](https://github.com/EtienneLescot/n8n-as-code/commit/39737426c28dbd8f25a31c8314ad89dd01244568))
+* harden clipboard bridge security and add regression tests ([5764ab9](https://github.com/EtienneLescot/n8n-as-code/commit/5764ab983fc29bb589f57df1c31cdefad54e6b26))
+* address code review feedback - security, scope, and robustness ([143e8b5](https://github.com/EtienneLescot/n8n-as-code/commit/143e8b551f618a0571c4526599cfdf4f153ccf45))
+* enable clipboard paste in webview on macOS ([b3b7471](https://github.com/EtienneLescot/n8n-as-code/commit/b3b7471cedc1f2968e7abeb44b7fb8f410d3d72b))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.1.5 to 1.2.0
+    * n8nac bumped from 1.1.5 to 1.2.0
+
 ## [1.12.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.10.0...n8n-as-code@v1.12.0) (2026-03-18)
 
 ### Documentation

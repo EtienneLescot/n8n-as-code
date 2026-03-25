@@ -1,5 +1,23 @@
 # @n8n-as-code/cli
 
+## [1.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.1.5...n8nac@v1.2.0) (2026-03-25)
+
+### Features
+
+* implement test plan command to inspect workflow testability and infer payload ([81c9377](https://github.com/EtienneLescot/n8n-as-code/commit/81c9377cb433874091e269a13dd6ed6cf0bed009))
+* add unit tests for N8nApiClient workflow detection and classification ([be4fb45](https://github.com/EtienneLescot/n8n-as-code/commit/be4fb452fe2340ff2f8e47a17eb9a58133a0d43e))
+* add `n8nac test` command for testing HTTP-triggered workflows with error classification ([3bac0bd](https://github.com/EtienneLescot/n8n-as-code/commit/3bac0bdfb35f54bf4f547217d861317bcd13c082))
+
+### Bug Fixes
+
+* own-review fixes on test/test-plan feature ([abe4952](https://github.com/EtienneLescot/n8n-as-code/commit/abe4952b49d6185a5e9c05579086166cc276d990))
+* address review comments on test/test-plan commands ([f98cda0](https://github.com/EtienneLescot/n8n-as-code/commit/f98cda0849f86a385b2fc756ee9197c59f12eae0))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.1.5 to 1.2.0
+
 ## [1.1.5](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.1.4...n8nac@v1.1.5) (2026-03-18)
 
 ### Dependencies

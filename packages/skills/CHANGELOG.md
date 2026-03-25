@@ -1,5 +1,16 @@
 # @n8n-as-code/skills
 
+## [1.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.1.5...@n8n-as-code/skills@v1.2.0) (2026-03-25)
+
+### Features
+
+* implement test plan command to inspect workflow testability and infer payload ([81c9377](https://github.com/EtienneLescot/n8n-as-code/commit/81c9377cb433874091e269a13dd6ed6cf0bed009))
+* add `n8nac test` command for testing HTTP-triggered workflows with error classification ([3bac0bd](https://github.com/EtienneLescot/n8n-as-code/commit/3bac0bdfb35f54bf4f547217d861317bcd13c082))
+
+### Bug Fixes
+
+* enhance n8n version tracking in knowledge base rebuild process ([a537738](https://github.com/EtienneLescot/n8n-as-code/commit/a537738809a8f98ee1349f9c9690ab9d88536b38))
+
 ## [1.1.5](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.1.4...@n8n-as-code/skills@v1.1.5) (2026-03-18)
 
 ### Bug Fixes
