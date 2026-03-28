@@ -156,22 +156,15 @@ async function main() {
         apiKey: requireValue(apiKey, 'Missing N8N_API_KEY')
     });
 
-    const failOnCredentialErrors = process.env.CI === 'true'
-        || process.env.GITHUB_ACTIONS === 'true';
-
     let project;
     try {
         project = await resolveWritableProject(apiClient);
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (failOnCredentialErrors) {
-            throw new Error(
-                `Unable to resolve a writable project for live integration tests. `
-                + `N8N_HOST/N8N_API_KEY may be invalid or expired. Root cause: ${message}`
-            );
-        }
-        console.log('[OFFLINE] Live CLI integration tests skipped: unable to resolve a project (credentials may be invalid or expired).');
-        process.exit(0);
+        throw new Error(
+            `Unable to resolve a writable project for live integration tests. `
+            + `N8N_HOST/N8N_API_KEY may be invalid or expired. Root cause: ${message}`
+        );
     }
     const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-live-sync-'));
     const syncManager = new SyncManager(apiClient, {
