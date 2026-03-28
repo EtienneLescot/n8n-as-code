@@ -376,6 +376,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .argument('<file>', 'Path to workflow file (.json or .workflow.ts)')
         .option('--strict', 'Treat warnings as errors')
         .option('--debug', 'Show custom nodes resolution details on stderr')
+        .option('--json', 'Output the validation result as JSON')
         .action(async (file, options) => {
             try {
                 printCustomNodesWarnings(customNodesConfig);
@@ -393,6 +394,14 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                     isTypeScript ? workflowContent : JSON.parse(workflowContent),
                     isTypeScript
                 );
+
+                if (options.json) {
+                    console.log(JSON.stringify(result, null, 2));
+                    if (!result.valid || (options.strict && result.warnings.length > 0)) {
+                        process.exit(1);
+                    }
+                    process.exit(0);
+                }
 
                 if (result.errors.length > 0) {
                     console.log(chalk.red.bold(`\n❌ Errors (${result.errors.length}):\n`));
@@ -526,11 +535,19 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
     examples
         .command('info <id>')
         .description('Display detailed information about a community workflow')
-        .action((id: string) => {
+        .option('--json', 'Output workflow metadata as JSON')
+        .action((id: string, options: { json?: boolean }) => {
             const workflow = getRegistry().getById(id);
             if (!workflow) {
                 console.error(chalk.red(`❌ Workflow with ID "${id}" not found.`));
                 process.exit(1);
+            }
+            if (options.json) {
+                console.log(JSON.stringify({
+                    ...workflow,
+                    rawUrl: getRegistry().getRawUrl(workflow),
+                }, null, 2));
+                return;
             }
             console.log(chalk.bold.green(`\n${workflow.name}\n`));
             console.log(chalk.gray('─'.repeat(50)));
