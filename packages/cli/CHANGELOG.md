@@ -1,5 +1,18 @@
 # @n8n-as-code/cli
 
+## [1.2.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.2.0...n8nac@v1.2.1) (2026-03-28)
+
+### Bug Fixes
+
+* **cli:** fail live auth errors even locally ([4a57c86](https://github.com/EtienneLescot/n8n-as-code/commit/4a57c86d06b275f8beaa7cfa47c2a6a6a7442d5d))
+* **cli:** fail live integration auth issues in ci ([3c3f552](https://github.com/EtienneLescot/n8n-as-code/commit/3c3f5524cdba384846319ec344bc9333cddfc8cf))
+* skip live integration tests gracefully when credentials are invalid or expired ([9a3d7a2](https://github.com/EtienneLescot/n8n-as-code/commit/9a3d7a2c5e63b3bd0465c866fb3fd6f52771f4da))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.2.0 to 1.2.1
+
 ## [1.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.1.5...n8nac@v1.2.0) (2026-03-25)
 
 ### Features
