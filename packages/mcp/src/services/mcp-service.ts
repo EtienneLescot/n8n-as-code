@@ -1,11 +1,10 @@
 import { spawn } from 'child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
-import { dirname, join, resolve } from 'path';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { dirname, join } from 'path';
 import { tmpdir } from 'os';
-import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 
-export interface SkillsMcpServiceOptions {
-    assetsDir: string;
+export interface N8nAsCodeMcpServiceOptions {
     cwd?: string;
 }
 
@@ -39,26 +38,17 @@ function detectWorkflowFormat(workflowContent: string, format: 'auto' | 'json' |
         || trimmed.includes('export class');
 }
 
-export class SkillsMcpService {
+export class N8nAsCodeMcpService {
     readonly cwd: string;
 
-    constructor(options: SkillsMcpServiceOptions) {
+    constructor(options: N8nAsCodeMcpServiceOptions = {}) {
         this.cwd = options.cwd || process.cwd();
     }
 
     private getCliEntryPath(): string {
-        const currentArgvEntry = process.argv[1];
-        if (currentArgvEntry && existsSync(currentArgvEntry)) {
-            return currentArgvEntry;
-        }
-
-        const currentDir = dirname(fileURLToPath(import.meta.url));
-        const monorepoCliEntry = resolve(currentDir, '../../../cli/dist/index.js');
-        if (existsSync(monorepoCliEntry)) {
-            return monorepoCliEntry;
-        }
-
-        throw new Error('Unable to resolve the n8nac CLI entrypoint for MCP operational tools.');
+        const require = createRequire(import.meta.url);
+        const cliPkg = require.resolve('n8nac/package.json');
+        return join(dirname(cliPkg), 'dist', 'index.js');
     }
 
     private async runCliCommand(args: string[], parseJson: boolean = false): Promise<CliExecutionResult> {
@@ -116,12 +106,20 @@ export class SkillsMcpService {
 
     private async runCliJsonCommand(args: string[]): Promise<any> {
         const result = await this.runCliCommand(args, true);
+        const parsed = result.parsedJson;
+        const hasParseError =
+            parsed !== null &&
+            typeof parsed === 'object' &&
+            'parseError' in (parsed as Record<string, unknown>);
+
+        if (typeof parsed !== 'undefined' && !hasParseError) {
+            return parsed;
+        }
+
         if (!result.success) {
             throw new Error(result.stderr || result.stdout || `CLI command failed: ${args.join(' ')}`);
         }
-        if (result.parsedJson && !(typeof result.parsedJson === 'object' && 'parseError' in (result.parsedJson as Record<string, unknown>))) {
-            return result.parsedJson;
-        }
+
         throw new Error(`CLI command did not return valid JSON: ${args.join(' ')}`);
     }
 
@@ -183,92 +181,5 @@ export class SkillsMcpService {
 
     readWorkflowFile(path: string) {
         return readFileSync(path, 'utf8');
-    }
-
-    listWorkflows(options: {
-        local?: boolean;
-        remote?: boolean;
-        search?: string;
-        sort?: 'status' | 'name';
-        limit?: number;
-    } = {}) {
-        const args = ['list', '--raw'];
-        if (options.local) args.push('--local');
-        if (options.remote) args.push('--remote');
-        if (options.search) args.push('--search', options.search);
-        if (options.sort) args.push('--sort', options.sort);
-        if (options.limit) args.push('--limit', String(options.limit));
-        return this.runCliCommand(args, true);
-    }
-
-    findWorkflows(options: {
-        query: string;
-        local?: boolean;
-        remote?: boolean;
-        sort?: 'status' | 'name';
-        limit?: number;
-    }) {
-        const args = ['find', options.query, '--raw'];
-        if (options.local) args.push('--local');
-        if (options.remote) args.push('--remote');
-        if (options.sort) args.push('--sort', options.sort);
-        if (options.limit) args.push('--limit', String(options.limit));
-        return this.runCliCommand(args, true);
-    }
-
-    fetchWorkflow(workflowId: string) {
-        return this.runCliCommand(['fetch', workflowId]);
-    }
-
-    pullWorkflow(workflowId: string) {
-        return this.runCliCommand(['pull', workflowId]);
-    }
-
-    pushWorkflow(filename: string, options: { verify?: boolean } = {}) {
-        const args = ['push', filename];
-        if (options.verify) args.push('--verify');
-        return this.runCliCommand(args);
-    }
-
-    verifyRemoteWorkflow(workflowId: string) {
-        return this.runCliCommand(['verify', workflowId]);
-    }
-
-    testWorkflow(workflowId: string, options: { prod?: boolean; data?: unknown } = {}) {
-        const args = ['test', workflowId];
-        if (options.prod) args.push('--prod');
-        if (options.data !== undefined) args.push('--data', JSON.stringify(options.data));
-        return this.runCliCommand(args);
-    }
-
-    getWorkflowTestPlan(workflowId: string) {
-        return this.runCliCommand(['test-plan', workflowId, '--json'], true);
-    }
-
-    resolveWorkflowConflict(workflowId: string, mode: 'keep-current' | 'keep-incoming') {
-        return this.runCliCommand(['resolve', workflowId, '--mode', mode]);
-    }
-
-    convertWorkflow(options: {
-        file: string;
-        output?: string;
-        force?: boolean;
-        format?: 'json' | 'typescript';
-    }) {
-        const args = ['convert', options.file];
-        if (options.output) args.push('--output', options.output);
-        if (options.force) args.push('--force');
-        if (options.format) args.push('--format', options.format);
-        return this.runCliCommand(args);
-    }
-
-    convertWorkflowsBatch(options: {
-        directory: string;
-        format: 'json' | 'typescript';
-        force?: boolean;
-    }) {
-        const args = ['convert-batch', options.directory, '--format', options.format];
-        if (options.force) args.push('--force');
-        return this.runCliCommand(args);
     }
 }

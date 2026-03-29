@@ -15,12 +15,35 @@ import { KnowledgeSearch } from '../services/knowledge-search.js';
 import { AiContextGenerator } from '../services/ai-context-generator.js';
 import { TypeScriptFormatter } from '../services/typescript-formatter.js';
 import { WorkflowRegistry } from '../services/workflow-registry.js';
-import { startSkillsMcpServer } from '../services/mcp-server.js';
 import { resolveCustomNodesConfig, type CustomNodesResolution } from '../services/custom-nodes-config.js';
 import { JsonToAstParser, AstToTypeScriptGenerator } from '@n8n-as-code/transformer';
 import fs, { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
+
+function getUnifiedCliEntryPath(): string {
+    if (process.env.N8NAC_CLI_ENTRY) {
+        return process.env.N8NAC_CLI_ENTRY;
+    }
+
+    try {
+        const currentArgvEntry = process.argv[1];
+        if (currentArgvEntry && fs.existsSync(currentArgvEntry) && /(^|\/)n8nac(\.cmd)?$/.test(currentArgvEntry.replace(/\\/g, '/'))) {
+            return currentArgvEntry;
+        }
+    } catch {
+        // fall through to resolution
+    }
+
+    try {
+        const currentDir = dirname(fileURLToPath(import.meta.url));
+        return resolve(currentDir, '../../../cli/dist/index.js');
+    } catch {
+        throw new Error('Unable to resolve the unified n8nac CLI for `skills mcp` redirection.');
+    }
+}
 
 function printCustomNodesWarnings(customNodesConfig: CustomNodesResolution): void {
     if (customNodesConfig.warnings.length === 0) {
@@ -473,13 +496,36 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
 
     program
         .command('mcp')
-        .description('Start the n8n-as-code MCP server for Claude Desktop or other MCP clients')
+        .description('Compatibility redirect to `n8nac mcp`')
         .option('--cwd <path>', 'Project directory used to resolve n8nac-config.json and n8nac-custom-nodes.json', process.env.N8N_AS_CODE_PROJECT_DIR)
         .action(async (options: { cwd?: string }) => {
             try {
-                await startSkillsMcpServer({
-                    assetsDir,
-                    cwd: options.cwd,
+                console.error(chalk.yellow('Warning: `n8nac skills mcp` is deprecated. Redirecting to `n8nac mcp`.\n'));
+                const cliEntry = getUnifiedCliEntryPath();
+                const args = [cliEntry, 'mcp'];
+                if (options.cwd) {
+                    args.push('--cwd', options.cwd);
+                }
+
+                const child = spawn(process.execPath, args, {
+                    cwd: process.cwd(),
+                    env: process.env,
+                    stdio: 'inherit',
+                });
+
+                await new Promise<void>((resolvePromise, reject) => {
+                    child.on('error', reject);
+                    child.on('exit', (code, signal) => {
+                        if (signal) {
+                            process.kill(process.pid, signal);
+                            return;
+                        }
+                        if ((code ?? 1) !== 0) {
+                            reject(new Error(`Redirected MCP process exited with code ${code ?? 1}.`));
+                            return;
+                        }
+                        resolvePromise();
+                    });
                 });
             } catch (error: any) {
                 console.error(chalk.red(error.message));
