@@ -99,16 +99,16 @@ export class ListCommand extends BaseCommand {
 
             spinner.stop();
 
-            const localConfig = this.configService.getLocalConfig();
-            if (localConfig.projectName) {
-                console.log(chalk.cyan(`\n📁 Project: ${chalk.bold(localConfig.projectName)}`));
-            }
-
             // Raw output (full JSON) if requested
             if (options?.raw) {
                 spinner.stop();
                 console.log(JSON.stringify(workflows, null, 2));
                 return;
+            }
+
+            const localConfig = this.configService.getLocalConfig();
+            if (localConfig.projectName) {
+                console.log(chalk.cyan(`\n📁 Project: ${chalk.bold(localConfig.projectName)}`));
             }
 
             // Create table

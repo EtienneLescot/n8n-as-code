@@ -2,15 +2,15 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { jest } from '@jest/globals';
-import { SkillsMcpService } from '../src/services/mcp-service';
+import { N8nAsCodeMcpService } from '../src/services/mcp-service';
 
-describe('SkillsMcpService', () => {
+describe('N8nAsCodeMcpService', () => {
     let tempDir: string;
-    let service: SkillsMcpService;
+    let service: N8nAsCodeMcpService;
 
     beforeEach(() => {
         tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-mcp-'));
-        service = new SkillsMcpService({ assetsDir: tempDir });
+        service = new N8nAsCodeMcpService({ cwd: tempDir });
     });
 
     afterEach(() => {

@@ -19,6 +19,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { createRequire } from 'module';
 import { parsePositiveIntegerOption } from './utils/option-parsers.js';
+import { spawn } from 'child_process';
 
 async function readSecretFromStdin(): Promise<string> {
     const chunks: Buffer[] = [];
@@ -67,6 +68,17 @@ const getSkillsAssetsDir = (): string => {
         // Fallback: skills lives next to cli in a monorepo
         const __dirname = dirname(fileURLToPath(import.meta.url));
         return join(__dirname, '..', '..', 'skills', 'dist', 'assets');
+    }
+};
+
+const getMcpEntry = (): string => {
+    try {
+        const require = createRequire(import.meta.url);
+        const mcpPkg = require.resolve('@n8n-as-code/mcp/package.json');
+        return join(dirname(mcpPkg), 'dist', 'cli.js');
+    } catch {
+        const __dirname = dirname(fileURLToPath(import.meta.url));
+        return join(__dirname, '..', '..', 'mcp', 'dist', 'cli.js');
     }
 };
 
@@ -363,6 +375,36 @@ program.command('convert-batch')
             process.exit(1);
         }
         await new ConvertCommand().batch(directory, options);
+    });
+
+program.command('mcp')
+    .description('Start the dedicated n8n-as-code MCP server')
+    .option('--cwd <path>', 'Project directory used to resolve n8nac-config.json and n8nac-custom-nodes.json', process.env.N8N_AS_CODE_PROJECT_DIR)
+    .action(async (options: { cwd?: string }) => {
+        const mcpEntry = getMcpEntry();
+        const args = [mcpEntry];
+        if (options.cwd) {
+            args.push('--cwd', options.cwd);
+        }
+
+        const child = spawn(process.execPath, args, {
+            cwd: process.cwd(),
+            env: process.env,
+            stdio: 'inherit',
+        });
+
+        child.on('exit', (code, signal) => {
+            if (signal) {
+                process.kill(process.pid, signal);
+                return;
+            }
+            process.exit(code ?? 1);
+        });
+
+        child.on('error', (error) => {
+            console.error(chalk.red(`❌ Failed to start MCP server: ${error.message}`));
+            process.exit(1);
+        });
     });
 
 // workflow - Lifecycle management (activate / deactivate / credential-required)
