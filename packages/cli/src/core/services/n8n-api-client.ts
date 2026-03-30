@@ -1,11 +1,13 @@
 import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
-import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField } from '../types.js';
+import { IN8nCredentials, IWorkflow, IProject, ITag, IFolder, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField } from '../types.js';
 
 export class N8nApiClient {
     private client: AxiosInstance;
     private projectsCache: Map<string, IProject> | null = null;
     private projectsCachePromise: Promise<Map<string, IProject>> | null = null;
+    /** Folders cache per project: projectId -> IFolder[] */
+    private foldersCache: Map<string, IFolder[]> = new Map();
     /** Shared HTTPS agent – allows self-signed certs in local/dev environments */
     private httpsAgent: https.Agent;
 
@@ -461,8 +463,210 @@ export class N8nApiClient {
         if (workflow.isArchived !== undefined) {
             enriched.isArchived = workflow.isArchived;
         }
+
+        // Extract folder ID from parentFolder relation (if n8n includes it in response).
+        // `workflow` is raw API data (typed as `any`), so we guard with null-checks before
+        // accessing nested fields to avoid runtime errors on older n8n versions.
+        const parentFolder = workflow.parentFolder as { id?: string } | null | undefined;
+        if (parentFolder?.id) {
+            enriched.parentFolderId = parentFolder.id;
+        } else if (typeof workflow.parentFolderId === 'string') {
+            enriched.parentFolderId = workflow.parentFolderId;
+        }
         
         return enriched;
+    }
+
+    // ── Folder Management (n8n internal REST API) ─────────────────────────────
+    //
+    // n8n exposes folder operations via its internal REST API at:
+    //   /rest/projects/:projectId/folders
+    //
+    // These endpoints accept the same X-N8N-API-KEY authentication as the public API.
+    // Folder support requires n8n >= 1.68 with Enterprise/Pro license (feat:folders).
+    // All methods gracefully return empty results when folders are unsupported.
+
+    /**
+     * Lists all folders in a project.
+     * Returns an empty array when folder support is unavailable or unlicensed.
+     *
+     * @param projectId - The n8n project ID
+     * @param useCache - Whether to return cached results (default: true)
+     */
+    async getFolders(projectId: string, useCache = true): Promise<IFolder[]> {
+        if (useCache && this.foldersCache.has(projectId)) {
+            return this.foldersCache.get(projectId)!;
+        }
+
+        try {
+            const res = await this.client.get(`/rest/projects/${projectId}/folders`);
+            const rawData: any[] = res.data?.data ?? (Array.isArray(res.data) ? res.data : []);
+            const folders: IFolder[] = rawData
+                .filter((f: any) => f && f.id && f.name)
+                .map((f: any) => ({
+                    id: f.id,
+                    name: f.name,
+                    parentFolderId: f.parentFolderId ?? null,
+                    createdAt: f.createdAt,
+                    updatedAt: f.updatedAt,
+                }));
+
+            this.foldersCache.set(projectId, folders);
+            if (process.env.DEBUG) console.debug(`[N8nApiClient] Loaded ${folders.length} folders for project ${projectId}`);
+            return folders;
+        } catch (error: any) {
+            // 403 = license restriction, 404 = endpoint not available (old n8n)
+            const isExpected =
+                error.response?.status === 403 ||
+                error.response?.status === 404 ||
+                error.response?.status === 405;
+            if (isExpected) {
+                if (process.env.DEBUG) console.debug(`[N8nApiClient] Folder API not available (status ${error.response?.status}): ${error.message}`);
+            } else {
+                console.warn(`[N8nApiClient] Failed to fetch folders for project ${projectId}: ${error.message}`);
+            }
+            return [];
+        }
+    }
+
+    /**
+     * Creates a new folder in a project.
+     * Returns null when folder support is unavailable or unlicensed.
+     *
+     * @param projectId - The n8n project ID
+     * @param name - Folder name
+     * @param parentFolderId - Parent folder ID (omit for root-level folder)
+     */
+    async createFolder(projectId: string, name: string, parentFolderId?: string): Promise<IFolder | null> {
+        try {
+            const payload: Record<string, any> = { name };
+            if (parentFolderId) {
+                payload.parentFolderId = parentFolderId;
+            }
+            const res = await this.client.post(`/rest/projects/${projectId}/folders`, payload);
+            const f = res.data;
+            if (!f || !f.id) return null;
+
+            // Invalidate cache so next call fetches fresh data
+            this.foldersCache.delete(projectId);
+
+            return {
+                id: f.id,
+                name: f.name,
+                parentFolderId: f.parentFolderId ?? null,
+                createdAt: f.createdAt,
+                updatedAt: f.updatedAt,
+            };
+        } catch (error: any) {
+            const isExpected =
+                error.response?.status === 403 ||
+                error.response?.status === 404 ||
+                error.response?.status === 405;
+            if (isExpected) {
+                if (process.env.DEBUG) console.debug(`[N8nApiClient] Cannot create folder (status ${error.response?.status}): ${error.message}`);
+            } else {
+                console.warn(`[N8nApiClient] Failed to create folder "${name}" in project ${projectId}: ${error.message}`);
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Moves a workflow into a folder using the n8n internal REST API.
+     * No-op when folder support is unavailable or unlicensed.
+     *
+     * @param workflowId - The workflow ID
+     * @param projectId - The n8n project ID
+     * @param folderId - Target folder ID (pass null to move to project root)
+     */
+    async moveWorkflowToFolder(workflowId: string, projectId: string, folderId: string | null): Promise<boolean> {
+        try {
+            // PATCH /rest/workflows/:id with parentFolderId in the body
+            await this.client.patch(`/rest/workflows/${workflowId}`, {
+                parentFolderId: folderId,
+            });
+            return true;
+        } catch (error: any) {
+            const isExpected =
+                error.response?.status === 403 ||
+                error.response?.status === 404 ||
+                error.response?.status === 405;
+            if (isExpected) {
+                if (process.env.DEBUG) console.debug(`[N8nApiClient] Cannot move workflow to folder (status ${error.response?.status})`);
+            } else {
+                console.warn(`[N8nApiClient] Failed to move workflow ${workflowId} to folder ${folderId}: ${error.message}`);
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Resolves the full folder path for a given folder ID.
+     * Returns the path as "FolderA/SubFolderB" or null for root.
+     *
+     * @param folderId - Target folder ID (null = root)
+     * @param folders - Pre-fetched folder list (to avoid redundant API calls)
+     */
+    buildFolderPath(folderId: string | null | undefined, folders: IFolder[]): string | null {
+        if (!folderId) return null;
+
+        const folderMap = new Map(folders.map(f => [f.id, f]));
+        const parts: string[] = [];
+        let current: IFolder | undefined = folderMap.get(folderId);
+
+        // Guard against circular references
+        const visited = new Set<string>();
+        while (current) {
+            if (visited.has(current.id)) break;
+            visited.add(current.id);
+            parts.unshift(current.name);
+            current = current.parentFolderId ? folderMap.get(current.parentFolderId) : undefined;
+        }
+
+        return parts.length > 0 ? parts.join('/') : null;
+    }
+
+    /**
+     * Finds or creates the folder hierarchy for a given path string.
+     * Creates missing intermediate folders as needed.
+     *
+     * @param folderPath - Path like "FolderA/SubFolderB"
+     * @param projectId - Target project ID
+     * @returns The leaf folder ID, or null if creation failed
+     */
+    async ensureFolderPath(folderPath: string, projectId: string): Promise<string | null> {
+        const parts = folderPath.split('/').map(p => p.trim()).filter(Boolean);
+        if (parts.length === 0) return null;
+
+        // Fetch existing folders (refresh cache)
+        const folders = await this.getFolders(projectId, false);
+        const folderMap = new Map(folders.map(f => [f.id, f]));
+
+        let parentFolderId: string | undefined;
+
+        for (const part of parts) {
+            // Find an existing folder with this name under the current parent
+            const existing = folders.find(
+                f => f.name === part && (f.parentFolderId ?? null) === (parentFolderId ?? null)
+            );
+
+            if (existing) {
+                parentFolderId = existing.id;
+            } else {
+                // Create the folder
+                const created = await this.createFolder(projectId, part, parentFolderId);
+                if (!created) {
+                    if (process.env.DEBUG) console.debug(`[N8nApiClient] Could not create folder "${part}", aborting path resolution`);
+                    return null;
+                }
+                // Add to local folderMap so subsequent parts can find it
+                folders.push(created);
+                folderMap.set(created.id, created);
+                parentFolderId = created.id;
+            }
+        }
+
+        return parentFolderId ?? null;
     }
 
     async createWorkflow(payload: Partial<IWorkflow>): Promise<IWorkflow> {

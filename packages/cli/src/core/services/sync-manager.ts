@@ -56,10 +56,14 @@ export class SyncManager extends EventEmitter {
             directory: instanceDir,
             syncInactive: true,
             ignoredTags: [],
-            projectId: this.config.projectId
+            projectId: this.config.projectId,
+            folderSync: this.config.folderSync ?? false,
         });
 
-        this.syncEngine = new SyncEngine(this.client, this.watcher, instanceDir);
+        this.syncEngine = new SyncEngine(this.client, this.watcher, instanceDir, {
+            projectId: this.config.projectId,
+            folderSync: this.config.folderSync ?? false,
+        });
         this.resolutionManager = new ResolutionManager(this.syncEngine, this.watcher, this.client);
 
         this.watcher.on('statusChange', (data) => {
@@ -195,6 +199,25 @@ export class SyncManager extends EventEmitter {
     /** Expose the underlying API client (used by CliApi to call testWorkflow). */
     public getApiClient(): N8nApiClient {
         return this.client;
+    }
+
+    /**
+     * List all folders in the configured project.
+     * Returns an empty array when folder support is unavailable or unlicensed.
+     */
+    public async getFolders() {
+        return this.client.getFolders(this.config.projectId, false);
+    }
+
+    /**
+     * Create a folder in the configured project.
+     * Returns null when folder support is unavailable or unlicensed.
+     *
+     * @param name - Folder display name
+     * @param parentFolderId - Parent folder ID (omit for root-level folder)
+     */
+    public async createFolder(name: string, parentFolderId?: string) {
+        return this.client.createFolder(this.config.projectId, name, parentFolderId);
     }
 
     /**
@@ -338,8 +361,8 @@ export class SyncManager extends EventEmitter {
         }
 
         return {
-            filename: path.basename(normalizedAbsolutePath),
-            filePath: path.join(syncScopeDir, path.basename(normalizedAbsolutePath)),
+            filename: relativePath,
+            filePath: absolutePath,
             absolutePath: normalizedAbsolutePath
         };
     }

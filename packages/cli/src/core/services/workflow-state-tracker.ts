@@ -54,6 +54,8 @@ export class WorkflowStateTracker extends EventEmitter {
     private isConnected: boolean = true;
     /** True during the first refreshRemoteState() call — suppresses status broadcasts */
     private isInitialRemoteLoad: boolean = false;
+    /** Whether to mirror n8n folder hierarchy as local subdirectories */
+    private folderSync: boolean;
 
     // Internal state tracking
     private localHashes: Map<string, string> = new Map(); // filename -> hash
@@ -67,6 +69,8 @@ export class WorkflowStateTracker extends EventEmitter {
     private remoteTimestamps: Map<string, string> = new Map(); // workflowId -> updatedAt
     /** Canonical display name for each remote workflow (id is the unique key, NOT the name). */
     private remoteNames: Map<string, string> = new Map(); // workflowId -> name
+    /** Folder path for each remote workflow (relative, e.g. "FolderA/SubFolderB") */
+    private remoteFolderPaths: Map<string, string> = new Map(); // workflowId -> folderPath
 
     constructor(
         client: N8nApiClient,
@@ -75,6 +79,7 @@ export class WorkflowStateTracker extends EventEmitter {
             syncInactive: boolean;
             ignoredTags: string[];
             projectId: string;      // Project scope filter
+            folderSync?: boolean;   // Mirror n8n folder hierarchy as local subdirectories
         }
     ) {
         super();
@@ -83,6 +88,7 @@ export class WorkflowStateTracker extends EventEmitter {
         this.syncInactive = options.syncInactive;
         this.ignoredTags = options.ignoredTags;
         this.projectId = options.projectId;
+        this.folderSync = options.folderSync ?? false;
         this.stateFilePath = path.join(this.directory, '.n8n-state.json');
 
         // Restore persisted mappings immediately so 'pull' and other commands can find workflows
@@ -91,6 +97,43 @@ export class WorkflowStateTracker extends EventEmitter {
 
     public getDirectory(): string {
         return this.directory;
+    }
+
+    /**
+     * Recursively scans the sync directory and returns relative paths to all
+     * *.workflow.ts files found in any subdirectory.
+     *
+     * Relative paths use forward slashes on all platforms so they can be used as
+     * portable map keys (e.g. "FolderA/SubFolderB/my-workflow.workflow.ts").
+     *
+     * @param rootDir - Absolute path to scan (defaults to this.directory)
+     * @param baseDir - Used internally for recursion; callers should omit this.
+     */
+    private scanWorkflowFiles(rootDir?: string, baseDir?: string): string[] {
+        const dir = rootDir ?? this.directory;
+        const results: string[] = [];
+
+        let entries: fs.Dirent[];
+        try {
+            entries = fs.readdirSync(dir, { withFileTypes: true });
+        } catch {
+            return results;
+        }
+
+        for (const entry of entries) {
+            if (entry.name.startsWith('.')) continue; // skip hidden files/dirs
+
+            if (entry.isDirectory()) {
+                const subRelative = baseDir ? `${baseDir}/${entry.name}` : entry.name;
+                const subResults = this.scanWorkflowFiles(path.join(dir, entry.name), subRelative);
+                results.push(...subResults);
+            } else if (entry.isFile() && entry.name.endsWith('.workflow.ts')) {
+                const relative = baseDir ? `${baseDir}/${entry.name}` : entry.name;
+                results.push(relative);
+            }
+        }
+
+        return results;
     }
 
     public getFilenameForId(id: string): string | undefined {
@@ -109,7 +152,7 @@ export class WorkflowStateTracker extends EventEmitter {
             return;
         }
 
-        const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.workflow.ts') && !f.startsWith('.'));
+        const files = this.scanWorkflowFiles();
         const currentFiles = new Set(files);
 
         // Remove entries for files that no longer exist
@@ -228,9 +271,24 @@ export class WorkflowStateTracker extends EventEmitter {
             const remoteWorkflows = await this.client.getAllWorkflows(this.projectId);
             this.isConnected = true;
 
+            // Load folder hierarchy for path resolution when folderSync is enabled
+            let folderPathMap: Map<string, string> = new Map(); // folderId -> path string
+            if (this.folderSync) {
+                try {
+                    const folders = await this.client.getFolders(this.projectId);
+                    for (const folder of folders) {
+                        const p = this.client.buildFolderPath(folder.id, folders);
+                        if (p) folderPathMap.set(folder.id, p);
+                    }
+                } catch {
+                    // Folder API unavailable – continue without folder paths
+                }
+            }
+
             // Update remoteIds and names (ID is the unique key; name is for display only)
             this.remoteIds.clear();
             this.remoteNames.clear();
+            this.remoteFolderPaths.clear();
 
             // Build set of already-assigned filenames to prevent collisions
             const assignedFilenames = new Set<string>();
@@ -241,6 +299,11 @@ export class WorkflowStateTracker extends EventEmitter {
                 this.remoteIds.add(wf.id);
                 // Store canonical name keyed by ID (names are NOT unique in n8n)
                 if (wf.name) this.remoteNames.set(wf.id, wf.name);
+
+                // Track folder path for this workflow
+                if (wf.parentFolderId && folderPathMap.has(wf.parentFolderId)) {
+                    this.remoteFolderPaths.set(wf.id, folderPathMap.get(wf.parentFolderId)!);
+                }
 
                 // CRITICAL: Use ID-based mapping with PERSISTED state as source of truth
                 let filename: string | undefined = this.idToFileMap.get(wf.id);
@@ -257,16 +320,23 @@ export class WorkflowStateTracker extends EventEmitter {
 
                 // If still not found, this is a NEW remote workflow - generate filename
                 if (!filename) {
+                    // Determine folder path prefix (only when folderSync is on and folder info is available)
+                    const folderPathPrefix = this.folderSync && wf.parentFolderId
+                        ? (folderPathMap.get(wf.parentFolderId) ?? null)
+                        : null;
+
                     const baseName = `${this.safeName(wf.name)}.workflow.ts`;
+                    const fullBase = folderPathPrefix ? `${folderPathPrefix}/${baseName}` : baseName;
 
                     // Check if this base name is already assigned to another workflow
-                    if (assignedFilenames.has(baseName)) {
+                    if (assignedFilenames.has(fullBase)) {
                         // Name collision - generate unique filename with ID suffix
                         const idSuffix = wf.id.substring(0, 8);
-                        filename = `${this.safeName(wf.name)}_${idSuffix}.workflow.ts`;
+                        const uniqueName = `${this.safeName(wf.name)}_${idSuffix}.workflow.ts`;
+                        filename = folderPathPrefix ? `${folderPathPrefix}/${uniqueName}` : uniqueName;
                     } else {
                         // Name is free - use it
-                        filename = baseName;
+                        filename = fullBase;
                     }
 
                     // Mark this filename as assigned
@@ -347,7 +417,7 @@ export class WorkflowStateTracker extends EventEmitter {
         // If workflow not tracked yet (first sync of local-only workflow),
         // scan directory to find the file with this ID
         if (!filename) {
-            const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.workflow.ts') && !f.startsWith('.'));
+            const files = this.scanWorkflowFiles();
             for (const file of files) {
                 const filePath = path.join(this.directory, file);
                 const content = this.readJsonFile(filePath);
@@ -618,8 +688,7 @@ export class WorkflowStateTracker extends EventEmitter {
             return undefined;
         }
 
-        const files = fs.readdirSync(this.directory)
-            .filter(f => f.endsWith('.workflow.ts') && !f.startsWith('.'));
+        const files = this.scanWorkflowFiles();
 
         for (const file of files) {
             const content = this.readJsonFile(path.join(this.directory, file));
@@ -770,6 +839,7 @@ export class WorkflowStateTracker extends EventEmitter {
                 // Prefer the actual remote name (stored by ID to avoid name-collision issues)
                 // Fallback to filename-derived name only if remote name is not available
                 const workflowName = this.remoteNames.get(workflowId) || filename.replace('.workflow.ts', '');
+                const folderPath = this.remoteFolderPaths.get(workflowId);
 
                 results.set(filename, {
                     id: workflowId,
@@ -780,7 +850,8 @@ export class WorkflowStateTracker extends EventEmitter {
                     projectId: undefined, // Not available in lightweight mode
                     projectName: undefined, // Not available in lightweight mode
                     homeProject: undefined, // Not available in lightweight mode
-                    isArchived: false // Default
+                    isArchived: false, // Default
+                    folderPath: folderPath,
                 });
             }
         }
@@ -789,21 +860,16 @@ export class WorkflowStateTracker extends EventEmitter {
     }
 
     /**
-     * Get list of local workflow filenames (just checks file system, no parsing)
+     * Get list of local workflow filenames (just checks file system, no parsing).
+     * Returns relative paths including subdirectory components (e.g. "FolderA/wf.workflow.ts").
      */
     private getLocalWorkflowFilenames(): string[] {
-        const filenames: string[] = [];
         try {
-            const files = fs.readdirSync(this.directory);
-            for (const file of files) {
-                if (file.endsWith('.workflow.ts')) {
-                    filenames.push(file);
-                }
-            }
+            return this.scanWorkflowFiles();
         } catch (error) {
             console.debug('[WorkflowStateTracker] Failed to read local directory:', error);
+            return [];
         }
-        return filenames;
     }
 
     public async getStatusMatrix(): Promise<IWorkflowStatus[]> {

@@ -8,6 +8,7 @@ import { SwitchCommand } from './commands/switch.js';
 import { ConvertCommand } from './commands/convert.js';
 import { TestCommand } from './commands/test.js';
 import { TestPlanCommand } from './commands/test-plan.js';
+import { FoldersCommand } from './commands/folders.js';
 import { registerSkillsCommands } from '@n8n-as-code/skills';
 import chalk from 'chalk';
 
@@ -144,6 +145,14 @@ program.command('list')
             sort: options.sort,
             limit: options.limit
         });
+    });
+
+// folders - List n8n folders in the active project
+program.command('folders')
+    .description('List folders in the active n8n project (requires n8n ≥ 1.68 with Enterprise/Pro license)')
+    .option('--raw', 'Output full JSON instead of a table')
+    .action(async (options) => {
+        await new FoldersCommand().run({ raw: options.raw });
     });
 
 program.command('find')

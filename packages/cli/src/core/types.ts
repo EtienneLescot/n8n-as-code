@@ -20,6 +20,7 @@ export interface IWorkflow {
     projectName?: string;        // Name of the project (from shared[0].project.name)
     homeProject?: IProject;      // Full project object for detailed info
     isArchived?: boolean;        // Whether workflow is archived
+    parentFolderId?: string;     // ID of the folder this workflow belongs to (null = root)
 }
 
 export interface ITag {
@@ -31,6 +32,18 @@ export interface IProject {
     id: string;
     name: string;
     type?: string;               // e.g., 'personal', 'team', etc.
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+/**
+ * Represents an n8n folder (available in n8n >= 1.68 with Enterprise/Pro license).
+ * Folders provide hierarchical organization for workflows within a project.
+ */
+export interface IFolder {
+    id: string;
+    name: string;
+    parentFolderId?: string | null;  // null = root folder
     createdAt?: string;
     updatedAt?: string;
 }
@@ -52,6 +65,8 @@ export interface IWorkflowStatus {
     projectName?: string;
     homeProject?: IProject;
     isArchived?: boolean;
+    parentFolderId?: string;     // Folder ID if workflow is in a folder
+    folderPath?: string;         // Human-readable folder path (e.g. "FolderA/SubFolderB")
 }
 
 export interface ISyncConfig {
@@ -62,6 +77,7 @@ export interface ISyncConfig {
     instanceConfigPath?: string; // Optional: explicit path for n8nac-config.json
     projectId: string;           // REQUIRED: Project scope for sync
     projectName: string;         // REQUIRED: Project display name
+    folderSync?: boolean;        // Optional: mirror n8n folder hierarchy as local subdirectories (default: false)
 }
 
 // ── Execution / Test types ────────────────────────────────────────────────────
