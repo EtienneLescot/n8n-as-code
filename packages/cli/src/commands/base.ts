@@ -92,4 +92,47 @@ export class BaseCommand {
             projectName: localConfig.projectName
         };
     }
+
+    protected formatErrorDetails(error: unknown): string {
+        if (error && typeof error === 'object') {
+            const response = (error as any).response;
+            const status = response?.status;
+            const responseData = response?.data;
+
+            let remoteMessage = '';
+            if (typeof responseData?.message === 'string' && responseData.message.trim().length > 0) {
+                remoteMessage = responseData.message.trim();
+            } else if (typeof responseData === 'string' && responseData.trim().length > 0) {
+                remoteMessage = responseData.trim();
+            } else if (responseData && typeof responseData === 'object') {
+                remoteMessage = JSON.stringify(responseData);
+            }
+
+            if (status && remoteMessage) {
+                return `HTTP ${status}: ${remoteMessage}`;
+            }
+            if (remoteMessage) {
+                return remoteMessage;
+            }
+            if (status) {
+                return `HTTP ${status}`;
+            }
+        }
+
+        if (error instanceof Error) {
+            return error.message;
+        }
+
+        return String(error);
+    }
+
+    protected exitWithError(message: string, error?: unknown): never {
+        if (error !== undefined) {
+            const details = this.formatErrorDetails(error);
+            console.error(chalk.red(`❌ ${message}: ${details}`));
+        } else {
+            console.error(chalk.red(`❌ ${message}`));
+        }
+        process.exit(1);
+    }
 }
