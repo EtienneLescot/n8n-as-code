@@ -1,5 +1,16 @@
 # @n8n-as-code/skills
 
+## [1.3.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.2.0...@n8n-as-code/skills@v1.3.0) (2026-03-30)
+
+### Features
+
+* credential management + workflow activate/credential-required for autonomous agent loop ([b45552b](https://github.com/EtienneLescot/n8n-as-code/commit/b45552b4c6edcd6f216dd1a7e730d4d52c15bc8f))
+
+### Bug Fixes
+
+* escape backticks in ai-context-generator template literal ([f07e825](https://github.com/EtienneLescot/n8n-as-code/commit/f07e8253133887dfabedd14607474cabce259ec0))
+* **skills:** rebuild knowledge base for n8n@2.13.4 ([b86fc41](https://github.com/EtienneLescot/n8n-as-code/commit/b86fc419e633038782d28e483ea2f27ffcee9fce))
+
 ## [1.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.1.5...@n8n-as-code/skills@v1.2.0) (2026-03-25)
 
 ### Features
