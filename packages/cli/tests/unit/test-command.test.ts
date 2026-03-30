@@ -65,6 +65,16 @@ describe('TestCommand.run()', () => {
         expect(code).toBe(1);
     });
 
+    it('returns exit code 1 for non-object --data JSON', async () => {
+        const code = await cmd.run('wf-1', { data: '["x"]' });
+        expect(code).toBe(1);
+    });
+
+    it('returns exit code 1 for non-object --query JSON', async () => {
+        const code = await cmd.run('wf-1', { query: '"x"' });
+        expect(code).toBe(1);
+    });
+
     it('returns exit code 0 on success (2xx)', async () => {
         vi.spyOn(cmd['client'], 'testWorkflow').mockResolvedValue(
             makeResult({

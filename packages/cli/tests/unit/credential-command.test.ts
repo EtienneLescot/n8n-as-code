@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CredentialCommand } from '../../src/commands/credential.js';
 
@@ -154,5 +157,37 @@ describe('CredentialCommand remote error handling', () => {
         expect(logSpy).toHaveBeenCalledWith(
             JSON.stringify([{ id: 'cred-1', name: 'OpenAI', type: 'openAiApi' }], null, 2),
         );
+    });
+
+    it('rejects non-object inline credential payloads', async () => {
+        await expect(
+            cmd.create({
+                type: 'openAiApi',
+                name: 'OpenAI',
+                data: '["secret"]',
+            }),
+        ).rejects.toThrow('process.exit:1');
+
+        expect(errorSpy).toHaveBeenCalledWith('❌ --data must be a JSON object.');
+    });
+
+    it('rejects non-object file credential payloads', async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'n8nac-cred-test-'));
+        const filePath = join(dir, 'cred.json');
+        writeFileSync(filePath, '"secret"');
+
+        try {
+            await expect(
+                cmd.create({
+                    type: 'openAiApi',
+                    name: 'OpenAI',
+                    file: filePath,
+                }),
+            ).rejects.toThrow('process.exit:1');
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+
+        expect(errorSpy).toHaveBeenCalledWith(`❌ JSON in ${filePath} must be a JSON object.`);
     });
 });

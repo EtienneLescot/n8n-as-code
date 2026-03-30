@@ -9,6 +9,29 @@ export class CredentialCommand extends BaseCommand {
         return typeof value === 'object' && value !== null && !Array.isArray(value);
     }
 
+    private parseCredentialInput(raw: string, source: '--data' | '--file', filePath?: string): Record<string, unknown> {
+        let parsed: unknown;
+
+        try {
+            parsed = JSON.parse(raw);
+        } catch {
+            if (source === '--file') {
+                console.error(chalk.red(`❌ Could not read or parse file: ${filePath}`));
+            } else {
+                console.error(chalk.red('❌ --data is not valid JSON'));
+            }
+            process.exit(1);
+        }
+
+        if (!this.isObject(parsed)) {
+            const label = source === '--file' ? `JSON in ${filePath}` : '--data';
+            console.error(chalk.red(`❌ ${label} must be a JSON object.`));
+            process.exit(1);
+        }
+
+        return parsed;
+    }
+
     private inferConditionalBooleanDefaults(
         schema: Record<string, unknown>,
         input: Record<string, unknown>,
@@ -159,19 +182,16 @@ export class CredentialCommand extends BaseCommand {
         let credData: Record<string, unknown>;
 
         if (options.file) {
+            let rawFile: string;
             try {
-                credData = JSON.parse(readFileSync(options.file, 'utf-8'));
+                rawFile = readFileSync(options.file, 'utf-8');
             } catch {
                 console.error(chalk.red(`❌ Could not read or parse file: ${options.file}`));
                 process.exit(1);
             }
+            credData = this.parseCredentialInput(rawFile, '--file', options.file);
         } else if (options.data) {
-            try {
-                credData = JSON.parse(options.data);
-            } catch {
-                console.error(chalk.red('❌ --data is not valid JSON'));
-                process.exit(1);
-            }
+            credData = this.parseCredentialInput(options.data, '--data');
         } else {
             console.error(chalk.red('❌ Provide --data <json> or --file <path> with the credential data.'));
             console.error(chalk.yellow(`Tip: run \`n8nac credential schema ${options.type}\` to see required fields.`));
