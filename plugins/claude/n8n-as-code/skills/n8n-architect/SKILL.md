@@ -19,7 +19,7 @@ Before using any `n8nac` workflow command, check whether the workspace is initia
 ### Initialization Check
 - Look for `n8nac-config.json` in the workspace root.
 - If `n8nac-config.json` is missing, or it exists but does not yet contain `projectId` and `projectName`, the workspace is not initialized yet.
-- **NEVER tell the user to run `npx n8nac init` themselves.** You are the agent — it is YOUR job to run the command.
+- **NEVER tell the user to run `npx --yes n8nac init` themselves.** You are the agent — it is YOUR job to run the command.
 - Initialization is a 2-step flow: first save credentials with `npx --yes n8nac init-auth --host <url> --api-key <key>`, then select the project with `npx --yes n8nac init-project`.
 - If the user has already provided the n8n host and API key, run `npx --yes n8nac init-auth --host <url> --api-key <key>` immediately.
 - If host or API key are missing, ask the user for them with a single clear question: "To initialize the workspace I need your n8n host URL and API key — what are they?" Then, once you have both values, run `npx --yes n8nac init-auth --host <url> --api-key <key>` yourself.
@@ -340,7 +340,7 @@ When a workflow is blocked because a credential is missing, resolve it without o
 
 3. **Create the credential from a file (preferred — keeps secrets out of shell history):**
    ```bash
-   npx --yes n8nac credential create --type <type> --name "My Credential" --file cred.json
+   npx --yes n8nac credential create --type <type> --name "My Credential" --file cred.json --json
    ```
 
 4. **Activate the workflow after credentials are provisioned:**
@@ -356,9 +356,11 @@ When a workflow is blocked because a credential is missing, resolve it without o
 
 **Other credential commands:**
    ```bash
-   npx --yes n8nac credential list                      # List all existing credentials
+   npx --yes n8nac credential list --json               # List all existing credentials as JSON
    npx --yes n8nac workflow deactivate <workflowId>     # Deactivate a workflow
    ```
+
+If `credential create` fails, read the returned validation message and change the payload before retrying. Never rerun the same failing command unchanged. If a subcommand is unfamiliar, run `npx --yes n8nac <subcommand> --help` instead of inventing flags.
 
 ## 📝 Response Format
 

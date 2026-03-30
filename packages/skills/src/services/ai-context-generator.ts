@@ -56,7 +56,13 @@ export class AiContextGenerator {
     return Math.max(...versions.map((v: any) => Number(v)));
   }
 
-  private getCommandRefs(distTag?: string): { cliCmd: string; skillsCmd: string } {
+  private getCommandRefs(distTag?: string, cliCommandOverride?: string): { cliCmd: string; skillsCmd: string } {
+    if (cliCommandOverride) {
+      return {
+        skillsCmd: `${cliCommandOverride} skills`,
+        cliCmd: cliCommandOverride,
+      };
+    }
     return {
       skillsCmd: distTag ? `npx --yes n8nac@${distTag} skills` : 'npx --yes n8nac skills',
       cliCmd: distTag ? `npx --yes n8nac@${distTag}` : 'npx --yes n8nac',
@@ -155,7 +161,7 @@ export class AiContextGenerator {
       `### Initialization Check`,
       `- Look for \`n8nac-config.json\` in the workspace root.`,
       `- If \`n8nac-config.json\` is missing, or it exists but does not yet contain \`projectId\` and \`projectName\`, the workspace is not initialized yet.`,
-      `- **NEVER tell the user to run \`npx n8nac init\` themselves.** You are the agent — it is YOUR job to run the command.`,
+      `- **NEVER tell the user to run \`${cliCmd} init\` themselves.** You are the agent — it is YOUR job to run the command.`,
       `- Initialization is a 2-step flow: first save credentials with \`${cliCmd} init-auth --host <url> --api-key <key>\`, then select the project with \`${cliCmd} init-project\`.`,
       `- If the user has already provided the n8n host and API key, run \`${cliCmd} init-auth --host <url> --api-key <key>\` immediately.`,
       `- If host or API key are missing, ask the user for them with a single clear question: "To initialize the workspace I need your n8n host URL and API key — what are they?" Then, once you have both values, run \`${cliCmd} init-auth --host <url> --api-key <key>\` yourself.`,
@@ -265,8 +271,13 @@ export class AiContextGenerator {
     ];
   }
 
-  async generate(projectRoot: string, n8nVersion: string = "Unknown", distTag?: string): Promise<void> {
-    const agentsContent = this.getAgentsContent(n8nVersion, distTag);
+  async generate(
+    projectRoot: string,
+    n8nVersion: string = "Unknown",
+    distTag?: string,
+    options: { cliCommandOverride?: string } = {},
+  ): Promise<void> {
+    const agentsContent = this.getAgentsContent(n8nVersion, distTag, options);
 
     // 1. AGENTS.md (Central documentation)
     this.injectOrUpdate(path.join(projectRoot, 'AGENTS.md'), agentsContent, true);
@@ -300,8 +311,12 @@ export class AiContextGenerator {
     }
   }
 
-  private getAgentsContent(n8nVersion: string, distTag?: string): string {
-    const { cliCmd, skillsCmd: cmd } = this.getCommandRefs(distTag);
+  private getAgentsContent(
+    n8nVersion: string,
+    distTag?: string,
+    options: { cliCommandOverride?: string } = {},
+  ): string {
+    const { cliCmd, skillsCmd: cmd } = this.getCommandRefs(distTag, options.cliCommandOverride);
     return [
       `## 🎭 Role: Expert n8n Workflow Engineer`,
       ``,
@@ -493,7 +508,7 @@ export class AiContextGenerator {
       `    position: [250, 300]`,
       `  })`,
       `  MyNode = {`,
-      `    /* parameters from npx --yes n8nac skills node-info */`,
+      `    /* parameters from ${cmd} node-info */`,
       `  };`,
       ``,
       `  @node({`,
@@ -617,12 +632,13 @@ export class AiContextGenerator {
       `\`\`\`bash`,
       `${cliCmd} workflow credential-required <id> --json            # List missing credentials (exit 1 if any missing)`,
       `${cliCmd} credential schema <type>                            # Discover required fields for a type`,
-      `${cliCmd} credential list                                     # List existing credentials`,
-      `${cliCmd} credential create --type <type> --name <name> --file cred.json  # Create from file`,
+      `${cliCmd} credential list --json                              # List existing credentials as JSON`,
+      `${cliCmd} credential create --type <type> --name <name> --file cred.json --json  # Create from file and return metadata`,
       `${cliCmd} credential delete <id>                              # Delete a credential`,
       `${cliCmd} workflow activate <id>                              # Activate workflow after credentials provisioned`,
       `\`\`\``,
       `**Full autonomous loop:** push workflow → \`workflow credential-required <id> --json\` (exit 1 = missing, act) → \`credential schema <type>\` → ask user for secret values → \`credential create --file\` → \`workflow activate <id>\` → \`test <id>\`. Workflow blocked by a Class A error? Use \`credential schema <type>\` to discover required fields, write them to a JSON file, then run \`credential create\` to provision the credential programmatically. **Never pass secrets inline via --data** — use --file instead (keeps secrets out of shell history).`,
+      `If \`credential create\` fails, read the returned validation message and change the payload before retrying. Never rerun the same failing command unchanged. If a subcommand is unfamiliar, run \`${cliCmd} <subcommand> --help\` instead of inventing flags.`,
       ``,
       `---`,
       ``,
@@ -837,7 +853,7 @@ When a workflow is blocked because a credential is missing, resolve it without o
 
 3. **Create the credential from a file (preferred — keeps secrets out of shell history):**
    \`\`\`bash
-   npx --yes n8nac credential create --type <type> --name "My Credential" --file cred.json
+   npx --yes n8nac credential create --type <type> --name "My Credential" --file cred.json --json
    \`\`\`
 
 4. **Activate the workflow after credentials are provisioned:**
@@ -853,9 +869,11 @@ When a workflow is blocked because a credential is missing, resolve it without o
 
 **Other credential commands:**
    \`\`\`bash
-   npx --yes n8nac credential list                      # List all existing credentials
+   npx --yes n8nac credential list --json               # List all existing credentials as JSON
    npx --yes n8nac workflow deactivate <workflowId>     # Deactivate a workflow
    \`\`\`
+
+If \`credential create\` fails, read the returned validation message and change the payload before retrying. Never rerun the same failing command unchanged. If a subcommand is unfamiliar, run \`npx --yes n8nac <subcommand> --help\` instead of inventing flags.
 
 ${this.getSharedResponseFormatLines(cliCmd).join('\n')}
 `;
@@ -898,7 +916,7 @@ Use this skill only for explicit n8n workflow work.
 - Use \`action: "skills"\` whenever you need node search or schema details.
 - Never guess node parameters. The schema lookup is the source of truth.
 - Treat \`AGENTS.md\` as the authoritative workflow-engineering protocol once this skill is active.
-- When a workflow fails due to missing credentials (Class A), run \`action: "workflow_credential_required"\` first to identify all missing credentials, then \`action: "credential_schema"\` to discover required fields (ask the user for secret values — never guess), then \`action: "credential_create"\` to provision the credential programmatically, then \`action: "workflow_activate"\` to activate the workflow before re-running the test.
+- When a workflow fails due to missing credentials (Class A), identify the missing credentials clearly and use the documented \`n8nac\` CLI commands from \`AGENTS.md\` (for example \`npx --yes n8nac workflow credential-required <workflowId> --json\`, \`npx --yes n8nac credential schema <type>\`, \`npx --yes n8nac credential create --type <type> --name "<name>" --file cred.json --json\`, and \`npx --yes n8nac workflow activate <workflowId>\`). Do not invent unsupported \`n8nac\` tool actions or CLI flags; use \`--help\` if you are unsure.
 
 ${workflowMapLines.join('\n')}
 

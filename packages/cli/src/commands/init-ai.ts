@@ -29,6 +29,7 @@ export class UpdateAiCommand {
         this.program
             .command('update-ai')
             .description('Update AI Context (AGENTS.md and snippets)')
+            .option('--cli-cmd <command>', 'Override the generated n8nac command in AGENTS.md (for local dev builds)')
             .action(async (options) => {
                 await this.run(options);
             });
@@ -64,7 +65,9 @@ export class UpdateAiCommand {
             // 2. Generate Context (AGENTS.md)
             console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md)...'));
             const aiContextGenerator = new AiContextGenerator();
-            await aiContextGenerator.generate(projectRoot, version, getDistTag());
+            await aiContextGenerator.generate(projectRoot, version, getDistTag(), {
+                cliCommandOverride: options.cliCmd,
+            });
             console.log(chalk.green('   ✅ AI context files created.'));
 
             console.log(chalk.green('\n✨ AI Context Updated Successfully!'));

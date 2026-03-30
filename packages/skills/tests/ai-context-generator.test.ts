@@ -79,6 +79,18 @@ describe('AiContextGenerator', () => {
             expect(agentsContent).not.toContain('./n8nac-skills');
         });
 
+        test('should allow overriding the generated CLI command for local dev workspaces', async () => {
+            const cliCmd = 'node /tmp/n8n-as-code/packages/cli/dist/index.js';
+            await generator.generate(tempDir, '1.0.0', undefined, { cliCommandOverride: cliCmd });
+
+            const agentsPath = path.join(tempDir, 'AGENTS.md');
+            const agentsContent = fs.readFileSync(agentsPath, 'utf-8');
+
+            expect(agentsContent).toContain(cliCmd);
+            expect(agentsContent).toContain(`${cliCmd} skills`);
+            expect(agentsContent).not.toContain('npx --yes n8nac skills');
+        });
+
         test('should NOT create shim files (shims removed)', async () => {
             await generator.generate(tempDir, '1.0.0');
 
@@ -157,6 +169,9 @@ describe('AiContextGenerator', () => {
             expect(content).toContain('Use this skill only for explicit n8n workflow work.');
             expect(content).toContain('use the `n8nac` tool with `action: "init_auth"` and `action: "init_project"`');
             expect(content).toContain('Treat `AGENTS.md` as the authoritative workflow-engineering protocol once this skill is active.');
+            expect(content).toContain('npx --yes n8nac workflow credential-required <workflowId> --json');
+            expect(content).toContain('credential create --type <type> --name "<name>" --file cred.json --json');
+            expect(content).toContain('Do not invent unsupported `n8nac` tool actions or CLI flags; use `--help` if you are unsure.');
             expect(content).toContain('### AI tool nodes');
         });
     });
