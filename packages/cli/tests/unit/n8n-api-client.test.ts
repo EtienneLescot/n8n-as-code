@@ -2,9 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { N8nApiClient } from '../../src/core/services/n8n-api-client.js';
 import { createMockWorkflow } from '../helpers/test-helpers.js';
 
-const { mockAxiosCall, mockAxiosGet, mockAxiosCreate } = vi.hoisted(() => ({
+const { mockAxiosCall, mockAxiosGet, mockAxiosPost, mockAxiosPut, mockAxiosDelete, mockAxiosCreate } = vi.hoisted(() => ({
     mockAxiosCall: vi.fn(),
     mockAxiosGet: vi.fn(),
+    mockAxiosPost: vi.fn(),
+    mockAxiosPut: vi.fn(),
+    mockAxiosDelete: vi.fn(),
     mockAxiosCreate: vi.fn(),
 }));
 
@@ -12,6 +15,9 @@ vi.mock('axios', () => {
     mockAxiosCreate.mockImplementation((config?: { baseURL?: string; headers?: Record<string, string> }) => ({
         defaults: { baseURL: config?.baseURL ?? '' },
         get: mockAxiosGet,
+        post: mockAxiosPost,
+        put: mockAxiosPut,
+        delete: mockAxiosDelete,
     }));
 
     return {
@@ -267,5 +273,57 @@ describe('N8nApiClient test workflow support', () => {
         expect(plan.testable).toBe(false);
         expect(plan.reason).toMatch(/cannot be invoked via HTTP/i);
         expect(plan.payload).toBeNull();
+    });
+
+    it('posts to activate/deactivate endpoints and returns false on failure', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+
+        mockAxiosPost.mockResolvedValueOnce({ status: 200 });
+        await expect(client.activateWorkflow('wf-1', true)).resolves.toBe(true);
+        expect(mockAxiosPost).toHaveBeenNthCalledWith(1, '/api/v1/workflows/wf-1/activate');
+
+        mockAxiosPost.mockRejectedValueOnce(new Error('boom'));
+        await expect(client.activateWorkflow('wf-1', false)).resolves.toBe(false);
+        expect(mockAxiosPost).toHaveBeenNthCalledWith(2, '/api/v1/workflows/wf-1/deactivate');
+    });
+
+    it('paginates listCredentials() until nextCursor is empty', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+
+        mockAxiosGet
+            .mockResolvedValueOnce({
+                data: {
+                    data: [{ id: 'cred-1', name: 'Primary', type: 'httpBasicAuth' }],
+                    nextCursor: 'cursor-2',
+                },
+            })
+            .mockResolvedValueOnce({
+                data: {
+                    data: [{ id: 'cred-2', name: 'Backup', type: 'httpBasicAuth' }],
+                    nextCursor: undefined,
+                },
+            });
+
+        await expect(client.listCredentials()).resolves.toEqual([
+            { id: 'cred-1', name: 'Primary', type: 'httpBasicAuth' },
+            { id: 'cred-2', name: 'Backup', type: 'httpBasicAuth' },
+        ]);
+        expect(mockAxiosGet).toHaveBeenNthCalledWith(1, '/api/v1/credentials', { params: {} });
+        expect(mockAxiosGet).toHaveBeenNthCalledWith(2, '/api/v1/credentials', { params: { cursor: 'cursor-2' } });
+    });
+
+    it('posts createCredential() payloads without remapping fields', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        const payload = {
+            type: 'slackApi',
+            name: 'Slack Prod',
+            data: { accessToken: 'secret' },
+            projectId: 'proj-1',
+        };
+
+        mockAxiosPost.mockResolvedValueOnce({ data: { id: 'cred-1', ...payload } });
+
+        await expect(client.createCredential(payload)).resolves.toEqual({ id: 'cred-1', ...payload });
+        expect(mockAxiosPost).toHaveBeenCalledWith('/api/v1/credentials', payload);
     });
 });

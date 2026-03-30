@@ -70,6 +70,8 @@ const getSkillsAssetsDir = (): string => {
 };
 
 const program = new Command();
+program.showSuggestionAfterError(true);
+program.showHelpAfterError('(run with --help for usage details)');
 
 program
     .name('n8nac')
@@ -318,23 +320,36 @@ credentialCmd
     .command('schema')
     .argument('<type>', 'Credential type name (e.g. notionApi, slackOAuth2Api, googleApi)')
     .description('Show the JSON schema for a credential type — lists required fields and their types')
-    .action(async (typeName) => {
-        await new CredentialCommand().schema(typeName);
+    .option('--json', 'Output JSON (default behavior; accepted for script compatibility)')
+    .addHelpText('after', `
+Examples:
+  $ n8nac credential schema openAiApi
+  $ n8nac credential schema slackApi --json
+`)
+    .action(async (typeName, options) => {
+        await new CredentialCommand().schema(typeName, { json: options.json });
     });
 
 credentialCmd
     .command('list')
     .description('List all credentials (metadata only, no secrets)')
-    .action(async () => {
-        await new CredentialCommand().list();
+    .option('--json', 'Output the credential list as JSON for agents and scripts')
+    .addHelpText('after', `
+Examples:
+  $ n8nac credential list
+  $ n8nac credential list --json
+`)
+    .action(async (options) => {
+        await new CredentialCommand().list({ json: options.json });
     });
 
 credentialCmd
     .command('get')
     .argument('<id>', 'Credential ID')
     .description('Get credential metadata by ID (no secrets returned)')
-    .action(async (id) => {
-        await new CredentialCommand().get(id);
+    .option('--json', 'Output JSON (default behavior; accepted for script compatibility)')
+    .action(async (id, options) => {
+        await new CredentialCommand().get(id, { json: options.json });
     });
 
 credentialCmd
@@ -345,6 +360,18 @@ credentialCmd
     .option('--data <json>', 'Credential data as inline JSON string (avoid for secrets — use --file instead)')
     .option('--file <path>', 'Path to JSON file with credential data (preferred over --data)')
     .option('--project-id <id>', 'Project to assign the credential to')
+    .option('--json', 'Output created credential metadata as JSON')
+    .addHelpText('after', `
+Examples:
+  $ n8nac credential schema openAiApi
+  $ n8nac credential create --type openAiApi --name "My OpenAI" --file cred.json
+  $ n8nac credential create --type openAiApi --name "My OpenAI" --file cred.json --json
+
+Notes:
+  - Prefer --file over --data to keep secrets out of shell history.
+  - Run 'n8nac credential schema <type>' before creating a new credential type.
+  - If creation fails, read the returned validation message and change the payload before retrying.
+`)
     .action(async (options) => {
         await new CredentialCommand().create({
             type: options.type,
@@ -352,6 +379,7 @@ credentialCmd
             data: options.data,
             file: options.file,
             projectId: options.projectId,
+            json: options.json,
         });
     });
 
