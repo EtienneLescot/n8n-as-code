@@ -39,6 +39,7 @@ export class TestCommand extends BaseCommand {
      *
      * Exit codes:
      *   0 — success OR Class A error (config gap — inform user, do not block)
+     *   0 — runtime-state issue (test webhook not armed, production webhook not registered)
      *   1 — Class B error (wiring error — agent should fix and re-test)
      *   1 — fatal infrastructure error (workflow not found, no trigger, etc.)
      */
@@ -131,6 +132,31 @@ export class TestCommand extends BaseCommand {
                 console.log(chalk.dim(`\nHTTP status: ${result.statusCode}`));
             }
             // Exit 0 — this is informational, not something the agent can fix by editing code
+            return 0;
+        }
+
+        // ── Runtime state issue: not a code bug ───────────────────────────────
+        if (result.errorClass === 'runtime-state') {
+            console.log(chalk.yellow(`\n⚠  Runtime state issue detected`));
+            console.log(chalk.yellow(`   ${result.errorMessage}`));
+            if (result.statusCode !== undefined) {
+                console.log(chalk.dim(`HTTP status: ${result.statusCode}`));
+            }
+            if (result.responseData !== undefined && result.responseData !== null && result.responseData !== '') {
+                console.log(chalk.dim(`\nDetail:`));
+                const formatted =
+                    typeof result.responseData === 'object'
+                        ? JSON.stringify(result.responseData, null, 2)
+                        : String(result.responseData);
+                console.log(chalk.yellow(formatted));
+            }
+            if (result.notes?.length) {
+                console.log('');
+                console.log(chalk.dim(`What to do next:`));
+                for (const note of result.notes) {
+                    console.log(chalk.dim(`  • ${note}`));
+                }
+            }
             return 0;
         }
 

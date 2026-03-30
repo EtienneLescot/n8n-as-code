@@ -212,9 +212,11 @@ program.command('verify')
 program.command('test')
     .description(
         'Trigger a workflow via its webhook/chat/form URL and report the outcome.\n' +
-        'Distinguishes config gaps (Class A: missing credentials/model) from wiring errors\n' +
+        'Distinguishes config gaps (Class A: missing credentials/model), runtime state issues\n' +
+        '(test webhook not armed / production webhook not registered), and wiring errors\n' +
         '(Class B: bad expressions, wrong field names).\n' +
         'Class A → exit 0 (inform user, do not block).\n' +
+        'Runtime state issue → exit 0 (do not edit code blindly).\n' +
         'Class B → exit 1 (fixable, agent should iterate).'
     )
     .argument('<workflowId>', 'Workflow ID to test')
@@ -230,6 +232,7 @@ Examples:
 Notes:
   - For GET/HEAD webhooks, \`--data\` is sent as query parameters for backward compatibility.
   - Prefer \`--query\` when the workflow reads from \`$json.query\` to make the intent explicit.
+  - For classic Webhook/Form test URLs, you may need to manually arm the workflow in the n8n editor before the test URL will accept a request.
 `)
     .action(async (workflowId, options) => {
         process.exit(await new TestCommand().run(workflowId, options));

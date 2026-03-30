@@ -106,6 +106,26 @@ describe('TestCommand.run()', () => {
         expect(output).toMatch(/configuration gap/i);
     });
 
+    it('returns exit code 0 for runtime-state issues and avoids wiring guidance', async () => {
+        vi.spyOn(cmd['client'], 'testWorkflow').mockResolvedValue(
+            makeResult({
+                success: false,
+                errorClass: 'runtime-state',
+                errorMessage: 'The requested webhook "wf" is not registered.',
+                statusCode: 404,
+                notes: ['Click Execute workflow before retrying this test URL.'],
+            })
+        );
+
+        const code = await cmd.run('wf-1', {});
+        expect(code).toBe(0);
+
+        const output = consoleSpy.mock.calls.flat().join(' ');
+        expect(output).toMatch(/runtime state issue/i);
+        expect(output).toContain('Click Execute workflow before retrying this test URL.');
+        expect(output).not.toMatch(/fixable structural error/i);
+    });
+
     it('returns exit code 1 for Class B (wiring-error)', async () => {
         vi.spyOn(cmd['client'], 'testWorkflow').mockResolvedValue(
             makeResult({

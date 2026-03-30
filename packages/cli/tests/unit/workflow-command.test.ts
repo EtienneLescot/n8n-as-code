@@ -110,3 +110,36 @@ describe('WorkflowCommand.credentialRequired()', () => {
         expect(errorSpy).toHaveBeenCalledWith('❌ Failed to inspect workflow wf-1: Network down');
     });
 });
+
+describe('WorkflowCommand activation helpers', () => {
+    let cmd: WorkflowCommand;
+    let logSpy: ReturnType<typeof vi.spyOn>;
+    let errorSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+            throw new Error(`process.exit:${code ?? 0}`);
+        }) as never);
+        cmd = makeCommand();
+    });
+
+    it('confirms activate only when the returned workflow is active', async () => {
+        vi.spyOn(cmd['client'], 'activateWorkflow').mockResolvedValue({ id: 'wf-1', active: true } as any);
+
+        await cmd.activate('wf-1');
+
+        expect(logSpy).toHaveBeenCalledWith('✅ Workflow wf-1 activated.');
+    });
+
+    it('fails activate when n8n does not report the workflow as active', async () => {
+        vi.spyOn(cmd['client'], 'activateWorkflow').mockResolvedValue({ id: 'wf-1', active: false } as any);
+
+        await expect(cmd.activate('wf-1')).rejects.toThrow('process.exit:1');
+        expect(errorSpy).toHaveBeenCalledWith(
+            '❌ Workflow wf-1 did not report active=true after activation request',
+        );
+    });
+});

@@ -190,6 +190,32 @@ export class WorkflowStateTracker extends EventEmitter {
             this.idToFileMap.set(id, winner);
         }
 
+        // Recovery path: if a tracked file lost its decorator ID after a manual rewrite,
+        // reconnect it using the last known filename hint from state.
+        const claimedIds = new Set(idClaims.keys());
+        const state = this.loadState();
+        for (const { filename, content } of fileContents) {
+            if (content?.id) continue;
+            if (this.fileToIdMap.has(filename)) continue;
+
+            const matchingIds = Object.entries(state.workflows)
+                .filter(([workflowId, workflowState]) =>
+                    workflowState?.filename === filename &&
+                    !claimedIds.has(workflowId))
+                .map(([workflowId]) => workflowId);
+
+            if (matchingIds.length !== 1) continue;
+
+            const recoveredId = matchingIds[0];
+            const existingFilename = this.idToFileMap.get(recoveredId);
+            if (existingFilename && existingFilename !== filename && currentFiles.has(existingFilename)) {
+                continue;
+            }
+
+            this.idToFileMap.set(recoveredId, filename);
+            this.fileToIdMap.set(filename, recoveredId);
+        }
+
         // Clean up fileToIdMap entries for files that no longer exist on disk.
         // (idToFileMap for deleted-locally workflows is intentionally kept for EXIST_ONLY_REMOTELY.)
         for (const existingFilename of Array.from(this.fileToIdMap.keys())) {
@@ -386,7 +412,7 @@ export class WorkflowStateTracker extends EventEmitter {
         this.remoteHashes.set(workflowId, remoteHash);
 
         // Update base state
-        await this.updateWorkflowState(workflowId, localHash, remoteUpdatedAt);
+        await this.updateWorkflowState(workflowId, localHash, remoteUpdatedAt, filename);
 
         // Broadcast new TRACKED status
         this.broadcastStatus(filename, workflowId);
@@ -396,11 +422,12 @@ export class WorkflowStateTracker extends EventEmitter {
      * Update workflow state in .n8n-state.json
      * Only this component writes to the state file
      */
-    private async updateWorkflowState(id: string, hash: string, remoteUpdatedAt?: string) {
+    private async updateWorkflowState(id: string, hash: string, remoteUpdatedAt?: string, filename?: string) {
         const state = this.loadState();
         state.workflows[id] = {
             lastSyncedHash: hash,
-            lastSyncedAt: remoteUpdatedAt || new Date().toISOString()
+            lastSyncedAt: remoteUpdatedAt || new Date().toISOString(),
+            filename: filename || state.workflows[id]?.filename,
         };
         this.saveState(state);
     }
@@ -445,13 +472,24 @@ export class WorkflowStateTracker extends EventEmitter {
         return { workflows: {} };
     }
 
-    /**
-     * No-op: file→ID mappings are now built exclusively by refreshLocalState()
-     * which scans the @workflow({ id: "..." }) decorator in each *.workflow.ts.
-     * This guarantees correct reconciliation after a local rename.
-     */
     private restoreMappingsFromState() {
-        // Intentionally empty — mappings are built by refreshLocalState() scan.
+        const state = this.loadState();
+
+        for (const [workflowId, workflowState] of Object.entries(state.workflows)) {
+            const filename = workflowState?.filename;
+            if (!filename) continue;
+
+            const filePath = path.join(this.directory, filename);
+            if (!fs.existsSync(filePath)) continue;
+
+            if (!this.idToFileMap.has(workflowId)) {
+                this.idToFileMap.set(workflowId, filename);
+            }
+
+            if (!this.fileToIdMap.has(filename)) {
+                this.fileToIdMap.set(filename, workflowId);
+            }
+        }
     }
 
     /**

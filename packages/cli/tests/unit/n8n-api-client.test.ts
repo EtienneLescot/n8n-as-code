@@ -50,9 +50,12 @@ describe('N8nApiClient test workflow support', () => {
 
         expect(trigger).toEqual({
             type: 'webhook',
+            workflowId: '1',
             nodeId: 'node-1',
             nodeName: 'Inbound Webhook',
+            webhookId: undefined,
             webhookPath: 'my-path',
+            pathSource: 'explicit',
             httpMethod: 'POST',
         });
     });
@@ -84,7 +87,9 @@ describe('N8nApiClient test workflow support', () => {
         }));
 
         expect(withWebhookId?.webhookPath).toBe('webhook-123');
+        expect(withWebhookId?.pathSource).toBe('webhookId');
         expect(withNodeId?.webhookPath).toBe('node-2');
+        expect(withNodeId?.pathSource).toBe('nodeId');
     });
 
     it('builds the expected test URL for webhook, form and chat triggers', () => {
@@ -92,25 +97,31 @@ describe('N8nApiClient test workflow support', () => {
 
         expect(client.buildTestUrl({
             type: 'webhook',
+            workflowId: 'wf-1',
             nodeId: '1',
-            nodeName: 'Webhook',
+            nodeName: 'Inbound Webhook',
             webhookPath: 'webhook-path',
+            pathSource: 'explicit',
             httpMethod: 'POST',
-        })).toBe('https://n8n.local/webhook-test/webhook-path');
+        })).toBe('https://n8n.local/webhook-test/wf-1/inbound%20webhook/webhook-path');
 
         expect(client.buildTestUrl({
             type: 'form',
+            workflowId: 'wf-2',
             nodeId: '2',
             nodeName: 'Form',
             webhookPath: 'form-path',
-        })).toBe('https://n8n.local/form-test/form-path');
+            pathSource: 'explicit',
+        })).toBe('https://n8n.local/form-test/wf-2/form/form-path');
 
         expect(client.buildTestUrl({
             type: 'chat',
+            workflowId: 'wf-3',
             nodeId: '3',
             nodeName: 'Chat',
             webhookPath: 'chat-path',
-        })).toBe('https://n8n.local/webhook-test/chat-path/chat');
+            pathSource: 'explicit',
+        })).toBe('https://n8n.local/webhook-test/wf-3/chat/chat-path/chat');
     });
 
     it('normalizes webhook paths with leading slashes and special characters', () => {
@@ -119,19 +130,23 @@ describe('N8nApiClient test workflow support', () => {
         // Leading slash should be stripped
         expect(client.buildTestUrl({
             type: 'webhook',
+            workflowId: 'wf-1',
             nodeId: '1',
             nodeName: 'Webhook',
             webhookPath: '/my-path',
+            pathSource: 'explicit',
             httpMethod: 'POST',
-        })).toBe('https://n8n.local/webhook-test/my-path');
+        })).toBe('https://n8n.local/webhook-test/wf-1/webhook/my-path');
 
         // Multiple leading slashes
         expect(client.buildTestUrl({
             type: 'form',
+            workflowId: 'wf-2',
             nodeId: '2',
             nodeName: 'Form',
             webhookPath: '//form path with spaces',
-        })).toBe('https://n8n.local/form-test/form%20path%20with%20spaces');
+            pathSource: 'explicit',
+        })).toBe('https://n8n.local/form-test/wf-2/form/form%20path%20with%20spaces');
     });
 
     it('classifies missing credentials as a config gap', async () => {
@@ -156,7 +171,7 @@ describe('N8nApiClient test workflow support', () => {
         expect(result.success).toBe(false);
         expect(result.errorClass).toBe('config-gap');
         expect(result.statusCode).toBe(401);
-        expect(result.webhookUrl).toBe('https://n8n.local/webhook-test/wf');
+        expect(result.webhookUrl).toBe('https://n8n.local/webhook-test/1/webhook/wf');
     });
 
     it('uses explicit query params when provided for GET webhooks', async () => {
@@ -183,7 +198,7 @@ describe('N8nApiClient test workflow support', () => {
 
         expect(mockAxiosCall).toHaveBeenCalledWith(expect.objectContaining({
             method: 'GET',
-            url: 'https://n8n.local/webhook-test/wf',
+            url: 'https://n8n.local/webhook-test/1/webhook/wf',
             data: undefined,
             params: { chatInput: 'hello' },
         }));
@@ -211,6 +226,60 @@ describe('N8nApiClient test workflow support', () => {
         expect(result.success).toBe(false);
         expect(result.errorClass).toBe('wiring-error');
         expect(result.statusCode).toBe(500);
+    });
+
+    it('classifies unarmed test webhooks as runtime-state issues', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        vi.spyOn(client, 'getWorkflow').mockResolvedValue(createMockWorkflow({
+            nodes: [
+                {
+                    id: 'node-1',
+                    name: 'Webhook',
+                    type: 'n8n-nodes-base.webhook',
+                    parameters: { path: 'wf', httpMethod: 'POST' },
+                },
+            ],
+        }));
+        mockAxiosCall.mockResolvedValue({
+            status: 404,
+            data: {
+                message: 'The requested webhook "wf" is not registered.',
+                hint: "Click the 'Execute workflow' button on the canvas, then try again.",
+            },
+        });
+
+        const result = await client.testWorkflow('wf-1', { data: { foo: 'bar' } });
+
+        expect(result.success).toBe(false);
+        expect(result.errorClass).toBe('runtime-state');
+        expect(result.notes?.join(' ')).toMatch(/manual arm step|Execute workflow/i);
+    });
+
+    it('classifies missing production webhook registration as a runtime-state issue', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        vi.spyOn(client, 'getWorkflow').mockResolvedValue(createMockWorkflow({
+            nodes: [
+                {
+                    id: 'node-1',
+                    name: 'Webhook',
+                    type: 'n8n-nodes-base.webhook',
+                    parameters: { path: 'wf', httpMethod: 'POST' },
+                },
+            ],
+        }));
+        mockAxiosCall.mockResolvedValue({
+            status: 404,
+            data: {
+                message: 'The requested webhook "POST wf" is not registered.',
+                hint: 'The workflow must be active for a production URL to run successfully.',
+            },
+        });
+
+        const result = await client.testWorkflow('wf-1', { data: { foo: 'bar' }, prod: true });
+
+        expect(result.success).toBe(false);
+        expect(result.errorClass).toBe('runtime-state');
+        expect(result.notes?.join(' ')).toMatch(/active\/published|runtime-state issue/i);
     });
 
     it('returns a non-failing classification for schedule triggers', async () => {
@@ -266,8 +335,8 @@ describe('N8nApiClient test workflow support', () => {
         const plan = await client.getTestPlan('wf-1');
 
         expect(plan.testable).toBe(true);
-        expect(plan.endpoints.testUrl).toBe('https://n8n.local/webhook-test/wf');
-        expect(plan.endpoints.productionUrl).toBe('https://n8n.local/webhook/wf');
+        expect(plan.endpoints.testUrl).toBe('https://n8n.local/webhook-test/1/webhook/wf');
+        expect(plan.endpoints.productionUrl).toBe('https://n8n.local/webhook/1/webhook/wf');
         expect(plan.payload?.inferred).toEqual({
             body: {
                 email: 'user@example.com',
@@ -282,6 +351,7 @@ describe('N8nApiClient test workflow support', () => {
             'body.message',
             'query.priority',
         ]);
+        expect(plan.payload?.notes.join(' ')).toMatch(/manual arm step|active\/published/i);
     });
 
     it('returns a non-testable plan for schedule triggers', async () => {
@@ -305,16 +375,24 @@ describe('N8nApiClient test workflow support', () => {
         expect(plan.payload).toBeNull();
     });
 
-    it('posts to activate/deactivate endpoints and returns false on failure', async () => {
+    it('posts to activate/deactivate endpoints and returns workflow objects on success', async () => {
         const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
 
-        mockAxiosPost.mockResolvedValueOnce({ status: 200 });
-        await expect(client.activateWorkflow('wf-1', true)).resolves.toBe(true);
+        mockAxiosPost.mockResolvedValueOnce({ status: 200, data: { id: 'wf-1', active: true } });
+        await expect(client.activateWorkflow('wf-1', true)).resolves.toEqual({ id: 'wf-1', active: true });
         expect(mockAxiosPost).toHaveBeenNthCalledWith(1, '/api/v1/workflows/wf-1/activate');
 
         mockAxiosPost.mockRejectedValueOnce(new Error('boom'));
-        await expect(client.activateWorkflow('wf-1', false)).resolves.toBe(false);
+        await expect(client.activateWorkflow('wf-1', false)).resolves.toBeNull();
         expect(mockAxiosPost).toHaveBeenNthCalledWith(2, '/api/v1/workflows/wf-1/deactivate');
+    });
+
+    it('falls back to fetching the workflow when activation response has no workflow body', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        mockAxiosPost.mockResolvedValueOnce({ status: 200, data: undefined });
+        vi.spyOn(client, 'getWorkflow').mockResolvedValue({ id: 'wf-1', active: true } as any);
+
+        await expect(client.activateWorkflow('wf-1', true)).resolves.toEqual({ id: 'wf-1', active: true });
     });
 
     it('paginates listCredentials() until nextCursor is empty', async () => {

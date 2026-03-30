@@ -63,6 +63,13 @@ export class TestPlanCommand extends BaseCommand {
             console.log(chalk.dim('Prod URL: ') + chalk.cyan(plan.endpoints.productionUrl));
         }
 
+        if (trigger.type === 'webhook' || trigger.type === 'form') {
+            console.log(chalk.dim('\nActivation notes:'));
+            console.log(chalk.dim(`- Test URLs are temporary and usually require a manual arm step in the n8n editor.`));
+            console.log(chalk.dim(`- Click "Execute workflow" or "Listen for test event" before calling the test URL.`));
+            console.log(chalk.dim(`- Production URLs should work only after the workflow is active/published.`));
+        }
+
         if (plan.payload) {
             console.log(chalk.dim('\nSuggested payload:'));
             console.log(chalk.white(JSON.stringify(plan.payload.inferred, null, 2)));

@@ -175,7 +175,17 @@ describe('AiContextGenerator', () => {
             expect(content).toContain('npx --yes n8nac execution list --workflow-id <workflowId> --limit 5 --json');
             expect(content).toContain('npx --yes n8nac execution get <executionId> --include-data --json');
             expect(content).toContain('n8nac test --query <json>');
+            expect(content).toContain('manual arm step in the n8n editor');
             expect(content).toContain('### AI tool nodes');
+        });
+
+        test('AGENTS.md should include runtime-state guidance for webhook test arming', async () => {
+            await generator.generate(tempDir, '1.0.0');
+
+            const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
+            expect(agentsContent).toContain('Runtime-state issue');
+            expect(agentsContent).toContain('manual arm step in the n8n editor');
+            expect(agentsContent).toContain('There is no documented public n8n API in this project for arming test webhooks');
         });
     });
 });

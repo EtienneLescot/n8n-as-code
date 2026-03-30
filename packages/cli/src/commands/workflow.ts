@@ -8,12 +8,17 @@ export class WorkflowCommand extends BaseCommand {
      * Activate (publish) a workflow so it can be triggered and executed.
      */
     async activate(workflowId: string): Promise<void> {
-        const ok = await this.client.activateWorkflow(workflowId, true);
-        if (ok) {
-            console.log(chalk.green(`✅ Workflow ${workflowId} activated.`));
-        } else {
-            console.error(chalk.red(`❌ Failed to activate workflow ${workflowId}.`));
-            process.exit(1);
+        try {
+            const workflow = await this.client.activateWorkflow(workflowId, true);
+            if (workflow?.active === true) {
+                console.log(chalk.green(`✅ Workflow ${workflowId} activated.`));
+                return;
+            }
+            this.exitWithError(
+                `Workflow ${workflowId} did not report active=true after activation request`,
+            );
+        } catch (error) {
+            this.exitWithError(`Failed to activate workflow ${workflowId}`, error);
         }
     }
 
@@ -22,12 +27,17 @@ export class WorkflowCommand extends BaseCommand {
      * Deactivate a workflow (stops triggers from firing).
      */
     async deactivate(workflowId: string): Promise<void> {
-        const ok = await this.client.activateWorkflow(workflowId, false);
-        if (ok) {
-            console.log(chalk.green(`✅ Workflow ${workflowId} deactivated.`));
-        } else {
-            console.error(chalk.red(`❌ Failed to deactivate workflow ${workflowId}.`));
-            process.exit(1);
+        try {
+            const workflow = await this.client.activateWorkflow(workflowId, false);
+            if (workflow?.active === false) {
+                console.log(chalk.green(`✅ Workflow ${workflowId} deactivated.`));
+                return;
+            }
+            this.exitWithError(
+                `Workflow ${workflowId} did not report active=false after deactivation request`,
+            );
+        } catch (error) {
+            this.exitWithError(`Failed to deactivate workflow ${workflowId}`, error);
         }
     }
 

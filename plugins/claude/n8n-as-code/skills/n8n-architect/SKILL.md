@@ -353,6 +353,8 @@ When a workflow is blocked because a credential is missing, resolve it without o
    npx --yes n8nac test <workflowId>
    ```
    A Class A error that was blocking the test should now be resolved.
+   If the workflow uses a classic Webhook or Form trigger and the test URL says the webhook is not registered, this is usually a manual arm/listen issue in the n8n editor rather than a code bug.
+   Click `Execute workflow` or `Listen for test event` in the editor, then retry the same test request once.
    If the trigger uses GET or HEAD and the workflow reads from `$json.query`, prefer:
    ```bash
    npx --yes n8nac test <workflowId> --query '{"chatInput":"hello"}'
@@ -390,6 +392,7 @@ When helping users:
 11. For webhook/chat/form workflows: run `npx --yes n8nac test-plan <id>` after pushing to inspect trigger, endpoints, and suggested payload.
     - Then run `npx --yes n8nac test <id>` with the inferred payload when runtime validation is needed.
     - If **Class A** (config gap): report what the user needs to configure — do NOT re-edit the code.
+    - If **runtime-state issue** (webhook test URL not armed, production webhook not registered): do NOT re-edit the code. Resolve the state/arming issue first.
     - If **Class B** (wiring error): fix the issue, push again, and re-test.
 
 ---

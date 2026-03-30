@@ -92,6 +92,7 @@ describe('TestPlanCommand.run()', () => {
         const output = consoleSpy.mock.calls.flat().join(' ');
         expect(output).toMatch(/testable via HTTP/i);
         expect(output).toContain('https://n8n.test/webhook-test/my-path');
+        expect(output).toMatch(/manual arm step|Listen for test event|Execute workflow/i);
     });
 
     it('prints a GET/query hint for GET webhooks', async () => {
