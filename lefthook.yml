@@ -11,9 +11,11 @@ pre-commit:
     # "Verify committed skill not modified by build" from failing on every push
     # that touches the AI context generator.
     regen-skill-adapters:
-      glob: "packages/skills/src/services/ai-context-generator.ts\
-        |packages/skills/scripts/build-skill-adapters.js"
+      glob:
+        - "packages/skills/src/services/ai-context-generator.ts"
+        - "packages/skills/scripts/build-skill-adapters.js"
       run: |
+        npm run build --workspace=packages/skills
         node packages/skills/scripts/build-skill-adapters.js
         git add plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md \
                 plugins/openclaw/n8n-as-code/skills/n8n-architect/SKILL.md
