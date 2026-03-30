@@ -1,6 +1,6 @@
 {
   "name": "@n8n-as-code/n8nac",
-  "version": "2026.4.0",
+  "version": "2026.4.1",
   "description": "OpenClaw plugin for n8n-as-code — create and manage n8n workflows from OpenClaw",
   "keywords": [
     "n8n",
