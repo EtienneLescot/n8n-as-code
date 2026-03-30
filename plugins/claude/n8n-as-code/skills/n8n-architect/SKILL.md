@@ -353,6 +353,17 @@ When a workflow is blocked because a credential is missing, resolve it without o
    npx --yes n8nac test <workflowId>
    ```
    A Class A error that was blocking the test should now be resolved.
+   If the trigger uses GET or HEAD and the workflow reads from `$json.query`, prefer:
+   ```bash
+   npx --yes n8nac test <workflowId> --query '{"chatInput":"hello"}'
+   ```
+
+6. **If the webhook call succeeds but the workflow still misbehaves, inspect executions:**
+   ```bash
+   npx --yes n8nac execution list --workflow-id <workflowId> --limit 5 --json
+   npx --yes n8nac execution get <executionId> --include-data --json
+   ```
+   Use this to debug server-side execution failures without opening the n8n UI.
 
 **Other credential commands:**
    ```bash

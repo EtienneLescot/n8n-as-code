@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import * as https from 'https';
-import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField } from '../types.js';
+import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField, IExecutionDetails, IExecutionList, IExecutionSummary, ExecutionStatus } from '../types.js';
 
 export class N8nApiClient {
     private client: AxiosInstance;
@@ -626,6 +626,71 @@ export class N8nApiClient {
         }
     }
 
+    // ─── Executions ───────────────────────────────────────────────────────────
+
+    async listExecutions(options: {
+        workflowId?: string;
+        status?: ExecutionStatus;
+        projectId?: string;
+        limit?: number;
+        cursor?: string;
+        includeData?: boolean;
+    } = {}): Promise<IExecutionList> {
+        const params: Record<string, string | number | boolean> = {};
+        if (options.workflowId) params.workflowId = options.workflowId;
+        if (options.status) params.status = options.status;
+        if (options.projectId) params.projectId = options.projectId;
+        if (options.limit !== undefined) params.limit = options.limit;
+        if (options.cursor) params.cursor = options.cursor;
+        if (options.includeData) params.includeData = true;
+
+        const res = await this.client.get('/api/v1/executions', { params });
+        const page = res.data ?? {};
+
+        return {
+            data: (page.data ?? []).map((execution: any): IExecutionSummary => ({
+                id: String(execution.id),
+                finished: Boolean(execution.finished),
+                mode: String(execution.mode ?? ''),
+                retryOf: execution.retryOf != null ? String(execution.retryOf) : null,
+                retrySuccessId: execution.retrySuccessId != null ? String(execution.retrySuccessId) : null,
+                startedAt: String(execution.startedAt ?? ''),
+                stoppedAt: execution.stoppedAt != null ? String(execution.stoppedAt) : null,
+                workflowId: String(execution.workflowId ?? ''),
+                waitTill: execution.waitTill != null ? String(execution.waitTill) : null,
+                customData: execution.customData,
+                status: String(execution.status ?? 'unknown') as ExecutionStatus,
+            })),
+            nextCursor: page.nextCursor ?? null,
+        };
+    }
+
+    async getExecution(id: string, options: { includeData?: boolean } = {}): Promise<IExecutionDetails> {
+        const params: Record<string, boolean> = {};
+        if (options.includeData) params.includeData = true;
+
+        const res = await this.client.get(`/api/v1/executions/${id}`, { params });
+        const execution = res.data ?? {};
+
+        return {
+            id: String(execution.id),
+            finished: Boolean(execution.finished),
+            mode: String(execution.mode ?? ''),
+            retryOf: execution.retryOf != null ? String(execution.retryOf) : null,
+            retrySuccessId: execution.retrySuccessId != null ? String(execution.retrySuccessId) : null,
+            startedAt: String(execution.startedAt ?? ''),
+            stoppedAt: execution.stoppedAt != null ? String(execution.stoppedAt) : null,
+            workflowId: String(execution.workflowId ?? ''),
+            waitTill: execution.waitTill != null ? String(execution.waitTill) : null,
+            customData: execution.customData,
+            status: String(execution.status ?? 'unknown') as ExecutionStatus,
+            data: execution.data,
+            workflowData: execution.workflowData,
+            executedNode: execution.executedNode,
+            triggerNode: execution.triggerNode,
+        };
+    }
+
     async getHealth(): Promise<{ version: string }> {
         try {
             // 1. Try public endpoint if available (some versions)
@@ -897,7 +962,7 @@ export class N8nApiClient {
      */
     async testWorkflow(
         workflowId: string,
-        options?: { data?: unknown; prod?: boolean }
+        options?: { data?: unknown; query?: unknown; prod?: boolean }
     ): Promise<ITestResult> {
         // 1. Fetch workflow
         let workflow: IWorkflow | null;
@@ -966,13 +1031,14 @@ export class N8nApiClient {
         // 4. Call the webhook
         const method = (triggerInfo.httpMethod ?? 'POST').toUpperCase();
         const body = options?.data ?? {};
+        const query = options?.query;
 
         try {
             const requestConfig: any = {
                 method,
                 url,
                 data: ['GET', 'HEAD'].includes(method) ? undefined : body,
-                params: ['GET', 'HEAD'].includes(method) ? (body as any) : undefined,
+                params: query ?? (['GET', 'HEAD'].includes(method) ? (body as any) : undefined),
                 validateStatus: () => true, // Don't throw on non-2xx
                 timeout: 30_000,             // Prevent indefinite hangs (e.g. chat trigger awaiting first message)
                 // Reuse the shared httpsAgent (same TLS policy as API calls).
