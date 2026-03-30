@@ -825,7 +825,7 @@ When a workflow is blocked because a credential is missing, resolve it without o
    \`\`\`bash
    npx --yes n8nac workflow credential-required <workflowId> --json
    \`\`\`
-   Output: `[{ nodeName, credentialType, credentialName, exists }]`  
+   Output: \`[{ nodeName, credentialType, credentialName, exists }]\`  
    Run this immediately after pushing. Exit code 1 means at least one credential is missing.
 
 2. **Discover required fields for a credential type:**
