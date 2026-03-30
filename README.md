@@ -113,6 +113,23 @@ Guided onboarding, persistent runtime, cleanest path into n8n-as-code.
 > **Then simply tell your agent what you want to do with your n8n workflows.**
 > Build new flows, update existing ones, search nodes and templates, validate changes, pull from n8n, push updates, and keep everything in sync.
 
+### New: Agents can now complete the runtime loop
+
+`n8n-as-code` now removes a major source of friction in AI-assisted workflow development.
+
+An agent can now:
+
+- detect which credentials a workflow is missing after a push
+- ask the user only for the secret values it cannot infer
+- provision those credentials without bouncing back to the n8n UI
+- activate the workflow once provisioning is complete
+- execute webhook, chat, and form workflows on the user's behalf
+- inspect the resulting execution directly from n8n when the run fails on the server side
+
+From a user point of view, this is a major step forward: the agent is no longer limited to editing workflow code. It can now help drive the workflow all the way to a real execution, then debug what happened using the execution data returned by n8n.
+
+Detailed commands live in the [CLI guide](https://n8nascode.dev/docs/usage/cli/).
+
 ### ⌨️ CLI
 
 Explicit terminal-first workflow for sync and automation.
