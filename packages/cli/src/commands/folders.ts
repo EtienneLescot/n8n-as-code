@@ -74,7 +74,8 @@ export class FoldersCommand extends BaseCommand {
 
             if (folders.length === 0) {
                 console.log(chalk.yellow('\nNo folders found.'));
-                console.log(chalk.gray('Folders require n8n ≥ 1.68 with an Enterprise/Pro license.'));
+                console.log(chalk.gray('Folders require n8n ≥ 1.68. On self-hosted Community Edition, register'));
+                console.log(chalk.gray('your instance for a free license key (Settings → Usage and Plan → Unlock).'));
                 console.log(chalk.gray('You can enable folder mirroring in n8nac-config.json with: "folderSync": true'));
                 return;
             }
