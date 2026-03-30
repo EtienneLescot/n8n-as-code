@@ -624,9 +624,17 @@ export class AiContextGenerator {
       `\`\`\`bash`,
       `${cliCmd} test <workflowId>              # Trigger test-mode URL, show result`,
       `${cliCmd} test <workflowId> --data '{"key":"value"}'  # Pass request body`,
+      `${cliCmd} test <workflowId> --query '{"key":"value"}' # Explicit query params for GET/HEAD webhooks`,
       `${cliCmd} test <workflowId> --prod       # Use production URL instead`,
       `\`\`\``,
-      `Closes the dev cycle for webhook/chat/form workflows. Exits 0 on success or Class A (config gap — inform user). Exits 1 on Class B (wiring error — fix and re-test). Prefer \`${cliCmd} test-plan\` first when the payload is unclear.`,
+      `Closes the dev cycle for webhook/chat/form workflows. Exits 0 on success or Class A (config gap — inform user). Exits 1 on Class B (wiring error — fix and re-test). Prefer \`${cliCmd} test-plan\` first when the payload is unclear. For GET/HEAD webhooks, prefer \`${cliCmd} test --query <json>\`; \`--data\` also maps to query params for backward compatibility.`,
+      ``,
+      `### 🧾 Inspect Executions (debug what happened on the n8n server)`,
+      `\`\`\`bash`,
+      `${cliCmd} execution list --workflow-id <id> --limit 5 --json    # Recent executions for one workflow`,
+      `${cliCmd} execution get <executionId> --include-data --json      # Full execution detail and run data`,
+      `\`\`\``,
+      `Use this immediately after a webhook returns 2xx but the workflow still appears broken. A successful HTTP trigger only means n8n accepted the request; the execution can still fail later inside the workflow.`,
       ``,
       `### 🔑 Credential Management (resolve Class A gaps without opening the n8n UI)`,
       `\`\`\`bash`,
@@ -866,6 +874,17 @@ When a workflow is blocked because a credential is missing, resolve it without o
    npx --yes n8nac test <workflowId>
    \`\`\`
    A Class A error that was blocking the test should now be resolved.
+   If the trigger uses GET or HEAD and the workflow reads from \`$json.query\`, prefer:
+   \`\`\`bash
+   npx --yes n8nac test <workflowId> --query '{"chatInput":"hello"}'
+   \`\`\`
+
+6. **If the webhook call succeeds but the workflow still misbehaves, inspect executions:**
+   \`\`\`bash
+   npx --yes n8nac execution list --workflow-id <workflowId> --limit 5 --json
+   npx --yes n8nac execution get <executionId> --include-data --json
+   \`\`\`
+   Use this to debug server-side execution failures without opening the n8n UI.
 
 **Other credential commands:**
    \`\`\`bash
@@ -917,6 +936,8 @@ Use this skill only for explicit n8n workflow work.
 - Never guess node parameters. The schema lookup is the source of truth.
 - Treat \`AGENTS.md\` as the authoritative workflow-engineering protocol once this skill is active.
 - When a workflow fails due to missing credentials (Class A), identify the missing credentials clearly and use the documented \`n8nac\` CLI commands from \`AGENTS.md\` (for example \`npx --yes n8nac workflow credential-required <workflowId> --json\`, \`npx --yes n8nac credential schema <type>\`, \`npx --yes n8nac credential create --type <type> --name "<name>" --file cred.json --json\`, and \`npx --yes n8nac workflow activate <workflowId>\`). Do not invent unsupported \`n8nac\` tool actions or CLI flags; use \`--help\` if you are unsure.
+- When a webhook call succeeds but the workflow still seems broken, inspect the resulting execution with the documented CLI commands from \`AGENTS.md\` (for example \`npx --yes n8nac execution list --workflow-id <workflowId> --limit 5 --json\` then \`npx --yes n8nac execution get <executionId> --include-data --json\`).
+- For GET/HEAD webhooks, prefer \`n8nac test --query <json>\` when the workflow reads from \`$json.query\`. Do not invent flags like \`--query\` unless they are documented in the current \`--help\`.
 
 ${workflowMapLines.join('\n')}
 

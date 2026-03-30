@@ -159,6 +159,36 @@ describe('N8nApiClient test workflow support', () => {
         expect(result.webhookUrl).toBe('https://n8n.local/webhook-test/wf');
     });
 
+    it('uses explicit query params when provided for GET webhooks', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        vi.spyOn(client, 'getWorkflow').mockResolvedValue(createMockWorkflow({
+            nodes: [
+                {
+                    id: 'node-1',
+                    name: 'Webhook',
+                    type: 'n8n-nodes-base.webhook',
+                    parameters: { path: 'wf', httpMethod: 'GET' },
+                },
+            ],
+        }));
+        mockAxiosCall.mockResolvedValue({
+            status: 200,
+            data: { ok: true },
+        });
+
+        await client.testWorkflow('wf-1', {
+            data: { ignored: 'body-for-get' },
+            query: { chatInput: 'hello' },
+        });
+
+        expect(mockAxiosCall).toHaveBeenCalledWith(expect.objectContaining({
+            method: 'GET',
+            url: 'https://n8n.local/webhook-test/wf',
+            data: undefined,
+            params: { chatInput: 'hello' },
+        }));
+    });
+
     it('classifies expression failures as wiring errors', async () => {
         const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
         vi.spyOn(client, 'getWorkflow').mockResolvedValue(createMockWorkflow({
@@ -325,5 +355,101 @@ describe('N8nApiClient test workflow support', () => {
 
         await expect(client.createCredential(payload)).resolves.toEqual({ id: 'cred-1', ...payload });
         expect(mockAxiosPost).toHaveBeenCalledWith('/api/v1/credentials', payload);
+    });
+
+    it('lists executions with query params and normalized IDs', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+
+        mockAxiosGet.mockResolvedValueOnce({
+            data: {
+                data: [
+                    {
+                        id: 42,
+                        finished: true,
+                        mode: 'webhook',
+                        retryOf: null,
+                        retrySuccessId: null,
+                        startedAt: '2026-03-30T10:00:00.000Z',
+                        stoppedAt: '2026-03-30T10:00:01.000Z',
+                        workflowId: 7,
+                        waitTill: null,
+                        status: 'error',
+                    },
+                ],
+                nextCursor: 'cursor-2',
+            },
+        });
+
+        await expect(client.listExecutions({
+            workflowId: '7',
+            status: 'error',
+            limit: 5,
+        })).resolves.toEqual({
+            data: [
+                {
+                    id: '42',
+                    finished: true,
+                    mode: 'webhook',
+                    retryOf: null,
+                    retrySuccessId: null,
+                    startedAt: '2026-03-30T10:00:00.000Z',
+                    stoppedAt: '2026-03-30T10:00:01.000Z',
+                    workflowId: '7',
+                    waitTill: null,
+                    customData: undefined,
+                    status: 'error',
+                },
+            ],
+            nextCursor: 'cursor-2',
+        });
+        expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/executions', {
+            params: {
+                workflowId: '7',
+                status: 'error',
+                limit: 5,
+            },
+        });
+    });
+
+    it('fetches a single execution with includeData=true', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+
+        mockAxiosGet.mockResolvedValueOnce({
+            data: {
+                id: 42,
+                finished: true,
+                mode: 'webhook',
+                startedAt: '2026-03-30T10:00:00.000Z',
+                stoppedAt: '2026-03-30T10:00:01.000Z',
+                workflowId: 7,
+                waitTill: null,
+                status: 'error',
+                data: { resultData: { error: { message: 'OpenAI quota exceeded' } } },
+                workflowData: { name: 'Agent Workflow' },
+                executedNode: 'OpenAI Chat Model',
+                triggerNode: 'Webhook',
+            },
+        });
+
+        await expect(client.getExecution('42', { includeData: true })).resolves.toEqual({
+            id: '42',
+            finished: true,
+            mode: 'webhook',
+            retryOf: null,
+            retrySuccessId: null,
+            startedAt: '2026-03-30T10:00:00.000Z',
+            stoppedAt: '2026-03-30T10:00:01.000Z',
+            workflowId: '7',
+            waitTill: null,
+            customData: undefined,
+            status: 'error',
+            data: { resultData: { error: { message: 'OpenAI quota exceeded' } } },
+            workflowData: { name: 'Agent Workflow' },
+            executedNode: 'OpenAI Chat Model',
+            triggerNode: 'Webhook',
+        });
+        expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/executions/42', {
+            params: { includeData: true },
+        });
     });
 });

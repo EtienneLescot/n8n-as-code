@@ -10,6 +10,7 @@ import { TestCommand } from './commands/test.js';
 import { TestPlanCommand } from './commands/test-plan.js';
 import { CredentialCommand } from './commands/credential.js';
 import { WorkflowCommand } from './commands/workflow.js';
+import { ExecutionCommand } from './commands/execution.js';
 import { registerSkillsCommands } from '@n8n-as-code/skills';
 import chalk from 'chalk';
 
@@ -218,7 +219,18 @@ program.command('test')
     )
     .argument('<workflowId>', 'Workflow ID to test')
     .option('--prod', 'Call the production webhook URL instead of the test URL')
-    .option('--data <json>', 'JSON body to send with the request (default: {})')
+    .option('--data <json>', 'JSON body to send with the request (for GET/HEAD webhooks this becomes query params unless --query is provided)')
+    .option('--query <json>', 'JSON query parameters to send with the request (useful for GET/HEAD webhooks)')
+    .addHelpText('after', `
+Examples:
+  $ n8nac test <workflowId>
+  $ n8nac test <workflowId> --data '{"chatInput":"hello"}'
+  $ n8nac test <workflowId> --prod --query '{"chatInput":"hello"}'
+
+Notes:
+  - For GET/HEAD webhooks, \`--data\` is sent as query parameters for backward compatibility.
+  - Prefer \`--query\` when the workflow reads from \`$json.query\` to make the intent explicit.
+`)
     .action(async (workflowId, options) => {
         process.exit(await new TestCommand().run(workflowId, options));
     });
@@ -309,6 +321,56 @@ workflowCmd
     .option('--json', 'Output as JSON array for agent/script consumption')
     .action(async (workflowId, options) => {
         await new WorkflowCommand().credentialRequired(workflowId, { json: options.json });
+    });
+
+// execution - Inspect workflow executions
+const executionCmd = program
+    .command('execution')
+    .description('Inspect workflow executions for debugging and post-run diagnosis');
+
+executionCmd
+    .command('list')
+    .description('List executions, optionally filtered by workflow or status')
+    .option('--workflow-id <id>', 'Workflow ID to filter executions by')
+    .option('--status <status>', 'Status filter: canceled|crashed|error|new|running|success|unknown|waiting')
+    .option('--project-id <id>', 'Project ID to filter executions by')
+    .option('--limit <number>', 'Limit the number of returned executions', (value) => parsePositiveIntegerOption(value, '--limit'))
+    .option('--cursor <cursor>', 'Pagination cursor from a previous execution list call')
+    .option('--include-data', 'Include execution data in list results (large output, usually use execution get instead)')
+    .option('--json', 'Output JSON for agents and scripts')
+    .addHelpText('after', `
+Examples:
+  $ n8nac execution list --workflow-id <workflowId> --limit 5
+  $ n8nac execution list --workflow-id <workflowId> --status error --json
+`)
+    .action(async (options) => {
+        await new ExecutionCommand().list({
+            workflowId: options.workflowId,
+            status: options.status,
+            projectId: options.projectId,
+            limit: options.limit,
+            cursor: options.cursor,
+            includeData: options.includeData,
+            json: options.json,
+        });
+    });
+
+executionCmd
+    .command('get')
+    .argument('<id>', 'Execution ID')
+    .description('Get a single execution by ID')
+    .option('--include-data', 'Include execution run data and workflow details')
+    .option('--json', 'Output JSON (default behavior; accepted for script compatibility)')
+    .addHelpText('after', `
+Examples:
+  $ n8nac execution get <executionId>
+  $ n8nac execution get <executionId> --include-data --json
+`)
+    .action(async (id, options) => {
+        await new ExecutionCommand().get(id, {
+            includeData: options.includeData,
+            json: options.json,
+        });
     });
 
 // credential - Manage n8n credentials
