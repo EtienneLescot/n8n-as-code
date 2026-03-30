@@ -318,6 +318,48 @@ If you're unsure about any node:
    npx --yes n8nac skills node-info "nodeName"
    ```
 
+## 🔑 Credential Management
+
+When a workflow is blocked because a credential is missing, resolve it without opening the n8n UI:
+
+**Full autonomous loop:**
+
+1. **Detect missing credentials for a workflow (exit 1 = act, exit 0 = all present):**
+   ```bash
+   npx --yes n8nac workflow credential-required <workflowId> --json
+   ```
+   Output: `[{ nodeName, credentialType, credentialName, exists }]`  
+   Run this immediately after pushing. Exit code 1 means at least one credential is missing.
+
+2. **Discover required fields for a credential type:**
+   ```bash
+   npx --yes n8nac credential schema <type>
+   ```
+   Example: `npx --yes n8nac credential schema notionApi`  
+   Use the output to build the credential data file. Ask the user for secret values — never guess.
+
+3. **Create the credential from a file (preferred — keeps secrets out of shell history):**
+   ```bash
+   npx --yes n8nac credential create --type <type> --name "My Credential" --file cred.json
+   ```
+
+4. **Activate the workflow after credentials are provisioned:**
+   ```bash
+   npx --yes n8nac workflow activate <workflowId>
+   ```
+
+5. **Run the test:**
+   ```bash
+   npx --yes n8nac test <workflowId>
+   ```
+   A Class A error that was blocking the test should now be resolved.
+
+**Other credential commands:**
+   ```bash
+   npx --yes n8nac credential list                      # List all existing credentials
+   npx --yes n8nac workflow deactivate <workflowId>     # Deactivate a workflow
+   ```
+
 ## 📝 Response Format
 
 When helping users:

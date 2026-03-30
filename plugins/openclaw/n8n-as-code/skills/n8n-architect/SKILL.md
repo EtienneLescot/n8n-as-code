@@ -20,6 +20,7 @@ Use this skill only for explicit n8n workflow work.
 - Use `action: "skills"` whenever you need node search or schema details.
 - Never guess node parameters. The schema lookup is the source of truth.
 - Treat `AGENTS.md` as the authoritative workflow-engineering protocol once this skill is active.
+- When a workflow fails due to missing credentials (Class A), run `action: "workflow_credential_required"` first to identify all missing credentials, then `action: "credential_schema"` to discover required fields (ask the user for secret values — never guess), then `action: "credential_create"` to provision the credential programmatically, then `action: "workflow_activate"` to activate the workflow before re-running the test.
 
 ## Reading workflow files efficiently
 
