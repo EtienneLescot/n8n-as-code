@@ -8,6 +8,8 @@ description: Learn how to use the n8nac CLI for automation, scripting, and CI/CD
 
 The n8nac CLI (`n8nac`) provides command-line access to all n8nac functionality. It's perfect for automation, scripting, and CI/CD integration.
 
+This page is intentionally command-heavy and serves as the detailed reference for terminal users, scripts, and other power-user workflows.
+
 ## 📦 Installation
 
 ### Global Installation
@@ -61,6 +63,22 @@ This command:
 Pass the local workflow path you want to upload, for example `workflows/instance/project/workflow.workflow.ts`.
 Use the path that matches your active sync folder and project layout in the workspace.
 :::
+
+### Complete the Runtime Loop Without Leaving the CLI
+
+The CLI now covers the most painful post-push steps that used to force users back into the n8n UI:
+
+1. Detect missing credentials with `workflow credential-required`
+2. Inspect the expected credential payload with `credential schema`
+3. Create the credential with `credential create`
+4. Activate the workflow with `workflow activate`
+5. Inspect how to run it with `test-plan`
+6. Execute it with `test`
+7. Debug the actual server-side execution with `execution list` and `execution get`
+
+This is a major quality-of-life improvement for agent-driven development: the agent can now provision credentials, run the workflow, and inspect the failing execution directly through n8n's API.
+
+The exact commands for each step are documented below in the command reference, so high-level readers can understand the workflow without having to parse a wall of terminal examples first.
 
 ## 📋 Command Reference
 
@@ -222,6 +240,99 @@ n8nac update-ai
 **Creates / updates:**
 - `AGENTS.md`: Instructions for AI assistants on n8n workflow development
 - `.vscode/n8n.code-snippets`: Code completion snippets for VS Code
+
+### `workflow`
+Workflow lifecycle and credential inspection helpers.
+
+#### `workflow credential-required`
+List the credentials referenced by a workflow and whether matching credentials already exist.
+
+```bash
+n8nac workflow credential-required <workflowId> --json
+```
+
+This is the entry point for provisioning after a push. Exit code `1` means at least one credential is missing. Exit code `0` means everything referenced by the workflow is already present.
+
+#### `workflow activate`
+Activate a workflow once credentials are provisioned.
+
+```bash
+n8nac workflow activate <workflowId>
+```
+
+### `credential`
+Inspect and create credentials from the CLI.
+
+#### `credential schema`
+Return the JSON schema for a credential type.
+
+```bash
+n8nac credential schema openAiApi
+```
+
+Use this before creating any credential type you have not seen before.
+
+#### `credential create`
+Create a credential from a JSON file.
+
+```bash
+n8nac credential create --type openAiApi --name "My OpenAI" --file cred.json --json
+```
+
+Prefer `--file` over `--data` so secrets do not end up in shell history.
+
+#### `credential list`
+List existing credentials without exposing secret values.
+
+```bash
+n8nac credential list --json
+```
+
+### `test-plan`
+Inspect how a workflow can be executed over HTTP.
+
+```bash
+n8nac test-plan <workflowId> --json
+```
+
+This returns:
+- the detected trigger type
+- the test and production URLs
+- an inferred payload
+- request hints for GET/HEAD webhooks
+
+### `test`
+Execute a webhook/chat/form workflow over HTTP.
+
+```bash
+n8nac test <workflowId> --data '{"foo":"bar"}'
+n8nac test <workflowId> --query '{"chatInput":"hello"}'
+n8nac test <workflowId> --prod --query '{"chatInput":"hello"}'
+```
+
+Notes:
+- For `GET` and `HEAD` webhooks, prefer `--query <json>`.
+- `--data` still maps to query parameters for `GET` and `HEAD` requests for backward compatibility.
+- `test` distinguishes setup/config gaps from fixable wiring errors.
+
+### `execution`
+Inspect workflow executions directly from the n8n server.
+
+#### `execution list`
+List recent executions, optionally filtered by workflow.
+
+```bash
+n8nac execution list --workflow-id <workflowId> --limit 5 --json
+```
+
+#### `execution get`
+Fetch one execution, optionally including the run data.
+
+```bash
+n8nac execution get <executionId> --include-data --json
+```
+
+Use this immediately after a 2xx webhook call if the workflow still seems broken. A successful HTTP response only means n8n accepted the trigger; the execution may still fail later inside the workflow.
 
 ### `convert`
 Convert a single workflow file between JSON and TypeScript formats.

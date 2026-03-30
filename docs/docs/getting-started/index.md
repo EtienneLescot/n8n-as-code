@@ -80,6 +80,23 @@ n8nac pull <workflowId>
 n8nac push workflows/instance/project/my-workflow.workflow.ts
 ```
 
+### 4. Let the agent carry the workflow to a real execution
+
+Once a workflow is in n8n, `n8n-as-code` now supports the full runtime loop instead of stopping at “push succeeded”.
+
+In practice, that means an agent can now:
+
+- detect which credentials are still missing
+- provision credentials after asking you only for the required secret values
+- activate the workflow when it is ready
+- inspect how the workflow should be tested
+- execute webhook, chat, and form workflows on your behalf
+- inspect the resulting execution directly from n8n when the run fails on the server
+
+This is especially important for AI-assisted workflow development: the agent is no longer limited to editing workflow files. It can now help you reach a successful execution and debug real runtime failures using execution data returned by n8n.
+
+If you want the exact commands for this loop, see the [CLI guide](/docs/usage/cli).
+
 ## Option C: AI Agent (Claude / OpenClaw)
 
 Let an AI agent set up the workspace and manage workflows for you.
@@ -141,6 +158,7 @@ n8n-as-code uses an **explicit, git-like sync model**. Nothing syncs automatical
 | `n8nac pull <id>` | Download a workflow from n8n |
 | `n8nac push <path>` | Upload a local workflow to n8n |
 | `n8nac resolve <id>` | Resolve a conflict (keep local or remote) |
+| Runtime provisioning & testing | Let the agent provision credentials, activate, test, and debug a workflow end-to-end |
 
 If both sides changed since the last sync, `pull` or `push` will report a conflict. Use `resolve` to choose which version wins.
 
