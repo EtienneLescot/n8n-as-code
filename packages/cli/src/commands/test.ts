@@ -4,6 +4,15 @@ import chalk from 'chalk';
 import ora from 'ora';
 
 export class TestCommand extends BaseCommand {
+    private parseJsonOption(label: '--data' | '--query', raw?: string): unknown {
+        if (!raw) return undefined;
+        try {
+            return JSON.parse(raw);
+        } catch {
+            console.error(chalk.red(`❌ ${label} must be valid JSON. Got: ${raw}`));
+            return Symbol.for('n8nac.invalid-json');
+        }
+    }
 
     /**
      * `n8nac test <workflowId>`
@@ -20,17 +29,12 @@ export class TestCommand extends BaseCommand {
      *   1 — Class B error (wiring error — agent should fix and re-test)
      *   1 — fatal infrastructure error (workflow not found, no trigger, etc.)
      */
-    async run(workflowId: string, options: { data?: string; prod?: boolean }): Promise<number> {
-        // Parse --data JSON if provided
-        let parsedData: unknown = {};
-        if (options.data) {
-            try {
-                parsedData = JSON.parse(options.data);
-            } catch {
-                console.error(chalk.red(`❌ --data must be valid JSON. Got: ${options.data}`));
-                return 1;
-            }
-        }
+    async run(workflowId: string, options: { data?: string; query?: string; prod?: boolean }): Promise<number> {
+        const parsedData = this.parseJsonOption('--data', options.data);
+        if (parsedData === Symbol.for('n8nac.invalid-json')) return 1;
+
+        const parsedQuery = this.parseJsonOption('--query', options.query);
+        if (parsedQuery === Symbol.for('n8nac.invalid-json')) return 1;
 
         const mode = options.prod ? 'production' : 'test';
         const spinner = ora(`Testing workflow ${workflowId} (${mode} mode)...`).start();
@@ -38,7 +42,8 @@ export class TestCommand extends BaseCommand {
         let result: ITestResult;
         try {
             result = await this.client.testWorkflow(workflowId, {
-                data: parsedData,
+                data: parsedData ?? {},
+                query: parsedQuery,
                 prod: options.prod ?? false,
             });
         } catch (err: any) {
@@ -76,6 +81,14 @@ export class TestCommand extends BaseCommand {
                         ? JSON.stringify(result.responseData, null, 2)
                         : String(result.responseData);
                 console.log(chalk.white(formatted));
+            }
+            console.log('');
+            console.log(chalk.dim(`To inspect the resulting server-side execution:`));
+            console.log(chalk.dim(`  • n8nac execution list --workflow-id ${workflowId} --limit 5 --json`));
+            console.log(chalk.dim(`  • n8nac execution get <executionId> --include-data --json`));
+            if (options.prod) {
+                console.log(chalk.dim(`  • A 2xx production webhook response only confirms that n8n accepted the trigger.`));
+                console.log(chalk.dim(`    The execution itself may still fail later on the server.`));
             }
             return 0;
         }

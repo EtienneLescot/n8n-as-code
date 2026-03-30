@@ -60,6 +60,11 @@ describe('TestCommand.run()', () => {
         expect(code).toBe(1);
     });
 
+    it('returns exit code 1 for invalid --query JSON', async () => {
+        const code = await cmd.run('wf-1', { query: 'not-json' });
+        expect(code).toBe(1);
+    });
+
     it('returns exit code 0 on success (2xx)', async () => {
         vi.spyOn(cmd['client'], 'testWorkflow').mockResolvedValue(
             makeResult({
@@ -136,6 +141,20 @@ describe('TestCommand.run()', () => {
 
         await cmd.run('wf-1', { data: '{"key":"value"}', prod: true });
 
-        expect(spy).toHaveBeenCalledWith('wf-1', { data: { key: 'value' }, prod: true });
+        expect(spy).toHaveBeenCalledWith('wf-1', { data: { key: 'value' }, query: undefined, prod: true });
+    });
+
+    it('passes explicit --query JSON to testWorkflow', async () => {
+        const spy = vi.spyOn(cmd['client'], 'testWorkflow').mockResolvedValue(
+            makeResult({ success: true, errorClass: null })
+        );
+
+        await cmd.run('wf-1', { query: '{"chatInput":"hello"}' });
+
+        expect(spy).toHaveBeenCalledWith('wf-1', {
+            data: {},
+            query: { chatInput: 'hello' },
+            prod: false,
+        });
     });
 });

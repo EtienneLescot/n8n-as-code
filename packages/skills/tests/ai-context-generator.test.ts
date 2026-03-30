@@ -172,6 +172,9 @@ describe('AiContextGenerator', () => {
             expect(content).toContain('npx --yes n8nac workflow credential-required <workflowId> --json');
             expect(content).toContain('credential create --type <type> --name "<name>" --file cred.json --json');
             expect(content).toContain('Do not invent unsupported `n8nac` tool actions or CLI flags; use `--help` if you are unsure.');
+            expect(content).toContain('npx --yes n8nac execution list --workflow-id <workflowId> --limit 5 --json');
+            expect(content).toContain('npx --yes n8nac execution get <executionId> --include-data --json');
+            expect(content).toContain('n8nac test --query <json>');
             expect(content).toContain('### AI tool nodes');
         });
     });

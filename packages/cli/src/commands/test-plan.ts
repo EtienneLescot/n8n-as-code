@@ -68,6 +68,14 @@ export class TestPlanCommand extends BaseCommand {
             console.log(chalk.white(JSON.stringify(plan.payload.inferred, null, 2)));
             console.log(chalk.dim(`Confidence: ${plan.payload.confidence}`));
 
+            const httpMethod = (trigger.httpMethod ?? 'POST').toUpperCase();
+            if (httpMethod === 'GET' || httpMethod === 'HEAD') {
+                console.log(chalk.dim('\nRequest hint:'));
+                console.log(chalk.dim(`- This trigger uses ${httpMethod}.`));
+                console.log(chalk.dim(`- Run \`n8nac test ${workflowId} --query '<json>'\` for explicit query params.`));
+                console.log(chalk.dim(`- \`--data\` also maps to query params for ${httpMethod} requests.`));
+            }
+
             if (plan.payload.fields.length > 0) {
                 console.log(chalk.dim('\nObserved fields:'));
                 for (const field of plan.payload.fields) {

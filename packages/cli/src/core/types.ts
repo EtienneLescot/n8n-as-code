@@ -141,3 +141,41 @@ export interface ITestPlan {
     };
     payload: IInferredPayload | null;
 }
+
+// ── Executions ────────────────────────────────────────────────────────────────
+
+export type ExecutionStatus =
+    | 'canceled'
+    | 'crashed'
+    | 'error'
+    | 'new'
+    | 'running'
+    | 'success'
+    | 'unknown'
+    | 'waiting';
+
+export interface IExecutionSummary {
+    id: string;
+    finished: boolean;
+    mode: string;
+    retryOf?: string | null;
+    retrySuccessId?: string | null;
+    startedAt: string;
+    stoppedAt?: string | null;
+    workflowId: string;
+    waitTill?: string | null;
+    customData?: Record<string, unknown>;
+    status: ExecutionStatus;
+}
+
+export interface IExecutionList {
+    data: IExecutionSummary[];
+    nextCursor: string | null;
+}
+
+export interface IExecutionDetails extends IExecutionSummary {
+    data?: Record<string, unknown>;
+    workflowData?: Record<string, unknown>;
+    executedNode?: string;
+    triggerNode?: string;
+}

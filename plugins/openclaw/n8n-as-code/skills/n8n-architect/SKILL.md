@@ -21,6 +21,8 @@ Use this skill only for explicit n8n workflow work.
 - Never guess node parameters. The schema lookup is the source of truth.
 - Treat `AGENTS.md` as the authoritative workflow-engineering protocol once this skill is active.
 - When a workflow fails due to missing credentials (Class A), identify the missing credentials clearly and use the documented `n8nac` CLI commands from `AGENTS.md` (for example `npx --yes n8nac workflow credential-required <workflowId> --json`, `npx --yes n8nac credential schema <type>`, `npx --yes n8nac credential create --type <type> --name "<name>" --file cred.json --json`, and `npx --yes n8nac workflow activate <workflowId>`). Do not invent unsupported `n8nac` tool actions or CLI flags; use `--help` if you are unsure.
+- When a webhook call succeeds but the workflow still seems broken, inspect the resulting execution with the documented CLI commands from `AGENTS.md` (for example `npx --yes n8nac execution list --workflow-id <workflowId> --limit 5 --json` then `npx --yes n8nac execution get <executionId> --include-data --json`).
+- For GET/HEAD webhooks, prefer `n8nac test --query <json>` when the workflow reads from `$json.query`. Do not invent flags like `--query` unless they are documented in the current `--help`.
 
 ## Reading workflow files efficiently
 
