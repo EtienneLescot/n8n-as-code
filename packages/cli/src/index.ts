@@ -8,6 +8,8 @@ import { SwitchCommand } from './commands/switch.js';
 import { ConvertCommand } from './commands/convert.js';
 import { TestCommand } from './commands/test.js';
 import { TestPlanCommand } from './commands/test-plan.js';
+import { CredentialCommand } from './commands/credential.js';
+import { WorkflowCommand } from './commands/workflow.js';
 import { registerSkillsCommands } from '@n8n-as-code/skills';
 import chalk from 'chalk';
 
@@ -272,6 +274,93 @@ program.command('convert-batch')
             process.exit(1);
         }
         await new ConvertCommand().batch(directory, options);
+    });
+
+// workflow - Lifecycle management (activate / deactivate / credential-required)
+const workflowCmd = program
+    .command('workflow')
+    .description('Workflow lifecycle management (activate, deactivate, inspect credentials)');
+
+workflowCmd
+    .command('activate')
+    .argument('<workflowId>', 'Workflow ID to activate')
+    .description('Activate (publish) a workflow so it can be triggered')
+    .action(async (workflowId) => {
+        await new WorkflowCommand().activate(workflowId);
+    });
+
+workflowCmd
+    .command('deactivate')
+    .argument('<workflowId>', 'Workflow ID to deactivate')
+    .description('Deactivate a workflow (stops triggers from firing)')
+    .action(async (workflowId) => {
+        await new WorkflowCommand().deactivate(workflowId);
+    });
+
+workflowCmd
+    .command('credential-required')
+    .argument('<workflowId>', 'Workflow ID to inspect')
+    .description(
+        'List credentials required by a workflow and whether they already exist.\n' +
+        'Exits 0 if all present, exits 1 if any are missing (agent-friendly).'
+    )
+    .option('--json', 'Output as JSON array for agent/script consumption')
+    .action(async (workflowId, options) => {
+        await new WorkflowCommand().credentialRequired(workflowId, { json: options.json });
+    });
+
+// credential - Manage n8n credentials
+const credentialCmd = program
+    .command('credential')
+    .description('Manage n8n credentials (schema introspection, create, list, delete)');
+
+credentialCmd
+    .command('schema')
+    .argument('<type>', 'Credential type name (e.g. notionApi, slackOAuth2Api, googleApi)')
+    .description('Show the JSON schema for a credential type — lists required fields and their types')
+    .action(async (typeName) => {
+        await new CredentialCommand().schema(typeName);
+    });
+
+credentialCmd
+    .command('list')
+    .description('List all credentials (metadata only, no secrets)')
+    .action(async () => {
+        await new CredentialCommand().list();
+    });
+
+credentialCmd
+    .command('get')
+    .argument('<id>', 'Credential ID')
+    .description('Get credential metadata by ID (no secrets returned)')
+    .action(async (id) => {
+        await new CredentialCommand().get(id);
+    });
+
+credentialCmd
+    .command('create')
+    .description('Create a new credential')
+    .requiredOption('--type <type>', 'Credential type name (e.g. notionApi)')
+    .requiredOption('--name <name>', 'Display name for the credential')
+    .option('--data <json>', 'Credential data as inline JSON string (avoid for secrets — use --file instead)')
+    .option('--file <path>', 'Path to JSON file with credential data (preferred over --data)')
+    .option('--project-id <id>', 'Project to assign the credential to')
+    .action(async (options) => {
+        await new CredentialCommand().create({
+            type: options.type,
+            name: options.name,
+            data: options.data,
+            file: options.file,
+            projectId: options.projectId,
+        });
+    });
+
+credentialCmd
+    .command('delete')
+    .argument('<id>', 'Credential ID')
+    .description('Permanently delete a credential')
+    .action(async (id) => {
+        await new CredentialCommand().delete(id);
     });
 
 // skills - AI knowledge tools subcommand group

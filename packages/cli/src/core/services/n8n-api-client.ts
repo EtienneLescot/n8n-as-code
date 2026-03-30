@@ -574,7 +574,52 @@ export class N8nApiClient {
 
     async activateWorkflow(id: string, active: boolean): Promise<boolean> {
         try {
-            await this.client.post(`/api/v1/workflows/${id}/activate`, { active });
+            const endpoint = active ? 'activate' : 'deactivate';
+            await this.client.post(`/api/v1/workflows/${id}/${endpoint}`);
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    // ─── Credentials ────────────────────────────────────────────────────────────
+
+    async getCredentialSchema(typeName: string): Promise<Record<string, unknown>> {
+        const res = await this.client.get(`/api/v1/credentials/schema/${typeName}`);
+        return res.data;
+    }
+
+    async listCredentials(): Promise<Array<Record<string, unknown>>> {
+        const results: Array<Record<string, unknown>> = [];
+        let cursor: string | undefined;
+        do {
+            const params: Record<string, string> = cursor ? { cursor } : {};
+            const res = await this.client.get('/api/v1/credentials', { params });
+            const page = res.data;
+            results.push(...(page.data ?? []));
+            cursor = page.nextCursor;
+        } while (cursor);
+        return results;
+    }
+
+    async getCredential(id: string): Promise<Record<string, unknown>> {
+        const res = await this.client.get(`/api/v1/credentials/${id}`);
+        return res.data;
+    }
+
+    async createCredential(payload: {
+        type: string;
+        name: string;
+        data: Record<string, unknown>;
+        projectId?: string;
+    }): Promise<Record<string, unknown>> {
+        const res = await this.client.post('/api/v1/credentials', payload);
+        return res.data;
+    }
+
+    async deleteCredential(id: string): Promise<boolean> {
+        try {
+            await this.client.delete(`/api/v1/credentials/${id}`);
             return true;
         } catch (error) {
             return false;

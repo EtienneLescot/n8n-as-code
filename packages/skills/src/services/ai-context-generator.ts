@@ -613,6 +613,17 @@ export class AiContextGenerator {
       `\`\`\``,
       `Closes the dev cycle for webhook/chat/form workflows. Exits 0 on success or Class A (config gap — inform user). Exits 1 on Class B (wiring error — fix and re-test). Prefer \`${cliCmd} test-plan\` first when the payload is unclear.`,
       ``,
+      `### 🔑 Credential Management (resolve Class A gaps without opening the n8n UI)`,
+      `\`\`\`bash`,
+      `${cliCmd} workflow credential-required <id> --json            # List missing credentials (exit 1 if any missing)`,
+      `${cliCmd} credential schema <type>                            # Discover required fields for a type`,
+      `${cliCmd} credential list                                     # List existing credentials`,
+      `${cliCmd} credential create --type <type> --name <name> --file cred.json  # Create from file`,
+      `${cliCmd} credential delete <id>                              # Delete a credential`,
+      `${cliCmd} workflow activate <id>                              # Activate workflow after credentials provisioned`,
+      `\`\`\``,
+      `**Full autonomous loop:** push workflow → \`workflow credential-required <id> --json\` (exit 1 = missing, act) → \`credential schema <type>\` → ask user for secret values → \`credential create --file\` → \`workflow activate <id>\` → \`test <id>\`. Workflow blocked by a Class A error? Use \`credential schema <type>\` to discover required fields, write them to a JSON file, then run \`credential create\` to provision the credential programmatically. **Never pass secrets inline via --data** — use --file instead (keeps secrets out of shell history).`,
+      ``,
       `---`,
       ``,
       `> **When in doubt**: \`${cmd} node-info <nodeName>\` — the schema is always the source of truth.`
@@ -804,6 +815,48 @@ If you're unsure about any node:
    npx --yes n8nac skills node-info "nodeName"
    \`\`\`
 
+## 🔑 Credential Management
+
+When a workflow is blocked because a credential is missing, resolve it without opening the n8n UI:
+
+**Full autonomous loop:**
+
+1. **Detect missing credentials for a workflow (exit 1 = act, exit 0 = all present):**
+   \`\`\`bash
+   npx --yes n8nac workflow credential-required <workflowId> --json
+   \`\`\`
+   Output: `[{ nodeName, credentialType, credentialName, exists }]`  
+   Run this immediately after pushing. Exit code 1 means at least one credential is missing.
+
+2. **Discover required fields for a credential type:**
+   \`\`\`bash
+   npx --yes n8nac credential schema <type>
+   \`\`\`
+   Example: \`npx --yes n8nac credential schema notionApi\`  
+   Use the output to build the credential data file. Ask the user for secret values — never guess.
+
+3. **Create the credential from a file (preferred — keeps secrets out of shell history):**
+   \`\`\`bash
+   npx --yes n8nac credential create --type <type> --name "My Credential" --file cred.json
+   \`\`\`
+
+4. **Activate the workflow after credentials are provisioned:**
+   \`\`\`bash
+   npx --yes n8nac workflow activate <workflowId>
+   \`\`\`
+
+5. **Run the test:**
+   \`\`\`bash
+   npx --yes n8nac test <workflowId>
+   \`\`\`
+   A Class A error that was blocking the test should now be resolved.
+
+**Other credential commands:**
+   \`\`\`bash
+   npx --yes n8nac credential list                      # List all existing credentials
+   npx --yes n8nac workflow deactivate <workflowId>     # Deactivate a workflow
+   \`\`\`
+
 ${this.getSharedResponseFormatLines(cliCmd).join('\n')}
 `;
   }
@@ -845,6 +898,7 @@ Use this skill only for explicit n8n workflow work.
 - Use \`action: "skills"\` whenever you need node search or schema details.
 - Never guess node parameters. The schema lookup is the source of truth.
 - Treat \`AGENTS.md\` as the authoritative workflow-engineering protocol once this skill is active.
+- When a workflow fails due to missing credentials (Class A), run \`action: "workflow_credential_required"\` first to identify all missing credentials, then \`action: "credential_schema"\` to discover required fields (ask the user for secret values — never guess), then \`action: "credential_create"\` to provision the credential programmatically, then \`action: "workflow_activate"\` to activate the workflow before re-running the test.
 
 ${workflowMapLines.join('\n')}
 
