@@ -4,14 +4,27 @@ import chalk from 'chalk';
 import ora from 'ora';
 
 export class TestCommand extends BaseCommand {
-    private parseJsonOption(label: '--data' | '--query', raw?: string): unknown {
+    private isObject(value: unknown): value is Record<string, unknown> {
+        return typeof value === 'object' && value !== null && !Array.isArray(value);
+    }
+
+    private parseJsonOption(label: '--data' | '--query', raw?: string): Record<string, unknown> | symbol | undefined {
         if (!raw) return undefined;
+
+        let parsed: unknown;
         try {
-            return JSON.parse(raw);
+            parsed = JSON.parse(raw);
         } catch {
             console.error(chalk.red(`❌ ${label} must be valid JSON. Got: ${raw}`));
             return Symbol.for('n8nac.invalid-json');
         }
+
+        if (!this.isObject(parsed)) {
+            console.error(chalk.red(`❌ ${label} must be a JSON object.`));
+            return Symbol.for('n8nac.invalid-json');
+        }
+
+        return parsed;
     }
 
     /**
