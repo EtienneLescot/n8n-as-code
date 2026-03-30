@@ -39,9 +39,13 @@ Same AI-powered workflow experience inside OpenClaw. Install the plugin, run the
 
 The command-line interface for terminal users, scripts, and CI/CD pipelines. All sync operations available as explicit commands.
 
-- `n8nac init` / `list` / `pull` / `push` / `resolve`
+- explicit Git-like sync between local files and n8n
+- runtime provisioning for missing credentials
+- workflow activation and HTTP test planning
+- webhook, chat, and form execution from the CLI
+- direct execution inspection for post-run debugging
 - Workflow format conversion (JSON ↔ TypeScript)
-- AI context generation (`update-ai`)
+- AI context generation for local agents
 
 [**CLI Guide →**](/docs/usage/cli)
 
@@ -51,13 +55,12 @@ An optional decorator-based format that makes workflows more readable and AI-fri
 
 [**TypeScript Workflows Guide →**](/docs/usage/typescript-workflows)
 
-## Common Commands Reference
+## Typical Tasks
 
-| Action | VS Code | CLI |
-|---|---|---|
-| See workflow status | Tree view (auto) | `n8nac list` |
-| Pull a workflow | Right-click → Pull | `n8nac pull <id>` |
-| Push changes | Right-click → Push | `n8nac push <path>` |
-| Resolve conflict | Expand workflow → action buttons | `n8nac resolve <id> --mode keep-current\|keep-incoming` |
-| Generate AI context | Automatic on init | `n8nac update-ai` |
-| Search workflows | Find Workflow (title bar) | `n8nac find <query>` |
+| Need | Best entry point |
+|---|---|
+| Browse, pull, push, and resolve workflow changes visually | [VS Code Extension](/docs/usage/vscode-extension) |
+| Ask an agent to build or fix workflows in natural language | [Claude Plugin](/docs/usage/claude-plugin) or [OpenClaw Plugin](/docs/usage/openclaw) |
+| Let an agent provision credentials, activate a workflow, run it, and inspect failures | [OpenClaw Plugin](/docs/usage/openclaw), [Claude Plugin](/docs/usage/claude-plugin), and the generated `AGENTS.md` |
+| Script sync, testing, or CI/CD flows directly | [CLI Guide](/docs/usage/cli) |
+| Work in a more AI-friendly source format | [TypeScript Workflows](/docs/usage/typescript-workflows) |
