@@ -1,5 +1,16 @@
 # @n8n-as-code/cli
 
+## [1.3.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.3.0...n8nac@v1.3.1) (2026-03-30)
+
+### Bug Fixes
+
+* make agent workflow testing and sync state resilient ([5850d07](https://github.com/EtienneLescot/n8n-as-code/commit/5850d07d8136ffb24c5106c7391b2d49d4dd2e5d))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.3.0 to 1.3.1
+
 ## [1.3.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.2.0...n8nac@v1.3.0) (2026-03-30)
 
 ### Features

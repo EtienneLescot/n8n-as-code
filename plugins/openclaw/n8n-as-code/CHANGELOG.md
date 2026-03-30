@@ -1,5 +1,11 @@
 # @n8n-as-code/n8nac
 
+## [2026.4.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2026.4.0...@n8n-as-code/n8nac@v2026.4.1) (2026-03-30)
+
+### Bug Fixes
+
+* make agent workflow testing and sync state resilient ([5850d07](https://github.com/EtienneLescot/n8n-as-code/commit/5850d07d8136ffb24c5106c7391b2d49d4dd2e5d))
+
 ## [2026.4.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2026.3.1...@n8n-as-code/n8nac@v2026.4.0) (2026-03-17)
 
 ### Features
