@@ -139,11 +139,18 @@ export class SwitchCommand {
             }
         ]);
 
-        const selectedInstance = this.configService.selectInstanceConfig(selectedInstanceId);
+        const selection = await this.configService.selectInstanceConfigWithVerification(selectedInstanceId);
+        const selectedInstance = selection.profile;
 
+        if (selection.status === 'duplicate') {
+            console.log(chalk.yellow(`\n⚠ This config resolves to the already saved instance "${selection.duplicateInstance.name}".`));
+        }
         console.log(chalk.green(`\n✔ Selected instance: ${chalk.bold(selectedInstance.name)}`));
         if (selectedInstance.projectName) {
             console.log(chalk.cyan(`📊 Project: ${chalk.bold(selectedInstance.projectName)}`));
+        }
+        if (selection.status === 'selected' && selection.verificationStatus === 'failed') {
+            console.log(chalk.yellow('⚠ The instance was selected but could not be verified right now.'));
         }
         console.log(chalk.gray(`\nRun ${chalk.bold('n8nac list')} or ${chalk.bold('n8nac pull')} to work against this instance.\n`));
     }
@@ -222,7 +229,12 @@ export class SwitchCommand {
             const marker = instance.id === activeInstanceId ? chalk.green('●') : chalk.gray('○');
             const host = instance.host || 'host not set';
             const project = instance.projectName ? `  project: ${instance.projectName}` : '';
-            console.log(`${marker} ${chalk.bold(instance.name)}  ${chalk.gray(host)}${project}`);
+            const verification = instance.verification?.status === 'verified'
+                ? chalk.green(' verified')
+                : instance.verification?.status === 'failed'
+                    ? chalk.yellow(' unreachable')
+                    : chalk.gray(' unverified');
+            console.log(`${marker} ${chalk.bold(instance.name)}  ${chalk.gray(host)}${verification}${project}`);
         }
         console.log('');
     }

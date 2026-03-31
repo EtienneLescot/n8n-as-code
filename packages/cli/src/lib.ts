@@ -8,5 +8,11 @@ export {
     ConfigService,
     type ILocalConfig,
     type IInstanceProfile,
+    type IInstanceVerification,
+    type IInstanceVerificationStatus,
+    type IInstanceVerificationClient,
+    type IUpsertInstanceConfigInput,
+    type IUpsertInstanceConfigResult,
+    type ISelectInstanceResult,
     type IWorkspaceConfig,
 } from './services/config-service.js';
