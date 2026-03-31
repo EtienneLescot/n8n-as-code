@@ -89,7 +89,8 @@ export class BaseCommand {
             instanceIdentifier: instanceIdentifier,
             instanceConfigPath: this.configService.getInstanceConfigPath(),
             projectId: localConfig.projectId,
-            projectName: localConfig.projectName
+            projectName: localConfig.projectName,
+            folderSync: localConfig.folderSync ?? false,
         };
     }
 
