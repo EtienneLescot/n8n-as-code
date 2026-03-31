@@ -23,7 +23,7 @@ Restart the gateway, then run the setup wizard:
 openclaw n8nac:setup
 ```
 
-The wizard asks for your n8n host URL and API key once, saves them via
+The wizard asks for your n8n host URL and API key once, saves an instance config via
 `n8nac init-auth`, selects your project, and generates an AI context file
 (`AGENTS.md`) in the workspace (`~/.openclaw/n8nac/`).
 
@@ -63,7 +63,7 @@ All files live in `~/.openclaw/n8nac/`:
 
 ```
 ~/.openclaw/n8nac/
-  n8nac-config.json     ← instance library + active binding
+  n8nac-config.json     ← saved instance configs + active selection
   AGENTS.md             ← AI context (written by n8nac update-ai)
   workflows/            ← .workflow.ts files (your n8n workflows)
 ```
@@ -119,7 +119,7 @@ openclaw n8nac:setup
 ```
 
 Enter your n8n host and API key when prompted. The wizard writes
-`~/.openclaw/n8nac/n8nac-config.json` with the configured instance library and active profile, then generates `AGENTS.md`.
+`~/.openclaw/n8nac/n8nac-config.json` with the saved instance configs and active selection, then generates `AGENTS.md`.
 
 ### 4. Iterate on the code
 
@@ -141,7 +141,7 @@ The plugin prefixes all `api.logger` calls with `[n8nac]`.
 
 ```
 ~/.openclaw/n8nac/
-  n8nac-config.json   ← instance library + active binding
+  n8nac-config.json   ← saved instance configs + active selection
   AGENTS.md           ← written by update-ai
   workflows/          ← .workflow.ts files
 ```

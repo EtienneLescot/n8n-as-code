@@ -14,7 +14,7 @@ Published for both the Microsoft Marketplace and Open VSX.
 
 1. Install `n8n-as-code` from the Microsoft Marketplace or Open VSX.
 2. Open a folder or `.code-workspace` before initialization.
-3. Open the `n8n` view, configure your `Host` and `API Key`, then select the target project.
+3. Open the `n8n` view, run `n8n: Configure`, enter the URL and API key of the existing n8n instance you want to use, load the target project, then save and activate the config.
 4. Refresh the explorer to list your workflows and start syncing.
 
 Marketplace links:
@@ -61,13 +61,21 @@ This editor distribution is one entry point into the wider `n8n-as-code` product
 
 ## ⚙️ Configuration
 
-The extension uses native editor settings:
+The extension stores saved instance configs and the active selection in `n8nac-config.json` at the workspace root. This lets one workspace keep multiple n8n environments without losing previously saved configs.
+
+The legacy native editor settings below still exist as compatibility fallbacks:
 
 | Parameter | Description | Default |
 | :--- | :--- | :--- |
 | `n8n.host` | URL of your n8n instance | - |
 | `n8n.apiKey` | Your n8n API Key | - |
 | `n8n.syncFolder` | Local storage folder | `workflows` |
+
+In the configuration screen:
+
+- `Add instance` saves another existing n8n environment in the workspace
+- `Select instance` loads a saved config into the form
+- `Save and activate config` makes that config the active one for the workspace
 
 ## Philosophy
 
