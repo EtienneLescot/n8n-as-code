@@ -9,13 +9,19 @@ type UiProject = {
   type?: string;
 };
 
+type UiInstance = {
+  id: string;
+  name: string;
+  host: string;
+  apiKey: string;
+  syncFolder: string;
+  projectId: string;
+  projectName: string;
+};
+
 function normalizeHost(host: string): string {
   const trimmed = (host || '').trim();
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
-}
-
-function toDisplayName(project: UiProject): string {
-  return project.type === 'personal' ? 'Personal' : project.name;
 }
 
 async function clearLegacyWorkspaceSettings(): Promise<void> {
@@ -74,6 +80,8 @@ export class ConfigurationWebview {
           case 'loadProjects': {
             const host = normalizeHost(message.host);
             const apiKey = (message.apiKey || '').trim();
+            const selectedProjectId = (message.projectId || '').trim();
+            const selectedProjectName = (message.projectName || '').trim();
 
             if (!host || !apiKey) {
               this._panel.webview.postMessage({
@@ -86,15 +94,11 @@ export class ConfigurationWebview {
             const client = new N8nApiClient({ host, apiKey } as IN8nCredentials);
             const projects = (await client.getProjects()) as any[];
 
-            const uiProjects: UiProject[] = projects.map((p) => ({
-              id: p.id,
-              name: p.name,
-              type: p.type,
+            const uiProjects: UiProject[] = projects.map((project) => ({
+              id: project.id,
+              name: project.name,
+              type: project.type,
             }));
-
-            const resolvedConfig = getResolvedN8nConfig(getWorkspaceRoot());
-            const selectedProjectId = resolvedConfig.projectId;
-            const selectedProjectName = resolvedConfig.projectName;
 
             this._panel.webview.postMessage({
               type: 'projectsLoaded',
@@ -108,8 +112,9 @@ export class ConfigurationWebview {
           case 'saveSettings': {
             const host = normalizeHost(message.host);
             const apiKey = (message.apiKey || '').trim();
-
             const syncFolder = (message.syncFolder || '').trim();
+            const instanceId = (message.instanceId || '').trim() || undefined;
+            const instanceName = (message.instanceName || '').trim() || undefined;
 
             const workspaceRoot = getWorkspaceRoot();
             const shouldAutoApply = !!workspaceRoot && isFolderPreviouslyInitialized(workspaceRoot);
@@ -117,14 +122,13 @@ export class ConfigurationWebview {
               await this._context.workspaceState.update('n8n.suppressSettingsChangedOnce', true);
             }
 
-            // Project can be picked from the dropdown, but if missing, we’ll default to Personal.
             let projectId = (message.projectId || '').trim();
             let projectName = (message.projectName || '').trim();
 
             if (host && apiKey && (!projectId || !projectName)) {
               const client = new N8nApiClient({ host, apiKey } as IN8nCredentials);
               const projects = (await client.getProjects()) as any[];
-              const personal = projects.find((p) => p.type === 'personal');
+              const personal = projects.find((project) => project.type === 'personal');
               const fallback = personal || (projects.length === 1 ? projects[0] : undefined);
               if (fallback) {
                 projectId = fallback.id;
@@ -132,17 +136,6 @@ export class ConfigurationWebview {
               }
             }
 
-            // Sync API key to CLI global store so the CLI works without `n8nac init`
-            if (host && apiKey) {
-              try {
-                const configService = new ConfigService();
-                configService.saveApiKey(host, apiKey);
-              } catch (error) {
-                console.warn('Failed to sync API key to n8n CLI global config store:', error);
-              }
-            }
-
-            // Write unified config file for CLI alignment
             if (workspaceRoot) {
               await writeUnifiedWorkspaceConfig({
                 workspaceRoot,
@@ -151,6 +144,9 @@ export class ConfigurationWebview {
                 syncFolder: syncFolder || 'workflows',
                 projectId,
                 projectName,
+                instanceId,
+                instanceName,
+                setActive: true,
               });
 
               await clearLegacyWorkspaceSettings();
@@ -167,7 +163,21 @@ export class ConfigurationWebview {
               await vscode.window.showInformationMessage('✅ Settings saved.');
             }
 
+            await this.postInitialState();
             this._panel.webview.postMessage({ type: 'saved' });
+            return;
+          }
+
+          case 'switchInstance': {
+            const workspaceRoot = getWorkspaceRoot();
+            const instanceId = (message.instanceId || '').trim();
+            if (!workspaceRoot || !instanceId) {
+              return;
+            }
+
+            const configService = new ConfigService(workspaceRoot);
+            configService.setActiveInstance(instanceId);
+            await this.postInitialState();
             return;
           }
 
@@ -185,12 +195,8 @@ export class ConfigurationWebview {
     });
 
     this._panel.webview.html = this.getHtmlForWebview();
-
-    // Send initial config state.
     void this.postInitialState();
 
-    // When the webview becomes visible again (for example after opening Settings),
-    // re-post the initial state so the form is repopulated.
     this._panel.onDidChangeViewState(() => {
       if (this._panel.visible) {
         void this.postInitialState();
@@ -217,36 +223,64 @@ export class ConfigurationWebview {
   }
 
   private async postInitialState() {
-    const { host, apiKey, projectId, projectName, syncFolder } = getResolvedN8nConfig(getWorkspaceRoot());
+    const workspaceRoot = getWorkspaceRoot();
+    const resolved = getResolvedN8nConfig(workspaceRoot);
+    const configService = new ConfigService(workspaceRoot);
+    const workspaceConfig = workspaceRoot ? configService.getWorkspaceConfig() : { instances: [], activeInstanceId: undefined };
+    const activeInstance = configService.getActiveInstance();
+
+    const instances: UiInstance[] = workspaceRoot
+      ? workspaceConfig.instances.map((instance) => ({
+          id: instance.id,
+          name: instance.name,
+          host: normalizeHost(instance.host || ''),
+          apiKey: instance.host ? (configService.getApiKey(instance.host, instance.id) || '') : '',
+          syncFolder: instance.syncFolder || 'workflows',
+          projectId: instance.projectId || '',
+          projectName: instance.projectName || '',
+        }))
+      : [];
+
+    const activeApiKey = activeInstance?.host
+      ? (configService.getApiKey(activeInstance.host, activeInstance.id) || '')
+      : resolved.apiKey;
 
     this._panel.webview.postMessage({
       type: 'init',
-      config: { host: normalizeHost(host), apiKey: apiKey.trim(), projectId, projectName, syncFolder },
+      config: {
+        instanceId: activeInstance?.id || resolved.activeInstanceId || '',
+        instanceName: activeInstance?.name || resolved.activeInstanceName || '',
+        host: normalizeHost(activeInstance?.host || resolved.host),
+        apiKey: activeApiKey.trim(),
+        projectId: activeInstance?.projectId || resolved.projectId,
+        projectName: activeInstance?.projectName || resolved.projectName,
+        syncFolder: activeInstance?.syncFolder || resolved.syncFolder,
+      },
+      instances,
     });
 
-    // If we already have host + apiKey, proactively load projects.
-    if (host && apiKey) {
+    if ((activeInstance?.host || resolved.host) && activeApiKey) {
       try {
-        const client = new N8nApiClient({ host, apiKey } as IN8nCredentials);
+        const host = activeInstance?.host || resolved.host;
+        const client = new N8nApiClient({ host, apiKey: activeApiKey } as IN8nCredentials);
         const projects = (await client.getProjects()) as any[];
 
-        const uiProjects: UiProject[] = projects.map((p) => ({
-          id: p.id,
-          name: p.name,
-          type: p.type,
+        const uiProjects: UiProject[] = projects.map((project) => ({
+          id: project.id,
+          name: project.name,
+          type: project.type,
         }));
 
         this._panel.webview.postMessage({
           type: 'projectsLoaded',
           projects: uiProjects,
-          selectedProjectId: projectId,
-          selectedProjectName: projectName,
+          selectedProjectId: activeInstance?.projectId || resolved.projectId,
+          selectedProjectName: activeInstance?.projectName || resolved.projectName,
         });
-      } catch (e: any) {
-        // Non-fatal: the user can still edit host/apiKey and retry.
+      } catch (error: any) {
         this._panel.webview.postMessage({
           type: 'error',
-          message: `Failed to load projects: ${e?.message || 'unknown error'}`,
+          message: `Failed to load projects: ${error?.message || 'unknown error'}`,
         });
       }
     }
@@ -276,6 +310,7 @@ export class ConfigurationWebview {
     input, select { padding: 8px; border-radius: 4px; border: 1px solid var(--vscode-input-border); background: var(--vscode-input-background); color: var(--vscode-input-foreground); }
     input[type=password] { font-family: var(--vscode-editor-font-family); }
     .actions { display: flex; gap: 8px; margin-top: 12px; justify-content:flex-end; }
+    .toolbar { display:flex; gap:8px; margin-top:8px; }
     button { padding: 8px 10px; border-radius: 4px; border: 1px solid var(--vscode-button-border, transparent); background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; }
     button.secondary { background: transparent; color: var(--vscode-foreground); border: 1px solid var(--vscode-input-border); }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -289,9 +324,29 @@ export class ConfigurationWebview {
 </head>
 <body>
   <h2>n8n as code</h2>
-  <div class="muted">Configure your n8n instance and choose which project to sync (default: Personal).</div>
+  <div class="muted">Maintain a library of n8n instances and choose which one is active for this workspace.</div>
 
   <div class="container">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Instances</div>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label for="instanceSelect">Saved instance profiles</label>
+          <select id="instanceSelect"></select>
+          <div class="muted small">Saving a profile makes it the active instance for this workspace.</div>
+        </div>
+        <div class="field">
+          <label for="instanceName">Instance profile name</label>
+          <input id="instanceName" type="text" placeholder="Production" />
+        </div>
+      </div>
+      <div class="toolbar">
+        <button id="newInstance" class="secondary">New instance</button>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header">
         <div class="card-title">Connection</div>
@@ -307,9 +362,8 @@ export class ConfigurationWebview {
           <input id="apiKey" type="password" placeholder="n8n API Key" />
         </div>
       </div>
-      <div style="margin-top:8px; display:flex; gap:8px;">
+      <div class="toolbar">
         <button id="loadProjects" class="secondary">Load projects</button>
-        <div style="flex:1"></div>
       </div>
     </div>
 
@@ -322,7 +376,7 @@ export class ConfigurationWebview {
         <select id="project" disabled>
           <option value="">Load projects to select…</option>
         </select>
-        <div class="muted small">Projects list is loaded from the n8n API once host + API key are valid.</div>
+        <div class="muted small">Projects are loaded from the n8n API for the currently selected instance.</div>
       </div>
     </div>
 
@@ -330,12 +384,10 @@ export class ConfigurationWebview {
       <div class="card-header">
         <div class="card-title">Sync settings</div>
       </div>
-      <div class="grid">
-        <div class="field">
-          <label for="syncFolder">Sync Folder (relative to workspace)</label>
-          <input id="syncFolder" type="text" placeholder="workflows" />
-          <div class="muted small">Example: <code>workflows</code> or <code>n8n/workflows</code></div>
-        </div>
+      <div class="field">
+        <label for="syncFolder">Sync Folder (relative to workspace)</label>
+        <input id="syncFolder" type="text" placeholder="workflows" />
+        <div class="muted small">Example: <code>workflows</code> or <code>n8n/workflows</code></div>
       </div>
     </div>
 
@@ -361,6 +413,9 @@ export class ConfigurationWebview {
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
 
+    const instanceSelectEl = document.getElementById('instanceSelect');
+    const instanceNameEl = document.getElementById('instanceName');
+    const newInstanceBtn = document.getElementById('newInstance');
     const hostEl = document.getElementById('host');
     const apiKeyEl = document.getElementById('apiKey');
     const projectEl = document.getElementById('project');
@@ -372,8 +427,17 @@ export class ConfigurationWebview {
     const messageEl = document.getElementById('message');
     const savedEl = document.getElementById('saved');
 
+    let instances = [];
     let projects = [];
-    let currentConfig = { host: '', apiKey: '', projectId: '', projectName: '', syncFolder: 'workflows' };
+    let currentConfig = {
+      instanceId: '',
+      instanceName: '',
+      host: '',
+      apiKey: '',
+      projectId: '',
+      projectName: '',
+      syncFolder: 'workflows'
+    };
 
     let autoLoadTimer = null;
     let lastLoadRequest = { host: '', apiKey: '' };
@@ -410,30 +474,43 @@ export class ConfigurationWebview {
       projectEl.appendChild(opt);
     }
 
-    function requestProjectsLoad(force = false) {
-      const host = normalizeHost(hostEl.value);
-      const apiKey = (apiKeyEl.value || '').trim();
+    function applyConfig(config) {
+      currentConfig = {
+        instanceId: config.instanceId || '',
+        instanceName: config.instanceName || '',
+        host: config.host || '',
+        apiKey: config.apiKey || '',
+        projectId: config.projectId || '',
+        projectName: config.projectName || '',
+        syncFolder: config.syncFolder || 'workflows'
+      };
 
-      if (!host || !apiKey) {
-        lastLoadRequest = { host: '', apiKey: '' };
-        resetProjectsUi();
-        return;
-      }
-
-      if (!force && lastLoadRequest.host === host && lastLoadRequest.apiKey === apiKey) {
-        return;
-      }
-
-      lastLoadRequest = { host, apiKey };
-      setError('');
-      vscode.postMessage({ type: 'loadProjects', host, apiKey });
+      instanceNameEl.value = currentConfig.instanceName;
+      hostEl.value = currentConfig.host;
+      apiKeyEl.value = currentConfig.apiKey;
+      syncFolderEl.value = currentConfig.syncFolder || 'workflows';
     }
 
-    function scheduleAutoLoadProjects() {
-      if (autoLoadTimer) clearTimeout(autoLoadTimer);
-      autoLoadTimer = setTimeout(() => {
-        requestProjectsLoad(false);
-      }, 500);
+    function renderInstances(selectedId) {
+      instanceSelectEl.innerHTML = '';
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = instances.length ? 'Select an instance profile…' : 'No saved instances yet';
+      instanceSelectEl.appendChild(placeholder);
+
+      for (const instance of instances) {
+        const opt = document.createElement('option');
+        opt.value = instance.id;
+        opt.textContent = instance.name + (instance.host ? ' - ' + instance.host : '');
+        instanceSelectEl.appendChild(opt);
+      }
+
+      if (selectedId && instances.some((instance) => instance.id === selectedId)) {
+        instanceSelectEl.value = selectedId;
+      } else {
+        instanceSelectEl.value = '';
+      }
     }
 
     function renderProjects(selectedId) {
@@ -450,36 +527,106 @@ export class ConfigurationWebview {
 
       projectEl.disabled = false;
 
-      // Prefer current selection, otherwise Personal, otherwise first.
       let defaultId = selectedId;
       if (!defaultId) {
-        const personal = projects.find(p => p.type === 'personal');
+        const personal = projects.find((project) => project.type === 'personal');
         defaultId = personal ? personal.id : projects[0].id;
       }
 
-      for (const p of projects) {
+      for (const project of projects) {
         const opt = document.createElement('option');
-        opt.value = p.id;
-        opt.textContent = p.type === 'personal' ? 'Personal' : p.name;
-        opt.dataset.projectName = p.type === 'personal' ? 'Personal' : p.name;
+        opt.value = project.id;
+        opt.textContent = project.type === 'personal' ? 'Personal' : project.name;
+        opt.dataset.projectName = project.type === 'personal' ? 'Personal' : project.name;
         projectEl.appendChild(opt);
       }
 
       projectEl.value = defaultId;
 
-      // Keep webview local state in sync (helps when the user saves right after auto-load).
-      const selected = projects.find(p => p.id === defaultId);
+      const selected = projects.find((project) => project.id === defaultId);
       if (selected) {
         currentConfig.projectId = selected.id;
         currentConfig.projectName = selected.type === 'personal' ? 'Personal' : selected.name;
       }
     }
 
+    function requestProjectsLoad(force = false) {
+      const host = normalizeHost(hostEl.value);
+      const apiKey = (apiKeyEl.value || '').trim();
+
+      if (!host || !apiKey) {
+        lastLoadRequest = { host: '', apiKey: '' };
+        resetProjectsUi();
+        return;
+      }
+
+      if (!force && lastLoadRequest.host === host && lastLoadRequest.apiKey === apiKey) {
+        renderProjects(currentConfig.projectId || '');
+        return;
+      }
+
+      lastLoadRequest = { host, apiKey };
+      setError('');
+      vscode.postMessage({
+        type: 'loadProjects',
+        host,
+        apiKey,
+        projectId: currentConfig.projectId || '',
+        projectName: currentConfig.projectName || '',
+      });
+    }
+
+    function scheduleAutoLoadProjects() {
+      if (autoLoadTimer) clearTimeout(autoLoadTimer);
+      autoLoadTimer = setTimeout(() => {
+        requestProjectsLoad(false);
+      }, 500);
+    }
+
+    instanceSelectEl.addEventListener('change', () => {
+      const selectedId = instanceSelectEl.value;
+      if (!selectedId) {
+        return;
+      }
+
+      const selectedInstance = instances.find((instance) => instance.id === selectedId);
+      if (!selectedInstance) {
+        return;
+      }
+
+      applyConfig({
+        instanceId: selectedInstance.id,
+        instanceName: selectedInstance.name,
+        host: selectedInstance.host,
+        apiKey: selectedInstance.apiKey,
+        projectId: selectedInstance.projectId,
+        projectName: selectedInstance.projectName,
+        syncFolder: selectedInstance.syncFolder,
+      });
+      vscode.postMessage({ type: 'switchInstance', instanceId: selectedId });
+      requestProjectsLoad(true);
+    });
+
+    newInstanceBtn.addEventListener('click', () => {
+      renderInstances('');
+      applyConfig({
+        instanceId: '',
+        instanceName: '',
+        host: '',
+        apiKey: '',
+        projectId: '',
+        projectName: '',
+        syncFolder: 'workflows',
+      });
+      lastLoadRequest = { host: '', apiKey: '' };
+      resetProjectsUi();
+      setError('');
+    });
+
     loadBtn.addEventListener('click', () => {
       requestProjectsLoad(true);
     });
 
-    // Auto-load projects as soon as host + api key are present.
     hostEl.addEventListener('input', scheduleAutoLoadProjects);
     apiKeyEl.addEventListener('input', scheduleAutoLoadProjects);
     hostEl.addEventListener('blur', () => requestProjectsLoad(false));
@@ -489,9 +636,8 @@ export class ConfigurationWebview {
       setError('');
       const host = normalizeHost(hostEl.value);
       const apiKey = (apiKeyEl.value || '').trim();
-
-      const syncFolderEl = document.getElementById('syncFolder');
-      const syncFolder = syncFolderEl ? (syncFolderEl.value || '').trim() : '';
+      const syncFolder = (syncFolderEl.value || '').trim();
+      const instanceName = (instanceNameEl.value || '').trim();
 
       let projectId = projectEl.value || '';
       let projectName = '';
@@ -500,7 +646,16 @@ export class ConfigurationWebview {
         projectName = selectedOption.dataset.projectName;
       }
 
-      vscode.postMessage({ type: 'saveSettings', host, apiKey, projectId, projectName, syncFolder });
+      vscode.postMessage({
+        type: 'saveSettings',
+        instanceId: currentConfig.instanceId || '',
+        instanceName,
+        host,
+        apiKey,
+        projectId,
+        projectName,
+        syncFolder,
+      });
     });
 
     if (accordionToggle) {
@@ -518,12 +673,9 @@ export class ConfigurationWebview {
       if (!message || typeof message !== 'object') return;
 
       if (message.type === 'init') {
-        currentConfig = message.config || currentConfig;
-        hostEl.value = currentConfig.host || '';
-        apiKeyEl.value = currentConfig.apiKey || '';
-
-        const syncFolderEl = document.getElementById('syncFolder');
-        if (syncFolderEl) syncFolderEl.value = currentConfig.syncFolder || 'workflows';
+        instances = message.instances || [];
+        applyConfig(message.config || currentConfig);
+        renderInstances(currentConfig.instanceId || '');
         return;
       }
 

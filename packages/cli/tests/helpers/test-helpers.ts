@@ -158,11 +158,18 @@ export class MockSyncManager extends EventEmitter {
  */
 export class MockConfigService {
     private localConfig: any = {};
+    private instances: any[] = [];
+    private activeInstanceId: string | undefined;
     private apiKeys: Record<string, string> = {};
+    private instanceApiKeys: Record<string, string> = {};
     private instanceIdentifier: string | null = null;
 
     setLocalConfig(config: any) {
         this.localConfig = config;
+        if (config?.id) {
+            this.instances = [config];
+            this.activeInstanceId = config.id;
+        }
     }
 
     setApiKey(host: string, apiKey: string) {
@@ -177,16 +184,33 @@ export class MockConfigService {
         return this.localConfig;
     }
 
-    saveLocalConfig(config: any): void {
+    saveLocalConfig(config: any, options?: { instanceId?: string; instanceName?: string }): any {
         this.localConfig = config;
+        const instanceId = options?.instanceId || this.activeInstanceId || 'test-instance';
+        const existing = this.instances.find((instance) => instance.id === instanceId);
+        const next = {
+            ...existing,
+            ...config,
+            id: instanceId,
+            name: options?.instanceName || existing?.name || 'Test instance',
+        };
+        this.instances = [...this.instances.filter((instance) => instance.id !== instanceId), next];
+        this.activeInstanceId = instanceId;
+        return next;
     }
 
-    getApiKey(host: string): string | undefined {
+    getApiKey(host: string, instanceId?: string): string | undefined {
+        if (instanceId && this.instanceApiKeys[instanceId]) {
+            return this.instanceApiKeys[instanceId];
+        }
         return this.apiKeys[this.normalizeHost(host)];
     }
 
-    saveApiKey(host: string, apiKey: string): void {
+    saveApiKey(host: string, apiKey: string, instanceId?: string): void {
         this.apiKeys[this.normalizeHost(host)] = apiKey;
+        if (instanceId) {
+            this.instanceApiKeys[instanceId] = apiKey;
+        }
     }
 
     private normalizeHost(host: string): string {
@@ -202,7 +226,28 @@ export class MockConfigService {
         return !!(this.localConfig.host && this.getApiKey(this.localConfig.host));
     }
 
-    async getOrCreateInstanceIdentifier(host: string): Promise<string> {
+    getActiveInstance(): any {
+        return this.instances.find((instance) => instance.id === this.activeInstanceId);
+    }
+
+    getActiveInstanceId(): string | undefined {
+        return this.activeInstanceId;
+    }
+
+    listInstances(): any[] {
+        return this.instances;
+    }
+
+    setActiveInstance(instanceId: string): any {
+        this.activeInstanceId = instanceId;
+        const active = this.instances.find((instance) => instance.id === instanceId);
+        if (active) {
+            this.localConfig = active;
+        }
+        return active;
+    }
+
+    async getOrCreateInstanceIdentifier(host: string, _instanceId?: string): Promise<string> {
         if (this.instanceIdentifier) {
             return this.instanceIdentifier;
         }

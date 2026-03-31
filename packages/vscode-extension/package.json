@@ -66,6 +66,11 @@
         "icon": "$(settings-gear)"
       },
       {
+        "command": "n8n.switchInstance",
+        "title": "n8n: Switch Instance",
+        "icon": "$(list-selection)"
+      },
+      {
         "command": "n8n.init",
         "title": "n8n: Initialize n8n as code",
         "icon": "$(rocket)"

@@ -5,7 +5,7 @@ import * as fs from 'fs';
 // Injected at build time by esbuild (see esbuild.config.js)
 declare const __N8NAC_VERSION__: string;
 import {
-    SyncManager, CliApi, N8nApiClient, IN8nCredentials, WorkflowSyncStatus,
+    SyncManager, CliApi, N8nApiClient, IN8nCredentials, WorkflowSyncStatus, ConfigService,
     resolveInstanceIdentifier
 } from 'n8nac';
 import { AiContextGenerator } from '@n8n-as-code/skills';
@@ -111,6 +111,47 @@ export async function activate(context: vscode.ExtensionContext) {
 
         vscode.commands.registerCommand('n8n.configure', async () => {
             ConfigurationWebview.createOrShow(context);
+        }),
+
+        vscode.commands.registerCommand('n8n.switchInstance', async () => {
+            const workspaceRoot = getWorkspaceRoot();
+            if (!workspaceRoot) {
+                vscode.window.showErrorMessage(NO_WORKSPACE_ERROR_MESSAGE);
+                return;
+            }
+
+            const configService = new ConfigService(workspaceRoot);
+            const instances = configService.listInstances();
+            if (!instances.length) {
+                vscode.window.showWarningMessage('No configured n8n instances found.');
+                return;
+            }
+
+            const picked = await vscode.window.showQuickPick(
+                instances.map((instance) => ({
+                    label: instance.name,
+                    description: instance.host || 'Host not configured',
+                    detail: instance.projectName || '',
+                    instanceId: instance.id,
+                })),
+                {
+                    title: 'Select the active n8n instance',
+                    ignoreFocusOut: true,
+                }
+            );
+
+            if (!picked) {
+                return;
+            }
+
+            configService.setActiveInstance(picked.instanceId);
+            if (syncManager) {
+                await reinitializeSyncManager(context);
+            } else {
+                await refreshStateFromWorkspaceConfig(context);
+            }
+            updateContextKeys();
+            vscode.window.showInformationMessage(`Active n8n instance: ${picked.label}`);
         }),
 
         vscode.commands.registerCommand('n8n.applySettings', async () => {
@@ -591,6 +632,7 @@ function getConfigRefreshSignature(workspaceRoot?: string): string {
 
     const resolvedConfig = getResolvedN8nConfig(workspaceRoot);
     return JSON.stringify({
+        activeInstanceId: resolvedConfig.activeInstanceId,
         host: resolvedConfig.host,
         hasApiKey: Boolean(resolvedConfig.apiKey),
         syncFolder: resolvedConfig.syncFolder,
@@ -767,6 +809,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     const folder = resolvedConfig.syncFolder || 'workflows';
     let projectId = resolvedConfig.projectId || undefined;
     let projectName = resolvedConfig.projectName || undefined;
+    const activeInstanceId = resolvedConfig.activeInstanceId || undefined;
+    const activeInstanceName = resolvedConfig.activeInstanceName || undefined;
 
     if (!host || !apiKey) throw new Error('Host/API Key missing. Please configure n8n.');
 
@@ -825,7 +869,10 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         syncFolder: folder,
         projectId: projectId!,
         projectName: projectName!,
-        instanceIdentifier
+        instanceIdentifier,
+        instanceId: activeInstanceId,
+        instanceName: activeInstanceName,
+        setActive: true,
     });
     lastConfigRefreshSignature = getConfigRefreshSignature(workspaceRoot);
 

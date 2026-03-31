@@ -11,6 +11,8 @@ export interface ResolvedN8nWorkspaceConfig {
   syncFolder: string;
   projectId: string;
   projectName: string;
+  activeInstanceId: string;
+  activeInstanceName: string;
 }
 
 function readString(value: unknown): string {
@@ -31,21 +33,24 @@ function getEnvValue(key: 'N8N_HOST' | 'N8N_API_KEY'): string {
 }
 
 export function getResolvedN8nConfig(workspaceRoot = getWorkspaceRoot()): ResolvedN8nWorkspaceConfig {
-  const unified = workspaceRoot ? readUnifiedWorkspaceConfig(workspaceRoot) : {};
+  const unified = workspaceRoot ? readUnifiedWorkspaceConfig(workspaceRoot) : undefined;
+  const configService = new ConfigService(workspaceRoot);
+  const activeInstance = configService.getActiveInstance();
   const host = normalizeHost(
-    readString(unified.host) || getSettingsValue('host') || getEnvValue('N8N_HOST')
+    readString(unified?.host) || getSettingsValue('host') || getEnvValue('N8N_HOST')
   );
-  const configService = new ConfigService();
-  const apiKey = (host ? configService.getApiKey(host) : undefined)
+  const apiKey = (host ? configService.getApiKey(host, activeInstance?.id) : undefined)
     || getSettingsValue('apiKey')
     || getEnvValue('N8N_API_KEY');
 
   return {
     host,
     apiKey,
-    syncFolder: readString(unified.syncFolder) || getSettingsValue('syncFolder') || 'workflows',
-    projectId: readString(unified.projectId) || getSettingsValue('projectId'),
-    projectName: readString(unified.projectName) || getSettingsValue('projectName'),
+    syncFolder: readString(unified?.syncFolder) || getSettingsValue('syncFolder') || 'workflows',
+    projectId: readString(unified?.projectId) || getSettingsValue('projectId'),
+    projectName: readString(unified?.projectName) || getSettingsValue('projectName'),
+    activeInstanceId: readString(unified?.activeInstanceId) || activeInstance?.id || '',
+    activeInstanceName: activeInstance?.name || '',
   };
 }
 
@@ -99,25 +104,7 @@ export function isFolderPreviouslyInitialized(workspaceRoot: string): boolean {
     return false;
   }
 
-  // Unified file name
-  const instanceConfigPaths = [
-    path.join(workspaceRoot, 'n8nac-config.json')
-  ];
-  
-  for (const instanceConfigPath of instanceConfigPaths) {
-    if (fs.existsSync(instanceConfigPath)) {
-      try {
-        const content = fs.readFileSync(instanceConfigPath, 'utf-8');
-        const json = JSON.parse(content);
-        return !!json.instanceIdentifier;
-      } catch {
-        // Continue to next file if this one fails to parse
-        continue;
-      }
-    }
-  }
-
-  return false;
+  return !!readUnifiedWorkspaceConfig(workspaceRoot).instanceIdentifier;
 }
 
 /**
@@ -211,22 +198,5 @@ export function doesSyncDirectoryExist(): boolean {
  * Checks for both n8nac-instance.json (new) and n8n-as-code-instance.json (legacy)
  */
 export function getExistingInstanceIdentifier(workspaceRoot: string): string | undefined {
-  const instanceConfigPaths = [
-    path.join(workspaceRoot, 'n8nac-config.json')
-  ];
-  
-  for (const instanceConfigPath of instanceConfigPaths) {
-    if (fs.existsSync(instanceConfigPath)) {
-      try {
-        const content = fs.readFileSync(instanceConfigPath, 'utf-8');
-        const config = JSON.parse(content);
-        return config.instanceIdentifier;
-      } catch {
-        // Continue to next file if this one fails to parse
-        continue;
-      }
-    }
-  }
-  
-  return undefined;
+  return readUnifiedWorkspaceConfig(workspaceRoot).instanceIdentifier;
 }

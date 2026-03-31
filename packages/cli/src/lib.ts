@@ -4,4 +4,9 @@
  * so consumers can simply change their import path without touching business logic.
  */
 export * from './core/index.js';
-export { ConfigService } from './services/config-service.js';
+export {
+    ConfigService,
+    type ILocalConfig,
+    type IInstanceProfile,
+    type IWorkspaceConfig,
+} from './services/config-service.js';
