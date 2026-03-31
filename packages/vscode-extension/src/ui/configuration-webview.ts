@@ -608,8 +608,8 @@ export class ConfigurationWebview {
                 <input id="apiKey" type="password" placeholder="n8n API key" />
               </div>
               <div class="field">
-                <label for="instanceName">Instance name</label>
-                <input id="instanceName" type="text" placeholder="Production" />
+                <label>Verification</label>
+                <div id="verificationStatus" class="hint">Not verified yet</div>
               </div>
             </div>
           </div>
@@ -631,6 +631,7 @@ export class ConfigurationWebview {
               <strong id="activeSummaryTitle">Active instance</strong>
               <div id="activeSummaryName">No active instance.</div>
               <div id="activeSummaryHost" class="hint"></div>
+              <div id="activeSummaryStatus" class="hint"></div>
             </div>
           </div>
         </div>
@@ -674,10 +675,10 @@ export class ConfigurationWebview {
     const vscode = acquireVsCodeApi();
 
     const instanceSelectEl = document.getElementById('instanceSelect');
-    const instanceNameEl = document.getElementById('instanceName');
     const newInstanceBtn = document.getElementById('newInstance');
     const hostEl = document.getElementById('host');
     const apiKeyEl = document.getElementById('apiKey');
+    const verificationStatusEl = document.getElementById('verificationStatus');
     const projectEl = document.getElementById('project');
     const syncFolderEl = document.getElementById('syncFolder');
     const loadBtn = document.getElementById('loadProjects');
@@ -686,6 +687,7 @@ export class ConfigurationWebview {
     const activeSummaryTitleEl = document.getElementById('activeSummaryTitle');
     const activeSummaryNameEl = document.getElementById('activeSummaryName');
     const activeSummaryHostEl = document.getElementById('activeSummaryHost');
+    const activeSummaryStatusEl = document.getElementById('activeSummaryStatus');
     const switchHelpEl = document.getElementById('switchHelp');
     const messageEl = document.getElementById('message');
     const savedEl = document.getElementById('saved');
@@ -713,6 +715,8 @@ export class ConfigurationWebview {
         projectId: '',
         projectName: '',
         syncFolder: 'workflows',
+        verificationStatus: 'unverified',
+        verificationLabel: 'Not verified yet',
         ...overrides
       };
     }
@@ -787,21 +791,23 @@ export class ConfigurationWebview {
     function readFormState() {
       return {
         instanceId: draftMode ? '' : (selectedInstanceId || ''),
-        instanceName: (instanceNameEl.value || '').trim(),
+        instanceName: currentConfig.instanceName || '',
         host: normalizeHost(hostEl.value),
         apiKey: (apiKeyEl.value || '').trim(),
         projectId: projectEl.value || '',
         projectName: readSelectedProjectName() || currentConfig.projectName || '',
-        syncFolder: (syncFolderEl.value || '').trim() || 'workflows'
+        syncFolder: (syncFolderEl.value || '').trim() || 'workflows',
+        verificationStatus: currentConfig.verificationStatus || 'unverified',
+        verificationLabel: currentConfig.verificationLabel || 'Not verified yet'
       };
     }
 
     function applyConfig(config) {
       currentConfig = cloneConfig(config);
-      instanceNameEl.value = currentConfig.instanceName;
       hostEl.value = currentConfig.host;
       apiKeyEl.value = currentConfig.apiKey;
       syncFolderEl.value = currentConfig.syncFolder || 'workflows';
+      verificationStatusEl.textContent = currentConfig.verificationLabel || 'Not verified yet';
       setError('');
       updateModeUi();
     }
@@ -829,7 +835,6 @@ export class ConfigurationWebview {
       instanceSelectEl.disabled = isBusy || !instances.length;
       hostEl.disabled = isBusy;
       apiKeyEl.disabled = isBusy;
-      instanceNameEl.disabled = isBusy;
       syncFolderEl.disabled = isBusy;
       projectEl.disabled = isBusy || !projects.length;
 
@@ -838,6 +843,7 @@ export class ConfigurationWebview {
       activeSummaryHostEl.textContent = activeConfig.host
         ? activeConfig.host
         : 'Save and activate an instance to use it in this workspace.';
+      activeSummaryStatusEl.textContent = activeConfig.verificationLabel || '';
 
       switchHelpEl.textContent = savedCount
         ? 'Choose a saved instance to edit. It becomes active when you save.'
@@ -856,7 +862,12 @@ export class ConfigurationWebview {
         const opt = document.createElement('option');
         opt.value = instance.id;
         const activeSuffix = instance.id === activeInstanceId ? ' (active)' : '';
-        opt.textContent = instance.name + activeSuffix + (instance.host ? ' - ' + instance.host : '');
+        const verificationSuffix = instance.verificationStatus === 'verified'
+          ? ' [verified]'
+          : instance.verificationStatus === 'failed'
+            ? ' [unreachable]'
+            : '';
+        opt.textContent = instance.name + activeSuffix + verificationSuffix + (instance.host ? ' - ' + instance.host : '');
         instanceSelectEl.appendChild(opt);
       }
 
@@ -939,6 +950,8 @@ export class ConfigurationWebview {
               projectId: nextActive.projectId,
               projectName: nextActive.projectName,
               syncFolder: nextActive.syncFolder,
+              verificationStatus: nextActive.verificationStatus,
+              verificationLabel: nextActive.verificationLabel,
             })
           : createEmptyConfig();
       }
@@ -983,6 +996,8 @@ export class ConfigurationWebview {
         projectId: selectedInstance.projectId,
         projectName: selectedInstance.projectName,
         syncFolder: selectedInstance.syncFolder,
+        verificationStatus: selectedInstance.verificationStatus,
+        verificationLabel: selectedInstance.verificationLabel,
       });
       renderInstances(selectedInstanceId);
 
@@ -1099,7 +1114,6 @@ export class ConfigurationWebview {
       scheduleAutoLoadProjects();
     });
     syncFolderEl.addEventListener('input', updateModeUi);
-    instanceNameEl.addEventListener('input', updateModeUi);
     hostEl.addEventListener('blur', () => requestProjectsLoad(false));
     apiKeyEl.addEventListener('blur', () => requestProjectsLoad(false));
     projectEl.addEventListener('change', updateModeUi);
@@ -1184,6 +1198,8 @@ export class ConfigurationWebview {
           projectId: selectedInstance.projectId,
           projectName: selectedInstance.projectName,
           syncFolder: selectedInstance.syncFolder,
+          verificationStatus: selectedInstance.verificationStatus,
+          verificationLabel: selectedInstance.verificationLabel,
         } : activeConfig);
         renderInstances(selectedInstanceId);
         return;

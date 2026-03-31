@@ -137,17 +137,36 @@ export class InitCommand {
                 console.log(chalk.yellow('No projects found yet. Create a project in n8n, then run n8nac init-project.'));
             }
 
-            const savedInstance = this.configService.saveBootstrapState(
-                resolvedOptions.host,
-                resolvedOptions.syncFolder || 'workflows',
-                { instanceName: resolvedOptions.instanceName, createNew: resolvedOptions.newInstance }
-            );
-            this.configService.saveApiKey(resolvedOptions.host, resolvedOptions.apiKey, savedInstance.id);
+            const savedResult = await this.configService.upsertInstanceConfigWithVerification({
+                host: resolvedOptions.host,
+                apiKey: resolvedOptions.apiKey,
+                syncFolder: resolvedOptions.syncFolder || 'workflows',
+                projectId: undefined,
+                projectName: undefined,
+            }, {
+                instanceName: resolvedOptions.instanceName,
+                createNew: resolvedOptions.newInstance,
+                setActive: true,
+                client,
+            });
+
+            if (savedResult.status === 'duplicate') {
+                spinner.fail(chalk.red(`This n8n instance is already saved as "${savedResult.duplicateInstance.name}".`));
+                process.exitCode = 1;
+                return;
+            }
+
+            const savedInstance = savedResult.profile;
 
             console.log(chalk.green('\n✔ Credentials saved successfully!'));
             console.log(chalk.blue('📁 Workspace bootstrap:') + ' n8nac-config.json');
             console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
             console.log(chalk.blue('🧩 Selected instance:') + ` ${savedInstance.name}\n`);
+            if (savedResult.verificationStatus === 'verified') {
+                console.log(chalk.green('✔ Instance identity verified.\n'));
+            } else if (savedResult.verificationStatus === 'failed') {
+                console.log(chalk.yellow('⚠ Instance saved but could not be verified right now.\n'));
+            }
 
             if (projects.length > 0) {
                 this.printAvailableProjects(projects);
@@ -324,12 +343,6 @@ export class InitCommand {
             },
             {
                 type: 'input',
-                name: 'instanceName',
-                message: 'Saved instance name:',
-                default: this.configService.getCurrentInstanceConfig()?.name || 'Default instance'
-            },
-            {
-                type: 'input',
                 name: 'syncFolder',
                 message: 'Local folder for workflows:',
                 default: currentLocal.syncFolder || 'workflows'
@@ -339,7 +352,6 @@ export class InitCommand {
         await this.completeInitialization({
             host: answers.host,
             apiKey: answers.apiKey,
-            instanceName: answers.instanceName,
             syncFolder: answers.syncFolder,
             newInstance: mode === 'create',
         }, false);
@@ -476,25 +488,38 @@ export class InitCommand {
             projectName: selectedProjectDisplayName
         };
 
-        const savedInstance = input.newInstance
-            ? this.configService.createInstanceConfig(localConfig, {
-                instanceName: input.instanceName,
-                setActive: true,
-            })
-            : this.configService.updateInstanceConfig(localConfig, {
-                instanceName: input.instanceName,
-                setActive: true,
-            });
-        this.configService.saveApiKey(input.host, input.apiKey, savedInstance.id);
+        const client = new N8nApiClient({
+            host: input.host,
+            apiKey: input.apiKey
+        });
+        const savedResult = await this.configService.upsertInstanceConfigWithVerification({
+            ...localConfig,
+            apiKey: input.apiKey,
+        }, {
+            instanceName: input.instanceName,
+            createNew: input.newInstance,
+            setActive: true,
+            client,
+        });
+
+        if (savedResult.status === 'duplicate') {
+            console.error(chalk.red(`❌ This n8n instance is already saved as "${savedResult.duplicateInstance.name}".`));
+            process.exitCode = 1;
+            return;
+        }
+
+        const savedInstance = savedResult.profile;
 
         console.log('\n' + chalk.green('✔ Configuration saved successfully!'));
         console.log(chalk.blue('📁 Project config:') + ' n8nac-config.json');
         console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
         console.log(chalk.blue('🧩 Selected instance:') + ` ${savedInstance.name}\n`);
 
-        const spinner = ora('Generating instance identifier...').start();
-        const instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(input.host, savedInstance.id);
-        spinner.succeed(chalk.green(`Instance identifier: ${instanceIdentifier}`));
+        if (savedResult.verificationStatus === 'verified' && savedInstance.instanceIdentifier) {
+            console.log(chalk.green(`✔ Verified instance identifier: ${savedInstance.instanceIdentifier}`));
+        } else if (savedResult.verificationStatus === 'failed') {
+            console.log(chalk.yellow('⚠ Instance saved but could not be verified right now.'));
+        }
         console.log(chalk.gray('(n8nac-config.json will be kept up to date automatically)\n'));
 
         console.log(chalk.cyan('🤖 Bootstrapping AI Context...'));

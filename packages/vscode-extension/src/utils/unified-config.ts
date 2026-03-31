@@ -8,6 +8,7 @@ import {
     type ILocalConfig,
     type IInstanceProfile,
     type IWorkspaceConfig,
+    type IInstanceVerificationClient,
 } from 'n8nac';
 
 export type UnifiedWorkspaceConfig = IWorkspaceConfig;
@@ -24,7 +25,7 @@ type BuildUnifiedWorkspaceConfigInput = {
     instanceName?: string;
     createNew?: boolean;
     setActive?: boolean;
-    client?: IInstanceIdentifierClient;
+    client?: IInstanceVerificationClient & IInstanceIdentifierClient;
 };
 
 export function getUnifiedConfigPath(workspaceRoot: string): string {
@@ -87,14 +88,12 @@ function toActiveFields(active?: Partial<IInstanceProfile>): Partial<IWorkspaceC
 export async function buildUnifiedWorkspaceConfig(
     input: BuildUnifiedWorkspaceConfigInput
 ): Promise<UnifiedWorkspaceConfig> {
-    const service = new ConfigService(input.workspaceRoot);
-    const existing = service.getWorkspaceConfig();
+    const existing = readUnifiedWorkspaceConfig(input.workspaceRoot);
     const current = input.createNew ? undefined : getCurrentInstance(existing, input.instanceId);
     const storedSyncFolder = toStoredSyncFolder(input.workspaceRoot, input.syncFolder || 'workflows');
 
     let resolvedInstanceIdentifier: string | undefined = input.instanceIdentifier;
-
-    if (!resolvedInstanceIdentifier && input.host && input.apiKey) {
+    if (input.host && input.apiKey) {
         const credentials: IN8nCredentials = {
             host: input.host,
             apiKey: input.apiKey
@@ -103,6 +102,8 @@ export async function buildUnifiedWorkspaceConfig(
             client: input.client
         });
         resolvedInstanceIdentifier = identifier;
+    } else if (input.apiKey !== '' || input.host !== '') {
+        resolvedInstanceIdentifier = undefined;
     }
 
     const instanceId = current?.id || input.instanceId || createDraftInstanceId();
@@ -117,6 +118,7 @@ export async function buildUnifiedWorkspaceConfig(
         instanceIdentifier: resolvedInstanceIdentifier,
         customNodesPath: current?.customNodesPath,
         folderSync: current?.folderSync,
+        verification: current?.verification,
     };
 
     const instances = [
@@ -143,38 +145,23 @@ export async function writeUnifiedWorkspaceConfig(
     const service = new ConfigService(input.workspaceRoot);
     const storedSyncFolder = toStoredSyncFolder(input.workspaceRoot, input.syncFolder || 'workflows');
 
-    let instanceIdentifier = input.instanceIdentifier;
-    if (!instanceIdentifier && input.host && input.apiKey) {
-        const credentials: IN8nCredentials = {
-            host: input.host,
-            apiKey: input.apiKey
-        };
-        const { identifier } = await resolveInstanceIdentifier(credentials, {
-            client: input.client
-        });
-        instanceIdentifier = identifier;
-    }
-
-    const saveInput = {
+    const result = await service.upsertInstanceConfigWithVerification({
         host: input.host || undefined,
+        apiKey: input.apiKey || undefined,
         syncFolder: storedSyncFolder || undefined,
         projectId: input.projectId || undefined,
         projectName: input.projectName || undefined,
-        instanceIdentifier,
-    };
-    const savedProfile = input.createNew
-        ? service.createInstanceConfig(saveInput, {
-            instanceName: input.instanceName,
-            setActive: input.setActive,
-        })
-        : service.updateInstanceConfig(saveInput, {
-            instanceId: input.instanceId,
-            instanceName: input.instanceName,
-            setActive: input.setActive,
-        });
+        instanceIdentifier: input.instanceIdentifier,
+    }, {
+        instanceId: input.instanceId,
+        instanceName: input.instanceName,
+        createNew: input.createNew,
+        setActive: input.setActive,
+        client: input.client,
+    });
 
-    if (input.host && input.apiKey) {
-        service.saveApiKey(input.host, input.apiKey, savedProfile.id);
+    if (result.status === 'duplicate') {
+        throw new Error(`This n8n instance is already saved as "${result.duplicateInstance.name}".`);
     }
 
     return service.getWorkspaceConfig();

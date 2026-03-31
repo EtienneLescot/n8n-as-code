@@ -603,13 +603,18 @@ function disposeRuntimeDisposables(): void {
 }
 
 function toInstanceQuickPickItem(
-    instance: { id: string; name: string; host?: string; projectName?: string },
+    instance: { id: string; name: string; host?: string; projectName?: string; verification?: { status?: string } },
     activeInstanceId?: string
 ): InstanceQuickPickItem {
+    const verificationDetail = instance.verification?.status === 'verified'
+        ? 'Verified'
+        : instance.verification?.status === 'failed'
+            ? 'Verification failed'
+            : undefined;
     return {
         label: instance.name,
         description: instance.host || 'Host not configured',
-        detail: instance.projectName || (instance.id === activeInstanceId ? 'Currently active' : ''),
+        detail: instance.projectName || verificationDetail || (instance.id === activeInstanceId ? 'Currently active' : ''),
         picked: instance.id === activeInstanceId,
         instanceId: instance.id,
     };
@@ -655,7 +660,8 @@ async function switchWorkspaceInstance(
         return targetInstanceId;
     }
 
-    const selectedInstance = configService.selectInstance(targetInstanceId);
+    const selection = await configService.selectInstanceConfigWithVerification(targetInstanceId);
+    const selectedInstance = selection.profile;
 
     if (syncManager) {
         await reinitializeSyncManager(context);
@@ -666,7 +672,17 @@ async function switchWorkspaceInstance(
     updateContextKeys();
 
     if (!args.silent) {
-        vscode.window.showInformationMessage(`Active n8n instance: ${selectedInstance.name}`);
+        if (selection.status === 'duplicate') {
+            vscode.window.showWarningMessage(
+                `This config resolves to the already saved instance "${selection.duplicateInstance.name}". Switched to the existing verified config instead.`
+            );
+        } else if (selection.verificationStatus === 'failed') {
+            vscode.window.showWarningMessage(
+                `Active n8n instance: ${selectedInstance.name}. Verification failed, but the config remains saved.`
+            );
+        } else {
+            vscode.window.showInformationMessage(`Active n8n instance: ${selectedInstance.name}`);
+        }
     }
 
     return selectedInstance.id;
