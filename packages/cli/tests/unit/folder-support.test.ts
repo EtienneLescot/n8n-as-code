@@ -2,6 +2,8 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { N8nApiClient } from '../../src/core/services/n8n-api-client.js';
 import { IFolder } from '../../src/core/types.js';
 import { buildFolderTree } from '../../src/commands/folders.js';
+import { SyncEngine } from '../../src/core/services/sync-engine.js';
+import { WorkflowSyncStatus } from '../../src/core/types.js';
 
 // ── N8nApiClient folder helpers ──────────────────────────────────────────────
 
@@ -171,5 +173,71 @@ describe('WorkflowStateTracker: recursive file scanning', () => {
 
         expect(filenames).toContain('visible.workflow.ts');
         expect(filenames).not.toContain('.hidden/secret.workflow.ts');
+    });
+});
+
+describe('SyncEngine folder mirroring', () => {
+    it('moves an existing workflow into the folder that matches its local subdirectory', async () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-sync-engine-'));
+
+        try {
+            const localDir = path.join(tmpDir, 'Finance');
+            fs.mkdirSync(localDir, { recursive: true });
+
+            const workflowPath = path.join(localDir, 'monthly-report.workflow.ts');
+            fs.writeFileSync(workflowPath, `
+import { workflow, node } from '@n8n-as-code/transformer';
+
+@workflow({
+    id: 'wf-1',
+    name: 'Monthly Report',
+    active: false
+})
+export class MonthlyReport {
+    @node({
+        name: 'Start',
+        type: 'n8n-nodes-base.noOp',
+        version: 1,
+        position: [250, 300]
+    })
+    Start = {};
+}
+`, 'utf-8');
+
+            const client = {
+                getWorkflow: vi.fn(async () => ({ id: 'wf-1', updatedAt: '2026-03-30T10:00:00.000Z' })),
+                updateWorkflow: vi.fn(async (_id: string, workflow: any) => ({
+                    id: 'wf-1',
+                    name: workflow.name,
+                    active: workflow.active ?? false,
+                    nodes: workflow.nodes,
+                    connections: workflow.connections,
+                    settings: workflow.settings ?? {},
+                    updatedAt: '2026-03-30T10:05:00.000Z',
+                })),
+                ensureFolderPath: vi.fn(async () => 'folder-finance'),
+                moveWorkflowToFolder: vi.fn(async () => true),
+            } as any;
+
+            const watcher = {
+                getLastSyncedAt: vi.fn(() => '2026-03-30T10:00:00.000Z'),
+                setRemoteHash: vi.fn(),
+                finalizeSync: vi.fn(async () => undefined),
+            } as any;
+
+            const engine = new SyncEngine(client, watcher, tmpDir, {
+                projectId: 'project-1',
+                folderSync: true,
+            });
+
+            await expect(
+                engine.push('Finance/monthly-report.workflow.ts', 'wf-1', WorkflowSyncStatus.TRACKED)
+            ).resolves.toBe('wf-1');
+
+            expect(client.ensureFolderPath).toHaveBeenCalledWith('Finance', 'project-1');
+            expect(client.moveWorkflowToFolder).toHaveBeenCalledWith('wf-1', 'project-1', 'folder-finance');
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
     });
 });

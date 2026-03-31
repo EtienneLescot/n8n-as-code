@@ -222,6 +222,8 @@ export class SyncEngine {
             throw new Error('Failed to update remote workflow');
         }
 
+        await this.syncWorkflowFolderAssignment(workflowId, filename);
+
         // CRITICAL: Write the API response back to local file to ensure consistency
         // This ensures local and remote have identical content after push
         // Convert the updated workflow back to TypeScript
@@ -267,25 +269,7 @@ export class SyncEngine {
             throw new Error('Failed to create remote workflow');
         }
 
-        // If folderSync is enabled, assign the workflow to the folder matching its subdirectory path
-        if (this.folderSync && this.projectId) {
-            const dirParts = filename.split('/');
-            if (dirParts.length > 1) {
-                // The directory portion is everything except the filename itself
-                const folderPath = dirParts.slice(0, -1).join('/');
-                try {
-                    const folderId = await this.client.ensureFolderPath(folderPath, this.projectId);
-                    if (folderId) {
-                        await this.client.moveWorkflowToFolder(newWf.id, this.projectId, folderId);
-                    }
-                } catch (err: any) {
-                    if (process.env.DEBUG) {
-                        console.debug(`[SyncEngine] Could not assign workflow to folder "${folderPath}": ${err.message}`);
-                    }
-                    // Non-fatal: workflow is created without folder assignment
-                }
-            }
-        }
+        await this.syncWorkflowFolderAssignment(newWf.id, filename);
 
         // Update local file with new ID and clean metadata
         // Convert the new workflow back to TypeScript
@@ -303,6 +287,36 @@ export class SyncEngine {
             return fs.readFileSync(filePath, 'utf8');
         } catch {
             return null;
+        }
+    }
+
+    private async syncWorkflowFolderAssignment(workflowId: string, filename: string): Promise<void> {
+        if (!this.folderSync || !this.projectId) {
+            return;
+        }
+
+        const normalizedFilename = filename.replace(/\\/g, '/');
+        const dirParts = normalizedFilename.split('/');
+        const folderPath = dirParts.length > 1 ? dirParts.slice(0, -1).join('/') : null;
+
+        try {
+            if (!folderPath) {
+                await this.client.moveWorkflowToFolder(workflowId, this.projectId, null);
+                return;
+            }
+
+            const folderId = await this.client.ensureFolderPath(folderPath, this.projectId);
+            if (folderId) {
+                await this.client.moveWorkflowToFolder(workflowId, this.projectId, folderId);
+            }
+        } catch (err: any) {
+            if (process.env.DEBUG) {
+                console.debug(
+                    `[SyncEngine] Could not assign workflow ${workflowId} to folder ` +
+                    `"${folderPath ?? '<root>'}": ${err.message}`
+                );
+            }
+            // Non-fatal: the workflow sync succeeds even if folder assignment fails.
         }
     }
 }
