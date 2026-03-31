@@ -28,11 +28,13 @@ The VS Code extension gives you the best experience: visual tree view, push/pull
 
 1. Click the **n8n** icon in the Activity Bar
 2. Click **n8n: Configure** (or the gear icon)
-3. Enter your **n8n host URL** (e.g. `https://your-instance.app.n8n.cloud`)
-4. Enter your **API key**
-5. The extension auto-loads your projects — select the one you want
-6. Click **Save settings**
-7. Click **Initialize n8n as code** to load the workspace
+3. Click **Add instance** if you want to save a new n8n environment in this workspace
+4. Enter your **n8n host URL** (e.g. `https://your-instance.app.n8n.cloud`)
+5. Enter your **API key**
+6. Click **Load projects**, then select the one you want to sync
+7. Click **Save and activate config**
+8. The workspace can keep multiple saved instance configs; only one is active at a time
+9. Click **Initialize n8n as code** to load the workspace
 
 ### 3. Sync Your First Workflow
 
@@ -133,7 +135,7 @@ After setup, your project looks like this:
 
 ```
 your-project/
-├── n8nac-config.json             # Connection & project settings (safe to commit)
+├── n8nac-config.json             # Saved instance configs + active selection (safe to commit)
 ├── AGENTS.md                     # AI agent instructions (auto-generated)
 ├── workflows/                    # Your workflow files
 │   └── instance-name_user/       # Organized by instance
@@ -144,7 +146,7 @@ your-project/
 └── .git/                         # Version control (recommended)
 ```
 
-- **`n8nac-config.json`** — workspace config, instance library, and active instance selection; safe to commit
+- **`n8nac-config.json`** — workspace config, saved instance configs, and active instance selection; safe to commit
 - **API keys** — stored in your system credential store, never in the config file
 - **`AGENTS.md`** — generated instructions for AI agents (regenerate with `n8nac update-ai`)
 

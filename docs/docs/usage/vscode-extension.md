@@ -62,25 +62,23 @@ Visualize the n8n canvas beside your code using the integrated Webview while edi
 ### Initial Setup
 1. Click the **n8n** icon in the Activity Bar
 2. Click **n8n: Configure** (or the Configure link shown in the panel)
-3. Create or select an **instance profile**
-4. Enter your **Host** and **API Key**:
-   - The extension automatically loads available projects as you type
-   - Your **Personal** project is pre-selected by default
-5. Configure:
-   - Sync Folder (default: `workflows`)
-6. Click **Save settings**
-7. Click **Initialize n8n as code** in the n8n view to initialize the workspace and load the active project context
+3. Click **Add instance** if you want to register a new n8n environment in this workspace
+4. Enter the **Host** and **API Key** of the existing n8n instance you want to connect
+5. Click **Load projects**, then choose the **Project to sync**
+6. Set the **Sync Folder** (default: `workflows`)
+7. Click **Save and activate config**
+8. Click **Initialize n8n as code** in the n8n view to initialize the workspace and load the active project context
 
-The extension stores an instance library plus the active instance selection in `n8nac-config.json`. Legacy `n8n.*` VS Code settings remain as a fallback compatibility layer, not the primary source of truth.
+The extension stores saved instance configs plus the active instance selection in `n8nac-config.json`. Legacy `n8n.*` VS Code settings remain as a fallback compatibility layer, not the primary source of truth.
 
 ### Switching Instances
 
 Use either:
 
-- the **Saved instance profiles** dropdown in **n8n: Configure**
+- the **Select instance** dropdown in **n8n: Configure** to load a saved config into the form, then click **Save and activate config**
 - the **n8n: Select Instance** command from the Command Palette
 
-Switching the active instance rebinds the extension to that profile while keeping the runtime sync engine mono-instance.
+This lets one workspace keep multiple saved instance configs while the runtime stays bound to one active instance at a time.
 
 ### Apply Changes (safety)
 When you change critical settings (host / API key / sync folder / project), synchronization is paused and an **Apply Changes** action appears (status bar and n8n panel). This prevents partial or accidental settings edits from triggering unexpected sync behavior.

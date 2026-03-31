@@ -35,8 +35,8 @@ n8nac init
 ```
 
 This command:
-1. Creates a configuration file (`n8nac-config.json`)
-2. Configures connection to your n8n instance
+1. Creates or updates `n8nac-config.json`
+2. Saves an instance config for the n8n environment you want to use
 3. Prompts you to select which **n8n project** to sync
 
 ### Download a Workflow from n8n
@@ -86,7 +86,7 @@ The exact commands for each step are documented below in the command reference, 
 Initialize a new n8nac project.
 
 **Description:**
-Interactive wizard that guides you through setting up your n8n connection and project configuration.
+Interactive wizard that guides you through saving an n8n instance config and selecting the active project.
 
 **Example:**
 ```bash
@@ -98,6 +98,8 @@ The wizard will ask for:
 - **API Key**: Your n8n API key (found in n8n Settings > API)
 - **Sync Folder**: Local directory for workflow storage (default: `workflows`)
 - **Project**: The n8n project to sync
+
+`n8nac init` is the ergonomic alias for `n8nac instance add`.
 
 ### `switch`
 Switch to a different n8n project.
@@ -406,9 +408,9 @@ The CLI uses a configuration file (`n8nac-config.json`) with the following struc
 }
 ```
 
-The active instance is also mirrored at the top level for compatibility, but the source of truth is the `instances` library plus `activeInstanceId`.
+The active instance is also mirrored at the top level for compatibility, but the source of truth is the `instances` array plus `activeInstanceId`.
 
-**Note:** API keys are stored securely in your system's credential store, scoped by instance profile when available, not in this file.
+**Note:** API keys are stored securely in your system's credential store, scoped by saved instance config when available, not in this file.
 
 ## 🔄 Workflow Management
 
@@ -417,8 +419,8 @@ The active instance is also mirrored at the top level for compatibility, but the
 # 1. Initialize project
 n8nac init
 
-# Optional: switch to another configured instance profile
-n8nac switch-instance
+# Optional: switch to another saved instance config
+n8nac instance select
 
 # 2. List all workflows to see their sync status (lightweight, covers all workflows)
 n8nac list

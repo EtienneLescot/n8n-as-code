@@ -53,7 +53,7 @@ Visual workflow view inside the editor.
 **Setup**  
 Install from the VS Code Marketplace or Open VSX.  
 Open the `n8n` view.  
-Enter your host and API key.
+Open `n8n: Configure`, enter the URL and API key of your existing n8n instance, load the project, then save and activate the config.
 
 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) · [Open VSX](https://open-vsx.org/extension/etienne-lescot/n8n-as-code)
 
@@ -222,7 +222,7 @@ Thanks to the `n8nworkflows.xyz` project for maintaining the public archive that
 ```
 
 ```bash
-npx n8nac init                              # Connect your n8n instance
+npx n8nac init                              # Save an instance config and select a project
 npx n8nac list                              # See sync status at a glance
 npx n8nac pull <id>                         # Pull remote → local
 npx n8nac push my-workflow.workflow.ts      # Push local → remote
@@ -284,7 +284,9 @@ n8nac pull <id> > workflow.json && n8nac convert workflow.json --format typescri
 
 1. Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) or [OpenVSX Marketplace](https://open-vsx.org/extension/etienne-lescot/n8n-as-code)
 2. Click the **n8n** icon in the Activity Bar
-3. Configure your instance → Start editing
+3. Open **n8n: Configure**, add an instance, load the project, then **Save and activate config**
+
+You can keep multiple saved instance configs in the same workspace and switch which one is active when needed.
 
 > ℹ️ **Workspace required**: Open a folder or a `.code-workspace` before running **Initialize n8n as code**.  
 > The extension needs an active workspace to index files and settings.
