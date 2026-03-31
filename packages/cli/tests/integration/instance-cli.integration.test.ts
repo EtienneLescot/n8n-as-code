@@ -21,7 +21,13 @@ function makeEnv(homeDir: string) {
         XDG_CONFIG_HOME: path.join(homeDir, '.config'),
         N8N_HOST: '',
         N8N_API_KEY: '',
+        FORCE_COLOR: '0',
+        NO_COLOR: '1',
     };
+}
+
+function stripAnsi(value: string): string {
+    return value.replace(/\u001B\[[0-9;]*m/g, '');
 }
 
 function runCli(cwd: string, homeDir: string, args: string[]) {
@@ -95,14 +101,14 @@ describe('CLI instance management integration', () => {
         expect(listedInstances.find((instance: any) => instance.id === 'test')?.active).toBe(true);
 
         const selected = runCli(workspaceDir, homeDir, ['instance', 'select', '--instance-name', 'Production']);
-        expect(selected).toContain('Selected instance: Production');
+        expect(stripAnsi(selected)).toContain('Selected instance: Production');
 
         const selectedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         expect(selectedConfig.activeInstanceId).toBe('prod');
         expect(selectedConfig.projectId).toBe('project-prod');
 
         const deleted = runCli(workspaceDir, homeDir, ['instance', 'delete', '--instance-id', 'prod', '--yes']);
-        expect(deleted).toContain('Deleted saved config: Production');
+        expect(stripAnsi(deleted)).toContain('Deleted saved config: Production');
 
         const deletedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         expect(deletedConfig.instances).toHaveLength(1);
