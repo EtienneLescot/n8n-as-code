@@ -206,6 +206,63 @@ describe('ConfigService', () => {
         expect(persistedConfig.instances[0].syncFolder).toBe('n8n/workflows');
     });
 
+    it('rejects creating a duplicate verified instance config for the same host and authenticated user', async () => {
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+        const first = await configService.upsertInstanceConfigWithVerification({
+            host: 'https://prod.example.com',
+            apiKey: 'prod-key',
+            syncFolder: 'workflows',
+            projectId: 'project-prod',
+            projectName: 'Production'
+        }, {
+            createNew: true,
+            setActive: true,
+            client: {
+                async getCurrentUser() {
+                    return {
+                        id: 'user-1',
+                        email: 'etienne@example.com',
+                        firstName: 'Etienne',
+                        lastName: 'Lescot',
+                    };
+                }
+            }
+        });
+
+        expect(first.status).toBe('saved');
+
+        const persisted = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1];
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
+        (fs.readFileSync as any).mockReturnValue(persisted);
+
+        const duplicate = await configService.upsertInstanceConfigWithVerification({
+            host: 'https://prod.example.com',
+            apiKey: 'another-key',
+            syncFolder: 'workflows-copy',
+            projectId: 'project-prod',
+            projectName: 'Production'
+        }, {
+            createNew: true,
+            setActive: true,
+            client: {
+                async getCurrentUser() {
+                    return {
+                        id: 'user-1',
+                        email: 'etienne@example.com',
+                        firstName: 'Etienne',
+                        lastName: 'Lescot',
+                    };
+                }
+            }
+        });
+
+        expect(duplicate.status).toBe('duplicate');
+        if (duplicate.status === 'duplicate') {
+            expect(duplicate.duplicateInstance.name).toContain('prod.example.com');
+        }
+    });
+
     it('setActiveInstance rewrites the top-level active config cache', () => {
         const workspaceConfig: IWorkspaceConfig = {
             version: 2,
@@ -372,5 +429,73 @@ describe('ConfigService', () => {
         const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1]);
         expect(persistedConfig.instanceIdentifier).toBe('recomputed-id');
         expect(persistedConfig.instances[0].instanceIdentifier).toBe('recomputed-id');
+    });
+
+    it('selectInstanceConfigWithVerification switches to the already verified duplicate config', async () => {
+        const workspaceConfig: IWorkspaceConfig = {
+            version: 2,
+            activeInstanceId: 'draft',
+            instances: [
+                {
+                    id: 'verified',
+                    name: 'prod.example.com · Etienne Lescot',
+                    host: 'https://prod.example.com',
+                    syncFolder: 'workflows',
+                    projectId: 'project-prod',
+                    projectName: 'Production',
+                    instanceIdentifier: 'prod_example_etienne_l',
+                    verification: {
+                        status: 'verified',
+                        normalizedHost: 'https://prod.example.com',
+                        userId: 'user-1',
+                        userName: 'Etienne Lescot',
+                        userEmail: 'etienne@example.com',
+                    }
+                },
+                {
+                    id: 'draft',
+                    name: 'Draft',
+                    host: 'https://prod.example.com',
+                    syncFolder: 'workflows',
+                    projectId: 'project-prod',
+                    projectName: 'Production',
+                    verification: {
+                        status: 'unverified',
+                    }
+                }
+            ],
+            host: 'https://prod.example.com',
+            syncFolder: 'workflows',
+            projectId: 'project-prod',
+            projectName: 'Production'
+        };
+
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
+        (fs.readFileSync as any).mockReturnValue(JSON.stringify(workspaceConfig));
+        mockConf.get.mockImplementation((key: string) => {
+            if (key === 'instanceProfiles') {
+                return { draft: 'draft-key' };
+            }
+            return {};
+        });
+
+        const selection = await configService.selectInstanceConfigWithVerification('draft', {
+            client: {
+                async getCurrentUser() {
+                    return {
+                        id: 'user-1',
+                        email: 'etienne@example.com',
+                        firstName: 'Etienne',
+                        lastName: 'Lescot',
+                    };
+                }
+            }
+        });
+
+        expect(selection.status).toBe('duplicate');
+        if (selection.status === 'duplicate') {
+            expect(selection.profile.id).toBe('verified');
+            expect(selection.duplicateInstance.id).toBe('verified');
+        }
     });
 });

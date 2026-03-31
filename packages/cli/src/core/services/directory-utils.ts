@@ -1,5 +1,15 @@
 import crypto from 'crypto';
 
+export function normalizeHostForIdentity(host: string): string {
+    const trimmed = host.trim();
+    if (!trimmed) {
+        return '';
+    }
+
+    const parsed = new URL(trimmed);
+    return `${parsed.protocol}//${parsed.host}`.toLowerCase();
+}
+
 /**
  * Creates a user-friendly host slug for directory naming
  * @param host The host URL

@@ -2,6 +2,7 @@ import Conf from 'conf';
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { N8nApiClient, createInstanceIdentifier, normalizeHostForIdentity } from '../core/index.js';
 
 // Unified local config written to n8nac-config.json (legacy n8nac.json/n8nac-instance.json deprecated)
 export interface ILocalConfig {
@@ -14,9 +15,22 @@ export interface ILocalConfig {
     folderSync?: boolean;        // Mirror n8n folder hierarchy as local subdirectories (default: false)
 }
 
+export type IInstanceVerificationStatus = 'unverified' | 'verified' | 'failed';
+
+export interface IInstanceVerification {
+    status: IInstanceVerificationStatus;
+    normalizedHost?: string;
+    userId?: string;
+    userName?: string;
+    userEmail?: string;
+    lastCheckedAt?: string;
+    lastError?: string;
+}
+
 export interface IInstanceProfile extends ILocalConfig {
     id: string;
     name: string;
+    verification?: IInstanceVerification;
 }
 
 export interface IWorkspaceConfig extends ILocalConfig {
@@ -24,6 +38,22 @@ export interface IWorkspaceConfig extends ILocalConfig {
     activeInstanceId?: string;
     instances: IInstanceProfile[];
 }
+
+export interface IInstanceVerificationClient {
+    getCurrentUser(): Promise<{ id?: string; email?: string; firstName?: string; lastName?: string } | null>;
+}
+
+export interface IUpsertInstanceConfigInput extends Partial<ILocalConfig> {
+    apiKey?: string;
+}
+
+export type IUpsertInstanceConfigResult =
+    | { status: 'saved'; profile: IInstanceProfile; verificationStatus: IInstanceVerificationStatus }
+    | { status: 'duplicate'; duplicateInstance: IInstanceProfile; normalizedHost: string; userId: string; userName?: string; userEmail?: string };
+
+export type ISelectInstanceResult =
+    | { status: 'selected'; profile: IInstanceProfile; verificationStatus: IInstanceVerificationStatus }
+    | { status: 'duplicate'; profile: IInstanceProfile; duplicateInstance: IInstanceProfile };
 
 export class ConfigService {
     private globalStore: Conf;
@@ -128,6 +158,38 @@ export class ConfigService {
         return this.selectInstanceConfig(instanceId);
     }
 
+    async selectInstanceConfigWithVerification(
+        instanceId: string,
+        options: { client?: IInstanceVerificationClient } = {}
+    ): Promise<ISelectInstanceResult> {
+        const instance = this.getInstanceConfig(instanceId);
+        if (!instance) {
+            throw new Error(`Unknown instance config: ${instanceId}`);
+        }
+
+        const apiKey = instance.host ? this.getApiKey(instance.host, instance.id) : undefined;
+        const shouldVerify = !!instance.host && !!apiKey && instance.verification?.status !== 'verified';
+
+        if (shouldVerify) {
+            const verification = await this.verifyInstanceConfig(instance.id, options);
+            if (verification.status === 'duplicate' && verification.duplicateInstance) {
+                const selected = this.setActiveInstance(verification.duplicateInstance.id);
+                return {
+                    status: 'duplicate',
+                    profile: selected,
+                    duplicateInstance: verification.duplicateInstance,
+                };
+            }
+        }
+
+        const selected = this.setActiveInstance(instance.id);
+        return {
+            status: 'selected',
+            profile: selected,
+            verificationStatus: selected.verification?.status || 'unverified',
+        };
+    }
+
     createInstance(
         config: Partial<ILocalConfig>,
         options: { instanceName?: string; setActive?: boolean } = {}
@@ -163,6 +225,89 @@ export class ConfigService {
             setActive: options.setActive,
             createNew: false,
         });
+    }
+
+    async upsertInstanceConfigWithVerification(
+        input: IUpsertInstanceConfigInput,
+        options: {
+            instanceId?: string;
+            instanceName?: string;
+            setActive?: boolean;
+            createNew?: boolean;
+            client?: IInstanceVerificationClient;
+            persistCredentials?: boolean;
+            preferStoredApiKey?: boolean;
+        } = {}
+    ): Promise<IUpsertInstanceConfigResult> {
+        const workspaceConfig = this.getWorkspaceConfig();
+        const existingActive = this.getActiveInstanceFromConfig(workspaceConfig);
+        const targetId = options.createNew ? undefined : (options.instanceId || existingActive?.id);
+        const current = targetId
+            ? workspaceConfig.instances.find((instance) => instance.id === targetId)
+            : undefined;
+
+        const host = input.host || current?.host;
+        const apiKey = input.apiKey !== undefined
+            ? input.apiKey
+            : (options.preferStoredApiKey === false ? undefined : (host && current?.id ? this.getApiKey(host, current.id) : undefined));
+        const verification = host && apiKey
+            ? await this.resolveInstanceVerification(host, apiKey, options.client, current?.id)
+            : undefined;
+
+        if (verification?.status === 'duplicate' && verification.duplicateInstance) {
+            return {
+                status: 'duplicate',
+                duplicateInstance: verification.duplicateInstance,
+                normalizedHost: verification.normalizedHost || '',
+                userId: verification.userId || '',
+                userName: verification.userName,
+                userEmail: verification.userEmail,
+            };
+        }
+
+        let persistedVerification = current?.verification;
+        if (verification?.status === 'verified' || verification?.status === 'failed') {
+            const verifiedOrFailed = verification as {
+                status: 'verified' | 'failed';
+                normalizedHost?: string;
+                userId?: string;
+                userName?: string;
+                userEmail?: string;
+                error?: string;
+            };
+            persistedVerification = this.buildPersistedVerification(verifiedOrFailed, current?.verification);
+        }
+
+        const profile = this.sanitizeInstanceProfile({
+            ...current,
+            ...input,
+            id: current?.id || options.instanceId || this.createInstanceId(),
+            name: this.resolveInstanceName({
+                current,
+                host,
+                requestedName: options.instanceName,
+                verification,
+            }),
+            instanceIdentifier: verification
+                ? (verification.status === 'verified' ? verification.instanceIdentifier : undefined)
+                : (input.instanceIdentifier || current?.instanceIdentifier),
+            verification: persistedVerification,
+        });
+
+        const saved = this.saveInstanceProfile(profile, {
+            setActive: options.setActive,
+            createNew: options.createNew,
+        });
+
+        if (host && apiKey && options.persistCredentials !== false) {
+            this.saveApiKey(host, apiKey, saved.id);
+        }
+
+        return {
+            status: 'saved',
+            profile: saved,
+            verificationStatus: saved.verification?.status || 'unverified',
+        };
     }
 
     deleteInstance(instanceId: string): { deletedInstance: IInstanceProfile; activeInstance?: IInstanceProfile } {
@@ -229,27 +374,24 @@ export class ConfigService {
         profile: Partial<IInstanceProfile>,
         options: { setActive?: boolean; createNew?: boolean } = {}
     ): IInstanceProfile {
-        const current = profile.id ? this.getInstance(profile.id) : undefined;
-        const instanceConfig = {
-            host: profile.host ?? current?.host,
-            syncFolder: profile.syncFolder ?? current?.syncFolder,
-            projectId: profile.projectId ?? current?.projectId,
-            projectName: profile.projectName ?? current?.projectName,
-            instanceIdentifier: profile.instanceIdentifier ?? current?.instanceIdentifier,
-            customNodesPath: profile.customNodesPath ?? current?.customNodesPath,
-            folderSync: profile.folderSync ?? current?.folderSync,
-        };
+        const workspaceConfig = this.getWorkspaceConfig();
+        const current = profile.id ? workspaceConfig.instances.find((instance) => instance.id === profile.id) : undefined;
+        const savedProfile = this.sanitizeInstanceProfile({
+            ...current,
+            ...profile,
+            id: current?.id || profile.id || this.createInstanceId(),
+            name: profile.name ?? current?.name ?? this.createDefaultInstanceName(profile.host ?? current?.host),
+        });
 
-        return options.createNew
-            ? this.createInstanceConfig(instanceConfig, {
-                instanceName: profile.name,
-                setActive: options.setActive,
-            })
-            : this.updateInstanceConfig(instanceConfig, {
-                instanceId: profile.id,
-                instanceName: profile.name,
-                setActive: options.setActive,
-            });
+        const remaining = workspaceConfig.instances.filter((instance) => instance.id !== savedProfile.id);
+        const instances = [...remaining, savedProfile].sort((left, right) => left.name.localeCompare(right.name));
+        const activeInstanceId = options.setActive === false
+            ? (workspaceConfig.activeInstanceId || savedProfile.id)
+            : savedProfile.id;
+
+        const next = this.buildWorkspaceConfig(instances, activeInstanceId);
+        this.writeWorkspaceConfig(next);
+        return savedProfile;
     }
 
     /**
@@ -282,6 +424,88 @@ export class ConfigService {
                 instanceName: options.instanceName,
                 setActive: true,
             });
+    }
+
+    async verifyInstanceConfig(
+        instanceId: string,
+        options: { client?: IInstanceVerificationClient } = {}
+    ): Promise<
+        | ({ status: 'verified'; instance: IInstanceProfile; normalizedHost: string; userId: string; userName?: string; userEmail?: string; instanceIdentifier: string })
+        | ({ status: 'failed'; instance: IInstanceProfile; error: string })
+        | ({ status: 'duplicate'; instance: IInstanceProfile; duplicateInstance: IInstanceProfile; normalizedHost: string; userId: string; userName?: string; userEmail?: string })
+        | ({ status: 'skipped'; instance: IInstanceProfile; reason: string })
+    > {
+        const instance = this.getInstanceConfig(instanceId);
+        if (!instance) {
+            throw new Error(`Unknown instance config: ${instanceId}`);
+        }
+
+        const host = instance.host;
+        if (!host) {
+            return { status: 'skipped', instance, reason: 'Missing host' };
+        }
+
+        const apiKey = this.getApiKey(host, instance.id);
+        if (!apiKey) {
+            return { status: 'skipped', instance, reason: 'Missing API key' };
+        }
+
+        const verification = await this.resolveInstanceVerification(host, apiKey, options.client, instance.id);
+        if (verification.status === 'duplicate' && verification.duplicateInstance) {
+            return {
+                status: 'duplicate',
+                instance,
+                duplicateInstance: verification.duplicateInstance,
+                normalizedHost: verification.normalizedHost || '',
+                userId: verification.userId || '',
+                userName: verification.userName,
+                userEmail: verification.userEmail,
+            };
+        }
+
+        const persistedVerification = verification.status === 'verified' || verification.status === 'failed'
+            ? this.buildPersistedVerification(verification as {
+                status: 'verified' | 'failed';
+                normalizedHost?: string;
+                userId?: string;
+                userName?: string;
+                userEmail?: string;
+                error?: string;
+            }, undefined)
+            : undefined;
+
+        const updated = this.saveInstanceProfile({
+            ...instance,
+            name: this.resolveInstanceName({
+                current: instance,
+                host,
+                verification,
+            }),
+            instanceIdentifier: verification.status === 'verified'
+                ? verification.instanceIdentifier
+                : undefined,
+            verification: persistedVerification,
+        }, {
+            setActive: instance.id === this.getActiveInstanceId(),
+        });
+
+        if (verification.status === 'verified') {
+            return {
+                status: 'verified',
+                instance: updated,
+                normalizedHost: verification.normalizedHost || '',
+                userId: verification.userId || '',
+                userName: verification.userName,
+                userEmail: verification.userEmail,
+                instanceIdentifier: verification.instanceIdentifier || '',
+            };
+        }
+
+        return {
+            status: 'failed',
+            instance: updated,
+            error: verification.error || 'Verification failed',
+        };
     }
 
     /**
@@ -596,7 +820,188 @@ export class ConfigService {
             id,
             name,
             ...localConfig,
+            verification: this.sanitizeVerification((profile as Partial<IInstanceProfile>).verification),
         };
+    }
+
+    private sanitizeVerification(verification: IInstanceVerification | undefined): IInstanceVerification | undefined {
+        if (!verification || typeof verification !== 'object') {
+            return undefined;
+        }
+
+        const status = verification.status === 'verified' || verification.status === 'failed'
+            ? verification.status
+            : 'unverified';
+
+        return {
+            status,
+            normalizedHost: typeof verification.normalizedHost === 'string' ? verification.normalizedHost.trim() || undefined : undefined,
+            userId: typeof verification.userId === 'string' ? verification.userId.trim() || undefined : undefined,
+            userName: typeof verification.userName === 'string' ? verification.userName.trim() || undefined : undefined,
+            userEmail: typeof verification.userEmail === 'string' ? verification.userEmail.trim() || undefined : undefined,
+            lastCheckedAt: typeof verification.lastCheckedAt === 'string' ? verification.lastCheckedAt.trim() || undefined : undefined,
+            lastError: typeof verification.lastError === 'string' ? verification.lastError.trim() || undefined : undefined,
+        };
+    }
+
+    private async resolveInstanceVerification(
+        host: string,
+        apiKey: string,
+        client?: IInstanceVerificationClient,
+        exceptInstanceId?: string
+    ): Promise<{
+        status: 'verified' | 'failed' | 'duplicate';
+        normalizedHost?: string;
+        userId?: string;
+        userName?: string;
+        userEmail?: string;
+        instanceIdentifier?: string;
+        duplicateInstance?: IInstanceProfile;
+        error?: string;
+    }> {
+        const normalizedHost = normalizeHostForIdentity(host);
+
+        try {
+            const verificationClient = client ?? new N8nApiClient({ host, apiKey });
+            const user = await verificationClient.getCurrentUser();
+            const userId = user?.id?.trim() || user?.email?.trim().toLowerCase();
+
+            if (!userId) {
+                return {
+                    status: 'failed',
+                    error: 'Unable to resolve the authenticated n8n user.',
+                };
+            }
+
+            const resolvedUser = user ?? {};
+
+            const duplicateInstance = this.findVerifiedDuplicate(normalizedHost, userId, exceptInstanceId);
+            if (duplicateInstance) {
+                return {
+                    status: 'duplicate',
+                    normalizedHost,
+                    userId,
+                    userName: this.createUserDisplayName(resolvedUser),
+                    userEmail: resolvedUser.email,
+                    duplicateInstance,
+                };
+            }
+
+            return {
+                status: 'verified',
+                normalizedHost,
+                userId,
+                userName: this.createUserDisplayName(resolvedUser),
+                userEmail: resolvedUser.email,
+                instanceIdentifier: createInstanceIdentifier(host, resolvedUser),
+            };
+        } catch (error: any) {
+            return {
+                status: 'failed',
+                error: error?.message || 'Unable to reach the configured n8n instance.',
+            };
+        }
+    }
+
+    private findVerifiedDuplicate(
+        normalizedHost: string,
+        userId: string,
+        exceptInstanceId?: string
+    ): IInstanceProfile | undefined {
+        return this.listInstances().find((instance) =>
+            instance.id !== exceptInstanceId &&
+            instance.verification?.status === 'verified' &&
+            instance.verification.normalizedHost === normalizedHost &&
+            instance.verification.userId === userId
+        );
+    }
+
+    private buildPersistedVerification(
+        verification:
+            | {
+                status: 'verified' | 'failed';
+                normalizedHost?: string;
+                userId?: string;
+                userName?: string;
+                userEmail?: string;
+                error?: string;
+            }
+            | undefined,
+        previous?: IInstanceVerification
+    ): IInstanceVerification | undefined {
+        const lastCheckedAt = new Date().toISOString();
+
+        if (!verification) {
+            return previous ? {
+                ...previous,
+                status: 'unverified',
+                lastCheckedAt,
+                lastError: undefined,
+                normalizedHost: undefined,
+                userId: undefined,
+                userName: undefined,
+                userEmail: undefined,
+            } : { status: 'unverified', lastCheckedAt };
+        }
+
+        if (verification.status === 'verified') {
+            return {
+                status: 'verified',
+                normalizedHost: verification.normalizedHost,
+                userId: verification.userId,
+                userName: verification.userName,
+                userEmail: verification.userEmail,
+                lastCheckedAt,
+            };
+        }
+
+        return {
+            status: 'failed',
+            lastCheckedAt,
+            lastError: verification.error || 'Verification failed',
+        };
+    }
+
+    private resolveInstanceName(input: {
+        current?: IInstanceProfile;
+        host?: string;
+        requestedName?: string;
+        verification?: {
+            status: 'verified' | 'failed' | 'duplicate';
+            normalizedHost?: string;
+            userName?: string;
+            userEmail?: string;
+        };
+    }): string {
+        const requestedName = input.requestedName?.trim();
+        if (requestedName) {
+            return requestedName;
+        }
+
+        if (input.current?.name && input.current.name !== this.createDefaultInstanceName(input.current.host)) {
+            return input.current.name;
+        }
+
+        if (input.verification?.status === 'verified' && input.host) {
+            return this.createVerifiedInstanceName(input.host, input.verification.userName, input.verification.userEmail);
+        }
+
+        return this.createDefaultInstanceName(input.host || input.current?.host);
+    }
+
+    private createVerifiedInstanceName(host: string, userName?: string, userEmail?: string): string {
+        const hostName = this.createDefaultInstanceName(host);
+        const identityLabel = userName || userEmail;
+        return identityLabel ? `${hostName} · ${identityLabel}` : hostName;
+    }
+
+    private createUserDisplayName(user: { firstName?: string; lastName?: string; email?: string }): string | undefined {
+        const parts = [user.firstName?.trim(), user.lastName?.trim()].filter(Boolean);
+        if (parts.length) {
+            return parts.join(' ');
+        }
+
+        return user.email?.trim() || undefined;
     }
 
     private createDefaultInstanceName(host?: string): string {
