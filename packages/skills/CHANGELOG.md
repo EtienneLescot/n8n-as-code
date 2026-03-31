@@ -1,5 +1,15 @@
 # @n8n-as-code/skills
 
+## [1.4.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.3.1...@n8n-as-code/skills@v1.4.0) (2026-03-31)
+
+### Features
+
+* add agent-friendly instance management flows ([3d63571](https://github.com/EtienneLescot/n8n-as-code/commit/3d63571e1c5243e58a51a93b0c0b927946be86bf))
+
+### Bug Fixes
+
+* **skills:** rebuild knowledge base for n8n@2.14.2 ([192a9cd](https://github.com/EtienneLescot/n8n-as-code/commit/192a9cd03809b5e2bfb86d07b37244bf1c14f4ca))
+
 ## [1.3.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.3.0...@n8n-as-code/skills@v1.3.1) (2026-03-30)
 
 ### Bug Fixes

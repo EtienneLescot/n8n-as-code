@@ -1,5 +1,28 @@
 # n8n-as-code
 
+## [1.20.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.18.0...n8n-as-code@v1.20.0) (2026-03-31)
+
+### Features
+
+* unify instance configuration handling with verification ([500ae07](https://github.com/EtienneLescot/n8n-as-code/commit/500ae07b988503ffb75781e82eb86976ed8c80d5))
+* refine instance config flows across cli and vscode ([1ce3682](https://github.com/EtienneLescot/n8n-as-code/commit/1ce368264098703d70f531410052d2a46b4f8ab7))
+* extend instance library to plugins docs and integration tests ([3f97f54](https://github.com/EtienneLescot/n8n-as-code/commit/3f97f54869ddf99cd8c9b3837cf7ec94d35dccb5))
+* add instance switching functionality to n8n VSCode extension ([0250abd](https://github.com/EtienneLescot/n8n-as-code/commit/0250abd74b65d8370157b0e7548e3bb421f18c4f))
+
+### Bug Fixes
+
+* address PR review feedback for instance config flows ([06f0298](https://github.com/EtienneLescot/n8n-as-code/commit/06f029828969da738b154cf65f64461c8bda5571))
+
+### Documentation
+
+* align config flows across product surfaces ([d961f78](https://github.com/EtienneLescot/n8n-as-code/commit/d961f783e1b95022acdbf3f13ca0982520026619))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.3.1 to 1.4.0
+    * n8nac bumped from 1.3.1 to 1.4.0
+
 ## [1.18.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.16.0...n8n-as-code@v1.18.0) (2026-03-30)
 
 ### Dependencies

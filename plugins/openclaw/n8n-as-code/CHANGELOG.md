@@ -1,5 +1,21 @@
 # @n8n-as-code/n8nac
 
+## [2026.5.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2026.4.1...@n8n-as-code/n8nac@v2026.5.0) (2026-03-31)
+
+### Features
+
+* add integration tests for CLI instance management and update AI functionality ([f3131de](https://github.com/EtienneLescot/n8n-as-code/commit/f3131de6f74c28875e8264c5ac929291046cee7b))
+* add agent-friendly instance management flows ([3d63571](https://github.com/EtienneLescot/n8n-as-code/commit/3d63571e1c5243e58a51a93b0c0b927946be86bf))
+* extend instance library to plugins docs and integration tests ([3f97f54](https://github.com/EtienneLescot/n8n-as-code/commit/3f97f54869ddf99cd8c9b3837cf7ec94d35dccb5))
+
+### Bug Fixes
+
+* address PR review feedback for instance config flows ([06f0298](https://github.com/EtienneLescot/n8n-as-code/commit/06f029828969da738b154cf65f64461c8bda5571))
+
+### Documentation
+
+* align config flows across product surfaces ([d961f78](https://github.com/EtienneLescot/n8n-as-code/commit/d961f783e1b95022acdbf3f13ca0982520026619))
+
 ## [2026.4.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2026.4.0...@n8n-as-code/n8nac@v2026.4.1) (2026-03-30)
 
 ### Bug Fixes

@@ -1,5 +1,27 @@
 # @n8n-as-code/cli
 
+## [1.4.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.3.1...n8nac@v1.4.0) (2026-03-31)
+
+### Features
+
+* enhance CLI instance management tests by stripping ANSI codes from output ([14169d7](https://github.com/EtienneLescot/n8n-as-code/commit/14169d7535b24270ea48844f2d0439e71365c4ab))
+* add integration tests for CLI instance management and update AI functionality ([f3131de](https://github.com/EtienneLescot/n8n-as-code/commit/f3131de6f74c28875e8264c5ac929291046cee7b))
+* add agent-friendly instance management flows ([3d63571](https://github.com/EtienneLescot/n8n-as-code/commit/3d63571e1c5243e58a51a93b0c0b927946be86bf))
+* unify instance configuration handling with verification ([500ae07](https://github.com/EtienneLescot/n8n-as-code/commit/500ae07b988503ffb75781e82eb86976ed8c80d5))
+* implement migration of legacy mono-instance config to unified instance library format ([65d8c56](https://github.com/EtienneLescot/n8n-as-code/commit/65d8c569db69170e43bdd43b9dfab04821c86197))
+* refine instance config flows across cli and vscode ([1ce3682](https://github.com/EtienneLescot/n8n-as-code/commit/1ce368264098703d70f531410052d2a46b4f8ab7))
+* extend instance library to plugins docs and integration tests ([3f97f54](https://github.com/EtienneLescot/n8n-as-code/commit/3f97f54869ddf99cd8c9b3837cf7ec94d35dccb5))
+* add instance switching functionality to n8n VSCode extension ([0250abd](https://github.com/EtienneLescot/n8n-as-code/commit/0250abd74b65d8370157b0e7548e3bb421f18c4f))
+
+### Documentation
+
+* align config flows across product surfaces ([d961f78](https://github.com/EtienneLescot/n8n-as-code/commit/d961f783e1b95022acdbf3f13ca0982520026619))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.3.1 to 1.4.0
+
 ## [1.3.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.3.0...n8nac@v1.3.1) (2026-03-30)
 
 ### Bug Fixes
