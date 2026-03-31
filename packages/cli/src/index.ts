@@ -154,7 +154,7 @@ program.command('list')
 
 // folders - List n8n folders in the active project
 program.command('folders')
-    .description('List folders in the active n8n project (requires n8n ≥ 1.68 with Enterprise/Pro license)')
+    .description('List folders in the active n8n project (requires n8n ≥ 1.68; free on self-hosted Community Edition with instance registration)')
     .option('--raw', 'Output full JSON instead of a table')
     .action(async (options) => {
         await new FoldersCommand().run({ raw: options.raw });

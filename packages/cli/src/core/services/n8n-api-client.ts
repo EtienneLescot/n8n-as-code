@@ -483,7 +483,9 @@ export class N8nApiClient {
     //   /rest/projects/:projectId/folders
     //
     // These endpoints accept the same X-N8N-API-KEY authentication as the public API.
-    // Folder support requires n8n >= 1.68 with Enterprise/Pro license (feat:folders).
+    // Folder support requires n8n >= 1.68. On self-hosted Community Edition, the
+    // instance must be registered (free — Settings → Usage and Plan → Unlock) to
+    // enable the folders feature. Enterprise/Pro licenses include it automatically.
     // All methods gracefully return empty results when folders are unsupported.
 
     /**
