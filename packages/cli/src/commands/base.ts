@@ -6,11 +6,13 @@ export class BaseCommand {
     protected client: N8nApiClient;
     protected config: any;
     protected configService: ConfigService;
+    protected activeInstanceId?: string;
     protected instanceIdentifier: string | null = null;
 
     constructor() {
         this.configService = new ConfigService();
         const localConfig = this.configService.getLocalConfig();
+        this.activeInstanceId = this.configService.getActiveInstanceId();
 
         // Resolve host: local config → env var
         const rawEnvHost = process.env.N8N_HOST;
@@ -24,7 +26,7 @@ export class BaseCommand {
         const envApiKey = rawEnvApiKey
             ? rawEnvApiKey.trim().replace(/^['"]|['"]$/g, '')
             : '';
-        const apiKey = (host ? this.configService.getApiKey(host) : undefined)
+        const apiKey = (host ? this.configService.getApiKey(host, this.activeInstanceId) : undefined)
             || envApiKey
             || '';
 
@@ -46,7 +48,8 @@ export class BaseCommand {
             directory: localConfig.syncFolder || './workflows',
             syncInactive: true,
             ignoredTags: [],
-            host
+            host,
+            folderSync: localConfig.folderSync ?? false,
         };
     }
 
@@ -58,7 +61,7 @@ export class BaseCommand {
             return this.instanceIdentifier;
         }
 
-        this.instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(this.config.host);
+        this.instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(this.config.host, this.activeInstanceId);
         return this.instanceIdentifier;
     }
 
@@ -89,7 +92,8 @@ export class BaseCommand {
             instanceIdentifier: instanceIdentifier,
             instanceConfigPath: this.configService.getInstanceConfigPath(),
             projectId: localConfig.projectId,
-            projectName: localConfig.projectName
+            projectName: localConfig.projectName,
+            folderSync: localConfig.folderSync ?? false,
         };
     }
 
