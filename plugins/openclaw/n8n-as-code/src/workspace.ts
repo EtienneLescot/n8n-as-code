@@ -51,13 +51,19 @@ export function readWorkspaceBinding(workspaceDir: string): WorkspaceBinding {
     const raw = readFileSync(configPath, "utf-8");
     const config = JSON.parse(raw) as Record<string, unknown>;
     const activeInstance = resolveActiveInstance(config);
+    const configActiveInstanceId = readString(config.activeInstanceId);
+    const resolvedActiveInstanceId = readString(activeInstance?.id);
+    const activeInstanceId =
+      resolvedActiveInstanceId && resolvedActiveInstanceId === configActiveInstanceId
+        ? configActiveInstanceId
+        : resolvedActiveInstanceId || undefined;
 
     return {
       host: readString(activeInstance?.host) || readString(config.host) || undefined,
       projectId: readString(activeInstance?.projectId) || readString(config.projectId) || undefined,
       projectName: readString(activeInstance?.projectName) || readString(config.projectName) || undefined,
       syncFolder: readString(activeInstance?.syncFolder) || readString(config.syncFolder) || undefined,
-      activeInstanceId: readString(config.activeInstanceId) || readString(activeInstance?.id) || undefined,
+      activeInstanceId,
       activeInstanceName: readString(activeInstance?.name) || undefined,
     };
   } catch {

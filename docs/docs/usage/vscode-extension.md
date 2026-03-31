@@ -78,7 +78,7 @@ The extension stores an instance library plus the active instance selection in `
 Use either:
 
 - the **Saved instance profiles** dropdown in **n8n: Configure**
-- the **n8n: Switch Instance** command from the Command Palette
+- the **n8n: Select Instance** command from the Command Palette
 
 Switching the active instance rebinds the extension to that profile while keeping the runtime sync engine mono-instance.
 

@@ -34,12 +34,12 @@ function getEnvValue(key: 'N8N_HOST' | 'N8N_API_KEY'): string {
 
 export function getResolvedN8nConfig(workspaceRoot = getWorkspaceRoot()): ResolvedN8nWorkspaceConfig {
   const unified = workspaceRoot ? readUnifiedWorkspaceConfig(workspaceRoot) : undefined;
-  const configService = new ConfigService(workspaceRoot);
-  const activeInstance = configService.getActiveInstance();
+  const configService = workspaceRoot ? new ConfigService(workspaceRoot) : undefined;
+  const activeInstance = workspaceRoot && configService ? configService.getActiveInstance() : undefined;
   const host = normalizeHost(
     readString(unified?.host) || getSettingsValue('host') || getEnvValue('N8N_HOST')
   );
-  const apiKey = (host ? configService.getApiKey(host, activeInstance?.id) : undefined)
+  const apiKey = (host && configService ? configService.getApiKey(host, activeInstance?.id) : undefined)
     || getSettingsValue('apiKey')
     || getEnvValue('N8N_API_KEY');
 

@@ -220,6 +220,9 @@ export class ConfigurationWebview {
           }
         }
       } catch (error: any) {
+        if (message.type === 'deleteInstance') {
+          await this.postInitialState();
+        }
         this._panel.webview.postMessage({
           type: 'error',
           message: error?.message || 'Unexpected error',
@@ -259,15 +262,17 @@ export class ConfigurationWebview {
     const stateVersion = ++this._stateVersion;
     const workspaceRoot = getWorkspaceRoot();
     const resolved = getResolvedN8nConfig(workspaceRoot);
-    const configService = new ConfigService(workspaceRoot);
-    const workspaceConfig = workspaceRoot ? configService.getWorkspaceConfig() : { instances: [], activeInstanceId: undefined };
-    const activeInstance = configService.getActiveInstance();
+    const configService = workspaceRoot ? new ConfigService(workspaceRoot) : undefined;
+    const workspaceConfig = workspaceRoot && configService
+      ? configService.getWorkspaceConfig()
+      : { instances: [], activeInstanceId: undefined };
+    const activeInstance = workspaceRoot && configService ? configService.getActiveInstance() : undefined;
 
     const initState = buildConfigurationInitState({
       workspaceConfig,
       activeInstance,
       resolved,
-      getApiKey: (host, instanceId) => configService.getApiKey(host, instanceId),
+      getApiKey: (host, instanceId) => (workspaceRoot && configService ? configService.getApiKey(host, instanceId) : undefined),
       normalizeHost,
     });
 
