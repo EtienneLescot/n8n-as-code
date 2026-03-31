@@ -120,6 +120,33 @@ describe('ConfigService', () => {
         expect(persistedConfig.activeInstanceId).toBe(persistedConfig.instances[0].id);
     });
 
+    it('migrates a legacy mono-instance n8nac-config.json into the instance library format', () => {
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockImplementation((filePath: string) => filePath.endsWith('n8nac-config.json'));
+        (fs.readFileSync as any).mockReturnValue(JSON.stringify({
+            host: 'http://localhost:5678',
+            syncFolder: 'workflows',
+            projectId: 'project-1',
+            projectName: 'Personal',
+            instanceIdentifier: 'legacy_identifier',
+            folderSync: true,
+        }));
+
+        const workspaceConfig = configService.getWorkspaceConfig();
+
+        expect(workspaceConfig.version).toBe(2);
+        expect(workspaceConfig.instances).toHaveLength(1);
+        expect(workspaceConfig.activeInstanceId).toBe(workspaceConfig.instances[0].id);
+        expect(workspaceConfig.instances[0]).toMatchObject({
+            host: 'http://localhost:5678',
+            syncFolder: 'workflows',
+            projectId: 'project-1',
+            projectName: 'Personal',
+            instanceIdentifier: 'legacy_identifier',
+            folderSync: true,
+        });
+        expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
+    });
+
     it('saveLocalConfig creates a named instance config and makes it active', () => {
         (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
 

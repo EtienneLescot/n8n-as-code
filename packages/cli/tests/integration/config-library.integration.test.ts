@@ -164,4 +164,35 @@ describe('ConfigService filesystem integration', () => {
         expect(persisted.host).toBe('http://localhost:5678');
         expect(persisted.instanceIdentifier).toBe('legacy_identifier');
     });
+
+    it('migrates a mono-instance n8nac-config.json into the unified instance library on first read', () => {
+        const workspaceDir = createWorkspaceDir();
+        fs.writeFileSync(path.join(workspaceDir, 'n8nac-config.json'), JSON.stringify({
+            host: 'http://localhost:5678',
+            syncFolder: 'workflows',
+            projectId: 'project-1',
+            projectName: 'Personal',
+            instanceIdentifier: 'legacy_identifier'
+        }, null, 2));
+
+        const configService = createService(workspaceDir, { hosts: {}, instanceProfiles: {} });
+        const workspaceConfig = configService.getWorkspaceConfig();
+
+        expect(workspaceConfig.version).toBe(2);
+        expect(workspaceConfig.instances).toHaveLength(1);
+        expect(workspaceConfig.activeInstanceId).toBe(workspaceConfig.instances[0].id);
+        expect(workspaceConfig.instances[0]).toMatchObject({
+            host: 'http://localhost:5678',
+            syncFolder: 'workflows',
+            projectId: 'project-1',
+            projectName: 'Personal',
+            instanceIdentifier: 'legacy_identifier'
+        });
+
+        const persisted = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'n8nac-config.json'), 'utf-8'));
+        expect(persisted.version).toBe(2);
+        expect(persisted.instances).toHaveLength(1);
+        expect(persisted.host).toBe('http://localhost:5678');
+        expect(persisted.instanceIdentifier).toBe('legacy_identifier');
+    });
 });

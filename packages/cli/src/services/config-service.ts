@@ -483,6 +483,19 @@ export class ConfigService {
                 .map((value) => this.sanitizeInstanceProfile(value))
             : [];
 
+        if (!Array.isArray(source.instances)) {
+            const legacyConfig = this.sanitizeLocalConfig(source as Partial<ILocalConfig>);
+            if (Object.keys(legacyConfig).length > 0) {
+                const profile = this.sanitizeInstanceProfile({
+                    id: this.createLegacyInstanceId(legacyConfig),
+                    name: this.createDefaultInstanceName(legacyConfig.host),
+                    ...legacyConfig,
+                });
+
+                return this.buildWorkspaceConfig([profile], profile.id);
+            }
+        }
+
         const activeInstanceId = typeof source.activeInstanceId === 'string' && instances.some((instance) => instance.id === source.activeInstanceId)
             ? source.activeInstanceId
             : instances[0]?.id;
