@@ -67,8 +67,13 @@
       },
       {
         "command": "n8n.switchInstance",
-        "title": "n8n: Switch Instance",
+        "title": "n8n: Select Instance",
         "icon": "$(list-selection)"
+      },
+      {
+        "command": "n8n.deleteInstance",
+        "title": "n8n: Delete Saved Instance",
+        "icon": "$(trash)"
       },
       {
         "command": "n8n.init",

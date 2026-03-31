@@ -199,6 +199,21 @@ export class MockConfigService {
         return next;
     }
 
+    createInstance(config: any, options?: { instanceName?: string; setActive?: boolean }): any {
+        const instanceId = `test-instance-${this.instances.length + 1}`;
+        return this.saveLocalConfig(config, {
+            instanceId,
+            instanceName: options?.instanceName,
+        });
+    }
+
+    updateInstance(config: any, options?: { instanceId?: string; instanceName?: string; setActive?: boolean }): any {
+        return this.saveLocalConfig(config, {
+            instanceId: options?.instanceId || this.activeInstanceId,
+            instanceName: options?.instanceName,
+        });
+    }
+
     getApiKey(host: string, instanceId?: string): string | undefined {
         if (instanceId && this.instanceApiKeys[instanceId]) {
             return this.instanceApiKeys[instanceId];
@@ -245,6 +260,30 @@ export class MockConfigService {
             this.localConfig = active;
         }
         return active;
+    }
+
+    selectInstance(instanceId: string): any {
+        return this.setActiveInstance(instanceId);
+    }
+
+    deleteInstance(instanceId: string): { deletedInstance: any; activeInstance?: any } {
+        const deletedInstance = this.instances.find((instance) => instance.id === instanceId);
+        if (!deletedInstance) {
+            throw new Error(`Unknown instance config: ${instanceId}`);
+        }
+
+        this.instances = this.instances.filter((instance) => instance.id !== instanceId);
+        delete this.instanceApiKeys[instanceId];
+
+        if (this.activeInstanceId === instanceId) {
+            this.activeInstanceId = this.instances[0]?.id;
+            this.localConfig = this.instances[0] || {};
+        }
+
+        return {
+            deletedInstance,
+            activeInstance: this.instances.find((instance) => instance.id === this.activeInstanceId),
+        };
     }
 
     async getOrCreateInstanceIdentifier(host: string, _instanceId?: string): Promise<string> {

@@ -28,22 +28,58 @@ export class InitCommand {
     }
 
     async run(options: InitCommandOptions = {}): Promise<void> {
+        await this.runInstanceCreate(options);
+    }
+
+    async runInstanceCreate(options: InitCommandOptions = {}): Promise<void> {
         console.log(chalk.cyan('\n🚀 Welcome to n8n-as-code initialization!'));
         console.log(chalk.gray('This tool will help you configure your local environment.\n'));
 
         const currentLocal = this.configService.getLocalConfig();
-        const currentInstance = this.configService.getActiveInstance();
+        const currentInstance = this.configService.getCurrentInstanceConfig();
         const currentApiKey = currentLocal.host
             ? this.configService.getApiKey(currentLocal.host, currentInstance?.id)
             : '';
-        const resolvedOptions = this.resolveOptions(options, currentLocal, currentApiKey);
+        const resolvedOptions = this.resolveOptions({
+            ...options,
+            newInstance: true,
+        }, currentLocal, currentApiKey);
 
         if (this.shouldRunNonInteractive(options)) {
-            await this.runNonInteractive(resolvedOptions);
+            await this.runNonInteractive(resolvedOptions, 'create');
             return;
         }
 
-        await this.runInteractive(currentLocal, currentApiKey);
+        await this.runInteractive(currentLocal, currentApiKey, 'create');
+    }
+
+    async runInstanceUpdate(options: InitCommandOptions = {}): Promise<void> {
+        const currentInstance = this.configService.getCurrentInstanceConfig();
+        if (!currentInstance) {
+            console.error(chalk.red('❌ No selected instance found.'));
+            console.error(chalk.yellow('Run `n8nac instance add` or `n8nac init` first.'));
+            process.exitCode = 1;
+            return;
+        }
+
+        console.log(chalk.cyan(`\n🛠️ Updating saved config: ${currentInstance.name}`));
+        console.log(chalk.gray('This updates the currently selected instance config.\n'));
+
+        const currentLocal = this.configService.getLocalConfig();
+        const currentApiKey = currentLocal.host
+            ? this.configService.getApiKey(currentLocal.host, currentInstance.id)
+            : '';
+        const resolvedOptions = this.resolveOptions({
+            ...options,
+            newInstance: false,
+        }, currentLocal, currentApiKey);
+
+        if (this.shouldRunNonInteractive(options)) {
+            await this.runNonInteractive(resolvedOptions, 'update');
+            return;
+        }
+
+        await this.runInteractive(currentLocal, currentApiKey, 'update');
     }
 
     async runAuthSetup(options: InitCommandOptions = {}): Promise<void> {
@@ -51,7 +87,7 @@ export class InitCommand {
         console.log(chalk.gray('This step stores your n8n host and API key, then lists available projects.\n'));
 
         const currentLocal = this.configService.getLocalConfig();
-        const currentInstance = this.configService.getActiveInstance();
+        const currentInstance = this.configService.getCurrentInstanceConfig();
         const currentApiKey = currentLocal.host
             ? this.configService.getApiKey(currentLocal.host, currentInstance?.id)
             : '';
@@ -101,17 +137,17 @@ export class InitCommand {
                 console.log(chalk.yellow('No projects found yet. Create a project in n8n, then run n8nac init-project.'));
             }
 
-            const profile = this.configService.saveBootstrapState(
+            const savedInstance = this.configService.saveBootstrapState(
                 resolvedOptions.host,
                 resolvedOptions.syncFolder || 'workflows',
                 { instanceName: resolvedOptions.instanceName, createNew: resolvedOptions.newInstance }
             );
-            this.configService.saveApiKey(resolvedOptions.host, resolvedOptions.apiKey, profile.id);
+            this.configService.saveApiKey(resolvedOptions.host, resolvedOptions.apiKey, savedInstance.id);
 
             console.log(chalk.green('\n✔ Credentials saved successfully!'));
             console.log(chalk.blue('📁 Workspace bootstrap:') + ' n8nac-config.json');
             console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
-            console.log(chalk.blue('🧩 Active instance:') + ` ${profile.name}\n`);
+            console.log(chalk.blue('🧩 Selected instance:') + ` ${savedInstance.name}\n`);
 
             if (projects.length > 0) {
                 this.printAvailableProjects(projects);
@@ -131,7 +167,7 @@ export class InitCommand {
         console.log(chalk.gray('This step selects the active n8n project and the local sync folder.\n'));
 
         const currentLocal = this.configService.getLocalConfig();
-        const currentInstance = this.configService.getActiveInstance();
+        const currentInstance = this.configService.getCurrentInstanceConfig();
         const currentApiKey = currentLocal.host
             ? this.configService.getApiKey(currentLocal.host, currentInstance?.id)
             : '';
@@ -227,7 +263,7 @@ export class InitCommand {
             host: options.host || this.getEnvValue('N8N_HOST') || currentLocal.host,
             apiKey: options.apiKey || this.getEnvValue('N8N_API_KEY') || currentApiKey,
             syncFolder: options.syncFolder || currentLocal.syncFolder || 'workflows',
-            instanceName: options.instanceName || this.configService.getActiveInstance()?.name,
+            instanceName: options.instanceName || this.configService.getCurrentInstanceConfig()?.name,
             newInstance: !!options.newInstance,
             projectId: options.projectId,
             projectName: options.projectName,
@@ -266,7 +302,11 @@ export class InitCommand {
         }
     }
 
-    private async runInteractive(currentLocal: Partial<ILocalConfig>, currentApiKey?: string): Promise<void> {
+    private async runInteractive(
+        currentLocal: Partial<ILocalConfig>,
+        currentApiKey: string | undefined,
+        mode: 'create' | 'update'
+    ): Promise<void> {
         const answers = await inquirer.prompt([
             {
                 type: 'input',
@@ -285,8 +325,8 @@ export class InitCommand {
             {
                 type: 'input',
                 name: 'instanceName',
-                message: 'Instance profile name:',
-                default: this.configService.getActiveInstance()?.name || 'Default instance'
+                message: 'Saved instance name:',
+                default: this.configService.getCurrentInstanceConfig()?.name || 'Default instance'
             },
             {
                 type: 'input',
@@ -301,10 +341,11 @@ export class InitCommand {
             apiKey: answers.apiKey,
             instanceName: answers.instanceName,
             syncFolder: answers.syncFolder,
+            newInstance: mode === 'create',
         }, false);
     }
 
-    private async runNonInteractive(options: InitCommandOptions): Promise<void> {
+    private async runNonInteractive(options: InitCommandOptions, mode: 'create' | 'update'): Promise<void> {
         if (!options.host) {
             console.error(chalk.red('❌ Missing n8n host. Pass --host <url> or set N8N_HOST.'));
             process.exitCode = 1;
@@ -329,7 +370,7 @@ export class InitCommand {
             apiKey: options.apiKey,
             syncFolder: options.syncFolder || 'workflows',
             instanceName: options.instanceName,
-            newInstance: options.newInstance,
+            newInstance: mode === 'create',
             projectId: options.projectId,
             projectName: options.projectName,
             projectIndex: options.projectIndex,
@@ -403,7 +444,6 @@ export class InitCommand {
                 return;
             }
 
-            const selectedProjectDisplayName = getDisplayProjectName(selectedProject);
             await this.finalizeProjectSetup({
                 host: input.host,
                 apiKey: input.apiKey,
@@ -436,20 +476,24 @@ export class InitCommand {
             projectName: selectedProjectDisplayName
         };
 
-        const profile = this.configService.saveLocalConfig(localConfig, {
-            instanceName: input.instanceName,
-            createNew: input.newInstance,
-            setActive: true,
-        });
-        this.configService.saveApiKey(input.host, input.apiKey, profile.id);
+        const savedInstance = input.newInstance
+            ? this.configService.createInstanceConfig(localConfig, {
+                instanceName: input.instanceName,
+                setActive: true,
+            })
+            : this.configService.updateInstanceConfig(localConfig, {
+                instanceName: input.instanceName,
+                setActive: true,
+            });
+        this.configService.saveApiKey(input.host, input.apiKey, savedInstance.id);
 
         console.log('\n' + chalk.green('✔ Configuration saved successfully!'));
         console.log(chalk.blue('📁 Project config:') + ' n8nac-config.json');
         console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
-        console.log(chalk.blue('🧩 Active instance:') + ` ${profile.name}\n`);
+        console.log(chalk.blue('🧩 Selected instance:') + ` ${savedInstance.name}\n`);
 
         const spinner = ora('Generating instance identifier...').start();
-        const instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(input.host, profile.id);
+        const instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(input.host, savedInstance.id);
         spinner.succeed(chalk.green(`Instance identifier: ${instanceIdentifier}`));
         console.log(chalk.gray('(n8nac-config.json will be kept up to date automatically)\n'));
 

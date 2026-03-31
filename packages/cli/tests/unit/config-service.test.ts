@@ -120,7 +120,7 @@ describe('ConfigService', () => {
         expect(persistedConfig.activeInstanceId).toBe(persistedConfig.instances[0].id);
     });
 
-    it('saveLocalConfig creates a named instance profile and makes it active', () => {
+    it('saveLocalConfig creates a named instance config and makes it active', () => {
         (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
 
         const savedProfile = configService.saveLocalConfig({
@@ -144,6 +144,39 @@ describe('ConfigService', () => {
             syncFolder: 'workflows-prod'
         });
         expect(persistedConfig.host).toBe('https://prod.example.com');
+    });
+
+    it('createInstance and updateInstance expose explicit instance operations', () => {
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+        const created = configService.createInstance({
+            host: 'https://prod.example.com',
+            syncFolder: 'workflows',
+            projectId: 'project-prod',
+            projectName: 'Production'
+        }, {
+            instanceName: 'Production',
+            setActive: true,
+        });
+
+        (fs.readFileSync as any).mockReturnValue((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1]);
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
+
+        const updated = configService.updateInstance({
+            host: 'https://prod.example.com',
+            syncFolder: 'n8n/workflows',
+            projectId: 'project-prod',
+            projectName: 'Production'
+        }, {
+            instanceId: created.id,
+            instanceName: 'Production',
+            setActive: true,
+        });
+
+        expect(updated.id).toBe(created.id);
+        const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1]);
+        expect(persistedConfig.instances).toHaveLength(1);
+        expect(persistedConfig.instances[0].syncFolder).toBe('n8n/workflows');
     });
 
     it('setActiveInstance rewrites the top-level active config cache', () => {
@@ -188,18 +221,71 @@ describe('ConfigService', () => {
         expect(persistedConfig.instanceIdentifier).toBe('prod_identifier');
     });
 
-    it('stores and resolves API keys by instance profile when available', () => {
+    it('deleteInstance removes the scoped secret and promotes the next active instance when deleting the current one', () => {
+        const workspaceConfig: IWorkspaceConfig = {
+            version: 2,
+            activeInstanceId: 'prod',
+            instances: [
+                {
+                    id: 'prod',
+                    name: 'Production',
+                    host: 'https://prod.example.com',
+                    syncFolder: 'workflows-prod',
+                    projectId: 'project-prod',
+                    projectName: 'Production'
+                },
+                {
+                    id: 'test',
+                    name: 'Test',
+                    host: 'https://test.example.com',
+                    syncFolder: 'workflows-test',
+                    projectId: 'project-test',
+                    projectName: 'Test'
+                }
+            ],
+            host: 'https://prod.example.com',
+            syncFolder: 'workflows-prod',
+            projectId: 'project-prod',
+            projectName: 'Production'
+        };
+
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
+        (fs.readFileSync as any).mockReturnValue(JSON.stringify(workspaceConfig));
+        mockConf.get.mockImplementation((key: string) => {
+            if (key === 'instanceProfiles') {
+                return {
+                    prod: 'prod-key',
+                    test: 'test-key',
+                };
+            }
+            return {};
+        });
+
+        const result = configService.deleteInstance('prod');
+
+        expect(result.deletedInstance.id).toBe('prod');
+        expect(result.activeInstance?.id).toBe('test');
+        const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls[0][1]);
+        expect(persistedConfig.activeInstanceId).toBe('test');
+        expect(persistedConfig.instances).toHaveLength(1);
+        expect(persistedConfig.instances[0].id).toBe('test');
+        expect(mockConf.set).toHaveBeenCalledWith('instanceProfiles', {
+            test: 'test-key',
+        });
+    });
+
+    it('stores and resolves API keys by instance config when available', () => {
         mockConf.get.mockImplementation((key: string) => {
             if (key === 'hosts') {
                 return { 'https://prod.example.com': 'host-level-key' };
             }
             if (key === 'instanceProfiles') {
-                return { prod: 'profile-level-key' };
+                return { prod: 'config-level-key' };
             }
             return {};
         });
 
-        expect(configService.getApiKey('https://prod.example.com', 'prod')).toBe('profile-level-key');
+        expect(configService.getApiKey('https://prod.example.com', 'prod')).toBe('config-level-key');
         expect(configService.getApiKey('https://prod.example.com')).toBe('host-level-key');
 
         configService.saveApiKey('https://prod.example.com', 'new-key', 'prod');
@@ -212,7 +298,7 @@ describe('ConfigService', () => {
         });
     });
 
-    it('getOrCreateInstanceIdentifier updates the targeted instance profile', async () => {
+    it('getOrCreateInstanceIdentifier updates the targeted instance config', async () => {
         const workspaceConfig: IWorkspaceConfig = {
             version: 2,
             activeInstanceId: 'prod',

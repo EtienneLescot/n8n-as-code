@@ -79,22 +79,81 @@ program
     .description('N8N Sync Command Line Interface - Manage n8n workflows as code')
     .version(getVersion());
 
+const initCommand = new InitCommand();
+const switchCommand = new SwitchCommand(program);
+
+const registerInstanceOptions = (command: Command, options: { includeNewInstance?: boolean } = {}) => {
+    command
+        .option('--host <url>', 'n8n instance URL')
+        .option('--api-key <key>', 'n8n API key (or set N8N_API_KEY)')
+        .option('--api-key-stdin', 'Read the n8n API key from stdin')
+        .option('--sync-folder <path>', 'Local folder for workflows')
+        .option('--instance-name <name>', 'Friendly name for the saved instance');
+
+    if (options.includeNewInstance) {
+        command.option('--new-instance', 'Add a new saved config instead of updating the selected one');
+    }
+
+    return command
+        .option('--project-id <id>', 'Project ID to select non-interactively')
+        .option('--project-name <name>', 'Project name to select non-interactively')
+        .option('--project-index <number>', '1-based project index to select non-interactively', (value) => parseInt(value, 10))
+        .option('--yes', 'Run non-interactively when enough information is available');
+};
+
+const instanceProgram = program.command('instance')
+    .description('Manage saved n8n instance configs');
+
+registerInstanceOptions(
+    instanceProgram.command('add')
+        .description('Add and select an existing n8n instance')
+).action(async (options) => {
+    await hydrateApiKeyFromStdin(options);
+    await initCommand.runInstanceCreate(options);
+});
+
+registerInstanceOptions(
+    instanceProgram.command('create')
+        .description('Alias for `n8nac instance add`')
+).action(async (options) => {
+    await hydrateApiKeyFromStdin(options);
+    await initCommand.runInstanceCreate(options);
+});
+
+registerInstanceOptions(
+    instanceProgram.command('update')
+        .description('Update the selected n8n instance config')
+).action(async (options) => {
+    await hydrateApiKeyFromStdin(options);
+    await initCommand.runInstanceUpdate(options);
+});
+
+instanceProgram.command('select')
+    .description('Select the current n8n instance')
+    .action(async () => {
+        await switchCommand.runInstanceSwitch();
+    });
+
+instanceProgram.command('delete')
+    .description('Delete a saved n8n instance config')
+    .action(async () => {
+        await switchCommand.runInstanceDeletion();
+    });
+
+instanceProgram.command('list')
+    .description('List saved n8n instance configs')
+    .action(async () => {
+        await switchCommand.runInstanceList();
+    });
+
 // init - Interactive wizard to bootstrap the project, with optional non-interactive flags
-program.command('init')
-    .description('Bootstrap the project (interactive by default, non-interactive with flags)')
-    .option('--host <url>', 'n8n instance URL')
-    .option('--api-key <key>', 'n8n API key (or set N8N_API_KEY)')
-    .option('--api-key-stdin', 'Read the n8n API key from stdin')
-    .option('--sync-folder <path>', 'Local folder for workflows')
-    .option('--instance-name <name>', 'Friendly name for the instance profile')
-    .option('--new-instance', 'Create a new instance profile instead of updating the active one')
-    .option('--project-id <id>', 'Project ID to select non-interactively')
-    .option('--project-name <name>', 'Project name to select non-interactively')
-    .option('--project-index <number>', '1-based project index to select non-interactively', (value) => parseInt(value, 10))
-    .option('--yes', 'Run non-interactively when enough information is available')
+registerInstanceOptions(
+    program.command('init')
+        .description('Alias for `n8nac instance add`')
+)
     .action(async (options) => {
         await hydrateApiKeyFromStdin(options);
-        await new InitCommand().run(options);
+        await initCommand.runInstanceCreate(options);
     });
 
 program.command('init-auth')
@@ -103,11 +162,11 @@ program.command('init-auth')
     .option('--api-key <key>', 'n8n API key (or set N8N_API_KEY)')
     .option('--api-key-stdin', 'Read the n8n API key from stdin')
     .option('--sync-folder <path>', 'Default local folder for workflows')
-    .option('--instance-name <name>', 'Friendly name for the instance profile')
-    .option('--new-instance', 'Create a new instance profile instead of updating the active one')
+    .option('--instance-name <name>', 'Friendly name for the saved instance')
+    .option('--new-instance', 'Add a new saved config instead of updating the selected one')
     .action(async (options) => {
         await hydrateApiKeyFromStdin(options);
-        await new InitCommand().runAuthSetup(options);
+        await initCommand.runAuthSetup(options);
     });
 
 program.command('init-project')
@@ -116,19 +175,18 @@ program.command('init-project')
     .option('--api-key <key>', 'n8n API key (optional if already saved)')
     .option('--api-key-stdin', 'Read the n8n API key from stdin')
     .option('--sync-folder <path>', 'Local folder for workflows')
-    .option('--instance-name <name>', 'Friendly name for the instance profile')
-    .option('--new-instance', 'Create a new instance profile instead of updating the active one')
+    .option('--instance-name <name>', 'Friendly name for the saved instance')
+    .option('--new-instance', 'Add a new saved config instead of updating the selected one')
     .option('--project-id <id>', 'Project ID to select non-interactively')
     .option('--project-name <name>', 'Project name to select non-interactively')
     .option('--project-index <number>', '1-based project index to select non-interactively', (value) => parseInt(value, 10))
     .option('--yes', 'Run non-interactively when enough information is available')
     .action(async (options) => {
         await hydrateApiKeyFromStdin(options);
-        await new InitCommand().runProjectSetup(options);
+        await initCommand.runProjectSetup(options);
     });
 
 // switch - Switch between projects
-new SwitchCommand(program);
 
 // list - Snapshot view of all workflows and their status
 program.command('list')

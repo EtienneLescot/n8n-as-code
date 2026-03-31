@@ -74,6 +74,21 @@ let workflowsTreeView: vscode.TreeView<any> | undefined;
 
 const conflictStore = new Map<string, string>();
 
+type SwitchInstanceCommandArgs = {
+    instanceId?: string;
+    silent?: boolean;
+};
+
+type DeleteInstanceCommandArgs = {
+    instanceId?: string;
+    skipConfirm?: boolean;
+    silent?: boolean;
+};
+
+type InstanceQuickPickItem = vscode.QuickPickItem & {
+    instanceId: string;
+};
+
 export async function activate(context: vscode.ExtensionContext) {
     outputChannel.show(true);
     outputChannel.appendLine('🔌 Activation of "n8n-as-code"...');
@@ -113,45 +128,12 @@ export async function activate(context: vscode.ExtensionContext) {
             ConfigurationWebview.createOrShow(context);
         }),
 
-        vscode.commands.registerCommand('n8n.switchInstance', async () => {
-            const workspaceRoot = getWorkspaceRoot();
-            if (!workspaceRoot) {
-                vscode.window.showErrorMessage(NO_WORKSPACE_ERROR_MESSAGE);
-                return;
-            }
+        vscode.commands.registerCommand('n8n.switchInstance', async (args?: SwitchInstanceCommandArgs) => {
+            await switchWorkspaceInstance(context, args);
+        }),
 
-            const configService = new ConfigService(workspaceRoot);
-            const instances = configService.listInstances();
-            if (!instances.length) {
-                vscode.window.showWarningMessage('No configured n8n instances found.');
-                return;
-            }
-
-            const picked = await vscode.window.showQuickPick(
-                instances.map((instance) => ({
-                    label: instance.name,
-                    description: instance.host || 'Host not configured',
-                    detail: instance.projectName || '',
-                    instanceId: instance.id,
-                })),
-                {
-                    title: 'Select the active n8n instance',
-                    ignoreFocusOut: true,
-                }
-            );
-
-            if (!picked) {
-                return;
-            }
-
-            configService.setActiveInstance(picked.instanceId);
-            if (syncManager) {
-                await reinitializeSyncManager(context);
-            } else {
-                await refreshStateFromWorkspaceConfig(context);
-            }
-            updateContextKeys();
-            vscode.window.showInformationMessage(`Active n8n instance: ${picked.label}`);
+        vscode.commands.registerCommand('n8n.deleteInstance', async (args?: DeleteInstanceCommandArgs) => {
+            await deleteWorkspaceInstance(context, args);
         }),
 
         vscode.commands.registerCommand('n8n.applySettings', async () => {
@@ -618,6 +600,173 @@ function disposeRuntimeDisposables(): void {
         disposable.dispose();
     }
     runtimeDisposables = [];
+}
+
+function toInstanceQuickPickItem(
+    instance: { id: string; name: string; host?: string; projectName?: string },
+    activeInstanceId?: string
+): InstanceQuickPickItem {
+    return {
+        label: instance.name,
+        description: instance.host || 'Host not configured',
+        detail: instance.projectName || (instance.id === activeInstanceId ? 'Currently active' : ''),
+        picked: instance.id === activeInstanceId,
+        instanceId: instance.id,
+    };
+}
+
+async function switchWorkspaceInstance(
+    context: vscode.ExtensionContext,
+    args: SwitchInstanceCommandArgs = {}
+): Promise<string | undefined> {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) {
+        vscode.window.showErrorMessage(NO_WORKSPACE_ERROR_MESSAGE);
+        return undefined;
+    }
+
+    const configService = new ConfigService(workspaceRoot);
+    const instances = configService.listInstances();
+    if (!instances.length) {
+        vscode.window.showWarningMessage('No configured n8n instances found.');
+        return undefined;
+    }
+
+    const activeInstanceId = configService.getActiveInstanceId();
+    let targetInstanceId = args.instanceId?.trim();
+
+    if (!targetInstanceId) {
+        const picked = await vscode.window.showQuickPick(
+            instances.map((instance) => toInstanceQuickPickItem(instance, activeInstanceId)),
+            {
+                title: 'Select the active n8n instance',
+                ignoreFocusOut: true,
+            }
+        );
+
+        if (!picked) {
+            return undefined;
+        }
+
+        targetInstanceId = picked.instanceId;
+    }
+
+    if (targetInstanceId === activeInstanceId) {
+        return targetInstanceId;
+    }
+
+    const selectedInstance = configService.selectInstance(targetInstanceId);
+
+    if (syncManager) {
+        await reinitializeSyncManager(context);
+    } else {
+        await refreshStateFromWorkspaceConfig(context);
+    }
+
+    updateContextKeys();
+
+    if (!args.silent) {
+        vscode.window.showInformationMessage(`Active n8n instance: ${selectedInstance.name}`);
+    }
+
+    return selectedInstance.id;
+}
+
+async function deleteWorkspaceInstance(
+    context: vscode.ExtensionContext,
+    args: DeleteInstanceCommandArgs = {}
+): Promise<string | undefined> {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) {
+        vscode.window.showErrorMessage(NO_WORKSPACE_ERROR_MESSAGE);
+        return undefined;
+    }
+
+    const configService = new ConfigService(workspaceRoot);
+    const instances = configService.listInstances();
+    if (!instances.length) {
+        vscode.window.showWarningMessage('No configured n8n instances found.');
+        return undefined;
+    }
+
+    const activeInstanceId = configService.getActiveInstanceId();
+    let targetInstanceId = args.instanceId?.trim();
+
+    if (!targetInstanceId) {
+        const picked = await vscode.window.showQuickPick(
+            instances.map((instance) => toInstanceQuickPickItem(instance, activeInstanceId)),
+            {
+                title: 'Select the n8n instance to delete',
+                ignoreFocusOut: true,
+            }
+        );
+
+        if (!picked) {
+            return undefined;
+        }
+
+        targetInstanceId = picked.instanceId;
+    }
+
+    const targetInstance = instances.find((instance) => instance.id === targetInstanceId);
+    if (!targetInstance) {
+        vscode.window.showErrorMessage(`Unknown instance: ${targetInstanceId}`);
+        return undefined;
+    }
+
+    if (!args.skipConfirm) {
+        const confirmation = await vscode.window.showWarningMessage(
+            `Delete instance "${targetInstance.name}"?`,
+            { modal: true },
+            'Delete'
+        );
+
+        if (confirmation !== 'Delete') {
+            return undefined;
+        }
+    }
+
+    const wasActive = targetInstance.id === activeInstanceId;
+    const result = configService.deleteInstance(targetInstance.id);
+
+    const refreshAfterDelete = async () => {
+        if (!wasActive) {
+            return;
+        }
+
+        if (result.activeInstance) {
+            await reinitializeSyncManager(context);
+        } else {
+            await refreshStateFromWorkspaceConfig(context);
+        }
+        updateContextKeys();
+    };
+
+    try {
+        if (args.silent) {
+            void refreshAfterDelete().catch((error: any) => {
+                outputChannel.appendLine(`[n8n] Failed to refresh after deleting instance: ${error?.message || error}`);
+            });
+        } else {
+            await refreshAfterDelete();
+        }
+    } catch (error: any) {
+        outputChannel.appendLine(`[n8n] Instance deleted but refresh failed: ${error?.message || error}`);
+        if (!args.silent) {
+            vscode.window.showWarningMessage(
+                `Deleted instance "${result.deletedInstance.name}", but the extension state needs a refresh: ${error?.message || error}`
+            );
+        }
+    }
+
+    if (!args.silent) {
+        const message = result.activeInstance
+            ? `Deleted instance "${result.deletedInstance.name}". Current instance: ${result.activeInstance.name}`
+            : `Deleted instance "${result.deletedInstance.name}". No instance is currently configured.`;
+        vscode.window.showInformationMessage(message);
+    }
+
+    return result.deletedInstance.id;
 }
 
 function getConfigRefreshSignature(workspaceRoot?: string): string {

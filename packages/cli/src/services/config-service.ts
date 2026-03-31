@@ -59,20 +59,48 @@ export class ConfigService {
         return config;
     }
 
-    listInstances(): IInstanceProfile[] {
+    listInstanceConfigs(): IInstanceProfile[] {
         return this.getWorkspaceConfig().instances;
     }
 
-    getInstance(instanceId: string): IInstanceProfile | undefined {
-        return this.listInstances().find((instance) => instance.id === instanceId);
+    listInstances(): IInstanceProfile[] {
+        return this.listInstanceConfigs();
     }
 
-    getActiveInstance(): IInstanceProfile | undefined {
+    getInstanceConfig(instanceId: string): IInstanceProfile | undefined {
+        return this.listInstanceConfigs().find((instance) => instance.id === instanceId);
+    }
+
+    getInstance(instanceId: string): IInstanceProfile | undefined {
+        return this.getInstanceConfig(instanceId);
+    }
+
+    getCurrentInstanceConfig(): IInstanceProfile | undefined {
         return this.getActiveInstanceFromConfig(this.getWorkspaceConfig());
     }
 
-    getActiveInstanceId(): string | undefined {
+    getActiveInstance(): IInstanceProfile | undefined {
+        return this.getCurrentInstanceConfig();
+    }
+
+    getCurrentInstanceConfigId(): string | undefined {
         return this.getWorkspaceConfig().activeInstanceId;
+    }
+
+    getActiveInstanceId(): string | undefined {
+        return this.getCurrentInstanceConfigId();
+    }
+
+    getCurrentInstance(): IInstanceProfile | undefined {
+        return this.getCurrentInstanceConfig();
+    }
+
+    getCurrentInstanceId(): string | undefined {
+        return this.getCurrentInstanceConfigId();
+    }
+
+    getCurrentInstanceProfile(): IInstanceProfile | undefined {
+        return this.getCurrentInstanceConfig();
     }
 
     setActiveInstance(instanceId: string): IInstanceProfile {
@@ -80,7 +108,7 @@ export class ConfigService {
         const instance = workspaceConfig.instances.find((candidate) => candidate.id === instanceId);
 
         if (!instance) {
-            throw new Error(`Unknown instance profile: ${instanceId}`);
+            throw new Error(`Unknown instance config: ${instanceId}`);
         }
 
         const next = this.buildWorkspaceConfig(workspaceConfig.instances, instance.id);
@@ -88,9 +116,85 @@ export class ConfigService {
         return instance;
     }
 
+    selectInstance(instanceId: string): IInstanceProfile {
+        return this.setActiveInstance(instanceId);
+    }
+
+    selectInstanceConfig(instanceId: string): IInstanceProfile {
+        return this.setActiveInstance(instanceId);
+    }
+
+    selectInstanceProfile(instanceId: string): IInstanceProfile {
+        return this.selectInstanceConfig(instanceId);
+    }
+
+    createInstance(
+        config: Partial<ILocalConfig>,
+        options: { instanceName?: string; setActive?: boolean } = {}
+    ): IInstanceProfile {
+        return this.createInstanceConfig(config, options);
+    }
+
+    createInstanceConfig(
+        config: Partial<ILocalConfig>,
+        options: { instanceName?: string; setActive?: boolean } = {}
+    ): IInstanceProfile {
+        return this.saveLocalConfig(config, {
+            instanceName: options.instanceName,
+            setActive: options.setActive,
+            createNew: true,
+        });
+    }
+
+    updateInstance(
+        config: Partial<ILocalConfig>,
+        options: { instanceId?: string; instanceName?: string; setActive?: boolean } = {}
+    ): IInstanceProfile {
+        return this.updateInstanceConfig(config, options);
+    }
+
+    updateInstanceConfig(
+        config: Partial<ILocalConfig>,
+        options: { instanceId?: string; instanceName?: string; setActive?: boolean } = {}
+    ): IInstanceProfile {
+        return this.saveLocalConfig(config, {
+            instanceId: options.instanceId,
+            instanceName: options.instanceName,
+            setActive: options.setActive,
+            createNew: false,
+        });
+    }
+
+    deleteInstance(instanceId: string): { deletedInstance: IInstanceProfile; activeInstance?: IInstanceProfile } {
+        return this.deleteInstanceConfig(instanceId);
+    }
+
+    deleteInstanceConfig(instanceId: string): { deletedInstance: IInstanceProfile; activeInstance?: IInstanceProfile } {
+        const workspaceConfig = this.getWorkspaceConfig();
+        const deletedInstance = workspaceConfig.instances.find((candidate) => candidate.id === instanceId);
+
+        if (!deletedInstance) {
+            throw new Error(`Unknown instance config: ${instanceId}`);
+        }
+
+        const remainingInstances = workspaceConfig.instances.filter((candidate) => candidate.id !== instanceId);
+        const nextActiveInstanceId = workspaceConfig.activeInstanceId === instanceId
+            ? remainingInstances[0]?.id
+            : workspaceConfig.activeInstanceId;
+        const next = this.buildWorkspaceConfig(remainingInstances, nextActiveInstanceId);
+
+        this.writeWorkspaceConfig(next);
+        this.deleteScopedApiKey(instanceId);
+
+        return {
+            deletedInstance,
+            activeInstance: this.getActiveInstanceFromConfig(next),
+        };
+    }
+
     /**
      * Save the active local configuration to n8nac-config.json.
-     * This updates or creates the targeted instance profile, then makes it active by default.
+     * This updates or creates the targeted saved instance config, then makes it active by default.
      */
     saveLocalConfig(
         config: Partial<ILocalConfig>,
@@ -126,8 +230,7 @@ export class ConfigService {
         options: { setActive?: boolean; createNew?: boolean } = {}
     ): IInstanceProfile {
         const current = profile.id ? this.getInstance(profile.id) : undefined;
-
-        return this.saveLocalConfig({
+        const instanceConfig = {
             host: profile.host ?? current?.host,
             syncFolder: profile.syncFolder ?? current?.syncFolder,
             projectId: profile.projectId ?? current?.projectId,
@@ -135,12 +238,18 @@ export class ConfigService {
             instanceIdentifier: profile.instanceIdentifier ?? current?.instanceIdentifier,
             customNodesPath: profile.customNodesPath ?? current?.customNodesPath,
             folderSync: profile.folderSync ?? current?.folderSync,
-        }, {
-            instanceId: profile.id,
-            instanceName: profile.name,
-            setActive: options.setActive,
-            createNew: options.createNew,
-        });
+        };
+
+        return options.createNew
+            ? this.createInstanceConfig(instanceConfig, {
+                instanceName: profile.name,
+                setActive: options.setActive,
+            })
+            : this.updateInstanceConfig(instanceConfig, {
+                instanceId: profile.id,
+                instanceName: profile.name,
+                setActive: options.setActive,
+            });
     }
 
     /**
@@ -153,8 +262,7 @@ export class ConfigService {
         options: { instanceId?: string; instanceName?: string; createNew?: boolean } = {}
     ): IInstanceProfile {
         const current = options.instanceId ? this.getInstance(options.instanceId) : this.getActiveInstance();
-
-        return this.saveLocalConfig({
+        const bootstrapConfig = {
             host,
             syncFolder,
             customNodesPath: current?.customNodesPath,
@@ -162,17 +270,23 @@ export class ConfigService {
             projectId: undefined,
             projectName: undefined,
             instanceIdentifier: current?.instanceIdentifier,
-        }, {
-            instanceId: options.instanceId,
-            instanceName: options.instanceName,
-            setActive: true,
-            createNew: options.createNew,
-        });
+        };
+
+        return options.createNew
+            ? this.createInstanceConfig(bootstrapConfig, {
+                instanceName: options.instanceName,
+                setActive: true,
+            })
+            : this.updateInstanceConfig(bootstrapConfig, {
+                instanceId: options.instanceId,
+                instanceName: options.instanceName,
+                setActive: true,
+            });
     }
 
     /**
      * Get API key for a specific host from the global store.
-     * When an instance id is provided, profile-scoped secrets take precedence.
+     * When an instance id is provided, instance-config-scoped secrets take precedence.
      */
     getApiKey(host: string, instanceId?: string): string | undefined {
         const instanceCredentials = this.globalStore.get('instanceProfiles') as Record<string, string> || {};
@@ -186,7 +300,7 @@ export class ConfigService {
 
     /**
      * Save API key for a specific host in the global store.
-     * Profile-scoped storage allows distinct secrets per configured instance.
+     * Instance-config-scoped storage allows distinct secrets per configured instance.
      */
     saveApiKey(host: string, apiKey: string, instanceId?: string): void {
         const credentials = this.globalStore.get('hosts') as Record<string, string> || {};
@@ -221,6 +335,16 @@ export class ConfigService {
         }
     }
 
+    private deleteScopedApiKey(instanceId: string): void {
+        const instanceCredentials = this.globalStore.get('instanceProfiles') as Record<string, string> || {};
+        if (!(instanceId in instanceCredentials)) {
+            return;
+        }
+
+        delete instanceCredentials[instanceId];
+        this.globalStore.set('instanceProfiles', instanceCredentials);
+    }
+
     /**
      * Check if a configuration exists
      */
@@ -245,7 +369,7 @@ export class ConfigService {
             const { resolveInstanceIdentifier } = await import('../core/index.js');
             const { identifier } = await resolveInstanceIdentifier({ host, apiKey });
 
-            this.saveLocalConfig({
+            this.updateInstanceConfig({
                 host,
                 instanceIdentifier: identifier
             }, {
@@ -260,7 +384,7 @@ export class ConfigService {
             const { createFallbackInstanceIdentifier } = await import('../core/index.js');
             const fallbackIdentifier = createFallbackInstanceIdentifier(host, apiKey);
 
-            this.saveLocalConfig({
+            this.updateInstanceConfig({
                 host,
                 instanceIdentifier: fallbackIdentifier
             }, {
