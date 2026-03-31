@@ -36,8 +36,8 @@ Or jump straight to the [Getting Started guide](/docs/getting-started) for step-
 - **3-way conflict detection** — only flags real conflicts (both sides changed). No false positives.
 - **TypeScript workflows** — optional decorator-based format for better readability and AI compatibility. [Learn more →](/docs/usage/typescript-workflows)
 - **AI-powered workflow creation** — Claude, Cursor, and other AI agents can create, update, and fix workflows using built-in n8n knowledge (500+ node schemas, documentation, community examples).
-- **VS Code integration** — tree view with status indicators, split view with n8n canvas, push/pull from context menu.
-- **Multi-instance support** — work with multiple n8n environments, files organized by instance automatically.
+- **VS Code integration** — tree view with status indicators, split view with n8n canvas, and a config screen for saving and activating instance configs per workspace.
+- **Multi-instance support** — keep multiple saved n8n instance configs in one workspace while working against one active instance at a time.
 
 ## Quick Start
 
@@ -45,7 +45,7 @@ Or jump straight to the [Getting Started guide](/docs/getting-started) for step-
 # Install
 npm install -g n8nac
 
-# Connect to your n8n instance and select a project
+# Save an instance config and select a project
 n8nac init
 
 # See all workflows and their sync status

@@ -33,13 +33,13 @@ npm install -g n8nac
 ## Commands
 
 ### `init`
-Interactive wizard by default — configure the connection to an n8n instance and pick the active project.
+Interactive wizard by default — save an n8n instance config and pick the active project.
 
 ```bash
 n8nac init
 ```
 
-Creates `n8nac-config.json` in the current folder and stores the API key outside the repo.
+Creates or updates `n8nac-config.json` in the current folder and stores the API key outside the repo.
 
 For automation and AI agents, `init` also supports a non-interactive mode:
 
@@ -56,6 +56,22 @@ n8nac init --yes --host http://localhost:5678 --api-key "$N8N_API_KEY" --project
 ```
 
 If no project selector is provided, `init --yes` will auto-select the only available project, or the single personal project when that choice is unambiguous. Otherwise it fails with a list of available projects.
+
+`init` is the ergonomic alias for `n8nac instance add`.
+
+---
+
+### `instance`
+Manage saved n8n instance configs in the current workspace.
+
+```bash
+n8nac instance add
+n8nac instance select
+n8nac instance list
+n8nac instance delete
+```
+
+Use these commands when you want to keep multiple existing n8n environments in one workspace and choose which config is active.
 
 ---
 
