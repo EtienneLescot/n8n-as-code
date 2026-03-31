@@ -130,20 +130,28 @@ registerInstanceOptions(
 
 instanceProgram.command('select')
     .description('Select the current n8n instance')
-    .action(async () => {
-        await switchCommand.runInstanceSwitch();
+    .option('--instance-id <id>', 'Saved instance config ID to select')
+    .option('--instance-name <name>', 'Saved instance config name to select')
+    .option('--instance-index <number>', '1-based saved instance index to select', (value) => parsePositiveIntegerOption(value, '--instance-index'))
+    .action(async (options) => {
+        await switchCommand.runInstanceSwitch(options);
     });
 
 instanceProgram.command('delete')
     .description('Delete a saved n8n instance config')
-    .action(async () => {
-        await switchCommand.runInstanceDeletion();
+    .option('--instance-id <id>', 'Saved instance config ID to delete')
+    .option('--instance-name <name>', 'Saved instance config name to delete')
+    .option('--instance-index <number>', '1-based saved instance index to delete', (value) => parsePositiveIntegerOption(value, '--instance-index'))
+    .option('--yes', 'Delete without asking for confirmation')
+    .action(async (options) => {
+        await switchCommand.runInstanceDeletion(options);
     });
 
 instanceProgram.command('list')
     .description('List saved n8n instance configs')
-    .action(async () => {
-        await switchCommand.runInstanceList();
+    .option('--json', 'Output saved instance configs as JSON')
+    .action(async (options) => {
+        await switchCommand.runInstanceList(options);
     });
 
 // init - Interactive wizard to bootstrap the project, with optional non-interactive flags

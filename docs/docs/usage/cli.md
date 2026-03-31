@@ -101,6 +101,30 @@ The wizard will ask for:
 
 `n8nac init` is the ergonomic alias for `n8nac instance add`.
 
+### `instance`
+Manage saved n8n instance configs in the current workspace.
+
+```bash
+n8nac instance add
+n8nac instance list
+n8nac instance select
+n8nac instance delete
+```
+
+Use `instance add` for the main setup flow when you want to save a new n8n environment and choose its project in one command.
+
+For scripts and autonomous agents, prefer the explicit non-interactive forms:
+
+```bash
+n8nac instance list --json
+n8nac instance select --instance-id <instanceId>
+n8nac instance select --instance-name "https://n8n.example.com / Etienne Lescot"
+n8nac instance delete --instance-id <instanceId> --yes
+n8nac instance delete --instance-name "https://n8n.example.com / Etienne Lescot" --yes
+```
+
+Use `init-auth` followed by `init-project` only when you want to split credential discovery from project selection.
+
 ### `switch`
 Switch to a different n8n project.
 

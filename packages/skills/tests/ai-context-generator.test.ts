@@ -157,6 +157,10 @@ describe('AiContextGenerator', () => {
             expect(skillContent).toContain('does not yet contain `projectId` and `projectName`');
             expect(agentsContent).toContain('Never write `n8nac-config.json` by hand.');
             expect(skillContent).toContain('Never write `n8nac-config.json` by hand.');
+            expect(agentsContent).toContain('npx --yes n8nac instance add');
+            expect(skillContent).toContain('npx --yes n8nac instance add');
+            expect(agentsContent).toContain('npx --yes n8nac instance list --json');
+            expect(skillContent).toContain('npx --yes n8nac instance list --json');
             expect(agentsContent).toContain('npx --yes n8nac init-auth');
             expect(skillContent).toContain('npx --yes n8nac init-auth');
             expect(agentsContent).toContain('npx --yes n8nac init-project');
@@ -168,6 +172,9 @@ describe('AiContextGenerator', () => {
 
             expect(content).toContain('Use this skill only for explicit n8n workflow work.');
             expect(content).toContain('use the `n8nac` tool with `action: "init_auth"` and `action: "init_project"`');
+            expect(content).toContain('`action: "instance_list"`');
+            expect(content).toContain('`action: "instance_select"`');
+            expect(content).toContain('`action: "instance_delete"`');
             expect(content).toContain('Treat `AGENTS.md` as the authoritative workflow-engineering protocol once this skill is active.');
             expect(content).toContain('npx --yes n8nac workflow credential-required <workflowId> --json');
             expect(content).toContain('credential create --type <type> --name "<name>" --file cred.json --json');

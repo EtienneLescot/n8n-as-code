@@ -73,6 +73,18 @@ n8nac instance delete
 
 Use these commands when you want to keep multiple existing n8n environments in one workspace and choose which config is active.
 
+For scripts and agents:
+
+```bash
+n8nac instance list --json
+n8nac instance select --instance-name "https://n8n.example.com / Etienne Lescot"
+n8nac instance select --instance-id <instanceId>
+n8nac instance delete --instance-name "https://n8n.example.com / Etienne Lescot" --yes
+n8nac instance delete --instance-id <instanceId> --yes
+```
+
+`instance add` is the primary onboarding command. Use `init-auth` + `init-project` only when you want to split credential discovery from project selection.
+
 ---
 
 ### `switch`
