@@ -188,26 +188,42 @@ async function main() {
         projectName: project.name,
         instanceIdentifier: 'live_integration'
     });
+    const folderSyncManager = new SyncManager(apiClient, {
+        directory: tempRoot,
+        syncInactive: true,
+        ignoredTags: [],
+        projectId: project.id,
+        projectName: project.name,
+        instanceIdentifier: 'live_integration',
+        folderSync: true
+    });
 
     const createdWorkflowIds = new Set();
     const createdTagIds = new Set();
     const syncErrors = [];
     const testRunPrefix = `n8nac-live-${Date.now()}`;
     const scenarioFailures = [];
+    let folderApiProbe;
 
-    syncManager.on('error', (error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        syncErrors.push(message);
-        console.error(`[live-sync-test] sync-manager-error: ${message}`);
-    });
+    function registerSyncManagerEvents(manager) {
+        manager.on('error', (error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            syncErrors.push(message);
+            console.error(`[live-sync-test] sync-manager-error: ${message}`);
+        });
 
-    syncManager.on('connection-lost', (error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        syncErrors.push(`connection-lost: ${message}`);
-        console.error(`[live-sync-test] sync-manager-connection-lost: ${message}`);
-    });
+        manager.on('connection-lost', (error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            syncErrors.push(`connection-lost: ${message}`);
+            console.error(`[live-sync-test] sync-manager-connection-lost: ${message}`);
+        });
+    }
+
+    registerSyncManagerEvents(syncManager);
+    registerSyncManagerEvents(folderSyncManager);
 
     await syncManager.refreshLocalState();
+    await folderSyncManager.refreshLocalState();
 
     const instanceDirectory = path.join(tempRoot, 'live_integration', createProjectSlug(project.name));
 
@@ -221,6 +237,7 @@ async function main() {
 
     function writeLocalWorkflow(filename, workflowName) {
         const filePath = localFilePath(filename);
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
         fs.writeFileSync(filePath, buildWorkflowSource(workflowName), 'utf-8');
         return filePath;
     }
@@ -229,6 +246,26 @@ async function main() {
         const workflow = await apiClient.getWorkflow(workflowId);
         assert.ok(workflow, `Expected remote workflow ${workflowId} to exist.`);
         return workflow;
+    }
+
+    async function probeFolderApi() {
+        if (folderApiProbe) {
+            return folderApiProbe;
+        }
+
+        const rootFolderName = `${testRunPrefix}-folders`;
+        const createdFolder = await apiClient.createFolder(project.id, rootFolderName);
+
+        if (!createdFolder) {
+            folderApiProbe = { available: false, rootFolderName: null };
+            return folderApiProbe;
+        }
+
+        folderApiProbe = {
+            available: true,
+            rootFolderName,
+        };
+        return folderApiProbe;
     }
 
     async function runScenario(name, fn) {
@@ -400,6 +437,76 @@ async function main() {
                 localContent,
                 new RegExp(`tags:\\s*\\[[^\\]]*"${escapeRegExp(tagName)}"[^\\]]*\\]`)
             );
+        });
+
+        await runScenario('probes folder API availability and lists folders when supported', async () => {
+            const folderProbe = await probeFolderApi();
+            if (!folderProbe.available) {
+                console.log('[SKIP] folders API unavailable or not licensed on this instance.');
+                return;
+            }
+
+            const folders = await apiClient.getFolders(project.id, false);
+            assert.equal(
+                folders.some((folder) => folder.name === folderProbe.rootFolderName),
+                true,
+                `Expected to find folder "${folderProbe.rootFolderName}" in the project listing.`
+            );
+        });
+
+        await runScenario('pushes a workflow into a nested folder path when folderSync is enabled', async () => {
+            const folderProbe = await probeFolderApi();
+            if (!folderProbe.available) {
+                console.log('[SKIP] folderSync scenario skipped because folders API is unavailable.');
+                return;
+            }
+
+            const workflowName = `${testRunPrefix} folder push`;
+            const folderPath = `${folderProbe.rootFolderName}/Push`;
+            const filename = `${folderPath}/${workflowName}.workflow.ts`;
+            const filePath = writeLocalWorkflow(filename, workflowName);
+
+            const workflowId = await folderSyncManager.push(inputPathForPush(filePath));
+            createdWorkflowIds.add(workflowId);
+
+            const remoteWorkflow = await fetchRemoteWorkflow(workflowId);
+            assert.ok(remoteWorkflow.parentFolderId, 'Expected the pushed workflow to be assigned to a folder.');
+
+            const folders = await apiClient.getFolders(project.id, false);
+            const resolvedPath = apiClient.buildFolderPath(remoteWorkflow.parentFolderId, folders);
+            assert.equal(resolvedPath, folderPath);
+        });
+
+        await runScenario('pulls a remote workflow into the matching local folder hierarchy when folderSync is enabled', async () => {
+            const folderProbe = await probeFolderApi();
+            if (!folderProbe.available) {
+                console.log('[SKIP] folderSync pull scenario skipped because folders API is unavailable.');
+                return;
+            }
+
+            const workflowName = `${testRunPrefix} folder pull`;
+            const folderPath = `${folderProbe.rootFolderName}/Pull`;
+            const remoteWorkflow = await apiClient.createWorkflow(await buildRemoteWorkflowPayload(workflowName));
+            createdWorkflowIds.add(remoteWorkflow.id);
+
+            const folderId = await apiClient.ensureFolderPath(folderPath, project.id);
+            assert.ok(folderId, `Expected to create or resolve remote folder path "${folderPath}".`);
+
+            const moved = await apiClient.moveWorkflowToFolder(remoteWorkflow.id, project.id, folderId);
+            assert.equal(moved, true, 'Expected the remote workflow to be moved into the target folder.');
+
+            const remoteKnown = await folderSyncManager.fetch(remoteWorkflow.id);
+            assert.equal(remoteKnown, true);
+
+            const filename = folderSyncManager.getFilenameForId(remoteWorkflow.id);
+            assert.ok(filename, 'Expected a filename after fetching a folder-backed remote workflow.');
+            assert.equal(filename.startsWith(`${folderPath}/`), true);
+
+            await folderSyncManager.pull(remoteWorkflow.id);
+
+            const localPath = localFilePath(filename);
+            assert.equal(fs.existsSync(localPath), true);
+            assert.match(fs.readFileSync(localPath, 'utf-8'), new RegExp(workflowName));
         });
 
         await runScenario('detects a conflict and resolves it by keeping local', async () => {

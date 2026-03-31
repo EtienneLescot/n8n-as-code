@@ -395,6 +395,21 @@ describe('N8nApiClient test workflow support', () => {
         await expect(client.activateWorkflow('wf-1', true)).resolves.toEqual({ id: 'wf-1', active: true });
     });
 
+    it('treats folders API 401 responses as unsupported and returns an empty list', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+        mockAxiosGet.mockRejectedValueOnce({
+            response: {
+                status: 401,
+            },
+            message: 'Request failed with status code 401',
+        });
+
+        await expect(client.getFolders('project-1', false)).resolves.toEqual([]);
+        expect(warnSpy).not.toHaveBeenCalled();
+    });
+
     it('paginates listCredentials() until nextCursor is empty', async () => {
         const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
 

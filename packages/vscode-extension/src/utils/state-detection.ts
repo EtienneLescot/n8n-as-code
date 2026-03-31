@@ -11,6 +11,7 @@ export interface ResolvedN8nWorkspaceConfig {
   syncFolder: string;
   projectId: string;
   projectName: string;
+  folderSync: boolean;
 }
 
 function readString(value: unknown): string {
@@ -46,6 +47,7 @@ export function getResolvedN8nConfig(workspaceRoot = getWorkspaceRoot()): Resolv
     syncFolder: readString(unified.syncFolder) || getSettingsValue('syncFolder') || 'workflows',
     projectId: readString(unified.projectId) || getSettingsValue('projectId'),
     projectName: readString(unified.projectName) || getSettingsValue('projectName'),
+    folderSync: typeof unified.folderSync === 'boolean' ? unified.folderSync : false,
   };
 }
 

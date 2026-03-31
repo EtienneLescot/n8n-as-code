@@ -71,6 +71,9 @@ export enum TreeItemType {
   
   /** Workflow item (existing) */
   WORKFLOW = 'workflow',
+
+  /** Folder item in the workflow tree */
+  FOLDER = 'folder',
   
   /** AI action button at bottom */
   AI_ACTION = 'ai-action',

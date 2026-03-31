@@ -517,8 +517,9 @@ export class N8nApiClient {
             if (process.env.DEBUG) console.debug(`[N8nApiClient] Loaded ${folders.length} folders for project ${projectId}`);
             return folders;
         } catch (error: any) {
-            // 403 = license restriction, 404 = endpoint not available (old n8n)
+            // 401/403 = auth or license restriction, 404/405 = endpoint not available
             const isExpected =
+                error.response?.status === 401 ||
                 error.response?.status === 403 ||
                 error.response?.status === 404 ||
                 error.response?.status === 405;
@@ -561,6 +562,7 @@ export class N8nApiClient {
             };
         } catch (error: any) {
             const isExpected =
+                error.response?.status === 401 ||
                 error.response?.status === 403 ||
                 error.response?.status === 404 ||
                 error.response?.status === 405;
@@ -590,6 +592,7 @@ export class N8nApiClient {
             return true;
         } catch (error: any) {
             const isExpected =
+                error.response?.status === 401 ||
                 error.response?.status === 403 ||
                 error.response?.status === 404 ||
                 error.response?.status === 405;

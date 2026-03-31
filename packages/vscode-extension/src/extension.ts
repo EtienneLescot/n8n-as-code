@@ -89,7 +89,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     workflowsTreeView = vscode.window.createTreeView('n8n-explorer.workflows', {
         treeDataProvider: enhancedTreeProvider,
-        showCollapseAll: false,
+        showCollapseAll: true,
     });
     context.subscriptions.push(workflowsTreeView);
 
@@ -765,6 +765,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     const resolvedConfig = getResolvedN8nConfig(workspaceRoot);
     const { host, apiKey } = resolvedConfig;
     const folder = resolvedConfig.syncFolder || 'workflows';
+    const folderSync = resolvedConfig.folderSync;
     let projectId = resolvedConfig.projectId || undefined;
     let projectName = resolvedConfig.projectName || undefined;
 
@@ -837,7 +838,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         instanceIdentifier,
         instanceConfigPath: path.join(workspaceRoot, 'n8nac-config.json'),
         projectId: projectId!,
-        projectName: projectName!
+        projectName: projectName!,
+        folderSync,
     });
 
     // Create CliApi — the thin facade that all command handlers use.

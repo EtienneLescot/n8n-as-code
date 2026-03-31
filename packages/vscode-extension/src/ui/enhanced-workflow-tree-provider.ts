@@ -11,8 +11,10 @@ import { LoadingItem } from './tree-items/loading-item.js';
 import { ErrorItem } from './tree-items/error-item.js';
 import { AIActionItem } from './tree-items/ai-action-item.js';
 import { WorkflowItem } from './tree-items/workflow-item.js';
+import { FolderTreeItem } from './tree-items/folder-tree-item.js';
 import { InfoItem } from './tree-items/info-item.js';
 import { ActionItem, ActionItemType } from './tree-items/action-item.js';
+import { buildWorkflowTree, WorkflowFolderNode } from '../utils/workflow-tree.js';
 
 /**
  * Enhanced tree provider that handles multiple extension states
@@ -30,6 +32,8 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
 
   // Cache management
   private cachedTreeItems: BaseTreeItem[] | null = null;
+  private cachedFolderChildren: Map<string, BaseTreeItem[]> = new Map();
+  private cachedWorkflowItems: Map<string, WorkflowItem> = new Map();
   private cacheInvalidationTime: number = 0;
 
   // Debouncing for refresh
@@ -119,6 +123,8 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
    */
   invalidateCache(): void {
     this.cachedTreeItems = null;
+    this.cachedFolderChildren = new Map();
+    this.cachedWorkflowItems = new Map();
     this.cacheInvalidationTime = Date.now();
   }
 
@@ -146,6 +152,10 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     // If element is a WorkflowItem, return its action children
     if (element && element instanceof WorkflowItem) {
       return this.getWorkflowActionItems(element);
+    }
+
+    if (element && element instanceof FolderTreeItem) {
+      return this.cachedFolderChildren.get(element.folderPath) ?? [];
     }
 
     // Root level items
@@ -205,15 +215,38 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     const state = store.getState();
     const workflows = selectAllWorkflows(state);
     const conflicts = selectConflicts(state);
+    const workflowTree = buildWorkflowTree(workflows);
 
     const items: BaseTreeItem[] = [];
+    const workflowItems = new Map<string, WorkflowItem>();
+    const folderChildren = new Map<string, BaseTreeItem[]>();
+
+    const getWorkflowKey = (workflow: IWorkflowStatus): string =>
+      workflow.id || `file:${workflow.filename}`;
+
+    const createWorkflowItem = (workflow: IWorkflowStatus): WorkflowItem => {
+      const pendingAction: 'conflict' | undefined = workflow.id && conflicts[workflow.id] ? 'conflict' : undefined;
+      const item = new WorkflowItem(workflow, pendingAction);
+      workflowItems.set(getWorkflowKey(workflow), item);
+      return item;
+    };
+
+    const createFolderItems = (folders: WorkflowFolderNode[]): FolderTreeItem[] => {
+      return folders.map((folder) => {
+        const item = new FolderTreeItem(folder.name, folder.path);
+        const children: BaseTreeItem[] = [
+          ...createFolderItems(folder.folders),
+          ...folder.workflows.map(createWorkflowItem),
+        ];
+        folderChildren.set(folder.path, children);
+        return item;
+      });
+    };
 
     // Add workflow items
     if (workflows.length > 0) {
-      items.push(...workflows.map(wf => {
-        const pendingAction: 'conflict' | undefined = conflicts[wf.id] ? 'conflict' : undefined;
-        return new WorkflowItem(wf, pendingAction);
-      }));
+      items.push(...createFolderItems(workflowTree.folders));
+      items.push(...workflowTree.workflows.map(createWorkflowItem));
     } else if (this.syncManager) {
       items.push(new InfoItem(
         'No workflows found',
@@ -229,6 +262,8 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     }
 
     this.cachedTreeItems = items;
+    this.cachedFolderChildren = folderChildren;
+    this.cachedWorkflowItems = workflowItems;
     this.cacheInvalidationTime = Date.now();
 
     return items;
@@ -293,6 +328,14 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     }
 
     const items = await this.getInitializedItems();
+    const key = workflow.id || (workflow.filename ? `file:${workflow.filename}` : undefined);
+
+    if (key) {
+      const itemByKey = this.cachedWorkflowItems.get(key);
+      if (itemByKey) {
+        return itemByKey;
+      }
+    }
 
     if (workflow.id) {
       const itemById = items.find(
