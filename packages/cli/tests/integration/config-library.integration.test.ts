@@ -37,7 +37,7 @@ function createService(workspaceDir: string, state?: Record<string, any>): Confi
 }
 
 describe('ConfigService filesystem integration', () => {
-    it('persists multiple instance profiles and rehydrates the active instance from disk', () => {
+    it('persists multiple instance configs and rehydrates the active instance from disk', () => {
         const workspaceDir = createWorkspaceDir();
         const storeState = { hosts: {}, instanceProfiles: {} };
 
@@ -90,6 +90,47 @@ describe('ConfigService filesystem integration', () => {
         expect(rawConfig.instances).toHaveLength(2);
         expect(rawConfig.activeInstanceId).toBe(testProfile.id);
         expect(rawConfig.syncFolder).toBe('workflows-test');
+    });
+
+    it('deletes an instance, removes its scoped secret, and promotes the next active instance when needed', () => {
+        const workspaceDir = createWorkspaceDir();
+        const storeState = { hosts: {}, instanceProfiles: {} as Record<string, string> };
+
+        const configService = createService(workspaceDir, storeState);
+        const testProfile = configService.saveLocalConfig({
+            host: 'https://shared.example.com',
+            syncFolder: 'workflows-test',
+            projectId: 'project-test',
+            projectName: 'Test'
+        }, {
+            instanceName: 'Test'
+        });
+        configService.saveApiKey('https://shared.example.com', 'test-key', testProfile.id);
+
+        const prodProfile = configService.saveLocalConfig({
+            host: 'https://prod.example.com',
+            syncFolder: 'workflows-prod',
+            projectId: 'project-prod',
+            projectName: 'Production'
+        }, {
+            instanceName: 'Production',
+            createNew: true,
+        });
+        configService.saveApiKey('https://prod.example.com', 'prod-key', prodProfile.id);
+
+        const deletion = configService.deleteInstance(prodProfile.id);
+
+        expect(deletion.deletedInstance.id).toBe(prodProfile.id);
+        expect(deletion.activeInstance?.id).toBe(testProfile.id);
+        expect(storeState.instanceProfiles).toEqual({
+            [testProfile.id]: 'test-key',
+        });
+
+        const reloaded = createService(workspaceDir, storeState);
+        expect(reloaded.getActiveInstance()?.id).toBe(testProfile.id);
+        expect(reloaded.listInstances()).toHaveLength(1);
+        expect(reloaded.listInstances()[0].id).toBe(testProfile.id);
+        expect(storeState.instanceProfiles[prodProfile.id]).toBeUndefined();
     });
 
     it('migrates legacy config files into the unified instance library on first read', () => {
