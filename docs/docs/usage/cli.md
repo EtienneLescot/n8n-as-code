@@ -381,15 +381,34 @@ The CLI uses a configuration file (`n8nac-config.json`) with the following struc
 
 ```json
 {
-  "host": "https://n8n.example.com",
-  "syncFolder": "workflows",
-  "projectId": "your-project-id",
-  "projectName": "Personal",
-  "instanceIdentifier": "local_5678_user"
+  "version": 2,
+  "activeInstanceId": "prod",
+  "instances": [
+    {
+      "id": "test",
+      "name": "Test",
+      "host": "https://test.n8n.example.com",
+      "syncFolder": "workflows-test",
+      "projectId": "your-test-project-id",
+      "projectName": "Test",
+      "instanceIdentifier": "test_instance_user"
+    },
+    {
+      "id": "prod",
+      "name": "Production",
+      "host": "https://n8n.example.com",
+      "syncFolder": "workflows-prod",
+      "projectId": "your-project-id",
+      "projectName": "Personal",
+      "instanceIdentifier": "local_5678_user"
+    }
+  ]
 }
 ```
 
-**Note:** API keys are stored securely in your system's credential store, not in this file.
+The active instance is also mirrored at the top level for compatibility, but the source of truth is the `instances` library plus `activeInstanceId`.
+
+**Note:** API keys are stored securely in your system's credential store, scoped by instance profile when available, not in this file.
 
 ## 🔄 Workflow Management
 
@@ -397,6 +416,9 @@ The CLI uses a configuration file (`n8nac-config.json`) with the following struc
 ```bash
 # 1. Initialize project
 n8nac init
+
+# Optional: switch to another configured instance profile
+n8nac switch-instance
 
 # 2. List all workflows to see their sync status (lightweight, covers all workflows)
 n8nac list

@@ -144,7 +144,7 @@ your-project/
 └── .git/                         # Version control (recommended)
 ```
 
-- **`n8nac-config.json`** — workspace config, safe to commit
+- **`n8nac-config.json`** — workspace config, instance library, and active instance selection; safe to commit
 - **API keys** — stored in your system credential store, never in the config file
 - **`AGENTS.md`** — generated instructions for AI agents (regenerate with `n8nac update-ai`)
 

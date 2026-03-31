@@ -22,6 +22,7 @@ type BuildUnifiedWorkspaceConfigInput = {
     instanceIdentifier?: string;
     instanceId?: string;
     instanceName?: string;
+    createNew?: boolean;
     setActive?: boolean;
     client?: IInstanceIdentifierClient;
 };
@@ -88,7 +89,7 @@ export async function buildUnifiedWorkspaceConfig(
 ): Promise<UnifiedWorkspaceConfig> {
     const service = new ConfigService(input.workspaceRoot);
     const existing = service.getWorkspaceConfig();
-    const current = getCurrentInstance(existing, input.instanceId);
+    const current = input.createNew ? undefined : getCurrentInstance(existing, input.instanceId);
     const storedSyncFolder = toStoredSyncFolder(input.workspaceRoot, input.syncFolder || 'workflows');
 
     let resolvedInstanceIdentifier: string | undefined = input.instanceIdentifier;
@@ -163,6 +164,7 @@ export async function writeUnifiedWorkspaceConfig(
     }, {
         instanceId: input.instanceId,
         instanceName: input.instanceName,
+        createNew: input.createNew,
         setActive: input.setActive,
     });
 

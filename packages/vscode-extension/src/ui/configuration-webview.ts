@@ -115,6 +115,7 @@ export class ConfigurationWebview {
             const syncFolder = (message.syncFolder || '').trim();
             const instanceId = (message.instanceId || '').trim() || undefined;
             const instanceName = (message.instanceName || '').trim() || undefined;
+            const createNew = !!message.createNew;
 
             const workspaceRoot = getWorkspaceRoot();
             const shouldAutoApply = !!workspaceRoot && isFolderPreviouslyInitialized(workspaceRoot);
@@ -146,6 +147,7 @@ export class ConfigurationWebview {
                 projectName,
                 instanceId,
                 instanceName,
+                createNew,
                 setActive: true,
               });
 
@@ -650,6 +652,7 @@ export class ConfigurationWebview {
         type: 'saveSettings',
         instanceId: currentConfig.instanceId || '',
         instanceName,
+        createNew: !currentConfig.instanceId,
         host,
         apiKey,
         projectId,

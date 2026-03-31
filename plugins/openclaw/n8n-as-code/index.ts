@@ -1,9 +1,9 @@
-import { accessSync, constants, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { accessSync, constants, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { registerN8nAcCli } from "./src/cli.js";
 import { createN8nAcTool } from "./src/tool.js";
-import { getWorkspaceDir, isWorkspaceInitialized } from "./src/workspace.js";
+import { getWorkspaceDir, isWorkspaceInitialized, readWorkspaceBinding } from "./src/workspace.js";
 
 // ---------------------------------------------------------------------------
 // Lightweight prompt context
@@ -21,17 +21,8 @@ Once you have both, call the \`n8nac\` tool with \`action: "init_auth"\`, then
 \`action: "init_project"\` to finish setup.
 `;
 
-function readConfig(workspaceDir: string): Record<string, string> {
-  try {
-    const raw = readFileSync(join(workspaceDir, "n8nac-config.json"), "utf-8");
-    return JSON.parse(raw) as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
-
 function buildStatusHeader(workspaceDir: string): string {
-  const cfg = readConfig(workspaceDir);
+  const cfg = readWorkspaceBinding(workspaceDir);
   const host = cfg.host ?? "(unknown)";
   const project = cfg.projectName ?? cfg.projectId ?? "(unknown)";
   return [
@@ -40,6 +31,7 @@ function buildStatusHeader(workspaceDir: string): string {
     "**The workspace is already fully initialized. Do NOT ask the user for credentials.**",
     "",
     `- Workspace directory: \`${workspaceDir}\``,
+    `- Active instance: \`${cfg.activeInstanceName ?? cfg.activeInstanceId ?? "(unknown)"}\``,
     `- n8n host: \`${host}\``,
     `- Active project: \`${project}\``,
   ].join("\n");

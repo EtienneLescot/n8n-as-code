@@ -94,11 +94,11 @@ export class ConfigService {
      */
     saveLocalConfig(
         config: Partial<ILocalConfig>,
-        options: { instanceId?: string; instanceName?: string; setActive?: boolean } = {}
+        options: { instanceId?: string; instanceName?: string; setActive?: boolean; createNew?: boolean } = {}
     ): IInstanceProfile {
         const workspaceConfig = this.getWorkspaceConfig();
         const existingActive = this.getActiveInstanceFromConfig(workspaceConfig);
-        const targetId = options.instanceId || existingActive?.id;
+        const targetId = options.createNew ? undefined : (options.instanceId || existingActive?.id);
         const current = targetId
             ? workspaceConfig.instances.find((instance) => instance.id === targetId)
             : undefined;
@@ -123,7 +123,7 @@ export class ConfigService {
 
     saveInstanceProfile(
         profile: Partial<IInstanceProfile>,
-        options: { setActive?: boolean } = {}
+        options: { setActive?: boolean; createNew?: boolean } = {}
     ): IInstanceProfile {
         const current = profile.id ? this.getInstance(profile.id) : undefined;
 
@@ -139,6 +139,7 @@ export class ConfigService {
             instanceId: profile.id,
             instanceName: profile.name,
             setActive: options.setActive,
+            createNew: options.createNew,
         });
     }
 
@@ -149,7 +150,7 @@ export class ConfigService {
     saveBootstrapState(
         host: string,
         syncFolder = 'workflows',
-        options: { instanceId?: string; instanceName?: string } = {}
+        options: { instanceId?: string; instanceName?: string; createNew?: boolean } = {}
     ): IInstanceProfile {
         const current = options.instanceId ? this.getInstance(options.instanceId) : this.getActiveInstance();
 
@@ -165,6 +166,7 @@ export class ConfigService {
             instanceId: options.instanceId,
             instanceName: options.instanceName,
             setActive: true,
+            createNew: options.createNew,
         });
     }
 

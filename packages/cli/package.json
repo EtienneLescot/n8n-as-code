@@ -15,7 +15,7 @@
         "watch": "tsc -b -w",
         "clean": "rm -rf dist tsconfig.tsbuildinfo",
         "test": "npm run test:unit",
-        "test:unit": "vitest run tests/unit tests/scenarios tests/integration/pull-refreshstate.test.ts",
+        "test:unit": "vitest run tests/unit tests/scenarios tests/integration/*.test.ts",
         "test:integration": "npm run build && node tests/integration/run-live-sync-tests.mjs",
         "test:all": "npm run test:unit && npm run test:integration",
         "test:watch": "vitest",

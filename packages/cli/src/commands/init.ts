@@ -13,6 +13,7 @@ export interface InitCommandOptions {
     apiKey?: string;
     syncFolder?: string;
     instanceName?: string;
+    newInstance?: boolean;
     projectId?: string;
     projectName?: string;
     projectIndex?: number;
@@ -103,7 +104,7 @@ export class InitCommand {
             const profile = this.configService.saveBootstrapState(
                 resolvedOptions.host,
                 resolvedOptions.syncFolder || 'workflows',
-                { instanceName: resolvedOptions.instanceName }
+                { instanceName: resolvedOptions.instanceName, createNew: resolvedOptions.newInstance }
             );
             this.configService.saveApiKey(resolvedOptions.host, resolvedOptions.apiKey, profile.id);
 
@@ -227,6 +228,7 @@ export class InitCommand {
             apiKey: options.apiKey || this.getEnvValue('N8N_API_KEY') || currentApiKey,
             syncFolder: options.syncFolder || currentLocal.syncFolder || 'workflows',
             instanceName: options.instanceName || this.configService.getActiveInstance()?.name,
+            newInstance: !!options.newInstance,
             projectId: options.projectId,
             projectName: options.projectName,
             projectIndex: options.projectIndex,
@@ -248,6 +250,7 @@ export class InitCommand {
             options.apiKey ||
             options.syncFolder ||
             options.instanceName ||
+            options.newInstance ||
             options.projectId ||
             options.projectName ||
             options.projectIndex !== undefined
@@ -326,6 +329,7 @@ export class InitCommand {
             apiKey: options.apiKey,
             syncFolder: options.syncFolder || 'workflows',
             instanceName: options.instanceName,
+            newInstance: options.newInstance,
             projectId: options.projectId,
             projectName: options.projectName,
             projectIndex: options.projectIndex,
@@ -338,6 +342,7 @@ export class InitCommand {
             apiKey: string;
             syncFolder: string;
             instanceName?: string;
+            newInstance?: boolean;
             projectId?: string;
             projectName?: string;
             projectIndex?: number;
@@ -403,6 +408,7 @@ export class InitCommand {
                 host: input.host,
                 apiKey: input.apiKey,
                 instanceName: input.instanceName,
+                newInstance: input.newInstance,
                 syncFolder: input.syncFolder,
                 selectedProject,
             });
@@ -416,6 +422,7 @@ export class InitCommand {
         host: string;
         apiKey: string;
         instanceName?: string;
+        newInstance?: boolean;
         syncFolder: string;
         selectedProject: IProject;
     }): Promise<void> {
@@ -431,6 +438,7 @@ export class InitCommand {
 
         const profile = this.configService.saveLocalConfig(localConfig, {
             instanceName: input.instanceName,
+            createNew: input.newInstance,
             setActive: true,
         });
         this.configService.saveApiKey(input.host, input.apiKey, profile.id);
