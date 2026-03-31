@@ -19,7 +19,7 @@ It is the right entry point when you want OpenClaw to:
 Once installed, the plugin gives OpenClaw:
 
 - an `n8nac` tool for setup, workflow sync, validation, and skills access
-- an `openclaw n8nac:setup` wizard for host, API key, and project selection
+- an `openclaw n8nac:setup` wizard for host, API key, project selection, and active instance binding
 - automatic prompt grounding from the generated `AGENTS.md`
 - an OpenClaw-native workspace rooted at `~/.openclaw/n8nac/`
 
@@ -73,7 +73,7 @@ The plugin keeps its working files under:
   workflows/
 ```
 
-- `n8nac-config.json` stores the selected project binding
+- `n8nac-config.json` stores the instance library and active instance binding
 - `AGENTS.md` contains the generated workflow instructions and schema-first guardrails
 - `workflows/` holds the local `.workflow.ts` files you pull and edit
 

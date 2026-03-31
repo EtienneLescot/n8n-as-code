@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { isWorkspaceInitialized } from "../src/workspace.js";
+import { isWorkspaceInitialized, readWorkspaceBinding } from "../src/workspace.js";
 
 const tempDirs: string[] = [];
 
@@ -33,6 +33,42 @@ describe("isWorkspaceInitialized", () => {
     });
 
     expect(isWorkspaceInitialized(workspaceDir)).toBe(true);
+  });
+
+  it("returns true when the active instance is resolved from the instances library", () => {
+    const workspaceDir = createWorkspaceDir();
+    writeConfig(workspaceDir, {
+      version: 2,
+      activeInstanceId: "prod",
+      instances: [
+        {
+          id: "test",
+          name: "Test",
+          host: "https://test.example.com",
+          syncFolder: "workflows-test",
+          projectId: "proj_test",
+          projectName: "Test Project",
+        },
+        {
+          id: "prod",
+          name: "Production",
+          host: "https://prod.example.com",
+          syncFolder: "workflows-prod",
+          projectId: "proj_prod",
+          projectName: "Production Project",
+        },
+      ],
+    });
+
+    expect(isWorkspaceInitialized(workspaceDir)).toBe(true);
+    expect(readWorkspaceBinding(workspaceDir)).toMatchObject({
+      activeInstanceId: "prod",
+      activeInstanceName: "Production",
+      host: "https://prod.example.com",
+      projectId: "proj_prod",
+      projectName: "Production Project",
+      syncFolder: "workflows-prod",
+    });
   });
 
   it("returns false when config is missing required values", () => {
