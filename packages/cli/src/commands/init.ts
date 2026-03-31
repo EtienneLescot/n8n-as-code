@@ -12,6 +12,7 @@ export interface InitCommandOptions {
     host?: string;
     apiKey?: string;
     syncFolder?: string;
+    instanceName?: string;
     projectId?: string;
     projectName?: string;
     projectIndex?: number;
@@ -30,7 +31,10 @@ export class InitCommand {
         console.log(chalk.gray('This tool will help you configure your local environment.\n'));
 
         const currentLocal = this.configService.getLocalConfig();
-        const currentApiKey = currentLocal.host ? this.configService.getApiKey(currentLocal.host) : '';
+        const currentInstance = this.configService.getActiveInstance();
+        const currentApiKey = currentLocal.host
+            ? this.configService.getApiKey(currentLocal.host, currentInstance?.id)
+            : '';
         const resolvedOptions = this.resolveOptions(options, currentLocal, currentApiKey);
 
         if (this.shouldRunNonInteractive(options)) {
@@ -46,7 +50,10 @@ export class InitCommand {
         console.log(chalk.gray('This step stores your n8n host and API key, then lists available projects.\n'));
 
         const currentLocal = this.configService.getLocalConfig();
-        const currentApiKey = currentLocal.host ? this.configService.getApiKey(currentLocal.host) : '';
+        const currentInstance = this.configService.getActiveInstance();
+        const currentApiKey = currentLocal.host
+            ? this.configService.getApiKey(currentLocal.host, currentInstance?.id)
+            : '';
         const resolvedOptions = this.resolveOptions(options, currentLocal, currentApiKey);
 
         if (!resolvedOptions.host) {
@@ -93,12 +100,17 @@ export class InitCommand {
                 console.log(chalk.yellow('No projects found yet. Create a project in n8n, then run n8nac init-project.'));
             }
 
-            this.configService.saveApiKey(resolvedOptions.host, resolvedOptions.apiKey);
-            this.configService.saveBootstrapState(resolvedOptions.host, resolvedOptions.syncFolder || 'workflows');
+            const profile = this.configService.saveBootstrapState(
+                resolvedOptions.host,
+                resolvedOptions.syncFolder || 'workflows',
+                { instanceName: resolvedOptions.instanceName }
+            );
+            this.configService.saveApiKey(resolvedOptions.host, resolvedOptions.apiKey, profile.id);
 
             console.log(chalk.green('\n✔ Credentials saved successfully!'));
             console.log(chalk.blue('📁 Workspace bootstrap:') + ' n8nac-config.json');
             console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
+            console.log(chalk.blue('🧩 Active instance:') + ` ${profile.name}\n`);
 
             if (projects.length > 0) {
                 this.printAvailableProjects(projects);
@@ -118,7 +130,10 @@ export class InitCommand {
         console.log(chalk.gray('This step selects the active n8n project and the local sync folder.\n'));
 
         const currentLocal = this.configService.getLocalConfig();
-        const currentApiKey = currentLocal.host ? this.configService.getApiKey(currentLocal.host) : '';
+        const currentInstance = this.configService.getActiveInstance();
+        const currentApiKey = currentLocal.host
+            ? this.configService.getApiKey(currentLocal.host, currentInstance?.id)
+            : '';
         const resolvedOptions = this.resolveOptions(options, currentLocal, currentApiKey);
 
         if (!resolvedOptions.host) {
@@ -211,6 +226,7 @@ export class InitCommand {
             host: options.host || this.getEnvValue('N8N_HOST') || currentLocal.host,
             apiKey: options.apiKey || this.getEnvValue('N8N_API_KEY') || currentApiKey,
             syncFolder: options.syncFolder || currentLocal.syncFolder || 'workflows',
+            instanceName: options.instanceName || this.configService.getActiveInstance()?.name,
             projectId: options.projectId,
             projectName: options.projectName,
             projectIndex: options.projectIndex,
@@ -231,6 +247,7 @@ export class InitCommand {
             options.host ||
             options.apiKey ||
             options.syncFolder ||
+            options.instanceName ||
             options.projectId ||
             options.projectName ||
             options.projectIndex !== undefined
@@ -264,6 +281,12 @@ export class InitCommand {
             },
             {
                 type: 'input',
+                name: 'instanceName',
+                message: 'Instance profile name:',
+                default: this.configService.getActiveInstance()?.name || 'Default instance'
+            },
+            {
+                type: 'input',
                 name: 'syncFolder',
                 message: 'Local folder for workflows:',
                 default: currentLocal.syncFolder || 'workflows'
@@ -273,6 +296,7 @@ export class InitCommand {
         await this.completeInitialization({
             host: answers.host,
             apiKey: answers.apiKey,
+            instanceName: answers.instanceName,
             syncFolder: answers.syncFolder,
         }, false);
     }
@@ -301,6 +325,7 @@ export class InitCommand {
             host: options.host,
             apiKey: options.apiKey,
             syncFolder: options.syncFolder || 'workflows',
+            instanceName: options.instanceName,
             projectId: options.projectId,
             projectName: options.projectName,
             projectIndex: options.projectIndex,
@@ -312,6 +337,7 @@ export class InitCommand {
             host: string;
             apiKey: string;
             syncFolder: string;
+            instanceName?: string;
             projectId?: string;
             projectName?: string;
             projectIndex?: number;
@@ -376,6 +402,7 @@ export class InitCommand {
             await this.finalizeProjectSetup({
                 host: input.host,
                 apiKey: input.apiKey,
+                instanceName: input.instanceName,
                 syncFolder: input.syncFolder,
                 selectedProject,
             });
@@ -388,6 +415,7 @@ export class InitCommand {
     private async finalizeProjectSetup(input: {
         host: string;
         apiKey: string;
+        instanceName?: string;
         syncFolder: string;
         selectedProject: IProject;
     }): Promise<void> {
@@ -401,15 +429,19 @@ export class InitCommand {
             projectName: selectedProjectDisplayName
         };
 
-        this.configService.saveLocalConfig(localConfig);
-        this.configService.saveApiKey(input.host, input.apiKey);
+        const profile = this.configService.saveLocalConfig(localConfig, {
+            instanceName: input.instanceName,
+            setActive: true,
+        });
+        this.configService.saveApiKey(input.host, input.apiKey, profile.id);
 
         console.log('\n' + chalk.green('✔ Configuration saved successfully!'));
         console.log(chalk.blue('📁 Project config:') + ' n8nac-config.json');
         console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
+        console.log(chalk.blue('🧩 Active instance:') + ` ${profile.name}\n`);
 
         const spinner = ora('Generating instance identifier...').start();
-        const instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(input.host);
+        const instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(input.host, profile.id);
         spinner.succeed(chalk.green(`Instance identifier: ${instanceIdentifier}`));
         console.log(chalk.gray('(n8nac-config.json will be kept up to date automatically)\n'));
 

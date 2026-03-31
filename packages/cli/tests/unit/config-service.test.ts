@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ConfigService, ILocalConfig } from '../../src/services/config-service.js';
+import { ConfigService, type IWorkspaceConfig } from '../../src/services/config-service.js';
 import fs from 'fs';
-import path from 'path';
 import Conf from 'conf';
 
 const { mockResolveInstanceIdentifier, mockCreateFallbackInstanceIdentifier } = vi.hoisted(() => ({
@@ -9,7 +8,6 @@ const { mockResolveInstanceIdentifier, mockCreateFallbackInstanceIdentifier } = 
     mockCreateFallbackInstanceIdentifier: vi.fn()
 }));
 
-// Mock dependencies
 vi.mock('fs');
 vi.mock('conf');
 vi.mock('../../src/core/index.js', async () => {
@@ -23,270 +21,243 @@ vi.mock('../../src/core/index.js', async () => {
 
 describe('ConfigService', () => {
     let configService: ConfigService;
-    let mockConf: any;
+    let mockConf: { get: ReturnType<typeof vi.fn>; set: ReturnType<typeof vi.fn> };
 
     beforeEach(() => {
-        // Reset mocks
         vi.clearAllMocks();
         mockResolveInstanceIdentifier.mockReset();
         mockCreateFallbackInstanceIdentifier.mockReset();
 
-        // Mock Conf instance
         mockConf = {
             get: vi.fn(),
             set: vi.fn()
         };
         (Conf as any).mockImplementation(() => mockConf);
 
-        configService = new ConfigService();
+        configService = new ConfigService('/tmp/workspace');
     });
 
-    describe('getLocalConfig', () => {
-        it('should return parsed config when file exists', () => {
-            const mockConfig: ILocalConfig = {
-                host: 'http://localhost:5678',
-                syncFolder: 'workflows',
-                instanceIdentifier: 'test-id',
-                projectId: 'test-project-id',
-                projectName: 'Test Project'
-            };
+    it('returns the active instance as the local config when the workspace config already contains a library', () => {
+        const workspaceConfig: IWorkspaceConfig = {
+            version: 2,
+            activeInstanceId: 'prod',
+            instances: [
+                {
+                    id: 'test',
+                    name: 'Test',
+                    host: 'https://test.example.com',
+                    syncFolder: 'workflows-test',
+                    projectId: 'project-test',
+                    projectName: 'Test'
+                },
+                {
+                    id: 'prod',
+                    name: 'Production',
+                    host: 'https://prod.example.com',
+                    syncFolder: 'workflows-prod',
+                    projectId: 'project-prod',
+                    projectName: 'Production',
+                    instanceIdentifier: 'prod_identifier'
+                }
+            ],
+            host: 'https://prod.example.com',
+            syncFolder: 'workflows-prod',
+            projectId: 'project-prod',
+            projectName: 'Production',
+            instanceIdentifier: 'prod_identifier'
+        };
 
-            (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
-            (fs.readFileSync as any).mockReturnValue(JSON.stringify(mockConfig));
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
+        (fs.readFileSync as any).mockReturnValue(JSON.stringify(workspaceConfig));
 
-            const result = configService.getLocalConfig();
-
-            expect(result).toEqual(mockConfig);
-            expect(fs.existsSync).toHaveBeenCalled();
-            expect(fs.readFileSync).toHaveBeenCalled();
+        expect(configService.getLocalConfig()).toEqual({
+            host: 'https://prod.example.com',
+            syncFolder: 'workflows-prod',
+            projectId: 'project-prod',
+            projectName: 'Production',
+            instanceIdentifier: 'prod_identifier'
         });
-
-        it('should return empty object when file does not exist', () => {
-            (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
-
-            const result = configService.getLocalConfig();
-
-            expect(result).toEqual({});
-            expect(fs.readFileSync).not.toHaveBeenCalled();
-        });
-
-        it('should return empty object when JSON parse fails', () => {
-            // Mock console.error to suppress the error output
-            const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-            (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
-            (fs.readFileSync as any).mockReturnValue('invalid json');
-
-            const result = configService.getLocalConfig();
-
-            expect(result).toEqual({});
-            expect(consoleErrorSpy).toHaveBeenCalled();
-
-            consoleErrorSpy.mockRestore();
-        });
+        expect(configService.getActiveInstanceId()).toBe('prod');
+        expect(configService.listInstances()).toHaveLength(2);
+        expect(fs.writeFileSync).not.toHaveBeenCalled();
     });
 
-    describe('saveLocalConfig', () => {
-        it('should write config to file as formatted JSON', () => {
-            const config: ILocalConfig = {
-                host: 'http://localhost:5678',
-                syncFolder: 'workflows',
-                projectId: 'test-project-id',
-                projectName: 'Test Project'
-            };
-
-            configService.saveLocalConfig(config);
-
-            expect(fs.writeFileSync).toHaveBeenCalledWith(
-                expect.stringContaining('n8nac-config.json'),
-                JSON.stringify(config, null, 2)
-            );
+    it('migrates a legacy single-instance config into the instance library format', () => {
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockImplementation((filePath: string) => {
+            if (filePath.endsWith('n8nac-config.json')) return false;
+            if (filePath.endsWith('n8nac.json')) return true;
+            if (filePath.endsWith('n8nac-instance.json')) return true;
+            return false;
         });
-    });
+        (fs.readFileSync as any).mockImplementation((filePath: string) => {
+            if (filePath.endsWith('n8nac.json')) {
+                return JSON.stringify({
+                    host: 'http://localhost:5678',
+                    syncFolder: 'workflows',
+                    projectId: 'project-1',
+                    projectName: 'Personal'
+                });
+            }
 
-    describe('getApiKey', () => {
-        it('should return API key for normalized host', () => {
-            const hosts = {
-                'http://localhost:5678': 'test-api-key'
-            };
-            mockConf.get.mockReturnValue(hosts);
-
-            const apiKey = configService.getApiKey('http://localhost:5678');
-
-            expect(apiKey).toBe('test-api-key');
-            expect(mockConf.get).toHaveBeenCalledWith('hosts');
-        });
-
-        it('should normalize host URL before lookup', () => {
-            const hosts = {
-                'http://localhost:5678': 'test-api-key'
-            };
-            mockConf.get.mockReturnValue(hosts);
-
-            const apiKey = configService.getApiKey('http://localhost:5678/');
-
-            expect(apiKey).toBe('test-api-key');
-        });
-
-        it('should return undefined if host not found', () => {
-            mockConf.get.mockReturnValue({});
-
-            const apiKey = configService.getApiKey('http://unknown:5678');
-
-            expect(apiKey).toBeUndefined();
-        });
-
-        it('should return undefined if hosts object is null', () => {
-            mockConf.get.mockReturnValue(null);
-
-            const apiKey = configService.getApiKey('http://localhost:5678');
-
-            expect(apiKey).toBeUndefined();
-        });
-    });
-
-    describe('saveApiKey', () => {
-        it('should save API key with normalized host', () => {
-            const existingHosts = {
-                'http://other:5678': 'other-key'
-            };
-            mockConf.get.mockReturnValue(existingHosts);
-
-            configService.saveApiKey('http://localhost:5678', 'new-api-key');
-
-            expect(mockConf.set).toHaveBeenCalledWith('hosts', {
-                'http://other:5678': 'other-key',
-                'http://localhost:5678': 'new-api-key'
+            return JSON.stringify({
+                instanceIdentifier: 'legacy_identifier'
             });
         });
 
-        it('should create hosts object if it does not exist', () => {
-            mockConf.get.mockReturnValue(null);
+        const localConfig = configService.getLocalConfig();
 
-            configService.saveApiKey('http://localhost:5678', 'new-api-key');
-
-            expect(mockConf.set).toHaveBeenCalledWith('hosts', {
-                'http://localhost:5678': 'new-api-key'
-            });
+        expect(localConfig).toEqual({
+            host: 'http://localhost:5678',
+            syncFolder: 'workflows',
+            projectId: 'project-1',
+            projectName: 'Personal',
+            instanceIdentifier: 'legacy_identifier'
         });
-
-        it('should overwrite existing API key for same host', () => {
-            const existingHosts = {
-                'http://localhost:5678': 'old-key'
-            };
-            mockConf.get.mockReturnValue(existingHosts);
-
-            configService.saveApiKey('http://localhost:5678', 'new-key');
-
-            expect(mockConf.set).toHaveBeenCalledWith('hosts', {
-                'http://localhost:5678': 'new-key'
-            });
-        });
+        expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
+        const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls[0][1]);
+        expect(persistedConfig.version).toBe(2);
+        expect(persistedConfig.instances).toHaveLength(1);
+        expect(persistedConfig.activeInstanceId).toBe(persistedConfig.instances[0].id);
     });
 
-    describe('hasConfig', () => {
-        it('should return true when host and API key exist', () => {
-            (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
-            (fs.readFileSync as any).mockReturnValue(JSON.stringify({
-                host: 'http://localhost:5678'
-            }));
-            mockConf.get.mockReturnValue({
-                'http://localhost:5678': 'test-key'
-            });
+    it('saveLocalConfig creates a named instance profile and makes it active', () => {
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
 
-            const result = configService.hasConfig();
-
-            expect(result).toBe(true);
+        const savedProfile = configService.saveLocalConfig({
+            host: 'https://prod.example.com',
+            syncFolder: 'workflows-prod',
+            projectId: 'project-prod',
+            projectName: 'Production'
+        }, {
+            instanceName: 'Production'
         });
 
-        it('should return false when host is missing', () => {
-            (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
-            (fs.readFileSync as any).mockReturnValue(JSON.stringify({}));
+        expect(savedProfile.name).toBe('Production');
+        expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
+        const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls[0][1]);
+        expect(persistedConfig.version).toBe(2);
+        expect(persistedConfig.activeInstanceId).toBe(savedProfile.id);
+        expect(persistedConfig.instances[0]).toMatchObject({
+            id: savedProfile.id,
+            name: 'Production',
+            host: 'https://prod.example.com',
+            syncFolder: 'workflows-prod'
+        });
+        expect(persistedConfig.host).toBe('https://prod.example.com');
+    });
 
-            const result = configService.hasConfig();
+    it('setActiveInstance rewrites the top-level active config cache', () => {
+        const workspaceConfig: IWorkspaceConfig = {
+            version: 2,
+            activeInstanceId: 'test',
+            instances: [
+                {
+                    id: 'test',
+                    name: 'Test',
+                    host: 'https://test.example.com',
+                    syncFolder: 'workflows-test',
+                    projectId: 'project-test',
+                    projectName: 'Test'
+                },
+                {
+                    id: 'prod',
+                    name: 'Production',
+                    host: 'https://prod.example.com',
+                    syncFolder: 'workflows-prod',
+                    projectId: 'project-prod',
+                    projectName: 'Production',
+                    instanceIdentifier: 'prod_identifier'
+                }
+            ],
+            host: 'https://test.example.com',
+            syncFolder: 'workflows-test',
+            projectId: 'project-test',
+            projectName: 'Test'
+        };
 
-            expect(result).toBe(false);
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
+        (fs.readFileSync as any).mockReturnValue(JSON.stringify(workspaceConfig));
+
+        const active = configService.setActiveInstance('prod');
+
+        expect(active.name).toBe('Production');
+        const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls[0][1]);
+        expect(persistedConfig.activeInstanceId).toBe('prod');
+        expect(persistedConfig.host).toBe('https://prod.example.com');
+        expect(persistedConfig.projectName).toBe('Production');
+        expect(persistedConfig.instanceIdentifier).toBe('prod_identifier');
+    });
+
+    it('stores and resolves API keys by instance profile when available', () => {
+        mockConf.get.mockImplementation((key: string) => {
+            if (key === 'hosts') {
+                return { 'https://prod.example.com': 'host-level-key' };
+            }
+            if (key === 'instanceProfiles') {
+                return { prod: 'profile-level-key' };
+            }
+            return {};
         });
 
-        it('should return false when API key is missing', () => {
-            (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
-            (fs.readFileSync as any).mockReturnValue(JSON.stringify({
-                host: 'http://localhost:5678'
-            }));
-            mockConf.get.mockReturnValue({});
+        expect(configService.getApiKey('https://prod.example.com', 'prod')).toBe('profile-level-key');
+        expect(configService.getApiKey('https://prod.example.com')).toBe('host-level-key');
 
-            const result = configService.hasConfig();
+        configService.saveApiKey('https://prod.example.com', 'new-key', 'prod');
 
-            expect(result).toBe(false);
+        expect(mockConf.set).toHaveBeenCalledWith('hosts', {
+            'https://prod.example.com': 'new-key'
+        });
+        expect(mockConf.set).toHaveBeenCalledWith('instanceProfiles', {
+            prod: 'new-key'
         });
     });
 
-    describe('getOrCreateInstanceIdentifier', () => {
-        it('should recompute instance identifier from current instance settings', async () => {
-            (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
-            (fs.readFileSync as any).mockReturnValue(JSON.stringify({
-                host: 'http://localhost:5678',
-                instanceIdentifier: 'existing-id'
-            }));
-            mockConf.get.mockReturnValue({
-                'http://localhost:5678': 'test-key'
-            });
-            mockResolveInstanceIdentifier.mockResolvedValue({
-                identifier: 'recomputed-id',
-                usedFallback: false
-            });
+    it('getOrCreateInstanceIdentifier updates the targeted instance profile', async () => {
+        const workspaceConfig: IWorkspaceConfig = {
+            version: 2,
+            activeInstanceId: 'prod',
+            instances: [
+                {
+                    id: 'prod',
+                    name: 'Production',
+                    host: 'https://prod.example.com',
+                    syncFolder: 'workflows-prod',
+                    projectId: 'project-prod',
+                    projectName: 'Production'
+                }
+            ],
+            host: 'https://prod.example.com',
+            syncFolder: 'workflows-prod',
+            projectId: 'project-prod',
+            projectName: 'Production'
+        };
 
-            const result = await configService.getOrCreateInstanceIdentifier('http://localhost:5678');
-
-            expect(result).toBe('recomputed-id');
-            expect(mockResolveInstanceIdentifier).toHaveBeenCalledWith({
-                host: 'http://localhost:5678',
-                apiKey: 'test-key'
-            });
-            expect(fs.writeFileSync).toHaveBeenCalled();
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
+        (fs.readFileSync as any).mockReturnValue(JSON.stringify(workspaceConfig));
+        mockConf.get.mockImplementation((key: string) => {
+            if (key === 'instanceProfiles') {
+                return { prod: 'test-key' };
+            }
+            if (key === 'hosts') {
+                return {};
+            }
+            return {};
+        });
+        mockResolveInstanceIdentifier.mockResolvedValue({
+            identifier: 'recomputed-id',
+            usedFallback: false
         });
 
-        it('should create new instance identifier when not exists', async () => {
-            (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
-            (fs.readFileSync as any).mockReturnValue(JSON.stringify({
-                host: 'http://localhost:5678'
-            }));
-            mockConf.get.mockReturnValue({
-                'http://localhost:5678': 'test-key'
-            });
-            mockResolveInstanceIdentifier.mockResolvedValue({
-                identifier: 'local_5678_user',
-                usedFallback: false
-            });
+        const result = await configService.getOrCreateInstanceIdentifier('https://prod.example.com', 'prod');
 
-            const result = await configService.getOrCreateInstanceIdentifier('http://localhost:5678');
-
-            expect(result).toBe('local_5678_user');
-            expect(fs.writeFileSync).toHaveBeenCalled();
+        expect(result).toBe('recomputed-id');
+        expect(mockResolveInstanceIdentifier).toHaveBeenCalledWith({
+            host: 'https://prod.example.com',
+            apiKey: 'test-key'
         });
 
-        it('should throw a clear error when API key is missing', async () => {
-            (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
-            (fs.readFileSync as any).mockReturnValue(JSON.stringify({
-                host: 'http://localhost:5678'
-            }));
-            mockConf.get.mockReturnValue({});
-
-            await expect(
-                configService.getOrCreateInstanceIdentifier('http://localhost:5678')
-            ).rejects.toThrow('API key not found');
-
-            expect(mockResolveInstanceIdentifier).not.toHaveBeenCalled();
-            expect(mockCreateFallbackInstanceIdentifier).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('getInstanceConfigPath', () => {
-        it('should return path to unified config file', () => {
-            const result = configService.getInstanceConfigPath();
-
-            expect(result).toContain('n8nac-config.json');
-            expect(path.isAbsolute(result)).toBe(true);
-        });
+        const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1]);
+        expect(persistedConfig.instanceIdentifier).toBe('recomputed-id');
+        expect(persistedConfig.instances[0].instanceIdentifier).toBe('recomputed-id');
     });
 });

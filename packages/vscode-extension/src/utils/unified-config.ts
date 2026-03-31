@@ -1,19 +1,16 @@
-import * as fs from 'fs';
+import { randomUUID } from 'crypto';
 import * as path from 'path';
 import {
+    ConfigService,
     resolveInstanceIdentifier,
     type IN8nCredentials,
-    type IInstanceIdentifierClient
+    type IInstanceIdentifierClient,
+    type ILocalConfig,
+    type IInstanceProfile,
+    type IWorkspaceConfig,
 } from 'n8nac';
 
-export type UnifiedWorkspaceConfig = {
-    host?: string;
-    syncFolder?: string;
-    projectId?: string;
-    projectName?: string;
-    instanceIdentifier?: string;
-    [key: string]: unknown;
-};
+export type UnifiedWorkspaceConfig = IWorkspaceConfig;
 
 type BuildUnifiedWorkspaceConfigInput = {
     workspaceRoot: string;
@@ -23,6 +20,9 @@ type BuildUnifiedWorkspaceConfigInput = {
     projectId?: string;
     projectName?: string;
     instanceIdentifier?: string;
+    instanceId?: string;
+    instanceName?: string;
+    setActive?: boolean;
     client?: IInstanceIdentifierClient;
 };
 
@@ -31,17 +31,7 @@ export function getUnifiedConfigPath(workspaceRoot: string): string {
 }
 
 export function readUnifiedWorkspaceConfig(workspaceRoot: string): UnifiedWorkspaceConfig {
-    const unifiedPath = getUnifiedConfigPath(workspaceRoot);
-
-    try {
-        if (fs.existsSync(unifiedPath)) {
-            return JSON.parse(fs.readFileSync(unifiedPath, 'utf-8')) as UnifiedWorkspaceConfig;
-        }
-    } catch {
-        // Ignore parse errors and rebuild from current settings.
-    }
-
-    return {};
+    return new ConfigService(workspaceRoot).getWorkspaceConfig();
 }
 
 export function toStoredSyncFolder(workspaceRoot: string, syncFolder: string): string {
@@ -54,40 +44,56 @@ export function toStoredSyncFolder(workspaceRoot: string, syncFolder: string): s
         : syncFolder;
 }
 
-function setOptionalField(
-    target: UnifiedWorkspaceConfig,
-    key: keyof UnifiedWorkspaceConfig,
-    value?: string
-): void {
-    if (typeof value === 'string' && value.trim() !== '') {
-        target[key] = value;
-        return;
+function getCurrentInstance(
+    existing: UnifiedWorkspaceConfig,
+    instanceId?: string
+): IInstanceProfile | undefined {
+    const targetId = instanceId || existing.activeInstanceId;
+    return targetId
+        ? existing.instances.find((instance) => instance.id === targetId)
+        : undefined;
+}
+
+function createDraftInstanceId(): string {
+    return `instance-${randomUUID().slice(0, 8)}`;
+}
+
+function toActiveFields(active?: Partial<IInstanceProfile>): Partial<IWorkspaceConfig> {
+    const next: Partial<IWorkspaceConfig> = {};
+    const stringKeys: Array<keyof ILocalConfig> = [
+        'host',
+        'syncFolder',
+        'projectId',
+        'projectName',
+        'instanceIdentifier',
+        'customNodesPath',
+    ];
+
+    for (const key of stringKeys) {
+        const value = active?.[key];
+        if (typeof value === 'string' && value.trim() !== '') {
+            next[key] = value as never;
+        }
     }
 
-    delete target[key];
+    if (typeof active?.folderSync === 'boolean') {
+        next.folderSync = active.folderSync;
+    }
+
+    return next;
 }
 
 export async function buildUnifiedWorkspaceConfig(
     input: BuildUnifiedWorkspaceConfigInput
 ): Promise<UnifiedWorkspaceConfig> {
-    const existing = readUnifiedWorkspaceConfig(input.workspaceRoot);
+    const service = new ConfigService(input.workspaceRoot);
+    const existing = service.getWorkspaceConfig();
+    const current = getCurrentInstance(existing, input.instanceId);
     const storedSyncFolder = toStoredSyncFolder(input.workspaceRoot, input.syncFolder || 'workflows');
 
-    const unified: UnifiedWorkspaceConfig = {
-        ...existing
-    };
+    let resolvedInstanceIdentifier: string | undefined = input.instanceIdentifier;
 
-    setOptionalField(unified, 'host', input.host);
-    setOptionalField(unified, 'syncFolder', storedSyncFolder);
-    setOptionalField(unified, 'projectId', input.projectId);
-    setOptionalField(unified, 'projectName', input.projectName);
-
-    if (input.instanceIdentifier) {
-        unified.instanceIdentifier = input.instanceIdentifier;
-        return unified;
-    }
-
-    if (input.host && input.apiKey) {
+    if (!resolvedInstanceIdentifier && input.host && input.apiKey) {
         const credentials: IN8nCredentials = {
             host: input.host,
             apiKey: input.apiKey
@@ -95,27 +101,74 @@ export async function buildUnifiedWorkspaceConfig(
         const { identifier } = await resolveInstanceIdentifier(credentials, {
             client: input.client
         });
-        unified.instanceIdentifier = identifier;
-        return unified;
+        resolvedInstanceIdentifier = identifier;
     }
 
-    delete unified.instanceIdentifier;
-    return unified;
+    const instanceId = current?.id || input.instanceId || createDraftInstanceId();
+    const instanceName = input.instanceName?.trim() || current?.name || input.host || 'Default instance';
+    const profile: IInstanceProfile = {
+        id: instanceId,
+        name: instanceName,
+        host: input.host || undefined,
+        syncFolder: storedSyncFolder || undefined,
+        projectId: input.projectId || undefined,
+        projectName: input.projectName || undefined,
+        instanceIdentifier: resolvedInstanceIdentifier,
+        customNodesPath: current?.customNodesPath,
+        folderSync: current?.folderSync,
+    };
+
+    const instances = [
+        ...existing.instances.filter((instance) => instance.id !== profile.id),
+        profile,
+    ].sort((left, right) => left.name.localeCompare(right.name));
+
+    const activeInstanceId = input.setActive === false
+        ? (existing.activeInstanceId || profile.id)
+        : profile.id;
+    const active = instances.find((instance) => instance.id === activeInstanceId);
+
+    return {
+        version: 2,
+        activeInstanceId,
+        instances,
+        ...toActiveFields(active),
+    };
 }
 
 export async function writeUnifiedWorkspaceConfig(
     input: BuildUnifiedWorkspaceConfigInput
 ): Promise<UnifiedWorkspaceConfig> {
-    const unified = await buildUnifiedWorkspaceConfig(input);
-    const unifiedPath = getUnifiedConfigPath(input.workspaceRoot);
-    const nextContent = JSON.stringify(unified, null, 2);
-    const existingContent = fs.existsSync(unifiedPath)
-        ? fs.readFileSync(unifiedPath, 'utf-8')
-        : null;
+    const service = new ConfigService(input.workspaceRoot);
+    const storedSyncFolder = toStoredSyncFolder(input.workspaceRoot, input.syncFolder || 'workflows');
 
-    if (existingContent !== nextContent) {
-        fs.writeFileSync(unifiedPath, nextContent, 'utf-8');
+    let instanceIdentifier = input.instanceIdentifier;
+    if (!instanceIdentifier && input.host && input.apiKey) {
+        const credentials: IN8nCredentials = {
+            host: input.host,
+            apiKey: input.apiKey
+        };
+        const { identifier } = await resolveInstanceIdentifier(credentials, {
+            client: input.client
+        });
+        instanceIdentifier = identifier;
     }
 
-    return unified;
+    const savedProfile = service.saveLocalConfig({
+        host: input.host || undefined,
+        syncFolder: storedSyncFolder || undefined,
+        projectId: input.projectId || undefined,
+        projectName: input.projectName || undefined,
+        instanceIdentifier,
+    }, {
+        instanceId: input.instanceId,
+        instanceName: input.instanceName,
+        setActive: input.setActive,
+    });
+
+    if (input.host && input.apiKey) {
+        service.saveApiKey(input.host, input.apiKey, savedProfile.id);
+    }
+
+    return service.getWorkspaceConfig();
 }
