@@ -155,18 +155,23 @@ export async function writeUnifiedWorkspaceConfig(
         instanceIdentifier = identifier;
     }
 
-    const savedProfile = service.saveLocalConfig({
+    const saveInput = {
         host: input.host || undefined,
         syncFolder: storedSyncFolder || undefined,
         projectId: input.projectId || undefined,
         projectName: input.projectName || undefined,
         instanceIdentifier,
-    }, {
-        instanceId: input.instanceId,
-        instanceName: input.instanceName,
-        createNew: input.createNew,
-        setActive: input.setActive,
-    });
+    };
+    const savedProfile = input.createNew
+        ? service.createInstanceConfig(saveInput, {
+            instanceName: input.instanceName,
+            setActive: input.setActive,
+        })
+        : service.updateInstanceConfig(saveInput, {
+            instanceId: input.instanceId,
+            instanceName: input.instanceName,
+            setActive: input.setActive,
+        });
 
     if (input.host && input.apiKey) {
         service.saveApiKey(input.host, input.apiKey, savedProfile.id);
