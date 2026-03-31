@@ -27,6 +27,8 @@ The wizard asks for your n8n host URL and API key once, saves an instance config
 `n8nac init-auth`, selects your project, and generates an AI context file
 (`AGENTS.md`) in the workspace (`~/.openclaw/n8nac/`).
 
+After setup, saved instance configs can also be listed, selected, and deleted through the same shared `n8nac` instance library used by the CLI and VS Code extension.
+
 ## Usage
 
 Once setup is done, just talk to OpenClaw:
@@ -75,8 +77,11 @@ The plugin registers the `n8nac` tool with these actions:
 | Action | Description |
 |---|---|
 | `setup_check` | Check initialization state |
-| `init_auth` | Save n8n credentials |
+| `init_auth` | Save n8n credentials; pass `newInstance: true` to add another saved config |
 | `init_project` | Select n8n project |
+| `instance_list` | List saved instance configs |
+| `instance_select` | Select the active saved instance config |
+| `instance_delete` | Delete a saved instance config |
 | `list` | List all workflows |
 | `pull` | Download a workflow by ID |
 | `push` | Upload a workflow file |

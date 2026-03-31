@@ -162,24 +162,31 @@ export class AiContextGenerator {
       `- Look for \`n8nac-config.json\` in the workspace root.`,
       `- If \`n8nac-config.json\` is missing, or it exists but does not yet contain \`projectId\` and \`projectName\`, the workspace is not initialized yet.`,
       `- **NEVER tell the user to run \`${cliCmd} init\` themselves.** You are the agent — it is YOUR job to run the command.`,
-      `- Initialization is a 2-step flow: first save credentials with \`${cliCmd} init-auth --host <url> --api-key <key>\`, then select the project with \`${cliCmd} init-project\`.`,
-      `- If the user has already provided the n8n host and API key, run \`${cliCmd} init-auth --host <url> --api-key <key>\` immediately.`,
-      `- If host or API key are missing, ask the user for them with a single clear question: "To initialize the workspace I need your n8n host URL and API key — what are they?" Then, once you have both values, run \`${cliCmd} init-auth --host <url> --api-key <key>\` yourself.`,
+      `- \`${cliCmd} instance add\` is the main setup command. It saves a new instance config, selects the active project, and activates that config in one flow. \`${cliCmd} init\` is the ergonomic alias.`,
+      `- The explicit 2-step flow is still supported when you need to inspect projects before choosing one: first \`${cliCmd} init-auth --host <url> --api-key <key>\`, then \`${cliCmd} init-project\`.`,
+      `- If the workspace already has saved instance configs, inspect them with \`${cliCmd} instance list --json\` before deciding whether to add a new one or switch the active config.`,
+      `- Use \`${cliCmd} instance select --instance-id <id>\` or \`${cliCmd} instance select --instance-name <name>\` to switch saved configs non-interactively.`,
+      `- Use \`${cliCmd} instance delete --instance-id <id> --yes\` or \`${cliCmd} instance delete --instance-name <name> --yes\` to remove stale saved configs non-interactively.`,
+      `- If the user has already provided the n8n host and API key, prefer \`${cliCmd} init-auth --host <url> --api-key <key>\` when you still need to inspect the project list, or \`${cliCmd} instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n>\` when the project selector is already known.`,
+      `- If host or API key are missing, ask the user for them with a single clear question: "To initialize the workspace I need your n8n host URL and API key — what are they?" Then, once you have both values, run the appropriate command yourself.`,
       `- Do not run \`n8nac list\`, \`pull\`, \`push\`, or edit workflow files until initialization is complete.`,
-      `- Never write \`n8nac-config.json\` by hand. Initialization must go through \`${cliCmd} init-auth\` and \`${cliCmd} init-project\` so credentials and AI context stay consistent.`,
+      `- Never write \`n8nac-config.json\` by hand. Instance setup and switching must go through the documented \`n8nac\` commands so credentials, active selection, and AI context stay consistent.`,
       `- Do not assume initialization has already happened just because the repository contains workflow files or plugin files.`,
       ``,
       `### Preferred Agent Command`,
+      `- Single-flow setup: \`${cliCmd} instance add\` (or \`${cliCmd} init\`)`,
       `- Step 1 auth: \`${cliCmd} init-auth --host <url> --api-key <key>\``,
       `- Step 2 project selection: \`${cliCmd} init-project --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]\``,
+      `- Saved config management: \`${cliCmd} instance list --json\`, \`${cliCmd} instance select --instance-id <id>|--instance-name <name>\`, \`${cliCmd} instance delete --instance-id <id>|--instance-name <name> --yes\``,
       `- \`${cliCmd} init-project\` can run interactively after \`${cliCmd} init-auth\`, or non-interactively when the project selector is known.`,
       ``,
       `### Required Order`,
       `1. Check for \`n8nac-config.json\`.`,
-      `2. If missing: check if \`N8N_HOST\` and \`N8N_API_KEY\` are set in the environment — if so, run \`${cliCmd} init-auth --host <url> --api-key <key>\` directly using those values.`,
-      `3. If missing and env vars are absent: ask the user for the host URL and API key, then run \`${cliCmd} init-auth --host <url> --api-key <key>\` yourself. **Do not ask the user to run the command.**`,
-      `4. After credentials are saved, inspect the listed projects. If only one project exists, run \`${cliCmd} init-project --project-index 1 --sync-folder workflows\`. If multiple projects exist, ask the user which one to use, then run \`${cliCmd} init-project --project-id <id> [--sync-folder <path>]\`.`,
-      `5. Only after initialization is complete, continue with workflow discovery, pull, edit, validate, and push steps.`,
+      `2. If saved configs already exist: inspect them with \`${cliCmd} instance list --json\`. Reuse them with \`${cliCmd} instance select\` instead of creating duplicates whenever that satisfies the user request.`,
+      `3. If initialization is missing and \`N8N_HOST\` / \`N8N_API_KEY\` are available: run \`${cliCmd} init-auth --host <url> --api-key <key>\` to discover projects, unless the project selector is already known and you can finish in one command with \`${cliCmd} instance add --yes ...\`.`,
+      `4. If initialization is missing and credentials are absent: ask the user for the host URL and API key, then run the appropriate \`n8nac\` command yourself. **Do not ask the user to run the command.**`,
+      `5. After credentials are saved, inspect the listed projects. If only one project exists, run \`${cliCmd} init-project --project-index 1 --sync-folder workflows\`. If multiple projects exist, ask the user which one to use, then run \`${cliCmd} init-project --project-id <id> [--sync-folder <path>]\`.`,
+      `6. Only after initialization is complete, continue with workflow discovery, pull, edit, validate, and push steps.`,
       ``,
       `---`,
       ``,
@@ -939,11 +946,12 @@ Use this skill only for explicit n8n workflow work.
 1. Check whether \`n8nac-config.json\` exists in the workspace root.
 2. If the workspace is initialized, read \`AGENTS.md\` from the workspace root before making workflow changes. It is the detailed, workspace-specific source of truth generated by \`n8nac update-ai\`.
 3. If \`AGENTS.md\` is missing or unreadable, regenerate it with \`npx --yes n8nac update-ai\` or run the \`openclaw n8nac:setup\` command before attempting workflow authoring.
-4. If the workspace is not initialized, ask the user for the n8n host URL and API key, then use the \`n8nac\` tool with \`action: "init_auth"\` and \`action: "init_project"\` to complete setup yourself.
+4. If the workspace is not initialized, ask the user for the n8n host URL and API key, then use the \`n8nac\` tool with \`action: "init_auth"\` and \`action: "init_project"\` to complete setup yourself. If you need to add a second saved instance later, call \`action: "init_auth"\` with \`newInstance: true\` first.
 
 ## Using the n8nac tool
 
-- Use the \`n8nac\` tool for setup checks, workflow list/pull/push/verify, validation, and \`skills\` lookups.
+- Use the \`n8nac\` tool for setup checks, saved instance config management, workflow list/pull/push/verify, validation, and \`skills\` lookups.
+- Use \`action: "instance_list"\` to inspect saved configs, \`action: "instance_select"\` to switch the active config, and \`action: "instance_delete"\` to remove a stale saved config.
 - Use \`action: "skills"\` whenever you need node search or schema details.
 - Never guess node parameters. The schema lookup is the source of truth.
 - Treat \`AGENTS.md\` as the authoritative workflow-engineering protocol once this skill is active.

@@ -19,6 +19,7 @@ It is the right entry point when you want OpenClaw to:
 Once installed, the plugin gives OpenClaw:
 
 - an `n8nac` tool for setup, workflow sync, validation, and skills access
+- saved instance config management through the same underlying `n8nac` commands
 - an `openclaw n8nac:setup` wizard for host, API key, project selection, and active instance selection
 - automatic prompt grounding from the generated `AGENTS.md`
 - an OpenClaw-native workspace rooted at `~/.openclaw/n8nac/`
@@ -56,6 +57,8 @@ The setup wizard walks through the same core steps as the CLI:
 3. Generate `AGENTS.md` with `n8nac update-ai`.
 4. Point OpenClaw at the initialized workspace in `~/.openclaw/n8nac/`.
 
+Once the workspace exists, agents can also inspect and switch saved instance configs through the shared instance library instead of rewriting `n8nac-config.json` by hand.
+
 After that, you can ask for workflow work in plain language, for example:
 
 - `Create an n8n workflow that sends a Slack message when a GitHub issue is opened`
@@ -92,6 +95,9 @@ The plugin keeps its working files under:
 The plugin still uses the shared CLI model underneath:
 
 ```bash
+npx --yes n8nac instance list --json
+npx --yes n8nac instance select --instance-id <instanceId>
+npx --yes n8nac instance delete --instance-id <instanceId> --yes
 npx --yes n8nac list
 npx --yes n8nac pull <workflow-id>
 npx --yes n8nac push <file>

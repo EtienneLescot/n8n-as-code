@@ -20,24 +20,31 @@ Before using any `n8nac` workflow command, check whether the workspace is initia
 - Look for `n8nac-config.json` in the workspace root.
 - If `n8nac-config.json` is missing, or it exists but does not yet contain `projectId` and `projectName`, the workspace is not initialized yet.
 - **NEVER tell the user to run `npx --yes n8nac init` themselves.** You are the agent — it is YOUR job to run the command.
-- Initialization is a 2-step flow: first save credentials with `npx --yes n8nac init-auth --host <url> --api-key <key>`, then select the project with `npx --yes n8nac init-project`.
-- If the user has already provided the n8n host and API key, run `npx --yes n8nac init-auth --host <url> --api-key <key>` immediately.
-- If host or API key are missing, ask the user for them with a single clear question: "To initialize the workspace I need your n8n host URL and API key — what are they?" Then, once you have both values, run `npx --yes n8nac init-auth --host <url> --api-key <key>` yourself.
+- `npx --yes n8nac instance add` is the main setup command. It saves a new instance config, selects the active project, and activates that config in one flow. `npx --yes n8nac init` is the ergonomic alias.
+- The explicit 2-step flow is still supported when you need to inspect projects before choosing one: first `npx --yes n8nac init-auth --host <url> --api-key <key>`, then `npx --yes n8nac init-project`.
+- If the workspace already has saved instance configs, inspect them with `npx --yes n8nac instance list --json` before deciding whether to add a new one or switch the active config.
+- Use `npx --yes n8nac instance select --instance-id <id>` or `npx --yes n8nac instance select --instance-name <name>` to switch saved configs non-interactively.
+- Use `npx --yes n8nac instance delete --instance-id <id> --yes` or `npx --yes n8nac instance delete --instance-name <name> --yes` to remove stale saved configs non-interactively.
+- If the user has already provided the n8n host and API key, prefer `npx --yes n8nac init-auth --host <url> --api-key <key>` when you still need to inspect the project list, or `npx --yes n8nac instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n>` when the project selector is already known.
+- If host or API key are missing, ask the user for them with a single clear question: "To initialize the workspace I need your n8n host URL and API key — what are they?" Then, once you have both values, run the appropriate command yourself.
 - Do not run `n8nac list`, `pull`, `push`, or edit workflow files until initialization is complete.
-- Never write `n8nac-config.json` by hand. Initialization must go through `npx --yes n8nac init-auth` and `npx --yes n8nac init-project` so credentials and AI context stay consistent.
+- Never write `n8nac-config.json` by hand. Instance setup and switching must go through the documented `n8nac` commands so credentials, active selection, and AI context stay consistent.
 - Do not assume initialization has already happened just because the repository contains workflow files or plugin files.
 
 ### Preferred Agent Command
+- Single-flow setup: `npx --yes n8nac instance add` (or `npx --yes n8nac init`)
 - Step 1 auth: `npx --yes n8nac init-auth --host <url> --api-key <key>`
 - Step 2 project selection: `npx --yes n8nac init-project --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]`
+- Saved config management: `npx --yes n8nac instance list --json`, `npx --yes n8nac instance select --instance-id <id>|--instance-name <name>`, `npx --yes n8nac instance delete --instance-id <id>|--instance-name <name> --yes`
 - `npx --yes n8nac init-project` can run interactively after `npx --yes n8nac init-auth`, or non-interactively when the project selector is known.
 
 ### Required Order
 1. Check for `n8nac-config.json`.
-2. If missing: check if `N8N_HOST` and `N8N_API_KEY` are set in the environment — if so, run `npx --yes n8nac init-auth --host <url> --api-key <key>` directly using those values.
-3. If missing and env vars are absent: ask the user for the host URL and API key, then run `npx --yes n8nac init-auth --host <url> --api-key <key>` yourself. **Do not ask the user to run the command.**
-4. After credentials are saved, inspect the listed projects. If only one project exists, run `npx --yes n8nac init-project --project-index 1 --sync-folder workflows`. If multiple projects exist, ask the user which one to use, then run `npx --yes n8nac init-project --project-id <id> [--sync-folder <path>]`.
-5. Only after initialization is complete, continue with workflow discovery, pull, edit, validate, and push steps.
+2. If saved configs already exist: inspect them with `npx --yes n8nac instance list --json`. Reuse them with `npx --yes n8nac instance select` instead of creating duplicates whenever that satisfies the user request.
+3. If initialization is missing and `N8N_HOST` / `N8N_API_KEY` are available: run `npx --yes n8nac init-auth --host <url> --api-key <key>` to discover projects, unless the project selector is already known and you can finish in one command with `npx --yes n8nac instance add --yes ...`.
+4. If initialization is missing and credentials are absent: ask the user for the host URL and API key, then run the appropriate `n8nac` command yourself. **Do not ask the user to run the command.**
+5. After credentials are saved, inspect the listed projects. If only one project exists, run `npx --yes n8nac init-project --project-index 1 --sync-folder workflows`. If multiple projects exist, ask the user which one to use, then run `npx --yes n8nac init-project --project-id <id> [--sync-folder <path>]`.
+6. Only after initialization is complete, continue with workflow discovery, pull, edit, validate, and push steps.
 
 ---
 

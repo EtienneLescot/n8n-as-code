@@ -8,19 +8,15 @@ Turns Claude into a specialized n8n workflow engineer using the `n8nac` CLI and 
 
 ## Recommended Claude Code setup
 
-After installing the plugin, initialize the workspace. In Claude Code terminal sessions, Claude should ask the user for the n8n host and API key, then run `init-auth`. `init-project` bootstraps `AGENTS.md` automatically. Use `update-ai` later when you want to refresh that generated context:
+After installing the plugin, initialize the workspace. The main setup command is `instance add` (or the alias `init`), which saves a new instance config and selects the project in one flow. Use `init-auth` + `init-project` only when you want to split credential discovery from project selection. `update-ai` refreshes the generated context later:
 
 ```bash
-# Claude collects the n8n host + API key from the user, then initializes auth non-interactively
-# Option A (safer for the API key: keeps it out of shell history / process listings)
-# export N8N_HOST="<your-n8n-url>"
-# export N8N_API_KEY="<your-api-key>"
-# npx --yes n8nac init-auth
-#
-# Option B (simpler, but less safe because the API key can appear in shell history / process listings)
-# npx --yes n8nac init-auth --host <your-n8n-url> --api-key <your-api-key>
+# One-command setup when the project selector is already known
+# npx --yes n8nac instance add --yes --host <your-n8n-url> --api-key <your-api-key> --project-name "Personal"
 
-npx --yes n8nac init-project
+# Or the explicit 2-step flow when Claude needs to inspect the project list first
+# npx --yes n8nac init-auth --host <your-n8n-url> --api-key <your-api-key>
+# npx --yes n8nac init-project
 
 # Optional: refresh AGENTS.md and snippets later
 npx --yes n8nac update-ai
