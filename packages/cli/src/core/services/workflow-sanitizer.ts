@@ -1,6 +1,40 @@
+import { randomUUID } from 'crypto';
+
 import { IWorkflow } from '../types.js';
 
+const WEBHOOK_TRIGGER_TYPES = new Set([
+    'webhook',
+    'webhooktrigger',
+    'formtrigger',
+    'chattrigger'
+]);
+
 export class WorkflowSanitizer {
+    private static shouldAssignWebhookId(node: any): boolean {
+        if (!node || typeof node !== 'object') return false;
+        if (typeof node.webhookId === 'string' && node.webhookId.trim().length > 0) return false;
+
+        const rawType = typeof node.type === 'string' ? node.type.toLowerCase() : '';
+        const shortType = rawType.includes('.') ? rawType.split('.').pop() ?? rawType : rawType;
+
+        return WEBHOOK_TRIGGER_TYPES.has(shortType);
+    }
+
+    private static ensureWebhookIds(nodes: any[] | undefined): any[] {
+        if (!Array.isArray(nodes)) return [];
+
+        return nodes.map((node) => {
+            if (!this.shouldAssignWebhookId(node)) {
+                return node;
+            }
+
+            return {
+                ...node,
+                webhookId: randomUUID()
+            };
+        });
+    }
+
     /**
      * Prepares a workflow JSON for storage on disk (GIT).
      * Removes dynamic IDs, execution URLs, and standardizes key order.
@@ -127,6 +161,8 @@ export class WorkflowSanitizer {
                 result[key] = clean[key as keyof typeof clean];
             }
         }
+
+        result.nodes = this.ensureWebhookIds(result.nodes);
 
         // Ensure settings is properly filtered and executionOrder is always set
         // This runs for all workflows to guarantee executionOrder is present
