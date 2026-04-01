@@ -1,5 +1,11 @@
 # @n8n-as-code/cli
 
+## [1.5.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.4.0...n8nac@v1.5.0) (2026-04-01)
+
+### Features
+
+* **cli:** refresh n8n-workflows.d.ts for all instances in update-ai ([61c2215](https://github.com/EtienneLescot/n8n-as-code/commit/61c22157432c75baa70af531837bdc340cbe7fbc))
+
 ## [1.4.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.3.1...n8nac@v1.4.0) (2026-03-31)
 
 ### Features
