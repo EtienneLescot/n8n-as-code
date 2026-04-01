@@ -4,6 +4,7 @@ import * as fs from 'fs';
 
 // Injected at build time by esbuild (see esbuild.config.js)
 declare const __N8NAC_VERSION__: string;
+declare const __N8NAC_CLI_SEMVER__: string;
 import {
     SyncManager, CliApi, N8nApiClient, IN8nCredentials, WorkflowSyncStatus, ConfigService,
     resolveInstanceIdentifier
@@ -398,7 +399,8 @@ export async function activate(context: vscode.ExtensionContext) {
                     const version = health.version;
                     progress?.report({ message: 'Generating AGENTS.md...' });
                     const distTag = (typeof __N8NAC_VERSION__ !== 'undefined' && __N8NAC_VERSION__ === 'next') ? 'next' : undefined;
-                    await new AiContextGenerator().generate(rootPath, version, distTag);
+                    const cliVersion = (typeof __N8NAC_CLI_SEMVER__ !== 'undefined' && __N8NAC_CLI_SEMVER__) ? __N8NAC_CLI_SEMVER__ : undefined;
+                    await new AiContextGenerator().generate(rootPath, version, distTag, { cliVersion });
                     context.workspaceState.update('n8n.lastInitVersion', version);
                     enhancedTreeProvider.setAIContextInfo(version, false);
                     if (!options?.silent) vscode.window.showInformationMessage(`✨ n8n AI Context Initialized! (v${version})`);

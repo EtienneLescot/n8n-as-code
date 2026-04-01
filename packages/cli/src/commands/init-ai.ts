@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import fs from 'fs';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import {
@@ -28,6 +28,26 @@ function getDistTag(): string | undefined {
     }
 }
 
+/** Returns the installed n8nac CLI semver (e.g. "1.4.0"), or undefined if unreadable. */
+export function getCliVersion(): string | undefined {
+    try {
+        const __dir = dirname(fileURLToPath(import.meta.url));
+        const pkg = JSON.parse(readFileSync(join(__dir, '..', '..', 'package.json'), 'utf8'));
+        return typeof pkg.version === 'string' ? pkg.version : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/** Reads the n8nac version stamp embedded in an existing AGENTS.md, or undefined if absent. */
+function readAgentsMdVersion(projectRoot: string): string | undefined {
+    const agentsMdPath = join(projectRoot, 'AGENTS.md');
+    if (!existsSync(agentsMdPath)) return undefined;
+    const content = readFileSync(agentsMdPath, 'utf8');
+    const match = content.match(/<!--\s*n8nac-version:\s*([^\s>]+)\s*-->/);
+    return match?.[1];
+}
+
 export class UpdateAiCommand {
     constructor(private program: Command) {
         this.program
@@ -39,9 +59,34 @@ export class UpdateAiCommand {
             });
     }
 
+    /**
+     * Fire-and-forget check: if AGENTS.md is missing a version stamp or the stamped version
+     * differs from the installed n8nac CLI version, silently regenerates AI context files.
+     * Safe to call at the top of any command — never throws.
+     */
+    static async checkAndRefreshIfStale(projectRoot: string): Promise<void> {
+        try {
+            const agentsMdPath = join(projectRoot, 'AGENTS.md');
+            if (!existsSync(agentsMdPath)) return; // init handles first-time creation
+
+            const stampedVersion = readAgentsMdVersion(projectRoot);
+            const currentVersion = getCliVersion();
+
+            if (currentVersion && stampedVersion === currentVersion) return; // already up-to-date
+
+            await new UpdateAiCommand(new Command()).run({ silent: true });
+        } catch {
+            // Never surface background refresh errors to the user
+        }
+    }
+
     public async run(options: any = {}, providedCredentials?: IN8nCredentials) {
-        console.log(chalk.blue('🤖 Updating AI Context...'));
-        console.log(chalk.gray('   Regenerating AGENTS.md and snippets\n'));
+        const silent = !!options.silent;
+
+        if (!silent) {
+            console.log(chalk.blue('🤖 Updating AI Context...'));
+            console.log(chalk.gray('   Regenerating AGENTS.md and snippets\n'));
+        }
 
         const projectRoot = process.cwd();
 
@@ -67,15 +112,16 @@ export class UpdateAiCommand {
             }
 
             // 2. Generate Context (AGENTS.md)
-            console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md)...'));
+            if (!silent) console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md)...'));
             const aiContextGenerator = new AiContextGenerator();
             await aiContextGenerator.generate(projectRoot, version, getDistTag(), {
                 cliCommandOverride: options.cliCmd,
+                cliVersion: getCliVersion(),
             });
-            console.log(chalk.green('   ✅ AI context files created.'));
+            if (!silent) console.log(chalk.green('   ✅ AI context files created.'));
 
             // 3. Update n8n-workflows.d.ts for all configured instances
-            console.log(chalk.gray('\n   - Updating TypeScript stubs (n8n-workflows.d.ts)...'));
+            if (!silent) console.log(chalk.gray('\n   - Updating TypeScript stubs (n8n-workflows.d.ts)...'));
             const configService = new ConfigService(projectRoot);
             const instances = configService.listInstances();
             let updatedCount = 0;
@@ -94,26 +140,34 @@ export class UpdateAiCommand {
                     WorkspaceSetupService.ensureWorkspaceFiles(instanceDir);
                     updatedCount++;
                 } catch (err: any) {
-                    console.warn(chalk.yellow(`   ⚠ Could not update TypeScript stubs for ${instanceIdentifier}: ${err.message}`));
+                    if (!silent) console.warn(chalk.yellow(`   ⚠ Could not update TypeScript stubs for ${instanceIdentifier}: ${err.message}`));
                 }
             }
-            if (updatedCount > 0) {
-                console.log(chalk.green(`   ✅ TypeScript stubs updated for ${updatedCount} instance(s).`));
-            } else {
-                console.log(chalk.gray('   ℹ No existing instance directories found to update.'));
-            }
+            if (!silent) {
+                if (updatedCount > 0) {
+                    console.log(chalk.green(`   ✅ TypeScript stubs updated for ${updatedCount} instance(s).`));
+                } else {
+                    console.log(chalk.gray('   ℹ No existing instance directories found to update.'));
+                }
 
-            console.log(chalk.green('\n✨ AI Context Updated Successfully!'));
-            console.log(chalk.gray('   ✔ AGENTS.md: Complete AI agent guidelines'));
-            console.log(chalk.gray('   ✔ n8n-workflows.d.ts: TypeScript stubs (per instance)'));
-            console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/skills)\n'));
+                console.log(chalk.green('\n✨ AI Context Updated Successfully!'));
+                console.log(chalk.gray('   ✔ AGENTS.md: Complete AI agent guidelines'));
+                console.log(chalk.gray('   ✔ n8n-workflows.d.ts: TypeScript stubs (per instance)'));
+                console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/skills)\n'));
+            } else if (updatedCount > 0 || existsSync(join(projectRoot, 'AGENTS.md'))) {
+                // Single dim notice so the user knows a refresh happened (non-intrusive)
+                console.log(chalk.dim(`ℹ  n8nac: AGENTS.md refreshed (${getCliVersion() ?? 'updated'})`));
+            }
 
         } catch (error: any) {
-            console.error(chalk.red(`❌ Error during update-ai: ${error.message}`));
-            if (error.stack) {
-                console.error(chalk.gray(error.stack));
+            if (!silent) {
+                console.error(chalk.red(`❌ Error during update-ai: ${error.message}`));
+                if (error.stack) {
+                    console.error(chalk.gray(error.stack));
+                }
+                process.exit(1);
             }
-            process.exit(1);
+            // In silent mode, swallow errors — the refresh is best-effort
         }
     }
 }
