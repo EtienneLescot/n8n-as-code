@@ -1,15 +1,19 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
+import fs from 'fs';
 import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import {
     N8nApiClient,
-    IN8nCredentials
+    IN8nCredentials,
+    WorkspaceSetupService,
+    createProjectSlug,
 } from '../core/index.js';
 import {
     AiContextGenerator
 } from '@n8n-as-code/skills';
+import { ConfigService } from '../services/config-service.js';
 import dotenv from 'dotenv';
 
 /** Returns 'next' for pre-release builds, undefined for stable builds.
@@ -70,8 +74,38 @@ export class UpdateAiCommand {
             });
             console.log(chalk.green('   ✅ AI context files created.'));
 
+            // 3. Update n8n-workflows.d.ts for all configured instances
+            console.log(chalk.gray('\n   - Updating TypeScript stubs (n8n-workflows.d.ts)...'));
+            const configService = new ConfigService(projectRoot);
+            const instances = configService.listInstances();
+            let updatedCount = 0;
+            for (const instance of instances) {
+                const { syncFolder, instanceIdentifier, projectName } = instance;
+                if (!syncFolder || !instanceIdentifier || !projectName) continue;
+
+                const instanceDir = join(
+                    resolve(projectRoot, syncFolder),
+                    instanceIdentifier,
+                    createProjectSlug(projectName)
+                );
+                if (!fs.existsSync(instanceDir)) continue;
+
+                try {
+                    WorkspaceSetupService.ensureWorkspaceFiles(instanceDir);
+                    updatedCount++;
+                } catch (err: any) {
+                    console.warn(chalk.yellow(`   ⚠ Could not update TypeScript stubs for ${instanceIdentifier}: ${err.message}`));
+                }
+            }
+            if (updatedCount > 0) {
+                console.log(chalk.green(`   ✅ TypeScript stubs updated for ${updatedCount} instance(s).`));
+            } else {
+                console.log(chalk.gray('   ℹ No existing instance directories found to update.'));
+            }
+
             console.log(chalk.green('\n✨ AI Context Updated Successfully!'));
             console.log(chalk.gray('   ✔ AGENTS.md: Complete AI agent guidelines'));
+            console.log(chalk.gray('   ✔ n8n-workflows.d.ts: TypeScript stubs (per instance)'));
             console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/skills)\n'));
 
         } catch (error: any) {
