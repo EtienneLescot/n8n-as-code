@@ -66,7 +66,7 @@ describe('CLI update-ai integration', () => {
         expect(agentsContent).toContain(`<!-- n8nac-version: ${cliVersion} -->`);
     });
 
-    it('silently refreshes AGENTS.md when the stamped version is stale', () => {
+    it('checkAndRefreshIfStale silently refreshes AGENTS.md when the version stamp is stale', async () => {
         const workspaceDir = createTempDir('n8nac-update-ai-stale-');
 
         // Seed AGENTS.md with a fake old version stamp
@@ -79,9 +79,11 @@ describe('CLI update-ai integration', () => {
             '<!-- n8n-as-code-end -->',
         ].join('\n'), 'utf8');
 
-        // Simulate running any BaseCommand-based CLI op by directly invoking update-ai
-        // (BaseCommand calls checkAndRefreshIfStale; this test verifies the refresh logic)
-        runUpdateAi(workspaceDir);
+        // Call checkAndRefreshIfStale directly — this exercises the actual stale-detection
+        // logic rather than just running update-ai (which always regenerates unconditionally).
+        const initAiDistPath = path.join(repoRoot, 'packages/cli/dist/commands/init-ai.js');
+        const { UpdateAiCommand } = await import(initAiDistPath) as typeof import('../../src/commands/init-ai.js');
+        await UpdateAiCommand.checkAndRefreshIfStale(workspaceDir);
 
         const refreshed = fs.readFileSync(agentsPath, 'utf8');
         // Stamp must now match the current version
