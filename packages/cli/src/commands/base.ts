@@ -1,7 +1,9 @@
 import { N8nApiClient, IN8nCredentials } from '../core/index.js';
 import chalk from 'chalk';
 import { ConfigService } from '../services/config-service.js';
-import { UpdateAiCommand } from './init-ai.js';
+import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 export class BaseCommand {
     protected client: N8nApiClient;
@@ -54,8 +56,18 @@ export class BaseCommand {
         };
 
         // Silently refresh AGENTS.md in the background if the installed n8nac version changed.
-        // Fire-and-forget — never blocks the command, never throws.
-        UpdateAiCommand.checkAndRefreshIfStale(process.cwd()).catch(() => {});
+        // Spawned as a fully-detached child process so it never blocks the command, never
+        // interleaves with stdout, and can't be killed by an early process.exit().
+        try {
+            const __dir = dirname(fileURLToPath(import.meta.url));
+            const cliPath = join(__dir, '..', '..', 'index.js');
+            const child = spawn(process.execPath, [cliPath, 'update-ai', '--silent'], {
+                cwd: process.cwd(),
+                detached: true,
+                stdio: 'ignore',
+            });
+            child.unref();
+        } catch { /* never block the command */ }
     }
 
     /**

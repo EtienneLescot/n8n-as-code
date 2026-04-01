@@ -54,6 +54,7 @@ export class UpdateAiCommand {
             .command('update-ai')
             .description('Update AI Context (AGENTS.md and snippets)')
             .option('--cli-cmd <command>', 'Override the generated n8nac command in AGENTS.md (for local dev builds)')
+            .option('--silent', 'Suppress all output (used for background refresh)')
             .action(async (options) => {
                 await this.run(options);
             });
@@ -74,7 +75,7 @@ export class UpdateAiCommand {
 
             if (currentVersion && stampedVersion === currentVersion) return; // already up-to-date
 
-            await new UpdateAiCommand(new Command()).run({ silent: true });
+            await new UpdateAiCommand(new Command()).run({ silent: true, projectRoot });
         } catch {
             // Never surface background refresh errors to the user
         }
@@ -88,7 +89,7 @@ export class UpdateAiCommand {
             console.log(chalk.gray('   Regenerating AGENTS.md and snippets\n'));
         }
 
-        const projectRoot = process.cwd();
+        const projectRoot: string = options.projectRoot ?? process.cwd();
 
         try {
             // Initialize N8nApiClient if credentials are available
@@ -155,8 +156,9 @@ export class UpdateAiCommand {
                 console.log(chalk.gray('   ✔ n8n-workflows.d.ts: TypeScript stubs (per instance)'));
                 console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/skills)\n'));
             } else if (updatedCount > 0 || existsSync(join(projectRoot, 'AGENTS.md'))) {
-                // Single dim notice so the user knows a refresh happened (non-intrusive)
-                console.log(chalk.dim(`ℹ  n8nac: AGENTS.md refreshed (${getCliVersion() ?? 'updated'})`));
+                // Single dim notice so the user knows a refresh happened — written to stderr
+                // to avoid corrupting machine-readable stdout output (e.g. `n8nac list --raw`)
+                console.error(chalk.dim(`ℹ  n8nac: AGENTS.md refreshed (${getCliVersion() ?? 'updated'})`));
             }
 
         } catch (error: any) {
