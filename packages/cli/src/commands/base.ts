@@ -1,6 +1,7 @@
 import { N8nApiClient, IN8nCredentials } from '../core/index.js';
 import chalk from 'chalk';
 import { ConfigService } from '../services/config-service.js';
+import { UpdateAiCommand } from './init-ai.js';
 
 export class BaseCommand {
     protected client: N8nApiClient;
@@ -51,6 +52,10 @@ export class BaseCommand {
             host,
             folderSync: localConfig.folderSync ?? false,
         };
+
+        // Silently refresh AGENTS.md in the background if the installed n8nac version changed.
+        // Fire-and-forget — never blocks the command, never throws.
+        UpdateAiCommand.checkAndRefreshIfStale(process.cwd()).catch(() => {});
     }
 
     /**
