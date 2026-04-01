@@ -30,6 +30,19 @@ vi.mock('axios', () => {
 describe('N8nApiClient test workflow support', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockAxiosCall.mockReset();
+        mockAxiosGet.mockReset();
+        mockAxiosPost.mockReset();
+        mockAxiosPut.mockReset();
+        mockAxiosDelete.mockReset();
+        mockAxiosCreate.mockReset();
+        mockAxiosCreate.mockImplementation((config?: { baseURL?: string; headers?: Record<string, string> }) => ({
+            defaults: { baseURL: config?.baseURL ?? '' },
+            get: mockAxiosGet,
+            post: mockAxiosPost,
+            put: mockAxiosPut,
+            delete: mockAxiosDelete,
+        }));
     });
 
     it('detects a webhook trigger and uses explicit path and HTTP method', () => {
@@ -122,6 +135,69 @@ describe('N8nApiClient test workflow support', () => {
             webhookPath: 'chat-path',
             pathSource: 'explicit',
         })).toBe('https://n8n.local/webhook-test/wf-3/chat/chat-path/chat');
+    });
+
+    it('falls back to a placeholder Personal project when projects endpoint returns 403', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+
+        mockAxiosGet.mockRejectedValueOnce({
+            response: {
+                status: 403,
+                data: { message: 'unavailable' },
+            },
+            message: 'Request failed with status code 403',
+        });
+
+        await expect(client.getProjects()).resolves.toEqual([
+            expect.objectContaining({
+                id: 'personal',
+                name: 'Personal',
+                type: 'personal',
+            }),
+        ]);
+        expect(mockAxiosGet).toHaveBeenNthCalledWith(1, '/api/v1/projects');
+    });
+
+    it('does not filter out workflows when using the placeholder personal project id', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+
+        mockAxiosGet
+            .mockResolvedValueOnce({
+                data: {
+                    data: [
+                        {
+                            id: 'wf-1',
+                            name: 'Workflow 1',
+                            shared: [{ projectId: 'actual-project-id' }],
+                            active: false,
+                            nodes: [],
+                            connections: {},
+                        },
+                    ],
+                    meta: { total: 1 },
+                },
+                headers: {},
+            })
+            .mockRejectedValueOnce({
+                response: {
+                    status: 403,
+                    data: { message: 'unavailable' },
+                },
+                message: 'Request failed with status code 403',
+            })
+            .mockResolvedValueOnce({
+                data: {
+                    data: [],
+                },
+            });
+
+        const workflows = await client.getAllWorkflows('personal');
+
+        expect(workflows).toHaveLength(1);
+        expect(workflows[0]).toMatchObject({
+            id: 'wf-1',
+            projectId: 'actual-project-id',
+        });
     });
 
     it('normalizes webhook paths with leading slashes and special characters', () => {
