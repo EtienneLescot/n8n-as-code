@@ -27,6 +27,32 @@ npm install --save-dev n8nac
 n8nac --version
 ```
 
+### Updating
+
+```bash
+npm update -g n8nac
+```
+
+To confirm the new version is active:
+
+```bash
+n8nac --version
+```
+
+:::note Migrating from `@n8n-as-code/cli`
+The CLI was previously published as `@n8n-as-code/cli`. That package is no longer maintained. The current package is **`n8nac`** (published on npm as `n8nac`).
+
+If you have both installed at the same time, the old package can shadow the new one and hide commands added in recent releases. Remove it with:
+
+```bash
+npm uninstall -g @n8n-as-code/cli
+# or, if installed as a project dependency
+npm uninstall @n8n-as-code/cli
+```
+
+After removing it, `n8nac --help` should show the full, up-to-date command list.
+:::
+
 ## 🚀 Quick Start
 
 ### Initialize a Project

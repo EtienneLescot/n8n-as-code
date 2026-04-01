@@ -55,6 +55,16 @@ If you prefer the terminal or need CI/CD integration.
 npm install -g n8nac
 ```
 
+To update to the latest version later:
+
+```bash
+npm update -g n8nac
+```
+
+:::note Previous package name
+The CLI was previously published as `@n8n-as-code/cli`, which is now deprecated. If you have it installed alongside `n8nac`, remove it to avoid command shadowing: `npm uninstall -g @n8n-as-code/cli`. See [Troubleshooting](/docs/troubleshooting#cli-package-conflicts) for details.
+:::
+
 ### 2. Connect and Initialize
 
 ```bash

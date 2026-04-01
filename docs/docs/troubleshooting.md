@@ -224,6 +224,33 @@ n8nac pull <workflowId>
 git checkout HEAD -- workflows/my-workflow.workflow.ts
 ```
 
+## CLI Package Conflicts
+
+### Commands missing after update / `@n8n-as-code/cli` conflict
+
+If `n8nac --help` shows an old, shorter command list after updating, you may have both the legacy `@n8n-as-code/cli` package and the current `n8nac` package installed at the same time. The legacy package can shadow the new one.
+
+**Fix:** uninstall the old package.
+
+```bash
+# Global installation
+npm uninstall -g @n8n-as-code/cli
+
+# Project dependency
+npm uninstall @n8n-as-code/cli
+# or with bun:
+bun remove @n8n-as-code/cli
+```
+
+After removing it, verify the correct version is active:
+
+```bash
+n8nac --version
+n8nac --help   # should show the full command list
+```
+
+The current package is **`n8nac`** (on npm). `@n8n-as-code/cli` is no longer maintained.
+
 ## Still Stuck?
 
 When asking for help, include:
