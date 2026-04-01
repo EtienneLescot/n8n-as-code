@@ -13,6 +13,21 @@ try {
 } catch { /* ignore */ }
 const n8nacVersion = (githubRef.includes('next') || gitBranch === 'next') ? 'next' : '';
 
+// Read the n8nac CLI semver for the AGENTS.md version stamp.
+let n8nacCliSemver = '';
+try {
+    const cliPkgCandidates = [
+        path.join(__dirname, 'node_modules', 'n8nac', 'package.json'),
+        path.join(__dirname, '..', 'cli', 'package.json'),
+    ];
+    for (const candidate of cliPkgCandidates) {
+        if (fs.existsSync(candidate)) {
+            n8nacCliSemver = JSON.parse(fs.readFileSync(candidate, 'utf8')).version || '';
+            break;
+        }
+    }
+} catch { /* ignore */ }
+
 // Plugin to copy skills assets and CLI assets
 const copySkillsAssets = {
     name: 'copy-skills-assets',
@@ -98,7 +113,9 @@ const extensionBuild = esbuild.build({
     },
     define: {
         // 'next' on pre-release builds, '' on stable — drives npx dist-tag in AGENTS.md
-        '__N8NAC_VERSION__': JSON.stringify(n8nacVersion)
+        '__N8NAC_VERSION__': JSON.stringify(n8nacVersion),
+        // Installed n8nac CLI semver — stamped into AGENTS.md for stale-detection
+        '__N8NAC_CLI_SEMVER__': JSON.stringify(n8nacCliSemver),
     },
     plugins: [copySkillsAssets]
 });

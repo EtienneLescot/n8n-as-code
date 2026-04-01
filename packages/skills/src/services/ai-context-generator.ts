@@ -283,7 +283,7 @@ export class AiContextGenerator {
     projectRoot: string,
     n8nVersion: string = "Unknown",
     distTag?: string,
-    options: { cliCommandOverride?: string } = {},
+    options: { cliCommandOverride?: string; cliVersion?: string } = {},
   ): Promise<void> {
     const agentsContent = this.getAgentsContent(n8nVersion, distTag, options);
 
@@ -322,10 +322,12 @@ export class AiContextGenerator {
   private getAgentsContent(
     n8nVersion: string,
     distTag?: string,
-    options: { cliCommandOverride?: string } = {},
+    options: { cliCommandOverride?: string; cliVersion?: string } = {},
   ): string {
     const { cliCmd, skillsCmd: cmd } = this.getCommandRefs(distTag, options.cliCommandOverride);
+    const versionStamp = options.cliVersion ? [`<!-- n8nac-version: ${options.cliVersion} -->`, ``] : [];
     return [
+      ...versionStamp,
       `## 🎭 Role: Expert n8n Workflow Engineer`,
       ``,
       `You are a specialized AI agent for creating and editing n8n workflows.`,

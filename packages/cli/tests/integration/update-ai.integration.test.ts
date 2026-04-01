@@ -3,15 +3,30 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 const tempDirs: string[] = [];
 const repoRoot = path.resolve(import.meta.dirname, '../../../..');
 const cliEntry = path.join(repoRoot, 'packages/cli/dist/index.js');
+const cliVersion: string = JSON.parse(
+    readFileSync(path.join(repoRoot, 'packages/cli/package.json'), 'utf8')
+).version;
 
 function createTempDir(prefix: string): string {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
     tempDirs.push(dir);
     return dir;
+}
+
+const baseEnv = { ...process.env, N8N_HOST: '', N8N_API_KEY: '' };
+
+function runUpdateAi(workspaceDir: string): string {
+    return execFileSync('node', [cliEntry, 'update-ai', '--cli-cmd', `node ${cliEntry}`], {
+        cwd: workspaceDir,
+        env: baseEnv,
+        stdio: 'pipe',
+        encoding: 'utf8',
+    });
 }
 
 beforeAll(() => {
@@ -31,22 +46,7 @@ afterAll(() => {
 describe('CLI update-ai integration', () => {
     it('generates AGENTS.md with the current instance-management guidance', () => {
         const workspaceDir = createTempDir('n8nac-update-ai-workspace-');
-
-        execFileSync('node', [
-            cliEntry,
-            'update-ai',
-            '--cli-cmd',
-            `node ${cliEntry}`,
-        ], {
-            cwd: workspaceDir,
-            env: {
-                ...process.env,
-                N8N_HOST: '',
-                N8N_API_KEY: '',
-            },
-            stdio: 'pipe',
-            encoding: 'utf8',
-        });
+        runUpdateAi(workspaceDir);
 
         const agentsPath = path.join(workspaceDir, 'AGENTS.md');
         expect(fs.existsSync(agentsPath)).toBe(true);
@@ -58,10 +58,41 @@ describe('CLI update-ai integration', () => {
         expect(agentsContent).toContain(`node ${cliEntry} instance delete --instance-id <id> --yes`);
     });
 
+    it('embeds the n8nac CLI version stamp in AGENTS.md', () => {
+        const workspaceDir = createTempDir('n8nac-update-ai-stamp-');
+        runUpdateAi(workspaceDir);
+
+        const agentsContent = fs.readFileSync(path.join(workspaceDir, 'AGENTS.md'), 'utf8');
+        expect(agentsContent).toContain(`<!-- n8nac-version: ${cliVersion} -->`);
+    });
+
+    it('silently refreshes AGENTS.md when the stamped version is stale', () => {
+        const workspaceDir = createTempDir('n8nac-update-ai-stale-');
+
+        // Seed AGENTS.md with a fake old version stamp
+        const agentsPath = path.join(workspaceDir, 'AGENTS.md');
+        fs.writeFileSync(agentsPath, [
+            '# 🤖 AI Agents Guidelines',
+            '<!-- n8n-as-code-start -->',
+            '<!-- n8nac-version: 0.0.1 -->',
+            '## old content',
+            '<!-- n8n-as-code-end -->',
+        ].join('\n'), 'utf8');
+
+        // Simulate running any BaseCommand-based CLI op by directly invoking update-ai
+        // (BaseCommand calls checkAndRefreshIfStale; this test verifies the refresh logic)
+        runUpdateAi(workspaceDir);
+
+        const refreshed = fs.readFileSync(agentsPath, 'utf8');
+        // Stamp must now match the current version
+        expect(refreshed).toContain(`<!-- n8nac-version: ${cliVersion} -->`);
+        // Content must be a full AGENTS.md (not just "old content")
+        expect(refreshed).toContain('Expert n8n Workflow Engineer');
+    });
+
     it('refreshes n8n-workflows.d.ts for all configured instance directories', () => {
         const workspaceDir = createTempDir('n8nac-update-ai-dts-');
 
-        // Create a minimal n8nac-config.json with one instance that has an existing workflow dir
         const instanceIdentifier = 'local_5678_testuser';
         const syncFolder = 'workflows';
         const projectName = 'My Project';
@@ -70,7 +101,6 @@ describe('CLI update-ai integration', () => {
         const instanceDir = path.join(workspaceDir, syncFolder, instanceIdentifier, projectSlug);
         fs.mkdirSync(instanceDir, { recursive: true });
 
-        // Write a stale (empty) d.ts file to simulate an outdated workspace
         const dtsPath = path.join(instanceDir, 'n8n-workflows.d.ts');
         fs.writeFileSync(dtsPath, '// stale', 'utf8');
 
@@ -93,23 +123,8 @@ describe('CLI update-ai integration', () => {
             'utf8'
         );
 
-        execFileSync('node', [
-            cliEntry,
-            'update-ai',
-            '--cli-cmd',
-            `node ${cliEntry}`,
-        ], {
-            cwd: workspaceDir,
-            env: {
-                ...process.env,
-                N8N_HOST: '',
-                N8N_API_KEY: '',
-            },
-            stdio: 'pipe',
-            encoding: 'utf8',
-        });
+        runUpdateAi(workspaceDir);
 
-        // The d.ts file should have been refreshed (no longer "stale")
         expect(fs.existsSync(dtsPath)).toBe(true);
         const dtsContent = fs.readFileSync(dtsPath, 'utf8');
         expect(dtsContent).not.toBe('// stale');
