@@ -94,8 +94,6 @@ export class N8nApiClient {
             id: projectId,
             name,
             type,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
         };
     }
 
