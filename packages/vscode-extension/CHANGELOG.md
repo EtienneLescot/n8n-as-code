@@ -1,5 +1,17 @@
 # n8n-as-code
 
+## [1.22.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.20.0...n8n-as-code@v1.22.0) (2026-04-01)
+
+### Features
+
+* **cli/skills/vscode:** auto-refresh AGENTS.md via n8nac version stamp ([0304559](https://github.com/EtienneLescot/n8n-as-code/commit/030455968f12112c1ef5fbe299afb51ac9db97e8))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.4.0 to 1.5.0
+    * n8nac bumped from 1.4.0 to 1.5.0
+
 ## [1.20.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.18.0...n8n-as-code@v1.20.0) (2026-03-31)
 
 ### Features

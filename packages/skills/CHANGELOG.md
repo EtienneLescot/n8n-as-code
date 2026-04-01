@@ -1,5 +1,17 @@
 # @n8n-as-code/skills
 
+## [1.5.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.4.0...@n8n-as-code/skills@v1.5.0) (2026-04-01)
+
+### Features
+
+* **cli/skills/vscode:** auto-refresh AGENTS.md via n8nac version stamp ([0304559](https://github.com/EtienneLescot/n8n-as-code/commit/030455968f12112c1ef5fbe299afb51ac9db97e8))
+* **mcp:** add dedicated MCP server and CLI integration ([91c9c69](https://github.com/EtienneLescot/n8n-as-code/commit/91c9c6929595a5ef30995bc8eeba5e3d3b825606))
+* **skills:** align MCP tools with CLI-backed service methods ([efea392](https://github.com/EtienneLescot/n8n-as-code/commit/efea392b4e7e48563f2d45683212c751622a35e8))
+
+### Bug Fixes
+
+* **skills:** update MCP server tests file for new CLI formatting ([ba5f366](https://github.com/EtienneLescot/n8n-as-code/commit/ba5f366563fc658ed342fe167af57c17caa6c742))
+
 ## [1.4.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.3.1...@n8n-as-code/skills@v1.4.0) (2026-03-31)
 
 ### Features
