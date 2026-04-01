@@ -9,6 +9,8 @@
  * - Hash: TypeScript → JSON → normalized → hash
  */
 
+import { randomUUID } from 'crypto';
+
 import { IWorkflow } from '../types.js';
 import {
     JsonToAstParser,
@@ -19,7 +21,39 @@ import {
 } from '@n8n-as-code/transformer';
 import { HashUtils } from './hash-utils.js';
 
+const WEBHOOK_TRIGGER_TYPES = new Set([
+    'webhook',
+    'webhooktrigger',
+    'formtrigger',
+    'chattrigger'
+]);
+
 export class WorkflowTransformerAdapter {
+    private static shouldAssignWebhookId(node: any): boolean {
+        if (!node || typeof node !== 'object') return false;
+        if (typeof node.webhookId === 'string' && node.webhookId.trim().length > 0) return false;
+
+        const rawType = typeof node.type === 'string' ? node.type.toLowerCase() : '';
+        const shortType = rawType.includes('.') ? rawType.split('.').pop() ?? rawType : rawType;
+
+        return WEBHOOK_TRIGGER_TYPES.has(shortType);
+    }
+
+    private static ensureWebhookIds(nodes: any[] | undefined): any[] {
+        if (!Array.isArray(nodes)) return [];
+
+        return nodes.map((node) => {
+            if (!this.shouldAssignWebhookId(node)) {
+                return node;
+            }
+
+            return {
+                ...node,
+                webhookId: randomUUID()
+            };
+        });
+    }
+
     /**
      * Convert workflow JSON (from n8n API) to TypeScript code
      * 
@@ -240,6 +274,7 @@ export class WorkflowTransformerAdapter {
         }
         
         clean.settings = filteredSettings;
+        clean.nodes = this.ensureWebhookIds(clean.nodes);
         
         return clean as IWorkflow;
     }
