@@ -1,5 +1,12 @@
 # @n8n-as-code/cli
 
+## [1.5.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.5.0...n8nac@v1.5.1) (2026-04-01)
+
+### Bug Fixes
+
+* **cli:** address PR review feedback ([2e74af5](https://github.com/EtienneLescot/n8n-as-code/commit/2e74af53e7a5d0ef8a96fc992f40f3dbc7d708ca))
+* **cli:** handle inaccessible community projects API ([ef7a267](https://github.com/EtienneLescot/n8n-as-code/commit/ef7a26761cb4174abcecf76d2166ff6c557192f7))
+
 ## [1.5.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.4.0...n8nac@v1.5.0) (2026-04-01)
 
 ### Features
