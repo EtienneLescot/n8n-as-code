@@ -1,5 +1,17 @@
 # @n8n-as-code/cli
 
+## [1.5.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.4.0...n8nac@v1.5.0) (2026-04-01)
+
+### Features
+
+* **mcp:** add dedicated MCP server and CLI integration ([91c9c69](https://github.com/EtienneLescot/n8n-as-code/commit/91c9c6929595a5ef30995bc8eeba5e3d3b825606))
+* **cli:** refresh n8n-workflows.d.ts for all instances in update-ai ([61c2215](https://github.com/EtienneLescot/n8n-as-code/commit/61c22157432c75baa70af531837bdc340cbe7fbc))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.4.0 to 1.5.0
+
 ## [1.4.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.3.1...n8nac@v1.4.0) (2026-03-31)
 
 ### Features
