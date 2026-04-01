@@ -184,11 +184,6 @@ describe('N8nApiClient test workflow support', () => {
                     data: { message: 'unavailable' },
                 },
                 message: 'Request failed with status code 403',
-            })
-            .mockResolvedValueOnce({
-                data: {
-                    data: [],
-                },
             });
 
         const workflows = await client.getAllWorkflows('personal');
@@ -198,6 +193,9 @@ describe('N8nApiClient test workflow support', () => {
             id: 'wf-1',
             projectId: 'actual-project-id',
         });
+        expect(mockAxiosGet).toHaveBeenCalledTimes(2);
+        expect(mockAxiosGet).toHaveBeenNthCalledWith(1, '/api/v1/workflows');
+        expect(mockAxiosGet).toHaveBeenNthCalledWith(2, '/api/v1/projects');
     });
 
     it('normalizes webhook paths with leading slashes and special characters', () => {
