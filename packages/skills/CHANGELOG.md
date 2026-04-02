@@ -1,5 +1,17 @@
 # @n8n-as-code/skills
 
+## [1.6.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.5.1...@n8n-as-code/skills@v1.6.0) (2026-04-02)
+
+### Features
+
+* **skills:** stamp n8n version in package.json at build time ([1f006e8](https://github.com/EtienneLescot/n8n-as-code/commit/1f006e89c803cf6ca8c0810e2833fb1ee16daa72))
+
+### Bug Fixes
+
+* **skills:** clarify --prod vs bare test wording; add dynamic webhook path test ([f16eadf](https://github.com/EtienneLescot/n8n-as-code/commit/f16eadf5111858683499ce1cc1f169defd4f0f55))
+* **skills:** extract semver correctly from n8n@ tag format in stamp script ([1f87f51](https://github.com/EtienneLescot/n8n-as-code/commit/1f87f5166d1b97038ea7060dd111eea4b39b0ef2))
+* **skills:** always activate and use --prod when testing webhook workflows ([431cc99](https://github.com/EtienneLescot/n8n-as-code/commit/431cc99f43c81b554bd00adbaef0ba4dd58b3b5a))
+
 ## [1.5.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.5.0...@n8n-as-code/skills@v1.5.1) (2026-04-02)
 
 ### Bug Fixes
