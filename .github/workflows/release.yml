@@ -110,6 +110,9 @@ jobs:
           if should_publish 'n8nac'; then
             publish_npm 'n8nac' 'packages/cli'
           fi
+          if should_publish '@n8n-as-code/mcp'; then
+            publish_npm '@n8n-as-code/mcp' 'packages/mcp'
+          fi
           if should_publish '@n8n-as-code/n8nac'; then
             publish_npm '@n8n-as-code/n8nac' 'plugins/openclaw/n8n-as-code'
           fi
@@ -175,6 +178,7 @@ jobs:
           const prefixByName = {
             '@n8n-as-code/transformer': '@n8n-as-code/transformer@v',
             '@n8n-as-code/skills': '@n8n-as-code/skills@v',
+            '@n8n-as-code/mcp': '@n8n-as-code/mcp@v',
             '@n8n-as-code/n8nac': '@n8n-as-code/n8nac@v',
             'n8nac': 'n8nac@v',
             'n8n-as-code': 'n8n-as-code@v',
@@ -237,6 +241,10 @@ jobs:
               label: 'TypeScript Transformer',
               summary: 'Decorator-based round-trip conversion between n8n JSON and TypeScript workflows.',
             }],
+            ['@n8n-as-code/mcp', {
+              label: 'MCP Server',
+              summary: 'Dedicated Model Context Protocol server exposing n8n-as-code tools to MCP clients.',
+            }],
             ['@n8n-as-code/n8nac', {
               label: 'OpenClaw Plugin',
               summary: 'Native OpenClaw setup and workflow operations powered by the same n8nac stack.',
@@ -280,6 +288,7 @@ jobs:
             '- Editor integrations published via Microsoft Marketplace and Open VSX',
             '- Shared n8nac CLI for workspace bootstrap, sync, and automation',
             '- AI Skills and Claude-ready agent context generation',
+            '- MCP server for Model Context Protocol clients',
             '- OpenClaw plugin support',
             '- TypeScript transformer for n8n workflow code',
             '',
@@ -414,6 +423,8 @@ jobs:
             package-lock.json
             packages/cli/CHANGELOG.md
             packages/cli/package.json
+            packages/mcp/CHANGELOG.md
+            packages/mcp/package.json
             packages/skills/CHANGELOG.md
             packages/skills/package.json
             packages/transformer/CHANGELOG.md
@@ -516,6 +527,9 @@ jobs:
           fi
           if should_publish 'n8nac'; then
             publish_npm 'n8nac' 'packages/cli'
+          fi
+          if should_publish '@n8n-as-code/mcp'; then
+            publish_npm '@n8n-as-code/mcp' 'packages/mcp'
           fi
           if should_publish '@n8n-as-code/n8nac'; then
             publish_npm '@n8n-as-code/n8nac' 'plugins/openclaw/n8n-as-code'
