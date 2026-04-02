@@ -36,6 +36,15 @@ const PACKAGES = [
     internalDependencies: ['@n8n-as-code/skills', '@n8n-as-code/transformer'],
   },
   {
+    name: '@n8n-as-code/mcp',
+    path: 'packages/mcp',
+    packageJsonPath: 'packages/mcp/package.json',
+    changelogPath: 'packages/mcp/CHANGELOG.md',
+    publishTarget: 'npm',
+    tagPrefix: '@n8n-as-code/mcp@',
+    internalDependencies: [],
+  },
+  {
     name: 'n8n-as-code',
     path: 'packages/vscode-extension',
     packageJsonPath: 'packages/vscode-extension/package.json',
