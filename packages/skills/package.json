@@ -7,7 +7,7 @@
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "scripts": {
-        "prebuild": "node ../../scripts/ensure-n8n-cache.cjs && node ../../scripts/generate-n8n-index.cjs && node ../../scripts/download-complete-docs.cjs && node ../../scripts/build-complete-index.cjs && node ../../scripts/enrich-nodes-technical.cjs && node ../../scripts/build-knowledge-index.cjs && node ../../scripts/build-workflow-index.cjs",
+        "prebuild": "node ../../scripts/ensure-n8n-cache.cjs && node ../../scripts/stamp-n8n-version.cjs && node ../../scripts/generate-n8n-index.cjs && node ../../scripts/download-complete-docs.cjs && node ../../scripts/build-complete-index.cjs && node ../../scripts/enrich-nodes-technical.cjs && node ../../scripts/build-knowledge-index.cjs && node ../../scripts/build-workflow-index.cjs",
         "build": "tsc -b",
         "postbuild": "mkdir -p dist/assets && cp src/assets/*.json dist/assets/",
         "clean": "rm -rf dist tsconfig.tsbuildinfo",

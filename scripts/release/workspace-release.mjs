@@ -75,6 +75,7 @@ const CROSS_PACKAGE_RULES = [
   {
     matches(file) {
       return file === 'scripts/ensure-n8n-cache.cjs'
+        || file === 'scripts/stamp-n8n-version.cjs'
         || file === 'scripts/generate-n8n-index.cjs'
         || file === 'scripts/download-complete-docs.cjs'
         || file === 'scripts/build-complete-index.cjs'
