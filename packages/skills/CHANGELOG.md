@@ -1,5 +1,11 @@
 # @n8n-as-code/skills
 
+## [1.5.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.5.0...@n8n-as-code/skills@v1.5.1) (2026-04-02)
+
+### Bug Fixes
+
+* **cli:** update test command instructions for webhook workflows ([a8219aa](https://github.com/EtienneLescot/n8n-as-code/commit/a8219aa7d6c92896c56e3c438ab86511a168bf8b))
+
 ## [1.5.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.4.0...@n8n-as-code/skills@v1.5.0) (2026-04-01)
 
 ### Features
