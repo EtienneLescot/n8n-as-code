@@ -1,5 +1,11 @@
 # n8n-as-code
 
+## [1.30.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.28.0...n8n-as-code@v1.30.0) (2026-04-02)
+
+### Bug Fixes
+
+* **vscode-extension:** add tsx as a dependency ([d2746f7](https://github.com/EtienneLescot/n8n-as-code/commit/d2746f7125325453e5bf7e6ff2b78f53850ec258))
+
 ## [1.28.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.26.0...n8n-as-code@v1.28.0) (2026-04-02)
 
 ### Dependencies
