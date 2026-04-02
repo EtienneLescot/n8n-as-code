@@ -43,8 +43,13 @@ function main() {
         return;
     }
 
-    // Strip leading "v" if present (e.g. "v1.88.0" -> "1.88.0")
-    const n8nVersion = metadata.resolvedTag.replace(/^v/, '');
+    // Extract bare semver from tag formats like "n8n@1.88.0", "v1.88.0", or "1.88.0"
+    const semverMatch = /(\d+\.\d+\.\d+.*)$/.exec(metadata.resolvedTag);
+    if (!semverMatch) {
+        console.warn(`⚠️  Could not extract semver from resolvedTag "${metadata.resolvedTag}" — skipping n8nVersion stamp.`);
+        return;
+    }
+    const n8nVersion = semverMatch[1];
 
     const existingContent = fs.readFileSync(SKILLS_PACKAGE_JSON_PATH, 'utf8');
     const packageJson = JSON.parse(existingContent);
