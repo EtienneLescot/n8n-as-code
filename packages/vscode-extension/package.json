@@ -281,6 +281,7 @@
     "@types/vscode": "^1.85.0",
     "@types/ws": "^8.18.1",
     "esbuild": "^0.27.2",
+    "tsx": "^4.19.3",
     "typescript": "^5.3.3"
   },
   "scripts": {
