@@ -137,6 +137,34 @@ describe('N8nApiClient test workflow support', () => {
         })).toBe('https://n8n.local/webhook-test/chat-path/chat');
     });
 
+    it('prefixes webhookId for dynamic explicit paths (containing ":")', () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        // Dynamic path: should be prefixed with webhookId
+        expect(client.buildTestUrl({
+            type: 'webhook',
+            workflowId: 'wf-1',
+            nodeId: '1',
+            nodeName: 'Webhook',
+            webhookPath: ':id/process',
+            webhookId: 'webhook-uuid',
+            pathSource: 'explicit',
+            httpMethod: 'POST',
+        })).toBe('https://n8n.local/webhook-test/webhook-uuid/%3Aid/process');
+
+        // Static path: should NOT be prefixed with webhookId even when webhookId is provided
+        expect(client.buildTestUrl({
+            type: 'webhook',
+            workflowId: 'wf-2',
+            nodeId: '2',
+            nodeName: 'Webhook',
+            webhookPath: 'static-path',
+            webhookId: 'webhook-uuid',
+            pathSource: 'explicit',
+            httpMethod: 'GET',
+        })).toBe('https://n8n.local/webhook-test/static-path');
+    });
+
     it('falls back to a placeholder Personal project when projects endpoint returns 403', async () => {
         const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
 
