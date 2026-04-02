@@ -796,6 +796,14 @@ export class N8nApiClient {
             return encodedRawPath;
         }
 
+        // n8n only uses {webhookId}/{path} routing for dynamic paths (containing ':' segments).
+        // Static explicit paths (e.g. "capital-finder") are always routed as {path} alone,
+        // matching the WebhookEntity.uniquePath logic in n8n core.
+        const hasDynamicSegments = rawPath.includes(':');
+        if (!hasDynamicSegments) {
+            return encodedRawPath;
+        }
+
         if (trigger.webhookId) {
             const encodedWebhookId = encodeURIComponent(trigger.webhookId);
             if (rawPath === trigger.webhookId || rawPath.startsWith(`${trigger.webhookId}/`)) {
