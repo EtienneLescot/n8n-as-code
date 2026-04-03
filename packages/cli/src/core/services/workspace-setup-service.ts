@@ -55,8 +55,8 @@ const TSCONFIG_CONTENT = JSON.stringify(
     {
         compilerOptions: {
             target: 'ES2022',
-            module: 'Node16',
-            moduleResolution: 'node16',
+            module: 'NodeNext',
+            moduleResolution: 'NodeNext',
             experimentalDecorators: true,
             emitDecoratorMetadata: false,
             strict: false,

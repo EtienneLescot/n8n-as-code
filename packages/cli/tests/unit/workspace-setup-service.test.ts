@@ -26,6 +26,8 @@ describe('WorkspaceSetupService', () => {
         const tsconfig = JSON.parse(fs.readFileSync(tsconfigPath, 'utf-8'));
         expect(tsconfig.compilerOptions.baseUrl).toBeUndefined();
         expect(tsconfig.compilerOptions.paths).toBeUndefined();
+        expect(tsconfig.compilerOptions.module).toBe('NodeNext');
+        expect(tsconfig.compilerOptions.moduleResolution).toBe('NodeNext');
     });
 
     it('writes declaration file with ambient module for @n8n-as-code/transformer', () => {
