@@ -245,6 +245,76 @@ function extractSchemaKeywordsComprehensive(node) {
 }
 
 /**
+ * Extract the ai_connectionType from a notice param's HTML content.
+ * n8n encodes the gated connection type inside anchor tags like:
+ *   data-action-parameter-connectiontype='ai_outputParser'
+ * Returns null if not found.
+ */
+function extractAiConnectionType(noticeHtml) {
+    if (typeof noticeHtml !== 'string') return null;
+    const match = noticeHtml.match(/data-action-parameter-connectiontype='([^']+)'/);
+    return match ? match[1] : null;
+}
+
+/**
+ * Compute parameter gating relationships for a node.
+ *
+ * For each boolean parameter with default=false that gates other parameters
+ * via displayOptions.show, we record:
+ *   - flag: the boolean param name
+ *   - flagDisplay: human-readable label
+ *   - gatedParams: list of param names that become visible when flag=true
+ *   - aiConnectionType: if any gated param is a notice referencing an AI
+ *     connection type, the value of that connection type (e.g. 'ai_outputParser')
+ *
+ * This lets agents know: "if you declare X in .uses(), set flag Y: true".
+ */
+function computeParameterGating(properties) {
+    if (!Array.isArray(properties) || properties.length === 0) return [];
+
+    const gatingResults = [];
+
+    const boolParams = properties.filter(
+        (p) => p.type === 'boolean' && p.default === false
+    );
+
+    for (const bp of boolParams) {
+        // Find all params that show when this boolean is true
+        const gatedByTrue = properties.filter(
+            (p) =>
+                p.name !== bp.name &&
+                Array.isArray(p.displayOptions?.show?.[bp.name]) &&
+                p.displayOptions.show[bp.name].includes(true)
+        );
+
+        if (gatedByTrue.length === 0) continue;
+
+        // Detect if any gated param is a notice containing an AI connection type
+        let aiConnectionType = null;
+        for (const gp of gatedByTrue) {
+            if (gp.type === 'notice') {
+                // The connection type HTML is encoded in the displayName of notices
+                const ct = extractAiConnectionType(gp.displayName || '') || extractAiConnectionType(gp.default || '');
+                if (ct) {
+                    aiConnectionType = ct;
+                    break;
+                }
+            }
+        }
+
+        gatingResults.push({
+            flag: bp.name,
+            flagDisplay: bp.displayName || bp.name,
+            default: false,
+            gatedParams: gatedByTrue.map((p) => p.name),
+            aiConnectionType,
+        });
+    }
+
+    return gatingResults;
+}
+
+/**
  * Calculate a search score for keyword relevance
  */
 function calculateKeywordScore(keywords) {
@@ -338,6 +408,9 @@ async function enrichNodesIndex() {
         const keywords = Array.from(allKeywords);
         const keywordScore = calculateKeywordScore(keywords);
 
+        // Compute parameter gating relationships (boolean flags that unlock params/connections)
+        const parameterGating = computeParameterGating(node.properties || []);
+
         // Build enriched entry
         enrichedNodes[nodeKey] = {
             // Sync schema
@@ -355,6 +428,10 @@ async function enrichNodesIndex() {
                 properties: node.properties,
                 sourcePath: node.sourcePath
             },
+
+            // Parameter gating: booleans that must be set to unlock params or AI connections.
+            // Only present when the node has at least one such relationship.
+            ...(parameterGating.length > 0 ? { parameterGating } : {}),
 
             // Enriched metadata for search
             metadata: {
