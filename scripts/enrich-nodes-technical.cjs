@@ -292,12 +292,14 @@ function computeParameterGating(properties) {
     const gatingResults = [];
 
     for (const bp of uniqueBoolParams) {
-        // Find all unique params that show when this boolean is true
+        // Find all unique params that show when this boolean is true AND have no other conditions
+        // (params with additional displayOptions.show keys are gated by a combination — skip them)
         const gatedByTrue = uniqueProperties.filter(
             (p) =>
                 p.name !== bp.name &&
                 Array.isArray(p.displayOptions?.show?.[bp.name]) &&
-                p.displayOptions.show[bp.name].includes(true)
+                p.displayOptions.show[bp.name].includes(true) &&
+                Object.keys(p.displayOptions.show).length === 1
         );
 
         if (gatedByTrue.length === 0) continue;
