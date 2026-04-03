@@ -838,6 +838,18 @@ ${this.getAiAgentWorkflowExampleCode()}
 - ✅ AI sub-nodes: \`this.Agent.uses({ ai_languageModel: this.Model.output })\`
 - ❌ Never use \`.out().to()\` for AI sub-node connections
 
+### Connection-Dependent Boolean Flags (Mandatory Checklist)
+
+Some parameters are only active when a boolean flag is set. **Always set these flags when declaring the corresponding connection in \`.uses()\`** — failing to do so silently breaks the connection at runtime.
+
+| Connection in \`.uses()\` | Required flag on the parent node |
+|---|---|
+| \`ai_outputParser: ...\` | \`hasOutputParser: true\` |
+| fallback \`ai_languageModel\` | \`needsFallback: true\` |
+| MCP tools | \`useMcpTools: true\` |
+
+**After writing any AI workflow, verify**: for each \`.uses()\` call, check that every connection-dependent flag is explicitly set in the parent node's parameters.
+
 ${this.getSharedToolGuidanceLines(skillsCmd).join('\n')}
 
 ## 🚀 Best Practices
