@@ -1,5 +1,11 @@
 # @n8n-as-code/cli
 
+## [1.5.5](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.5.4...n8nac@v1.5.5) (2026-04-03)
+
+### Bug Fixes
+
+* update TypeScript configuration to use NodeNext module and resolution ([b52d82f](https://github.com/EtienneLescot/n8n-as-code/commit/b52d82f6cb536d2321a12b2c6c0fcbda54f892a0))
+
 ## [1.5.4](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.5.3...n8nac@v1.5.4) (2026-04-03)
 
 ### Dependencies
