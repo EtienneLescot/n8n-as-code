@@ -238,7 +238,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                             version: schema.version,
                             properties: schema.schema?.properties || [],
                             metadata: schema.metadata,
-                            parameterGating: (schema as any).parameterGating
+                            parameterGating: schema.parameterGating
                         });
                         console.log(tsDoc);
                     }

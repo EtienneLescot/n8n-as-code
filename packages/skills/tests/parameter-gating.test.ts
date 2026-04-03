@@ -134,6 +134,60 @@ describe('computeParameterGating()', () => {
         expect(result[0].gatedParams).not.toContain('toggle');
         expect(result[0].gatedParams).toContain('extra');
     });
+
+    it('detects AI connection type from double-quoted attribute', () => {
+        const props = [
+            { name: 'hasOutputParser', type: 'boolean', default: false, displayName: 'Require Output Format' },
+            {
+                name: 'notice',
+                type: 'notice',
+                default: '',
+                displayName: 'Connect an <a data-action-parameter-connectiontype="ai_outputParser">output parser</a>',
+                displayOptions: { show: { hasOutputParser: [true] } },
+            },
+        ];
+        const result = computeParameterGating(props);
+        expect(result).toHaveLength(1);
+        expect(result[0].aiConnectionType).toBe('ai_outputParser');
+    });
+
+    it('deduplicates gating entries when the same boolean appears multiple times in properties', () => {
+        // Real-world: n8n node properties repeat params across resource/operation display variants
+        const props = [
+            { name: 'hasOutputParser', type: 'boolean', default: false, displayName: 'Require Output Format' },
+            { name: 'hasOutputParser', type: 'boolean', default: false, displayName: 'Require Output Format' },
+            {
+                name: 'notice',
+                type: 'notice',
+                default: '',
+                displayName: "data-action-parameter-connectiontype='ai_outputParser'",
+                displayOptions: { show: { hasOutputParser: [true] } },
+            },
+            {
+                name: 'notice',
+                type: 'notice',
+                default: '',
+                displayName: "data-action-parameter-connectiontype='ai_outputParser'",
+                displayOptions: { show: { hasOutputParser: [true] } },
+            },
+        ];
+        const result = computeParameterGating(props);
+        // Must produce exactly one entry, not two
+        expect(result).toHaveLength(1);
+        expect(result[0].flag).toBe('hasOutputParser');
+        // gatedParams must not contain duplicate entries
+        expect(result[0].gatedParams).toEqual(['notice']);
+    });
+
+    it('returns gatedParams as a sorted list', () => {
+        const props = [
+            { name: 'flag', type: 'boolean', default: false, displayName: 'Flag' },
+            { name: 'zebra', type: 'string', default: '', displayOptions: { show: { flag: [true] } } },
+            { name: 'alpha', type: 'string', default: '', displayOptions: { show: { flag: [true] } } },
+        ];
+        const result = computeParameterGating(props);
+        expect(result[0].gatedParams).toEqual(['alpha', 'zebra']);
+    });
 });
 
 // ── TypeScriptFormatter — parameterGating section ────────────────────────

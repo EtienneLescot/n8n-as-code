@@ -252,8 +252,8 @@ function extractSchemaKeywordsComprehensive(node) {
  */
 function extractAiConnectionType(noticeHtml) {
     if (typeof noticeHtml !== 'string') return null;
-    const match = noticeHtml.match(/data-action-parameter-connectiontype='([^']+)'/);
-    return match ? match[1] : null;
+    const match = noticeHtml.match(/data-action-parameter-connectiontype=(['"])([^'"]+)\1/i);
+    return match ? match[2] : null;
 }
 
 /**
@@ -272,15 +272,28 @@ function extractAiConnectionType(noticeHtml) {
 function computeParameterGating(properties) {
     if (!Array.isArray(properties) || properties.length === 0) return [];
 
+    // Deduplicate boolean params by name (properties may repeat across resource/operation variants)
+    const seenBoolNames = new Set();
+    const uniqueBoolParams = properties.filter((p) => {
+        if (p.type !== 'boolean' || p.default !== false) return false;
+        if (seenBoolNames.has(p.name)) return false;
+        seenBoolNames.add(p.name);
+        return true;
+    });
+
+    // Deduplicate all property names to avoid repeated gatedParams entries
+    const seenPropNames = new Set();
+    const uniqueProperties = properties.filter((p) => {
+        if (seenPropNames.has(p.name)) return false;
+        seenPropNames.add(p.name);
+        return true;
+    });
+
     const gatingResults = [];
 
-    const boolParams = properties.filter(
-        (p) => p.type === 'boolean' && p.default === false
-    );
-
-    for (const bp of boolParams) {
-        // Find all params that show when this boolean is true
-        const gatedByTrue = properties.filter(
+    for (const bp of uniqueBoolParams) {
+        // Find all unique params that show when this boolean is true
+        const gatedByTrue = uniqueProperties.filter(
             (p) =>
                 p.name !== bp.name &&
                 Array.isArray(p.displayOptions?.show?.[bp.name]) &&
@@ -306,7 +319,7 @@ function computeParameterGating(properties) {
             flag: bp.name,
             flagDisplay: bp.displayName || bp.name,
             default: false,
-            gatedParams: gatedByTrue.map((p) => p.name),
+            gatedParams: gatedByTrue.map((p) => p.name).sort(),
             aiConnectionType,
         });
     }
@@ -465,8 +478,8 @@ async function enrichNodesIndex() {
         generatedAt: new Date().toISOString(),
         n8nVersion,
         sourceData: {
-            nodesIndexFile: NODES_INDEX_FILE,
-            docsMetadataFile: docsMetadata ? DOCS_METADATA_FILE : null,
+            nodesIndexFile: path.relative(ROOT_DIR, NODES_INDEX_FILE),
+            docsMetadataFile: docsMetadata ? path.relative(ROOT_DIR, DOCS_METADATA_FILE) : null,
             totalNodes: nodesIndex.nodes.length,
             nodesWithDocumentation: matchedCount,
             nodesEnriched: enrichedCount
