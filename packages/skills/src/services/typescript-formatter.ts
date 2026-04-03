@@ -182,6 +182,13 @@ ${interfaceBody}
             operations?: string[];
             useCases?: string[];
         };
+        parameterGating?: Array<{
+            flag: string;
+            flagDisplay: string;
+            default: boolean;
+            gatedParams: string[];
+            aiConnectionType: string | null;
+        }>;
     }): string {
         const keywords = schema.metadata?.keywords?.slice(0, 5).join(', ') || 'none';
         const operations = schema.metadata?.operations?.slice(0, 5).join(', ') || 'none';
@@ -212,6 +219,21 @@ ${interfaceBody}
             useCases.forEach((useCase, i) => {
                 doc += `// ${i + 1}. ${useCase}\n`;
             });
+        }
+
+        // Add parameter gating section if present
+        const gating = schema.parameterGating;
+        if (gating && gating.length > 0) {
+            doc += `\n// ⚠️  Required boolean flags — must be explicitly set in node parameters:\n`;
+            for (const g of gating) {
+                if (g.aiConnectionType) {
+                    doc += `//   ${g.flag}: true  ← REQUIRED when .uses({ ${g.aiConnectionType}: ... }) is declared\n`;
+                    doc += `//              "${g.flagDisplay}" — enables the ${g.aiConnectionType} attachment point\n`;
+                } else {
+                    doc += `//   ${g.flag}: true  ← enables: ${g.gatedParams.join(', ')}\n`;
+                    doc += `//              "${g.flagDisplay}"\n`;
+                }
+            }
         }
 
         return doc;
