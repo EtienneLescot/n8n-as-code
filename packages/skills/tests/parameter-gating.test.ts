@@ -205,12 +205,12 @@ describe('TypeScriptFormatter.generateCompleteNodeDoc() — parameterGating', ()
 
     it('omits the gating section when parameterGating is absent', () => {
         const doc = TypeScriptFormatter.generateCompleteNodeDoc(baseSchema);
-        expect(doc).not.toContain('Required boolean flags');
+        expect(doc).not.toContain('Conditional boolean flags');
     });
 
     it('omits the gating section when parameterGating is empty', () => {
         const doc = TypeScriptFormatter.generateCompleteNodeDoc({ ...baseSchema, parameterGating: [] });
-        expect(doc).not.toContain('Required boolean flags');
+        expect(doc).not.toContain('Conditional boolean flags');
     });
 
     it('renders a gating entry linked to an AI connection type', () => {
@@ -226,7 +226,7 @@ describe('TypeScriptFormatter.generateCompleteNodeDoc() — parameterGating', ()
                 },
             ],
         });
-        expect(doc).toContain('Required boolean flags');
+        expect(doc).toContain('Conditional boolean flags');
         expect(doc).toContain('hasOutputParser: true');
         expect(doc).toContain('.uses({ ai_outputParser: ... })');
         expect(doc).toContain('Require Specific Output Format');
@@ -245,7 +245,7 @@ describe('TypeScriptFormatter.generateCompleteNodeDoc() — parameterGating', ()
                 },
             ],
         });
-        expect(doc).toContain('Required boolean flags');
+        expect(doc).toContain('Conditional boolean flags');
         expect(doc).toContain('needsFallback: true');
         expect(doc).toContain('fallbackNotice');
         expect(doc).toContain('Enable Fallback Model');
