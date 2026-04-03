@@ -45,6 +45,13 @@ export interface IEnrichedNode {
         markdownUrl: string | null;
         markdownFile: string | null;
     };
+    parameterGating?: Array<{
+        flag: string;
+        flagDisplay: string;
+        default: boolean;
+        gatedParams: string[];
+        aiConnectionType: string | null;
+    }>;
 }
 
 export interface NodeSchemaDiagnostics {
@@ -337,7 +344,7 @@ export class NodeSchemaProvider {
         return null;
     }
 
-    private formatNode(node: any): any {
+    private formatNode(node: any): IEnrichedNode {
         return {
             name: node.name,
             type: node.type,
@@ -348,7 +355,8 @@ export class NodeSchemaProvider {
             group: node.group,
             icon: node.icon,
             schema: node.schema,
-            metadata: node.metadata
+            metadata: node.metadata,
+            ...(node.parameterGating ? { parameterGating: node.parameterGating } : {}),
         };
     }
 
