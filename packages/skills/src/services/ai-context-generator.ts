@@ -119,6 +119,7 @@ export class AiContextGenerator {
       `  AiAgent = {`,
       `    promptType: 'define',`,
       `    text: '={{ $json.chatInput }}',`,
+      `    hasOutputParser: true,  // REQUIRED when an output parser sub-node is connected`,
       `    options: { systemMessage: 'You are a helpful assistant.' },`,
       `  };`,
       ``,
