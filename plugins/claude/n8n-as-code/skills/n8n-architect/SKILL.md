@@ -288,17 +288,13 @@ export class AIAgentWorkflow {
 - ✅ AI sub-nodes: `this.Agent.uses({ ai_languageModel: this.Model.output })`
 - ❌ Never use `.out().to()` for AI sub-node connections
 
-### Connection-Dependent Boolean Flags (Mandatory Checklist)
+### Connection-Dependent Boolean Flags
 
-Some parameters are only active when a boolean flag is set. **Always set these flags when declaring the corresponding connection in `.uses()`** — failing to do so silently breaks the connection at runtime.
+Some boolean parameters gate other parameters or AI connection attachment points. These flags are **conditional** — only set them to `true` when you need the gated params or declared connection.
 
-| Connection in `.uses()` | Required flag on the parent node |
-|---|---|
-| `ai_outputParser: ...` | `hasOutputParser: true` |
-| fallback `ai_languageModel` | `needsFallback: true` |
-| MCP tools | `useMcpTools: true` |
+The exact flags for each node are shown in the `node-info` output under `Conditional boolean flags`. **Always check the node-info output** when declaring `.uses()` connections to confirm which flags are required.
 
-**After writing any AI workflow, verify**: for each `.uses()` call, check that every connection-dependent flag is explicitly set in the parent node's parameters.
+**After writing any AI workflow, verify**: for each `.uses()` call, inspect the node's `node-info` output and set any listed conditional boolean flag that corresponds to the declared connection type.
 
 ### AI Tool Nodes
 
