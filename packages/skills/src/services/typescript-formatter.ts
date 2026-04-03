@@ -224,14 +224,14 @@ ${interfaceBody}
         // Add parameter gating section if present
         const gating = schema.parameterGating;
         if (gating && gating.length > 0) {
-            doc += `\n// ⚠️  Required boolean flags — must be explicitly set in node parameters:\n`;
+            doc += `\n// ⚠️  Conditional boolean flags — set these to true only when you need the gated params or declared connection:\n`;
             for (const g of gating) {
                 if (g.aiConnectionType) {
-                    doc += `//   ${g.flag}: true  ← REQUIRED when .uses({ ${g.aiConnectionType}: ... }) is declared\n`;
-                    doc += `//              "${g.flagDisplay}" — enables the ${g.aiConnectionType} attachment point\n`;
+                    doc += `//   ${g.flag}: true  ← set when .uses({ ${g.aiConnectionType}: ... }) is declared\n`;
+                    doc += `//              "${g.flagDisplay}" — enables the declared ${g.aiConnectionType} attachment point\n`;
                 } else {
-                    doc += `//   ${g.flag}: true  ← enables: ${g.gatedParams.join(', ')}\n`;
-                    doc += `//              "${g.flagDisplay}"\n`;
+                    doc += `//   ${g.flag}: true  ← set when using: ${g.gatedParams.join(', ')}\n`;
+                    doc += `//              "${g.flagDisplay}" — enables those parameters\n`;
                 }
             }
         }
