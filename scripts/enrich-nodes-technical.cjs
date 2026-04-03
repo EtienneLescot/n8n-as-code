@@ -292,12 +292,8 @@ function computeParameterGating(properties) {
     const gatingResults = [];
 
     for (const bp of uniqueBoolParams) {
-<<<<<<< HEAD
         // Find all unique params that show when this boolean is true AND have no other conditions
         // (params with additional displayOptions.show keys are gated by a combination — skip them)
-=======
-        // Find all unique params that show when this boolean is true
->>>>>>> 2d3a7ad9 (fix: address PR #286 review comments on parameter gating)
         const gatedByTrue = uniqueProperties.filter(
             (p) =>
                 p.name !== bp.name &&
