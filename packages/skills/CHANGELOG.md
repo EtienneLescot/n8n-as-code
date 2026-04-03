@@ -1,5 +1,23 @@
 # @n8n-as-code/skills
 
+## [1.7.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.6.0...@n8n-as-code/skills@v1.7.0) (2026-04-03)
+
+### Features
+
+* add parameter gating support for boolean flags in node properties ([0fd3248](https://github.com/EtienneLescot/n8n-as-code/commit/0fd32482f87b63b0829fa5b97e7478948e34e29c))
+
+### Bug Fixes
+
+* exclude multi-condition gated params and truncate long gatedParams display ([41bb11c](https://github.com/EtienneLescot/n8n-as-code/commit/41bb11cbe3a4a3cb49eb25044ce0ffec9668df97))
+* regenerate SKILL.md from freshly compiled TS ([b4970e5](https://github.com/EtienneLescot/n8n-as-code/commit/b4970e5df2901d8933a1e6558035b25219ead94c))
+* address second review — conditional flag wording and dynamic checklist ([7d05718](https://github.com/EtienneLescot/n8n-as-code/commit/7d057184e1b27aad20af05d0e557a00cdddebee6))
+* address PR #286 review comments on parameter gating ([2674852](https://github.com/EtienneLescot/n8n-as-code/commit/26748523cc9b43600f3c4cfeb5bdc6b39462b633))
+* add hasOutputParser flag requirement for AiAgent and update documentation ([ba9a4cc](https://github.com/EtienneLescot/n8n-as-code/commit/ba9a4cc7d958b3735f2d67ddf876d0aecd12c759))
+
+### Documentation
+
+* add mandatory checklist for connection-dependent boolean flags in AI workflows ([1b41a7a](https://github.com/EtienneLescot/n8n-as-code/commit/1b41a7afb47b21c19bca48bd7a85f9513fc95414))
+
 ## [1.6.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.5.1...@n8n-as-code/skills@v1.6.0) (2026-04-02)
 
 ### Features
