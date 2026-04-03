@@ -511,4 +511,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { enrichNodesIndex };
+module.exports = { enrichNodesIndex, computeParameterGating, extractAiConnectionType };
