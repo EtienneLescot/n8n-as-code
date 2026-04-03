@@ -188,6 +188,20 @@ describe('computeParameterGating()', () => {
         const result = computeParameterGating(props);
         expect(result[0].gatedParams).toEqual(['alpha', 'zebra']);
     });
+
+    it('excludes params gated by multiple conditions (not solely by the boolean)', () => {
+        // A param with show: { flag: [true], otherCondition: ['value'] } is only visible
+        // when BOTH conditions are met — it should not appear in gatedParams for 'flag' alone
+        const props = [
+            { name: 'flag', type: 'boolean', default: false, displayName: 'Flag' },
+            { name: 'soloGated', type: 'string', default: '', displayOptions: { show: { flag: [true] } } },
+            { name: 'multiGated', type: 'string', default: '', displayOptions: { show: { flag: [true], otherCondition: ['value'] } } },
+        ];
+        const result = computeParameterGating(props);
+        expect(result).toHaveLength(1);
+        expect(result[0].gatedParams).toContain('soloGated');
+        expect(result[0].gatedParams).not.toContain('multiGated');
+    });
 });
 
 // ── TypeScriptFormatter — parameterGating section ────────────────────────
@@ -261,5 +275,22 @@ describe('TypeScriptFormatter.generateCompleteNodeDoc() — parameterGating', ()
         });
         expect(doc).toContain('hasOutputParser: true');
         expect(doc).toContain('needsFallback: true');
+    });
+
+    it('truncates a long gatedParams list with "+X more" suffix', () => {
+        const doc = TypeScriptFormatter.generateCompleteNodeDoc({
+            ...baseSchema,
+            parameterGating: [
+                {
+                    flag: 'jsonParameters',
+                    flagDisplay: 'JSON Parameters',
+                    default: false,
+                    gatedParams: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+                    aiConnectionType: null,
+                },
+            ],
+        });
+        expect(doc).toContain('a, b, c, d, e (+2 more)');
+        expect(doc).not.toContain('a, b, c, d, e, f, g');
     });
 });

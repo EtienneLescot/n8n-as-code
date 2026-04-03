@@ -230,7 +230,11 @@ ${interfaceBody}
                     doc += `//   ${g.flag}: true  ← set when .uses({ ${g.aiConnectionType}: ... }) is declared\n`;
                     doc += `//              "${g.flagDisplay}" — enables the declared ${g.aiConnectionType} attachment point\n`;
                 } else {
-                    doc += `//   ${g.flag}: true  ← set when using: ${g.gatedParams.join(', ')}\n`;
+                    const MAX_DISPLAY = 5;
+                    const displayParams = g.gatedParams.length > MAX_DISPLAY
+                        ? `${g.gatedParams.slice(0, MAX_DISPLAY).join(', ')} (+${g.gatedParams.length - MAX_DISPLAY} more)`
+                        : g.gatedParams.join(', ');
+                    doc += `//   ${g.flag}: true  ← set when using: ${displayParams}\n`;
                     doc += `//              "${g.flagDisplay}" — enables those parameters\n`;
                 }
             }
