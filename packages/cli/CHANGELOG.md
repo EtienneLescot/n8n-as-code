@@ -1,5 +1,29 @@
 # @n8n-as-code/cli
 
+## [1.5.3](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.5.2...n8nac@v1.5.3) (2026-04-02)
+
+### Bug Fixes
+
+* **skills:** clarify --prod vs bare test wording; add dynamic webhook path test ([f16eadf](https://github.com/EtienneLescot/n8n-as-code/commit/f16eadf5111858683499ce1cc1f169defd4f0f55))
+* **cli:** update webhook URL routing logic in N8nApiClient ([da4fb6d](https://github.com/EtienneLescot/n8n-as-code/commit/da4fb6dd4602c922e0ec0587800e21572c9892c8))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.5.1 to 1.6.0
+
+## [1.5.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.5.1...n8nac@v1.5.2) (2026-04-02)
+
+### Bug Fixes
+
+* **cli:** move webhook id synthesis to push path ([b66445c](https://github.com/EtienneLescot/n8n-as-code/commit/b66445cb68a924a55b8793d547cd0466951d4ba9))
+* **cli:** assign missing webhook ids on push ([2e20bd3](https://github.com/EtienneLescot/n8n-as-code/commit/2e20bd39532c5dfb90f4654c7668d7430bcd3190))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.5.0 to 1.5.1
+
 ## [1.5.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.5.0...n8nac@v1.5.1) (2026-04-01)
 
 ### Bug Fixes

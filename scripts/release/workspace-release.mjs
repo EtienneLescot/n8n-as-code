@@ -36,6 +36,15 @@ const PACKAGES = [
     internalDependencies: ['@n8n-as-code/skills', '@n8n-as-code/transformer'],
   },
   {
+    name: '@n8n-as-code/mcp',
+    path: 'packages/mcp',
+    packageJsonPath: 'packages/mcp/package.json',
+    changelogPath: 'packages/mcp/CHANGELOG.md',
+    publishTarget: 'npm',
+    tagPrefix: '@n8n-as-code/mcp@',
+    internalDependencies: [],
+  },
+  {
     name: 'n8n-as-code',
     path: 'packages/vscode-extension',
     packageJsonPath: 'packages/vscode-extension/package.json',
@@ -75,6 +84,7 @@ const CROSS_PACKAGE_RULES = [
   {
     matches(file) {
       return file === 'scripts/ensure-n8n-cache.cjs'
+        || file === 'scripts/stamp-n8n-version.cjs'
         || file === 'scripts/generate-n8n-index.cjs'
         || file === 'scripts/download-complete-docs.cjs'
         || file === 'scripts/build-complete-index.cjs'

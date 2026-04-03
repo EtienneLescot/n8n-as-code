@@ -24,6 +24,11 @@
       "component": "n8nac",
       "changelog-path": "CHANGELOG.md"
     },
+    "packages/mcp": {
+      "package-name": "@n8n-as-code/mcp",
+      "component": "@n8n-as-code/mcp",
+      "changelog-path": "CHANGELOG.md"
+    },
     "packages/vscode-extension": {
       "package-name": "n8n-as-code",
       "component": "n8n-as-code",

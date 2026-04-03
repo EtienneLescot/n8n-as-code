@@ -116,7 +116,7 @@ describe('N8nApiClient test workflow support', () => {
             webhookPath: 'webhook-path',
             pathSource: 'explicit',
             httpMethod: 'POST',
-        })).toBe('https://n8n.local/webhook-test/wf-1/inbound%20webhook/webhook-path');
+        })).toBe('https://n8n.local/webhook-test/webhook-path');
 
         expect(client.buildTestUrl({
             type: 'form',
@@ -125,7 +125,7 @@ describe('N8nApiClient test workflow support', () => {
             nodeName: 'Form',
             webhookPath: 'form-path',
             pathSource: 'explicit',
-        })).toBe('https://n8n.local/form-test/wf-2/form/form-path');
+        })).toBe('https://n8n.local/form-test/form-path');
 
         expect(client.buildTestUrl({
             type: 'chat',
@@ -134,7 +134,35 @@ describe('N8nApiClient test workflow support', () => {
             nodeName: 'Chat',
             webhookPath: 'chat-path',
             pathSource: 'explicit',
-        })).toBe('https://n8n.local/webhook-test/wf-3/chat/chat-path/chat');
+        })).toBe('https://n8n.local/webhook-test/chat-path/chat');
+    });
+
+    it('prefixes webhookId for dynamic explicit paths (containing ":")', () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        // Dynamic path: should be prefixed with webhookId
+        expect(client.buildTestUrl({
+            type: 'webhook',
+            workflowId: 'wf-1',
+            nodeId: '1',
+            nodeName: 'Webhook',
+            webhookPath: ':id/process',
+            webhookId: 'webhook-uuid',
+            pathSource: 'explicit',
+            httpMethod: 'POST',
+        })).toBe('https://n8n.local/webhook-test/webhook-uuid/%3Aid/process');
+
+        // Static path: should NOT be prefixed with webhookId even when webhookId is provided
+        expect(client.buildTestUrl({
+            type: 'webhook',
+            workflowId: 'wf-2',
+            nodeId: '2',
+            nodeName: 'Webhook',
+            webhookPath: 'static-path',
+            webhookId: 'webhook-uuid',
+            pathSource: 'explicit',
+            httpMethod: 'GET',
+        })).toBe('https://n8n.local/webhook-test/static-path');
     });
 
     it('falls back to a placeholder Personal project when projects endpoint returns 403', async () => {
@@ -210,7 +238,7 @@ describe('N8nApiClient test workflow support', () => {
             webhookPath: '/my-path',
             pathSource: 'explicit',
             httpMethod: 'POST',
-        })).toBe('https://n8n.local/webhook-test/wf-1/webhook/my-path');
+        })).toBe('https://n8n.local/webhook-test/my-path');
 
         // Multiple leading slashes
         expect(client.buildTestUrl({
@@ -220,7 +248,7 @@ describe('N8nApiClient test workflow support', () => {
             nodeName: 'Form',
             webhookPath: '//form path with spaces',
             pathSource: 'explicit',
-        })).toBe('https://n8n.local/form-test/wf-2/form/form%20path%20with%20spaces');
+        })).toBe('https://n8n.local/form-test/form%20path%20with%20spaces');
     });
 
     it('classifies missing credentials as a config gap', async () => {
@@ -245,7 +273,7 @@ describe('N8nApiClient test workflow support', () => {
         expect(result.success).toBe(false);
         expect(result.errorClass).toBe('config-gap');
         expect(result.statusCode).toBe(401);
-        expect(result.webhookUrl).toBe('https://n8n.local/webhook-test/1/webhook/wf');
+        expect(result.webhookUrl).toBe('https://n8n.local/webhook-test/wf');
     });
 
     it('uses explicit query params when provided for GET webhooks', async () => {
@@ -272,7 +300,7 @@ describe('N8nApiClient test workflow support', () => {
 
         expect(mockAxiosCall).toHaveBeenCalledWith(expect.objectContaining({
             method: 'GET',
-            url: 'https://n8n.local/webhook-test/1/webhook/wf',
+            url: 'https://n8n.local/webhook-test/wf',
             data: undefined,
             params: { chatInput: 'hello' },
         }));
@@ -409,8 +437,8 @@ describe('N8nApiClient test workflow support', () => {
         const plan = await client.getTestPlan('wf-1');
 
         expect(plan.testable).toBe(true);
-        expect(plan.endpoints.testUrl).toBe('https://n8n.local/webhook-test/1/webhook/wf');
-        expect(plan.endpoints.productionUrl).toBe('https://n8n.local/webhook/1/webhook/wf');
+        expect(plan.endpoints.testUrl).toBe('https://n8n.local/webhook-test/wf');
+        expect(plan.endpoints.productionUrl).toBe('https://n8n.local/webhook/wf');
         expect(plan.payload?.inferred).toEqual({
             body: {
                 email: 'user@example.com',
