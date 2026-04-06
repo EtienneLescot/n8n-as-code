@@ -136,6 +136,8 @@ jobs:
 
   # Documentation validation job (runs on PRs)
   validate:
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
