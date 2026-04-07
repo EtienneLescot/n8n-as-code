@@ -305,11 +305,11 @@ program.command('pull')
 // push - Upload a single local workflow file to n8n
 program.command('push')
     .description('Upload a single local workflow to n8n')
-    .argument('<filename>', 'Workflow filename inside the active sync scope')
+    .argument('<path>', 'Path to a local workflow file inside the active sync scope (absolute or relative)')
     .option('--verify', 'After pushing, fetch the workflow from n8n and validate it against the local schema')
-    .action(async (filename, options) => {
+    .action(async (pathArg, options) => {
         const cmd = new SyncCommand();
-        const workflowId = await cmd.pushOne(filename);
+        const workflowId = await cmd.pushOne(pathArg);
         if (options.verify && workflowId) {
             console.log(chalk.dim('\n── Post-push verification ──────────────────────────────'));
             const ok = await cmd.verifyRemote(workflowId);
