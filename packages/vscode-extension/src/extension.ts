@@ -200,7 +200,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
-        // n8nac push <filename>
+        // n8nac push <path>
         vscode.commands.registerCommand('n8n.pushWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
                 vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
@@ -209,9 +209,11 @@ export async function activate(context: vscode.ExtensionContext) {
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf || !cli || !syncManager) return;
 
+            const workflowPath = path.join(syncManager.getInstanceDirectory(), wf.filename);
+
             statusBar.showSyncing();
             try {
-                const pushedId = await cli.push(wf.filename);
+                const pushedId = await cli.push(workflowPath);
                 const workflows = await cli.list();
                 const updatedWorkflow = workflows.find(candidate => candidate.filename === wf.filename);
                 const workflowId = updatedWorkflow?.id ?? pushedId ?? wf.id;
