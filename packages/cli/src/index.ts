@@ -217,7 +217,8 @@ program.command('list')
     .option('--search <query>', 'Filter by workflow name, ID, or local filename (case-insensitive partial match)')
     .option('--sort <mode>', 'Sort by "status" (default) or "name"', 'status')
     .option('--limit <number>', 'Limit the number of returned workflows', (value) => parsePositiveIntegerOption(value, '--limit'))
-    .option('--raw', 'Output full JSON instead of a table')
+    .option('--json', 'Output full JSON instead of a table')
+    .option('--raw', 'Alias for --json (deprecated)')
     .action(async (options) => {
         // Combine remote and distant flags
         const remote = options.remote || options.distant;
@@ -228,7 +229,7 @@ program.command('list')
         await new ListCommand().run({
             local: options.local,
             remote,
-            raw: options.raw,
+            raw: options.json || options.raw,
             search: options.search,
             sort: options.sort,
             limit: options.limit
@@ -243,7 +244,8 @@ program.command('find')
     .option('--distant', 'Alias for --remote')
     .option('--sort <mode>', 'Sort by "status" or "name"', 'name')
     .option('--limit <number>', 'Limit the number of returned workflows', (value) => parsePositiveIntegerOption(value, '--limit'))
-    .option('--raw', 'Output full JSON instead of a table')
+    .option('--json', 'Output full JSON instead of a table')
+    .option('--raw', 'Alias for --json (deprecated)')
     .action(async (query, options) => {
         const remote = options.remote || options.distant;
         if (options.sort !== 'status' && options.sort !== 'name') {
@@ -253,7 +255,7 @@ program.command('find')
         await new ListCommand().run({
             local: options.local,
             remote,
-            raw: options.raw,
+            raw: options.json || options.raw,
             search: query,
             sort: options.sort,
             limit: options.limit
