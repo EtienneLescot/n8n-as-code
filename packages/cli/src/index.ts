@@ -89,7 +89,16 @@ program.showHelpAfterError('(run with --help for usage details)');
 program
     .name('n8nac')
     .description('N8N Sync Command Line Interface - Manage n8n workflows as code')
-    .version(getVersion());
+    .version(getVersion())
+    .option('--instance <name>', 'Target a specific saved instance by name instead of the currently active one');
+
+// Inject --instance into the environment before any action runs so BaseCommand can pick it up
+program.hook('preAction', () => {
+    const globalInstance = program.opts().instance as string | undefined;
+    if (globalInstance) {
+        process.env.N8NAC_INSTANCE_NAME = globalInstance;
+    }
+});
 
 const initCommand = new InitCommand();
 const switchCommand = new SwitchCommand(program);
