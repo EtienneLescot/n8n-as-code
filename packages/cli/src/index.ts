@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { ListCommand } from './commands/list.js';
 import { SyncCommand } from './commands/sync.js';
 import { InitAiCommand } from './commands/init-ai.js';
@@ -218,7 +218,7 @@ program.command('list')
     .option('--sort <mode>', 'Sort by "status" (default) or "name"', 'status')
     .option('--limit <number>', 'Limit the number of returned workflows', (value) => parsePositiveIntegerOption(value, '--limit'))
     .option('--json', 'Output full JSON instead of a table')
-    .option('--raw', 'Alias for --json (deprecated)')
+    .addOption(new Option('--raw').hideHelp())
     .action(async (options) => {
         // Combine remote and distant flags
         const remote = options.remote || options.distant;
@@ -245,7 +245,7 @@ program.command('find')
     .option('--sort <mode>', 'Sort by "status" or "name"', 'name')
     .option('--limit <number>', 'Limit the number of returned workflows', (value) => parsePositiveIntegerOption(value, '--limit'))
     .option('--json', 'Output full JSON instead of a table')
-    .option('--raw', 'Alias for --json (deprecated)')
+    .addOption(new Option('--raw').hideHelp())
     .action(async (query, options) => {
         const remote = options.remote || options.distant;
         if (options.sort !== 'status' && options.sort !== 'name') {
