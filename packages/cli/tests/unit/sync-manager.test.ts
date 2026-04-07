@@ -39,7 +39,23 @@ describe('SyncManager push filename contract', () => {
         };
 
         expect(() => manager.resolvePushTarget('my-workflow.workflow.ts'))
-            .toThrow(/not within the active sync scope/);
+            .toThrow(/use the full relative path to the workflow file/);
+    });
+
+    it('rejects a plain workflow filename even when cwd is the sync scope', () => {
+        const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
+        const manager = createSyncManager(syncDir);
+
+        (manager as any).watcher = {
+            getDirectory: () => syncDir
+        };
+
+        const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(syncDir);
+
+        expect(() => manager.resolvePushTarget('my-workflow.workflow.ts'))
+            .toThrow(/use the full relative path to the workflow file/);
+
+        cwdSpy.mockRestore();
     });
 
     it('rejects paths outside the sync scope', () => {
@@ -52,8 +68,11 @@ describe('SyncManager push filename contract', () => {
         };
 
         const outsidePath = '/tmp/outside-workflow.workflow.ts';
-        expect(() => manager.resolvePushTarget(outsidePath))
-            .toThrow(/not within the active sync scope/);
+        expect(() => manager.resolvePushTarget(outsidePath)).toThrowError(
+            expect.objectContaining({
+                message: expect.stringContaining("Run               : n8nac push '")
+            })
+        );
     });
 
     it('rejects paths that share a common prefix with the sync scope but are outside it', () => {
@@ -67,6 +86,30 @@ describe('SyncManager push filename contract', () => {
         const prefixedOutsidePath = path.join(`${syncDir}-2`, 'my-workflow.workflow.ts');
         expect(() => manager.resolvePushTarget(prefixedOutsidePath))
             .toThrow(/not within the active sync scope/);
+    });
+
+    it('quotes suggested paths and renders the sync scope as dot-slash when cwd equals the scope', () => {
+        const syncDir = path.resolve('/tmp/n8nac sync-manager-test');
+        const manager = createSyncManager(syncDir);
+
+        (manager as any).watcher = {
+            getDirectory: () => syncDir
+        };
+
+        const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(syncDir);
+
+        expect(() => manager.resolvePushTarget('/tmp/outside workflow.workflow.ts')).toThrowError(
+            expect.objectContaining({
+                message: expect.stringContaining('Active sync scope : ./')
+            })
+        );
+        expect(() => manager.resolvePushTarget('/tmp/outside workflow.workflow.ts')).toThrowError(
+            expect.objectContaining({
+                message: expect.stringContaining("Run               : n8nac push './outside workflow.workflow.ts'")
+            })
+        );
+
+        cwdSpy.mockRestore();
     });
 
     it('rejects empty paths', () => {

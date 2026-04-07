@@ -75,7 +75,8 @@ describe('ConfigService', () => {
             syncFolder: 'workflows-prod',
             projectId: 'project-prod',
             projectName: 'Production',
-            instanceIdentifier: 'prod_identifier'
+            instanceIdentifier: 'prod_identifier',
+            workflowDir: 'workflows-prod/prod_identifier/production'
         });
         expect(configService.getActiveInstanceId()).toBe('prod');
         expect(configService.listInstances()).toHaveLength(2);
@@ -111,7 +112,8 @@ describe('ConfigService', () => {
             syncFolder: 'workflows',
             projectId: 'project-1',
             projectName: 'Personal',
-            instanceIdentifier: 'legacy_identifier'
+            instanceIdentifier: 'legacy_identifier',
+            workflowDir: 'workflows/legacy_identifier/personal'
         });
         expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
         const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls[0][1]);
@@ -142,6 +144,7 @@ describe('ConfigService', () => {
             projectId: 'project-1',
             projectName: 'Personal',
             instanceIdentifier: 'legacy_identifier',
+            workflowDir: 'workflows/legacy_identifier/personal',
             folderSync: true,
         });
         expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
@@ -204,6 +207,24 @@ describe('ConfigService', () => {
         const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1]);
         expect(persistedConfig.instances).toHaveLength(1);
         expect(persistedConfig.instances[0].syncFolder).toBe('n8n/workflows');
+    });
+
+    it('normalizes workflowDir for cross-platform syncFolder values', () => {
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+        const savedProfile = configService.saveLocalConfig({
+            host: 'https://prod.example.com',
+            syncFolder: 'C:\\Users\\etienne\\n8n\\workflows',
+            projectId: 'project-prod',
+            projectName: 'Production',
+            instanceIdentifier: 'windows_instance'
+        }, {
+            instanceName: 'Production'
+        });
+
+        expect(savedProfile.workflowDir).toBe('C:/Users/etienne/n8n/workflows/windows_instance/production');
+        const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1]);
+        expect(persistedConfig.workflowDir).toBe('C:/Users/etienne/n8n/workflows/windows_instance/production');
     });
 
     it('rejects creating a duplicate verified instance config for the same host and authenticated user', async () => {
@@ -303,6 +324,7 @@ describe('ConfigService', () => {
         expect(persistedConfig.host).toBe('https://prod.example.com');
         expect(persistedConfig.projectName).toBe('Production');
         expect(persistedConfig.instanceIdentifier).toBe('prod_identifier');
+        expect(persistedConfig.workflowDir).toBe('workflows-prod/prod_identifier/production');
     });
 
     it('deleteInstance removes the scoped secret and promotes the next active instance when deleting the current one', () => {
