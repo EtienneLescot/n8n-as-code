@@ -27,6 +27,20 @@ function asJsonText(data: unknown): string {
     return JSON.stringify(data, null, 2);
 }
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
+
+function warnIfNonLoopback(host: string): void {
+    if (!LOOPBACK_HOSTS.has(host)) {
+        process.stderr.write(
+            `⚠ MCP server is listening on a non-loopback interface (${host}) without authentication.\n`,
+        );
+    }
+}
+
+// Idle TTL for stateful HTTP sessions – if a client disconnects without
+// sending DELETE /mcp the session is evicted after this period of inactivity.
+const SESSION_IDLE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
 // Schemas defined as module-level constants so TypeScript infers each type
 // independently. Note: server.tool() triggers TS2589 on the first call due to
 // Zod v3 deep type inference in the MCP SDK - this is a known SDK limitation.
@@ -178,8 +192,27 @@ async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpSe
     const port = httpOptions.port ?? 3000;
     const host = httpOptions.host ?? '127.0.0.1';
 
+    warnIfNonLoopback(host);
+
     // Map of sessionId -> transport for stateful session management
     const transports = new Map<string, StreamableHTTPServerTransport>();
+    const sessionTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+    function touchSession(sessionId: string): void {
+        const existing = sessionTimers.get(sessionId);
+        if (existing !== undefined) clearTimeout(existing);
+        sessionTimers.set(
+            sessionId,
+            setTimeout(async () => {
+                sessionTimers.delete(sessionId);
+                const t = transports.get(sessionId);
+                if (t) {
+                    transports.delete(sessionId);
+                    await t.close();
+                }
+            }, SESSION_IDLE_TTL_MS),
+        );
+    }
 
     const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
         if (req.url !== '/mcp') {
@@ -215,6 +248,7 @@ async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpSe
                     sessionIdGenerator: () => randomUUID(),
                     onsessioninitialized: (sid) => {
                         transports.set(sid, transport);
+                        touchSession(sid);
                     },
                 });
 
@@ -222,6 +256,11 @@ async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpSe
                     const sid = transport.sessionId;
                     if (sid) {
                         transports.delete(sid);
+                        const timer = sessionTimers.get(sid);
+                        if (timer !== undefined) {
+                            clearTimeout(timer);
+                            sessionTimers.delete(sid);
+                        }
                     }
                 };
 
@@ -237,12 +276,14 @@ async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpSe
             }
 
             await transport.handleRequest(req, res, body);
+            if (sessionId && transports.has(sessionId)) touchSession(sessionId);
         } else if (req.method === 'GET' || req.method === 'DELETE') {
             if (!sessionId || !transports.has(sessionId)) {
                 res.writeHead(sessionId ? 404 : 400).end(sessionId ? 'Session not found' : 'Missing session ID');
                 return;
             }
             await transports.get(sessionId)!.handleRequest(req, res);
+            if (req.method === 'GET') touchSession(sessionId);
         } else {
             res.writeHead(405).end('Method Not Allowed');
         }
@@ -257,6 +298,8 @@ async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpSe
 
     const shutdown = async () => {
         httpServer.close();
+        for (const timer of sessionTimers.values()) clearTimeout(timer);
+        sessionTimers.clear();
         for (const [, transport] of transports) {
             await transport.close();
         }
@@ -274,6 +317,8 @@ async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpSe
 async function startSseServer(service: N8nAsCodeMcpService, sseOptions: SseServerOptions): Promise<void> {
     const port = sseOptions.port ?? 3000;
     const host = sseOptions.host ?? '127.0.0.1';
+
+    warnIfNonLoopback(host);
 
     // Map of sessionId -> transport for routing POST messages to the right session
     const transports = new Map<string, SSEServerTransport>();

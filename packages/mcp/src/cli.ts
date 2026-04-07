@@ -19,6 +19,11 @@ const useSse = hasFlag('--sse');
 const port = getArgValue('--port');
 const host = getArgValue('--host');
 
+if (useHttp && useSse) {
+    process.stderr.write('Error: --http and --sse are mutually exclusive. Please specify only one transport flag.\n');
+    process.exit(1);
+}
+
 await startN8nAsCodeMcpServer({
     cwd,
     http: useHttp
