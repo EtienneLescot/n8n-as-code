@@ -309,7 +309,7 @@ export class SyncManager extends EventEmitter {
 
         const trimmed = filename.trim();
         if (!trimmed) {
-            throw new Error('Missing workflow file path. Use `n8nac push <relative/path/to/workflow.workflow.ts>`.');
+            throw new Error('Missing workflow file path. Use `n8nac push <path/to/workflow.workflow.ts>`.');
         }
 
         const syncScopeDir = path.resolve(this.watcher.getDirectory());
@@ -351,6 +351,13 @@ export class SyncManager extends EventEmitter {
                 `Run               : n8nac push ${this.quoteShellArg(suggestedPath)}\n\n` +
                 `Tip: read \`workflowDir\` from the active instance in \`n8nac-config.json\` to ` +
                 `get the exact relative path where workflow files must be created and pushed from.`
+            );
+        }
+
+        if (relativePath.includes(path.sep)) {
+            throw new Error(
+                `Cannot push "${trimmed}": nested workflow paths inside the sync scope are not supported.\n` +
+                `Expected a workflow file at the scope root, for example ${this.quoteShellArg(path.join(normalizedScopeDir, path.basename(normalizedAbsolutePath)))}`
             );
         }
 
