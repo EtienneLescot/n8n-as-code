@@ -30,7 +30,7 @@ describe('SyncManager push filename contract', () => {
         expect(manager.resolvePushTarget(filePath).filename).toBe('my-workflow.workflow.ts');
     });
 
-    it('accepts a plain workflow filename for in-process callers inside the sync scope', () => {
+    it('rejects a plain workflow filename (must use full relative path)', () => {
         const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
         const manager = createSyncManager(syncDir);
 
@@ -38,7 +38,8 @@ describe('SyncManager push filename contract', () => {
             getDirectory: () => syncDir
         };
 
-        expect(manager.resolvePushTarget('my-workflow.workflow.ts').filename).toBe('my-workflow.workflow.ts');
+        expect(() => manager.resolvePushTarget('my-workflow.workflow.ts'))
+            .toThrow(/not within the active sync scope/);
     });
 
     it('rejects paths outside the sync scope', () => {
@@ -52,7 +53,7 @@ describe('SyncManager push filename contract', () => {
 
         const outsidePath = '/tmp/outside-workflow.workflow.ts';
         expect(() => manager.resolvePushTarget(outsidePath))
-            .toThrow(/outside the active sync scope/);
+            .toThrow(/not within the active sync scope/);
     });
 
     it('rejects paths that share a common prefix with the sync scope but are outside it', () => {
@@ -65,7 +66,7 @@ describe('SyncManager push filename contract', () => {
 
         const prefixedOutsidePath = path.join(`${syncDir}-2`, 'my-workflow.workflow.ts');
         expect(() => manager.resolvePushTarget(prefixedOutsidePath))
-            .toThrow(/outside the active sync scope/);
+            .toThrow(/not within the active sync scope/);
     });
 
     it('rejects empty paths', () => {
