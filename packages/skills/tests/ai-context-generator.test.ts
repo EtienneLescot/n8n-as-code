@@ -151,14 +151,20 @@ describe('AiContextGenerator', () => {
             const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
             const skillContent = generator.getSkillContent();
 
-            expect(agentsContent).toContain('Look for `n8nac-config.json` in the workspace root.');
-            expect(skillContent).toContain('Look for `n8nac-config.json` in the workspace root.');
+            expect(agentsContent).toContain('Look for `n8nac-config.json` at the root of the target n8n-as-code workspace.');
+            expect(skillContent).toContain('Look for `n8nac-config.json` at the root of the target n8n-as-code workspace.');
             expect(agentsContent).toContain('does not yet contain `projectId` and `projectName`');
             expect(skillContent).toContain('does not yet contain `projectId` and `projectName`');
             expect(agentsContent).toContain('Never write `n8nac-config.json` by hand.');
             expect(skillContent).toContain('Never write `n8nac-config.json` by hand.');
             expect(agentsContent).toContain('npx --yes n8nac instance add');
             expect(skillContent).toContain('npx --yes n8nac instance add');
+            expect(agentsContent).toContain('For autonomous agents, the default non-interactive initialization flow is the explicit 2-step sequence');
+            expect(skillContent).toContain('For autonomous agents, the default non-interactive initialization flow is the explicit 2-step sequence');
+            expect(agentsContent).toContain('npx --yes n8nac instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]');
+            expect(skillContent).toContain('npx --yes n8nac instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]');
+            expect(agentsContent).toContain('Optional 1-command non-interactive setup when the project is already known');
+            expect(skillContent).toContain('Optional 1-command non-interactive setup when the project is already known');
             expect(agentsContent).toContain('npx --yes n8nac instance list --json');
             expect(skillContent).toContain('npx --yes n8nac instance list --json');
             expect(agentsContent).toContain('npx --yes n8nac init-auth');
