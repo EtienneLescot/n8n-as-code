@@ -1,0 +1,77 @@
+name: Docker – MCP Server
+
+# Triggered after the release workflow pushes a @n8n-as-code/mcp version tag.
+on:
+  push:
+    tags:
+      - '@n8n-as-code/mcp@v*'
+
+permissions:
+  contents: read
+  packages: write   # required for ghcr.io push
+
+jobs:
+  build-and-push:
+    name: Build & Push (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: node
+            dockerfile: packages/mcp/docker/Dockerfile
+            suffix: ''           # produces :1.2.0 and :latest
+          - variant: bun
+            dockerfile: packages/mcp/docker/Dockerfile.bun
+            suffix: '-bun'       # produces :1.2.0-bun and :latest-bun
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract MCP version from package.json
+        id: versions
+        run: |
+          MCP_VERSION=$(node -p "require('./packages/mcp/package.json').version")
+          echo "mcp=${MCP_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU (multi-platform support)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/n8nac-mcp
+          tags: |
+            type=raw,value=${{ steps.versions.outputs.mcp }}${{ matrix.suffix }}
+            type=raw,value=latest${{ matrix.suffix }}
+          labels: |
+            org.opencontainers.image.title=n8n-as-code MCP Server (${{ matrix.variant }})
+            org.opencontainers.image.version=${{ steps.versions.outputs.mcp }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: packages/mcp/docker
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            MCP_VERSION=${{ steps.versions.outputs.mcp }}
+            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VCS_REF=${{ github.sha }}
+          cache-from: type=gha,scope=mcp-${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=mcp-${{ matrix.variant }}
