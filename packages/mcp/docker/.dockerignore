@@ -1,0 +1,10 @@
+# Build context is packages/mcp/docker/ — only the four files in that
+# directory are needed. Nothing else should be sent to the Docker daemon.
+
+# Exclude everything by default, then allow only what is needed.
+**
+
+!Dockerfile
+!Dockerfile.bun
+!entrypoint.sh
+!entrypoint.bun.sh

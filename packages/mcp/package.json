@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "n8nac": "^1.5.5",
     "zod": "^3.22.4"
   },
   "devDependencies": {
