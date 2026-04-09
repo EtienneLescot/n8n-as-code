@@ -46,7 +46,8 @@ describe('ConfigService filesystem integration', () => {
             host: 'https://shared.example.com',
             syncFolder: 'workflows-test',
             projectId: 'project-test',
-            projectName: 'Test'
+            projectName: 'Test',
+            instanceIdentifier: 'test_instance'
         }, {
             instanceName: 'Test'
         });
@@ -56,7 +57,8 @@ describe('ConfigService filesystem integration', () => {
             host: 'https://shared.example.com',
             syncFolder: 'workflows-prod',
             projectId: 'project-prod',
-            projectName: 'Production'
+            projectName: 'Production',
+            instanceIdentifier: 'prod_instance'
         }, {
             instanceName: 'Production',
             createNew: true,
@@ -70,7 +72,8 @@ describe('ConfigService filesystem integration', () => {
             host: 'https://shared.example.com',
             syncFolder: 'workflows-prod',
             projectId: 'project-prod',
-            projectName: 'Production'
+            projectName: 'Production',
+            workflowDir: 'workflows-prod/prod_instance/production'
         });
         expect(reloaded.getApiKey('https://shared.example.com', testProfile.id)).toBe('test-key');
         expect(reloaded.getApiKey('https://shared.example.com', prodProfile.id)).toBe('prod-key');
@@ -82,7 +85,8 @@ describe('ConfigService filesystem integration', () => {
         expect(switched.getLocalConfig()).toMatchObject({
             syncFolder: 'workflows-test',
             projectId: 'project-test',
-            projectName: 'Test'
+            projectName: 'Test',
+            workflowDir: 'workflows-test/test_instance/test'
         });
 
         const rawConfig = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'n8nac-config.json'), 'utf-8'));
@@ -90,6 +94,7 @@ describe('ConfigService filesystem integration', () => {
         expect(rawConfig.instances).toHaveLength(2);
         expect(rawConfig.activeInstanceId).toBe(testProfile.id);
         expect(rawConfig.syncFolder).toBe('workflows-test');
+        expect(rawConfig.workflowDir).toBe('workflows-test/test_instance/test');
     });
 
     it('deletes an instance, removes its scoped secret, and promotes the next active instance when needed', () => {
