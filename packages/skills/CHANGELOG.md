@@ -1,5 +1,11 @@
 # @n8n-as-code/skills
 
+## [1.8.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.8.0...@n8n-as-code/skills@v1.8.1) (2026-04-09)
+
+### Documentation
+
+* use HTTPS URL for Claude marketplace install ([b6b5ec0](https://github.com/EtienneLescot/n8n-as-code/commit/b6b5ec0d00615adca7b582bc5b3848de12ce50c5))
+
 ## [1.8.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.7.0...@n8n-as-code/skills@v1.8.0) (2026-04-09)
 
 ### Features
