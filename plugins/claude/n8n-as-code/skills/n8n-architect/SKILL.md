@@ -399,7 +399,7 @@ When helping users:
 2. Check initialization by verifying whether `n8nac-config.json` exists in the workspace root.
 3. If not initialized, ask the user for the host URL and API key if needed, then run `npx --yes n8nac init-auth` and `npx --yes n8nac init-project` yourself.
 4. Pull the workflow before any modification and show the command.
-5. For a new workflow, read `workflowDir` from the active instance in `n8nac-config.json` to find the correct directory, create the file there, and confirm it appears in `npx --yes n8nac list --local` before pushing.
+5. For a new workflow, read `workflowDir` from the active instance in `n8nac-config.json` to find the correct directory. In the common case it is workspace-relative, but it can also be absolute if `syncFolder` is absolute. Create the file there and confirm it appears in `npx --yes n8nac list --local` before pushing.
 6. Search for the relevant nodes and show the command you are running.
 7. Retrieve the exact schema.
 8. Generate the TypeScript configuration using the schema.
