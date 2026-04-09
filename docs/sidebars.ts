@@ -45,6 +45,11 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'doc',
+          id: 'usage/mcp',
+          label: 'MCP Server',
+        },
+        {
+          type: 'doc',
           id: 'usage/typescript-workflows',
           label: 'TypeScript Workflows',
         },
