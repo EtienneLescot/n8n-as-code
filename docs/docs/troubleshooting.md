@@ -86,7 +86,7 @@ Someone (or you in the n8n UI) modified the workflow remotely since your last pu
 
 1. Make sure you ran both commands:
    ```text
-   /plugin marketplace add EtienneLescot/n8n-as-code
+   /plugin marketplace add https://github.com/EtienneLescot/n8n-as-code
    /plugin install n8n-as-code@n8nac-marketplace
    ```
 2. Restart Claude Code after installing
@@ -95,6 +95,14 @@ Someone (or you in the n8n UI) modified the workflow remotely since your last pu
    npx --yes n8nac init
    npx --yes n8nac update-ai
    ```
+
+### SSH authentication fails during `/plugin marketplace add`
+
+If Claude Code reports `git@github.com: Permission denied (publickey)`, use the full HTTPS marketplace URL instead of the `owner/repo` shorthand:
+
+```text
+/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code
+```
 
 ### Claude hallucinates nodes or parameters
 

@@ -116,7 +116,7 @@ Let an AI agent set up the workspace and manage workflows for you.
 ### Claude Code
 
 ```text
-/plugin marketplace add EtienneLescot/n8n-as-code
+/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code
 /plugin install n8n-as-code@n8nac-marketplace
 ```
 
