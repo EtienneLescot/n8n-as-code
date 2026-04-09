@@ -37,6 +37,14 @@ describe('ConfigService', () => {
         configService = new ConfigService('/tmp/workspace');
     });
 
+    it('initializes the global store with restricted file permissions (0600)', () => {
+        expect(Conf).toHaveBeenCalledWith(expect.objectContaining({
+            projectName: 'n8nac',
+            configName: 'credentials',
+            configFileMode: 0o600
+        }));
+    });
+
     it('returns the active instance as the local config when the workspace config already contains a library', () => {
         const workspaceConfig: IWorkspaceConfig = {
             version: 2,
