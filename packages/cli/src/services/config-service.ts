@@ -2,7 +2,7 @@ import Conf from 'conf';
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { N8nApiClient, createInstanceIdentifier, normalizeHostForIdentity } from '../core/index.js';
+import { N8nApiClient, createInstanceIdentifier, createProjectSlug, normalizeHostForIdentity } from '../core/index.js';
 
 // Unified local config written to n8nac-config.json (legacy n8nac.json/n8nac-instance.json deprecated)
 export interface ILocalConfig {
@@ -11,6 +11,7 @@ export interface ILocalConfig {
     projectId?: string;          // REQUIRED: Active project scope
     projectName?: string;        // REQUIRED: Project display name
     instanceIdentifier?: string; // Auto-generated once; stored for consistent paths
+    workflowDir?: string;        // Computed: <syncFolder>/<instanceIdentifier>/<projectSlug> — stored for agent use
     customNodesPath?: string;    // Optional path to n8nac-custom-nodes.json for user-defined node schemas
     folderSync?: boolean;        // Mirror n8n folder hierarchy as local subdirectories (default: false)
 }
@@ -790,6 +791,7 @@ export class ConfigService {
             'projectId',
             'projectName',
             'instanceIdentifier',
+            'workflowDir',
             'customNodesPath',
         ];
 
@@ -815,6 +817,15 @@ export class ConfigService {
         const name = typeof profile.name === 'string' && profile.name.trim() !== ''
             ? profile.name.trim()
             : this.createDefaultInstanceName(localConfig.host);
+
+        // Recompute workflowDir whenever all three deps are present, so the stored value stays in sync
+        if (localConfig.syncFolder && localConfig.instanceIdentifier && localConfig.projectName) {
+            localConfig.workflowDir = path.posix.join(
+                localConfig.syncFolder,
+                localConfig.instanceIdentifier,
+                createProjectSlug(localConfig.projectName),
+            );
+        }
 
         return {
             id,
