@@ -72,6 +72,8 @@ export interface WorkflowDecoratorOptions {
 }
 
 export interface NodeDecoratorOptions {
+    /** Unique identifier of the node (matches workflow JSON) */
+    id?: string;
     /** Display name shown in n8n UI */
     name: string;
     /** Node type identifier (e.g. "n8n-nodes-base.httpRequest") */
@@ -200,6 +202,8 @@ declare module '@n8n-as-code/transformer' {
     }
 
     export interface NodeDecoratorOptions {
+        /** Unique identifier of the node (matches workflow JSON) */
+        id?: string;
         /** Display name shown in n8n UI */
         name: string;
         /** Node type identifier (e.g. "n8n-nodes-base.httpRequest") */
