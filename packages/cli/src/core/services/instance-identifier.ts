@@ -3,7 +3,7 @@ import { N8nApiClient } from './n8n-api-client.js';
 import { createFallbackInstanceIdentifier, createInstanceIdentifier } from './directory-utils.js';
 
 type IUserLike = {
-    id?: string;
+    id: string;
     email?: string;
     firstName?: string;
     lastName?: string;

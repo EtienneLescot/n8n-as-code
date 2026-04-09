@@ -71,11 +71,9 @@ export function createUserSlug(user: { id?: string; email?: string; firstName?: 
             .toLowerCase();
     }
 
-    // Fallback to ID (truncated if it's a long UUID, or just use it)
+    // Fallback to normalized ID
     if (user.id) {
-        const cleanId = user.id.toLowerCase().replace(/[^a-z0-9]/g, '_');
-        // If it's a UUID, maybe take first part? No, let's keep it safe.
-        return `user_${cleanId}`;
+        return `user_${user.id.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
     }
     
     // Final fallback
