@@ -22,11 +22,11 @@ case "${MCP_TRANSPORT:-stdio}" in
   stdio)
     exec bun /app/node_modules/@n8n-as-code/mcp/dist/cli.js "$@"
     ;;
-  http)
-    exec bun /app/node_modules/@n8n-as-code/mcp/dist/cli.js --http --host "${MCP_HOST:-0.0.0.0}" --port "${MCP_PORT:-3000}" "$@"
-    ;;
-  sse)
-    exec bun /app/node_modules/@n8n-as-code/mcp/dist/cli.js --sse --host "${MCP_HOST:-0.0.0.0}" --port "${MCP_PORT:-3000}" "$@"
+  http|sse)
+    echo "Error: MCP_TRANSPORT='${MCP_TRANSPORT}' is not supported by the Bun image." >&2
+    echo "The current MCP CLI only supports stdio transport here, so no HTTP/SSE listener can be started on MCP_HOST/MCP_PORT." >&2
+    echo "Use MCP_TRANSPORT=stdio, or switch to an image/entrypoint with real HTTP/SSE transport support." >&2
+    exit 1
     ;;
   *)
     echo "Error: Unknown MCP_TRANSPORT='${MCP_TRANSPORT}'. Valid values: stdio, http, sse." >&2
