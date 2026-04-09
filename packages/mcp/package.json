@@ -17,7 +17,7 @@
   "dependencies": {
     "@hono/node-server": "^1.19.12",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "n8nac": "1.6.0",
+    "n8nac": "1.6.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {
