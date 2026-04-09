@@ -63,7 +63,8 @@ export class ConfigService {
     constructor(workspaceRoot = process.cwd()) {
         this.globalStore = new Conf({
             projectName: 'n8nac',
-            configName: 'credentials'
+            configName: 'credentials',
+            configFileMode: 0o600
         });
         this.localConfigPath = path.join(workspaceRoot, 'n8nac-config.json');
     }
