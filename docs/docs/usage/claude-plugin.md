@@ -33,7 +33,7 @@ You stay at the level of intent. The technical details are handled for you.
 Two commands in Claude Code:
 
 ```text
-/plugin marketplace add EtienneLescot/n8n-as-code
+/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code
 /plugin install n8n-as-code@n8nac-marketplace
 ```
 
@@ -49,6 +49,8 @@ Restart Claude Code if needed, then start asking for workflow changes.
 
 :::note
 The official Claude Code marketplace listing is pending review. The install path above uses an alternative marketplace hosted in the GitHub repository — it works the same way.
+
+Use the full HTTPS GitHub URL for `/plugin marketplace add`. The `owner/repo` shorthand can trigger an SSH clone and fail on machines without GitHub SSH keys configured.
 :::
 
 ### Claude Desktop (MCP)

@@ -8,9 +8,11 @@ This directory is the actual plugin root used by the marketplace entry, so Claud
 > Until the official Claude Code listing is approved, the recommended install path is the repo-hosted alternative marketplace:
 >
 > ```text
-> /plugin marketplace add EtienneLescot/n8n-as-code
+> /plugin marketplace add https://github.com/EtienneLescot/n8n-as-code
 > /plugin install n8n-as-code@n8nac-marketplace
 > ```
+>
+> Use the full HTTPS URL here because the `owner/repo` shorthand may trigger an SSH clone in Claude Code, which fails if GitHub SSH keys are not configured.
 >
 > This folder remains the install payload behind that marketplace entry.
 

@@ -67,7 +67,7 @@ Plugin-driven workflow work with Claude.
 **Best for:** agent-led editing with marketplace install
 
 **Run**  
-<code>/plugin marketplace add <wbr>EtienneLescot/n8n-as-code</code><br>
+<code>/plugin marketplace add <wbr>https://github.com/EtienneLescot/n8n-as-code</code><br>
 <code>/plugin install <wbr>n8n-as-code@n8nac-marketplace</code><br>
 .
 
