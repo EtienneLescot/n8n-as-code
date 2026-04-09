@@ -260,7 +260,8 @@ export class TypeScriptParser {
             }
             
             // Parse: this.NodeName.uses({ ... });
-            const usesMatch = text.match(/this\.(\w+)\.uses\s*\(\s*\{([^}]+)\}\s*\)/);
+            const CJK_ID = '[\\w\\u4e00-\\u9fff\\u3400-\\u4dbf\\uF900-\\uFAFF\\u3040-\\u309F\\u30A0-\\u30FF\\uAC00-\\uD7AF]+';
+            const usesMatch = text.match(new RegExp(`this\\.(${CJK_ID})\\.uses\\s*\\(\\s*\\{([^}]+)\\}\\s*\\)`));
             if (!usesMatch) {
                 continue;
             }
@@ -317,7 +318,7 @@ export class TypeScriptParser {
                 }
             } else {
                 // Parse single reference: this.NodeName.output
-                const nodeMatch = value.match(/this\.(\w+)\.output/);
+                const nodeMatch = value.match(/this\.([\w\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]+)\.output/);
                 if (nodeMatch) {
                     result[key] = nodeMatch[1];
                 }
@@ -371,7 +372,7 @@ export class TypeScriptParser {
         const items = content.split(',');
         
         for (const item of items) {
-            const nodeMatch = item.trim().match(/this\.(\w+)\.output/);
+            const nodeMatch = item.trim().match(/this\.([\w\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]+)\.output/);
             if (nodeMatch) {
                 result.push(nodeMatch[1]);
             }
@@ -392,8 +393,10 @@ export class TypeScriptParser {
         const cleaned = statement.trim().replace(/;$/, '');
         
         // Pattern: this.{fromNode}.{output}.to(this.{toNode}.in({input}))
-        const errorPattern = /this\.(\w+)\.error\(\)\.to\(this\.(\w+)\.in\((\d+)\)\)/;
-        const normalPattern = /this\.(\w+)\.out\((\d+)\)\.to\(this\.(\w+)\.in\((\d+)\)\)/;
+        // Use [\w\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]+ to support CJK identifiers
+        const ID = '[\\w\\u4e00-\\u9fff\\u3400-\\u4dbf\\uF900-\\uFAFF\\u3040-\\u309F\\u30A0-\\u30FF\\uAC00-\\uD7AF]+';
+        const errorPattern = new RegExp(`this\\.(${ID})\\.error\\(\\)\\.to\\(this\\.(${ID})\\.in\\((\\d+)\\)\\)`);
+        const normalPattern = new RegExp(`this\\.(${ID})\\.out\\((\\d+)\\)\\.to\\(this\\.(${ID})\\.in\\((\\d+)\\)\\)`);
         
         // Try error pattern first
         let match = cleaned.match(errorPattern);
