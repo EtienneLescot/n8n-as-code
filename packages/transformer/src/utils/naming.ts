@@ -72,14 +72,15 @@ export function generatePropertyName(
  * Clean display name: strip everything that isn't useful for identifier generation.
  *
  * Strategy: whitelist approach – transliterate accented chars to ASCII first,
- * then replace anything that is NOT a letter, digit, space, hyphen or underscore
- * with a space (so exotic separators like → | () become word boundaries).
- * This is resilient to any Unicode oddity without enumerating ranges.
+ * then replace anything that is NOT a letter (including CJK), digit, space,
+ * hyphen or underscore with a space (so exotic separators like → | () become
+ * word boundaries). CJK Unified Ideographs (U+4E00–U+9FFF) and common
+ * extensions are preserved as valid JS identifier characters.
  */
 function cleanDisplayName(displayName: string): string {
     return transliterate(displayName)
-        // Keep only ASCII letters, digits, and natural word separators
-        .replace(/[^a-zA-Z0-9\s\-_]/g, ' ')
+        // Keep ASCII letters, digits, CJK ideographs, Hangul, Kana, and natural word separators
+        .replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF\s\-_]/g, ' ')
         // Normalize whitespace
         .replace(/\s+/g, ' ')
         .trim();
@@ -97,33 +98,52 @@ function toPascalCase(str: string): string {
     return str
         // Split on spaces, hyphens, underscores
         .split(/[\s\-_]+/)
-        // Capitalize first letter of each word
+        // Capitalize first letter of each word (skip for CJK characters)
         .map(word => {
             if (word.length === 0) return '';
-            
+
+            // If the word is entirely CJK, return as-is (no case transformation)
+            if (/^[\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]+$/.test(word)) {
+                return word;
+            }
+
             // Preserve acronyms (HTTP, AI, etc.)
             if (word === word.toUpperCase() && word.length > 1) {
                 return word.charAt(0) + word.slice(1).toLowerCase();
             }
-            
+
             return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
         })
         .join('');
 }
 
 /**
- * Transliterate accented/diacritic characters to their ASCII base equivalent
+ * Transliterate accented/diacritic characters to their ASCII base equivalent.
+ * CJK, Hangul, and Kana characters are preserved as-is (NFD decomposition
+ * would break Korean Hangul syllables into Jamo components).
  *
  * @example
  * "Mémoire" → "Memoire"
  * "Ärger" → "Arger"
  * "naïve" → "naive"
+ * "檢查是否到齊" → "檢查是否到齊"
+ * "데이터" → "데이터"
  */
 function transliterate(str: string): string {
     // Guard against null/undefined (can happen when workflow JSON has missing node names)
     if (!str) return '';
-    // NFD decomposes accented chars into base + combining diacritic, then strip diacritics
-    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    // Process char-by-char: only NFD-decompose non-CJK characters
+    // CJK/Hangul/Kana ranges are passed through untouched
+    const CJK_RE = /[\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]/;
+    let result = '';
+    for (const char of str) {
+        if (CJK_RE.test(char)) {
+            result += char;
+        } else {
+            result += char.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+    }
+    return result;
 }
 
 /**
@@ -135,23 +155,24 @@ function transliterate(str: string): string {
  */
 function ensureValidIdentifier(name: string): string {
     // Transliterate accented characters before stripping (é→e, à→a, ü→u, …)
-    let cleaned = transliterate(name).replace(/[^a-zA-Z0-9_$]/g, '');
-    
+    // Preserve CJK ideographs, Hangul, and Kana as valid JS identifier characters
+    let cleaned = transliterate(name).replace(/[^a-zA-Z0-9_$\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]/g, '');
+
     // If starts with number, prefix with underscore
     if (/^\d/.test(cleaned)) {
         cleaned = '_' + cleaned;
     }
-    
+
     // If empty, use default name
     if (cleaned.length === 0) {
         cleaned = 'Node';
     }
-    
+
     // If reserved word, append underscore
     if (isReservedWord(cleaned)) {
         cleaned = cleaned + '_';
     }
-    
+
     return cleaned;
 }
 
