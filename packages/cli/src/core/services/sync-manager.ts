@@ -309,16 +309,16 @@ export class SyncManager extends EventEmitter {
 
         const trimmed = filename.trim();
         if (!trimmed) {
-            throw new Error('Missing workflow file path. Use `n8nac push <path/to/workflow.workflow.ts>`.');
+            throw new Error('Missing workflow file path. Use `n8nac push <relative/path/to/workflow.workflow.ts>`.');
         }
 
         const syncScopeDir = path.resolve(this.watcher.getDirectory());
-        const hasPathSeparator = trimmed.includes('/') || trimmed.includes('\\');
+        // Always resolve relative paths from cwd — never silently prefix the sync scope dir.
+        // This forces callers to provide the full relative path, eliminating any ambiguity
+        // between a bare filename and a file that happens to exist at the workspace root.
         const candidatePath = path.isAbsolute(trimmed)
             ? trimmed
-            : hasPathSeparator
-                ? path.resolve(process.cwd(), trimmed)
-                : path.join(syncScopeDir, trimmed);
+            : path.resolve(process.cwd(), trimmed);
 
         const absolutePath = path.resolve(candidatePath);
         const normalizedScopeDir = this.resolveExistingPath(syncScopeDir);
@@ -330,10 +330,16 @@ export class SyncManager extends EventEmitter {
             relativePath.startsWith(`..${path.sep}`) ||
             path.isAbsolute(relativePath)
         ) {
+            const scopeRelativeToCwd = path.relative(process.cwd(), normalizedScopeDir);
+            const basename = path.basename(trimmed);
+            const suggestedPath = path.join(scopeRelativeToCwd, basename);
             throw new Error(
-                `The path "${trimmed}" is outside the active sync scope for this project.\n` +
-                `Active sync scope: ${normalizedScopeDir}\n` +
-                `Please provide a file located within this directory.`
+                `Cannot push "${trimmed}": path is not within the active sync scope.\n` +
+                `Active sync scope : ${scopeRelativeToCwd}/\n` +
+                `Expected path form: ${suggestedPath}\n` +
+                `Run               : n8nac push ${suggestedPath}\n\n` +
+                `Tip: read \`workflowDir\` from the active instance in \`n8nac-config.json\` to ` +
+                `get the exact relative path where workflow files must be created and pushed from.`
             );
         }
 
