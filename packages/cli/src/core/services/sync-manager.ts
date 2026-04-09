@@ -312,15 +312,17 @@ export class SyncManager extends EventEmitter {
             throw new Error('Missing workflow file path. Use `n8nac push <relative/path/to/workflow.workflow.ts>`.');
         }
 
+        const syncScopeDir = path.resolve(this.watcher.getDirectory());
         const hasPathSeparator = trimmed.includes('/') || trimmed.includes('\\');
         if (!path.isAbsolute(trimmed) && !hasPathSeparator) {
+            const scopeRelativeToCwd = path.relative(process.cwd(), syncScopeDir);
+            const suggestedPath = scopeRelativeToCwd === '' ? `./${trimmed}` : path.join(scopeRelativeToCwd, trimmed);
             throw new Error(
                 `Cannot push "${trimmed}": use the full relative path to the workflow file, not a bare filename.\n` +
-                `Example: n8nac push ${this.quoteShellArg(`./${trimmed}`)}`
+                `Example: n8nac push ${this.quoteShellArg(suggestedPath)}`
             );
         }
 
-        const syncScopeDir = path.resolve(this.watcher.getDirectory());
         // Always resolve relative paths from cwd — never silently prefix the sync scope dir.
         // This forces callers to provide the full relative path, eliminating any ambiguity
         // between a bare filename and a file that happens to exist at the workspace root.

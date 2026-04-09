@@ -194,5 +194,14 @@ describe('AiContextGenerator', () => {
             expect(agentsContent).toContain('manual arm step in the n8n editor');
             expect(agentsContent).toContain('There is no documented public n8n API in this project for arming test webhooks');
         });
+
+        test('AGENTS.md should describe workflowDir as relative-or-absolute and push paths accordingly', async () => {
+            await generator.generate(tempDir, '1.0.0');
+
+            const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
+            expect(agentsContent).toContain('In the common case it is workspace-relative, but it can be absolute if `syncFolder` is absolute.');
+            expect(agentsContent).toContain('Use either the absolute path from `workflowDir` or the workspace-root-relative path that starts with `workflowDir`');
+            expect(agentsContent).toContain('`push` always starts from **the full path of the local workflow file** — either absolute or workspace-root-relative');
+        });
     });
 });
