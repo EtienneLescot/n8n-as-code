@@ -14,8 +14,15 @@ export class BaseCommand {
 
     constructor() {
         this.configService = new ConfigService();
-        // If --instance <name> was passed as a global option, override the active instance
-        const requestedInstanceName = process.env.N8NAC_INSTANCE_NAME;
+
+        let host: string;
+        let apiKey: string;
+        let directory: string;
+        let folderSync: boolean;
+
+        // If --instance <name> was passed as a global option, resolve that instance;
+        // otherwise fall back to the locally active instance / env vars.
+        const requestedInstanceName = process.env.N8NAC_INSTANCE_NAME?.trim() || undefined;
         if (requestedInstanceName) {
             const match = this.configService.listInstances().find(
                 (i) => i.name.toLowerCase() === requestedInstanceName.toLowerCase()
@@ -24,62 +31,52 @@ export class BaseCommand {
                 console.error(chalk.red(`❌ Unknown instance: "${requestedInstanceName}". Run \`n8nac instance list\` to see available instances.`));
                 process.exit(1);
             }
-            this.activeInstanceId = match.id;
-            const host = match.host || '';
-            const apiKey = host ? (this.configService.getApiKey(host, match.id) || '') : '';
+            host = match.host || '';
+            apiKey = host ? (this.configService.getApiKey(host, match.id) || '') : '';
             if (!host || !apiKey) {
                 console.error(chalk.red(`❌ Instance "${requestedInstanceName}" has no host or API key configured.`));
                 process.exit(1);
             }
-            this.client = new N8nApiClient({ host, apiKey });
-            this.config = {
-                directory: match.syncFolder || './workflows',
-                syncInactive: true,
-                ignoredTags: [],
-                host,
-                folderSync: match.folderSync ?? false,
-            };
-            return;
-        }
-        const localConfig = this.configService.getLocalConfig();
-        this.activeInstanceId = this.configService.getActiveInstanceId();
+            this.activeInstanceId = match.id;
+            directory = match.syncFolder || './workflows';
+            folderSync = match.folderSync ?? false;
+        } else {
+            const localConfig = this.configService.getLocalConfig();
+            this.activeInstanceId = this.configService.getActiveInstanceId();
 
-        // Resolve host: local config → env var
-        const rawEnvHost = process.env.N8N_HOST;
-        const envHost = rawEnvHost
-            ? rawEnvHost.trim().replace(/^['"]|['"]$/g, '')
-            : '';
-        const host = localConfig.host || envHost || '';
+            // Resolve host: local config → env var
+            const rawEnvHost = process.env.N8N_HOST;
+            const envHost = rawEnvHost
+                ? rawEnvHost.trim().replace(/^['"]|['"]$/g, '')
+                : '';
+            host = localConfig.host || envHost || '';
 
-        // Resolve API key: global Conf store → env var
-        const rawEnvApiKey = process.env.N8N_API_KEY;
-        const envApiKey = rawEnvApiKey
-            ? rawEnvApiKey.trim().replace(/^['"]|['"]$/g, '')
-            : '';
-        const apiKey = (host ? this.configService.getApiKey(host, this.activeInstanceId) : undefined)
-            || envApiKey
-            || '';
+            // Resolve API key: global Conf store → env var
+            const rawEnvApiKey = process.env.N8N_API_KEY;
+            const envApiKey = rawEnvApiKey
+                ? rawEnvApiKey.trim().replace(/^['"]|['"]$/g, '')
+                : '';
+            apiKey = (host ? this.configService.getApiKey(host, this.activeInstanceId) : undefined)
+                || envApiKey
+                || '';
 
-        if (!host || !apiKey) {
-            console.error(chalk.red('❌ CLI not configured.'));
-            console.error(chalk.yellow('Please run `n8nac init` to set up your environment, or set N8N_HOST and N8N_API_KEY environment variables.'));
-            process.exit(1);
+            if (!host || !apiKey) {
+                console.error(chalk.red('❌ CLI not configured.'));
+                console.error(chalk.yellow('Please run `n8nac init` to set up your environment, or set N8N_HOST and N8N_API_KEY environment variables.'));
+                process.exit(1);
+            }
+
+            directory = localConfig.syncFolder || './workflows';
+            folderSync = localConfig.folderSync ?? false;
         }
 
-        const credentials: IN8nCredentials = {
-            host,
-            apiKey
-        };
-
-        this.client = new N8nApiClient(credentials);
-
-        // Basic config defaults from local config (syncInactive/ignoredTags now hardcoded defaults)
+        this.client = new N8nApiClient({ host, apiKey } as IN8nCredentials);
         this.config = {
-            directory: localConfig.syncFolder || './workflows',
+            directory,
             syncInactive: true,
             ignoredTags: [],
             host,
-            folderSync: localConfig.folderSync ?? false,
+            folderSync,
         };
 
         // Silently refresh AGENTS.md in the background if the installed n8nac version changed.

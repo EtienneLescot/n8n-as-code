@@ -92,13 +92,36 @@ program
     .version(getVersion())
     .option('--instance <name>', 'Target a specific saved instance by name instead of the currently active one');
 
-// Inject --instance into the environment before any action runs so BaseCommand can pick it up
-program.hook('preAction', () => {
+// Inject --instance into the environment only for the lifetime of the command action
+// so BaseCommand can pick it up without leaking process-wide state afterwards.
+let previousInstanceEnv: string | undefined;
+
+const applyGlobalInstanceOption = () => {
+    previousInstanceEnv = process.env.N8NAC_INSTANCE_NAME;
     const globalInstance = program.opts().instance as string | undefined;
+
     if (globalInstance) {
         process.env.N8NAC_INSTANCE_NAME = globalInstance;
+        return;
     }
-});
+
+    if (previousInstanceEnv === undefined) {
+        delete process.env.N8NAC_INSTANCE_NAME;
+    }
+};
+
+const restoreGlobalInstanceOption = () => {
+    if (previousInstanceEnv === undefined) {
+        delete process.env.N8NAC_INSTANCE_NAME;
+    } else {
+        process.env.N8NAC_INSTANCE_NAME = previousInstanceEnv;
+    }
+
+    previousInstanceEnv = undefined;
+};
+
+program.hook('preAction', applyGlobalInstanceOption);
+program.hook('postAction', restoreGlobalInstanceOption);
 
 const initCommand = new InitCommand();
 const switchCommand = new SwitchCommand(program);
