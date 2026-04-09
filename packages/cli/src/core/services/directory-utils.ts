@@ -50,10 +50,10 @@ export function createHostSlug(host: string): string {
 
 /**
  * Creates a user-friendly slug from user information
- * @param user User object with email, firstName, lastName
- * @returns User slug (e.g., "etienne_l", "john_d")
+ * @param user User object with id, email, firstName, lastName
+ * @returns User slug (e.g., "etienne_l", "john_d", "user_123")
  */
-export function createUserSlug(user: { email?: string; firstName?: string; lastName?: string }): string {
+export function createUserSlug(user: { id?: string; email?: string; firstName?: string; lastName?: string }): string {
     // Prefer first name + last name initial if available
     if (user.firstName && user.lastName) {
         return `${user.firstName.toLowerCase()}_${user.lastName.charAt(0).toLowerCase()}`;
@@ -70,6 +70,13 @@ export function createUserSlug(user: { email?: string; firstName?: string; lastN
             .replace(/[^a-zA-Z0-9]/g, '_')
             .toLowerCase();
     }
+
+    // Fallback to ID (truncated if it's a long UUID, or just use it)
+    if (user.id) {
+        const cleanId = user.id.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        // If it's a UUID, maybe take first part? No, let's keep it safe.
+        return `user_${cleanId}`;
+    }
     
     // Final fallback
     return 'user';
@@ -81,7 +88,7 @@ export function createUserSlug(user: { email?: string; firstName?: string; lastN
  * @param user User information (optional)
  * @returns Instance identifier (e.g., "local_5678_etienne_l")
  */
-export function createInstanceIdentifier(host: string, user?: { email?: string; firstName?: string; lastName?: string }): string {
+export function createInstanceIdentifier(host: string, user?: { id?: string; email?: string; firstName?: string; lastName?: string }): string {
     const hostSlug = createHostSlug(host);
     const userSlug = user ? createUserSlug(user) : 'user';
     
