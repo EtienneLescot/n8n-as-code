@@ -31,6 +31,24 @@ export class N8nApiClient {
         });
     }
 
+    private extractUserIdFromApiKey(): string | null {
+        try {
+            const apiKey = this.client.defaults.headers['X-N8N-API-KEY'] as string;
+            if (!apiKey || !apiKey.includes('.')) return null;
+
+            const parts = apiKey.split('.');
+            if (parts.length !== 3) return null;
+
+            const payload = parts[1];
+            // Use base64url decoding if possible, but standard base64 often works for JWTs in Node
+            const decoded = Buffer.from(payload, 'base64').toString('utf8');
+            const parsed = JSON.parse(decoded);
+            return parsed.sub || null;
+        } catch {
+            return null;
+        }
+    }
+
     async testConnection(): Promise<boolean> {
         try {
             await this.client.get('/api/v1/users'); // Simple endpoint to test auth
@@ -41,8 +59,37 @@ export class N8nApiClient {
         }
     }
 
-    async getCurrentUser(): Promise<{ id: string; email: string; firstName?: string; lastName?: string; } | null> {
-        // Try /me first (modern n8n)
+    async getCurrentUser(): Promise<{ id?: string; email?: string; firstName?: string; lastName?: string; } | null> {
+        // 1. Try to extract userId from API key (JWT sub claim)
+        const jwtUserId = this.extractUserIdFromApiKey();
+        if (jwtUserId) {
+            if (process.env.DEBUG) console.debug(`[N8nApiClient] getCurrentUser: Extracted userId ${jwtUserId} from API key`);
+            try {
+                const res = await this.client.get(`/api/v1/users/${jwtUserId}`);
+                if (res.data && res.data.id) {
+                    if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Successfully retrieved specific user details');
+                    return {
+                        id: res.data.id,
+                        email: res.data.email,
+                        firstName: res.data.firstName,
+                        lastName: res.data.lastName
+                    };
+                }
+            } catch (error: any) {
+                if (process.env.DEBUG) console.debug(`[N8nApiClient] getCurrentUser: Fetching specific user ${jwtUserId} failed:`, error.message);
+                
+                // If it's a connection error, throw immediately
+                if (!error.response) throw error;
+
+                // If it's a 403 or 404, we have the ID from JWT but can't get details.
+                // Return the ID at least to ensure correct instance identification.
+                if (error.response.status === 403 || error.response.status === 404) {
+                    return { id: jwtUserId };
+                }
+            }
+        }
+
+        // 2. Fallback: Try /me (not in official public API spec but kept for compatibility)
         try {
             const res = await this.client.get('/api/v1/users/me');
             if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Successfully retrieved user from /me endpoint');
@@ -60,12 +107,13 @@ export class N8nApiClient {
             if (!error.response) throw error;
         }
 
-        // Fallback: get all users and take the first one (assuming the API key belongs to an admin or the only user)
-        if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Trying /api/v1/users endpoint');
+        // 3. Last resort: get all users and take the first one
+        // Note: This is unreliable on multi-user instances and only reached if JWT extraction failed.
+        if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Trying /api/v1/users endpoint as last resort');
         try {
             const res = await this.client.get('/api/v1/users');
             if (res.data && res.data.data && res.data.data.length > 0) {
-                if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Found', res.data.data.length, 'users');
+                if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Found', res.data.data.length, 'users, taking first');
                 const user = res.data.data[0];
                 return {
                     id: user.id,
