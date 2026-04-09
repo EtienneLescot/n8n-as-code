@@ -112,6 +112,19 @@ describe('SyncManager push filename contract', () => {
         cwdSpy.mockRestore();
     });
 
+    it('rejects nested workflow paths inside the sync scope with a clear error', () => {
+        const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
+        const manager = createSyncManager(syncDir);
+
+        (manager as any).watcher = {
+            getDirectory: () => syncDir
+        };
+
+        const nestedPath = path.join(syncDir, 'nested', 'my-workflow.workflow.ts');
+        expect(() => manager.resolvePushTarget(nestedPath))
+            .toThrow(/nested workflow paths inside the sync scope are not supported/);
+    });
+
     it('rejects empty paths', () => {
         const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
         const manager = createSyncManager(syncDir);
@@ -121,7 +134,7 @@ describe('SyncManager push filename contract', () => {
             getDirectory: () => syncDir
         };
 
-        expect(() => manager.resolvePushTarget('   ')).toThrow(/Missing workflow file path/);
+        expect(() => manager.resolvePushTarget('   ')).toThrow(/<path\/to\/workflow\.workflow\.ts>/);
     });
 
     it('refreshes local state before resolving workflow id during push', async () => {
