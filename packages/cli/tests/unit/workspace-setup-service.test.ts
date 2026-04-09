@@ -41,6 +41,10 @@ describe('WorkspaceSetupService', () => {
 
         const declaration = fs.readFileSync(declarationPath, 'utf-8');
         expect(declaration).toContain("declare module '@n8n-as-code/transformer' {");
-        expect(declaration).toContain('export interface NodeDecoratorOptions {\n        id?: string;');
+        expect(declaration).toContain(
+            'export interface NodeDecoratorOptions {\n' +
+            '    /** Unique identifier of the node (matches workflow JSON) */\n' +
+            '    id?: string;'
+        );
     });
 });
