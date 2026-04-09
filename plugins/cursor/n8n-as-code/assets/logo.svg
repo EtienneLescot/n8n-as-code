@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="n8n-as-code logo">
+  <rect width="128" height="128" rx="24" fill="#0f172a"/>
+  <circle cx="34" cy="64" r="10" fill="#ea4b71"/>
+  <circle cx="64" cy="34" r="10" fill="#ea4b71"/>
+  <circle cx="64" cy="94" r="10" fill="#ea4b71"/>
+  <circle cx="94" cy="64" r="10" fill="#ea4b71"/>
+  <path d="M34 64 L64 34 L94 64 L64 94 Z" fill="none" stroke="#f8fafc" stroke-width="8" stroke-linejoin="round"/>
+</svg>

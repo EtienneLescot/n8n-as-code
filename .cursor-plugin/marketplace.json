@@ -1,0 +1,26 @@
+{
+  "name": "n8n-as-code",
+  "owner": {
+    "name": "Etienne Lescot",
+    "email": "contact@n8nascode.dev"
+  },
+  "metadata": {
+    "description": "Official Cursor plugins for n8n-as-code",
+    "pluginRoot": "plugins/cursor"
+  },
+  "plugins": [
+    {
+      "name": "n8n-as-code",
+      "source": "n8n-as-code",
+      "description": "Cursor plugin for n8n-as-code with workspace-aware n8n workflow engineering guidance and optional MCP knowledge tools.",
+      "category": "Agent Orchestration",
+      "tags": [
+        "n8n",
+        "workflow",
+        "automation",
+        "ai",
+        "agent"
+      ]
+    }
+  ]
+}

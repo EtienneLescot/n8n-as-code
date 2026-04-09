@@ -1,0 +1,19 @@
+---
+description: Use n8n-as-code TypeScript workflow files and explicit sync discipline for n8n workflow work.
+alwaysApply: false
+globs:
+  - "**/*.workflow.ts"
+---
+
+When editing an n8n workflow file:
+
+- Treat `.workflow.ts` as the source of truth.
+- Keep the TypeScript decorator structure with `@workflow`, `@node`, and `@links`.
+- Preserve the `<workflow-map>` block at the top of the file.
+- Pull the workflow from n8n before editing when the workspace is initialized.
+- Push the workflow back after editing.
+- Use exact node schema information from `n8nac skills node-info <nodeName>` or the equivalent MCP tool.
+- Never invent node parameters, connection types, or credential fields.
+- Regular node connections use `.out(0).to(target.in(0))`.
+- AI sub-node connections use `.uses()`.
+- `ai_tool` and `ai_document` values are arrays; most other AI connections are single refs.
