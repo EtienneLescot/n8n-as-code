@@ -1,5 +1,23 @@
 # @n8n-as-code/skills
 
+## [1.8.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.7.0...@n8n-as-code/skills@v1.8.0) (2026-04-09)
+
+### Features
+
+* **cli:** persist workflowDir in config and enforce full path for push ([bd1bcdd](https://github.com/EtienneLescot/n8n-as-code/commit/bd1bcddc88d32f80f7eb0e73891db131d3873685))
+
+### Bug Fixes
+
+* **docs:** update initialization instructions and command flows in README and SKILL.md ([3b3dd69](https://github.com/EtienneLescot/n8n-as-code/commit/3b3dd698310ff0bec2d0366dab484911ad976a6d))
+* **skills:** refresh generated Claude skill adapter ([bf8edee](https://github.com/EtienneLescot/n8n-as-code/commit/bf8edeeb1ce1ca31951217c877785839fd232eb5))
+* **skills:** clarify workflowDir path semantics in AI guidance ([e6e8535](https://github.com/EtienneLescot/n8n-as-code/commit/e6e853586c2a4e03fd88d5bec1d3c428b320b870))
+* **skills:** rebuild knowledge base for n8n@2.15.0 ([a24f804](https://github.com/EtienneLescot/n8n-as-code/commit/a24f8041b2e2c553d519d6977afb038800aea613))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/transformer bumped from 1.0.2 to 1.1.0
+
 ## [1.7.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.6.0...@n8n-as-code/skills@v1.7.0) (2026-04-03)
 
 ### Features

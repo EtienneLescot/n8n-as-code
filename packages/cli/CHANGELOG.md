@@ -1,5 +1,33 @@
 # @n8n-as-code/cli
 
+## [1.6.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.5.5...n8nac@v1.6.0) (2026-04-09)
+
+### Features
+
+* **cli:** persist workflowDir in config and enforce full path for push ([bd1bcdd](https://github.com/EtienneLescot/n8n-as-code/commit/bd1bcddc88d32f80f7eb0e73891db131d3873685))
+* **cli:** add global --instance option to target a specific saved instance ([4b57af3](https://github.com/EtienneLescot/n8n-as-code/commit/4b57af302c7baaad4256bd0aff17fb05dacfe36a))
+
+### Bug Fixes
+
+* **cli:** resolve user identity using JWT API key and specific user endpoint (fixes #303) ([1eeb1da](https://github.com/EtienneLescot/n8n-as-code/commit/1eeb1da9bce4d3c84e33680d45ebc3f6c7b49aa5))
+* **cli:** restrict credentials.json permissions to 0600 (fixes #304) ([4214450](https://github.com/EtienneLescot/n8n-as-code/commit/42144506b30b112589172e737122e9d205a068aa))
+* **cli:** use regex assertion to avoid whitespace-sensitive test ([8dff49a](https://github.com/EtienneLescot/n8n-as-code/commit/8dff49a3f39118ff27402de1e5b3d0621236ec56))
+* **cli:** align push help with path-based contract ([509b76b](https://github.com/EtienneLescot/n8n-as-code/commit/509b76bc9a35c9e85bfd112677c1153a8fa4c2ac))
+* **cli:** preserve UNC workflowDir prefixes ([45ac171](https://github.com/EtienneLescot/n8n-as-code/commit/45ac1719c7e2254cf7fcca0be836e9327c1e2051))
+* **cli:** reject nested push paths explicitly ([21720ba](https://github.com/EtienneLescot/n8n-as-code/commit/21720ba2e8e1cd8920fbd417c47c896d0079d866))
+* **skills:** clarify workflowDir path semantics in AI guidance ([e6e8535](https://github.com/EtienneLescot/n8n-as-code/commit/e6e853586c2a4e03fd88d5bec1d3c428b320b870))
+* **cli:** address PR review feedback on workflowDir and push path handling ([c1af346](https://github.com/EtienneLescot/n8n-as-code/commit/c1af34625342bd6710943c6d488c0c4a64d14585))
+* **cli:** detect ambiguous instance name matches in --instance resolution ([ff56113](https://github.com/EtienneLescot/n8n-as-code/commit/ff56113206566744a1a377435a0322ac490c6e75))
+* **cli:** address Copilot review comments on global --instance option ([573a617](https://github.com/EtienneLescot/n8n-as-code/commit/573a617ddb9141320bc154dc20affbbd785a6431))
+* **cli:** hide --raw from help output using Commander hideHelp() ([a49f507](https://github.com/EtienneLescot/n8n-as-code/commit/a49f507e89a42ccfec2b975b1c76c0a321896f67))
+* **cli:** unify --json flag on list and find commands ([def2918](https://github.com/EtienneLescot/n8n-as-code/commit/def2918cb6a10d5999a6b7cd0f345b601444c3d9))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.7.0 to 1.8.0
+    * @n8n-as-code/transformer bumped from 1.0.2 to 1.1.0
+
 ## [1.5.5](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.5.4...n8nac@v1.5.5) (2026-04-03)
 
 ### Bug Fixes
