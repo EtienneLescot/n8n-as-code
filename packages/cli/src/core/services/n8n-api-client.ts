@@ -79,7 +79,8 @@ export class N8nApiClient {
         if (jwtUserId) {
             if (process.env.DEBUG) console.debug(`[N8nApiClient] getCurrentUser: Extracted userId ${jwtUserId} from API key`);
             try {
-                const res = await this.client.get(`/api/v1/users/${jwtUserId}`);
+                const encodedJwtUserId = encodeURIComponent(jwtUserId);
+                const res = await this.client.get(`/api/v1/users/${encodedJwtUserId}`);
                 if (res.data && res.data.id) {
                     if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Successfully retrieved specific user details');
                     return {
