@@ -1,0 +1,14 @@
+{
+  "name": "n8n-as-code",
+  "version": "0.1.0",
+  "description": "Cursor plugin for n8n-as-code. Guides the agent through n8n workspace setup and provides workflow authoring skills powered by the n8nac CLI and MCP server.",
+  "author": {
+    "name": "Etienne Lescot",
+    "email": "contact@n8nascode.dev"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://n8nascode.dev",
+  "repository": "https://github.com/EtienneLescot/n8n-as-code",
+  "keywords": ["n8n", "workflow", "automation", "n8nac", "agentic"],
+  "logo": "assets/logo.svg"
+}
