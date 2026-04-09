@@ -765,6 +765,7 @@ export class ConfigService {
             'projectId',
             'projectName',
             'instanceIdentifier',
+            'workflowDir',
             'customNodesPath',
             'folderSync',
         ];
@@ -820,7 +821,7 @@ export class ConfigService {
 
         // Recompute workflowDir whenever all three deps are present, so the stored value stays in sync
         if (localConfig.syncFolder && localConfig.instanceIdentifier && localConfig.projectName) {
-            localConfig.workflowDir = path.posix.join(
+            localConfig.workflowDir = this.normalizeConfigPath(
                 localConfig.syncFolder,
                 localConfig.instanceIdentifier,
                 createProjectSlug(localConfig.projectName),
@@ -853,6 +854,12 @@ export class ConfigService {
             lastCheckedAt: typeof verification.lastCheckedAt === 'string' ? verification.lastCheckedAt.trim() || undefined : undefined,
             lastError: typeof verification.lastError === 'string' ? verification.lastError.trim() || undefined : undefined,
         };
+    }
+
+    private normalizeConfigPath(...segments: string[]): string {
+        return path.join(
+            ...segments.map((segment) => segment.replace(/[\\/]+/g, path.sep))
+        ).replace(/[\\/]+/g, '/');
     }
 
     private async resolveInstanceVerification(

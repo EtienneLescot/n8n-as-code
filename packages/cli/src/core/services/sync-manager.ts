@@ -312,6 +312,14 @@ export class SyncManager extends EventEmitter {
             throw new Error('Missing workflow file path. Use `n8nac push <relative/path/to/workflow.workflow.ts>`.');
         }
 
+        const hasPathSeparator = trimmed.includes('/') || trimmed.includes('\\');
+        if (!path.isAbsolute(trimmed) && !hasPathSeparator) {
+            throw new Error(
+                `Cannot push "${trimmed}": use the full relative path to the workflow file, not a bare filename.\n` +
+                `Example: n8nac push ${this.quoteShellArg(`./${trimmed}`)}`
+            );
+        }
+
         const syncScopeDir = path.resolve(this.watcher.getDirectory());
         // Always resolve relative paths from cwd — never silently prefix the sync scope dir.
         // This forces callers to provide the full relative path, eliminating any ambiguity
@@ -332,12 +340,13 @@ export class SyncManager extends EventEmitter {
         ) {
             const scopeRelativeToCwd = path.relative(process.cwd(), normalizedScopeDir);
             const basename = path.basename(trimmed);
-            const suggestedPath = path.join(scopeRelativeToCwd, basename);
+            const scopeLabel = scopeRelativeToCwd === '' ? './' : `${scopeRelativeToCwd}${path.sep}`;
+            const suggestedPath = scopeRelativeToCwd === '' ? `./${basename}` : path.join(scopeRelativeToCwd, basename);
             throw new Error(
                 `Cannot push "${trimmed}": path is not within the active sync scope.\n` +
-                `Active sync scope : ${scopeRelativeToCwd}/\n` +
+                `Active sync scope : ${scopeLabel}\n` +
                 `Expected path form: ${suggestedPath}\n` +
-                `Run               : n8nac push ${suggestedPath}\n\n` +
+                `Run               : n8nac push ${this.quoteShellArg(suggestedPath)}\n\n` +
                 `Tip: read \`workflowDir\` from the active instance in \`n8nac-config.json\` to ` +
                 `get the exact relative path where workflow files must be created and pushed from.`
             );
@@ -356,6 +365,10 @@ export class SyncManager extends EventEmitter {
         } catch {
             return path.resolve(targetPath);
         }
+    }
+
+    private quoteShellArg(value: string): string {
+        return `'${value.replace(/'/g, `'\\''`)}'`;
     }
 
     public async resolveConflict(workflowId: string, filename: string, resolution: 'local' | 'remote'): Promise<void> {
