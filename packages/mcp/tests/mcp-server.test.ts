@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { jest } from '@jest/globals';
+import { jest, describe, test, expect, beforeEach, afterEach } from '@jest/globals';
 import { N8nAsCodeMcpService } from '../src/services/mcp-service';
 
 describe('N8nAsCodeMcpService', () => {
@@ -112,7 +112,8 @@ describe('N8nAsCodeMcpService', () => {
             errors: [],
             warnings: [],
         };
-        const cliSpy = jest.spyOn(service as any, 'runCliJsonCommand').mockImplementation(async (args: string[]) => {
+        const cliSpy = jest.spyOn(service as any, 'runCliJsonCommand').mockImplementation(async (...rawArgs: unknown[]) => {
+            const args = rawArgs[0] as string[];
             expect(args[0]).toBe('skills');
             expect(args[1]).toBe('validate');
             expect(args[3]).toBe('--json');

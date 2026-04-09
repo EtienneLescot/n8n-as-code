@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { tmpdir } from 'os';
 import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 
 export interface N8nAsCodeMcpServiceOptions {
     cwd?: string;
@@ -47,8 +48,14 @@ export class N8nAsCodeMcpService {
 
     private getCliEntryPath(): string {
         const require = createRequire(import.meta.url);
-        const cliPkg = require.resolve('n8nac/package.json');
-        return join(dirname(cliPkg), 'dist', 'index.js');
+        try {
+            const cliPkg = require.resolve('n8nac/package.json');
+            return join(dirname(cliPkg), 'dist', 'index.js');
+        } catch {
+            // Fallback for monorepo development: n8nac is a sibling workspace package
+            // From dist/services/ -> ../../../ reaches packages/, then cli/dist/index.js
+            return fileURLToPath(new URL('../../../cli/dist/index.js', import.meta.url));
+        }
     }
 
     private async runCliCommand(args: string[], parseJson: boolean = false): Promise<CliExecutionResult> {
