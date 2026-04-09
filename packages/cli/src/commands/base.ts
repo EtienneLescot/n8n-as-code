@@ -14,6 +14,33 @@ export class BaseCommand {
 
     constructor() {
         this.configService = new ConfigService();
+        // If --instance <name> was passed as a global option, override the active instance
+        const requestedInstanceName = process.env.N8NAC_INSTANCE_NAME;
+        if (requestedInstanceName) {
+            const match = this.configService.listInstances().find(
+                (i) => i.name.toLowerCase() === requestedInstanceName.toLowerCase()
+            );
+            if (!match) {
+                console.error(chalk.red(`❌ Unknown instance: "${requestedInstanceName}". Run \`n8nac instance list\` to see available instances.`));
+                process.exit(1);
+            }
+            this.activeInstanceId = match.id;
+            const host = match.host || '';
+            const apiKey = host ? (this.configService.getApiKey(host, match.id) || '') : '';
+            if (!host || !apiKey) {
+                console.error(chalk.red(`❌ Instance "${requestedInstanceName}" has no host or API key configured.`));
+                process.exit(1);
+            }
+            this.client = new N8nApiClient({ host, apiKey });
+            this.config = {
+                directory: match.syncFolder || './workflows',
+                syncInactive: true,
+                ignoredTags: [],
+                host,
+                folderSync: match.folderSync ?? false,
+            };
+            return;
+        }
         const localConfig = this.configService.getLocalConfig();
         this.activeInstanceId = this.configService.getActiveInstanceId();
 
@@ -87,7 +114,11 @@ export class BaseCommand {
      * Validates that required project fields are present; exits with a clear error if not.
      */
     protected async getSyncConfig(): Promise<any> {
-        const localConfig = this.configService.getLocalConfig();
+        // When --instance overrides the active instance, use that instance's stored config
+        // instead of the file's active instance config so projectId/syncFolder are consistent.
+        const localConfig = this.activeInstanceId
+            ? (this.configService.getInstanceConfig(this.activeInstanceId) ?? this.configService.getLocalConfig())
+            : this.configService.getLocalConfig();
 
         const missing: string[] = [];
         if (!localConfig.projectId) missing.push('projectId');
