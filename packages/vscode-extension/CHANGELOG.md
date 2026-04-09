@@ -1,5 +1,17 @@
 # n8n-as-code
 
+## [1.36.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.34.0...n8n-as-code@v1.36.0) (2026-04-09)
+
+### Bug Fixes
+
+* **cli:** update push command to use path instead of filename ([63ac820](https://github.com/EtienneLescot/n8n-as-code/commit/63ac8209278d8d9802da359ea63d5ffadc763112))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.7.0 to 1.8.0
+    * n8nac bumped from 1.5.5 to 1.6.0
+
 ## [1.34.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.32.0...n8n-as-code@v1.34.0) (2026-04-03)
 
 ### Dependencies

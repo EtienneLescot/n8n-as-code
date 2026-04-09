@@ -1,5 +1,15 @@
 # @n8n-as-code/transformer
 
+## [1.1.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v1.0.2...@n8n-as-code/transformer@v1.1.0) (2026-04-09)
+
+### Features
+
+* **transformer:** add CJK identifier support for Chinese/Japanese/Korean workflows ([76fff64](https://github.com/EtienneLescot/n8n-as-code/commit/76fff646c14489b1387d63cd59a691ea713f217a))
+
+### Bug Fixes
+
+* **transformer:** align IDENTIFIER_PATTERN with naming.ts Unicode coverage ([73423d9](https://github.com/EtienneLescot/n8n-as-code/commit/73423d926ffe38d5347be1b6a4a7d3e9e4ccdc59))
+
 ## [1.0.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v1.0.1...@n8n-as-code/transformer@v1.0.2) (2026-03-17)
 
 ### Bug Fixes
