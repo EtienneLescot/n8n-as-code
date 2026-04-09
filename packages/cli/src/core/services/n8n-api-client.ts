@@ -4,6 +4,7 @@ import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, IT
 
 export class N8nApiClient {
     private client: AxiosInstance;
+    private apiKey: string;
     private projectsCache: Map<string, IProject> | null = null;
     private projectsCachePromise: Promise<Map<string, IProject>> | null = null;
     private static readonly PERSONAL_PROJECT_PLACEHOLDER_ID = 'personal';
@@ -11,6 +12,7 @@ export class N8nApiClient {
     private httpsAgent: https.Agent;
 
     constructor(credentials: IN8nCredentials) {
+        this.apiKey = credentials.apiKey;
         let host = credentials.host;
         if (host.endsWith('/')) {
             host = host.slice(0, -1);
@@ -23,7 +25,7 @@ export class N8nApiClient {
         this.client = axios.create({
             baseURL: host,
             headers: {
-                'X-N8N-API-KEY': credentials.apiKey,
+                'X-N8N-API-KEY': this.apiKey,
                 'Content-Type': 'application/json',
                 'User-Agent': 'n8n-as-code'
             },
@@ -33,15 +35,27 @@ export class N8nApiClient {
 
     private extractUserIdFromApiKey(): string | null {
         try {
-            const apiKey = this.client.defaults.headers['X-N8N-API-KEY'] as string;
-            if (!apiKey || !apiKey.includes('.')) return null;
+            if (!this.apiKey || !this.apiKey.includes('.')) return null;
 
-            const parts = apiKey.split('.');
+            const parts = this.apiKey.split('.');
             if (parts.length !== 3) return null;
 
             const payload = parts[1];
-            // Use base64url decoding if possible, but standard base64 often works for JWTs in Node
-            const decoded = Buffer.from(payload, 'base64').toString('utf8');
+            
+            let decoded: string;
+            try {
+                // Try base64url first (available in modern Node.js)
+                decoded = Buffer.from(payload, 'base64url' as BufferEncoding).toString('utf8');
+            } catch {
+                // Manual normalization as fallback
+                const normalizedPayload = payload.replace(/-/g, '+').replace(/_/g, '/');
+                const paddedPayload = normalizedPayload.padEnd(
+                    normalizedPayload.length + ((4 - (normalizedPayload.length % 4)) % 4),
+                    '=',
+                );
+                decoded = Buffer.from(paddedPayload, 'base64').toString('utf8');
+            }
+
             const parsed = JSON.parse(decoded);
             return parsed.sub || null;
         } catch {
@@ -59,7 +73,7 @@ export class N8nApiClient {
         }
     }
 
-    async getCurrentUser(): Promise<{ id?: string; email?: string; firstName?: string; lastName?: string; } | null> {
+    async getCurrentUser(): Promise<{ id: string; email?: string; firstName?: string; lastName?: string; } | null> {
         // 1. Try to extract userId from API key (JWT sub claim)
         const jwtUserId = this.extractUserIdFromApiKey();
         if (jwtUserId) {
