@@ -24,13 +24,23 @@ export class BaseCommand {
         // otherwise fall back to the locally active instance / env vars.
         const requestedInstanceName = process.env.N8NAC_INSTANCE_NAME?.trim() || undefined;
         if (requestedInstanceName) {
-            const match = this.configService.listInstances().find(
+            const matches = this.configService.listInstances().filter(
                 (i) => i.name.toLowerCase() === requestedInstanceName.toLowerCase()
             );
-            if (!match) {
+            if (matches.length === 0) {
                 console.error(chalk.red(`❌ Unknown instance: "${requestedInstanceName}". Run \`n8nac instance list\` to see available instances.`));
                 process.exit(1);
             }
+            if (matches.length > 1) {
+                const duplicateInstances = matches
+                    .map((i) => `- ${i.name} (${i.id})`)
+                    .join('\n');
+                console.error(chalk.red(`❌ Ambiguous instance name: "${requestedInstanceName}". Multiple saved instances match this name:`));
+                console.error(chalk.yellow(duplicateInstances));
+                console.error(chalk.yellow('Please rename the instance(s) to use unique names, or use an `--instance-id` option if available.'));
+                process.exit(1);
+            }
+            const match = matches[0];
             host = match.host || '';
             apiKey = host ? (this.configService.getApiKey(host, match.id) || '') : '';
             if (!host || !apiKey) {
