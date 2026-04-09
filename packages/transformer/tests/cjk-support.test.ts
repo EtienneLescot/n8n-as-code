@@ -174,6 +174,7 @@ describe('CJK Identifier Support', () => {
             for (const origNode of cjkWorkflowJson.nodes) {
                 const found = resultJson.nodes.find((n: any) => n.name === origNode.name);
                 expect(found, `Node "${origNode.name}" should exist`).toBeDefined();
+                expect(found!.name).toBe(origNode.name);
                 expect(found!.type).toBe(origNode.type);
                 expect(found!.parameters).toEqual(origNode.parameters);
             }
