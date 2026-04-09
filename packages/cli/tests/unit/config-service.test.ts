@@ -227,6 +227,24 @@ describe('ConfigService', () => {
         expect(persistedConfig.workflowDir).toBe('C:/Users/etienne/n8n/workflows/windows_instance/production');
     });
 
+    it('preserves UNC prefixes when normalizing workflowDir', () => {
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+        const savedProfile = configService.saveLocalConfig({
+            host: 'https://prod.example.com',
+            syncFolder: '\\\\server\\share\\workflows',
+            projectId: 'project-prod',
+            projectName: 'Production',
+            instanceIdentifier: 'unc_instance'
+        }, {
+            instanceName: 'Production'
+        });
+
+        expect(savedProfile.workflowDir).toBe('//server/share/workflows/unc_instance/production');
+        const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1]);
+        expect(persistedConfig.workflowDir).toBe('//server/share/workflows/unc_instance/production');
+    });
+
     it('rejects creating a duplicate verified instance config for the same host and authenticated user', async () => {
         (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
 

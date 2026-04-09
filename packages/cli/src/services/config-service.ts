@@ -857,9 +857,19 @@ export class ConfigService {
     }
 
     private normalizeConfigPath(...segments: string[]): string {
-        return path.join(
-            ...segments.map((segment) => segment.replace(/[\\/]+/g, path.sep))
-        ).replace(/[\\/]+/g, '/');
+        const hasUncPrefix = /^[\\/]{2}[^\\/]/.test(segments[0] || '');
+        const normalizedSegments = segments.map((segment, index) => {
+            if (index === 0 && hasUncPrefix) {
+                return `${path.sep}${path.sep}${segment.slice(2).replace(/[\\/]/g, path.sep)}`;
+            }
+
+            return segment.replace(/[\\/]/g, path.sep);
+        });
+
+        const joinedPath = path.join(...normalizedSegments).replace(/\\/g, '/');
+        return hasUncPrefix
+            ? `//${joinedPath.replace(/^\/+/g, '')}`
+            : joinedPath;
     }
 
     private async resolveInstanceVerification(
