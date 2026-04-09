@@ -14,6 +14,30 @@ import { WorkflowAST, NodeAST, ConnectionAST, WorkflowMetadata } from '../types.
 export class TypeScriptParser {
     private project: Project;
     
+    /**
+     * Regular expression pattern for valid TypeScript identifiers.
+     * Uses Unicode property escapes for full Unicode letter coverage (requires `u` flag).
+     * Matches: ASCII word chars (\w = letters, digits, underscore) plus any Unicode letter
+     * (\p{Letter}), covering CJK, Hangul, Kana, Cyrillic, Arabic, Devanagari, etc.
+     * Kept in sync with the `\p{Letter}` usage in naming.ts so every identifier that
+     * naming.ts can produce is also parseable by the TypeScript parser.
+     */
+    private static readonly IDENTIFIER_PATTERN = '[\\w\\p{Letter}]+';
+
+    /** Pre-compiled patterns reusing IDENTIFIER_PATTERN (avoid rebuilding per-call). */
+    private static readonly USES_PATTERN = new RegExp(
+        `this\\.(${TypeScriptParser.IDENTIFIER_PATTERN})\\.uses\\s*\\(\\s*\\{([^}]+)\\}\\s*\\)`, 'u'
+    );
+    private static readonly OUTPUT_REF_PATTERN = new RegExp(
+        `this\\.(${TypeScriptParser.IDENTIFIER_PATTERN})\\.output`, 'u'
+    );
+    private static readonly ERROR_CONN_PATTERN = new RegExp(
+        `this\\.(${TypeScriptParser.IDENTIFIER_PATTERN})\\.error\\(\\)\\.to\\(this\\.(${TypeScriptParser.IDENTIFIER_PATTERN})\\.in\\((\\d+)\\)\\)`, 'u'
+    );
+    private static readonly NORMAL_CONN_PATTERN = new RegExp(
+        `this\\.(${TypeScriptParser.IDENTIFIER_PATTERN})\\.out\\((\\d+)\\)\\.to\\(this\\.(${TypeScriptParser.IDENTIFIER_PATTERN})\\.in\\((\\d+)\\)\\)`, 'u'
+    );
+
     constructor() {
         this.project = new Project({
             compilerOptions: {
@@ -260,8 +284,7 @@ export class TypeScriptParser {
             }
             
             // Parse: this.NodeName.uses({ ... });
-            const CJK_ID = '[\\w\\u4e00-\\u9fff\\u3400-\\u4dbf\\uF900-\\uFAFF\\u3040-\\u309F\\u30A0-\\u30FF\\uAC00-\\uD7AF]+';
-            const usesMatch = text.match(new RegExp(`this\\.(${CJK_ID})\\.uses\\s*\\(\\s*\\{([^}]+)\\}\\s*\\)`));
+            const usesMatch = text.match(TypeScriptParser.USES_PATTERN);
             if (!usesMatch) {
                 continue;
             }
@@ -318,7 +341,7 @@ export class TypeScriptParser {
                 }
             } else {
                 // Parse single reference: this.NodeName.output
-                const nodeMatch = value.match(/this\.([\w\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]+)\.output/);
+                const nodeMatch = value.match(TypeScriptParser.OUTPUT_REF_PATTERN);
                 if (nodeMatch) {
                     result[key] = nodeMatch[1];
                 }
@@ -372,7 +395,7 @@ export class TypeScriptParser {
         const items = content.split(',');
         
         for (const item of items) {
-            const nodeMatch = item.trim().match(/this\.([\w\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]+)\.output/);
+            const nodeMatch = item.trim().match(TypeScriptParser.OUTPUT_REF_PATTERN);
             if (nodeMatch) {
                 result.push(nodeMatch[1]);
             }
@@ -393,13 +416,8 @@ export class TypeScriptParser {
         const cleaned = statement.trim().replace(/;$/, '');
         
         // Pattern: this.{fromNode}.{output}.to(this.{toNode}.in({input}))
-        // Use [\w\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]+ to support CJK identifiers
-        const ID = '[\\w\\u4e00-\\u9fff\\u3400-\\u4dbf\\uF900-\\uFAFF\\u3040-\\u309F\\u30A0-\\u30FF\\uAC00-\\uD7AF]+';
-        const errorPattern = new RegExp(`this\\.(${ID})\\.error\\(\\)\\.to\\(this\\.(${ID})\\.in\\((\\d+)\\)\\)`);
-        const normalPattern = new RegExp(`this\\.(${ID})\\.out\\((\\d+)\\)\\.to\\(this\\.(${ID})\\.in\\((\\d+)\\)\\)`);
-        
         // Try error pattern first
-        let match = cleaned.match(errorPattern);
+        let match = cleaned.match(TypeScriptParser.ERROR_CONN_PATTERN);
         if (match) {
             return {
                 from: {
@@ -415,7 +433,8 @@ export class TypeScriptParser {
         }
         
         // Try normal pattern
-        match = cleaned.match(normalPattern);
+        // (using pre-compiled NORMAL_CONN_PATTERN)
+        match = cleaned.match(TypeScriptParser.NORMAL_CONN_PATTERN);
         if (match) {
             return {
                 from: {

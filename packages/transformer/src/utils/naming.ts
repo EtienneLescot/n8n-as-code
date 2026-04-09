@@ -10,6 +10,12 @@
 import { PropertyNameContext } from '../types.js';
 
 /**
+ * Regular expression matching CJK/Hangul/Kana scripts for preservation during transliteration.
+ * Uses Unicode script properties for broader coverage than explicit ranges.
+ */
+const CJK_SCRIPTS_REGEX = /\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Hangul}/u;
+
+/**
  * Create a property name context for tracking used names
  */
 export function createPropertyNameContext(): PropertyNameContext {
@@ -79,8 +85,8 @@ export function generatePropertyName(
  */
 function cleanDisplayName(displayName: string): string {
     return transliterate(displayName)
-        // Keep ASCII letters, digits, CJK ideographs, Hangul, Kana, and natural word separators
-        .replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF\s\-_]/g, ' ')
+        // Keep Unicode letters, digits, spaces, hyphens, underscores
+        .replace(/[^\p{Letter}\p{Number}\s\-_]/gu, ' ')
         // Normalize whitespace
         .replace(/\s+/g, ' ')
         .trim();
@@ -88,7 +94,7 @@ function cleanDisplayName(displayName: string): string {
 
 /**
  * Convert string to PascalCase
- * 
+ *
  * @example
  * "schedule trigger" → "ScheduleTrigger"
  * "HTTP Request" → "HttpRequest"
@@ -102,8 +108,8 @@ function toPascalCase(str: string): string {
         .map(word => {
             if (word.length === 0) return '';
 
-            // If the word is entirely CJK, return as-is (no case transformation)
-            if (/^[\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]+$/.test(word)) {
+            // If the word is entirely CJK scripts, return as-is (no case transformation)
+            if (CJK_SCRIPTS_REGEX.test(word) && !/[a-zA-Z0-9]/.test(word)) {
                 return word;
             }
 
@@ -133,11 +139,10 @@ function transliterate(str: string): string {
     // Guard against null/undefined (can happen when workflow JSON has missing node names)
     if (!str) return '';
     // Process char-by-char: only NFD-decompose non-CJK characters
-    // CJK/Hangul/Kana ranges are passed through untouched
-    const CJK_RE = /[\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]/;
+    // CJK/Hangul/Kana scripts are passed through untouched
     let result = '';
     for (const char of str) {
-        if (CJK_RE.test(char)) {
+        if (CJK_SCRIPTS_REGEX.test(char)) {
             result += char;
         } else {
             result += char.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -148,7 +153,7 @@ function transliterate(str: string): string {
 
 /**
  * Ensure string is a valid JavaScript identifier
- * 
+ *
  * - Must start with letter, $, or _
  * - Can contain letters, digits, $, _
  * - Cannot be a reserved word
@@ -156,7 +161,7 @@ function transliterate(str: string): string {
 function ensureValidIdentifier(name: string): string {
     // Transliterate accented characters before stripping (é→e, à→a, ü→u, …)
     // Preserve CJK ideographs, Hangul, and Kana as valid JS identifier characters
-    let cleaned = transliterate(name).replace(/[^a-zA-Z0-9_$\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF]/g, '');
+    let cleaned = transliterate(name).replace(/[^\p{Letter}\p{Number}_$]/gu, '');
 
     // If starts with number, prefix with underscore
     if (/^\d/.test(cleaned)) {
