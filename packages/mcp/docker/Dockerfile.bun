@@ -1,0 +1,87 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# n8n-as-code MCP Server – Bun image
+# Base image: https://hub.docker.com/r/oven/bun  (Bun Alpine)
+#
+# Build arguments (pass via --build-arg):
+#   MCP_VERSION    Version of @n8n-as-code/mcp to install  (default: 1.2.0)
+#   BUILD_DATE     ISO 8601 build timestamp, e.g. $(date -u +%Y-%m-%dT%H:%M:%SZ)
+#   VCS_REF        Git commit SHA, e.g. $(git rev-parse --short HEAD)
+# ─────────────────────────────────────────────────────────────────────────────
+ARG MCP_VERSION=1.2.0
+ARG BUILD_DATE
+ARG VCS_REF
+
+FROM oven/bun:alpine
+
+# Re-declare ARGs after FROM so they are available in RUN instructions
+# (ARGs defined before FROM are scoped to the FROM line only).
+ARG MCP_VERSION
+ARG BUILD_DATE
+ARG VCS_REF
+
+LABEL org.opencontainers.image.title="n8n-as-code MCP Server (Bun)" \
+      org.opencontainers.image.description="Dedicated MCP server for n8n-as-code — exposes n8n workflow tools to AI agents. Powered by Bun." \
+      org.opencontainers.image.source="https://github.com/EtienneLescot/n8n-as-code" \
+      org.opencontainers.image.url="https://github.com/EtienneLescot/n8n-as-code" \
+      org.opencontainers.image.documentation="https://n8nascode.dev" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${MCP_VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.authors="EtienneLescot"
+
+# ─── Environment variables ────────────────────────────────────────────────────
+# N8N_AS_CODE_PROJECT_DIR  Working directory for n8n workflow files (default: /data).
+#                          Mount your workflows here, e.g.:
+#                            docker run -v /host/workflows:/data ...
+ENV N8N_AS_CODE_PROJECT_DIR=/data
+
+# MCP_TRANSPORT  Transport protocol: stdio | http | sse  (default: stdio)
+ENV MCP_TRANSPORT=stdio
+
+# MCP_HOST / MCP_PORT  Bind address for http/sse transport.
+# Note: 0.0.0.0 is required in Docker so the port is reachable from outside the container.
+# The server defaults to 127.0.0.1 (loopback) which would not be accessible.
+ENV MCP_HOST=0.0.0.0
+ENV MCP_PORT=3000
+
+# ─── Port ─────────────────────────────────────────────────────────────────────
+# Documents the default port (3000). Docker does not support variable
+# substitution in EXPOSE, so this is a static hint only.
+# The actual port is controlled by MCP_PORT at runtime; override it with:
+#   docker run -p <host-port>:<MCP_PORT> -e MCP_PORT=<value> ...
+EXPOSE 3000
+
+# ─── Install packages ─────────────────────────────────────────────────────────
+# n8nac is declared as a dependency of @n8n-as-code/mcp and is installed
+# automatically. The MCP service spawns n8nac via process.execPath (bun).
+# Cache is cleared in the same layer to keep the image small.
+WORKDIR /app
+
+RUN bun add @n8n-as-code/mcp@${MCP_VERSION} \
+    && rm -rf /root/.bun/install/cache
+
+# ─── Entrypoint ───────────────────────────────────────────────────────────────
+# Copy and chmod while still root, before dropping privileges.
+COPY entrypoint.bun.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh \
+    && mkdir -p /data \
+    && chown bun:bun /data
+
+# ─── Drop root privileges ─────────────────────────────────────────────────────
+# The built-in 'bun' user (UID 1000) has read access to /app and
+# write access to /data.
+USER bun
+
+# ─── Data volume ──────────────────────────────────────────────────────────────
+VOLUME ["/data"]
+
+# ─── Health check ─────────────────────────────────────────────────────────────
+# For stdio transport there is no port to probe — the process health is
+# monitored by the container runtime directly.
+# For http/sse transport a TCP connection to MCP_PORT is checked.
+# nc (netcat) is provided by BusyBox on Alpine.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD sh -c 'case "${MCP_TRANSPORT:-stdio}" in stdio) exit 0 ;; *) nc -z localhost "${MCP_PORT:-3000}" ;; esac'
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
