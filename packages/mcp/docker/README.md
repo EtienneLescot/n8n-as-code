@@ -240,7 +240,7 @@ The MCP server is a thin protocol layer. All tool calls (`search_n8n_knowledge`,
 MCP Client → MCP Server (@n8n-as-code/mcp) → n8nac CLI → bundled knowledge index
 ```
 
-Both `@n8n-as-code/mcp` and `n8nac` are installed at pinned versions to ensure reproducible images. `n8nac` is a declared `dependency` of `@n8n-as-code/mcp` and is therefore always co-installed automatically.
+Docker images are published for specific `@n8n-as-code/mcp` release tags. `n8nac` is a declared `dependency` of `@n8n-as-code/mcp` and is therefore co-installed automatically in the image.
 
 ---
 
