@@ -1,5 +1,16 @@
 # @n8n-as-code/cli
 
+## [1.6.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.6.1...n8nac@v1.6.2) (2026-04-10)
+
+### Bug Fixes
+
+* **types:** add webhookId to NodeDecoratorOptions interface ([20e700c](https://github.com/EtienneLescot/n8n-as-code/commit/20e700cb9bc3ebcfee8a01c3f943c16e3daa3b79))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.8.1 to 1.8.2
+
 ## [1.6.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.6.0...n8nac@v1.6.1) (2026-04-09)
 
 ### Dependencies
