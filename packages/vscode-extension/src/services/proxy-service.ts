@@ -375,7 +375,11 @@ export class ProxyService {
                             clearPing();
                             this.log(`[Proxy] WS Connection Closed (Upstream): ${code}${reason.length > 0 ? ` ${reason.toString()}` : ''}`);
                             if (clientWs.readyState === WebSocket.OPEN) {
-                                clientWs.close(code, reason);
+                                if (ProxyService.isSendableCloseCode(code)) {
+                                    clientWs.close(code, reason);
+                                } else {
+                                    clientWs.close();
+                                }
                             } else {
                                 clientWs.terminate();
                             }
@@ -384,7 +388,11 @@ export class ProxyService {
                         clientWs.on('close', (code, reason) => {
                             clearPing();
                             if (upstreamWs.readyState === WebSocket.OPEN || upstreamWs.readyState === WebSocket.CONNECTING) {
-                                upstreamWs.close(code, reason);
+                                if (ProxyService.isSendableCloseCode(code)) {
+                                    upstreamWs.close(code, reason);
+                                } else {
+                                    upstreamWs.close();
+                                }
                             }
                         });
 
@@ -411,6 +419,18 @@ export class ProxyService {
 
             this.server.on('error', reject);
         });
+    }
+
+    /** True if `code` is allowed in an outgoing Close frame (same rules as `ws` `isValidStatusCode`, RFC 6455). */
+    private static isSendableCloseCode(code: number): boolean {
+        return (
+            (code >= 1000 &&
+                code <= 1014 &&
+                code !== 1004 &&
+                code !== 1005 &&
+                code !== 1006) ||
+            (code >= 3000 && code <= 4999)
+        );
     }
 
     /**
