@@ -28,8 +28,8 @@ export class ProxyService {
 
     /**
      * Check whether a WebSocket close code is valid for sending in a close frame.
-     * Codes 1005, 1006, and 1015 are reserved and MUST NOT be set as a status
-     * code in a Close control frame (RFC 6455 §7.4.1).
+     * Codes 1004, 1005, 1006, and 1015 are reserved and MUST NOT be set as a
+     * status code in a Close control frame (RFC 6455 §7.4.1).
      */
     private isSendableCloseCode(code: number): boolean {
         if (code >= 3000 && code <= 4999) { return true; }
