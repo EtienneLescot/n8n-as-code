@@ -26,6 +26,18 @@ export class ProxyService {
         this.outputChannel = channel;
     }
 
+    /**
+     * Check whether a WebSocket close code is valid for sending in a close frame.
+     * Codes 1005, 1006, and 1015 are reserved and MUST NOT be set as a status
+     * code in a Close control frame (RFC 6455 §7.4.1).
+     */
+    private isSendableCloseCode(code: number): boolean {
+        if (code >= 3000 && code <= 4999) { return true; }
+        if (code >= 1000 && code <= 1003) { return true; }
+        if (code >= 1007 && code <= 1014) { return true; }
+        return false;
+    }
+
     private log(message: string) {
         if (this.outputChannel) {
             this.outputChannel.appendLine(message);
@@ -375,7 +387,11 @@ export class ProxyService {
                             clearPing();
                             this.log(`[Proxy] WS Connection Closed (Upstream): ${code}${reason.length > 0 ? ` ${reason.toString()}` : ''}`);
                             if (clientWs.readyState === WebSocket.OPEN) {
-                                clientWs.close(code, reason);
+                                if (this.isSendableCloseCode(code)) {
+                                    clientWs.close(code, reason);
+                                } else {
+                                    clientWs.close();
+                                }
                             } else {
                                 clientWs.terminate();
                             }
@@ -384,7 +400,11 @@ export class ProxyService {
                         clientWs.on('close', (code, reason) => {
                             clearPing();
                             if (upstreamWs.readyState === WebSocket.OPEN || upstreamWs.readyState === WebSocket.CONNECTING) {
-                                upstreamWs.close(code, reason);
+                                if (this.isSendableCloseCode(code)) {
+                                    upstreamWs.close(code, reason);
+                                } else {
+                                    upstreamWs.close();
+                                }
                             }
                         });
 
