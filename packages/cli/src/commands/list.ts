@@ -13,6 +13,8 @@ export interface ListCommandOptions {
     search?: string;
     sort?: WorkflowListSortMode;
     limit?: number;
+    includeArchived?: boolean;
+    onlyArchived?: boolean;
 }
 
 export function matchesWorkflowSearch(workflow: IWorkflowStatus, query?: string): boolean {
@@ -89,7 +91,11 @@ export class ListCommand extends BaseCommand {
 
             // Get lightweight workflow list: no hash computation, no TypeScript compilation.
             // Fetches fresh remote metadata on each call for an up-to-date view.
-            const allWorkflows = await syncManager.listWorkflows({ fetchRemote: true });
+            const allWorkflows = await syncManager.listWorkflows({ 
+                fetchRemote: true,
+                includeArchived: options?.includeArchived,
+                onlyArchived: options?.onlyArchived
+            });
             const workflows = applyListCommandOptions(allWorkflows, options);
             // When no limit is applied, `workflows` already reflects the full filtered/sorted result set,
             // so its length is the number of matches without doing an extra pass.

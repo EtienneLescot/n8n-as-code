@@ -249,6 +249,8 @@ program.command('list')
     .option('--search <query>', 'Filter by workflow name, ID, or local filename (case-insensitive partial match)')
     .option('--sort <mode>', 'Sort by "status" (default) or "name"', 'status')
     .option('--limit <number>', 'Limit the number of returned workflows', (value) => parsePositiveIntegerOption(value, '--limit'))
+    .option('--include-archived', 'Include archived workflows in the output')
+    .option('--only-archived', 'Show only archived workflows')
     .option('--json', 'Output full JSON instead of a table')
     .addOption(new Option('--raw').hideHelp())
     .action(async (options) => {
@@ -264,7 +266,9 @@ program.command('list')
             raw: options.json || options.raw,
             search: options.search,
             sort: options.sort,
-            limit: options.limit
+            limit: options.limit,
+            includeArchived: options.includeArchived,
+            onlyArchived: options.onlyArchived
         });
     });
 
@@ -276,6 +280,8 @@ program.command('find')
     .option('--distant', 'Alias for --remote')
     .option('--sort <mode>', 'Sort by "status" or "name"', 'name')
     .option('--limit <number>', 'Limit the number of returned workflows', (value) => parsePositiveIntegerOption(value, '--limit'))
+    .option('--include-archived', 'Include archived workflows in the output')
+    .option('--only-archived', 'Show only archived workflows')
     .option('--json', 'Output full JSON instead of a table')
     .addOption(new Option('--raw').hideHelp())
     .action(async (query, options) => {
@@ -290,7 +296,9 @@ program.command('find')
             raw: options.json || options.raw,
             search: query,
             sort: options.sort,
-            limit: options.limit
+            limit: options.limit,
+            includeArchived: options.includeArchived,
+            onlyArchived: options.onlyArchived
         });
     });
 
