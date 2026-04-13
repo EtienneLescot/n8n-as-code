@@ -100,7 +100,7 @@ export class SyncManager extends EventEmitter {
      * Optionally refreshes remote state from the API before listing (default: false
      * to keep it fast). Pass `{ fetchRemote: true }` to force a fresh remote fetch.
      */
-    async listWorkflows(options?: { fetchRemote?: boolean }): Promise<IWorkflowStatus[]> {
+    async listWorkflows(options?: { fetchRemote?: boolean; includeArchived?: boolean; onlyArchived?: boolean }): Promise<IWorkflowStatus[]> {
         await this.ensureInitialized();
         // Always scan local files so that idToFileMap is rebuilt from the @workflow({ id })
         // decorator in each file. This correctly handles renames (the new filename is found
@@ -109,7 +109,10 @@ export class SyncManager extends EventEmitter {
         if (options?.fetchRemote) {
             await this.watcher!.refreshRemoteState();
         }
-        return await this.watcher!.getLightweightList();
+        return await this.watcher!.getLightweightList({
+            includeArchived: options?.includeArchived,
+            onlyArchived: options?.onlyArchived
+        });
     }
 
     /**
