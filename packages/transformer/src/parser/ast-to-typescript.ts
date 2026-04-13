@@ -239,6 +239,18 @@ export class AstToTypeScriptGenerator {
         parts.push(`name: ${JSON.stringify(metadata.name)}`);
         parts.push(`active: ${metadata.active}`);
 
+        if (metadata.isArchived !== undefined) {
+            parts.push(`isArchived: ${metadata.isArchived}`);
+        }
+        if (metadata.projectId) {
+            parts.push(`projectId: ${JSON.stringify(metadata.projectId)}`);
+        }
+        if (metadata.projectName) {
+            parts.push(`projectName: ${JSON.stringify(metadata.projectName)}`);
+        }
+        if (metadata.homeProject) {
+            parts.push(`homeProject: ${JSON.stringify(metadata.homeProject)}`);
+        }
         if (metadata.tags && metadata.tags.length > 0) {
             parts.push(`tags: ${JSON.stringify(metadata.tags)}`);
         }

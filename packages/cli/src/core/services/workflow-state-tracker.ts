@@ -67,6 +67,10 @@ export class WorkflowStateTracker extends EventEmitter {
     private remoteTimestamps: Map<string, string> = new Map(); // workflowId -> updatedAt
     /** Canonical display name for each remote workflow (id is the unique key, NOT the name). */
     private remoteNames: Map<string, string> = new Map(); // workflowId -> name
+    /** Remote active flag per workflow (populated by refreshRemoteState / updateSingleRemoteState). */
+    private remoteActive: Map<string, boolean> = new Map(); // workflowId -> active
+    /** Remote archived flag per workflow (populated by refreshRemoteState / updateSingleRemoteState). */
+    private remoteArchived: Map<string, boolean> = new Map(); // workflowId -> isArchived
 
     constructor(
         client: N8nApiClient,
@@ -257,6 +261,8 @@ export class WorkflowStateTracker extends EventEmitter {
             // Update remoteIds and names (ID is the unique key; name is for display only)
             this.remoteIds.clear();
             this.remoteNames.clear();
+            this.remoteActive.clear();
+            this.remoteArchived.clear();
 
             // Build set of already-assigned filenames to prevent collisions
             const assignedFilenames = new Set<string>();
@@ -267,6 +273,9 @@ export class WorkflowStateTracker extends EventEmitter {
                 this.remoteIds.add(wf.id);
                 // Store canonical name keyed by ID (names are NOT unique in n8n)
                 if (wf.name) this.remoteNames.set(wf.id, wf.name);
+                // Store active and archived flags from API
+                this.remoteActive.set(wf.id, wf.active === true);
+                this.remoteArchived.set(wf.id, wf.isArchived === true);
 
                 // CRITICAL: Use ID-based mapping with PERSISTED state as source of truth
                 let filename: string | undefined = this.idToFileMap.get(wf.id);
@@ -450,6 +459,8 @@ export class WorkflowStateTracker extends EventEmitter {
         this.remoteHashes.delete(id);
         this.remoteTimestamps.delete(id);
         this.remoteNames.delete(id);
+        this.remoteActive.delete(id);
+        this.remoteArchived.delete(id);
         this.remoteIds.delete(id);
     }
 
@@ -749,7 +760,10 @@ export class WorkflowStateTracker extends EventEmitter {
      * Lightweight list of workflows with basic status (local only, remote only, both)
      * Does NOT compute hashes, compile TypeScript, or determine detailed status (CONFLICT)
      */
-    public async getLightweightList(): Promise<IWorkflowStatus[]> {
+    public async getLightweightList(options?: {
+        includeArchived?: boolean;
+        onlyArchived?: boolean;
+    }): Promise<IWorkflowStatus[]> {
         const results: Map<string, IWorkflowStatus> = new Map();
         const state = this.loadState();
 
@@ -776,6 +790,14 @@ export class WorkflowStateTracker extends EventEmitter {
                 status = WorkflowSyncStatus.EXIST_ONLY_LOCALLY; // New or not yet pushed
             }
 
+            // Read active and archived flags from remote cache; fallback to false for truly local
+            const isArchived = workflowId ? (this.remoteArchived.get(workflowId) ?? false) : false;
+            const active = workflowId ? (this.remoteActive.get(workflowId) ?? false) : false;
+
+            // Apply archive filter
+            if (options?.onlyArchived && !isArchived) continue;
+            if (!options?.includeArchived && !options?.onlyArchived && isArchived) continue;
+
             // Prefer the remote canonical name (keyed by ID, not by name since names are non-unique).
             // For local-only files, extract the name from the @workflow decorator for an accurate display.
             // Fall back to filename-derived name as last resort.
@@ -788,11 +810,11 @@ export class WorkflowStateTracker extends EventEmitter {
                 name: workflowName,
                 filename: filename,
                 status: status,
-                active: true, // Default
+                active,
                 projectId: undefined, // Not available in lightweight mode
                 projectName: undefined, // Not available in lightweight mode
                 homeProject: undefined, // Not available in lightweight mode
-                isArchived: false // Default
+                isArchived
             });
         }
 
@@ -805,20 +827,26 @@ export class WorkflowStateTracker extends EventEmitter {
                 || `${workflowId}.workflow.ts`;
 
             if (!results.has(filename)) {
+                // Apply archive filter
+                const isArchived = this.remoteArchived.get(workflowId) ?? false;
+                if (options?.onlyArchived && !isArchived) continue;
+                if (!options?.includeArchived && !options?.onlyArchived && isArchived) continue;
+
                 // Prefer the actual remote name (stored by ID to avoid name-collision issues)
                 // Fallback to filename-derived name only if remote name is not available
                 const workflowName = this.remoteNames.get(workflowId) || filename.replace('.workflow.ts', '');
+                const active = this.remoteActive.get(workflowId) ?? false;
 
                 results.set(filename, {
                     id: workflowId,
                     name: workflowName,
                     filename: filename,
                     status: WorkflowSyncStatus.EXIST_ONLY_REMOTELY, // Remote only
-                    active: true, // Default
+                    active,
                     projectId: undefined, // Not available in lightweight mode
                     projectName: undefined, // Not available in lightweight mode
                     homeProject: undefined, // Not available in lightweight mode
-                    isArchived: false // Default
+                    isArchived
                 });
             }
         }
@@ -1089,6 +1117,9 @@ export class WorkflowStateTracker extends EventEmitter {
             }
             // Mark as known on remote
             this.remoteIds.add(remoteWf.id);
+            // Store active and archived flags
+            this.remoteActive.set(remoteWf.id, remoteWf.active === true);
+            this.remoteArchived.set(remoteWf.id, remoteWf.isArchived === true);
 
             // Establish mapping if it doesn't exist yet (allows 'pull' after single 'fetch')
             if (!this.idToFileMap.has(remoteWf.id)) {
