@@ -589,7 +589,9 @@ export class WorkflowStateTracker extends EventEmitter {
     }
 
     private shouldIgnore(wf: IWorkflow): boolean {
-        if (!this.syncInactive && !wf.active) return true;
+        // Archived workflows are always discovered (populated in remote* caches) even when syncInactive is false.
+        // They are filtered later by getLightweightList / listWorkflows based on includeArchived/onlyArchived flags.
+        if (!this.syncInactive && !wf.active && !wf.isArchived) return true;
         if (wf.tags) {
             const hasIgnoredTag = wf.tags.some(t => this.ignoredTags.includes(t.name.toLowerCase()));
             if (hasIgnoredTag) return true;
@@ -757,6 +759,19 @@ export class WorkflowStateTracker extends EventEmitter {
     }
 
     /**
+     * Returns true if a workflow should be excluded from the lightweight list
+     * based on its archived status and the filter options.
+     */
+    private shouldSkipArchived(
+        isArchived: boolean,
+        options?: { includeArchived?: boolean; onlyArchived?: boolean },
+    ): boolean {
+        if (options?.onlyArchived && !isArchived) return true;
+        if (!options?.includeArchived && !options?.onlyArchived && isArchived) return true;
+        return false;
+    }
+
+    /**
      * Lightweight list of workflows with basic status (local only, remote only, both)
      * Does NOT compute hashes, compile TypeScript, or determine detailed status (CONFLICT)
      */
@@ -795,8 +810,7 @@ export class WorkflowStateTracker extends EventEmitter {
             const active = workflowId ? (this.remoteActive.get(workflowId) ?? false) : false;
 
             // Apply archive filter
-            if (options?.onlyArchived && !isArchived) continue;
-            if (!options?.includeArchived && !options?.onlyArchived && isArchived) continue;
+            if (this.shouldSkipArchived(isArchived, options)) continue;
 
             // Prefer the remote canonical name (keyed by ID, not by name since names are non-unique).
             // For local-only files, extract the name from the @workflow decorator for an accurate display.
@@ -829,8 +843,7 @@ export class WorkflowStateTracker extends EventEmitter {
             if (!results.has(filename)) {
                 // Apply archive filter
                 const isArchived = this.remoteArchived.get(workflowId) ?? false;
-                if (options?.onlyArchived && !isArchived) continue;
-                if (!options?.includeArchived && !options?.onlyArchived && isArchived) continue;
+                if (this.shouldSkipArchived(isArchived, options)) continue;
 
                 // Prefer the actual remote name (stored by ID to avoid name-collision issues)
                 // Fallback to filename-derived name only if remote name is not available
