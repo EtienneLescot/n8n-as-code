@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-11T03:56:56.266Z",
+  "generatedAt": "2026-04-14T04:11:27.214Z",
   "version": "1.0.0",
   "sourceUrl": "https://docs.n8n.io/llms.txt",
   "totalPages": 1262,
@@ -66773,78 +66773,6 @@
     },
     {
       "id": "page-0868",
-      "title": "Mattermost credentials",
-      "url": "https://docs.n8n.io/integrations/builtin/credentials/mattermost/index.md",
-      "urlPath": "integrations/builtin/credentials/mattermost/index.md",
-      "category": "other",
-      "subcategory": null,
-      "nodeName": null,
-      "nodeType": null,
-      "content": {
-        "markdown": "# Mattermost credentials\n\nYou can use these credentials to authenticate the following nodes:\n\n- [Mattermost](../../app-nodes/n8n-nodes-base.mattermost/)\n\n## Supported authentication methods\n\n- API access token\n\n## Related resources\n\nRefer to [Mattermost's API documentation](https://api.mattermost.com/) for more information about the service.\n\n## Using API access token\n\nTo configure this credential, you'll need a [Mattermost](https://www.mattermost.com/) account and:\n\n- A personal **Access Token**\n- Your Mattermost **Base URL**.\n\nTo set it up:\n\n1. In Mattermost, go to **Profile > Security > Personal Access Tokens**.\n\n   No Personal Access Tokens option\n\n   If you don't see the Personal Access Tokens option, refer to the troubleshooting steps in [Enable personal access tokens](#enable-personal-access-tokens) below.\n\n1. Select **Create Token**.\n\n1. Enter a **Token description**, like `n8n integration`.\n\n1. Select **Save**.\n\n1. Copy the **Token ID** and enter it as the **Access Token** in your n8n credential.\n\n1. Enter your Mattermost URL as the **Base URL**.\n\n1. By default, n8n connects only if SSL certificate validation succeeds. To connect even if SSL certificate validation fails, turn on **Ignore SSL Issues**.\n\nRefer to the Mattermost [Personal access tokens documentation](https://developers.mattermost.com/integrate/reference/personal-access-token/) for more information.\n\n## Enable personal access tokens\n\nNot seeing the **Personal Access Tokens** option has two possible causes:\n\n- Mattermost doesn't have the personal access tokens integration enabled.\n- You're trying to generate a personal access token as a non-admin user who doesn't have permission to generate personal access tokens.\n\nTo identify the root cause and resolve it:\n\n1. Log in to Mattermost as an admin.\n1. Go to **System Console > Integrations > Integration Management**.\n1. Confirm that **Enable personal access tokens** is set to **true**. If it's not, change.\n1. Go to **System Console > User Management > Users**.\n1. Search for the user account you want to allow to generate personal access tokens.\n1. Select the **Actions** dropdown for the user and select **Manage roles**.\n1. Check the box for **Allow this account to generate personal access tokens** and **Save**.\n\nRefer to the Mattermost [Personal access tokens documentation](https://developers.mattermost.com/integrate/reference/personal-access-token/) for more information.\n",
-        "excerpt": "# Mattermost credentials  You can use these credentials to authenticate the following nodes:  - [Mattermost](../../app-nodes/n8n-nodes-base.mattermost/)  ## Supported authentication methods  - API access token  ## Related resources  Refer to [Mattermost's API documentation](https://api.mattermost.com/) for more information about the service.  ## Using API access token  To configure this credential, you'll need a [Mattermost](https://www.mattermost.com/) account and:  - A personal **Access Token*...",
-        "sections": [
-          {
-            "title": "Mattermost credentials",
-            "level": 1,
-            "content": "You can use these credentials to authenticate the following nodes:\n\n- [Mattermost](../../app-nodes/n8n-nodes-base.mattermost/)"
-          }
-        ]
-      },
-      "metadata": {
-        "keywords": [
-          "mattermost",
-          "credentials",
-          "supported",
-          "authentication",
-          "methods",
-          "related",
-          "resources",
-          "using",
-          "access",
-          "token",
-          "enable",
-          "personal",
-          "tokens"
-        ],
-        "useCases": [],
-        "operations": [],
-        "codeExamples": 0,
-        "complexity": "beginner",
-        "readingTime": "2 min",
-        "contentLength": 2430,
-        "relatedPages": []
-      },
-      "searchIndex": {
-        "fullText": "mattermost credentials # mattermost credentials\n\nyou can use these credentials to authenticate the following nodes:\n\n- [mattermost](../../app-nodes/n8n-nodes-base.mattermost/)\n\n## supported authentication methods\n\n- api access token\n\n## related resources\n\nrefer to [mattermost's api documentation](https://api.mattermost.com/) for more information about the service.\n\n## using api access token\n\nto configure this credential, you'll need a [mattermost](https://www.mattermost.com/) account and:\n\n- a personal **access token**\n- your mattermost **base url**.\n\nto set it up:\n\n1. in mattermost, go to **profile > security > personal access tokens**.\n\n   no personal access tokens option\n\n   if you don't see the personal access tokens option, refer to the troubleshooting steps in [enable personal access tokens](#enable-personal-access-tokens) below.\n\n1. select **create token**.\n\n1. enter a **token description**, like `n8n integration`.\n\n1. select **save**.\n\n1. copy the **token id** and enter it as the **access token** in your n8n credential.\n\n1. enter your mattermost url as the **base url**.\n\n1. by default, n8n connects only if ssl certificate validation succeeds. to connect even if ssl certificate validation fails, turn on **ignore ssl issues**.\n\nrefer to the mattermost [personal access tokens documentation](https://developers.mattermost.com/integrate/reference/personal-access-token/) for more information.\n\n## enable personal access tokens\n\nnot seeing the **personal access tokens** option has two possible causes:\n\n- mattermost doesn't have the personal access tokens integration enabled.\n- you're trying to generate a personal access token as a non-admin user who doesn't have permission to generate personal access tokens.\n\nto identify the root cause and resolve it:\n\n1. log in to mattermost as an admin.\n1. go to **system console > integrations > integration management**.\n1. confirm that **enable personal access tokens** is set to **true**. if it's not, change.\n1. go to **system console > user management > users**.\n1. search for the user account you want to allow to generate personal access tokens.\n1. select the **actions** dropdown for the user and select **manage roles**.\n1. check the box for **allow this account to generate personal access tokens** and **save**.\n\nrefer to the mattermost [personal access tokens documentation](https://developers.mattermost.com/integrate/reference/personal-access-token/) for more information.\n mattermost credentials",
-        "importantTerms": [
-          "access",
-          "mattermost",
-          "personal",
-          "tokens",
-          "token",
-          "credentials",
-          "refer",
-          "https",
-          "enable",
-          "select",
-          "generate",
-          "user",
-          "nodes",
-          "base",
-          "documentation",
-          "more",
-          "information",
-          "account",
-          "your",
-          "option",
-          "enter",
-          "integration"
-        ]
-      }
-    },
-    {
-      "id": "page-0869",
       "title": "Mautic credentials",
       "url": "https://docs.n8n.io/integrations/builtin/credentials/mautic/index.md",
       "urlPath": "integrations/builtin/credentials/mautic/index.md",
@@ -66915,6 +66843,78 @@
           "option",
           "copy",
           "what"
+        ]
+      }
+    },
+    {
+      "id": "page-0869",
+      "title": "Mattermost credentials",
+      "url": "https://docs.n8n.io/integrations/builtin/credentials/mattermost/index.md",
+      "urlPath": "integrations/builtin/credentials/mattermost/index.md",
+      "category": "other",
+      "subcategory": null,
+      "nodeName": null,
+      "nodeType": null,
+      "content": {
+        "markdown": "# Mattermost credentials\n\nYou can use these credentials to authenticate the following nodes:\n\n- [Mattermost](../../app-nodes/n8n-nodes-base.mattermost/)\n\n## Supported authentication methods\n\n- API access token\n\n## Related resources\n\nRefer to [Mattermost's API documentation](https://api.mattermost.com/) for more information about the service.\n\n## Using API access token\n\nTo configure this credential, you'll need a [Mattermost](https://www.mattermost.com/) account and:\n\n- A personal **Access Token**\n- Your Mattermost **Base URL**.\n\nTo set it up:\n\n1. In Mattermost, go to **Profile > Security > Personal Access Tokens**.\n\n   No Personal Access Tokens option\n\n   If you don't see the Personal Access Tokens option, refer to the troubleshooting steps in [Enable personal access tokens](#enable-personal-access-tokens) below.\n\n1. Select **Create Token**.\n\n1. Enter a **Token description**, like `n8n integration`.\n\n1. Select **Save**.\n\n1. Copy the **Token ID** and enter it as the **Access Token** in your n8n credential.\n\n1. Enter your Mattermost URL as the **Base URL**.\n\n1. By default, n8n connects only if SSL certificate validation succeeds. To connect even if SSL certificate validation fails, turn on **Ignore SSL Issues**.\n\nRefer to the Mattermost [Personal access tokens documentation](https://developers.mattermost.com/integrate/reference/personal-access-token/) for more information.\n\n## Enable personal access tokens\n\nNot seeing the **Personal Access Tokens** option has two possible causes:\n\n- Mattermost doesn't have the personal access tokens integration enabled.\n- You're trying to generate a personal access token as a non-admin user who doesn't have permission to generate personal access tokens.\n\nTo identify the root cause and resolve it:\n\n1. Log in to Mattermost as an admin.\n1. Go to **System Console > Integrations > Integration Management**.\n1. Confirm that **Enable personal access tokens** is set to **true**. If it's not, change.\n1. Go to **System Console > User Management > Users**.\n1. Search for the user account you want to allow to generate personal access tokens.\n1. Select the **Actions** dropdown for the user and select **Manage roles**.\n1. Check the box for **Allow this account to generate personal access tokens** and **Save**.\n\nRefer to the Mattermost [Personal access tokens documentation](https://developers.mattermost.com/integrate/reference/personal-access-token/) for more information.\n",
+        "excerpt": "# Mattermost credentials  You can use these credentials to authenticate the following nodes:  - [Mattermost](../../app-nodes/n8n-nodes-base.mattermost/)  ## Supported authentication methods  - API access token  ## Related resources  Refer to [Mattermost's API documentation](https://api.mattermost.com/) for more information about the service.  ## Using API access token  To configure this credential, you'll need a [Mattermost](https://www.mattermost.com/) account and:  - A personal **Access Token*...",
+        "sections": [
+          {
+            "title": "Mattermost credentials",
+            "level": 1,
+            "content": "You can use these credentials to authenticate the following nodes:\n\n- [Mattermost](../../app-nodes/n8n-nodes-base.mattermost/)"
+          }
+        ]
+      },
+      "metadata": {
+        "keywords": [
+          "mattermost",
+          "credentials",
+          "supported",
+          "authentication",
+          "methods",
+          "related",
+          "resources",
+          "using",
+          "access",
+          "token",
+          "enable",
+          "personal",
+          "tokens"
+        ],
+        "useCases": [],
+        "operations": [],
+        "codeExamples": 0,
+        "complexity": "beginner",
+        "readingTime": "2 min",
+        "contentLength": 2430,
+        "relatedPages": []
+      },
+      "searchIndex": {
+        "fullText": "mattermost credentials # mattermost credentials\n\nyou can use these credentials to authenticate the following nodes:\n\n- [mattermost](../../app-nodes/n8n-nodes-base.mattermost/)\n\n## supported authentication methods\n\n- api access token\n\n## related resources\n\nrefer to [mattermost's api documentation](https://api.mattermost.com/) for more information about the service.\n\n## using api access token\n\nto configure this credential, you'll need a [mattermost](https://www.mattermost.com/) account and:\n\n- a personal **access token**\n- your mattermost **base url**.\n\nto set it up:\n\n1. in mattermost, go to **profile > security > personal access tokens**.\n\n   no personal access tokens option\n\n   if you don't see the personal access tokens option, refer to the troubleshooting steps in [enable personal access tokens](#enable-personal-access-tokens) below.\n\n1. select **create token**.\n\n1. enter a **token description**, like `n8n integration`.\n\n1. select **save**.\n\n1. copy the **token id** and enter it as the **access token** in your n8n credential.\n\n1. enter your mattermost url as the **base url**.\n\n1. by default, n8n connects only if ssl certificate validation succeeds. to connect even if ssl certificate validation fails, turn on **ignore ssl issues**.\n\nrefer to the mattermost [personal access tokens documentation](https://developers.mattermost.com/integrate/reference/personal-access-token/) for more information.\n\n## enable personal access tokens\n\nnot seeing the **personal access tokens** option has two possible causes:\n\n- mattermost doesn't have the personal access tokens integration enabled.\n- you're trying to generate a personal access token as a non-admin user who doesn't have permission to generate personal access tokens.\n\nto identify the root cause and resolve it:\n\n1. log in to mattermost as an admin.\n1. go to **system console > integrations > integration management**.\n1. confirm that **enable personal access tokens** is set to **true**. if it's not, change.\n1. go to **system console > user management > users**.\n1. search for the user account you want to allow to generate personal access tokens.\n1. select the **actions** dropdown for the user and select **manage roles**.\n1. check the box for **allow this account to generate personal access tokens** and **save**.\n\nrefer to the mattermost [personal access tokens documentation](https://developers.mattermost.com/integrate/reference/personal-access-token/) for more information.\n mattermost credentials",
+        "importantTerms": [
+          "access",
+          "mattermost",
+          "personal",
+          "tokens",
+          "token",
+          "credentials",
+          "refer",
+          "https",
+          "enable",
+          "select",
+          "generate",
+          "user",
+          "nodes",
+          "base",
+          "documentation",
+          "more",
+          "information",
+          "account",
+          "your",
+          "option",
+          "enter",
+          "integration"
         ]
       }
     },
@@ -75957,8 +75957,8 @@
       "nodeName": null,
       "nodeType": null,
       "content": {
-        "markdown": "# WordPress credentials\n\nYou can use these credentials to authenticate the following nodes:\n\n- [WordPress](../../app-nodes/n8n-nodes-base.wordpress/)\n\n## Prerequisites\n\n- Create a [WordPress](https://wordpress.com/) account or deploy WordPress on a server.\n\n## Supported authentication methods\n\n- Basic auth\n\n## Related resources\n\nRefer to [WordPress's API documentation](https://developer.wordpress.com/docs/api/) for more information about the service.\n\n## Using basic auth\n\nTo configure this credential, you'll need:\n\n- Your WordPress **Username**\n- A WordPress application **Password**\n- Your **WordPress URL**\n- Decide whether to **Ignore SSL Issues**\n\nUsing this credential involves three steps:\n\n1. [Enable two-step authentication](#enable-two-step-authentication).\n1. [Create an application password](#create-an-application-password).\n1. [Set up the credential](#set-up-the-credential).\n\nRefer to the detailed instructions below for each step.\n\n### Enable two-step authentication\n\nTo generate an application password, you must first enable Two-Step Authentication in WordPress. If you've already done this, [skip to the next section](#create-an-application-password).\n\n1. Open your WordPress [profile](https://wordpress.com/me).\n1. Select **Security** from the left menu.\n1. Select **Two-Step Authentication**. The **Two-Step Authentication** page opens.\n1. If Two-Step Authentication isn't enabled, you must enable it.\n1. Choose whether to enable it using an authenticator app or SMS codes and follow the on-screen instructions.\n\nRefer to WordPress's [Enable Two-Step Authentication](https://wordpress.com/support/security/two-step-authentication/) for detailed instructions.\n\n### Create an application password\n\nWith Two-Step Authentication enabled, you can now generate an application password:\n\n1. From the WordPress **Security >** [**Two-Step Authentication**](https://wordpress.com/me/security/two-step) page, select **+ Add new application password** in the **Application passwords** section.\n1. Enter an **Application name**, like `n8n integration`.\n1. Select **Generate Password**.\n1. Copy the password it generates. You'll use this in your n8n credential.\n\n### Set up the credential\n\nCongratulations! You're now ready to set up your n8n credential:\n\n1. Enter your WordPress **Username** in your n8n credential.\n1. Enter the application password you copied above as the **Password** in your n8n credential.\n1. Enter the URL of your WordPress site as the **WordPress URL**.\n1. Optional: Use the **Ignore SSL Issues** to choose whether you want the n8n credential to connect even if SSL certificate validation fails (turned on) or whether to respect SSL certificate validation (turned off).\n",
-        "excerpt": "# WordPress credentials  You can use these credentials to authenticate the following nodes:  - [WordPress](../../app-nodes/n8n-nodes-base.wordpress/)  ## Prerequisites  - Create a [WordPress](https://wordpress.com/) account or deploy WordPress on a server.  ## Supported authentication methods  - Basic auth  ## Related resources  Refer to [WordPress's API documentation](https://developer.wordpress.com/docs/api/) for more information about the service.  ## Using basic auth  To configure this crede...",
+        "markdown": "# WordPress credentials\n\nYou can use these credentials to authenticate the following nodes:\n\n- [WordPress](../../app-nodes/n8n-nodes-base.wordpress/)\n\n## Prerequisites\n\n- **Basic auth**: Create a [WordPress](https://wordpress.com/) account or deploy WordPress on a server.\n- **OAuth2**: Create a [WordPress.com](https://wordpress.com/) account with access to the [developer portal](https://developer.wordpress.com/apps/).\n\n## Supported authentication methods\n\n- Basic auth\n- OAuth2\n\n## Related resources\n\nRefer to [WordPress's API documentation](https://developer.wordpress.com/docs/api/) for more information about the service.\n\n## Using basic auth\n\nTo configure this credential, you'll need:\n\n- Your WordPress **Username**\n- A WordPress application **Password**\n- Your **WordPress URL**\n- Decide whether to **Ignore SSL Issues**\n\nUsing this credential involves three steps:\n\n1. [Enable two-step authentication](#enable-two-step-authentication).\n1. [Create an application password](#create-an-application-password).\n1. [Set up the credential](#set-up-the-credential).\n\nRefer to the detailed instructions below for each step.\n\n### Enable two-step authentication\n\nTo generate an application password, you must first enable Two-Step Authentication in WordPress. If you've already done this, [skip to the next section](#create-an-application-password).\n\n1. Open your WordPress [profile](https://wordpress.com/me).\n1. Select **Security** from the left menu.\n1. Select **Two-Step Authentication**. The **Two-Step Authentication** page opens.\n1. If Two-Step Authentication isn't enabled, you must enable it.\n1. Choose whether to enable it using an authenticator app or SMS codes and follow the on-screen instructions.\n\nRefer to WordPress's [Enable Two-Step Authentication](https://wordpress.com/support/security/two-step-authentication/) for detailed instructions.\n\n### Create an application password\n\nWith Two-Step Authentication enabled, you can now generate an application password:\n\n1. From the WordPress **Security >** [**Two-Step Authentication**](https://wordpress.com/me/security/two-step) page, select **+ Add new application password** in the **Application passwords** section.\n1. Enter an **Application name**, like `n8n integration`.\n1. Select **Generate Password**.\n1. Copy the password it generates. You'll use this in your n8n credential.\n\n### Set up the credential\n\n1. Enter your WordPress **Username** in your n8n credential.\n1. Enter the application password you copied above as the **Password** in your n8n credential.\n1. Enter the URL of your WordPress site as the **WordPress URL**.\n1. Optional: Use **Ignore SSL Issues** to choose whether you want the n8n credential to connect even if SSL certificate validation fails (turned on) or whether to respect SSL certificate validation (turned off).\n\n## Using OAuth2\n\nWordPress.com only\n\nOAuth2 authentication works with WordPress.com-hosted sites only. For self-hosted WordPress, use basic auth instead.\n\nTo configure this credential, you'll need:\n\n- A **Client ID**: Generated when you create a WordPress.com developer application.\n- A **Client Secret**: Generated when you create a WordPress.com developer application.\n- Your **WordPress.com Site**: Your `.wordpress.com` subdomain or custom domain (for example, `myblog.wordpress.com` or `myblog.com`).\n\nCreating this credential involves two steps:\n\n1. [Create a developer application](#create-a-developer-application).\n1. [Set up the OAuth2 credential](#set-up-the-oauth2-credential).\n\n### Create a developer application\n\n1. Go to your WordPress.com [developer applications](https://developer.wordpress.com/apps/) page.\n1. Select **Create New Application**.\n1. Enter a **Name** for your application, for example `n8n integration`.\n1. Copy the **OAuth Redirect URL** from the **OAuth2 (WordPress.com)** credential screen in n8n. Paste it into the **Redirect URLs** field in WordPress.\n1. Fill out the **Description**, **Website URL**, and other fields as appropriate for your application.\n1. Select **Create** to save the application.\n1. Return to your WordPress.com [developer applications](https://developer.wordpress.com/apps/) page, and click the integration you just created.\n1. Copy the **Client ID** and **Client Secret**.\n\n### Set up the OAuth2 credential\n\n1. In the n8n **OAuth2 (WordPress.com)** credential screen, paste the **Client ID** and **Client Secret** from the previous step.\n1. Enter your WordPress.com site identifier in the **WordPress.com Site** field, for example, `myblog.wordpress.com`.\n1. Click **Connect to WordPress**.\n\nRefer to WordPress's [OAuth2 authentication documentation](https://developer.wordpress.com/docs/oauth2/) for more information.\n",
+        "excerpt": "# WordPress credentials  You can use these credentials to authenticate the following nodes:  - [WordPress](../../app-nodes/n8n-nodes-base.wordpress/)  ## Prerequisites  - **Basic auth**: Create a [WordPress](https://wordpress.com/) account or deploy WordPress on a server. - **OAuth2**: Create a [WordPress.com](https://wordpress.com/) account with access to the [developer portal](https://developer.wordpress.com/apps/).  ## Supported authentication methods  - Basic auth - OAuth2  ## Related resour...",
         "sections": [
           {
             "title": "WordPress credentials",
@@ -75985,40 +75985,57 @@
           "create",
           "application",
           "password",
-          "credential"
+          "credential",
+          "oauth2",
+          "developer"
         ],
         "useCases": [],
         "operations": [],
         "codeExamples": 0,
         "complexity": "beginner",
-        "readingTime": "2 min",
-        "contentLength": 2706,
+        "readingTime": "3 min",
+        "contentLength": 4690,
         "relatedPages": []
       },
       "searchIndex": {
-        "fullText": "wordpress credentials # wordpress credentials\n\nyou can use these credentials to authenticate the following nodes:\n\n- [wordpress](../../app-nodes/n8n-nodes-base.wordpress/)\n\n## prerequisites\n\n- create a [wordpress](https://wordpress.com/) account or deploy wordpress on a server.\n\n## supported authentication methods\n\n- basic auth\n\n## related resources\n\nrefer to [wordpress's api documentation](https://developer.wordpress.com/docs/api/) for more information about the service.\n\n## using basic auth\n\nto configure this credential, you'll need:\n\n- your wordpress **username**\n- a wordpress application **password**\n- your **wordpress url**\n- decide whether to **ignore ssl issues**\n\nusing this credential involves three steps:\n\n1. [enable two-step authentication](#enable-two-step-authentication).\n1. [create an application password](#create-an-application-password).\n1. [set up the credential](#set-up-the-credential).\n\nrefer to the detailed instructions below for each step.\n\n### enable two-step authentication\n\nto generate an application password, you must first enable two-step authentication in wordpress. if you've already done this, [skip to the next section](#create-an-application-password).\n\n1. open your wordpress [profile](https://wordpress.com/me).\n1. select **security** from the left menu.\n1. select **two-step authentication**. the **two-step authentication** page opens.\n1. if two-step authentication isn't enabled, you must enable it.\n1. choose whether to enable it using an authenticator app or sms codes and follow the on-screen instructions.\n\nrefer to wordpress's [enable two-step authentication](https://wordpress.com/support/security/two-step-authentication/) for detailed instructions.\n\n### create an application password\n\nwith two-step authentication enabled, you can now generate an application password:\n\n1. from the wordpress **security >** [**two-step authentication**](https://wordpress.com/me/security/two-step) page, select **+ add new application password** in the **application passwords** section.\n1. enter an **application name**, like `n8n integration`.\n1. select **generate password**.\n1. copy the password it generates. you'll use this in your n8n credential.\n\n### set up the credential\n\ncongratulations! you're now ready to set up your n8n credential:\n\n1. enter your wordpress **username** in your n8n credential.\n1. enter the application password you copied above as the **password** in your n8n credential.\n1. enter the url of your wordpress site as the **wordpress url**.\n1. optional: use the **ignore ssl issues** to choose whether you want the n8n credential to connect even if ssl certificate validation fails (turned on) or whether to respect ssl certificate validation (turned off).\n wordpress credentials",
+        "fullText": "wordpress credentials # wordpress credentials\n\nyou can use these credentials to authenticate the following nodes:\n\n- [wordpress](../../app-nodes/n8n-nodes-base.wordpress/)\n\n## prerequisites\n\n- **basic auth**: create a [wordpress](https://wordpress.com/) account or deploy wordpress on a server.\n- **oauth2**: create a [wordpress.com](https://wordpress.com/) account with access to the [developer portal](https://developer.wordpress.com/apps/).\n\n## supported authentication methods\n\n- basic auth\n- oauth2\n\n## related resources\n\nrefer to [wordpress's api documentation](https://developer.wordpress.com/docs/api/) for more information about the service.\n\n## using basic auth\n\nto configure this credential, you'll need:\n\n- your wordpress **username**\n- a wordpress application **password**\n- your **wordpress url**\n- decide whether to **ignore ssl issues**\n\nusing this credential involves three steps:\n\n1. [enable two-step authentication](#enable-two-step-authentication).\n1. [create an application password](#create-an-application-password).\n1. [set up the credential](#set-up-the-credential).\n\nrefer to the detailed instructions below for each step.\n\n### enable two-step authentication\n\nto generate an application password, you must first enable two-step authentication in wordpress. if you've already done this, [skip to the next section](#create-an-application-password).\n\n1. open your wordpress [profile](https://wordpress.com/me).\n1. select **security** from the left menu.\n1. select **two-step authentication**. the **two-step authentication** page opens.\n1. if two-step authentication isn't enabled, you must enable it.\n1. choose whether to enable it using an authenticator app or sms codes and follow the on-screen instructions.\n\nrefer to wordpress's [enable two-step authentication](https://wordpress.com/support/security/two-step-authentication/) for detailed instructions.\n\n### create an application password\n\nwith two-step authentication enabled, you can now generate an application password:\n\n1. from the wordpress **security >** [**two-step authentication**](https://wordpress.com/me/security/two-step) page, select **+ add new application password** in the **application passwords** section.\n1. enter an **application name**, like `n8n integration`.\n1. select **generate password**.\n1. copy the password it generates. you'll use this in your n8n credential.\n\n### set up the credential\n\n1. enter your wordpress **username** in your n8n credential.\n1. enter the application password you copied above as the **password** in your n8n credential.\n1. enter the url of your wordpress site as the **wordpress url**.\n1. optional: use **ignore ssl issues** to choose whether you want the n8n credential to connect even if ssl certificate validation fails (turned on) or whether to respect ssl certificate validation (turned off).\n\n## using oauth2\n\nwordpress.com only\n\noauth2 authentication works with wordpress.com-hosted sites only. for self-hosted wordpress, use basic auth instead.\n\nto configure this credential, you'll need:\n\n- a **client id**: generated when you create a wordpress.com developer application.\n- a **client secret**: generated when you create a wordpress.com developer application.\n- your **wordpress.com site**: your `.wordpress.com` subdomain or custom domain (for example, `myblog.wordpress.com` or `myblog.com`).\n\ncreating this credential involves two steps:\n\n1. [create a developer application](#create-a-developer-application).\n1. [set up the oauth2 credential](#set-up-the-oauth2-credential).\n\n### create a developer application\n\n1. go to your wordpress.com [developer applications](https://developer.wordpress.com/apps/) page.\n1. select **create new application**.\n1. enter a **name** for your application, for example `n8n integration`.\n1. copy the **oauth redirect url** from the **oauth2 (wordpress.com)** credential screen in n8n. paste it into the **redirect urls** field in wordpress.\n1. fill out the **description**, **website url**, and other fields as appropriate for your application.\n1. select **create** to save the application.\n1. return to your wordpress.com [developer applications](https://developer.wordpress.com/apps/) page, and click the integration you just created.\n1. copy the **client id** and **client secret**.\n\n### set up the oauth2 credential\n\n1. in the n8n **oauth2 (wordpress.com)** credential screen, paste the **client id** and **client secret** from the previous step.\n1. enter your wordpress.com site identifier in the **wordpress.com site** field, for example, `myblog.wordpress.com`.\n1. click **connect to wordpress**.\n\nrefer to wordpress's [oauth2 authentication documentation](https://developer.wordpress.com/docs/oauth2/) for more information.\n wordpress credentials",
         "importantTerms": [
           "wordpress",
-          "step",
-          "authentication",
-          "password",
           "application",
           "credential",
           "your",
-          "enable",
+          "authentication",
+          "step",
           "create",
+          "developer",
+          "password",
           "https",
-          "credentials",
+          "enable",
           "this",
-          "whether",
           "select",
-          "security",
           "enter",
-          "nodes",
+          "client",
+          "credentials",
+          "basic",
+          "auth",
           "refer",
           "using",
+          "whether",
+          "security",
+          "from",
+          "page",
+          "site",
+          "nodes",
+          "with",
+          "apps",
           "instructions",
-          "generate"
+          "generate",
+          "screen",
+          "integration",
+          "copy",
+          "secret",
+          "example",
+          "myblog"
         ]
       }
     },
@@ -76497,77 +76514,6 @@
     },
     {
       "id": "page-1019",
-      "title": "Zendesk credentials",
-      "url": "https://docs.n8n.io/integrations/builtin/credentials/zendesk/index.md",
-      "urlPath": "integrations/builtin/credentials/zendesk/index.md",
-      "category": "other",
-      "subcategory": null,
-      "nodeName": null,
-      "nodeType": null,
-      "content": {
-        "markdown": "# Zendesk credentials\n\nYou can use these credentials to authenticate the following nodes:\n\n- [Zendesk](../../app-nodes/n8n-nodes-base.zendesk/)\n- [Zendesk Trigger](../../trigger-nodes/n8n-nodes-base.zendesktrigger/)\n\n## Prerequisites\n\n- Create a [Zendesk](https://zendesk.com/) account.\n- For API token authentication, enable token access to the API in Admin Center under **Apps and integrations > APIs > Zendesk APIs**.\n\n## Supported authentication methods\n\n- API token\n- OAuth2\n\n## Related resources\n\nRefer to [Zendesk's API documentation](https://developer.zendesk.com/api-reference/) for more information about the service.\n\n## Using API token\n\nTo configure this credential, you'll need:\n\n- Your **Subdomain**: Your Zendesk subdomain is the portion of the URL between `https://` and `.zendesk.com`. For example, if the Zendesk URL is `https://n8n-example.zendesk.com/agent/dashboard`, the subdomain is `n8n-example`.\n- An **Email** address: Enter the email address you use to log in to Zendesk.\n- An **API Token**: Generate an API token in **Apps and integrations > APIs > Zendesk API**. Refer to [API token](https://developer.zendesk.com/api-reference/introduction/security-and-auth/#api-token) for more information.\n\n## Using OAuth2\n\nTo configure this credential, you'll need:\n\n- A **Client ID**: Generated when you create a new OAuth client.\n- A **Client Secret**: Generated when you create a new OAuth client.\n- Your **Subdomain**: Your Zendesk subdomain is the portion of the URL between `https://` and `.zendesk.com`. For example, if the Zendesk URL is `https://n8n-example.zendesk.com/agent/dashboard`, the subdomain is `n8n-example`.\n\nTo create a new OAuth client, go to **Apps and integrations > APIs > Zendesk API > OAuth Clients**.\n\nUse these settings:\n\n- Copy the **OAuth Redirect URL** from n8n and enter it as a **Redirect URL** in the OAuth client.\n- Copy the **Unique identifier** for the Zendesk client and enter this as your n8n **Client ID**.\n- Copy the **Secret** from Zendesk and enter this as your n8n **Client Secret**\n\nRefer to [Registering your application with Zendesk](https://support.zendesk.com/hc/en-us/articles/4408845965210-Using-OAuth-authentication-with-your-application#topic_s21_lfs_qk) for more information.\n",
-        "excerpt": "# Zendesk credentials  You can use these credentials to authenticate the following nodes:  - [Zendesk](../../app-nodes/n8n-nodes-base.zendesk/) - [Zendesk Trigger](../../trigger-nodes/n8n-nodes-base.zendesktrigger/)  ## Prerequisites  - Create a [Zendesk](https://zendesk.com/) account. - For API token authentication, enable token access to the API in Admin Center under **Apps and integrations > APIs > Zendesk APIs**.  ## Supported authentication methods  - API token - OAuth2  ## Related resource...",
-        "sections": [
-          {
-            "title": "Zendesk credentials",
-            "level": 1,
-            "content": "You can use these credentials to authenticate the following nodes:\n\n- [Zendesk](../../app-nodes/n8n-nodes-base.zendesk/)\n- [Zendesk Trigger](../../trigger-nodes/n8n-nodes-base.zendesktrigger/)"
-          }
-        ]
-      },
-      "metadata": {
-        "keywords": [
-          "zendesk",
-          "credentials",
-          "prerequisites",
-          "supported",
-          "authentication",
-          "methods",
-          "related",
-          "resources",
-          "using",
-          "token",
-          "oauth2"
-        ],
-        "useCases": [],
-        "operations": [],
-        "codeExamples": 0,
-        "complexity": "beginner",
-        "readingTime": "2 min",
-        "contentLength": 2249,
-        "relatedPages": []
-      },
-      "searchIndex": {
-        "fullText": "zendesk credentials # zendesk credentials\n\nyou can use these credentials to authenticate the following nodes:\n\n- [zendesk](../../app-nodes/n8n-nodes-base.zendesk/)\n- [zendesk trigger](../../trigger-nodes/n8n-nodes-base.zendesktrigger/)\n\n## prerequisites\n\n- create a [zendesk](https://zendesk.com/) account.\n- for api token authentication, enable token access to the api in admin center under **apps and integrations > apis > zendesk apis**.\n\n## supported authentication methods\n\n- api token\n- oauth2\n\n## related resources\n\nrefer to [zendesk's api documentation](https://developer.zendesk.com/api-reference/) for more information about the service.\n\n## using api token\n\nto configure this credential, you'll need:\n\n- your **subdomain**: your zendesk subdomain is the portion of the url between `https://` and `.zendesk.com`. for example, if the zendesk url is `https://n8n-example.zendesk.com/agent/dashboard`, the subdomain is `n8n-example`.\n- an **email** address: enter the email address you use to log in to zendesk.\n- an **api token**: generate an api token in **apps and integrations > apis > zendesk api**. refer to [api token](https://developer.zendesk.com/api-reference/introduction/security-and-auth/#api-token) for more information.\n\n## using oauth2\n\nto configure this credential, you'll need:\n\n- a **client id**: generated when you create a new oauth client.\n- a **client secret**: generated when you create a new oauth client.\n- your **subdomain**: your zendesk subdomain is the portion of the url between `https://` and `.zendesk.com`. for example, if the zendesk url is `https://n8n-example.zendesk.com/agent/dashboard`, the subdomain is `n8n-example`.\n\nto create a new oauth client, go to **apps and integrations > apis > zendesk api > oauth clients**.\n\nuse these settings:\n\n- copy the **oauth redirect url** from n8n and enter it as a **redirect url** in the oauth client.\n- copy the **unique identifier** for the zendesk client and enter this as your n8n **client id**.\n- copy the **secret** from zendesk and enter this as your n8n **client secret**\n\nrefer to [registering your application with zendesk](https://support.zendesk.com/hc/en-us/articles/4408845965210-using-oauth-authentication-with-your-application#topic_s21_lfs_qk) for more information.\n zendesk credentials",
-        "importantTerms": [
-          "zendesk",
-          "client",
-          "https",
-          "token",
-          "your",
-          "oauth",
-          "subdomain",
-          "example",
-          "nodes",
-          "credentials",
-          "create",
-          "apis",
-          "this",
-          "enter",
-          "authentication",
-          "apps",
-          "integrations",
-          "refer",
-          "more",
-          "information",
-          "using",
-          "secret",
-          "copy"
-        ]
-      }
-    },
-    {
-      "id": "page-1020",
       "title": "Zep credentials",
       "url": "https://docs.n8n.io/integrations/builtin/credentials/zep/index.md",
       "urlPath": "integrations/builtin/credentials/zep/index.md",
@@ -76634,7 +76580,7 @@
       }
     },
     {
-      "id": "page-1021",
+      "id": "page-1020",
       "title": "Zoho credentials",
       "url": "https://docs.n8n.io/integrations/builtin/credentials/zoho/index.md",
       "urlPath": "integrations/builtin/credentials/zoho/index.md",
@@ -76695,7 +76641,7 @@
       }
     },
     {
-      "id": "page-1022",
+      "id": "page-1021",
       "title": "Zoom credentials",
       "url": "https://docs.n8n.io/integrations/builtin/credentials/zoom/index.md",
       "urlPath": "integrations/builtin/credentials/zoom/index.md",
@@ -76759,6 +76705,77 @@
           "marketplace",
           "secret",
           "select"
+        ]
+      }
+    },
+    {
+      "id": "page-1022",
+      "title": "Zendesk credentials",
+      "url": "https://docs.n8n.io/integrations/builtin/credentials/zendesk/index.md",
+      "urlPath": "integrations/builtin/credentials/zendesk/index.md",
+      "category": "other",
+      "subcategory": null,
+      "nodeName": null,
+      "nodeType": null,
+      "content": {
+        "markdown": "# Zendesk credentials\n\nYou can use these credentials to authenticate the following nodes:\n\n- [Zendesk](../../app-nodes/n8n-nodes-base.zendesk/)\n- [Zendesk Trigger](../../trigger-nodes/n8n-nodes-base.zendesktrigger/)\n\n## Prerequisites\n\n- Create a [Zendesk](https://zendesk.com/) account.\n- For API token authentication, enable token access to the API in Admin Center under **Apps and integrations > APIs > Zendesk APIs**.\n\n## Supported authentication methods\n\n- API token\n- OAuth2\n\n## Related resources\n\nRefer to [Zendesk's API documentation](https://developer.zendesk.com/api-reference/) for more information about the service.\n\n## Using API token\n\nTo configure this credential, you'll need:\n\n- Your **Subdomain**: Your Zendesk subdomain is the portion of the URL between `https://` and `.zendesk.com`. For example, if the Zendesk URL is `https://n8n-example.zendesk.com/agent/dashboard`, the subdomain is `n8n-example`.\n- An **Email** address: Enter the email address you use to log in to Zendesk.\n- An **API Token**: Generate an API token in **Apps and integrations > APIs > Zendesk API**. Refer to [API token](https://developer.zendesk.com/api-reference/introduction/security-and-auth/#api-token) for more information.\n\n## Using OAuth2\n\nTo configure this credential, you'll need:\n\n- A **Client ID**: Generated when you create a new OAuth client.\n- A **Client Secret**: Generated when you create a new OAuth client.\n- Your **Subdomain**: Your Zendesk subdomain is the portion of the URL between `https://` and `.zendesk.com`. For example, if the Zendesk URL is `https://n8n-example.zendesk.com/agent/dashboard`, the subdomain is `n8n-example`.\n\nTo create a new OAuth client, go to **Apps and integrations > APIs > Zendesk API > OAuth Clients**.\n\nUse these settings:\n\n- Copy the **OAuth Redirect URL** from n8n and enter it as a **Redirect URL** in the OAuth client.\n- Copy the **Unique identifier** for the Zendesk client and enter this as your n8n **Client ID**.\n- Copy the **Secret** from Zendesk and enter this as your n8n **Client Secret**\n\nRefer to [Registering your application with Zendesk](https://support.zendesk.com/hc/en-us/articles/4408845965210-Using-OAuth-authentication-with-your-application#topic_s21_lfs_qk) for more information.\n",
+        "excerpt": "# Zendesk credentials  You can use these credentials to authenticate the following nodes:  - [Zendesk](../../app-nodes/n8n-nodes-base.zendesk/) - [Zendesk Trigger](../../trigger-nodes/n8n-nodes-base.zendesktrigger/)  ## Prerequisites  - Create a [Zendesk](https://zendesk.com/) account. - For API token authentication, enable token access to the API in Admin Center under **Apps and integrations > APIs > Zendesk APIs**.  ## Supported authentication methods  - API token - OAuth2  ## Related resource...",
+        "sections": [
+          {
+            "title": "Zendesk credentials",
+            "level": 1,
+            "content": "You can use these credentials to authenticate the following nodes:\n\n- [Zendesk](../../app-nodes/n8n-nodes-base.zendesk/)\n- [Zendesk Trigger](../../trigger-nodes/n8n-nodes-base.zendesktrigger/)"
+          }
+        ]
+      },
+      "metadata": {
+        "keywords": [
+          "zendesk",
+          "credentials",
+          "prerequisites",
+          "supported",
+          "authentication",
+          "methods",
+          "related",
+          "resources",
+          "using",
+          "token",
+          "oauth2"
+        ],
+        "useCases": [],
+        "operations": [],
+        "codeExamples": 0,
+        "complexity": "beginner",
+        "readingTime": "2 min",
+        "contentLength": 2249,
+        "relatedPages": []
+      },
+      "searchIndex": {
+        "fullText": "zendesk credentials # zendesk credentials\n\nyou can use these credentials to authenticate the following nodes:\n\n- [zendesk](../../app-nodes/n8n-nodes-base.zendesk/)\n- [zendesk trigger](../../trigger-nodes/n8n-nodes-base.zendesktrigger/)\n\n## prerequisites\n\n- create a [zendesk](https://zendesk.com/) account.\n- for api token authentication, enable token access to the api in admin center under **apps and integrations > apis > zendesk apis**.\n\n## supported authentication methods\n\n- api token\n- oauth2\n\n## related resources\n\nrefer to [zendesk's api documentation](https://developer.zendesk.com/api-reference/) for more information about the service.\n\n## using api token\n\nto configure this credential, you'll need:\n\n- your **subdomain**: your zendesk subdomain is the portion of the url between `https://` and `.zendesk.com`. for example, if the zendesk url is `https://n8n-example.zendesk.com/agent/dashboard`, the subdomain is `n8n-example`.\n- an **email** address: enter the email address you use to log in to zendesk.\n- an **api token**: generate an api token in **apps and integrations > apis > zendesk api**. refer to [api token](https://developer.zendesk.com/api-reference/introduction/security-and-auth/#api-token) for more information.\n\n## using oauth2\n\nto configure this credential, you'll need:\n\n- a **client id**: generated when you create a new oauth client.\n- a **client secret**: generated when you create a new oauth client.\n- your **subdomain**: your zendesk subdomain is the portion of the url between `https://` and `.zendesk.com`. for example, if the zendesk url is `https://n8n-example.zendesk.com/agent/dashboard`, the subdomain is `n8n-example`.\n\nto create a new oauth client, go to **apps and integrations > apis > zendesk api > oauth clients**.\n\nuse these settings:\n\n- copy the **oauth redirect url** from n8n and enter it as a **redirect url** in the oauth client.\n- copy the **unique identifier** for the zendesk client and enter this as your n8n **client id**.\n- copy the **secret** from zendesk and enter this as your n8n **client secret**\n\nrefer to [registering your application with zendesk](https://support.zendesk.com/hc/en-us/articles/4408845965210-using-oauth-authentication-with-your-application#topic_s21_lfs_qk) for more information.\n zendesk credentials",
+        "importantTerms": [
+          "zendesk",
+          "client",
+          "https",
+          "token",
+          "your",
+          "oauth",
+          "subdomain",
+          "example",
+          "nodes",
+          "credentials",
+          "create",
+          "apis",
+          "this",
+          "enter",
+          "authentication",
+          "apps",
+          "integrations",
+          "refer",
+          "more",
+          "information",
+          "using",
+          "secret",
+          "copy"
         ]
       }
     },
@@ -85236,6 +85253,129 @@
     },
     {
       "id": "page-1168",
+      "title": "Node UI elements",
+      "url": "https://docs.n8n.io/integrations/creating-nodes/build/reference/ui-elements/index.md",
+      "urlPath": "integrations/creating-nodes/build/reference/ui-elements/index.md",
+      "category": "other",
+      "subcategory": null,
+      "nodeName": null,
+      "nodeType": null,
+      "content": {
+        "markdown": "# Node user interface elements\n\nn8n provides a set of predefined UI components (based on a JSON file) that allows users to input all sorts of data types. The following UI elements are available in n8n.\n\n## String\n\nBasic configuration:\n\n```\n{\n\tdisplayName: Name, // The value the user sees in the UI\n\tname: name, // The name used to reference the element UI within the code\n\ttype: string,\n\trequired: true, // Whether the field is required or not\n\tdefault: 'n8n',\n\tdescription: 'The name of the user',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\nString field for inputting passwords:\n\n```\n{\n\tdisplayName: 'Password',\n\tname: 'password',\n\ttype: 'string',\n\trequired: true,\n\ttypeOptions: {\n\t\tpassword: true,\n\t},\n\tdefault: '',\n\tdescription: `User's password`,\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\nString field with more than one row:\n\n```\n{\n\tdisplayName: 'Description',\n\tname: 'description',\n\ttype: 'string',\n\trequired: true,\n\ttypeOptions: {\n\t\trows: 4,\n\t},\n\tdefault: '',\n\tdescription: 'Description',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n### Support drag and drop for data keys\n\nUsers can drag and drop data values to map them to fields. Dragging and dropping creates an [expression](../../../../../glossary/#expression-n8n) to load the data value. n8n supports this automatically.\n\nYou need to add an extra configuration option to support dragging and dropping data keys:\n\n- `requiresDataPath: 'single'`: for fields that require a single string.\n- `requiresDataPath: 'multiple'`: for fields that can accept a comma-separated list of string.\n\nThe [Compare Datasets node code](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/CompareDatasets/CompareDatasets.node.ts) has examples.\n\n## Number\n\nNumber field with decimal points:\n\n```\n{\n\tdisplayName: 'Amount',\n\tname: 'amount',\n\ttype: 'number',\n\trequired: true,\n\ttypeOptions: {\n\t\tmaxValue: 10,\n\t\tminValue: 0,\n\t\tnumberPrecision: 2,\n\t},\n\tdefault: 10.00,\n\tdescription: 'Your current amount',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## Collection\n\nUse the `collection` type when you need to display optional fields.\n\n```\n{\n\tdisplayName: 'Filters',\n\tname: 'filters',\n\ttype: 'collection',\n\tplaceholder: 'Add Field',\n\tdefault: {},\n\toptions: [\n\t\t{\n\t\t\tdisplayName: 'Type',\n\t\t\tname: 'type',\n\t\t\ttype: 'options',\n\t\t\toptions: [\n\t\t\t\t{\n\t\t\t\t\tname: 'Automated',\n\t\t\t\t\tvalue: 'automated',\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\tname: 'Past',\n\t\t\t\t\tvalue: 'past',\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\tname: 'Upcoming',\n\t\t\t\t\tvalue: 'upcoming',\n\t\t\t\t},\n\t\t\t],\n\t\t\tdefault: '',\n\t\t},\n\t],\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## DateTime\n\nThe `dateTime` type provides a date picker.\n\n```\n{\n\tdisplayName: 'Modified Since',\n\tname: 'modified_since',\n\ttype: 'dateTime',\n\tdefault: '',\n\tdescription: 'The date and time when the file was last modified',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## Boolean\n\nThe `boolean` type adds a toggle for entering true or false.\n\n```\n{\n\tdisplayName: 'Wait for Image',\n\tname: 'waitForImage',\n\ttype: 'boolean',\n\tdefault: true, // Initial state of the toggle\n\tdescription: 'Whether to wait for the image or not',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## Color\n\nThe `color` type provides a color selector.\n\n```\n{\n\tdisplayName: 'Background Color',\n\tname: 'backgroundColor',\n\ttype: 'color',\n\tdefault: '', // Initially selected color\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## Options\n\nThe `options` type adds an options list. Users can select a single value.\n\n```\n{\n\tdisplayName: 'Resource',\n\tname: 'resource',\n\ttype: 'options',\n\toptions: [\n\t\t{\n\t\t\tname: 'Image',\n\t\t\tvalue: 'image',\n\t\t},\n\t\t{\n\t\t\tname: 'Template',\n\t\t\tvalue: 'template',\n\t\t},\n\t],\n\tdefault: 'image', // The initially selected option\n\tdescription: 'Resource to consume',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## Multi-options\n\nThe `multiOptions` type adds an options list. Users can select more than one value.\n\n```\n{\n\tdisplayName: 'Events',\n\tname: 'events',\n\ttype: 'multiOptions',\n\toptions: [\n\t\t{\n\t\t\tname: 'Plan Created',\n\t\t\tvalue: 'planCreated',\n\t\t},\n\t\t{\n\t\t\tname: 'Plan Deleted',\n\t\t\tvalue: 'planDeleted',\n\t\t},\n\t],\n\tdefault: [], // Initially selected options\n\tdescription: 'The events to be monitored',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## Filter\n\nUse this component to evaluate, match, or filter incoming data.\n\nThis is the code from n8n's own If node. It shows a filter component working with a [collection](#collection) component where users can configure the filter's behavior.\n\n```\n{\n\tdisplayName: 'Conditions',\n\tname: 'conditions',\n\tplaceholder: 'Add Condition',\n\ttype: 'filter',\n\tdefault: {},\n\ttypeOptions: {\n\t\tfilter: {\n\t\t\t// Use the user options (below) to determine filter behavior\n\t\t\tcaseSensitive: '={{!$parameter.options.ignoreCase}}',\n\t\t\ttypeValidation: '={{$parameter.options.looseTypeValidation ? \"loose\" : \"strict\"}}',\n\t\t},\n\t},\n},\n{\ndisplayName: 'Options',\nname: 'options',\ntype: 'collection',\nplaceholder: 'Add option',\ndefault: {},\noptions: [\n\t{\n\t\tdisplayName: 'Ignore Case',\n\t\tdescription: 'Whether to ignore letter case when evaluating conditions',\n\t\tname: 'ignoreCase',\n\t\ttype: 'boolean',\n\t\tdefault: true,\n\t},\n\t{\n\t\tdisplayName: 'Less Strict Type Validation',\n\t\tdescription: 'Whether to try casting value types based on the selected operator',\n\t\tname: 'looseTypeValidation',\n\t\ttype: 'boolean',\n\t\tdefault: true,\n\t},\n],\n},\n```\n\n## Assignment collection (drag and drop)\n\nUse the drag and drop component when you want users to pre-fill name and value parameters with a single drag interaction.\n\n```\n{\n\tdisplayName: 'Fields to Set',\n\tname: 'assignments',\n\ttype: 'assignmentCollection',\n\tdefault: {},\n},\n```\n\nYou can see an example in n8n's [Edit Fields (Set) node](https://github.com/n8n-io/n8n/tree/0faeab1228e26d69a2a93bdb2f89523cca1e4036/packages/nodes-base/nodes/Set/v2):\n\n## Fixed collection\n\nUse the `fixedCollection` type to group fields that are semantically related.\n\n```\n{\n\tdisplayName: 'Metadata',\n\tname: 'metadataUi',\n\tplaceholder: 'Add Metadata',\n\ttype: 'fixedCollection',\n\tdefault: '',\n\ttypeOptions: {\n\t\tmultipleValues: true,\n\t},\n\tdescription: '',\n\toptions: [\n\t\t{\n\t\t\tname: 'metadataValues',\n\t\t\tdisplayName: 'Metadata',\n\t\t\tvalues: [\n\t\t\t\t{\n\t\t\t\t\tdisplayName: 'Name',\n\t\t\t\t\tname: 'name',\n\t\t\t\t\ttype: 'string',\n\t\t\t\t\tdefault: 'Name of the metadata key to add.',\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\tdisplayName: 'Value',\n\t\t\t\t\tname: 'value',\n\t\t\t\t\ttype: 'string',\n\t\t\t\t\tdefault: '',\n\t\t\t\t\tdescription: 'Value to set for the metadata key.',\n\t\t\t\t},\n\t\t\t],\n\t\t},\n\t],\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## Resource locator\n\nThe resource locator element helps users find a specific resource in an external service, such as a card or label in Trello.\n\nThe following options are available:\n\n- ID\n- URL\n- List: allows users to select or search from a prepopulated list. This option requires more coding, as you must populate the list, and handle searching if you choose to support it.\n\nYou can choose which types to include.\n\nExample:\n\n```\n{\n\tdisplayName: 'Card',\n\tname: 'cardID',\n\ttype: 'resourceLocator',\n\tdefault: '',\n\tdescription: 'Get a card',\n\tmodes: [\n\t\t{\n\t\t\tdisplayName: 'ID',\n\t\t\tname: 'id',\n\t\t\ttype: 'string',\n\t\t\thint: 'Enter an ID',\n\t\t\tvalidation: [\n\t\t\t\t{\n\t\t\t\t\ttype: 'regex',\n\t\t\t\t\tproperties: {\n\t\t\t\t\t\tregex: '^[0-9]',\n\t\t\t\t\t\terrorMessage: 'The ID must start with a number',\n\t\t\t\t\t},\n\t\t\t\t},\n\t\t\t],\n\t\t\tplaceholder: '12example',\n\t\t\t// How to use the ID in API call\n\t\t\turl: '=http://api-base-url.com/?id={{$value}}',\n\t\t},\n\t\t{\n\t\t\tdisplayName: 'URL',\n\t\t\tname: 'url',\n\t\t\ttype: 'string',\n\t\t\thint: 'Enter a URL',\n\t\t\tvalidation: [\n\t\t\t\t{\n\t\t\t\t\ttype: 'regex',\n\t\t\t\t\tproperties: {\n\t\t\t\t\t\tregex: '^http',\n\t\t\t\t\t\terrorMessage: 'Invalid URL',\n\t\t\t\t\t},\n\t\t\t\t},\n\t\t\t],\n\t\t\tplaceholder: 'https://example.com/card/12example/',\n\t\t\t// How to get the ID from the URL\n\t\t\textractValue: {\n\t\t\t\ttype: 'regex',\n\t\t\t\tregex: 'example.com/card/([0-9]*.*)/',\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tdisplayName: 'List',\n\t\t\tname: 'list',\n\t\t\ttype: 'list',\n\t\t\ttypeOptions: {\n\t\t\t\t// You must always provide a search method\n\t\t\t\t// Write this method within the methods object in your base file\n\t\t\t\t// The method must populate the list, and handle searching if searchable: true\n\t\t\t\tsearchListMethod: 'searchMethod',\n\t\t\t\t// If you want users to be able to search the list\n\t\t\t\tsearchable: true,\n\t\t\t\t// Set to true if you want to force users to search\n\t\t\t\t// When true, users can't browse the list\n\t\t\t\t// Or false if users can browse a list\n\t\t\t\tsearchFilterRequired: true,\n\t\t\t},\n\t\t},\n\t],\n\tdisplayOptions: {\n\t\t// the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t],\n\t\t},\n\t},\n},\n```\n\nRefer to the following for live examples:\n\n- Refer to [`CardDescription.ts`](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/Trello/CardDescription.ts) and [`Trello.node.ts`](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/Trello/Trello.node.ts) in n8n's Trello node for an example of a list with search that includes `searchFilterRequired: true`.\n- Refer to [`GoogleDrive.node.ts`](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/Google/Drive/GoogleDrive.node.ts) for an example where users can browse the list or search.\n\n## Resource mapper\n\nIf your node performs insert, update, or upsert operations, you need to send data from the node in a format supported by the service you're integrating with. A common pattern is to use a Set node before the node that sends data, to convert the data to match the schema of the service you're connecting to. The resource mapper UI component provides a way to get data into the required format directly within the node, rather than using a Set node. The resource mapper component can also validate input data against the schema provided in the node, and cast input data into the expected type.\n\nMapping and matching\n\nMapping is the process of setting the input data to use as values when updating row(s). Matching is the process of using column names to identify the row(s) to update.\n\n```\n{\n\tdisplayName: 'Columns',\n\tname: 'columns', // The name used to reference the element UI within the code\n\ttype: 'resourceMapper', // The UI element type\n\tdefault: {\n\t\t// mappingMode can be defined in the component (mappingMode: 'defineBelow')\n\t\t// or you can attempt automatic mapping (mappingMode: 'autoMapInputData')\n\t\tmappingMode: 'defineBelow',\n\t\t// Important: always set default value to null\n\t\tvalue: null,\n\t},\n\trequired: true,\n\t// See \"Resource mapper type options interface\" below for the full typeOptions specification\n\ttypeOptions: {\n\t\tresourceMapper: {\n\t\t\tresourceMapperMethod: 'getMappingColumns',\n\t\t\tmode: 'update',\n\t\t\tfieldWords: {\n\t\t\t\tsingular: 'column',\n\t\t\t\tplural: 'columns',\n\t\t\t},\n\t\t\taddAllFields: true, \n\t\t\tmultiKeyMatch: true,\n\t\t\tsupportAutoMap: true,\n\t\t\tmatchingFieldsLabels: {\n\t\t\t\ttitle: 'Custom matching columns title',\n\t\t\t\tdescription: 'Help text for custom matching columns',\n\t\t\t\thint: 'Below-field hint for custom matching columns',\n\t\t\t},\n\t\t},\n\t},\n},\n```\n\nRefer to the [Postgres node (version 2)](https://github.com/n8n-io/n8n/tree/master/packages/nodes-base/nodes/Postgres/v2) for a live example using a database schema.\n\nRefer to the [Google Sheets node (version 2)](https://github.com/n8n-io/n8n/tree/master/packages/nodes-base/nodes/Google/Sheet/v2) for a live example using a schema-less service.\n\n### Resource mapper type options interface\n\nThe `typeOptions` section must implement the following interface:\n\n```\nexport interface ResourceMapperTypeOptions {\n\t// The name of the method where you fetch the schema\n\t// Refer to the Resource mapper method section for more detail\n\tresourceMapperMethod: string;\n\t// Choose the mode for your operation\n\t// Supported modes: add, update, upsert\n\tmode: 'add' | 'update' | 'upsert';\n\t// Specify labels for fields in the UI\n\tfieldWords?: { singular: string; plural: string };\n\t// Whether n8n should display a UI input for every field when node first added to workflow\n\t// Default is true\n\taddAllFields?: boolean;\n\t// Specify a message to show if no fields are fetched from the service \n\t// (the call is successful but the response is empty)\n\tnoFieldsError?: string;\n\t// Whether to support multi-key column matching\n\t// multiKeyMatch is for update and upsert only\n\t// Default is false\n\t// If true, the node displays a multi-select dropdown for the matching column selector\n\tmultiKeyMatch?: boolean;\n\t// Whether to support automatic mapping\n\t// If false, n8n hides the mapping mode selector field and sets mappingMode to defineBelow\n\tsupportAutoMap?: boolean;\n\t// Custom labels for the matching columns selector\n\tmatchingFieldsLabels?: {\n\t\ttitle?: string;\n\t\tdescription?: string;\n\t\thint?: string;\n\t};\n}\n```\n\n### Resource mapper method\n\nThis method contains your node-specific logic for fetching the data schema. Every node must implement its own logic for fetching the schema, and setting up each UI field according to the schema.\n\nIt must return a value that implements the `ResourceMapperFields` interface:\n\n```\ninterface ResourceMapperField {\n\t// Field ID as in the service\n\tid: string;\n\t// Field label\n\tdisplayName: string;\n\t// Whether n8n should pre-select the field as a matching field\n\t// A matching field is a column used to identify the rows to modify\n\tdefaultMatch: boolean;\n\t// Whether the field can be used as a matching field\n\tcanBeUsedToMatch?: boolean;\n\t// Whether the field is required by the schema\n\trequired: boolean;\n\t// Whether to display the field in the UI\n\t// If false, can't be used for matching or mapping\n\tdisplay: boolean;\n\t// The data type for the field\n\t// These correspond to UI element types\n\t// Supported types: string, number, dateTime, boolean, time, array, object, options\n\ttype?: FieldType;\n\t// Added at runtime if the field is removed from mapping by the user\n\tremoved?: boolean;\n\t// Specify options for enumerated types\n\toptions?: INodePropertyOptions[];\n}\n```\n\nRefer to the [Postgres resource mapping method](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/Postgres/v2/methods/resourceMapping.ts) and [Google Sheets resource mapping method](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/Google/Sheet/v2/methods/resourceMapping.ts) for live examples.\n\n## JSON\n\n```\n{\n\tdisplayName: 'Content (JSON)',\n\tname: 'content',\n\ttype: 'json',\n\tdefault: '',\n\tdescription: '',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## HTML\n\nThe HTML editor allows users to create HTML templates in their workflows. The editor supports standard HTML, CSS in `<style>` tags, and expressions wrapped in `{{}}`. Users can add `<script>` tags to pull in additional JavaScript. n8n doesn't run this JavaScript during workflow execution.\n\n```\n{\n\tdisplayName: 'HTML Template', // The value the user sees in the UI\n\tname: 'html', // The name used to reference the element UI within the code\n\ttype: 'string',\n\ttypeOptions: {\n\t\teditor: 'htmlEditor',\n\t},\n\tdefault: placeholder, // Loads n8n's placeholder HTML template\n\tnoDataExpression: true, // Prevent using an expression for the field\n\tdescription: 'HTML template to render',\n},\n```\n\nRefer to [`Html.node.ts`](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/Html/Html.node.ts) for a live example.\n\n## Notice\n\nDisplay a yellow box with a hint or extra info. Refer to [Node UI design](../../../plan/node-ui-design/) for guidance on writing good hints and info text.\n\n```\n{\n  displayName: 'Your text here',\n  name: 'notice',\n  type: 'notice',\n  default: '',\n},\n```\n\n## Hints\n\nThere are two types of hints: parameter hints and node hints:\n\n- Parameter hints are small lines of text below a user input field.\n- Node hints are a more powerful and flexible option than [Notice](#notice). Use them to display longer hints, in the input panel, output panel, or node details view.\n\n### Add a parameter hint\n\nAdd the `hint` parameter to a UI element:\n\n```\n{\n\tdisplayName: 'URL',\n\tname: 'url',\n\ttype: 'string',\n\thint: 'Enter a URL',\n\t...\n}\n```\n\n### Add a node hint\n\nDefine the node's hints in the `hints` property within the node `description`:\n\n```\ndescription: INodeTypeDescription = {\n\t...\n\thints: [\n\t\t{\n\t\t\t// The hint message. You can use HTML.\n\t\t\tmessage: \"This node has many input items. Consider enabling <b>Execute Once</b> in the node\\'s settings.\",\n\t\t\t// Choose from: info, warning, danger. The default is 'info'.\n\t\t\t// Changes the color. info (grey), warning (yellow), danger (red)\n\t\t\ttype: 'info',\n\t\t\t// Choose from: inputPane, outputPane, ndv. By default n8n displays the hint in both the input and output panels.\n\t\t\tlocation: 'outputPane',\n\t\t\t// Choose from: always, beforeExecution, afterExecution. The default is 'always'\n\t\t\twhenToDisplay: 'beforeExecution',\n\t\t\t// Optional. An expression. If it resolves to true, n8n displays the message. Defaults to true.\n\t\t\tdisplayCondition: '={{ $parameter[\"operation\"] === \"select\" && $input.all().length > 1 }}'\n\t\t}\n\t]\n\t...\n}\n```\n\n### Add a dynamic hint to a programmatic-style node\n\nIn programmatic-style nodes you can create a dynamic message that includes information from the node execution. As it relies on the node output data, you can't display this type of hint until after execution.\n\n```\nif (operation === 'select' && items.length > 1 && !node.executeOnce) {\n    // Expects two parameters: NodeExecutionData and an array of hints\n\treturn new NodeExecutionOutput(\n\t\t[returnData],\n\t\t[\n\t\t\t{\n\t\t\t\tmessage: `This node ran ${items.length} times, once for each input item. To run for the first item only, enable <b>Execute once</b> in the node settings.`,\n\t\t\t\tlocation: 'outputPane',\n\t\t\t},\n\t\t],\n\t);\n}\nreturn [returnData];\n```\n\nFor a live example of a dynamic hint in a programmatic-style node, view the [Split Out node code](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/Transform/SplitOut/SplitOut.node.ts#L266).\n",
+        "excerpt": "# Node user interface elements  n8n provides a set of predefined UI components (based on a JSON file) that allows users to input all sorts of data types. The following UI elements are available in n8n.  ## String  Basic configuration:  ``` { \tdisplayName: Name, // The value the user sees in the UI \tname: name, // The name used to reference the element UI within the code \ttype: string, \trequired: true, // Whether the field is required or not \tdefault: 'n8n', \tdescription: 'The name of the user',...",
+        "sections": [
+          {
+            "title": "Node user interface elements",
+            "level": 1,
+            "content": "n8n provides a set of predefined UI components (based on a JSON file) that allows users to input all sorts of data types. The following UI elements are available in n8n."
+          }
+        ]
+      },
+      "metadata": {
+        "keywords": [
+          "node",
+          "elements",
+          "user",
+          "interface",
+          "string",
+          "support",
+          "drag",
+          "drop",
+          "data",
+          "keys",
+          "number",
+          "collection",
+          "datetime",
+          "boolean",
+          "color",
+          "options",
+          "multi",
+          "filter",
+          "assignment",
+          "(drag",
+          "drop)",
+          "fixed",
+          "resource",
+          "locator",
+          "mapper",
+          "type",
+          "method",
+          "json",
+          "html",
+          "notice",
+          "hints",
+          "parameter",
+          "hint",
+          "dynamic",
+          "programmatic",
+          "style"
+        ],
+        "useCases": [],
+        "operations": [],
+        "codeExamples": 23,
+        "complexity": "intermediate",
+        "readingTime": "14 min",
+        "contentLength": 20106,
+        "relatedPages": []
+      },
+      "searchIndex": {
+        "fullText": "node ui elements # node user interface elements\n\nn8n provides a set of predefined ui components (based on a json file) that allows users to input all sorts of data types. the following ui elements are available in n8n.\n\n## string\n\nbasic configuration:\n\n```\n{\n\tdisplayname: name, // the value the user sees in the ui\n\tname: name, // the name used to reference the element ui within the code\n\ttype: string,\n\trequired: true, // whether the field is required or not\n\tdefault: 'n8n',\n\tdescription: 'the name of the user',\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\nstring field for inputting passwords:\n\n```\n{\n\tdisplayname: 'password',\n\tname: 'password',\n\ttype: 'string',\n\trequired: true,\n\ttypeoptions: {\n\t\tpassword: true,\n\t},\n\tdefault: '',\n\tdescription: `user's password`,\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\nstring field with more than one row:\n\n```\n{\n\tdisplayname: 'description',\n\tname: 'description',\n\ttype: 'string',\n\trequired: true,\n\ttypeoptions: {\n\t\trows: 4,\n\t},\n\tdefault: '',\n\tdescription: 'description',\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n### support drag and drop for data keys\n\nusers can drag and drop data values to map them to fields. dragging and dropping creates an [expression](../../../../../glossary/#expression-n8n) to load the data value. n8n supports this automatically.\n\nyou need to add an extra configuration option to support dragging and dropping data keys:\n\n- `requiresdatapath: 'single'`: for fields that require a single string.\n- `requiresdatapath: 'multiple'`: for fields that can accept a comma-separated list of string.\n\nthe [compare datasets node code](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/comparedatasets/comparedatasets.node.ts) has examples.\n\n## number\n\nnumber field with decimal points:\n\n```\n{\n\tdisplayname: 'amount',\n\tname: 'amount',\n\ttype: 'number',\n\trequired: true,\n\ttypeoptions: {\n\t\tmaxvalue: 10,\n\t\tminvalue: 0,\n\t\tnumberprecision: 2,\n\t},\n\tdefault: 10.00,\n\tdescription: 'your current amount',\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## collection\n\nuse the `collection` type when you need to display optional fields.\n\n```\n{\n\tdisplayname: 'filters',\n\tname: 'filters',\n\ttype: 'collection',\n\tplaceholder: 'add field',\n\tdefault: {},\n\toptions: [\n\t\t{\n\t\t\tdisplayname: 'type',\n\t\t\tname: 'type',\n\t\t\ttype: 'options',\n\t\t\toptions: [\n\t\t\t\t{\n\t\t\t\t\tname: 'automated',\n\t\t\t\t\tvalue: 'automated',\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\tname: 'past',\n\t\t\t\t\tvalue: 'past',\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\tname: 'upcoming',\n\t\t\t\t\tvalue: 'upcoming',\n\t\t\t\t},\n\t\t\t],\n\t\t\tdefault: '',\n\t\t},\n\t],\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## datetime\n\nthe `datetime` type provides a date picker.\n\n```\n{\n\tdisplayname: 'modified since',\n\tname: 'modified_since',\n\ttype: 'datetime',\n\tdefault: '',\n\tdescription: 'the date and time when the file was last modified',\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## boolean\n\nthe `boolean` type adds a toggle for entering true or false.\n\n```\n{\n\tdisplayname: 'wait for image',\n\tname: 'waitforimage',\n\ttype: 'boolean',\n\tdefault: true, // initial state of the toggle\n\tdescription: 'whether to wait for the image or not',\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## color\n\nthe `color` type provides a color selector.\n\n```\n{\n\tdisplayname: 'background color',\n\tname: 'backgroundcolor',\n\ttype: 'color',\n\tdefault: '', // initially selected color\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## options\n\nthe `options` type adds an options list. users can select a single value.\n\n```\n{\n\tdisplayname: 'resource',\n\tname: 'resource',\n\ttype: 'options',\n\toptions: [\n\t\t{\n\t\t\tname: 'image',\n\t\t\tvalue: 'image',\n\t\t},\n\t\t{\n\t\t\tname: 'template',\n\t\t\tvalue: 'template',\n\t\t},\n\t],\n\tdefault: 'image', // the initially selected option\n\tdescription: 'resource to consume',\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## multi-options\n\nthe `multioptions` type adds an options list. users can select more than one value.\n\n```\n{\n\tdisplayname: 'events',\n\tname: 'events',\n\ttype: 'multioptions',\n\toptions: [\n\t\t{\n\t\t\tname: 'plan created',\n\t\t\tvalue: 'plancreated',\n\t\t},\n\t\t{\n\t\t\tname: 'plan deleted',\n\t\t\tvalue: 'plandeleted',\n\t\t},\n\t],\n\tdefault: [], // initially selected options\n\tdescription: 'the events to be monitored',\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## filter\n\nuse this component to evaluate, match, or filter incoming data.\n\nthis is the code from n8n's own if node. it shows a filter component working with a [collection](#collection) component where users can configure the filter's behavior.\n\n```\n{\n\tdisplayname: 'conditions',\n\tname: 'conditions',\n\tplaceholder: 'add condition',\n\ttype: 'filter',\n\tdefault: {},\n\ttypeoptions: {\n\t\tfilter: {\n\t\t\t// use the user options (below) to determine filter behavior\n\t\t\tcasesensitive: '={{!$parameter.options.ignorecase}}',\n\t\t\ttypevalidation: '={{$parameter.options.loosetypevalidation ? \"loose\" : \"strict\"}}',\n\t\t},\n\t},\n},\n{\ndisplayname: 'options',\nname: 'options',\ntype: 'collection',\nplaceholder: 'add option',\ndefault: {},\noptions: [\n\t{\n\t\tdisplayname: 'ignore case',\n\t\tdescription: 'whether to ignore letter case when evaluating conditions',\n\t\tname: 'ignorecase',\n\t\ttype: 'boolean',\n\t\tdefault: true,\n\t},\n\t{\n\t\tdisplayname: 'less strict type validation',\n\t\tdescription: 'whether to try casting value types based on the selected operator',\n\t\tname: 'loosetypevalidation',\n\t\ttype: 'boolean',\n\t\tdefault: true,\n\t},\n],\n},\n```\n\n## assignment collection (drag and drop)\n\nuse the drag and drop component when you want users to pre-fill name and value parameters with a single drag interaction.\n\n```\n{\n\tdisplayname: 'fields to set',\n\tname: 'assignments',\n\ttype: 'assignmentcollection',\n\tdefault: {},\n},\n```\n\nyou can see an example in n8n's [edit fields (set) node](https://github.com/n8n-io/n8n/tree/0faeab1228e26d69a2a93bdb2f89523cca1e4036/packages/nodes-base/nodes/set/v2):\n\n## fixed collection\n\nuse the `fixedcollection` type to group fields that are semantically related.\n\n```\n{\n\tdisplayname: 'metadata',\n\tname: 'metadataui',\n\tplaceholder: 'add metadata',\n\ttype: 'fixedcollection',\n\tdefault: '',\n\ttypeoptions: {\n\t\tmultiplevalues: true,\n\t},\n\tdescription: '',\n\toptions: [\n\t\t{\n\t\t\tname: 'metadatavalues',\n\t\t\tdisplayname: 'metadata',\n\t\t\tvalues: [\n\t\t\t\t{\n\t\t\t\t\tdisplayname: 'name',\n\t\t\t\t\tname: 'name',\n\t\t\t\t\ttype: 'string',\n\t\t\t\t\tdefault: 'name of the metadata key to add.',\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\tdisplayname: 'value',\n\t\t\t\t\tname: 'value',\n\t\t\t\t\ttype: 'string',\n\t\t\t\t\tdefault: '',\n\t\t\t\t\tdescription: 'value to set for the metadata key.',\n\t\t\t\t},\n\t\t\t],\n\t\t},\n\t],\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## resource locator\n\nthe resource locator element helps users find a specific resource in an external service, such as a card or label in trello.\n\nthe following options are available:\n\n- id\n- url\n- list: allows users to select or search from a prepopulated list. this option requires more coding, as you must populate the list, and handle searching if you choose to support it.\n\nyou can choose which types to include.\n\nexample:\n\n```\n{\n\tdisplayname: 'card',\n\tname: 'cardid',\n\ttype: 'resourcelocator',\n\tdefault: '',\n\tdescription: 'get a card',\n\tmodes: [\n\t\t{\n\t\t\tdisplayname: 'id',\n\t\t\tname: 'id',\n\t\t\ttype: 'string',\n\t\t\thint: 'enter an id',\n\t\t\tvalidation: [\n\t\t\t\t{\n\t\t\t\t\ttype: 'regex',\n\t\t\t\t\tproperties: {\n\t\t\t\t\t\tregex: '^[0-9]',\n\t\t\t\t\t\terrormessage: 'the id must start with a number',\n\t\t\t\t\t},\n\t\t\t\t},\n\t\t\t],\n\t\t\tplaceholder: '12example',\n\t\t\t// how to use the id in api call\n\t\t\turl: '=http://api-base-url.com/?id={{$value}}',\n\t\t},\n\t\t{\n\t\t\tdisplayname: 'url',\n\t\t\tname: 'url',\n\t\t\ttype: 'string',\n\t\t\thint: 'enter a url',\n\t\t\tvalidation: [\n\t\t\t\t{\n\t\t\t\t\ttype: 'regex',\n\t\t\t\t\tproperties: {\n\t\t\t\t\t\tregex: '^http',\n\t\t\t\t\t\terrormessage: 'invalid url',\n\t\t\t\t\t},\n\t\t\t\t},\n\t\t\t],\n\t\t\tplaceholder: 'https://example.com/card/12example/',\n\t\t\t// how to get the id from the url\n\t\t\textractvalue: {\n\t\t\t\ttype: 'regex',\n\t\t\t\tregex: 'example.com/card/([0-9]*.*)/',\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tdisplayname: 'list',\n\t\t\tname: 'list',\n\t\t\ttype: 'list',\n\t\t",
+        "importantTerms": [
+          "type",
+          "name",
+          "node",
+          "resource",
+          "list",
+          "displayname",
+          "default",
+          "operation",
+          "comma",
+          "separated",
+          "names",
+          "true",
+          "options",
+          "string",
+          "this",
+          "nodes",
+          "field",
+          "description",
+          "value",
+          "with",
+          "element",
+          "display",
+          "data",
+          "users",
+          "hint",
+          "operations",
+          "show",
+          "boolean",
+          "displayoptions",
+          "resources",
+          "base",
+          "https",
+          "matching",
+          "html",
+          "hints",
+          "input",
+          "whether",
+          "github",
+          "packages",
+          "typeoptions",
+          "master",
+          "from",
+          "example",
+          "user",
+          "required",
+          "fields",
+          "method",
+          "refer",
+          "schema",
+          "mapping"
+        ]
+      }
+    },
+    {
+      "id": "page-1169",
       "title": "UX guidelines",
       "url": "https://docs.n8n.io/integrations/creating-nodes/build/reference/ux-guidelines/index.md",
       "urlPath": "integrations/creating-nodes/build/reference/ux-guidelines/index.md",
@@ -85389,7 +85529,7 @@
       }
     },
     {
-      "id": "page-1169",
+      "id": "page-1170",
       "title": "Verification guidelines",
       "url": "https://docs.n8n.io/integrations/creating-nodes/build/reference/verification-guidelines/index.md",
       "urlPath": "integrations/creating-nodes/build/reference/verification-guidelines/index.md",
@@ -85475,7 +85615,7 @@
       }
     },
     {
-      "id": "page-1170",
+      "id": "page-1171",
       "title": "Node base file",
       "url": "https://docs.n8n.io/integrations/creating-nodes/build/reference/node-base-files/index.md",
       "urlPath": "integrations/creating-nodes/build/reference/node-base-files/index.md",
@@ -85533,7 +85673,7 @@
       }
     },
     {
-      "id": "page-1171",
+      "id": "page-1172",
       "title": "Declarative-style parameters",
       "url": "https://docs.n8n.io/integrations/creating-nodes/build/reference/node-base-files/declarative-style-parameters/index.md",
       "urlPath": "integrations/creating-nodes/build/reference/node-base-files/declarative-style-parameters/index.md",
@@ -85608,7 +85748,7 @@
       }
     },
     {
-      "id": "page-1172",
+      "id": "page-1173",
       "title": "Programmatic-style execute method",
       "url": "https://docs.n8n.io/integrations/creating-nodes/build/reference/node-base-files/programmatic-style-execute-method/index.md",
       "urlPath": "integrations/creating-nodes/build/reference/node-base-files/programmatic-style-execute-method/index.md",
@@ -85657,7 +85797,7 @@
       }
     },
     {
-      "id": "page-1173",
+      "id": "page-1174",
       "title": "Programmatic-style parameters",
       "url": "https://docs.n8n.io/integrations/creating-nodes/build/reference/node-base-files/programmatic-style-parameters/index.md",
       "urlPath": "integrations/creating-nodes/build/reference/node-base-files/programmatic-style-parameters/index.md",
@@ -85729,7 +85869,7 @@
       }
     },
     {
-      "id": "page-1174",
+      "id": "page-1175",
       "title": "Standard parameters",
       "url": "https://docs.n8n.io/integrations/creating-nodes/build/reference/node-base-files/standard-parameters/index.md",
       "urlPath": "integrations/creating-nodes/build/reference/node-base-files/standard-parameters/index.md",
@@ -85838,7 +85978,7 @@
       }
     },
     {
-      "id": "page-1175",
+      "id": "page-1176",
       "title": "Structure",
       "url": "https://docs.n8n.io/integrations/creating-nodes/build/reference/node-base-files/structure/index.md",
       "urlPath": "integrations/creating-nodes/build/reference/node-base-files/structure/index.md",
@@ -85904,129 +86044,6 @@
           "from",
           "information",
           "available"
-        ]
-      }
-    },
-    {
-      "id": "page-1176",
-      "title": "Node UI elements",
-      "url": "https://docs.n8n.io/integrations/creating-nodes/build/reference/ui-elements/index.md",
-      "urlPath": "integrations/creating-nodes/build/reference/ui-elements/index.md",
-      "category": "other",
-      "subcategory": null,
-      "nodeName": null,
-      "nodeType": null,
-      "content": {
-        "markdown": "# Node user interface elements\n\nn8n provides a set of predefined UI components (based on a JSON file) that allows users to input all sorts of data types. The following UI elements are available in n8n.\n\n## String\n\nBasic configuration:\n\n```\n{\n\tdisplayName: Name, // The value the user sees in the UI\n\tname: name, // The name used to reference the element UI within the code\n\ttype: string,\n\trequired: true, // Whether the field is required or not\n\tdefault: 'n8n',\n\tdescription: 'The name of the user',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\nString field for inputting passwords:\n\n```\n{\n\tdisplayName: 'Password',\n\tname: 'password',\n\ttype: 'string',\n\trequired: true,\n\ttypeOptions: {\n\t\tpassword: true,\n\t},\n\tdefault: '',\n\tdescription: `User's password`,\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\nString field with more than one row:\n\n```\n{\n\tdisplayName: 'Description',\n\tname: 'description',\n\ttype: 'string',\n\trequired: true,\n\ttypeOptions: {\n\t\trows: 4,\n\t},\n\tdefault: '',\n\tdescription: 'Description',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n### Support drag and drop for data keys\n\nUsers can drag and drop data values to map them to fields. Dragging and dropping creates an [expression](../../../../../glossary/#expression-n8n) to load the data value. n8n supports this automatically.\n\nYou need to add an extra configuration option to support dragging and dropping data keys:\n\n- `requiresDataPath: 'single'`: for fields that require a single string.\n- `requiresDataPath: 'multiple'`: for fields that can accept a comma-separated list of string.\n\nThe [Compare Datasets node code](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/CompareDatasets/CompareDatasets.node.ts) has examples.\n\n## Number\n\nNumber field with decimal points:\n\n```\n{\n\tdisplayName: 'Amount',\n\tname: 'amount',\n\ttype: 'number',\n\trequired: true,\n\ttypeOptions: {\n\t\tmaxValue: 10,\n\t\tminValue: 0,\n\t\tnumberPrecision: 2,\n\t},\n\tdefault: 10.00,\n\tdescription: 'Your current amount',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## Collection\n\nUse the `collection` type when you need to display optional fields.\n\n```\n{\n\tdisplayName: 'Filters',\n\tname: 'filters',\n\ttype: 'collection',\n\tplaceholder: 'Add Field',\n\tdefault: {},\n\toptions: [\n\t\t{\n\t\t\tdisplayName: 'Type',\n\t\t\tname: 'type',\n\t\t\ttype: 'options',\n\t\t\toptions: [\n\t\t\t\t{\n\t\t\t\t\tname: 'Automated',\n\t\t\t\t\tvalue: 'automated',\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\tname: 'Past',\n\t\t\t\t\tvalue: 'past',\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\tname: 'Upcoming',\n\t\t\t\t\tvalue: 'upcoming',\n\t\t\t\t},\n\t\t\t],\n\t\t\tdefault: '',\n\t\t},\n\t],\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## DateTime\n\nThe `dateTime` type provides a date picker.\n\n```\n{\n\tdisplayName: 'Modified Since',\n\tname: 'modified_since',\n\ttype: 'dateTime',\n\tdefault: '',\n\tdescription: 'The date and time when the file was last modified',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## Boolean\n\nThe `boolean` type adds a toggle for entering true or false.\n\n```\n{\n\tdisplayName: 'Wait for Image',\n\tname: 'waitForImage',\n\ttype: 'boolean',\n\tdefault: true, // Initial state of the toggle\n\tdescription: 'Whether to wait for the image or not',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## Color\n\nThe `color` type provides a color selector.\n\n```\n{\n\tdisplayName: 'Background Color',\n\tname: 'backgroundColor',\n\ttype: 'color',\n\tdefault: '', // Initially selected color\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## Options\n\nThe `options` type adds an options list. Users can select a single value.\n\n```\n{\n\tdisplayName: 'Resource',\n\tname: 'resource',\n\ttype: 'options',\n\toptions: [\n\t\t{\n\t\t\tname: 'Image',\n\t\t\tvalue: 'image',\n\t\t},\n\t\t{\n\t\t\tname: 'Template',\n\t\t\tvalue: 'template',\n\t\t},\n\t],\n\tdefault: 'image', // The initially selected option\n\tdescription: 'Resource to consume',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## Multi-options\n\nThe `multiOptions` type adds an options list. Users can select more than one value.\n\n```\n{\n\tdisplayName: 'Events',\n\tname: 'events',\n\ttype: 'multiOptions',\n\toptions: [\n\t\t{\n\t\t\tname: 'Plan Created',\n\t\t\tvalue: 'planCreated',\n\t\t},\n\t\t{\n\t\t\tname: 'Plan Deleted',\n\t\t\tvalue: 'planDeleted',\n\t\t},\n\t],\n\tdefault: [], // Initially selected options\n\tdescription: 'The events to be monitored',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## Filter\n\nUse this component to evaluate, match, or filter incoming data.\n\nThis is the code from n8n's own If node. It shows a filter component working with a [collection](#collection) component where users can configure the filter's behavior.\n\n```\n{\n\tdisplayName: 'Conditions',\n\tname: 'conditions',\n\tplaceholder: 'Add Condition',\n\ttype: 'filter',\n\tdefault: {},\n\ttypeOptions: {\n\t\tfilter: {\n\t\t\t// Use the user options (below) to determine filter behavior\n\t\t\tcaseSensitive: '={{!$parameter.options.ignoreCase}}',\n\t\t\ttypeValidation: '={{$parameter.options.looseTypeValidation ? \"loose\" : \"strict\"}}',\n\t\t},\n\t},\n},\n{\ndisplayName: 'Options',\nname: 'options',\ntype: 'collection',\nplaceholder: 'Add option',\ndefault: {},\noptions: [\n\t{\n\t\tdisplayName: 'Ignore Case',\n\t\tdescription: 'Whether to ignore letter case when evaluating conditions',\n\t\tname: 'ignoreCase',\n\t\ttype: 'boolean',\n\t\tdefault: true,\n\t},\n\t{\n\t\tdisplayName: 'Less Strict Type Validation',\n\t\tdescription: 'Whether to try casting value types based on the selected operator',\n\t\tname: 'looseTypeValidation',\n\t\ttype: 'boolean',\n\t\tdefault: true,\n\t},\n],\n},\n```\n\n## Assignment collection (drag and drop)\n\nUse the drag and drop component when you want users to pre-fill name and value parameters with a single drag interaction.\n\n```\n{\n\tdisplayName: 'Fields to Set',\n\tname: 'assignments',\n\ttype: 'assignmentCollection',\n\tdefault: {},\n},\n```\n\nYou can see an example in n8n's [Edit Fields (Set) node](https://github.com/n8n-io/n8n/tree/0faeab1228e26d69a2a93bdb2f89523cca1e4036/packages/nodes-base/nodes/Set/v2):\n\n## Fixed collection\n\nUse the `fixedCollection` type to group fields that are semantically related.\n\n```\n{\n\tdisplayName: 'Metadata',\n\tname: 'metadataUi',\n\tplaceholder: 'Add Metadata',\n\ttype: 'fixedCollection',\n\tdefault: '',\n\ttypeOptions: {\n\t\tmultipleValues: true,\n\t},\n\tdescription: '',\n\toptions: [\n\t\t{\n\t\t\tname: 'metadataValues',\n\t\t\tdisplayName: 'Metadata',\n\t\t\tvalues: [\n\t\t\t\t{\n\t\t\t\t\tdisplayName: 'Name',\n\t\t\t\t\tname: 'name',\n\t\t\t\t\ttype: 'string',\n\t\t\t\t\tdefault: 'Name of the metadata key to add.',\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\tdisplayName: 'Value',\n\t\t\t\t\tname: 'value',\n\t\t\t\t\ttype: 'string',\n\t\t\t\t\tdefault: '',\n\t\t\t\t\tdescription: 'Value to set for the metadata key.',\n\t\t\t\t},\n\t\t\t],\n\t\t},\n\t],\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## Resource locator\n\nThe resource locator element helps users find a specific resource in an external service, such as a card or label in Trello.\n\nThe following options are available:\n\n- ID\n- URL\n- List: allows users to select or search from a prepopulated list. This option requires more coding, as you must populate the list, and handle searching if you choose to support it.\n\nYou can choose which types to include.\n\nExample:\n\n```\n{\n\tdisplayName: 'Card',\n\tname: 'cardID',\n\ttype: 'resourceLocator',\n\tdefault: '',\n\tdescription: 'Get a card',\n\tmodes: [\n\t\t{\n\t\t\tdisplayName: 'ID',\n\t\t\tname: 'id',\n\t\t\ttype: 'string',\n\t\t\thint: 'Enter an ID',\n\t\t\tvalidation: [\n\t\t\t\t{\n\t\t\t\t\ttype: 'regex',\n\t\t\t\t\tproperties: {\n\t\t\t\t\t\tregex: '^[0-9]',\n\t\t\t\t\t\terrorMessage: 'The ID must start with a number',\n\t\t\t\t\t},\n\t\t\t\t},\n\t\t\t],\n\t\t\tplaceholder: '12example',\n\t\t\t// How to use the ID in API call\n\t\t\turl: '=http://api-base-url.com/?id={{$value}}',\n\t\t},\n\t\t{\n\t\t\tdisplayName: 'URL',\n\t\t\tname: 'url',\n\t\t\ttype: 'string',\n\t\t\thint: 'Enter a URL',\n\t\t\tvalidation: [\n\t\t\t\t{\n\t\t\t\t\ttype: 'regex',\n\t\t\t\t\tproperties: {\n\t\t\t\t\t\tregex: '^http',\n\t\t\t\t\t\terrorMessage: 'Invalid URL',\n\t\t\t\t\t},\n\t\t\t\t},\n\t\t\t],\n\t\t\tplaceholder: 'https://example.com/card/12example/',\n\t\t\t// How to get the ID from the URL\n\t\t\textractValue: {\n\t\t\t\ttype: 'regex',\n\t\t\t\tregex: 'example.com/card/([0-9]*.*)/',\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tdisplayName: 'List',\n\t\t\tname: 'list',\n\t\t\ttype: 'list',\n\t\t\ttypeOptions: {\n\t\t\t\t// You must always provide a search method\n\t\t\t\t// Write this method within the methods object in your base file\n\t\t\t\t// The method must populate the list, and handle searching if searchable: true\n\t\t\t\tsearchListMethod: 'searchMethod',\n\t\t\t\t// If you want users to be able to search the list\n\t\t\t\tsearchable: true,\n\t\t\t\t// Set to true if you want to force users to search\n\t\t\t\t// When true, users can't browse the list\n\t\t\t\t// Or false if users can browse a list\n\t\t\t\tsearchFilterRequired: true,\n\t\t\t},\n\t\t},\n\t],\n\tdisplayOptions: {\n\t\t// the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t],\n\t\t},\n\t},\n},\n```\n\nRefer to the following for live examples:\n\n- Refer to [`CardDescription.ts`](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/Trello/CardDescription.ts) and [`Trello.node.ts`](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/Trello/Trello.node.ts) in n8n's Trello node for an example of a list with search that includes `searchFilterRequired: true`.\n- Refer to [`GoogleDrive.node.ts`](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/Google/Drive/GoogleDrive.node.ts) for an example where users can browse the list or search.\n\n## Resource mapper\n\nIf your node performs insert, update, or upsert operations, you need to send data from the node in a format supported by the service you're integrating with. A common pattern is to use a Set node before the node that sends data, to convert the data to match the schema of the service you're connecting to. The resource mapper UI component provides a way to get data into the required format directly within the node, rather than using a Set node. The resource mapper component can also validate input data against the schema provided in the node, and cast input data into the expected type.\n\nMapping and matching\n\nMapping is the process of setting the input data to use as values when updating row(s). Matching is the process of using column names to identify the row(s) to update.\n\n```\n{\n\tdisplayName: 'Columns',\n\tname: 'columns', // The name used to reference the element UI within the code\n\ttype: 'resourceMapper', // The UI element type\n\tdefault: {\n\t\t// mappingMode can be defined in the component (mappingMode: 'defineBelow')\n\t\t// or you can attempt automatic mapping (mappingMode: 'autoMapInputData')\n\t\tmappingMode: 'defineBelow',\n\t\t// Important: always set default value to null\n\t\tvalue: null,\n\t},\n\trequired: true,\n\t// See \"Resource mapper type options interface\" below for the full typeOptions specification\n\ttypeOptions: {\n\t\tresourceMapper: {\n\t\t\tresourceMapperMethod: 'getMappingColumns',\n\t\t\tmode: 'update',\n\t\t\tfieldWords: {\n\t\t\t\tsingular: 'column',\n\t\t\t\tplural: 'columns',\n\t\t\t},\n\t\t\taddAllFields: true, \n\t\t\tmultiKeyMatch: true,\n\t\t\tsupportAutoMap: true,\n\t\t\tmatchingFieldsLabels: {\n\t\t\t\ttitle: 'Custom matching columns title',\n\t\t\t\tdescription: 'Help text for custom matching columns',\n\t\t\t\thint: 'Below-field hint for custom matching columns',\n\t\t\t},\n\t\t},\n\t},\n},\n```\n\nRefer to the [Postgres node (version 2)](https://github.com/n8n-io/n8n/tree/master/packages/nodes-base/nodes/Postgres/v2) for a live example using a database schema.\n\nRefer to the [Google Sheets node (version 2)](https://github.com/n8n-io/n8n/tree/master/packages/nodes-base/nodes/Google/Sheet/v2) for a live example using a schema-less service.\n\n### Resource mapper type options interface\n\nThe `typeOptions` section must implement the following interface:\n\n```\nexport interface ResourceMapperTypeOptions {\n\t// The name of the method where you fetch the schema\n\t// Refer to the Resource mapper method section for more detail\n\tresourceMapperMethod: string;\n\t// Choose the mode for your operation\n\t// Supported modes: add, update, upsert\n\tmode: 'add' | 'update' | 'upsert';\n\t// Specify labels for fields in the UI\n\tfieldWords?: { singular: string; plural: string };\n\t// Whether n8n should display a UI input for every field when node first added to workflow\n\t// Default is true\n\taddAllFields?: boolean;\n\t// Specify a message to show if no fields are fetched from the service \n\t// (the call is successful but the response is empty)\n\tnoFieldsError?: string;\n\t// Whether to support multi-key column matching\n\t// multiKeyMatch is for update and upsert only\n\t// Default is false\n\t// If true, the node displays a multi-select dropdown for the matching column selector\n\tmultiKeyMatch?: boolean;\n\t// Whether to support automatic mapping\n\t// If false, n8n hides the mapping mode selector field and sets mappingMode to defineBelow\n\tsupportAutoMap?: boolean;\n\t// Custom labels for the matching columns selector\n\tmatchingFieldsLabels?: {\n\t\ttitle?: string;\n\t\tdescription?: string;\n\t\thint?: string;\n\t};\n}\n```\n\n### Resource mapper method\n\nThis method contains your node-specific logic for fetching the data schema. Every node must implement its own logic for fetching the schema, and setting up each UI field according to the schema.\n\nIt must return a value that implements the `ResourceMapperFields` interface:\n\n```\ninterface ResourceMapperField {\n\t// Field ID as in the service\n\tid: string;\n\t// Field label\n\tdisplayName: string;\n\t// Whether n8n should pre-select the field as a matching field\n\t// A matching field is a column used to identify the rows to modify\n\tdefaultMatch: boolean;\n\t// Whether the field can be used as a matching field\n\tcanBeUsedToMatch?: boolean;\n\t// Whether the field is required by the schema\n\trequired: boolean;\n\t// Whether to display the field in the UI\n\t// If false, can't be used for matching or mapping\n\tdisplay: boolean;\n\t// The data type for the field\n\t// These correspond to UI element types\n\t// Supported types: string, number, dateTime, boolean, time, array, object, options\n\ttype?: FieldType;\n\t// Added at runtime if the field is removed from mapping by the user\n\tremoved?: boolean;\n\t// Specify options for enumerated types\n\toptions?: INodePropertyOptions[];\n}\n```\n\nRefer to the [Postgres resource mapping method](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/Postgres/v2/methods/resourceMapping.ts) and [Google Sheets resource mapping method](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/Google/Sheet/v2/methods/resourceMapping.ts) for live examples.\n\n## JSON\n\n```\n{\n\tdisplayName: 'Content (JSON)',\n\tname: 'content',\n\ttype: 'json',\n\tdefault: '',\n\tdescription: '',\n\tdisplayOptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## HTML\n\nThe HTML editor allows users to create HTML templates in their workflows. The editor supports standard HTML, CSS in `<style>` tags, and expressions wrapped in `{{}}`. Users can add `<script>` tags to pull in additional JavaScript. n8n doesn't run this JavaScript during workflow execution.\n\n```\n{\n\tdisplayName: 'HTML Template', // The value the user sees in the UI\n\tname: 'html', // The name used to reference the element UI within the code\n\ttype: 'string',\n\ttypeOptions: {\n\t\teditor: 'htmlEditor',\n\t},\n\tdefault: placeholder, // Loads n8n's placeholder HTML template\n\tnoDataExpression: true, // Prevent using an expression for the field\n\tdescription: 'HTML template to render',\n},\n```\n\nRefer to [`Html.node.ts`](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/Html/Html.node.ts) for a live example.\n\n## Notice\n\nDisplay a yellow box with a hint or extra info. Refer to [Node UI design](../../../plan/node-ui-design/) for guidance on writing good hints and info text.\n\n```\n{\n  displayName: 'Your text here',\n  name: 'notice',\n  type: 'notice',\n  default: '',\n},\n```\n\n## Hints\n\nThere are two types of hints: parameter hints and node hints:\n\n- Parameter hints are small lines of text below a user input field.\n- Node hints are a more powerful and flexible option than [Notice](#notice). Use them to display longer hints, in the input panel, output panel, or node details view.\n\n### Add a parameter hint\n\nAdd the `hint` parameter to a UI element:\n\n```\n{\n\tdisplayName: 'URL',\n\tname: 'url',\n\ttype: 'string',\n\thint: 'Enter a URL',\n\t...\n}\n```\n\n### Add a node hint\n\nDefine the node's hints in the `hints` property within the node `description`:\n\n```\ndescription: INodeTypeDescription = {\n\t...\n\thints: [\n\t\t{\n\t\t\t// The hint message. You can use HTML.\n\t\t\tmessage: \"This node has many input items. Consider enabling <b>Execute Once</b> in the node\\'s settings.\",\n\t\t\t// Choose from: info, warning, danger. The default is 'info'.\n\t\t\t// Changes the color. info (grey), warning (yellow), danger (red)\n\t\t\ttype: 'info',\n\t\t\t// Choose from: inputPane, outputPane, ndv. By default n8n displays the hint in both the input and output panels.\n\t\t\tlocation: 'outputPane',\n\t\t\t// Choose from: always, beforeExecution, afterExecution. The default is 'always'\n\t\t\twhenToDisplay: 'beforeExecution',\n\t\t\t// Optional. An expression. If it resolves to true, n8n displays the message. Defaults to true.\n\t\t\tdisplayCondition: '={{ $parameter[\"operation\"] === \"select\" && $input.all().length > 1 }}'\n\t\t}\n\t]\n\t...\n}\n```\n\n### Add a dynamic hint to a programmatic-style node\n\nIn programmatic-style nodes you can create a dynamic message that includes information from the node execution. As it relies on the node output data, you can't display this type of hint until after execution.\n\n```\nif (operation === 'select' && items.length > 1 && !node.executeOnce) {\n    // Expects two parameters: NodeExecutionData and an array of hints\n\treturn new NodeExecutionOutput(\n\t\t[returnData],\n\t\t[\n\t\t\t{\n\t\t\t\tmessage: `This node ran ${items.length} times, once for each input item. To run for the first item only, enable <b>Execute once</b> in the node settings.`,\n\t\t\t\tlocation: 'outputPane',\n\t\t\t},\n\t\t],\n\t);\n}\nreturn [returnData];\n```\n\nFor a live example of a dynamic hint in a programmatic-style node, view the [Split Out node code](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/Transform/SplitOut/SplitOut.node.ts#L266).\n",
-        "excerpt": "# Node user interface elements  n8n provides a set of predefined UI components (based on a JSON file) that allows users to input all sorts of data types. The following UI elements are available in n8n.  ## String  Basic configuration:  ``` { \tdisplayName: Name, // The value the user sees in the UI \tname: name, // The name used to reference the element UI within the code \ttype: string, \trequired: true, // Whether the field is required or not \tdefault: 'n8n', \tdescription: 'The name of the user',...",
-        "sections": [
-          {
-            "title": "Node user interface elements",
-            "level": 1,
-            "content": "n8n provides a set of predefined UI components (based on a JSON file) that allows users to input all sorts of data types. The following UI elements are available in n8n."
-          }
-        ]
-      },
-      "metadata": {
-        "keywords": [
-          "node",
-          "elements",
-          "user",
-          "interface",
-          "string",
-          "support",
-          "drag",
-          "drop",
-          "data",
-          "keys",
-          "number",
-          "collection",
-          "datetime",
-          "boolean",
-          "color",
-          "options",
-          "multi",
-          "filter",
-          "assignment",
-          "(drag",
-          "drop)",
-          "fixed",
-          "resource",
-          "locator",
-          "mapper",
-          "type",
-          "method",
-          "json",
-          "html",
-          "notice",
-          "hints",
-          "parameter",
-          "hint",
-          "dynamic",
-          "programmatic",
-          "style"
-        ],
-        "useCases": [],
-        "operations": [],
-        "codeExamples": 23,
-        "complexity": "intermediate",
-        "readingTime": "14 min",
-        "contentLength": 20106,
-        "relatedPages": []
-      },
-      "searchIndex": {
-        "fullText": "node ui elements # node user interface elements\n\nn8n provides a set of predefined ui components (based on a json file) that allows users to input all sorts of data types. the following ui elements are available in n8n.\n\n## string\n\nbasic configuration:\n\n```\n{\n\tdisplayname: name, // the value the user sees in the ui\n\tname: name, // the name used to reference the element ui within the code\n\ttype: string,\n\trequired: true, // whether the field is required or not\n\tdefault: 'n8n',\n\tdescription: 'the name of the user',\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\nstring field for inputting passwords:\n\n```\n{\n\tdisplayname: 'password',\n\tname: 'password',\n\ttype: 'string',\n\trequired: true,\n\ttypeoptions: {\n\t\tpassword: true,\n\t},\n\tdefault: '',\n\tdescription: `user's password`,\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\nstring field with more than one row:\n\n```\n{\n\tdisplayname: 'description',\n\tname: 'description',\n\ttype: 'string',\n\trequired: true,\n\ttypeoptions: {\n\t\trows: 4,\n\t},\n\tdefault: '',\n\tdescription: 'description',\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n### support drag and drop for data keys\n\nusers can drag and drop data values to map them to fields. dragging and dropping creates an [expression](../../../../../glossary/#expression-n8n) to load the data value. n8n supports this automatically.\n\nyou need to add an extra configuration option to support dragging and dropping data keys:\n\n- `requiresdatapath: 'single'`: for fields that require a single string.\n- `requiresdatapath: 'multiple'`: for fields that can accept a comma-separated list of string.\n\nthe [compare datasets node code](https://github.com/n8n-io/n8n/blob/master/packages/nodes-base/nodes/comparedatasets/comparedatasets.node.ts) has examples.\n\n## number\n\nnumber field with decimal points:\n\n```\n{\n\tdisplayname: 'amount',\n\tname: 'amount',\n\ttype: 'number',\n\trequired: true,\n\ttypeoptions: {\n\t\tmaxvalue: 10,\n\t\tminvalue: 0,\n\t\tnumberprecision: 2,\n\t},\n\tdefault: 10.00,\n\tdescription: 'your current amount',\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## collection\n\nuse the `collection` type when you need to display optional fields.\n\n```\n{\n\tdisplayname: 'filters',\n\tname: 'filters',\n\ttype: 'collection',\n\tplaceholder: 'add field',\n\tdefault: {},\n\toptions: [\n\t\t{\n\t\t\tdisplayname: 'type',\n\t\t\tname: 'type',\n\t\t\ttype: 'options',\n\t\t\toptions: [\n\t\t\t\t{\n\t\t\t\t\tname: 'automated',\n\t\t\t\t\tvalue: 'automated',\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\tname: 'past',\n\t\t\t\t\tvalue: 'past',\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\tname: 'upcoming',\n\t\t\t\t\tvalue: 'upcoming',\n\t\t\t\t},\n\t\t\t],\n\t\t\tdefault: '',\n\t\t},\n\t],\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## datetime\n\nthe `datetime` type provides a date picker.\n\n```\n{\n\tdisplayname: 'modified since',\n\tname: 'modified_since',\n\ttype: 'datetime',\n\tdefault: '',\n\tdescription: 'the date and time when the file was last modified',\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## boolean\n\nthe `boolean` type adds a toggle for entering true or false.\n\n```\n{\n\tdisplayname: 'wait for image',\n\tname: 'waitforimage',\n\ttype: 'boolean',\n\tdefault: true, // initial state of the toggle\n\tdescription: 'whether to wait for the image or not',\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## color\n\nthe `color` type provides a color selector.\n\n```\n{\n\tdisplayname: 'background color',\n\tname: 'backgroundcolor',\n\ttype: 'color',\n\tdefault: '', // initially selected color\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## options\n\nthe `options` type adds an options list. users can select a single value.\n\n```\n{\n\tdisplayname: 'resource',\n\tname: 'resource',\n\ttype: 'options',\n\toptions: [\n\t\t{\n\t\t\tname: 'image',\n\t\t\tvalue: 'image',\n\t\t},\n\t\t{\n\t\t\tname: 'template',\n\t\t\tvalue: 'template',\n\t\t},\n\t],\n\tdefault: 'image', // the initially selected option\n\tdescription: 'resource to consume',\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## multi-options\n\nthe `multioptions` type adds an options list. users can select more than one value.\n\n```\n{\n\tdisplayname: 'events',\n\tname: 'events',\n\ttype: 'multioptions',\n\toptions: [\n\t\t{\n\t\t\tname: 'plan created',\n\t\t\tvalue: 'plancreated',\n\t\t},\n\t\t{\n\t\t\tname: 'plan deleted',\n\t\t\tvalue: 'plandeleted',\n\t\t},\n\t],\n\tdefault: [], // initially selected options\n\tdescription: 'the events to be monitored',\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## filter\n\nuse this component to evaluate, match, or filter incoming data.\n\nthis is the code from n8n's own if node. it shows a filter component working with a [collection](#collection) component where users can configure the filter's behavior.\n\n```\n{\n\tdisplayname: 'conditions',\n\tname: 'conditions',\n\tplaceholder: 'add condition',\n\ttype: 'filter',\n\tdefault: {},\n\ttypeoptions: {\n\t\tfilter: {\n\t\t\t// use the user options (below) to determine filter behavior\n\t\t\tcasesensitive: '={{!$parameter.options.ignorecase}}',\n\t\t\ttypevalidation: '={{$parameter.options.loosetypevalidation ? \"loose\" : \"strict\"}}',\n\t\t},\n\t},\n},\n{\ndisplayname: 'options',\nname: 'options',\ntype: 'collection',\nplaceholder: 'add option',\ndefault: {},\noptions: [\n\t{\n\t\tdisplayname: 'ignore case',\n\t\tdescription: 'whether to ignore letter case when evaluating conditions',\n\t\tname: 'ignorecase',\n\t\ttype: 'boolean',\n\t\tdefault: true,\n\t},\n\t{\n\t\tdisplayname: 'less strict type validation',\n\t\tdescription: 'whether to try casting value types based on the selected operator',\n\t\tname: 'loosetypevalidation',\n\t\ttype: 'boolean',\n\t\tdefault: true,\n\t},\n],\n},\n```\n\n## assignment collection (drag and drop)\n\nuse the drag and drop component when you want users to pre-fill name and value parameters with a single drag interaction.\n\n```\n{\n\tdisplayname: 'fields to set',\n\tname: 'assignments',\n\ttype: 'assignmentcollection',\n\tdefault: {},\n},\n```\n\nyou can see an example in n8n's [edit fields (set) node](https://github.com/n8n-io/n8n/tree/0faeab1228e26d69a2a93bdb2f89523cca1e4036/packages/nodes-base/nodes/set/v2):\n\n## fixed collection\n\nuse the `fixedcollection` type to group fields that are semantically related.\n\n```\n{\n\tdisplayname: 'metadata',\n\tname: 'metadataui',\n\tplaceholder: 'add metadata',\n\ttype: 'fixedcollection',\n\tdefault: '',\n\ttypeoptions: {\n\t\tmultiplevalues: true,\n\t},\n\tdescription: '',\n\toptions: [\n\t\t{\n\t\t\tname: 'metadatavalues',\n\t\t\tdisplayname: 'metadata',\n\t\t\tvalues: [\n\t\t\t\t{\n\t\t\t\t\tdisplayname: 'name',\n\t\t\t\t\tname: 'name',\n\t\t\t\t\ttype: 'string',\n\t\t\t\t\tdefault: 'name of the metadata key to add.',\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\tdisplayname: 'value',\n\t\t\t\t\tname: 'value',\n\t\t\t\t\ttype: 'string',\n\t\t\t\t\tdefault: '',\n\t\t\t\t\tdescription: 'value to set for the metadata key.',\n\t\t\t\t},\n\t\t\t],\n\t\t},\n\t],\n\tdisplayoptions: { // the resources and operations to display this element with\n\t\tshow: {\n\t\t\tresource: [\n\t\t\t\t// comma-separated list of resource names\n\t\t\t],\n\t\t\toperation: [\n\t\t\t\t// comma-separated list of operation names\n\t\t\t]\n\t\t}\n\t},\n}\n```\n\n## resource locator\n\nthe resource locator element helps users find a specific resource in an external service, such as a card or label in trello.\n\nthe following options are available:\n\n- id\n- url\n- list: allows users to select or search from a prepopulated list. this option requires more coding, as you must populate the list, and handle searching if you choose to support it.\n\nyou can choose which types to include.\n\nexample:\n\n```\n{\n\tdisplayname: 'card',\n\tname: 'cardid',\n\ttype: 'resourcelocator',\n\tdefault: '',\n\tdescription: 'get a card',\n\tmodes: [\n\t\t{\n\t\t\tdisplayname: 'id',\n\t\t\tname: 'id',\n\t\t\ttype: 'string',\n\t\t\thint: 'enter an id',\n\t\t\tvalidation: [\n\t\t\t\t{\n\t\t\t\t\ttype: 'regex',\n\t\t\t\t\tproperties: {\n\t\t\t\t\t\tregex: '^[0-9]',\n\t\t\t\t\t\terrormessage: 'the id must start with a number',\n\t\t\t\t\t},\n\t\t\t\t},\n\t\t\t],\n\t\t\tplaceholder: '12example',\n\t\t\t// how to use the id in api call\n\t\t\turl: '=http://api-base-url.com/?id={{$value}}',\n\t\t},\n\t\t{\n\t\t\tdisplayname: 'url',\n\t\t\tname: 'url',\n\t\t\ttype: 'string',\n\t\t\thint: 'enter a url',\n\t\t\tvalidation: [\n\t\t\t\t{\n\t\t\t\t\ttype: 'regex',\n\t\t\t\t\tproperties: {\n\t\t\t\t\t\tregex: '^http',\n\t\t\t\t\t\terrormessage: 'invalid url',\n\t\t\t\t\t},\n\t\t\t\t},\n\t\t\t],\n\t\t\tplaceholder: 'https://example.com/card/12example/',\n\t\t\t// how to get the id from the url\n\t\t\textractvalue: {\n\t\t\t\ttype: 'regex',\n\t\t\t\tregex: 'example.com/card/([0-9]*.*)/',\n\t\t\t},\n\t\t},\n\t\t{\n\t\t\tdisplayname: 'list',\n\t\t\tname: 'list',\n\t\t\ttype: 'list',\n\t\t",
-        "importantTerms": [
-          "type",
-          "name",
-          "node",
-          "resource",
-          "list",
-          "displayname",
-          "default",
-          "operation",
-          "comma",
-          "separated",
-          "names",
-          "true",
-          "options",
-          "string",
-          "this",
-          "nodes",
-          "field",
-          "description",
-          "value",
-          "with",
-          "element",
-          "display",
-          "data",
-          "users",
-          "hint",
-          "operations",
-          "show",
-          "boolean",
-          "displayoptions",
-          "resources",
-          "base",
-          "https",
-          "matching",
-          "html",
-          "hints",
-          "input",
-          "whether",
-          "github",
-          "packages",
-          "typeoptions",
-          "master",
-          "from",
-          "example",
-          "user",
-          "required",
-          "fields",
-          "method",
-          "refer",
-          "schema",
-          "mapping"
         ]
       }
     },
@@ -86633,13 +86650,13 @@
       "nodeName": null,
       "nodeType": null,
       "content": {
-        "markdown": "# n8n node linter\n\nn8n's node linter, [`eslint-plugin-n8n-nodes-base`](https://github.com/ivov/eslint-plugin-n8n-nodes-base), statically analyzes (\"lints\") the source code of n8n nodes and credentials in the official repository and in community packages. The linter detects issues and automatically fixes them to help you follow best practices.\n\n`eslint-plugin-n8n-nodes-base` contains a [collection of rules](https://github.com/ivov/eslint-plugin-n8n-nodes-base#ruleset) for node files (`*.node.ts`), resource description files (`*Description.ts`), credential files (`*.credentials.ts`), and the `package.json` of a community package.\n\n## Setup\n\nIf using the [n8n node starter](https://github.com/n8n-io/n8n-nodes-starter): Run `npm install` in the starter project to install all dependencies. Once the installation finishes, the linter is available to you.\n\nIf using VS Code, install the [ESLint VS Code extension](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint). For other IDEs, refer to their ESLint integrations.\n\nDon't edit the configuration file\n\n[`.eslintrc.js`](https://github.com/n8n-io/n8n-nodes-starter/blob/master/.eslintrc.js) contains the configuration for `eslint-plugin-n8n-nodes-base`. Don't edit this file.\n\n## Usage\n\nYou can use the linter in a community package or in the main n8n repository.\n\n### Linting\n\nIn a community package, the linter runs automatically after installing dependencies and before publishing the package to npm. In the [main n8n repository](https://github.com/n8n-io/n8n), the linter runs automatically using GitHub Actions whenever you push to your pull request.\n\nIn both cases, VS Code lints in the background as you work on your project. Hover over a detected issue to see a full description of the linting and a link to further information.\n\nYou can also run the linter manually:\n\n- Run `npm run lint` to lint and view detected issues in your console.\n- Run `npm run lintfix` to lint and automatically fix issues. The linter fixes violations of rules [marked as automatically fixable](https://github.com/ivov/eslint-plugin-n8n-nodes-base#ruleset).\n\nBoth commands can run in the root directory of your community package, or in `/packages/nodes-base/` in the main repository.\n\n### Exceptions\n\nInstead of fixing a rule violation, you can also make an exception for it, so the linter doesn't flag it.\n\nTo make a lint exception from VS Code: hover over the issue and click on `Quick fix` (or `cmd+.` in macOS) and select **Disable {rule} for this line**. Only disable rules for a line where you have good reason to. If you think the linter is incorrectly reporting an issue, please [report it in the linter repository](https://github.com/ivov/eslint-plugin-n8n-nodes-base/issues).\n\nTo add a lint exception to a single file, add a code comment. In particular, TSLint rules may not show up in VS Code and may need to be turned off using code comments. Refer to the [TSLint documentation](https://palantir.github.io/tslint/usage/rule-flags/) for more guidance.\n",
-        "excerpt": "# n8n node linter  n8n's node linter, [`eslint-plugin-n8n-nodes-base`](https://github.com/ivov/eslint-plugin-n8n-nodes-base), statically analyzes (\"lints\") the source code of n8n nodes and credentials in the official repository and in community packages. The linter detects issues and automatically fixes them to help you follow best practices.  `eslint-plugin-n8n-nodes-base` contains a [collection of rules](https://github.com/ivov/eslint-plugin-n8n-nodes-base#ruleset) for node files (`*.node.ts`)...",
+        "markdown": "# n8n node linter\n\nn8n's node linter, [`@n8n/eslint-plugin-community-nodes`](https://github.com/n8n-io/n8n/tree/master/packages/%40n8n/eslint-plugin-community-nodes), statically analyzes (\"lints\") the source code of n8n nodes and credentials in community packages. The linter detects issues and automatically fixes them to help you follow best practices.\n\n`@n8n/eslint-plugin-community-nodes` contains a [collection of rules](https://github.com/n8n-io/n8n/tree/master/packages/%40n8n/eslint-plugin-community-nodes#rules) for node files (`*.node.ts`), credential files (`*.credentials.ts`), and the `package.json` of a community package.\n\n## Setup\n\nIf using the [n8n node starter](https://github.com/n8n-io/n8n-nodes-starter): Run `npm install` in the starter project to install all dependencies. Once the installation finishes, the linter is available to you.\n\nIf using VS Code, install the [ESLint VS Code extension](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint). For other IDEs, refer to their ESLint integrations.\n\nDon't edit the configuration file\n\n[`eslint.config.mjs`](https://github.com/n8n-io/n8n-nodes-starter/blob/master/eslint.config.mjs) contains the ESLint configuration provided by [`@n8n/node-cli`](https://www.npmjs.com/package/@n8n/node-cli). Don't edit this file.\n\n## Usage\n\nYou can use the linter in a community package or in the main n8n repository.\n\n### Linting\n\nIn a community package, the linter runs automatically after installing dependencies and before publishing the package to npm. In the [main n8n repository](https://github.com/n8n-io/n8n), the linter runs automatically using GitHub Actions whenever you push to your pull request.\n\nIn both cases, VS Code lints in the background as you work on your project. Hover over a detected issue to see a full description of the linting and a link to further information.\n\nYou can also run the linter manually:\n\n- Run `npm run lint` to lint and view detected issues in your console.\n- Run `npm run lint:fix` to lint and automatically fix issues. The linter fixes violations of rules [marked as automatically fixable](https://github.com/n8n-io/n8n/tree/master/packages/%40n8n/eslint-plugin-community-nodes#rules).\n\nBoth commands can run in the root directory of your community package, or in `/packages/nodes-base/` in the main repository.\n\n### Exceptions\n\nInstead of fixing a rule violation, you can also make an exception for it, so the linter doesn't flag it.\n\nTo make a lint exception from VS Code: hover over the issue and click on `Quick fix` (or `cmd+.` in macOS) and select **Disable {rule} for this line**. Only disable rules for a line where you have good reason to. If you think the linter is incorrectly reporting an issue, please [report it in the n8n repository](https://github.com/n8n-io/n8n/issues).\n\nTo add a lint exception to a single file, add a code comment. Refer to the [ESLint documentation](https://eslint.org/docs/latest/use/configure/rules#disabling-rules) for more guidance.\n",
+        "excerpt": "# n8n node linter  n8n's node linter, [`@n8n/eslint-plugin-community-nodes`](https://github.com/n8n-io/n8n/tree/master/packages/%40n8n/eslint-plugin-community-nodes), statically analyzes (\"lints\") the source code of n8n nodes and credentials in community packages. The linter detects issues and automatically fixes them to help you follow best practices.  `@n8n/eslint-plugin-community-nodes` contains a [collection of rules](https://github.com/n8n-io/n8n/tree/master/packages/%40n8n/eslint-plugin-co...",
         "sections": [
           {
             "title": "n8n node linter",
             "level": 1,
-            "content": "n8n's node linter, [`eslint-plugin-n8n-nodes-base`](https://github.com/ivov/eslint-plugin-n8n-nodes-base), statically analyzes (\"lints\") the source code of n8n nodes and credentials in the official repository and in community packages. The linter detects issues and automatically fixes them to help you follow best practices.\n\n`eslint-plugin-n8n-nodes-base` contains a [collection of rules](https://github.com/ivov/eslint-plugin-n8n-nodes-base#ruleset) for node files (`*.node.ts`), resource description files (`*Description.ts`), credential files (`*.credentials.ts`), and the `package.json` of a community package."
+            "content": "n8n's node linter, [`@n8n/eslint-plugin-community-nodes`](https://github.com/n8n-io/n8n/tree/master/packages/%40n8n/eslint-plugin-community-nodes), statically analyzes (\"lints\") the source code of n8n nodes and credentials in community packages. The linter detects issues and automatically fixes them to help you follow best practices.\n\n`@n8n/eslint-plugin-community-nodes` contains a [collection of rules](https://github.com/n8n-io/n8n/tree/master/packages/%40n8n/eslint-plugin-community-nodes#rules) for node files (`*.node.ts`), credential files (`*.credentials.ts`), and the `package.json` of a community package."
           }
         ]
       },
@@ -86657,41 +86674,38 @@
         "codeExamples": 0,
         "complexity": "beginner",
         "readingTime": "2 min",
-        "contentLength": 3027,
+        "contentLength": 3002,
         "relatedPages": []
       },
       "searchIndex": {
-        "fullText": "node linter # n8n node linter\n\nn8n's node linter, [`eslint-plugin-n8n-nodes-base`](https://github.com/ivov/eslint-plugin-n8n-nodes-base), statically analyzes (\"lints\") the source code of n8n nodes and credentials in the official repository and in community packages. the linter detects issues and automatically fixes them to help you follow best practices.\n\n`eslint-plugin-n8n-nodes-base` contains a [collection of rules](https://github.com/ivov/eslint-plugin-n8n-nodes-base#ruleset) for node files (`*.node.ts`), resource description files (`*description.ts`), credential files (`*.credentials.ts`), and the `package.json` of a community package.\n\n## setup\n\nif using the [n8n node starter](https://github.com/n8n-io/n8n-nodes-starter): run `npm install` in the starter project to install all dependencies. once the installation finishes, the linter is available to you.\n\nif using vs code, install the [eslint vs code extension](https://marketplace.visualstudio.com/items?itemname=dbaeumer.vscode-eslint). for other ides, refer to their eslint integrations.\n\ndon't edit the configuration file\n\n[`.eslintrc.js`](https://github.com/n8n-io/n8n-nodes-starter/blob/master/.eslintrc.js) contains the configuration for `eslint-plugin-n8n-nodes-base`. don't edit this file.\n\n## usage\n\nyou can use the linter in a community package or in the main n8n repository.\n\n### linting\n\nin a community package, the linter runs automatically after installing dependencies and before publishing the package to npm. in the [main n8n repository](https://github.com/n8n-io/n8n), the linter runs automatically using github actions whenever you push to your pull request.\n\nin both cases, vs code lints in the background as you work on your project. hover over a detected issue to see a full description of the linting and a link to further information.\n\nyou can also run the linter manually:\n\n- run `npm run lint` to lint and view detected issues in your console.\n- run `npm run lintfix` to lint and automatically fix issues. the linter fixes violations of rules [marked as automatically fixable](https://github.com/ivov/eslint-plugin-n8n-nodes-base#ruleset).\n\nboth commands can run in the root directory of your community package, or in `/packages/nodes-base/` in the main repository.\n\n### exceptions\n\ninstead of fixing a rule violation, you can also make an exception for it, so the linter doesn't flag it.\n\nto make a lint exception from vs code: hover over the issue and click on `quick fix` (or `cmd+.` in macos) and select **disable {rule} for this line**. only disable rules for a line where you have good reason to. if you think the linter is incorrectly reporting an issue, please [report it in the linter repository](https://github.com/ivov/eslint-plugin-n8n-nodes-base/issues).\n\nto add a lint exception to a single file, add a code comment. in particular, tslint rules may not show up in vs code and may need to be turned off using code comments. refer to the [tslint documentation](https://palantir.github.io/tslint/usage/rule-flags/) for more guidance.\n n8n node linter",
+        "fullText": "node linter # n8n node linter\n\nn8n's node linter, [`@n8n/eslint-plugin-community-nodes`](https://github.com/n8n-io/n8n/tree/master/packages/%40n8n/eslint-plugin-community-nodes), statically analyzes (\"lints\") the source code of n8n nodes and credentials in community packages. the linter detects issues and automatically fixes them to help you follow best practices.\n\n`@n8n/eslint-plugin-community-nodes` contains a [collection of rules](https://github.com/n8n-io/n8n/tree/master/packages/%40n8n/eslint-plugin-community-nodes#rules) for node files (`*.node.ts`), credential files (`*.credentials.ts`), and the `package.json` of a community package.\n\n## setup\n\nif using the [n8n node starter](https://github.com/n8n-io/n8n-nodes-starter): run `npm install` in the starter project to install all dependencies. once the installation finishes, the linter is available to you.\n\nif using vs code, install the [eslint vs code extension](https://marketplace.visualstudio.com/items?itemname=dbaeumer.vscode-eslint). for other ides, refer to their eslint integrations.\n\ndon't edit the configuration file\n\n[`eslint.config.mjs`](https://github.com/n8n-io/n8n-nodes-starter/blob/master/eslint.config.mjs) contains the eslint configuration provided by [`@n8n/node-cli`](https://www.npmjs.com/package/@n8n/node-cli). don't edit this file.\n\n## usage\n\nyou can use the linter in a community package or in the main n8n repository.\n\n### linting\n\nin a community package, the linter runs automatically after installing dependencies and before publishing the package to npm. in the [main n8n repository](https://github.com/n8n-io/n8n), the linter runs automatically using github actions whenever you push to your pull request.\n\nin both cases, vs code lints in the background as you work on your project. hover over a detected issue to see a full description of the linting and a link to further information.\n\nyou can also run the linter manually:\n\n- run `npm run lint` to lint and view detected issues in your console.\n- run `npm run lint:fix` to lint and automatically fix issues. the linter fixes violations of rules [marked as automatically fixable](https://github.com/n8n-io/n8n/tree/master/packages/%40n8n/eslint-plugin-community-nodes#rules).\n\nboth commands can run in the root directory of your community package, or in `/packages/nodes-base/` in the main repository.\n\n### exceptions\n\ninstead of fixing a rule violation, you can also make an exception for it, so the linter doesn't flag it.\n\nto make a lint exception from vs code: hover over the issue and click on `quick fix` (or `cmd+.` in macos) and select **disable {rule} for this line**. only disable rules for a line where you have good reason to. if you think the linter is incorrectly reporting an issue, please [report it in the n8n repository](https://github.com/n8n-io/n8n/issues).\n\nto add a lint exception to a single file, add a code comment. refer to the [eslint documentation](https://eslint.org/docs/latest/use/configure/rules#disabling-rules) for more guidance.\n n8n node linter",
         "importantTerms": [
           "linter",
-          "nodes",
           "eslint",
-          "https",
-          "github",
-          "base",
-          "code",
-          "node",
-          "plugin",
-          "package",
-          "repository",
           "community",
-          "automatically",
-          "lint",
-          "ivov",
-          "issues",
+          "https",
+          "node",
+          "nodes",
+          "github",
           "rules",
-          "using",
+          "package",
+          "code",
+          "lint",
+          "plugin",
+          "packages",
+          "automatically",
+          "master",
+          "issues",
           "starter",
+          "repository",
           "your",
-          "files",
-          "description",
+          "tree",
+          "using",
           "install",
           "file",
           "main",
           "issue",
-          "rule",
-          "exception",
-          "tslint"
+          "exception"
         ]
       }
     },
@@ -92581,7 +92595,7 @@
         "page-0530",
         "page-0589",
         "page-0683",
-        "page-1176",
+        "page-1168",
         "page-1204"
       ],
       "code": [
@@ -93230,7 +93244,7 @@
         "page-1168",
         "page-1169",
         "page-1170",
-        "page-1175",
+        "page-1171",
         "page-1176",
         "page-1177",
         "page-1178",
@@ -93537,7 +93551,7 @@
         "page-0683",
         "page-0736",
         "page-1147",
-        "page-1168",
+        "page-1169",
         "page-1183",
         "page-1203"
       ],
@@ -93675,7 +93689,7 @@
         "page-1153",
         "page-1162",
         "page-1165",
-        "page-1168",
+        "page-1169",
         "page-1178",
         "page-1179",
         "page-1182",
@@ -93797,7 +93811,7 @@
         "page-0714",
         "page-0718",
         "page-1160",
-        "page-1176",
+        "page-1168",
         "page-1181",
         "page-1191",
         "page-1201",
@@ -94269,7 +94283,7 @@
         "page-0812",
         "page-0988",
         "page-1157",
-        "page-1169"
+        "page-1170"
       ],
       "variable": [
         "page-0003",
@@ -94322,7 +94336,7 @@
         "page-0848",
         "page-0858",
         "page-0867",
-        "page-0868",
+        "page-0869",
         "page-0870",
         "page-0876",
         "page-0893",
@@ -94341,7 +94355,7 @@
         "page-0976",
         "page-1003",
         "page-1028",
-        "page-1169",
+        "page-1170",
         "page-1190",
         "page-1207",
         "page-1223",
@@ -94417,9 +94431,9 @@
         "page-1158",
         "page-1161",
         "page-1165",
-        "page-1169",
         "page-1170",
-        "page-1175",
+        "page-1171",
+        "page-1176",
         "page-1187"
       ],
       "enable": [
@@ -94521,8 +94535,8 @@
         "page-0708",
         "page-1156",
         "page-1160",
-        "page-1168",
         "page-1169",
+        "page-1170",
         "page-1204"
       ],
       "disable": [
@@ -94888,7 +94902,7 @@
         "page-0971",
         "page-1026",
         "page-1027",
-        "page-1168",
+        "page-1169",
         "page-1204"
       ],
       "callback": [
@@ -94928,7 +94942,7 @@
       "drop": [
         "page-0003",
         "page-0098",
-        "page-1176",
+        "page-1168",
         "page-1204"
       ],
       "mysql/mariadb": [
@@ -95123,7 +95137,7 @@
         "page-0373",
         "page-0700",
         "page-0942",
-        "page-1169",
+        "page-1170",
         "page-1204",
         "page-1231"
       ],
@@ -95907,7 +95921,7 @@
         "page-1035",
         "page-1036",
         "page-1161",
-        "page-1168",
+        "page-1169",
         "page-1183",
         "page-1187",
         "page-1204",
@@ -96320,7 +96334,7 @@
         "page-0942",
         "page-1148",
         "page-1151",
-        "page-1168",
+        "page-1169",
         "page-1204",
         "page-1206",
         "page-1213",
@@ -96617,7 +96631,7 @@
         "page-0319",
         "page-0545",
         "page-0620",
-        "page-1169",
+        "page-1170",
         "page-1233"
       ],
       "model": [
@@ -96891,13 +96905,13 @@
       ],
       "fixed": [
         "page-0007",
-        "page-1176"
+        "page-1168"
       ],
       "dynamic": [
         "page-0007",
         "page-0566",
         "page-0618",
-        "page-1176"
+        "page-1168"
       ],
       "configure": [
         "page-0007",
@@ -96953,7 +96967,7 @@
         "page-0227",
         "page-0550",
         "page-0552",
-        "page-1176",
+        "page-1168",
         "page-1201"
       ],
       "faqs": [
@@ -97040,7 +97054,7 @@
       "zoom": [
         "page-0008",
         "page-0485",
-        "page-1022"
+        "page-1021"
       ],
       "more": [
         "page-0008",
@@ -97059,7 +97073,7 @@
         "page-0008",
         "page-0021",
         "page-0071",
-        "page-1168"
+        "page-1169"
       ],
       "categories": [
         "page-0008",
@@ -97106,8 +97120,8 @@
         "page-1150",
         "page-1151",
         "page-1152",
-        "page-1168",
         "page-1169",
+        "page-1170",
         "page-1179",
         "page-1203",
         "page-1204"
@@ -97159,7 +97173,7 @@
         "page-0696",
         "page-0697",
         "page-0708",
-        "page-1168",
+        "page-1169",
         "page-1183",
         "page-1204"
       ],
@@ -97186,7 +97200,7 @@
         "page-0630",
         "page-0634",
         "page-0901",
-        "page-1020",
+        "page-1019",
         "page-1201",
         "page-1202",
         "page-1203",
@@ -97279,7 +97293,7 @@
         "page-0700",
         "page-0701",
         "page-0713",
-        "page-1169",
+        "page-1170",
         "page-1203",
         "page-1204",
         "page-1215"
@@ -97687,7 +97701,7 @@
         "page-0735",
         "page-0856",
         "page-0876",
-        "page-1020",
+        "page-1019",
         "page-1145",
         "page-1157",
         "page-1179",
@@ -97727,7 +97741,7 @@
         "page-0996",
         "page-1002",
         "page-1006",
-        "page-1020",
+        "page-1019",
         "page-1025",
         "page-1026",
         "page-1027",
@@ -97801,7 +97815,7 @@
         "page-0706",
         "page-0707",
         "page-1158",
-        "page-1172",
+        "page-1173",
         "page-1203"
       ],
       "separate": [
@@ -97867,7 +97881,7 @@
         "page-0777",
         "page-0787",
         "page-0815",
-        "page-0868",
+        "page-0869",
         "page-1201",
         "page-1207"
       ],
@@ -98115,7 +98129,7 @@
         "page-0520",
         "page-0528",
         "page-0530",
-        "page-1168",
+        "page-1169",
         "page-1188",
         "page-1201",
         "page-1202",
@@ -98250,8 +98264,8 @@
         "page-0629",
         "page-0655",
         "page-0665",
-        "page-1020",
-        "page-1169",
+        "page-1019",
+        "page-1170",
         "page-1183",
         "page-1204",
         "page-1205",
@@ -98539,7 +98553,7 @@
         "page-0198",
         "page-0203",
         "page-0204",
-        "page-1020",
+        "page-1019",
         "page-1203",
         "page-1204",
         "page-1217"
@@ -98748,7 +98762,7 @@
         "page-0710",
         "page-0714",
         "page-1135",
-        "page-1169",
+        "page-1170",
         "page-1201"
       ],
       "guides": [
@@ -99843,7 +99857,7 @@
         "page-0231",
         "page-0856",
         "page-0994",
-        "page-1169",
+        "page-1170",
         "page-1220",
         "page-1232"
       ],
@@ -100318,7 +100332,7 @@
         "page-0717",
         "page-0795",
         "page-0901",
-        "page-1020",
+        "page-1019",
         "page-1201",
         "page-1202",
         "page-1203",
@@ -100376,7 +100390,7 @@
         "page-0854",
         "page-0856",
         "page-0860",
-        "page-0869",
+        "page-0868",
         "page-0870",
         "page-0873",
         "page-0874",
@@ -100404,8 +100418,9 @@
         "page-0990",
         "page-1003",
         "page-1006",
+        "page-1010",
         "page-1015",
-        "page-1019",
+        "page-1020",
         "page-1021",
         "page-1022",
         "page-1025",
@@ -100474,7 +100489,7 @@
         "page-0858",
         "page-0863",
         "page-0867",
-        "page-0868",
+        "page-0869",
         "page-0870",
         "page-0882",
         "page-0885",
@@ -100513,7 +100528,7 @@
         "page-1003",
         "page-1007",
         "page-1018",
-        "page-1019",
+        "page-1021",
         "page-1022",
         "page-1104"
       ],
@@ -101262,7 +101277,7 @@
         "page-0967",
         "page-1029",
         "page-1132",
-        "page-1176",
+        "page-1168",
         "page-1183",
         "page-1203",
         "page-1204",
@@ -101364,7 +101379,7 @@
         "page-0697",
         "page-0700",
         "page-0735",
-        "page-1169"
+        "page-1170"
       ],
       "prompt": [
         "page-0021",
@@ -101386,7 +101401,7 @@
         "page-0209",
         "page-0735",
         "page-1165",
-        "page-1169",
+        "page-1170",
         "page-1198",
         "page-1221",
         "page-1260"
@@ -101395,7 +101410,7 @@
         "page-0021",
         "page-0209",
         "page-0735",
-        "page-1169",
+        "page-1170",
         "page-1198",
         "page-1221",
         "page-1260"
@@ -102117,9 +102132,9 @@
         "page-1104",
         "page-1135",
         "page-1161",
-        "page-1171",
-        "page-1173",
+        "page-1172",
         "page-1174",
+        "page-1175",
         "page-1249"
       ],
       "fill": [
@@ -102130,7 +102145,7 @@
         "page-0709",
         "page-1160",
         "page-1168",
-        "page-1176",
+        "page-1169",
         "page-1228"
       ],
       "`$fromai()`": [
@@ -102210,7 +102225,7 @@
         "page-0679",
         "page-0683",
         "page-0690",
-        "page-1168",
+        "page-1169",
         "page-1204",
         "page-1218"
       ],
@@ -102340,7 +102355,7 @@
         "page-0101",
         "page-0106",
         "page-0199",
-        "page-1168",
+        "page-1169",
         "page-1203",
         "page-1204",
         "page-1215"
@@ -102352,6 +102367,7 @@
       "developer": [
         "page-0049",
         "page-0831",
+        "page-1010",
         "page-1230"
       ],
       "coding": [
@@ -102457,7 +102473,7 @@
         "page-0689",
         "page-0696",
         "page-0697",
-        "page-1168"
+        "page-1169"
       ],
       "incoming": [
         "page-0050",
@@ -103322,8 +103338,8 @@
         "page-0784",
         "page-0860",
         "page-1158",
-        "page-1172",
-        "page-1176"
+        "page-1168",
+        "page-1173"
       ],
       "metadata": [
         "page-0056",
@@ -103641,7 +103657,7 @@
         "page-0666",
         "page-0691",
         "page-1151",
-        "page-1176"
+        "page-1168"
       ],
       "returned": [
         "page-0066",
@@ -103811,7 +103827,7 @@
       "case": [
         "page-0073",
         "page-0091",
-        "page-1168",
+        "page-1169",
         "page-1187"
       ],
       "scenario": [
@@ -103905,8 +103921,8 @@
         "page-1041",
         "page-1155",
         "page-1158",
-        "page-1168",
-        "page-1174",
+        "page-1169",
+        "page-1175",
         "page-1183",
         "page-1203"
       ],
@@ -103947,8 +103963,8 @@
         "page-0146",
         "page-1161",
         "page-1165",
-        "page-1168",
-        "page-1175"
+        "page-1169",
+        "page-1176"
       ],
       "sets": [
         "page-0086"
@@ -103986,7 +104002,7 @@
         "page-0679",
         "page-0708",
         "page-0714",
-        "page-1176",
+        "page-1168",
         "page-1203",
         "page-1204"
       ],
@@ -104322,7 +104338,7 @@
         "page-1016",
         "page-1017",
         "page-1018",
-        "page-1019",
+        "page-1020",
         "page-1021",
         "page-1022",
         "page-1023",
@@ -104391,7 +104407,7 @@
         "page-0556",
         "page-0558",
         "page-0659",
-        "page-1176",
+        "page-1168",
         "page-1204",
         "page-1248",
         "page-1256",
@@ -104414,7 +104430,7 @@
         "page-0096",
         "page-0131",
         "page-0661",
-        "page-1176"
+        "page-1168"
       ],
       "duplicate": [
         "page-0096",
@@ -104500,7 +104516,7 @@
       ],
       "drag": [
         "page-0098",
-        "page-1176",
+        "page-1168",
         "page-1204"
       ],
       "nested": [
@@ -104556,7 +104572,7 @@
         "page-0695",
         "page-0708",
         "page-0709",
-        "page-1176",
+        "page-1168",
         "page-1183"
       ],
       "can't": [
@@ -104646,7 +104662,7 @@
         "page-0666",
         "page-0691",
         "page-1168",
-        "page-1176",
+        "page-1169",
         "page-1183"
       ],
       "customdata": [
@@ -104658,7 +104674,7 @@
         "page-0118",
         "page-0132",
         "page-0519",
-        "page-1176"
+        "page-1168"
       ],
       "execdata": [
         "page-0112",
@@ -104691,7 +104707,7 @@
         "page-0715",
         "page-0830",
         "page-0886",
-        "page-1176"
+        "page-1168"
       ],
       "workflowdata": [
         "page-0112",
@@ -105381,7 +105397,7 @@
       "standard": [
         "page-0132",
         "page-0204",
-        "page-1174"
+        "page-1175"
       ],
       "format:": [
         "page-0132"
@@ -105464,7 +105480,7 @@
         "page-1136",
         "page-1139",
         "page-1162",
-        "page-1168",
+        "page-1169",
         "page-1187",
         "page-1204",
         "page-1244"
@@ -105494,7 +105510,7 @@
         "page-0217",
         "page-0650",
         "page-0702",
-        "page-1176"
+        "page-1168"
       ],
       "branch": [
         "page-0135",
@@ -105613,7 +105629,7 @@
         "page-0683",
         "page-0686",
         "page-1165",
-        "page-1168"
+        "page-1169"
       ],
       "details": [
         "page-0142",
@@ -105728,7 +105744,7 @@
         "page-0814",
         "page-0830",
         "page-0847",
-        "page-0869",
+        "page-0868",
         "page-0872",
         "page-0878",
         "page-0894",
@@ -105871,7 +105887,7 @@
         "page-0830",
         "page-0899",
         "page-0987",
-        "page-1176",
+        "page-1168",
         "page-1182",
         "page-1183",
         "page-1187"
@@ -105950,7 +105966,7 @@
       "dependencies": [
         "page-0152",
         "page-0204",
-        "page-1169"
+        "page-1170"
       ],
       "extend": [
         "page-0152"
@@ -105998,8 +106014,8 @@
         "page-0931",
         "page-1041",
         "page-1158",
-        "page-1170",
-        "page-1175"
+        "page-1171",
+        "page-1176"
       ],
       "front": [
         "page-0155",
@@ -106235,7 +106251,7 @@
         "page-1104",
         "page-1117",
         "page-1143",
-        "page-1169"
+        "page-1170"
       ],
       "crypto": [
         "page-0163",
@@ -106569,7 +106585,7 @@
         "page-1137",
         "page-1142",
         "page-1168",
-        "page-1176"
+        "page-1169"
       ],
       "clone": [
         "page-0196",
@@ -106710,7 +106726,7 @@
         "page-0651",
         "page-0686",
         "page-0717",
-        "page-1168",
+        "page-1169",
         "page-1187",
         "page-1204"
       ],
@@ -107155,7 +107171,7 @@
       "copy": [
         "page-0204",
         "page-0506",
-        "page-1168",
+        "page-1169",
         "page-1214",
         "page-1241",
         "page-1242"
@@ -107907,8 +107923,8 @@
         "page-1155",
         "page-1158",
         "page-1160",
-        "page-1168",
-        "page-1174",
+        "page-1169",
+        "page-1175",
         "page-1183",
         "page-1203"
       ],
@@ -108746,7 +108762,7 @@
       ],
       "mattermost": [
         "page-0367",
-        "page-0868"
+        "page-0869"
       ],
       "channel": [
         "page-0367",
@@ -108758,12 +108774,12 @@
         "page-0686",
         "page-0690",
         "page-1041",
-        "page-1168",
+        "page-1169",
         "page-1183"
       ],
       "mautic": [
         "page-0368",
-        "page-0869",
+        "page-0868",
         "page-1086"
       ],
       "medium": [
@@ -109298,12 +109314,12 @@
       ],
       "zendesk": [
         "page-0483",
-        "page-1019",
+        "page-1022",
         "page-1122"
       ],
       "zoho": [
         "page-0484",
-        "page-1021"
+        "page-1020"
       ],
       "zulip": [
         "page-0486",
@@ -109660,7 +109676,7 @@
         "page-0527",
         "page-0632",
         "page-1041",
-        "page-1174",
+        "page-1175",
         "page-1204"
       ],
       "inline": [
@@ -109686,7 +109702,7 @@
         "page-0661",
         "page-0693",
         "page-0717",
-        "page-1168",
+        "page-1169",
         "page-1187"
       ],
       "title": [
@@ -109801,7 +109817,7 @@
         "page-0814",
         "page-0830",
         "page-0847",
-        "page-0869",
+        "page-0868",
         "page-0872",
         "page-0878",
         "page-0894",
@@ -110120,7 +110136,7 @@
       "keys": [
         "page-0557",
         "page-0678",
-        "page-1176",
+        "page-1168",
         "page-1183",
         "page-1204"
       ],
@@ -110330,7 +110346,7 @@
         "page-0595",
         "page-0598",
         "page-0632",
-        "page-0868"
+        "page-0869"
       ],
       "presence": [
         "page-0588",
@@ -111020,8 +111036,8 @@
         "page-0709",
         "page-1158",
         "page-1168",
-        "page-1174",
-        "page-1176",
+        "page-1169",
+        "page-1175",
         "page-1203"
       ],
       "requesting": [
@@ -111545,7 +111561,7 @@
         "page-1030",
         "page-1034",
         "page-1145",
-        "page-1169",
+        "page-1170",
         "page-1179"
       ],
       "poll": [
@@ -111564,7 +111580,7 @@
       ],
       "objects": [
         "page-1123",
-        "page-1174"
+        "page-1175"
       ],
       "transparency": [
         "page-1126"
@@ -111629,17 +111645,17 @@
       ],
       "declarative": [
         "page-1155",
-        "page-1171",
-        "page-1175"
+        "page-1172",
+        "page-1176"
       ],
       "style": [
         "page-1155",
         "page-1158",
         "page-1160",
-        "page-1171",
+        "page-1168",
         "page-1172",
         "page-1173",
-        "page-1175",
+        "page-1174",
         "page-1176",
         "page-1181",
         "page-1183"
@@ -111661,7 +111677,7 @@
         "page-1155",
         "page-1158",
         "page-1165",
-        "page-1169"
+        "page-1170"
       ],
       "lint": [
         "page-1156"
@@ -111673,9 +111689,9 @@
         "page-1158",
         "page-1160",
         "page-1165",
-        "page-1172",
+        "page-1168",
         "page-1173",
-        "page-1175",
+        "page-1174",
         "page-1176"
       ],
       "define": [
@@ -111694,8 +111710,8 @@
       ],
       "guidelines": [
         "page-1160",
-        "page-1168",
-        "page-1169"
+        "page-1169",
+        "page-1170"
       ],
       "reuse": [
         "page-1160",
@@ -111703,23 +111719,23 @@
       ],
       "outline": [
         "page-1161",
-        "page-1175"
+        "page-1176"
       ],
       "`name`": [
         "page-1161",
-        "page-1168",
-        "page-1174"
+        "page-1169",
+        "page-1175"
       ],
       "`displayname`": [
         "page-1161",
-        "page-1174"
+        "page-1175"
       ],
       "`documentationurl`": [
         "page-1161"
       ],
       "`properties`": [
         "page-1161",
-        "page-1174"
+        "page-1175"
       ],
       "`authenticate`": [
         "page-1161"
@@ -111763,181 +111779,181 @@
       "`displayoptions`": [
         "page-1166"
       ],
-      "locator": [
+      "interface": [
         "page-1168",
-        "page-1176"
+        "page-1183"
       ],
-      "consistency": [
+      "color": [
+        "page-1168",
+        "page-1254"
+      ],
+      "assignment": [
         "page-1168",
         "page-1204"
       ],
-      "sorting": [
+      "(drag": [
         "page-1168"
       ],
-      "functionality": [
+      "drop)": [
+        "page-1168"
+      ],
+      "locator": [
         "page-1168",
+        "page-1169"
+      ],
+      "mapper": [
+        "page-1168",
+        "page-1203"
+      ],
+      "notice": [
+        "page-1168"
+      ],
+      "hints": [
+        "page-1168"
+      ],
+      "hint": [
+        "page-1168"
+      ],
+      "consistency": [
+        "page-1169",
+        "page-1204"
+      ],
+      "sorting": [
+        "page-1169"
+      ],
+      "functionality": [
+        "page-1169",
         "page-1203",
         "page-1204"
       ],
       "deleting": [
-        "page-1168",
+        "page-1169",
         "page-1235"
       ],
       "simplifying": [
-        "page-1168"
+        "page-1169"
       ],
       "normal": [
-        "page-1168"
+        "page-1169"
       ],
       "nodes:": [
-        "page-1168",
+        "page-1169",
         "page-1204"
       ],
       "'simplify'": [
-        "page-1168"
+        "page-1169"
       ],
       "‘output’": [
-        "page-1168"
+        "page-1169"
       ],
       "terminology": [
-        "page-1168",
+        "page-1169",
         "page-1183"
       ],
       "placeholders": [
-        "page-1168"
+        "page-1169"
       ],
       "name,": [
-        "page-1168"
+        "page-1169"
       ],
       "action,": [
-        "page-1168"
+        "page-1169"
       ],
       "naming": [
-        "page-1168",
+        "page-1169",
         "page-1183",
         "page-1243"
       ],
       "`action`": [
-        "page-1168"
+        "page-1169"
       ],
       "`description`": [
-        "page-1168",
-        "page-1174"
+        "page-1169",
+        "page-1175"
       ],
       "vocabulary": [
-        "page-1168"
+        "page-1169"
       ],
       "referring": [
-        "page-1168"
+        "page-1169"
       ],
       "general": [
-        "page-1168",
+        "page-1169",
         "page-1204",
         "page-1260"
       ],
       "philosophy": [
-        "page-1168"
+        "page-1169"
       ],
       "happened": [
-        "page-1168"
+        "page-1169"
       ],
       "solve": [
-        "page-1168"
+        "page-1169"
       ],
       "unstuck": [
-        "page-1168"
+        "page-1169"
       ],
       "proper": [
-        "page-1169"
+        "page-1170"
       ],
       "follow": [
-        "page-1169"
+        "page-1170"
       ],
       "english": [
-        "page-1169"
+        "page-1170"
       ],
       "`methods`": [
-        "page-1171",
-        "page-1173"
+        "page-1172",
+        "page-1174"
       ],
       "`loadoptions`": [
-        "page-1171",
-        "page-1173"
+        "page-1172",
+        "page-1174"
       ],
       "`routing`": [
-        "page-1171"
-      ],
-      "`version`": [
-        "page-1171",
-        "page-1173"
-      ],
-      "`features`": [
-        "page-1171",
-        "page-1173"
-      ],
-      "execute()": [
         "page-1172"
       ],
-      "`defaultversion`": [
+      "`version`": [
+        "page-1172",
+        "page-1174"
+      ],
+      "`features`": [
+        "page-1172",
+        "page-1174"
+      ],
+      "execute()": [
         "page-1173"
       ],
-      "`icon`": [
+      "`defaultversion`": [
         "page-1174"
+      ],
+      "`icon`": [
+        "page-1175"
       ],
       "`group`": [
-        "page-1174"
+        "page-1175"
       ],
       "`defaults`": [
-        "page-1174"
+        "page-1175"
       ],
       "`forceinputnodeexecution`": [
-        "page-1174"
+        "page-1175"
       ],
       "`inputs`": [
-        "page-1174"
+        "page-1175"
       ],
       "`outputs`": [
-        "page-1174"
+        "page-1175"
       ],
       "`requiredinputs`": [
-        "page-1174"
+        "page-1175"
       ],
       "`credentials`": [
-        "page-1174"
+        "page-1175"
       ],
       "`requestdefaults`": [
-        "page-1174"
-      ],
-      "interface": [
-        "page-1176",
-        "page-1183"
-      ],
-      "color": [
-        "page-1176",
-        "page-1254"
-      ],
-      "assignment": [
-        "page-1176",
-        "page-1204"
-      ],
-      "(drag": [
-        "page-1176"
-      ],
-      "drop)": [
-        "page-1176"
-      ],
-      "mapper": [
-        "page-1176",
-        "page-1203"
-      ],
-      "notice": [
-        "page-1176"
-      ],
-      "hints": [
-        "page-1176"
-      ],
-      "hint": [
-        "page-1176"
+        "page-1175"
       ],
       "approach": [
         "page-1181"
