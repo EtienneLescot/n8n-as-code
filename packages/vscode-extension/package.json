@@ -12,7 +12,7 @@
     "README.md"
   ],
   "license": "MIT",
-  "icon": "assets/logo.png",
+  "icon": "../../res/logo.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/EtienneLescot/n8n-as-code"
@@ -30,7 +30,7 @@
         {
           "id": "n8n-explorer",
           "title": "n8n",
-          "icon": "assets/logo.png"
+          "icon": "../../res/logo.png"
         }
       ]
     },
@@ -143,7 +143,7 @@
       {
         "command": "n8n.spacer",
         "title": "n8n Spacer",
-        "icon": "assets/spacer.png"
+        "icon": "res/spacer.png"
       }
     ],
     "menus": {
@@ -289,8 +289,7 @@
     "compile": "tsc -b",
     "watch": "tsc -b -w",
     "package-bundle": "node esbuild.config.js",
-    "copy-assets": "mkdir -p assets && cp ../../res/logo.png assets/ && cp ./res/spacer.png assets/",
-    "build": "npm run compile && npm run copy-assets && npm run package-bundle",
+    "build": "npm run compile && npm run package-bundle",
     "clean": "rm -rf out assets tsconfig.tsbuildinfo",
     "test": "npm run compile && npx tsx --test tests/unit/*.test.ts"
   }
