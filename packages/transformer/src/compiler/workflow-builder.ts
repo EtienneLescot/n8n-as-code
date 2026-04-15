@@ -48,6 +48,11 @@ export class WorkflowBuilder {
             tags: ast.metadata.tags || []
         };
         
+        // Add optional description
+        if (ast.metadata.description) {
+            workflow.description = ast.metadata.description;
+        }
+        
         // Add optional organization metadata
         if (ast.metadata.projectId) {
             workflow.projectId = ast.metadata.projectId;

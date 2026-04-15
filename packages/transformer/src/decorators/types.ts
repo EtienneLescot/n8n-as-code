@@ -14,6 +14,7 @@ import { WorkflowSettings, CredentialReference } from '../types.js';
 export interface WorkflowDecoratorMetadata {
     id: string;
     name: string;
+    description?: string;
     active: boolean;
     tags?: string[];
     settings?: WorkflowSettings;

@@ -59,6 +59,8 @@ export interface WorkflowDecoratorOptions {
     id: string;
     /** Human-readable name */
     name: string;
+    /** Workflow description */
+    description?: string;
     /** Whether the workflow is active */
     active: boolean;
     /** Workflow execution settings */
