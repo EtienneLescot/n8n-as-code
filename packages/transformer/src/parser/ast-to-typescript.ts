@@ -238,7 +238,7 @@ export class AstToTypeScriptGenerator {
         parts.push(`id: ${JSON.stringify(metadata.id)}`);
         parts.push(`name: ${JSON.stringify(metadata.name)}`);
         parts.push(`active: ${metadata.active}`);
-        if (metadata.description) {
+        if (metadata.description !== undefined && metadata.description !== null) {
             parts.push(`description: ${JSON.stringify(metadata.description)}`);
         }
 
