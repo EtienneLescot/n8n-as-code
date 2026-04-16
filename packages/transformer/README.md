@@ -156,6 +156,7 @@ Marks a class as an n8n workflow.
 - `id`: Workflow ID (UUID)
 - `name`: Workflow name
 - `active`: Whether workflow is active
+- `description?`: Workflow description
 - `settings?`: Workflow settings (executionOrder, etc.)
 
 #### `@node(metadata)`

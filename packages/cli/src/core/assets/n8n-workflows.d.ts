@@ -61,6 +61,8 @@ export interface WorkflowDecoratorOptions {
     name: string;
     /** Whether the workflow is active */
     active: boolean;
+    /** Workflow description */
+    description?: string;
     /** Workflow execution settings */
     settings?: WorkflowSettings;
     /** Project ID for organization */
@@ -193,6 +195,8 @@ declare module '@n8n-as-code/transformer' {
         name: string;
         /** Whether the workflow is active */
         active: boolean;
+        /** Workflow description */
+        description?: string;
         /** Workflow execution settings */
         settings?: WorkflowSettings;
         /** Project ID for organization */
