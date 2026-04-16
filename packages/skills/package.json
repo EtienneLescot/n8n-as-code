@@ -44,5 +44,6 @@
     },
     "publishConfig": {
         "access": "public"
-    }
+    },
+    "n8nVersion": "2.16.1"
 }
