@@ -35,7 +35,11 @@ export class WorkflowItem extends BaseTreeItem {
     // Only show status description when something requires attention
     if (pendingAction === 'conflict' || workflow.status === WorkflowSyncStatus.CONFLICT) {
       this.description = '(conflict)';
-    } else if (workflow.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY) {
+    } else if (workflow.isArchived) {
+      // Archived workflows cannot be activated, so show archived instead of active/inactive
+      this.description = '(archived)';
+    } else if (workflow.status === WorkflowSyncStatus.EXIST_ONLY_REMOTELY || workflow.status === WorkflowSyncStatus.TRACKED) {
+      // Show active/inactive for cloud-only and synced workflows
       this.description = workflow.active ? '(active)' : '(inactive)';
     } else {
       this.description = undefined;
