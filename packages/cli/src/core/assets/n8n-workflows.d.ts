@@ -74,7 +74,7 @@ export interface WorkflowDecoratorOptions {
 export interface NodeDecoratorOptions {
     /** Unique identifier of the node (matches workflow JSON) */
     id?: string;
-    /** Stable webhook ID assigned by n8n to webhook nodes */
+    /** User-assigned slug that pins the webhook path in n8n; must match the webhookId in the workflow JSON to keep the webhook URL stable across pushes */
     webhookId?: string;
     /** Display name shown in n8n UI */
     name: string;
@@ -206,7 +206,7 @@ declare module '@n8n-as-code/transformer' {
     export interface NodeDecoratorOptions {
         /** Unique identifier of the node (matches workflow JSON) */
         id?: string;
-        /** Stable webhook ID assigned by n8n to webhook nodes */
+        /** User-assigned slug that pins the webhook path in n8n; must match the webhookId in the workflow JSON to keep the webhook URL stable across pushes */
         webhookId?: string;
         /** Display name shown in n8n UI */
         name: string;
