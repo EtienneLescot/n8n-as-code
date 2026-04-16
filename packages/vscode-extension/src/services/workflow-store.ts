@@ -16,7 +16,7 @@ interface SyncState {
     isWatching: boolean;
     isSyncing: boolean;
     lastError: string | null;
-    archiveFilter: 'live' | 'archived' | 'all';
+    archiveFilter: 'workflows' | 'archived' | 'all';
 }
 
 interface ConflictsState {
@@ -102,7 +102,7 @@ const syncSlice = createSlice({
         isWatching: false,
         isSyncing: false,
         lastError: null,
-        archiveFilter: 'live',
+        archiveFilter: 'workflows',
     } as SyncState,
     reducers: {
         setMode: (state, action: PayloadAction<'auto' | 'manual'>) => {
@@ -117,7 +117,7 @@ const syncSlice = createSlice({
         setError: (state, action: PayloadAction<string | null>) => {
             state.lastError = action.payload;
         },
-        setArchiveFilter: (state, action: PayloadAction<'live' | 'archived' | 'all'>) => {
+        setArchiveFilter: (state, action: PayloadAction<'workflows' | 'archived' | 'all'>) => {
             state.archiveFilter = action.payload;
         },
     },
@@ -236,5 +236,5 @@ export const selectConflicts = (state: RootState) =>
 export const selectSyncState = (state: RootState) =>
     state.sync;
 
-export const selectArchiveFilter = (state: RootState): 'live' | 'archived' | 'all' =>
+export const selectArchiveFilter = (state: RootState): 'workflows' | 'archived' | 'all' =>
     state.sync.archiveFilter;

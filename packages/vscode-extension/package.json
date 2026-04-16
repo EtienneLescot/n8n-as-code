@@ -147,7 +147,7 @@
       },
       {
         "command": "n8n.showActive",
-        "title": "Live",
+        "title": "Workflows",
         "icon": "$(pass)"
       },
       {
