@@ -75,7 +75,7 @@ export class ScreenshotPanel {
 
     private buildHtml(data: { workflows: any[]; filter: string; extState: ExtensionState }): string {
         const { workflows, filter, extState } = data;
-        const filterLabels: Record<string, string> = { live: 'Live', archived: 'Archived', all: 'All' };
+        const filterLabels: Record<string, string> = { workflows: 'Workflows', archived: 'Archived', all: 'All' };
         const isInitialized = extState === ExtensionState.INITIALIZED;
 
         const workflowRows = workflows.length === 0
@@ -93,7 +93,7 @@ export class ScreenshotPanel {
                 return `<tr><td style="padding:6px 12px">${dot}</td><td style="padding:6px 12px">${name}</td><td style="padding:6px 12px;text-align:right">${badge}</td></tr>`;
             }).join('');
 
-        const filterButtons = (['live', 'archived', 'all'] as const).map(f => {
+        const filterButtons = (['workflows', 'archived', 'all'] as const).map(f => {
             const active = filter === f;
             const style = active
                 ? 'background:#4a3f6b;border-color:#9b8fc4'

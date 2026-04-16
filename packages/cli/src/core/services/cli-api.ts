@@ -40,7 +40,7 @@ export class CliApi {
      *
      * No TypeScript compilation or full diff is performed — this is O(N).
      */
-    async list(options?: { fetchRemote?: boolean }): Promise<IWorkflowStatus[]> {
+    async list(options?: { fetchRemote?: boolean; includeArchived?: boolean; onlyArchived?: boolean }): Promise<IWorkflowStatus[]> {
         return this.syncManager.listWorkflows(options);
     }
 
