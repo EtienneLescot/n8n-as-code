@@ -29,7 +29,7 @@ export class WorkflowItem extends BaseTreeItem {
       shouldBeCollapsible ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None
     );
     
-    this.contextValue = this.getContextValueForStatus(workflow.status, pendingAction);
+    this.contextValue = this.getContextValueForStatus(workflow.status, workflow.isArchived ?? false, pendingAction);
     this.tooltip = workflow.name;
 
     // Only show status description when something requires attention
@@ -69,46 +69,52 @@ export class WorkflowItem extends BaseTreeItem {
   
   /**
    * Get available actions for this workflow based on its state.
-   * Returns action types that should be enabled for this workflow.
+   * Returns action types that should be available for this workflow.
+   * 
+   * SSOT table:
+   * - TRACKED: BOARD, OPEN, PULL, PUSH (all available)
+   * - TRACKED archived: BOARD, PULL (OPEN, PUSH disabled - local file is read-only)
+   * - EXIST_ONLY_LOCALLY: OPEN, PUSH (BOARD, PULL disabled - no remote)
+   * - EXIST_ONLY_LOCALLY archived: OPEN (all others disabled - no remote)
+   * - EXIST_ONLY_REMOTELY: BOARD, PULL (OPEN, PUSH disabled - no local)
+   * - EXIST_ONLY_REMOTELY archived: BOARD, PULL (OPEN, PUSH disabled)
+   * - CONFLICT: SHOW_DIFF, FORCE_PUSH, PULL_REMOTE
    */
   getAvailableActions(): ActionItemType[] {
-    // Archived workflows are read-only: only BOARD and PULL
-    if (this.workflow.isArchived) {
-      const actions: ActionItemType[] = [];
-      if (this.workflow.id) {
-        actions.push(ActionItemType.BOARD);
-        actions.push(ActionItemType.PULL);
-      }
-      return actions;
-    }
-    
-    // Conflict state: show conflict resolution actions
-    if (this.pendingAction === 'conflict' || this.workflow.status === WorkflowSyncStatus.CONFLICT) {
+    const { status } = this.workflow;
+    const isArchived = this.workflow.isArchived ?? false;
+
+    // Conflict state overrides everything
+    if (status === WorkflowSyncStatus.CONFLICT || this.pendingAction === 'conflict') {
       return [ActionItemType.SHOW_DIFF, ActionItemType.FORCE_PUSH, ActionItemType.PULL_REMOTE];
     }
-    
-    // For all non-archived workflows, determine available actions based on sync status
-    const hasRemote = !!this.workflow.id; // EXIST_ONLY_LOCALLY has no remote
-    const hasLocal = !!this.workflow.filename && this.workflow.status !== WorkflowSyncStatus.EXIST_ONLY_REMOTELY;
-    
-    const actions: ActionItemType[] = [];
-    
-    // BOARD: only if workflow has a remote ID (not local-only)
-    if (hasRemote) {
-      actions.push(ActionItemType.BOARD);
+
+    // Branch by sync status first
+    switch (status) {
+      case WorkflowSyncStatus.EXIST_ONLY_LOCALLY:
+        // Local-only: no remote, so no BOARD or PULL
+        // Archived doesn't apply (no remote to archive from)
+        return [ActionItemType.OPEN, ActionItemType.PUSH];
+
+      case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
+        // Remote-only: no local file, so no OPEN or PUSH
+        // BOARD and PULL always available (archived or not)
+        return [ActionItemType.BOARD, ActionItemType.PULL];
+
+      case WorkflowSyncStatus.TRACKED:
+        // Tracked: has both local and remote
+        if (isArchived) {
+          // Archived workflows are read-only on remote side
+          // Local file exists but shouldn't be opened for editing since remote is archived
+          return [ActionItemType.BOARD, ActionItemType.PULL];
+        } else {
+          // Normal tracked workflow: all actions available
+          return [ActionItemType.BOARD, ActionItemType.OPEN, ActionItemType.PULL, ActionItemType.PUSH];
+        }
+
+      default:
+        return [];
     }
-    
-    // PULL: only if workflow has a remote ID (not local-only)
-    if (hasRemote) {
-      actions.push(ActionItemType.PULL);
-    }
-    
-    // PUSH: only if workflow has a local file (not remote-only)
-    if (hasLocal) {
-      actions.push(ActionItemType.PUSH);
-    }
-    
-    return actions;
   }
   
   /**
@@ -127,7 +133,17 @@ export class WorkflowItem extends BaseTreeItem {
     this.contextValue = value;
   }
   
-  private getContextValueForStatus(status: WorkflowSyncStatus, pendingAction?: string): string {
+  /**
+   * Returns a contextValue string used by package.json `when` clauses for inline/context menus.
+   *
+   * Values:
+   * - workflow-tracked         : TRACKED (both local and remote, not archived)
+   * - workflow-tracked-archived: TRACKED, archived on remote → read-only
+   * - workflow-local-only      : EXIST_ONLY_LOCALLY (new, not yet pushed)
+   * - workflow-cloud-only      : EXIST_ONLY_REMOTELY (not yet pulled)
+   * - workflow-conflict        : CONFLICT
+   */
+  private getContextValueForStatus(status: WorkflowSyncStatus, isArchived: boolean, pendingAction?: string): string {
     if (pendingAction === 'conflict' || status === WorkflowSyncStatus.CONFLICT) return 'workflow-conflict';
 
     switch (status) {
@@ -137,7 +153,7 @@ export class WorkflowItem extends BaseTreeItem {
         return 'workflow-local-only';
       default:
         // TRACKED: workflow known on both sides
-        return 'workflow-local';
+        return isArchived ? 'workflow-tracked-archived' : 'workflow-tracked';
     }
   }
 
@@ -156,7 +172,9 @@ export class WorkflowItem extends BaseTreeItem {
         // TRACKED: plain file icon, no color noise
         return new vscode.ThemeIcon('file');
     }
-  }  override getContextValue(): string {
+  }
+
+  override getContextValue(): string {
     return this.contextValue || 'workflow';
   }
   

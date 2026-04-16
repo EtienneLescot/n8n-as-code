@@ -918,6 +918,10 @@ export class WorkflowStateTracker extends EventEmitter {
             const status = this.calculateStatus(filename, workflowId);
             const workflow = workflowId ? workflowsMap.get(workflowId) : undefined;
 
+            // Use remoteArchived for isArchived since local file has it stripped by cleanForPush()
+            // remoteArchived is populated from API responses and is the source of truth for archive status
+            const isArchived = workflowId ? (this.remoteArchived.get(workflowId) ?? false) : false;
+
             results.set(filename, {
                 id: workflowId || '',
                 name: workflow?.name || filename.replace('.workflow.ts', ''),
@@ -927,7 +931,7 @@ export class WorkflowStateTracker extends EventEmitter {
                 projectId: workflow?.projectId,
                 projectName: workflow?.projectName,
                 homeProject: workflow?.homeProject,
-                isArchived: workflow?.isArchived ?? false
+                isArchived
             });
         }
 

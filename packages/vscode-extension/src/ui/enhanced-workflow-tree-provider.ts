@@ -179,9 +179,12 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
    * 
    * Rules:
    * - Conflicts: SHOW_DIFF, FORCE_PUSH, PULL_REMOTE
-   * - Archived (non-conflict): BOARD (if has remote), PULL (if has remote)  
-   * - Non-archived (non-conflict): BOARD (if has remote), PULL (if has remote), PUSH (if has local)
-   * - Local-only workflows: BOARD, PULL, PUSH all disabled (no remote, no local)
+   * - TRACKED archived: BOARD, PULL only (OPEN, PUSH disabled - local file is read-only)
+   * - EXIST_ONLY_LOCALLY: OPEN, PUSH only (BOARD, PULL disabled - no remote)
+   * - EXIST_ONLY_LOCALLY archived: OPEN only (all others disabled - no remote)
+   * - EXIST_ONLY_REMOTELY: BOARD, PULL only (OPEN, PUSH disabled - no local)
+   * - EXIST_ONLY_REMOTELY archived: BOARD, PULL only (OPEN, PUSH disabled)
+   * - Non-archived TRACKED: all actions available
    */
   private getWorkflowActionItems(workflowItem: WorkflowItem): BaseTreeItem[] {
     const { workflow, pendingAction } = workflowItem;
