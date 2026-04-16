@@ -174,19 +174,34 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
   }
 
   /**
-   * Get action items for a workflow (conflict resolution or deletion confirmation)
+   * Get action items for a workflow based on its state.
+   * This is the SSOT for determining which actions are available.
+   * 
+   * Rules:
+   * - Conflicts: SHOW_DIFF, FORCE_PUSH, PULL_REMOTE
+   * - Archived (non-conflict): BOARD (if has remote), PULL (if has remote)  
+   * - Non-archived (non-conflict): BOARD (if has remote), PULL (if has remote), PUSH (if has local)
+   * - Local-only workflows: BOARD, PULL, PUSH all disabled (no remote, no local)
    */
   private getWorkflowActionItems(workflowItem: WorkflowItem): BaseTreeItem[] {
     const { workflow, pendingAction } = workflowItem;
     const actions: BaseTreeItem[] = [];
 
-    // Conflict resolution actions
+    // Conflict resolution actions override everything
     if (pendingAction === 'conflict' || workflow.status === WorkflowSyncStatus.CONFLICT) {
       actions.push(
         new ActionItem(ActionItemType.SHOW_DIFF, workflow.id, workflow),
         new ActionItem(ActionItemType.FORCE_PUSH, workflow.id, workflow),
         new ActionItem(ActionItemType.PULL_REMOTE, workflow.id, workflow)
       );
+      return actions;
+    }
+
+    // Use the SSOT method on WorkflowItem to get available actions
+    const availableActions = workflowItem.getAvailableActions();
+    
+    for (const actionType of availableActions) {
+      actions.push(new ActionItem(actionType, workflow.id || '', workflow));
     }
 
     return actions;

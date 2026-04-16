@@ -357,6 +357,7 @@ export class AiContextGenerator {
       `   - \`${cliCmd} list --local\`: List only local \`.workflow.ts\` files.`,
       `   - \`${cliCmd} list --remote\`: List only remote workflows.`,
       `   - Identify workflow IDs, filenames, and sync status. Archived workflows are shown with an \`[archived]\` badge.`,
+      `   - ⚠️ **ARCHIVED WORKFLOWS ARE READ-ONLY**: Archived workflows cannot be pushed or modified via the API.`,
       `   - Read \`n8nac-config.json\` to understand the active sync context. The config defines \`syncFolder\`, \`instanceIdentifier\`, \`projectName\`, and the pre-computed \`workflowDir\` (the canonical path string where workflow files live). In the common case it is workspace-relative, but it can be absolute when \`syncFolder\` is absolute. You never need to reconstruct it manually.`,
       `   - Always run \`${cliCmd}\` from the workspace root. Never construct sync paths manually.`,
       ``,
