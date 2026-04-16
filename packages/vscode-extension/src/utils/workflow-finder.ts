@@ -9,9 +9,10 @@ export function buildWorkflowQuickPickItems(workflows: IWorkflowStatus[]): Workf
     return [...workflows]
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
         .map(workflow => {
+            const archivedIcon = workflow.isArchived ? '$(archive) ' : '';
             const archivedSuffix = workflow.isArchived ? ' [archived]' : '';
             return {
-                label: `$(archive) ${workflow.name}${archivedSuffix}`,
+                label: `${archivedIcon}${workflow.name}${archivedSuffix}`,
                 description: workflow.id ? `ID: ${workflow.id}` : 'Local only',
                 detail: workflow.filename
                     ? `${workflow.filename} • ${workflow.status}`
