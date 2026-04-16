@@ -25,26 +25,26 @@ test.describe('n8n archive filter sidebar tabs', () => {
 
     test.beforeEach(async ({ page }) => {
         test.setTimeout(30_000);
-        await page.goto('/');
+        await page.goto('http://localhost:9876/');
     });
 
     test('Active filter: shows only active workflows, no archived badges in rows', async ({ page }) => {
-        // Server defaults to ?filter=active
+        await page.goto('http://localhost:9876/?filter=live');
+        await page.waitForLoadState('networkidle');
+
         const rows = page.locator('tbody tr');
         await expect(rows.first()).toBeVisible();
 
-        // No archived badges in the workflow rows (only active badges)
-        const archivedBadges = page.locator('tbody span:text("archived")');
-        await expect(archivedBadges).toHaveCount(0);
+        // Filter label shows Live
+        await expect(page.locator('.state-bar')).toContainText('Live');
 
-        // Active badges present in rows
+        // Active button should be highlighted
+        const liveBtn = page.locator('button[data-filter="live"]');
+        await expect(liveBtn).toHaveCSS('background-color', 'rgb(74, 63, 107)');
+
+        // Active badges present: expect exactly 4 (our mock data has 4 live workflows)
         const activeBadges = page.locator('tbody span:text("active")');
-        const count = await activeBadges.count();
-        expect(count).toBeGreaterThan(0);
-
-        // Active button should be highlighted (dark bg)
-        const activeBtn = page.locator('button[data-filter="active"]');
-        await expect(activeBtn).toHaveCSS('background-color', 'rgb(74, 63, 107)');
+        await expect(activeBadges).toHaveCount(4);
 
         await page.screenshot({ path: SCREENSHOTS_DIR + '/filter-active.png', animations: 'disabled' });
     });
@@ -80,7 +80,7 @@ test.describe('n8n archive filter sidebar tabs', () => {
     });
 
     test('Filter switch: clicking Archived button navigates to archived view', async ({ page }) => {
-        await page.goto('/?filter=active');
+        await page.goto('http://localhost:9876/?filter=live');
 
         // Click Archived button → triggers navigation to ?filter=archived
         await page.locator('button[data-filter="archived"]').click();
@@ -92,7 +92,7 @@ test.describe('n8n archive filter sidebar tabs', () => {
     });
 
     test('Initialized state: green dot + "Initialized" label', async ({ page }) => {
-        await page.goto('/?filter=active');
+        await page.goto('http://localhost:9876/?filter=live');
 
         const dot = page.locator('.state-dot');
         await expect(dot).toHaveCSS('background-color', 'rgb(127, 247, 175)');
@@ -102,7 +102,7 @@ test.describe('n8n archive filter sidebar tabs', () => {
     });
 
     test('Workflow rows: name, dot status indicator, and badge are visible', async ({ page }) => {
-        await page.goto('/?filter=active');
+        await page.goto('http://localhost:9876/?filter=live');
 
         // At least one workflow row with content
         const firstRow = page.locator('tbody tr').first();
@@ -124,7 +124,7 @@ test.describe('n8n archive filter sidebar tabs', () => {
     });
 
     test('Header: logo, title, and version badge visible', async ({ page }) => {
-        await page.goto('/?filter=active');
+        await page.goto('http://localhost:9876/?filter=live');
 
         await expect(page.locator('h2')).toContainText('⚡');
         await expect(page.locator('h2')).toContainText('n8n Workflow Explorer');
@@ -134,18 +134,18 @@ test.describe('n8n archive filter sidebar tabs', () => {
     });
 
     test('Filter bar: all three filter buttons visible and distinct', async ({ page }) => {
-        await page.goto('/?filter=active');
+        await page.goto('http://localhost:9876/?filter=live');
 
-        const activeBtn = page.locator('button[data-filter="active"]');
+        const liveBtn = page.locator('button[data-filter="live"]');
         const archivedBtn = page.locator('button[data-filter="archived"]');
         const allBtn = page.locator('button[data-filter="all"]');
 
-        await expect(activeBtn).toBeVisible();
+        await expect(liveBtn).toBeVisible();
         await expect(archivedBtn).toBeVisible();
         await expect(allBtn).toBeVisible();
 
         // Active button has distinct highlight color
-        await expect(activeBtn).toHaveCSS('background-color', 'rgb(74, 63, 107)');
+        await expect(liveBtn).toHaveCSS('background-color', 'rgb(74, 63, 107)');
         // Others should NOT have this color
         await expect(archivedBtn).not.toHaveCSS('background-color', 'rgb(74, 63, 107)');
 

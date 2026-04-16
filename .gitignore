@@ -90,3 +90,5 @@ n8nac.cmd
 workflows/
 !.github/workflows/
 !.github/workflows/**
+.aider*
+test-results/
