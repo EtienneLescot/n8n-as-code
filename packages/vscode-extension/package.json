@@ -190,17 +190,17 @@
         },
         {
           "command": "n8n.findWorkflow",
-          "group": "navigation@2",
+          "group": "navigation@5",
           "when": "view == n8n-explorer.workflows && n8n.state == initialized"
         },
         {
           "command": "n8n.spacer",
-          "group": "navigation@3",
+          "group": "navigation@6",
           "when": "view == n8n-explorer.workflows"
         },
         {
           "command": "n8n.configure",
-          "group": "navigation@4",
+          "group": "navigation@7",
           "when": "view == n8n-explorer.workflows"
         }
       ],
