@@ -25,6 +25,17 @@ The tree view displays color-coded icons showing the sync status of each workflo
 - **📄+ Orange file-add** - `EXIST_ONLY_LOCALLY`: New local workflow not yet pushed
 - **🔴 Red alert** - `CONFLICT`: Both sides modified since last sync, requires resolution
 
+### 🗂️ Archive Filter Tabs
+The sidebar tree view includes three filter tabs to scope which workflows are displayed:
+
+- **Workflows** — Shows only active (non-archived) workflows — this is the default view
+- **Archived** — Shows only archived workflows
+- **All** — Shows all workflows regardless of archive status
+
+Click a tab in the n8n view title bar to switch filter. The active filter persists across sessions.
+
+Archived workflows display a badge in the QuickPick search results when searching via **Find Workflow** (`n8n.findWorkflow`).
+
 ### 🛡️ Persistent Conflict Resolution UI
 Workflows in **conflict** state become **expandable tree items** with child action buttons, ensuring you never lose track of issues that need resolution:
 
