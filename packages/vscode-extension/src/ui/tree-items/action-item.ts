@@ -12,9 +12,10 @@ export enum ActionItemType {
   PULL_REMOTE = 'pull-remote',
   
   // Standard workflow actions
-  BOARD = 'board',     // Open workflow in n8n UI
-  PULL = 'pull',       // Pull from remote to local
-  PUSH = 'push',       // Push from local to remote
+  BOARD = 'board',     // Open workflow in n8n UI (requires remote id)
+  PULL = 'pull',       // Pull from remote to local (requires remote id)
+  PUSH = 'push',       // Push from local to remote (requires local file)
+  OPEN = 'open',       // Open local file in editor (requires local file)
 }
 
 /**
@@ -51,6 +52,8 @@ export class ActionItem extends BaseTreeItem {
         return '⬇️ Pull';
       case ActionItemType.PUSH:
         return '⬆️ Push';
+      case ActionItemType.OPEN:
+        return '📝 Open';
       default:
         return 'Unknown Action';
     }
@@ -68,6 +71,8 @@ export class ActionItem extends BaseTreeItem {
         return new vscode.ThemeIcon('cloud-download');
       case ActionItemType.BOARD:
         return new vscode.ThemeIcon('globe');
+      case ActionItemType.OPEN:
+        return new vscode.ThemeIcon('go-to-file');
       default:
         return new vscode.ThemeIcon('question');
     }
@@ -111,6 +116,12 @@ export class ActionItem extends BaseTreeItem {
           title: 'Push',
           arguments: [workflow.filename]
         };
+      case ActionItemType.OPEN:
+        return {
+          command: 'n8n.openJson',
+          title: 'Open',
+          arguments: [workflow]
+        };
       default:
         return undefined;
     }
@@ -130,6 +141,8 @@ export class ActionItem extends BaseTreeItem {
         return 'Pull latest from n8n to local file';
       case ActionItemType.PUSH:
         return 'Push local changes to n8n';
+      case ActionItemType.OPEN:
+        return 'Open local file in editor';
       default:
         return '';
     }
