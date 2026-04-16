@@ -709,12 +709,6 @@ export class WorkflowStateTracker extends EventEmitter {
                         result.name = nameMatch[1];
                     }
 
-                    // Extract archived flag if present
-                    const archivedMatch = decoratorContent.match(/isArchived:\s*(true|false)/i);
-                    if (archivedMatch) {
-                        result.isArchived = archivedMatch[1] === 'true';
-                    }
-
                     // Return at least the extracted data (even if no id)
                     // This allows EXIST_ONLY_LOCALLY workflows to be detected
                     return Object.keys(result).length > 0 ? result : {};
@@ -808,26 +802,11 @@ export class WorkflowStateTracker extends EventEmitter {
                 status = WorkflowSyncStatus.EXIST_ONLY_LOCALLY; // Local only (new, not pushed, or deleted remotely)
             }
 
-            // Read active and archived flags from remote cache; fallback to false for truly local
-            // For EXIST_ONLY_LOCALLY workflows, read isArchived from local file decorator
-            let isArchived: boolean;
-            let active: boolean;
-            if (workflowId && remoteKnown) {
-                // Workflow exists on both sides - use remote cache
-                isArchived = this.remoteArchived.get(workflowId) ?? false;
-                active = this.remoteActive.get(workflowId) ?? false;
-            } else {
-                // Local-only workflow - check remote cache first, then local file
-                isArchived = workflowId ? (this.remoteArchived.get(workflowId) ?? false) : false;
-                active = workflowId ? (this.remoteActive.get(workflowId) ?? false) : false;
-                // For local-only, also check the local file's @workflow decorator for isArchived
-                if (!remoteKnown && !isArchived) {
-                    const localMeta = this.readJsonFile(path.join(this.directory, filename));
-                    if (localMeta?.isArchived !== undefined) {
-                        isArchived = localMeta.isArchived;
-                    }
-                }
-            }
+            // Read active and archived flags from remote cache only.
+            // Local-only workflows (EXIST_ONLY_LOCALLY) have no authoritative source for isArchived
+            // since n8n's API has no archive endpoint - default to false.
+            const isArchived = workflowId && remoteKnown ? (this.remoteArchived.get(workflowId) ?? false) : false;
+            const active = workflowId && remoteKnown ? (this.remoteActive.get(workflowId) ?? false) : false;
 
             // Apply archive filter
             if (this.shouldSkipArchived(isArchived, options)) continue;
