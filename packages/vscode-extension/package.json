@@ -300,16 +300,18 @@
   ],
   "dependencies": {
     "@n8n-as-code/skills": "1.8.2",
-    "n8nac": "1.6.2",
     "@reduxjs/toolkit": "^2.11.2",
     "http-proxy": "^1.18.1",
+    "n8nac": "1.6.2",
     "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/http-proxy": "^1.17.17",
     "@types/node": "^18.0.0",
     "@types/vscode": "^1.85.0",
     "@types/ws": "^8.18.1",
+    "@vscode/test-electron": "^2.5.2",
     "esbuild": "^0.27.2",
     "tsx": "^4.19.3",
     "typescript": "^5.3.3"
@@ -322,6 +324,8 @@
     "copy-assets": "mkdir -p assets && cp ../../res/logo.png assets/ && cp ./res/spacer.png assets/",
     "build": "npm run compile && npm run copy-assets && npm run package-bundle",
     "clean": "rm -rf out assets tsconfig.tsbuildinfo",
-    "test": "npm run compile && npx tsx --test tests/unit/*.test.ts"
+    "test": "npm run compile && npx tsx --test tests/unit/*.test.ts",
+    "test:e2e": "npx playwright test --config=tests/e2e/playwright.config.ts",
+    "test:e2e:server": "node tests/e2e/server.cjs"
   }
 }
