@@ -99,6 +99,12 @@ export class SyncCommand extends BaseCommand {
                     return undefined;
                 }
             }
+            if (e.message.includes('archived on n8n') || e.message.includes('isArchived')) {
+                spinner.stop();
+                console.log(chalk.red(`\n💾 Workflow is archived: ${filename}`));
+                console.log(chalk.yellow(`Archived workflows cannot receive updates via the API.`));
+                process.exit(1);
+            }
             spinner.fail(`Push failed: ${e.message}`);
             process.exit(1);
         }
