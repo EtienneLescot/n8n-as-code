@@ -567,6 +567,8 @@ export class WorkflowStateTracker extends EventEmitter {
         }
 
         // Implementation of 4.2 Status Logic Matrix
+        // Remote deleted: local exists but remote doesn't (workflow was synced before, then deleted remotely)
+        if (localHash && !remoteExists) return WorkflowSyncStatus.EXIST_ONLY_LOCALLY;
         if (localHash && !lastSyncedHash && !remoteHash) return WorkflowSyncStatus.EXIST_ONLY_LOCALLY;
         if (remoteExists && !lastSyncedHash && !localHash) return WorkflowSyncStatus.EXIST_ONLY_REMOTELY;
 
