@@ -266,7 +266,8 @@ async function main() {
         console.log('🏗 Preparing n8n nodes (this may take a while)...');
 
         console.log('📦 Installing dependencies (root)...');
-        run('pnpm install', CACHE_DIR);
+        // Set CI=true to skip prepare scripts (lefthook install) which can fail
+        run('CI=true pnpm install', CACHE_DIR);
 
         console.log('🔨 Building n8n-nodes-base (with dependencies)...');
         run('pnpm build --filter n8n-nodes-base...', CACHE_DIR);
