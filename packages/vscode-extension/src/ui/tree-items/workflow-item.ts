@@ -2,9 +2,16 @@ import * as vscode from 'vscode';
 import { IWorkflowStatus, WorkflowSyncStatus } from 'n8nac';
 import { BaseTreeItem } from './base-tree-item.js';
 import { TreeItemType } from '../../types.js';
+import { ActionItemType } from './action-item.js';
 
 /**
- * Tree item representing a single workflow
+ * Tree item representing a single workflow.
+ * 
+ * Design principles for actions:
+ * - BOARD: requires workflow.id (remote existence). LOCAL-ONLY workflows cannot open in n8n UI.
+ * - PULL: requires workflow.id (remote existence). LOCAL-ONLY workflows have nothing to pull.
+ * - PUSH: requires workflow.filename (local existence). REMOTE-ONLY workflows have no local file.
+ * - Archived workflows: READ-ONLY, only BOARD and PULL allowed.
  */
 export class WorkflowItem extends BaseTreeItem {
   readonly type = TreeItemType.WORKFLOW;
@@ -39,23 +46,69 @@ export class WorkflowItem extends BaseTreeItem {
     // Set resource URI for file decorations
     this.resourceUri = this.createResourceUri(workflow.id, workflow.status, pendingAction);
     
-    // Default command: open diff for conflicts, otherwise open JSON
-    // Don't set command for remote-only workflows (no local file to open)
+    // Default click behavior:
+    // - Archived workflows: NO command (clicking does nothing - they're read-only)
+    // - Conflicts: open diff
+    // - Otherwise: open JSON for workflows with local files
     if (pendingAction === 'conflict' || workflow.status === WorkflowSyncStatus.CONFLICT) {
       this.command = {
         command: 'n8n.resolveConflict',
         title: 'Show Diff',
         arguments: [{ workflow, choice: 'Show Diff' }]
       };
-    } else if (workflow.status !== WorkflowSyncStatus.EXIST_ONLY_REMOTELY) {
-      // Only set open command for workflows that have local files
+    } else if (!workflow.isArchived && workflow.status !== WorkflowSyncStatus.EXIST_ONLY_REMOTELY) {
+      // Non-archived workflows with local files can be opened
       this.command = {
         command: 'n8n.openJson',
         title: 'Open JSON',
         arguments: [workflow]
       };
     }
-    // For EXIST_ONLY_REMOTELY, don't set any command - clicking will do nothing
+    // For archived workflows and remote-only workflows, no default command is set
+  }
+  
+  /**
+   * Get available actions for this workflow based on its state.
+   * Returns action types that should be enabled for this workflow.
+   */
+  getAvailableActions(): ActionItemType[] {
+    // Archived workflows are read-only: only BOARD and PULL
+    if (this.workflow.isArchived) {
+      const actions: ActionItemType[] = [];
+      if (this.workflow.id) {
+        actions.push(ActionItemType.BOARD);
+        actions.push(ActionItemType.PULL);
+      }
+      return actions;
+    }
+    
+    // Conflict state: show conflict resolution actions
+    if (this.pendingAction === 'conflict' || this.workflow.status === WorkflowSyncStatus.CONFLICT) {
+      return [ActionItemType.SHOW_DIFF, ActionItemType.FORCE_PUSH, ActionItemType.PULL_REMOTE];
+    }
+    
+    // For all non-archived workflows, determine available actions based on sync status
+    const hasRemote = !!this.workflow.id; // EXIST_ONLY_LOCALLY has no remote
+    const hasLocal = !!this.workflow.filename && this.workflow.status !== WorkflowSyncStatus.EXIST_ONLY_REMOTELY;
+    
+    const actions: ActionItemType[] = [];
+    
+    // BOARD: only if workflow has a remote ID (not local-only)
+    if (hasRemote) {
+      actions.push(ActionItemType.BOARD);
+    }
+    
+    // PULL: only if workflow has a remote ID (not local-only)
+    if (hasRemote) {
+      actions.push(ActionItemType.PULL);
+    }
+    
+    // PUSH: only if workflow has a local file (not remote-only)
+    if (hasLocal) {
+      actions.push(ActionItemType.PUSH);
+    }
+    
+    return actions;
   }
   
   /**

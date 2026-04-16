@@ -208,6 +208,16 @@ export class SyncEngine {
             throw new Error('Failed to update remote workflow');
         }
 
+        // Block push for archived workflows - n8n API returns 400 and this would cause
+        // confusing behavior for the user. Archiving is an n8n-side operation only.
+        if (updatedWf.isArchived) {
+            throw new Error(
+                `Push blocked for "${filename}": the workflow is archived on n8n. ` +
+                `Archived workflows cannot receive updates via API. ` +
+                `Unarchive the workflow in the n8n UI first, then push again.`
+            );
+        }
+
         // CRITICAL: Write the API response back to local file to ensure consistency
         // This ensures local and remote have identical content after push
         // Convert the updated workflow back to TypeScript
