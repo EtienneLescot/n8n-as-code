@@ -89,6 +89,18 @@ const workflowsSlice = createSlice({
             state.allIds = state.allIds.filter(wfId => wfId !== id && wfId !== fileKey);
         },
     },
+    extraReducers: (builder) => {
+        builder.addCase(loadWorkflows.fulfilled, (state, action) => {
+            state.byId = {};
+            state.allIds = [];
+            action.payload.forEach((wf: IWorkflowStatus) => {
+                const key = wf.id || `file:${wf.filename}`;
+                state.byId[key] = wf;
+                state.allIds.push(key);
+            });
+            state.lastSync = Date.now();
+        });
+    },
 });
 
 // ============================================================================
