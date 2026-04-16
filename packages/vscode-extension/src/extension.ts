@@ -445,8 +445,6 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand('workbench.action.openSettings', 'n8n');
         }),
 
-        vscode.commands.registerCommand('n8n.spacer', () => { /* spacing dummy */ }),
-
         vscode.commands.registerCommand('n8n.resolveConflict', async (arg: any) => {
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf || !cli || !syncManager) return;
