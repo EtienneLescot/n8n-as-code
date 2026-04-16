@@ -583,6 +583,14 @@ async function revealWorkflowInTree(workflow: IWorkflowStatus): Promise<void> {
         return;
     }
 
+    // Ensure the workflow is visible: if it's archived but the current filter is 'workflows',
+    // switch to 'all' so the item appears in the tree before we try to reveal it.
+    const currentFilter = selectArchiveFilter(store.getState());
+    if (workflow.isArchived && currentFilter === 'workflows') {
+        store.dispatch(setArchiveFilter('all'));
+        if (workflowsTreeView) workflowsTreeView.title = 'All Workflows';
+    }
+
     const item = await enhancedTreeProvider.getWorkflowItem(workflow);
     if (!item) {
         return;
