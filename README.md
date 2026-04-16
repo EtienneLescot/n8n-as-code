@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="res/n8n-as-code-intro.gif" alt="n8n-as-code Intro" width="800">
-
 # <img src="res/logo.png" alt="n8n-as-code" width="40" height="40"> n8n-as-code
 
 ### The AI Skill that gives your coding agent n8n superpowers.
@@ -19,6 +17,7 @@
 
 <br>
 
+<img src="res/n8n-as-code-intro.gif" alt="n8n-as-code intro" width="800">
 <img src="res/n8n-as-code.gif" alt="n8n-as-code demo" width="800">
 
 <br>
