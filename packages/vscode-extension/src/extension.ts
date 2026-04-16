@@ -16,7 +16,7 @@ import { EnhancedWorkflowTreeProvider } from './ui/enhanced-workflow-tree-provid
 import { WorkflowWebview } from './ui/workflow-webview.js';
 import { ConfigurationWebview } from './ui/configuration-webview.js';
 import { WorkflowDecorationProvider } from './ui/workflow-decoration-provider.js';
-import { ScreenshotPanel } from './ui/screenshot-panel.js';
+
 import { ProxyService } from './services/proxy-service.js';
 import { ExtensionState } from './types.js';
 import { getN8nConfig, getResolvedN8nConfig, validateN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from './utils/state-detection.js';
@@ -72,7 +72,7 @@ let runtimeDisposables: vscode.Disposable[] = [];
 const statusBar = new StatusBar();
 const proxyService = new ProxyService();
 const enhancedTreeProvider = new EnhancedWorkflowTreeProvider();
-    ScreenshotPanel.register(enhancedTreeProvider);
+
 const decorationProvider = new WorkflowDecorationProvider();
 const outputChannel = vscode.window.createOutputChannel("n8n-as-code");
 let workflowsTreeView: vscode.TreeView<any> | undefined;
