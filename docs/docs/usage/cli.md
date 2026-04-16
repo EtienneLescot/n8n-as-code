@@ -172,16 +172,20 @@ Shows a color-coded table of all workflows with their sync status, helping you u
 - `--search <query>`: Case-insensitive partial match on workflow name, workflow ID, or local filename
 - `--sort <status|name>`: Keep the default sync-oriented ordering or force alphabetical sorting
 - `--limit <n>`: Return only the first `n` matching workflows after filtering/sorting
+- `--include-archived`: Include archived workflows in the output (by default only non-archived workflows are shown)
+- `--only-archived`: Show only archived workflows
 - `--raw`: Output raw JSON for scripting/automation
 
 **Example:**
 ```bash
-n8nac list                    # Show all workflows
-n8nac list --local            # Show only local workflows
-n8nac list --remote           # Show only remote workflows
-n8nac list --search billing   # Find workflows by partial name, ID, or filename
-n8nac list --sort name        # Sort alphabetically
-n8nac list --raw              # Output raw JSON
+n8nac list                       # Show all non-archived workflows
+n8nac list --include-archived    # Show all workflows including archived
+n8nac list --only-archived      # Show only archived workflows
+n8nac list --local              # Show only local workflows
+n8nac list --remote            # Show only remote workflows
+n8nac list --search billing     # Find workflows by partial name, ID, or filename
+n8nac list --sort name         # Sort alphabetically
+n8nac list --raw               # Output raw JSON
 ```
 
 **Output:**
@@ -201,6 +205,8 @@ Optimized for large installations where you already know part of the workflow na
 - `--remote` / `--distant`: Limit results to workflows known remotely
 - `--sort <status|name>`: Sort search results by sync status or alphabetically (defaults to `name`)
 - `--limit <n>`: Return only the first `n` matching workflows
+- `--include-archived`: Include archived workflows in search results
+- `--only-archived`: Show only archived workflows
 - `--raw`: Output the filtered result set as JSON
 
 **Example:**
@@ -208,6 +214,7 @@ Optimized for large installations where you already know part of the workflow na
 n8nac find billing
 n8nac find wf-123 --raw
 n8nac find importer --limit 10
+n8nac find archived-workflow --only-archived
 ```
 
 **Status Types:**
