@@ -80,6 +80,24 @@ describe('WorkflowStateTracker archive filtering', () => {
         expect(active?.isArchived).toBe(false);
         expect(archived?.isArchived).toBe(true);
     });
+
+    it('detects isArchived for local-only workflows from @workflow decorator', async () => {
+        const tracker = createTracker();
+        // Create a local-only archived workflow (no remote counterpart)
+        fs.writeFileSync(path.join(tempDir!, 'LocalArchived.workflow.ts'),
+            `@workflow({ id: 'local-archived', name: 'Local Archived Workflow', active: false, isArchived: true })\nexport class LocalArchivedWorkflow {}\n`
+        );
+        await tracker.refreshLocalState();
+        // Without includeArchived, local-only archived should be filtered out
+        const resultsDefault = await tracker.getLightweightList();
+        expect(resultsDefault.map(w => w.id)).not.toContain('local-archived');
+
+        // With includeArchived, local-only archived should appear
+        const resultsIncluded = await tracker.getLightweightList({ includeArchived: true });
+        const localArchived = resultsIncluded.find(w => w.id === 'local-archived');
+        expect(localArchived).toBeDefined();
+        expect(localArchived?.isArchived).toBe(true);
+    });
 });
 
 describe('WorkflowStateTracker filename sanitization', () => {
