@@ -1,5 +1,27 @@
 # @n8n-as-code/skills
 
+## [1.9.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.8.2...@n8n-as-code/skills@v1.9.0) (2026-04-16)
+
+### Features
+
+* **workflow:** implement read-only behavior for archived workflows and update action items ([89737bc](https://github.com/EtienneLescot/n8n-as-code/commit/89737bc8200bf4e3b11a246d9d9f96d6b8ef2ee7))
+
+### Bug Fixes
+
+* **gitignore:** add entries for build-generated assets and workflow index ([8ed99bc](https://github.com/EtienneLescot/n8n-as-code/commit/8ed99bc3d05488f6fa6fe9b4e43acc404f3bce43))
+* **skills:** rebuild knowledge base for n8n@2.16.1 ([b8d8036](https://github.com/EtienneLescot/n8n-as-code/commit/b8d8036158d864c2deede8a4fea2e43a1bbfcb69))
+* **skills:** rebuild knowledge base for n8n@2.16.0 ([b5fc6f1](https://github.com/EtienneLescot/n8n-as-code/commit/b5fc6f16ba478ed72e1f2378742d10b463c4d497))
+* **skills:** rebuild knowledge base for n8n@2.15.1 ([6d56ed5](https://github.com/EtienneLescot/n8n-as-code/commit/6d56ed500da58dd8123760f8c92071a8557edf12))
+
+### Documentation
+
+* add archive filter docs for CLI and VS Code extension ([13456d7](https://github.com/EtienneLescot/n8n-as-code/commit/13456d7c77851722525b56fca9134db652b6ecd0))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/transformer bumped from 1.1.0 to 1.2.0
+
 ## [1.8.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.8.1...@n8n-as-code/skills@v1.8.2) (2026-04-10)
 
 ### Bug Fixes

@@ -1,5 +1,11 @@
 # @n8n-as-code/transformer
 
+## [1.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v1.1.0...@n8n-as-code/transformer@v1.2.0) (2026-04-16)
+
+### Features
+
+* add workflow description decorator support ([d9188c9](https://github.com/EtienneLescot/n8n-as-code/commit/d9188c9a72259751499bf295f6b2efba7530d064))
+
 ## [1.1.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v1.0.2...@n8n-as-code/transformer@v1.1.0) (2026-04-09)
 
 ### Features
