@@ -1,23 +1,70 @@
 /**
- * Minimal HTTP server that serves the screenshot panel HTML.
- * Playwright navigates to http://localhost:PORT and interacts with the page.
+ * server.cjs — Real workflow HTTP server
  *
- * This mirrors what ScreenshotPanel.buildHtml() renders, but as a standalone
- * HTTP page so we don't need a full VS Code instance to test the UI.
+ * Fetches live workflows from the n8n cloud API at startup and serves them
+ * as HTML pages mirroring ScreenshotPanel.buildHtml().
+ *
+ * Playwright navigates to http://localhost:9876 to interact with the real UI.
  *
  * Run: node tests/e2e/server.cjs
+ * Env:
+ *   N8N_HOST          e.g. https://etiennel.app.n8n.cloud
+ *   N8N_API_KEY       e.g. eyJhbGciOiJI...
+ *   PORT              default 9876
  */
 
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
-const PORT = 9876;
+const PORT = parseInt(process.env.PORT || '9876', 10);
+const N8N_HOST = process.env.N8N_HOST || 'https://etiennel.app.n8n.cloud';
+const N8N_API_KEY = process.env.N8N_API_KEY || '';
 
 // ---------------------------------------------------------------------------
-// Mock data
+// Fetch real workflows from n8n API
 // ---------------------------------------------------------------------------
 
+async function fetchN8nWorkflows() {
+    if (!N8N_API_KEY) {
+        console.warn('[server] N8N_API_KEY not set — using mock data');
+        return null;
+    }
+
+    try {
+        console.log(`[server] Fetching workflows from ${N8N_HOST}...`);
+        const res = await fetch(`${N8N_HOST}/api/v1/workflows`, {
+            headers: {
+                'X-N8N-API-KEY': N8N_API_KEY,
+                'Accept': 'application/json',
+            },
+        });
+
+        if (!res.ok) {
+            console.warn(`[server] n8n API returned ${res.status} — using mock data`);
+            return null;
+        }
+
+        const data = await res.json();
+        const workflows = (data.data || []).map(w => ({
+            id: String(w.id),
+            name: w.name || 'Unnamed workflow',
+            active: w.active ?? false,
+            isArchived: w.settings?.executionMode === 'queue', // n8n archived = settings flag
+            status: 'CLOUD-ONLY', // No local file info from API
+            filename: undefined,
+        }));
+
+        console.log(`[server] Fetched ${workflows.length} workflows from n8n`);
+        return workflows;
+    } catch (err) {
+        console.warn(`[server] Failed to fetch from n8n: ${err.message} — using mock data`);
+        return null;
+    }
+}
+
+// Fallback mock data (realistic n8n workflow names)
 const MOCK_WORKFLOWS = [
     { id: 'wf1', name: 'Email Parser', filename: 'email-parser.workflow.ts', active: true, status: 'TRACKED', isArchived: false },
     { id: 'wf2', name: 'GitHub Trigger', filename: 'github-trigger.workflow.ts', active: true, status: 'CONFLICT', isArchived: false },
@@ -28,7 +75,7 @@ const MOCK_WORKFLOWS = [
 ];
 
 // ---------------------------------------------------------------------------
-// HTML builder
+// HTML builder (mirrors ScreenshotPanel.buildHtml)
 // ---------------------------------------------------------------------------
 
 function buildHtml({ filter, workflows, initialized = true } = {}) {
@@ -36,7 +83,6 @@ function buildHtml({ filter, workflows, initialized = true } = {}) {
     const filterLabels = { workflows: 'Workflows', archived: 'Archived', all: 'All' };
     const isInit = initialized !== false;
 
-    // Apply filter to workflows
     let displayed = workflows;
     if (f === 'workflows') displayed = workflows.filter(w => !w.isArchived);
     else if (f === 'archived') displayed = workflows.filter(w => w.isArchived);
@@ -53,7 +99,8 @@ function buildHtml({ filter, workflows, initialized = true } = {}) {
                 ? '<span style="background:#7a3a10;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px">archived</span>'
                 : '<span style="background:#2d5a2d;color:#7ff7af;padding:1px 6px;border-radius:3px;font-size:11px">active</span>';
             const dot = `<span style="color:${dotColor[wf.status] ?? '#888'};font-size:16px">●</span>`;
-            return `<tr><td style="padding:6px 12px">${dot}</td><td style="padding:6px 12px">${wf.name}</td><td style="padding:6px 12px;text-align:right">${badge}</td></tr>`;
+            const name = wf.name || wf.filename || '?';
+            return `<tr><td style="padding:6px 12px">${dot}</td><td style="padding:6px 12px">${name}</td><td style="padding:6px 12px;text-align:right">${badge}</td></tr>`;
         }).join('');
 
     const filterButtons = (['workflows', 'archived', 'all']).map(ff => {
@@ -79,6 +126,7 @@ function buildHtml({ filter, workflows, initialized = true } = {}) {
   .state-bar span { display: flex; align-items: center; gap: 4px; }
   .state-dot { width: 8px; height: 8px; border-radius: 50%; background: #7ff7af; }
   .state-dot.offline { background: #ff7a7a; }
+  .source-tag { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: #333; color: #aaa; }
 </style>
 </head>
 <body>
@@ -97,12 +145,10 @@ function buildHtml({ filter, workflows, initialized = true } = {}) {
     document.querySelectorAll('button.filter-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const filter = btn.getAttribute('data-filter');
-        // Update button styles
         document.querySelectorAll('button.filter-btn').forEach(b => {
           b.style.background = b === btn ? '#4a3f6b' : '#2a2a3a';
           b.style.borderColor = b === btn ? '#9b8fc4' : '#555';
         });
-        // Reload with new filter
         window.location.href = 'http://localhost:${PORT}/?filter=' + filter;
       });
     });
@@ -113,21 +159,36 @@ function buildHtml({ filter, workflows, initialized = true } = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// HTTP server
+// Bootstrap: load real workflows then start server
 // ---------------------------------------------------------------------------
 
-const server = http.createServer((req, res) => {
-    const url = new URL(req.url, `http://localhost:${PORT}`);
-    const filter = url.searchParams.get('filter') || 'active';
+let WORKFLOWS = MOCK_WORKFLOWS;
 
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(buildHtml({ filter, workflows: MOCK_WORKFLOWS }));
+async function main() {
+    const realWorkflows = await fetchN8nWorkflows();
+    if (realWorkflows && realWorkflows.length > 0) {
+        WORKFLOWS = realWorkflows;
+        console.log(`[server] Using ${WORKFLOWS.length} real workflows from n8n`);
+    }
+
+    const server = http.createServer((req, res) => {
+        const url = new URL(req.url, `http://localhost:${PORT}`);
+        const filter = url.searchParams.get('filter') || 'workflows';
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(buildHtml({ filter, workflows: WORKFLOWS }));
+    });
+
+    server.listen(PORT, () => {
+        console.log(`[server] n8nac screenshot panel running at http://localhost:${PORT}`);
+        console.log(`[server] ${WORKFLOWS.length} workflows loaded`);
+        console.log(`[server] Filters: ?filter=workflows | ?filter=archived | ?filter=all`);
+    });
+
+    process.on('SIGTERM', () => { server.close(); process.exit(0); });
+    process.on('SIGINT', () => { server.close(); process.exit(0); });
+}
+
+main().catch(err => {
+    console.error('[server] Fatal:', err);
+    process.exit(1);
 });
-
-server.listen(PORT, () => {
-    console.log(`[server] n8nac screenshot panel running at http://localhost:${PORT}`);
-    console.log(`[server] Available filters: ?filter=active | ?filter=archived | ?filter=all`);
-});
-
-process.on('SIGTERM', () => { server.close(); process.exit(0); });
-process.on('SIGINT', () => { server.close(); process.exit(0); });
