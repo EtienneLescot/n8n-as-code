@@ -144,6 +144,21 @@
         "command": "n8n.spacer",
         "title": "n8n Spacer",
         "icon": "assets/spacer.png"
+      },
+      {
+        "command": "n8n.showActive",
+        "title": "Active",
+        "icon": "$(pass)"
+      },
+      {
+        "command": "n8n.showArchived",
+        "title": "Archived",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "n8n.showAll",
+        "title": "All",
+        "icon": "$(list-flat)"
       }
     ],
     "menus": {
@@ -154,8 +169,23 @@
           "when": "view == n8n-explorer.workflows && n8n.state == settings-changed"
         },
         {
-          "command": "n8n.refresh",
+          "command": "n8n.showActive",
           "group": "navigation@1",
+          "when": "view == n8n-explorer.workflows"
+        },
+        {
+          "command": "n8n.showArchived",
+          "group": "navigation@2",
+          "when": "view == n8n-explorer.workflows"
+        },
+        {
+          "command": "n8n.showAll",
+          "group": "navigation@3",
+          "when": "view == n8n-explorer.workflows"
+        },
+        {
+          "command": "n8n.refresh",
+          "group": "navigation@4",
           "when": "view == n8n-explorer.workflows && n8n.state == initialized"
         },
         {
