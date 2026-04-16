@@ -148,7 +148,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         vscode.commands.registerCommand('n8n.showActive', async () => {
-            store.dispatch(setArchiveFilter('active'));
+            store.dispatch(setArchiveFilter('live'));
             if (workflowsTreeView) workflowsTreeView.title = 'Workflows';
             await store.dispatch(loadWorkflows());
         }),
