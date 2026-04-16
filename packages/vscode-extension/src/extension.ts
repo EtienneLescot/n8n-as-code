@@ -1134,9 +1134,9 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         );
         const fileWatcher = vscode.workspace.createFileSystemWatcher(pattern, false, true, false);
         const reloadList = async () => {
-            if (!cli) return;
+            if (!syncManager) return;
             try {
-                store.dispatch(setWorkflows(await cli.list()));
+                await store.dispatch(loadWorkflows());
                 enhancedTreeProvider.refresh();
             } catch (err) {
                 console.error('[n8n] FS watcher: failed to refresh list', err);
