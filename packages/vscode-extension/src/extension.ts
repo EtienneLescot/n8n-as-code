@@ -33,7 +33,9 @@ import {
     selectAllWorkflows,
     addConflict,
     removeConflict,
-    clearConflicts
+    clearConflicts,
+    setArchiveFilter,
+    loadWorkflows,
 } from './services/workflow-store.js';
 
 // ------- Clipboard bridge for macOS -------
@@ -141,6 +143,24 @@ export async function activate(context: vscode.ExtensionContext) {
             outputChannel.appendLine('[n8n] Applying new settings...');
             await reinitializeSyncManager(context);
             updateContextKeys();
+        }),
+
+        vscode.commands.registerCommand('n8n.showActive', async () => {
+            store.dispatch(setArchiveFilter('active'));
+            if (workflowsTreeView) workflowsTreeView.title = 'Workflows';
+            await store.dispatch(loadWorkflows());
+        }),
+
+        vscode.commands.registerCommand('n8n.showArchived', async () => {
+            store.dispatch(setArchiveFilter('archived'));
+            if (workflowsTreeView) workflowsTreeView.title = 'Archived Workflows';
+            await store.dispatch(loadWorkflows());
+        }),
+
+        vscode.commands.registerCommand('n8n.showAll', async () => {
+            store.dispatch(setArchiveFilter('all'));
+            if (workflowsTreeView) workflowsTreeView.title = 'All Workflows';
+            await store.dispatch(loadWorkflows());
         }),
 
         vscode.commands.registerCommand('n8n.openBoard', async (arg: any) => {

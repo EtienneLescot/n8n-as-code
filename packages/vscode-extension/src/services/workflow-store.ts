@@ -16,6 +16,7 @@ interface SyncState {
     isWatching: boolean;
     isSyncing: boolean;
     lastError: string | null;
+    archiveFilter: 'active' | 'archived' | 'all';
 }
 
 interface ConflictsState {
@@ -101,6 +102,7 @@ const syncSlice = createSlice({
         isWatching: false,
         isSyncing: false,
         lastError: null,
+        archiveFilter: 'active',
     } as SyncState,
     reducers: {
         setMode: (state, action: PayloadAction<'auto' | 'manual'>) => {
@@ -114,6 +116,9 @@ const syncSlice = createSlice({
         },
         setError: (state, action: PayloadAction<string | null>) => {
             state.lastError = action.payload;
+        },
+        setArchiveFilter: (state, action: PayloadAction<'active' | 'archived' | 'all'>) => {
+            state.archiveFilter = action.payload;
         },
     },
 });
@@ -159,9 +164,14 @@ export function clearSyncManager() {
 // Load workflows from SyncManager
 export const loadWorkflows = createAsyncThunk(
     'workflows/load',
-    async () => {
+    async (_, { getState }) => {
         if (!syncManagerRef) throw new Error('SyncManager not initialized');
-        return await syncManagerRef.listWorkflows();
+        const state = store.getState() as RootState;
+        const filter = state.sync.archiveFilter;
+        const options: { includeArchived?: boolean; onlyArchived?: boolean } = {};
+        if (filter === 'all') options.includeArchived = true;
+        if (filter === 'archived') options.onlyArchived = true;
+        return await syncManagerRef.listWorkflows(options);
     }
 );
 
@@ -201,6 +211,7 @@ export const {
     setWatching,
     setSyncing,
     setError,
+    setArchiveFilter,
 } = syncSlice.actions;
 
 export const {
@@ -224,3 +235,6 @@ export const selectConflicts = (state: RootState) =>
 
 export const selectSyncState = (state: RootState) =>
     state.sync;
+
+export const selectArchiveFilter = (state: RootState): 'active' | 'archived' | 'all' =>
+    state.sync.archiveFilter;
