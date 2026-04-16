@@ -15,6 +15,7 @@ export interface WorkflowDecoratorMetadata {
     id: string;
     name: string;
     active: boolean;
+    description?: string;
     tags?: string[];
     settings?: WorkflowSettings;
     

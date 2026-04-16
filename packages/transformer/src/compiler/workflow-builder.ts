@@ -42,6 +42,7 @@ export class WorkflowBuilder {
             id: ast.metadata.id,
             name: ast.metadata.name,
             active: ast.metadata.active,
+            description: ast.metadata.description,
             nodes,
             connections,
             settings: ast.metadata.settings,
