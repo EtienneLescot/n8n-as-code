@@ -147,7 +147,7 @@
       },
       {
         "command": "n8n.showActive",
-        "title": "Active",
+        "title": "Live",
         "icon": "$(pass)"
       },
       {

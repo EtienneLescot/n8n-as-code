@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import * as path from 'path';
 
 const screenshotsDir = path.resolve(__dirname, 'screenshots');
+const serverPath = path.resolve(__dirname, 'server.cjs');
 
 export default defineConfig({
     testDir: __dirname,
@@ -16,10 +17,11 @@ export default defineConfig({
         screenshot: { mode: 'only-on-failure', fullPage: true },
     },
     webServer: {
-        command: 'node tests/e2e/server.cjs',
+        command: `node "${serverPath}"`,
         url: 'http://localhost:9876',
-        reuseExistingServer: true,
+        reuseExistingServer: false,
         timeout: 10_000,
+        cwd: path.dirname(serverPath),
     },
     projects: [
         {

@@ -32,13 +32,13 @@ const MOCK_WORKFLOWS = [
 // ---------------------------------------------------------------------------
 
 function buildHtml({ filter, workflows, initialized = true } = {}) {
-    const f = filter || 'active';
-    const filterLabels = { active: 'Active', archived: 'Archived', all: 'All' };
+    const f = filter || 'live';
+    const filterLabels = { live: 'Live', archived: 'Archived', all: 'All' };
     const isInit = initialized !== false;
 
     // Apply filter to workflows
     let displayed = workflows;
-    if (f === 'active') displayed = workflows.filter(w => !w.isArchived);
+    if (f === 'live') displayed = workflows.filter(w => !w.isArchived);
     else if (f === 'archived') displayed = workflows.filter(w => w.isArchived);
 
     const dotColor = {
@@ -56,7 +56,7 @@ function buildHtml({ filter, workflows, initialized = true } = {}) {
             return `<tr><td style="padding:6px 12px">${dot}</td><td style="padding:6px 12px">${wf.name}</td><td style="padding:6px 12px;text-align:right">${badge}</td></tr>`;
         }).join('');
 
-    const filterButtons = (['active', 'archived', 'all']).map(ff => {
+    const filterButtons = (['live', 'archived', 'all']).map(ff => {
         const active = f === ff;
         const style = active ? 'background:#4a3f6b;border-color:#9b8fc4' : 'background:#2a2a3a;border-color:#555';
         return `<button class="filter-btn" data-filter="${ff}" style="padding:4px 12px;border-radius:4px;color:#e0e0e0;cursor:pointer;font-size:12px;border:1px solid;${style}">${filterLabels[ff]}</button>`;
