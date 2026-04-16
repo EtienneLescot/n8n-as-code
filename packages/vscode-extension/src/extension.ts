@@ -32,6 +32,7 @@ import {
     clearSyncManager,
     setWorkflows,
     selectAllWorkflows,
+    selectArchiveFilter,
     addConflict,
     removeConflict,
     clearConflicts,
