@@ -709,6 +709,12 @@ export class WorkflowStateTracker extends EventEmitter {
                         result.name = nameMatch[1];
                     }
 
+                    // Extract archived flag if present
+                    const archivedMatch = decoratorContent.match(/isArchived:\s*(true|false)/i);
+                    if (archivedMatch) {
+                        result.isArchived = archivedMatch[1] === 'true';
+                    }
+
                     // Return at least the extracted data (even if no id)
                     // This allows EXIST_ONLY_LOCALLY workflows to be detected
                     return Object.keys(result).length > 0 ? result : {};
@@ -788,28 +794,40 @@ export class WorkflowStateTracker extends EventEmitter {
         for (const filename of this.getLocalWorkflowFilenames()) {
             const workflowId = this.fileToIdMap.get(filename);
 
-            // A workflow is considered "known on remote" if:
-            //   a) remoteIds has it (populated by refreshRemoteState)
-            //   b) remoteHashes has it (populated by finalizeSync after push/pull)
-            //   c) lastSyncedHash exists in state (written by any CLI/VSCode process,
-            //      survives cross-process CLI operations like resolve)
-            const remoteKnown = workflowId
-                ? (this.remoteIds.has(workflowId)
-                    || this.remoteHashes.has(workflowId)
-                    || !!state.workflows[workflowId]?.lastSyncedHash)
-                : false;
+            // A workflow is "known on remote" ONLY if remoteIds has it (populated by refreshRemoteState).
+            // This is the authoritative source for "remote currently exists".
+            // If the workflow was deleted remotely, it won't be in remoteIds and will correctly
+            // show as EXIST_ONLY_LOCALLY even if lastSyncedHash exists in state.
+            const remoteKnown = workflowId ? this.remoteIds.has(workflowId) : false;
 
             // Determine basic status
             let status: WorkflowSyncStatus;
             if (workflowId && remoteKnown) {
                 status = WorkflowSyncStatus.TRACKED; // Both exist
             } else {
-                status = WorkflowSyncStatus.EXIST_ONLY_LOCALLY; // New or not yet pushed
+                status = WorkflowSyncStatus.EXIST_ONLY_LOCALLY; // Local only (new, not pushed, or deleted remotely)
             }
 
             // Read active and archived flags from remote cache; fallback to false for truly local
-            const isArchived = workflowId ? (this.remoteArchived.get(workflowId) ?? false) : false;
-            const active = workflowId ? (this.remoteActive.get(workflowId) ?? false) : false;
+            // For EXIST_ONLY_LOCALLY workflows, read isArchived from local file decorator
+            let isArchived: boolean;
+            let active: boolean;
+            if (workflowId && remoteKnown) {
+                // Workflow exists on both sides - use remote cache
+                isArchived = this.remoteArchived.get(workflowId) ?? false;
+                active = this.remoteActive.get(workflowId) ?? false;
+            } else {
+                // Local-only workflow - check remote cache first, then local file
+                isArchived = workflowId ? (this.remoteArchived.get(workflowId) ?? false) : false;
+                active = workflowId ? (this.remoteActive.get(workflowId) ?? false) : false;
+                // For local-only, also check the local file's @workflow decorator for isArchived
+                if (!remoteKnown && !isArchived) {
+                    const localMeta = this.readJsonFile(path.join(this.directory, filename));
+                    if (localMeta?.isArchived !== undefined) {
+                        isArchived = localMeta.isArchived;
+                    }
+                }
+            }
 
             // Apply archive filter
             if (this.shouldSkipArchived(isArchived, options)) continue;
