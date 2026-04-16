@@ -363,16 +363,12 @@ export async function activate(context: vscode.ExtensionContext) {
                 return;
             }
 
-            let workflows = selectAllWorkflows(store.getState());
-            if (!workflows.length && cli) {
-                try {
-                    workflows = await cli.list({ fetchRemote: true, includeArchived: true });
-                    store.dispatch(setWorkflows(workflows));
-                    enhancedTreeProvider.refresh();
-                } catch (error: any) {
-                    vscode.window.showErrorMessage(`Unable to load workflows: ${error.message}`);
-                    return;
-                }
+            // Always search across ALL workflows, regardless of current archive filter.
+            // The current filter tab should not limit searchability of workflows.
+            let workflows = cli ? await cli.list({ fetchRemote: true, includeArchived: true }) : [];
+            if (workflows.length) {
+                store.dispatch(setWorkflows(workflows));
+                enhancedTreeProvider.refresh();
             }
 
             if (!workflows.length) {
