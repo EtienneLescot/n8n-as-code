@@ -84,13 +84,17 @@ export class ScreenshotPanel {
                 const badge = wf.isArchived
                     ? '<span style="background:#7a3a10;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px">archived</span>'
                     : '<span style="background:#2d5a2d;color:#7ff7af;padding:1px 6px;border-radius:3px;font-size:11px">active</span>';
-                const dotColor: Record<string, string> = {
-                    TRACKED: '#7ff7af', CONFLICT: '#ff7a7a', 'MODIFIED-LOCAL': '#ffe066',
-                    'MODIFIED-REMOTE': '#66b3ff', 'LOCAL-ONLY': '#b3b3b3', 'CLOUD-ONLY': '#66b3ff',
+                const iconForStatus: Record<string, string> = {
+                    TRACKED: '$(file)',
+                    CONFLICT: '$(alert)',
+                    'MODIFIED-LOCAL': '$(diff-modified)',
+                    'MODIFIED-REMOTE': '$(diff-modified)',
+                    'LOCAL-ONLY': '$(file-add)',
+                    'CLOUD-ONLY': '$(cloud)',
                 };
-                const dot = `<span style="color:${dotColor[wf.status] ?? '#888'};font-size:16px">●</span>`;
+                const icon = iconForStatus[wf.status] ?? '$(file)';
                 const name = wf.name ?? wf.filename ?? '?';
-                return `<tr><td style="padding:6px 12px">${dot}</td><td style="padding:6px 12px">${name}</td><td style="padding:6px 12px;text-align:right">${badge}</td></tr>`;
+                return `<tr><td style="padding:6px 12px;font-size:14px">${icon}</td><td style="padding:6px 12px">${name}</td><td style="padding:6px 12px;text-align:right">${badge}</td></tr>`;
             }).join('');
 
         const filterButtons = (['workflows', 'archived', 'all'] as const).map(f => {
