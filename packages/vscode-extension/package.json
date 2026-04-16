@@ -12,7 +12,7 @@
     "README.md"
   ],
   "license": "MIT",
-  "icon": "assets/logo.png",
+  "icon": "../../res/logo.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/EtienneLescot/n8n-as-code"
@@ -30,7 +30,7 @@
         {
           "id": "n8n-explorer",
           "title": "n8n",
-          "icon": "assets/logo.png"
+          "icon": "../../res/logo.png"
         }
       ]
     },
@@ -141,19 +141,9 @@
         "icon": "$(warning)"
       },
       {
-        "command": "n8n.showActive",
-        "title": "Workflows",
-        "icon": "$(pass)"
-      },
-      {
-        "command": "n8n.showArchived",
-        "title": "Archived",
-        "icon": "$(archive)"
-      },
-      {
-        "command": "n8n.showAll",
-        "title": "All",
-        "icon": "$(list-flat)"
+        "command": "n8n.spacer",
+        "title": "n8n Spacer",
+        "icon": "res/spacer.png"
       }
     ],
     "menus": {
@@ -164,33 +154,23 @@
           "when": "view == n8n-explorer.workflows && n8n.state == settings-changed"
         },
         {
-          "command": "n8n.showActive",
-          "group": "navigation@1",
-          "when": "view == n8n-explorer.workflows"
-        },
-        {
-          "command": "n8n.showArchived",
-          "group": "navigation@2",
-          "when": "view == n8n-explorer.workflows"
-        },
-        {
-          "command": "n8n.showAll",
-          "group": "navigation@3",
-          "when": "view == n8n-explorer.workflows"
-        },
-        {
           "command": "n8n.refresh",
-          "group": "navigation@4",
+          "group": "navigation@1",
           "when": "view == n8n-explorer.workflows && n8n.state == initialized"
         },
         {
           "command": "n8n.findWorkflow",
-          "group": "navigation@5",
+          "group": "navigation@2",
           "when": "view == n8n-explorer.workflows && n8n.state == initialized"
         },
         {
+          "command": "n8n.spacer",
+          "group": "navigation@3",
+          "when": "view == n8n-explorer.workflows"
+        },
+        {
           "command": "n8n.configure",
-          "group": "navigation@7",
+          "group": "navigation@4",
           "when": "view == n8n-explorer.workflows"
         }
       ],
@@ -198,47 +178,47 @@
         {
           "command": "n8n.openJson",
           "group": "inline@1",
-          "when": "viewItem =~ /^workflow-(tracked|local-only)$/"
+          "when": "viewItem =~ /workflow-(local|local-only|modified-local|modified-remote)/ && viewItem != workflow-conflict"
         },
         {
           "command": "n8n.openBoard",
           "group": "inline@2",
-          "when": "viewItem =~ /^workflow-(tracked|tracked-archived|cloud-only)$/"
+          "when": "viewItem =~ /workflow-(local|cloud-only|modified-remote)/ && viewItem != workflow-conflict"
         },
         {
           "command": "n8n.pushWorkflow",
           "group": "inline@3",
-          "when": "viewItem =~ /^workflow-(tracked|local-only)$/"
+          "when": "viewItem =~ /workflow-(local|local-only|modified-local)/ && viewItem != workflow-conflict"
         },
         {
           "command": "n8n.pullWorkflow",
           "group": "inline@4",
-          "when": "viewItem =~ /^workflow-(tracked|tracked-archived|cloud-only)$/"
+          "when": "viewItem =~ /workflow-(local|local-only|cloud-only|modified-local|modified-remote)/ && viewItem != workflow-conflict"
         },
         {
           "command": "n8n.openBoard",
           "group": "1_open@1",
-          "when": "viewItem =~ /^workflow-(tracked|tracked-archived|cloud-only)$/"
+          "when": "viewItem =~ /workflow-(local|cloud-only|modified-remote)/"
         },
         {
           "command": "n8n.openJson",
           "group": "1_open@2",
-          "when": "viewItem =~ /^workflow-(tracked|local-only)$/"
+          "when": "viewItem =~ /workflow-(local|local-only|modified-local)/"
         },
         {
           "command": "n8n.openSplit",
           "group": "1_open@3",
-          "when": "viewItem =~ /^workflow-(tracked|local-only)$/"
+          "when": "viewItem =~ /workflow-(local|modified-local|modified-remote)/"
         },
         {
           "command": "n8n.pushWorkflow",
           "group": "2_sync@1",
-          "when": "viewItem =~ /^workflow-(tracked|local-only)$/"
+          "when": "viewItem =~ /workflow-(local|local-only|modified-local)/ && viewItem != workflow-conflict"
         },
         {
           "command": "n8n.pullWorkflow",
           "group": "2_sync@2",
-          "when": "viewItem =~ /^workflow-(tracked|tracked-archived|cloud-only)$/"
+          "when": "viewItem =~ /workflow-(local|local-only|cloud-only|modified-local|modified-remote)/ && viewItem != workflow-conflict"
         }
       ]
     },
@@ -290,18 +270,16 @@
   ],
   "dependencies": {
     "@n8n-as-code/skills": "1.8.2",
+    "n8nac": "1.6.2",
     "@reduxjs/toolkit": "^2.11.2",
     "http-proxy": "^1.18.1",
-    "n8nac": "1.6.2",
     "ws": "^8.19.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
     "@types/http-proxy": "^1.17.17",
     "@types/node": "^18.0.0",
     "@types/vscode": "^1.85.0",
     "@types/ws": "^8.18.1",
-    "@vscode/test-electron": "^2.5.2",
     "esbuild": "^0.27.2",
     "tsx": "^4.19.3",
     "typescript": "^5.3.3"
@@ -311,8 +289,7 @@
     "compile": "tsc -b",
     "watch": "tsc -b -w",
     "package-bundle": "node esbuild.config.js",
-    "copy-assets": "mkdir -p assets && cp ../../res/logo.png assets/ && cp ./res/spacer.png assets/",
-    "build": "npm run compile && npm run copy-assets && npm run package-bundle",
+    "build": "npm run compile && npm run package-bundle",
     "clean": "rm -rf out assets tsconfig.tsbuildinfo",
     "test": "npm run compile && npx tsx --test tests/unit/*.test.ts"
   }
