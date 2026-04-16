@@ -47,7 +47,7 @@ export class JsonToAstParser {
                 id: workflow.id,
                 name: workflow.name,
                 active: workflow.active,
-                description: workflow.description,
+                description: typeof workflow.description === 'string' ? workflow.description : undefined,
                 tags: this.parseTags(workflow.tags),
                 settings: workflow.settings,
                 projectId: workflow.projectId,
