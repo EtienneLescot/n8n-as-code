@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-04-11T03:57:42.294Z",
+  "generatedAt": "2026-04-16T14:25:04.513Z",
   "repository": "https://github.com/nusquama/n8nworkflows.xyz.git",
   "sourceRef": "main",
-  "sourceCommit": "63c977eba8ace61624ced564012f30d6eafd4bf7",
+  "sourceCommit": "e4e70f9fc8c7becfad6687e67ef73898fbe119b7",
   "refreshStrategy": "fresh-clone-per-build",
   "totalWorkflows": 8369,
   "workflows": [
