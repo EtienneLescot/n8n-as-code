@@ -141,11 +141,6 @@
         "icon": "$(warning)"
       },
       {
-        "command": "n8n.spacer",
-        "title": "n8n Spacer",
-        "icon": "assets/spacer.png"
-      },
-      {
         "command": "n8n.showActive",
         "title": "Workflows",
         "icon": "$(pass)"
@@ -192,11 +187,6 @@
           "command": "n8n.findWorkflow",
           "group": "navigation@5",
           "when": "view == n8n-explorer.workflows && n8n.state == initialized"
-        },
-        {
-          "command": "n8n.spacer",
-          "group": "navigation@6",
-          "when": "view == n8n-explorer.workflows"
         },
         {
           "command": "n8n.configure",
