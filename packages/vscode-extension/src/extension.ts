@@ -148,7 +148,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         vscode.commands.registerCommand('n8n.showActive', async () => {
-            store.dispatch(setArchiveFilter('live'));
+            store.dispatch(setArchiveFilter('workflows'));
             if (workflowsTreeView) workflowsTreeView.title = 'Workflows';
             await store.dispatch(loadWorkflows());
         }),
@@ -365,7 +365,7 @@ export async function activate(context: vscode.ExtensionContext) {
             let workflows = selectAllWorkflows(store.getState());
             if (!workflows.length && cli) {
                 try {
-                    workflows = await cli.list({ fetchRemote: true });
+                    workflows = await cli.list({ fetchRemote: true, includeArchived: true });
                     store.dispatch(setWorkflows(workflows));
                     enhancedTreeProvider.refresh();
                 } catch (error: any) {
