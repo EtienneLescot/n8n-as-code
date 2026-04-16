@@ -1,215 +1,285 @@
-# Feature: Archive Filter Tabs & Search — `pr-324`
+# Feature #309 — Archived Workflows Support
 
-> **Branch**: `fix/309-archived-workflows-label-archive-tabs-search`
+> **Branch**: `pr-324` (`fix/309-archived-workflows-label-archive-tabs-search`)
 > **Target**: `Darrellwan:n8n-as-code:main`
-> **Status**: Implementation complete, documentation complete
+> **Issue**: #309
+> **Status**: Implementation complete, tests passing, documentation complete
 
 ---
 
-## 🎯 Overview
+## 🎯 Summary
 
-This feature adds two capabilities to the n8n-as-code VS Code extension:
-
-1. **Archive Filter Tabs** in the sidebar tree view — three scopes: "Workflows" (active only), "Archived", "All"
-2. **Unscoped Find Workflow command** — QuickPick search across all workflows regardless of active tab, with automatic tab-switch on reveal
-
-**Core principle**: The tree view and the search command operate independently. The tree is filtered by tab; the search is always global.
-
----
-
-## 📐 Architecture
-
-### 6-files changed
+This feature adds first-class support for archived workflows across the entire n8n-as-code stack — from the **CLI foundation** (where the core logic lives) to the **VS Code extension** (which consumes it) and the **AI agent context** (which instructs agents how to use the new flags).
 
 ```
-packages/vscode-extension/src/
-  extension.ts                     — commands registration, revealWorkflowInTree
-  services/workflow-store.ts      — Redux slice, archiveFilter state, loadWorkflows thunk
-  utils/workflow-finder.ts        — QuickPick UI builder, buildWorkflowQuickPickItems
-
-docs/docs/usage/
-  cli.md                          — list/find --include-archived / --only-archived
-  vscode-extension.md             — new tabs section, search command
-
-packages/skills/src/services/
-  ai-context-generator.ts         — AGENTS.md instructions for agents
+┌─────────────────────────────────────────────────────────┐
+│                     PR #324                              │
+│  ┌───────────────┐  ┌────────────────────┐  ┌───────┐  │
+│  │  CLI (core)   │  │  CliApi / SyncMgr   │  │ VSCode│  │
+│  │  list/find    │→ │  listWorkflows      │→ │ ext   │  │
+│  │  --archived   │  │  getLightweightList │  │ tabs  │  │
+│  └───────────────┘  └────────────────────┘  └───────┘  │
+│         │                    │                    │        │
+│  ┌──────┴────────────────────┴────────────────────┴────┐ │
+│  │              n8n REST API (archived flag)           │ │
+│  └──────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🔴 Redux State Design
+## 🗺️ Origin — Issue #309
 
-### Store shape
+The bug: `isArchived` was always `false` for remote-only workflows. The root cause was in `getLightweightList` — the `isArchived` field was read from `workflow?.isArchived` (the local workflow object), but for remote-only workflows there is no local file, so `workflow` is `undefined` → always `false`.
+
+Two fixes were applied:
+1. `workflow-state-tracker.ts`: compute `isArchived` from `remoteArchived.get(workflowId) ?? false` for all workflows
+2. `IWorkflowStatus`: add `isArchived?: boolean` field (previously absent from the interface)
+
+---
+
+## 🏗️ Architecture — Layer by Layer
+
+### Layer 1 — `n8n` REST API
+
+The n8n `/workflows` endpoint accepts two query parameters for archive filtering:
+
+| Parameter | Type | Effect |
+|-----------|------|--------|
+| `includeArchived` | boolean | Include archived workflows alongside active ones |
+| `onlyArchived` | boolean | Return only archived workflows, exclude active ones |
+
+The API returns an `isArchived` boolean on each workflow object.
+
+---
+
+### Layer 2 — `workflow-state-tracker.ts` (Lightweight State Cache)
+
+This is the core state tracker. It maintains four remote-state maps populated by `refreshRemoteState()`:
 
 ```typescript
-interface RootState {
-  workflows: {
-    byId: Record<string, IWorkflowStatus>;
-    allIds: string[];
-    lastSync: number | null;
-  };
-  sync: {
-    mode: 'lightweight' | 'full';
-    watching: boolean;
-    syncing: boolean;
-    error: string | null;
-    archiveFilter: 'workflows' | 'archived' | 'all';  // ← new
-  };
-  conflicts: Record<string, ConflictState>;
-}
+remoteIds:      Map<workflowId, filename>
+remoteNames:    Map<workflowId, displayName>
+remoteActive:   Map<workflowId, isActive>
+remoteArchived: Map<workflowId, isArchived>  // ← NEW
 ```
 
-### Archive filter actions
+**`getLightweightList(options?)`** — returns `IWorkflowStatus[]` for all known workflows (local + remote).
 
 ```typescript
-setArchiveFilter('workflows' | 'archived' | 'all')
-
-selectArchiveFilter(state): 'workflows' | 'archived' | 'all'
+// For each workflow, isArchived is now correctly read from remoteArchived map
+// instead of relying on the local workflow object (which doesn't exist for remote-only)
+const isArchived = workflowId ? (this.remoteArchived.get(workflowId) ?? false) : false;
 ```
 
-### Filter → API options mapping
-
-| Filter     | `includeArchived` | `onlyArchived` |
-|------------|-------------------|----------------|
-| `workflows`| `undefined`       | `undefined`    |
-| `archived` | —                 | `true`         |
-| `all`      | `true`            | —              |
+**`refreshRemoteState()`** — fetches all workflows from n8n API and populates all four maps.
 
 ---
 
-## 🔄 Data Flow
+### Layer 3 — `sync-manager.ts`
 
-### Tab switch (`n8n.showActive` / `n8n.showArchived` / `n8n.showAll`)
-
+```typescript
+async listWorkflows(options?: {
+    fetchRemote?: boolean;
+    includeArchived?: boolean;
+    onlyArchived?: boolean;
+}): Promise<IWorkflowStatus[]>
 ```
-User clicks tab
-  → dispatch(setArchiveFilter(<filter>))
-  → optionally update treeView.title
-  → dispatch(loadWorkflows())
-      → syncManagerRef.listWorkflows({ includeArchived?, onlyArchived? })
-          → n8n API GET /workflows (includeArchived / onlyArchived query params)
-      → dispatch(setWorkflows(workflows[]))
+
+Passes archive options down to `getLightweightList`. The `includeArchived`/`onlyArchived` flags are NOT forwarded to the n8n API — filtering is done locally from the already-cached remote state (no additional API call needed).
+
+---
+
+### Layer 4 — `cli-api.ts` (Internal Facade for VS Code Extension)
+
+```typescript
+async list(options?: {
+    fetchRemote?: boolean;
+    includeArchived?: boolean;
+    onlyArchived?: boolean;
+}): Promise<IWorkflowStatus[]>
+```
+
+Mirrors `SyncManager.listWorkflows`. This is the single contract consumed by the VS Code extension — zero code duplication between CLI binary and extension.
+
+---
+
+### Layer 5 — CLI Commands (`index.ts` + `list.ts`)
+
+#### `list` command
+
+```bash
+n8nac list                        # non-archived only (default)
+n8nac list --include-archived    # all workflows
+n8nac list --only-archived        # archived only
+n8nac list --local               # + scope filter
+n8nac list --remote              # + scope filter
+n8nac list --search <query>      # + search filter
+```
+
+#### `find` command
+
+```bash
+n8nac find <query>                # non-archived only (default)
+n8nac find <query> --include-archived
+n8nac find <query> --only-archived
+```
+
+**Default**: only non-archived. Both commands share the same `ListCommandOptions` interface and the same underlying logic.
+
+**SSOT for documentation**: `packages/cli/src/index.ts` command descriptions. `docs/docs/usage/cli.md` and `packages/skills/src/services/ai-context-generator.ts` (AGENTS.md) must be kept in sync manually.
+
+---
+
+### Layer 6 — TypeScript Transformer (`ast-to-typescript.ts`)
+
+When generating a `.workflow.ts` file from n8n (pull or push), the transformer now emits archive metadata:
+
+```typescript
+@workflow({
+    name: 'My Workflow',
+    active: false,
+    isArchived: true,          // ← NEW
+    projectId: 'xxx',
+    projectName: 'Personal',
+    homeProject: { ... }
+})
+export class MyWorkflow { ... }
+```
+
+This ensures the local file reflects the archived state and can be restored/pushed correctly.
+
+---
+
+## 🌳 VS Code Extension — Archive Filter Tabs
+
+### Commands registered in `extension.ts`
+
+| Command | Action |
+|---------|--------|
+| `n8n.showActive` | `setArchiveFilter('workflows')` → `loadWorkflows()` → tree title = "Workflows" |
+| `n8n.showArchived` | `setArchiveFilter('archived')` → `loadWorkflows()` → tree title = "Archived Workflows" |
+| `n8n.showAll` | `setArchiveFilter('all')` → `loadWorkflows()` → tree title = "All Workflows" |
+
+### Redux state
+
+```typescript
+// sync slice
+archiveFilter: 'workflows' | 'archived' | 'all'  // default: 'workflows'
+```
+
+```typescript
+// Filter → API options mapping
+'workflows'  → {}                    (default, only active)
+'archived'  → { onlyArchived: true }
+'all'       → { includeArchived: true }
+```
+
+### `loadWorkflows` thunk
+
+```typescript
+dispatch(loadWorkflows())
+  → syncManagerRef.listWorkflows({ includeArchived?, onlyArchived? })
+  → dispatch(setWorkflows(workflows[]))
   → enhancedTreeProvider.refresh()
 ```
 
-### Find Workflow (`n8n.findWorkflow`)
-
-```
-User triggers command
-  → cli.list({ fetchRemote: true, includeArchived: true })   ← always unscoped
-      → Redux store updated via setWorkflows()
-      → enhancedTreeProvider refreshed
-  → showQuickPick(buildWorkflowQuickPickItems(workflows))   ← all workflows visible
-  → picked.workflow passed to:
-      revealWorkflowInTree(workflow)   ← tab auto-switch if needed
-          → selectArchiveFilter(current)
-          → if archived AND filter === 'workflows'
-               dispatch(setArchiveFilter('all'))
-               treeView.title = 'All Workflows'
-          → treeView.reveal(item, { select: true, focus: true, expand: true })
-      openWorkflowFromFinder(workflow)
-```
-
-### `buildWorkflowQuickPickItems` — label format
+### Find Workflow (`n8n.findWorkflow`) — Global Search
 
 ```typescript
-// Before (bug): $(archive) was shown on ALL items regardless of isArchived
-// After (fixed): icon is conditional
-const archivedIcon  = workflow.isArchived ? '$(archive) ' : '';
+// Step 1: Load ALL workflows (unscoped from tab filter)
+// Direct CLI call bypasses tab-scoped store
+cli.list({ fetchRemote: true, includeArchived: true })
+
+// Step 2: Show QuickPick with all workflows
+showQuickPick(buildWorkflowQuickPickItems(workflows))
+
+// Step 3: On pick → reveal in tree + open
+revealWorkflowInTree(workflow)  // auto-switches tab if archived but filtered out
+openWorkflowFromFinder(workflow)
+```
+
+**Key invariant**: Search is always global. Tab state does NOT affect what's visible in the QuickPick.
+
+### `buildWorkflowQuickPickItems` — Label Format
+
+```typescript
+const archivedIcon   = workflow.isArchived ? '$(archive) ' : '';     // conditional icon
 const archivedSuffix = workflow.isArchived ? ' [archived]' : '';
 label: `${archivedIcon}${workflow.name}${archivedSuffix}`
-// Examples:
-//   Active workflow  → "My Workflow"
-//   Archived workflow → "$(archive) My Workflow [archived]"
+// Active:    "My Workflow"
+// Archived:  "$(archive) My Workflow [archived]"
 ```
 
----
+### Tab auto-switch on reveal
 
-## 🌲 Tree View Data Path
-
-The tree view reads from Redux via `selectAllWorkflows`, which returns `state.workflows.allIds.map(k => state.workflows.byId[k])`. The `loadWorkflows` thunk populates the store based on the current `archiveFilter`.
-
+```typescript
+const currentFilter = selectArchiveFilter(store.getState());
+if (workflow.isArchived && currentFilter === 'workflows') {
+    store.dispatch(setArchiveFilter('all'));   // Switch to "All" tab
+    if (workflowsTreeView) workflowsTreeView.title = 'All Workflows';
+}
+treeView.reveal(item, { select: true, focus: true, expand: true });
 ```
-TreeProvider.getChildren()
-  → selectAllWorkflows(store.getState())
-  → WorkflowItem[] (with pendingAction: 'conflict' | undefined)
-```
 
-> ⚠️ **Important**: `selectAllWorkflows` does NOT filter by archive state. The store itself contains only the workflows loaded by the last `loadWorkflows` call. Since `loadWorkflows` is dispatched on every tab switch with the appropriate `includeArchived`/`onlyArchived` options, the store only ever holds the workflows relevant to the current tab. `selectAllWorkflows` returns the full store content — it is already correctly scoped by what `loadWorkflows` loaded.
+This is a one-way accommodation: we do NOT restore the previous tab after reveal.
 
 ---
 
-## 🧠 Key Design Decisions
+## 🧪 Tests
 
-### Decision 1: Store is tab-scoped, not all-scope
+### Unit test: `workflow-state-tracker.test.ts`
 
-When switching tabs, `loadWorkflows` re-fetches with the new archive filter and replaces the store content entirely. The tree view always reflects the active tab's scope. This avoids filtering in the tree provider and keeps the implementation simple.
+Tests `getLightweightList` with archive flags:
+- `includeArchived: true` → archived workflows present in results
+- `onlyArchived: true` → only archived workflows in results
+- `isArchived` field correctly computed for remote-only workflows
 
-**Trade-off**: When the user switches from "All" back to "Workflows", the previously-loaded archived workflows are purged from the store. The "Find Workflow" command works around this by calling `cli.list` directly with `includeArchived: true` instead of reading from the store.
+### Integration test: `list-archived.integration.test.ts`
 
-### Decision 2: Search is always global
-
-`n8n.findWorkflow` calls `cli.list({ fetchRemote: true, includeArchived: true })` — bypassing the tab-scoped store entirely. This ensures the QuickPick always shows all workflows, regardless of which tab is active. The store is updated after the call so the tree reflects what was searched.
-
-### Decision 3: Tab auto-switch on reveal (not on search)
-
-When a picked workflow from the QuickPick is revealed in the tree:
-- If the workflow is archived AND the current tab is `workflows`, the tab is switched to `all`
-- This is a one-way adaptation: we do NOT restore the previous tab after reveal
-
-**Reasoning**: The user's intent after picking is to see the workflow in the tree. Forcing the user to manually switch tabs would defeat the purpose of the QuickPick navigation. This is an accommodation, not a state synchronization mechanism.
+Full end-to-end test via `CliApi.list()`:
+- Fetches remote state (calls real n8n API)
+- Applies archive filter options
+- Verifies correct workflows returned and `isArchived` field populated
 
 ---
 
-## 🗂️ CLI — Archive Flags
+## 📦 Files Changed
 
-Both `list` and `find` commands expose the same archive filtering:
-
-| Flag | list | find | Default |
-|------|------|------|---------|
-| `--include-archived` | Include archived in output | Include archived in search | only non-archived |
-| `--only-archived` | Show only archived | Search only archived | — |
-
-**SSOT for flag documentation**: `packages/cli/src/index.ts` is the source of truth. `docs/docs/usage/cli.md` and `packages/skills/src/services/ai-context-generator.ts` (AGENTS.md section) must be kept in sync manually.
-
-Default behaviour (non-archived only) is documented in:
-- `list` / `find` command descriptions: *"By default, only non-archived workflows are shown/searched"*
-- `cli.md` examples with comments: `# Show all non-archived workflows`
-- `ai-context-generator.ts`: updated list command guidance with the 3 flag variants
-
----
-
-## 🧪 Testing Notes
-
-### Manual test cases
-
-| # | Action | Expected |
-|---|--------|----------|
-| 1 | Click "Workflows" tab | Tree shows only active workflows; title = "Workflows" |
-| 2 | Click "Archived" tab | Tree shows only archived; title = "Archived Workflows" |
-| 3 | Click "All" tab | Tree shows active + archived |
-| 4 | `n8n.findWorkflow` with "All" tab active | QuickPick shows all workflows |
-| 5 | `n8n.findWorkflow` with "Workflows" tab active | QuickPick shows all workflows (same as #4) |
-| 6 | Pick an archived workflow from QuickPick (tab = "Workflows") | Tree switches to "All" tab, item is selected/focused |
-| 7 | Pick an active workflow from QuickPick | Tree remains on current tab, item is selected/focused |
-| 8 | `$(archive)` icon | Shown ONLY on archived items in QuickPick |
-| 9 | `n8nac list` | Shows only non-archived (default) |
-| 10 | `n8nac list --include-archived` | Shows active + archived |
-| 11 | `n8nac list --only-archived` | Shows only archived |
+| File | Change |
+|------|--------|
+| `packages/cli/src/index.ts` | `list`/`find` command options: `--include-archived`, `--only-archived`; descriptions mention default non-archived |
+| `packages/cli/src/commands/list.ts` | `ListCommandOptions` interface; `applyListCommandOptions` passes archive flags to `syncManager.listWorkflows` |
+| `packages/cli/src/core/services/cli-api.ts` | `list()` signature extended with archive options |
+| `packages/cli/src/core/services/sync-manager.ts` | `listWorkflows()` passes archive options to `getLightweightList` |
+| `packages/cli/src/core/services/workflow-state-tracker.ts` | `remoteArchived` map; `getLightweightList` computes `isArchived` from map; DRY filter logic |
+| `packages/transformer/src/parser/ast-to-typescript.ts` | Emits `isArchived`, `projectId`, `projectName`, `homeProject` in `@workflow` decorator |
+| `packages/vscode-extension/src/extension.ts` | `n8n.showActive/Archived/All` commands; `n8n.findWorkflow` (global search); `revealWorkflowInTree` with tab auto-switch |
+| `packages/vscode-extension/src/services/workflow-store.ts` | `archiveFilter` in sync slice; `setArchiveFilter` action; `loadWorkflows` thunk |
+| `packages/vscode-extension/src/utils/workflow-finder.ts` | Conditional `$(archive)` icon + `[archived]` suffix in QuickPick labels |
+| `packages/cli/tests/unit/workflow-state-tracker.test.ts` | Tests for `isArchived` field + archive filter flags |
+| `packages/cli/tests/integration/list-archived.integration.test.ts` | Integration test for archive list via CliApi |
+| `packages/skills/src/services/ai-context-generator.ts` | AGENTS.md guidance: `list --local/--remote` + archive flags |
+| `docs/docs/usage/cli.md` | `list`/`find` docs: archive flags, examples, default behaviour |
+| `docs/docs/usage/vscode-extension.md` | Archive Filter Tabs section |
+| `architecture/current/feature-324-archive-filter-tabs-search.md` | This document |
 
 ---
 
-## 📦 Related Files Summary
+## 🔑 Key Design Decisions
 
-| File | Role |
-|------|------|
-| `packages/vscode-extension/src/services/workflow-store.ts` | Redux slice, `setArchiveFilter` action, `loadWorkflows` thunk, `selectArchiveFilter` selector |
-| `packages/vscode-extension/src/extension.ts` | `n8n.showActive/Archived/All` commands, `n8n.findWorkflow`, `revealWorkflowInTree` (with tab auto-switch) |
-| `packages/vscode-extension/src/utils/workflow-finder.ts` | `buildWorkflowQuickPickItems` — conditional `$(archive)` icon + `[archived]` suffix |
-| `packages/cli/src/commands/list.ts` | `ListCommandOptions` interface with `includeArchived`/`onlyArchived`; `applyListCommandOptions` passes them to `syncManager.listWorkflows` |
-| `packages/cli/src/index.ts` | `list`/`find` command definitions with `--include-archived`/`--only-archived` options + descriptions |
-| `packages/cli/src/core/services/sync-manager.ts` | `listWorkflows` → passes `includeArchived`/`onlyArchived` to `getLightweightList` / `refreshRemoteState` |
-| `packages/cli/src/core/services/workflow-state-tracker.ts` | `getLightweightList` — reads `remoteArchived` map to compute `isArchived` field |
-| `packages/skills/src/services/ai-context-generator.ts` | Regenerates `AGENTS.md` with updated list command guidance + archive flags |
-| `docs/docs/usage/cli.md` | `list`/`find` command docs with archive flags and examples |
-| `docs/docs/usage/vscode-extension.md` | New "Archive Filter Tabs" section documenting the 3 tabs |
+### Decision 1: Archive state comes from remote cache, not from local files
+
+`isArchived` is a remote property. For remote-only workflows (no local file), the local file has no `isArchived` to read. The fix reads from `remoteArchived.get(workflowId)` which is populated by `refreshRemoteState()` on every API fetch. This means `isArchived` is always fresh from n8n — not stale from a local file.
+
+### Decision 2: Filter runs locally, not at the API level
+
+The n8n API already supports `includeArchived`/`onlyArchived` query params. However, n8n-as-code already fetches all workflows during `refreshRemoteState()` (to populate the four remote maps). Re-passing these params to a second API call would be wasteful. Instead, filtering is done client-side from the cached data.
+
+### Decision 3: Store is tab-scoped; search is global
+
+When switching tabs, `loadWorkflows()` re-fetches with the new filter and replaces all workflow entries in the Redux store. The tree view always reflects the current tab. The "Find Workflow" command bypasses the store and calls `cli.list()` directly with `includeArchived: true` — ensuring the QuickPick always sees all workflows regardless of active tab.
+
+### Decision 4: One-way tab auto-switch on reveal
+
+When picking an archived workflow from QuickPick while the tree is on the "Workflows" tab, we switch the tree to "All" so the item appears. We do NOT restore the previous tab afterwards — this is an accommodation, not a synchronization mechanism. The user's intent after picking is to see the workflow in the tree.
