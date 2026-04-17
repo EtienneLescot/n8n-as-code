@@ -59,7 +59,7 @@ export class SyncManager extends EventEmitter {
             projectId: this.config.projectId
         });
 
-        this.syncEngine = new SyncEngine(this.client, this.watcher, instanceDir);
+        this.syncEngine = new SyncEngine(this.client, this.watcher, instanceDir, this.config.projectId);
         this.resolutionManager = new ResolutionManager(this.syncEngine, this.watcher, this.client);
 
         this.watcher.on('statusChange', (data) => {

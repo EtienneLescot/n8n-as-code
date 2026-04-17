@@ -231,8 +231,11 @@ export class WorkflowTransformerAdapter {
      * Removes read-only and organization metadata fields
      */
     private static cleanForPush(workflow: IWorkflow): IWorkflow {
-        // Remove organization metadata (read-only from API)
         const { projectId, projectName, homeProject, isArchived, ...clean } = workflow as any;
+
+        if (projectId) {
+            clean.projectId = projectId;
+        }
         
         // Remove id (read-only, should be in URL path for UPDATE)
         delete clean.id;

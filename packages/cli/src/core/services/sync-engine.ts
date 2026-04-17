@@ -20,15 +20,18 @@ export class SyncEngine {
     private client: N8nApiClient;
     private watcher: WorkflowStateTracker;
     private directory: string;
+    private projectId: string;
 
     constructor(
         client: N8nApiClient,
         watcher: WorkflowStateTracker,
-        directory: string
+        directory: string,
+        projectId: string
     ) {
         this.client = client;
         this.watcher = watcher;
         this.directory = directory;
+        this.projectId = projectId;
     }
 
     /**
@@ -257,6 +260,8 @@ export class SyncEngine {
         if (!localWf.name) {
             localWf.name = path.parse(filename).name.replace('.workflow', '');
         }
+
+        localWf.projectId = this.projectId;
 
         const newWf = await this.client.createWorkflow(localWf);
         if (!newWf || !newWf.id) {
