@@ -1,5 +1,11 @@
 # @n8n-as-code/skills
 
+## [1.9.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.9.0...@n8n-as-code/skills@v1.9.1) (2026-04-17)
+
+### Bug Fixes
+
+* address PR #286 review comments on parameter gating ([fc3b8ee](https://github.com/EtienneLescot/n8n-as-code/commit/fc3b8ee530a23e2bab26008518cd5ae97a8d7e83))
+
 ## [1.9.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.8.2...@n8n-as-code/skills@v1.9.0) (2026-04-16)
 
 ### Features
