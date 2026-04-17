@@ -242,13 +242,15 @@ program.command('init-project')
 
 // list - Snapshot view of all workflows and their status
 program.command('list')
-    .description('Display a table of all workflows and their current status (local, remote, or both)')
+    .description('Display a table of all workflows and their current status (local, remote, or both). By default, only non-archived workflows are shown.')
     .option('--local', 'Show only local workflows')
     .option('--remote', 'Show only remote workflows')
     .option('--distant', 'Alias for --remote')
     .option('--search <query>', 'Filter by workflow name, ID, or local filename (case-insensitive partial match)')
     .option('--sort <mode>', 'Sort by "status" (default) or "name"', 'status')
     .option('--limit <number>', 'Limit the number of returned workflows', (value) => parsePositiveIntegerOption(value, '--limit'))
+    .option('--include-archived', 'Include archived workflows in the output')
+    .option('--only-archived', 'Show only archived workflows')
     .option('--json', 'Output full JSON instead of a table')
     .addOption(new Option('--raw').hideHelp())
     .action(async (options) => {
@@ -264,18 +266,22 @@ program.command('list')
             raw: options.json || options.raw,
             search: options.search,
             sort: options.sort,
-            limit: options.limit
+            limit: options.limit,
+            includeArchived: options.includeArchived,
+            onlyArchived: options.onlyArchived
         });
     });
 
 program.command('find')
-    .description('Find workflows quickly by partial name, workflow ID, or local filename')
+    .description('Find workflows quickly by partial name, workflow ID, or local filename. By default, only non-archived workflows are searched.')
     .argument('<query>', 'Search query')
     .option('--local', 'Show only local workflows')
     .option('--remote', 'Show only remote workflows')
     .option('--distant', 'Alias for --remote')
     .option('--sort <mode>', 'Sort by "status" or "name"', 'name')
     .option('--limit <number>', 'Limit the number of returned workflows', (value) => parsePositiveIntegerOption(value, '--limit'))
+    .option('--include-archived', 'Include archived workflows in the search')
+    .option('--only-archived', 'Search only archived workflows')
     .option('--json', 'Output full JSON instead of a table')
     .addOption(new Option('--raw').hideHelp())
     .action(async (query, options) => {
@@ -290,7 +296,9 @@ program.command('find')
             raw: options.json || options.raw,
             search: query,
             sort: options.sort,
-            limit: options.limit
+            limit: options.limit,
+            includeArchived: options.includeArchived,
+            onlyArchived: options.onlyArchived
         });
     });
 

@@ -16,6 +16,7 @@ interface SyncState {
     isWatching: boolean;
     isSyncing: boolean;
     lastError: string | null;
+    archiveFilter: 'workflows' | 'archived' | 'all';
 }
 
 interface ConflictsState {
@@ -88,6 +89,18 @@ const workflowsSlice = createSlice({
             state.allIds = state.allIds.filter(wfId => wfId !== id && wfId !== fileKey);
         },
     },
+    extraReducers: (builder) => {
+        builder.addCase(loadWorkflows.fulfilled, (state, action) => {
+            state.byId = {};
+            state.allIds = [];
+            action.payload.forEach((wf: IWorkflowStatus) => {
+                const key = wf.id || `file:${wf.filename}`;
+                state.byId[key] = wf;
+                state.allIds.push(key);
+            });
+            state.lastSync = Date.now();
+        });
+    },
 });
 
 // ============================================================================
@@ -101,6 +114,7 @@ const syncSlice = createSlice({
         isWatching: false,
         isSyncing: false,
         lastError: null,
+        archiveFilter: 'workflows',
     } as SyncState,
     reducers: {
         setMode: (state, action: PayloadAction<'auto' | 'manual'>) => {
@@ -114,6 +128,9 @@ const syncSlice = createSlice({
         },
         setError: (state, action: PayloadAction<string | null>) => {
             state.lastError = action.payload;
+        },
+        setArchiveFilter: (state, action: PayloadAction<'workflows' | 'archived' | 'all'>) => {
+            state.archiveFilter = action.payload;
         },
     },
 });
@@ -159,9 +176,14 @@ export function clearSyncManager() {
 // Load workflows from SyncManager
 export const loadWorkflows = createAsyncThunk(
     'workflows/load',
-    async () => {
+    async (_, { getState }) => {
         if (!syncManagerRef) throw new Error('SyncManager not initialized');
-        return await syncManagerRef.listWorkflows();
+        const state = store.getState() as RootState;
+        const filter = state.sync.archiveFilter;
+        const options: { includeArchived?: boolean; onlyArchived?: boolean } = {};
+        if (filter === 'all') options.includeArchived = true;
+        if (filter === 'archived') options.onlyArchived = true;
+        return await syncManagerRef.listWorkflows(options);
     }
 );
 
@@ -201,6 +223,7 @@ export const {
     setWatching,
     setSyncing,
     setError,
+    setArchiveFilter,
 } = syncSlice.actions;
 
 export const {
@@ -224,3 +247,6 @@ export const selectConflicts = (state: RootState) =>
 
 export const selectSyncState = (state: RootState) =>
     state.sync;
+
+export const selectArchiveFilter = (state: RootState): 'workflows' | 'archived' | 'all' =>
+    state.sync.archiveFilter;

@@ -1,5 +1,28 @@
 # @n8n-as-code/cli
 
+## [1.7.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.6.2...n8nac@v1.7.0) (2026-04-16)
+
+### Features
+
+* add workflow description decorator support ([d9188c9](https://github.com/EtienneLescot/n8n-as-code/commit/d9188c9a72259751499bf295f6b2efba7530d064))
+* **workflow:** enhance workflow actions and context handling for archived and local-only workflows ([1b680f4](https://github.com/EtienneLescot/n8n-as-code/commit/1b680f426643c16dfc9bddcff7fe59791184dbb0))
+* **workflow:** implement read-only behavior for archived workflows and update action items ([89737bc](https://github.com/EtienneLescot/n8n-as-code/commit/89737bc8200bf4e3b11a246d9d9f96d6b8ef2ee7))
+* **workflow:** add isArchived detection for local-only workflows from @workflow decorator ([f62280b](https://github.com/EtienneLescot/n8n-as-code/commit/f62280bf1ab2ab6a792371fee573e247c3ca3b59))
+* **cli:** add --include-archived and --only-archived flags to list/find commands ([59be2ee](https://github.com/EtienneLescot/n8n-as-code/commit/59be2eeb9b30b4b7ee57e9f1279bab15b54b767d))
+
+### Bug Fixes
+
+* **sync:** handle push failure for archived workflows with appropriate messaging ([18bf5c5](https://github.com/EtienneLescot/n8n-as-code/commit/18bf5c59ce5dcfc1c0ee7478610d2012408f809e))
+* **workflow:** enhance status logic for remote deletion scenarios ([8a70d59](https://github.com/EtienneLescot/n8n-as-code/commit/8a70d590151a47992e8c9ea7b80b543f023a65ca))
+* **cli:** clarify default non-archived behaviour in list/find --help descriptions ([377ddf5](https://github.com/EtienneLescot/n8n-as-code/commit/377ddf507804f9e8849c83e2625612fc3fd99a9b))
+* rename 'live' tab to 'workflows', add search badge for archived workflows ([1bbc3a4](https://github.com/EtienneLescot/n8n-as-code/commit/1bbc3a43c356ac9086c4579e23059d6be5575b68))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.8.2 to 1.9.0
+    * @n8n-as-code/transformer bumped from 1.1.0 to 1.2.0
+
 ## [1.6.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.6.1...n8nac@v1.6.2) (2026-04-10)
 
 ### Bug Fixes

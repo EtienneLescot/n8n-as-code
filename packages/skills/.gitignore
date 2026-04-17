@@ -5,3 +5,7 @@ n8nac-skills.cmd
 
 # Generated workflow index (built at compile time)
 src/data/
+
+# Build-generated assets (downloaded from n8n.io/n8nworkflows.xyz)
+src/assets/
+dist/assets/

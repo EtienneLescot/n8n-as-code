@@ -16,6 +16,7 @@ import { EnhancedWorkflowTreeProvider } from './ui/enhanced-workflow-tree-provid
 import { WorkflowWebview } from './ui/workflow-webview.js';
 import { ConfigurationWebview } from './ui/configuration-webview.js';
 import { WorkflowDecorationProvider } from './ui/workflow-decoration-provider.js';
+
 import { ProxyService } from './services/proxy-service.js';
 import { ExtensionState } from './types.js';
 import { getN8nConfig, getResolvedN8nConfig, validateN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from './utils/state-detection.js';
@@ -31,9 +32,12 @@ import {
     clearSyncManager,
     setWorkflows,
     selectAllWorkflows,
+    selectArchiveFilter,
     addConflict,
     removeConflict,
-    clearConflicts
+    clearConflicts,
+    setArchiveFilter,
+    loadWorkflows,
 } from './services/workflow-store.js';
 
 // ------- Clipboard bridge for macOS -------
@@ -69,6 +73,7 @@ let runtimeDisposables: vscode.Disposable[] = [];
 const statusBar = new StatusBar();
 const proxyService = new ProxyService();
 const enhancedTreeProvider = new EnhancedWorkflowTreeProvider();
+
 const decorationProvider = new WorkflowDecorationProvider();
 const outputChannel = vscode.window.createOutputChannel("n8n-as-code");
 let workflowsTreeView: vscode.TreeView<any> | undefined;
@@ -141,6 +146,24 @@ export async function activate(context: vscode.ExtensionContext) {
             outputChannel.appendLine('[n8n] Applying new settings...');
             await reinitializeSyncManager(context);
             updateContextKeys();
+        }),
+
+        vscode.commands.registerCommand('n8n.showActive', async () => {
+            store.dispatch(setArchiveFilter('workflows'));
+            if (workflowsTreeView) workflowsTreeView.title = 'Workflows';
+            await store.dispatch(loadWorkflows());
+        }),
+
+        vscode.commands.registerCommand('n8n.showArchived', async () => {
+            store.dispatch(setArchiveFilter('archived'));
+            if (workflowsTreeView) workflowsTreeView.title = 'Archived Workflows';
+            await store.dispatch(loadWorkflows());
+        }),
+
+        vscode.commands.registerCommand('n8n.showAll', async () => {
+            store.dispatch(setArchiveFilter('all'));
+            if (workflowsTreeView) workflowsTreeView.title = 'All Workflows';
+            await store.dispatch(loadWorkflows());
         }),
 
         vscode.commands.registerCommand('n8n.openBoard', async (arg: any) => {
@@ -340,16 +363,12 @@ export async function activate(context: vscode.ExtensionContext) {
                 return;
             }
 
-            let workflows = selectAllWorkflows(store.getState());
-            if (!workflows.length && cli) {
-                try {
-                    workflows = await cli.list({ fetchRemote: true });
-                    store.dispatch(setWorkflows(workflows));
-                    enhancedTreeProvider.refresh();
-                } catch (error: any) {
-                    vscode.window.showErrorMessage(`Unable to load workflows: ${error.message}`);
-                    return;
-                }
+            // Always search across ALL workflows, regardless of current archive filter.
+            // The current filter tab should not limit searchability of workflows.
+            let workflows = cli ? await cli.list({ fetchRemote: true, includeArchived: true }) : [];
+            if (workflows.length) {
+                store.dispatch(setWorkflows(workflows));
+                enhancedTreeProvider.refresh();
             }
 
             if (!workflows.length) {
@@ -425,8 +444,6 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('n8n.openSettings', () => {
             vscode.commands.executeCommand('workbench.action.openSettings', 'n8n');
         }),
-
-        vscode.commands.registerCommand('n8n.spacer', () => { /* spacing dummy */ }),
 
         vscode.commands.registerCommand('n8n.resolveConflict', async (arg: any) => {
             const wf = arg?.workflow ? arg.workflow : arg;
@@ -559,6 +576,14 @@ function getExistingWorkflowFileUri(workflow: IWorkflowStatus): vscode.Uri | und
 async function revealWorkflowInTree(workflow: IWorkflowStatus): Promise<void> {
     if (!workflowsTreeView) {
         return;
+    }
+
+    // Ensure the workflow is visible: if it's archived but the current filter is 'workflows',
+    // switch to 'all' so the item appears in the tree before we try to reveal it.
+    const currentFilter = selectArchiveFilter(store.getState());
+    if (workflow.isArchived && currentFilter === 'workflows') {
+        store.dispatch(setArchiveFilter('all'));
+        if (workflowsTreeView) workflowsTreeView.title = 'All Workflows';
     }
 
     const item = await enhancedTreeProvider.getWorkflowItem(workflow);
@@ -1109,9 +1134,9 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         );
         const fileWatcher = vscode.workspace.createFileSystemWatcher(pattern, false, true, false);
         const reloadList = async () => {
-            if (!cli) return;
+            if (!syncManager) return;
             try {
-                store.dispatch(setWorkflows(await cli.list()));
+                await store.dispatch(loadWorkflows());
                 enhancedTreeProvider.refresh();
             } catch (err) {
                 console.error('[n8n] FS watcher: failed to refresh list', err);

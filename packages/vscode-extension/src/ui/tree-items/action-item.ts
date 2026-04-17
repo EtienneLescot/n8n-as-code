@@ -10,6 +10,12 @@ export enum ActionItemType {
   SHOW_DIFF = 'show-diff',
   FORCE_PUSH = 'force-push',
   PULL_REMOTE = 'pull-remote',
+  
+  // Standard workflow actions
+  BOARD = 'board',     // Open workflow in n8n UI (requires remote id)
+  PULL = 'pull',       // Pull from remote to local (requires remote id)
+  PUSH = 'push',       // Push from local to remote (requires local file)
+  OPEN = 'open',       // Open local file in editor (requires local file)
 }
 
 /**
@@ -40,6 +46,14 @@ export class ActionItem extends BaseTreeItem {
         return '⬆️ Keep Current (local)';
       case ActionItemType.PULL_REMOTE:
         return '⬇️ Keep Incoming (remote)';
+      case ActionItemType.BOARD:
+        return '🌐 Board';
+      case ActionItemType.PULL:
+        return '⬇️ Pull';
+      case ActionItemType.PUSH:
+        return '⬆️ Push';
+      case ActionItemType.OPEN:
+        return '📝 Open';
       default:
         return 'Unknown Action';
     }
@@ -50,15 +64,21 @@ export class ActionItem extends BaseTreeItem {
       case ActionItemType.SHOW_DIFF:
         return new vscode.ThemeIcon('git-compare');
       case ActionItemType.FORCE_PUSH:
+      case ActionItemType.PUSH:
         return new vscode.ThemeIcon('cloud-upload');
       case ActionItemType.PULL_REMOTE:
+      case ActionItemType.PULL:
         return new vscode.ThemeIcon('cloud-download');
+      case ActionItemType.BOARD:
+        return new vscode.ThemeIcon('globe');
+      case ActionItemType.OPEN:
+        return new vscode.ThemeIcon('go-to-file');
       default:
         return new vscode.ThemeIcon('question');
     }
   }
 
-  private static getCommandForAction(actionType: ActionItemType, workflow: any): vscode.Command {
+  private static getCommandForAction(actionType: ActionItemType, workflow: any): vscode.Command | undefined {
     switch (actionType) {
       case ActionItemType.SHOW_DIFF:
         return {
@@ -78,8 +98,32 @@ export class ActionItem extends BaseTreeItem {
           title: 'Keep Incoming (remote)',
           arguments: [{ workflow, choice: 'Keep Incoming (remote)' }]
         };
+      case ActionItemType.BOARD:
+        return {
+          command: 'n8n.openBoard',
+          title: 'Open Board',
+          arguments: [workflow]
+        };
+      case ActionItemType.PULL:
+        return {
+          command: 'n8n.pullWorkflow',
+          title: 'Pull',
+          arguments: [workflow.id]
+        };
+      case ActionItemType.PUSH:
+        return {
+          command: 'n8n.pushWorkflow',
+          title: 'Push',
+          arguments: [workflow.filename]
+        };
+      case ActionItemType.OPEN:
+        return {
+          command: 'n8n.openJson',
+          title: 'Open',
+          arguments: [workflow]
+        };
       default:
-        return { command: 'n8n.refresh', title: 'Refresh' };
+        return undefined;
     }
   }
 
@@ -91,9 +135,28 @@ export class ActionItem extends BaseTreeItem {
         return 'Keep your current local version — push it to n8n';
       case ActionItemType.PULL_REMOTE:
         return 'Keep the incoming remote version — overwrite local file';
+      case ActionItemType.BOARD:
+        return 'Open workflow in n8n web UI';
+      case ActionItemType.PULL:
+        return 'Pull latest from n8n to local file';
+      case ActionItemType.PUSH:
+        return 'Push local changes to n8n';
+      case ActionItemType.OPEN:
+        return 'Open local file in editor';
       default:
         return '';
     }
+  }
+  
+  // Enabled/disabled state for actions
+  static isEnabledForArchived(actionType: ActionItemType): boolean {
+    // Only PULL and BOARD are allowed for archived workflows
+    return actionType === ActionItemType.PULL || actionType === ActionItemType.BOARD;
+  }
+  
+  static isLocalOnlyAction(actionType: ActionItemType): boolean {
+    // BOARD requires a remote workflow (has id)
+    return false; // BOARD is allowed for all, PULL/PUSH have their own logic
   }
   
   override getContextValue(): string {

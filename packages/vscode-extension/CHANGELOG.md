@@ -1,5 +1,40 @@
 # n8n-as-code
 
+## [1.42.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.40.0...n8n-as-code@v1.42.0) (2026-04-16)
+
+### Features
+
+* **workflow:** update description for archived workflows in tree item display ([5818a2f](https://github.com/EtienneLescot/n8n-as-code/commit/5818a2f3275e92ced91219211bf6d05eecfede1a))
+* **workflow:** enhance workflow actions and context handling for archived and local-only workflows ([1b680f4](https://github.com/EtienneLescot/n8n-as-code/commit/1b680f426643c16dfc9bddcff7fe59791184dbb0))
+* **workflow:** implement read-only behavior for archived workflows and update action items ([89737bc](https://github.com/EtienneLescot/n8n-as-code/commit/89737bc8200bf4e3b11a246d9d9f96d6b8ef2ee7))
+* **vscode:** add ScreenshotPanel webview for UI testing ([ffca9cd](https://github.com/EtienneLescot/n8n-as-code/commit/ffca9cd6ad4b09d86359ef347936a32f4340b664))
+* **vscode:** add archive filter tabs to sidebar tree view ([cecbb97](https://github.com/EtienneLescot/n8n-as-code/commit/cecbb970b1080904b806f3b1019d9dc2235942dd))
+
+### Bug Fixes
+
+* **sync:** update file watcher to use syncManager instead of cli for workflow loading ([3d0c2af](https://github.com/EtienneLescot/n8n-as-code/commit/3d0c2afa1b1c8a670bca84535833bc5512fcb592))
+* **vscode:** remove unused 'n8n.spacer' command and related menu entries ([eda7c3e](https://github.com/EtienneLescot/n8n-as-code/commit/eda7c3e10be181b108818f0c4848a877712583f1))
+* **workflow:** ensure all workflows are searchable regardless of archive filter ([d90247c](https://github.com/EtienneLescot/n8n-as-code/commit/d90247cdb0a1c5bcaceff06c263372e752c6cd1c))
+* **vscode:** fix navigation bar ordering — tabs before refresh+search, spacer at end ([7459b20](https://github.com/EtienneLescot/n8n-as-code/commit/7459b202f8c04bae5fd24a4f1556875748c2e760))
+* **vscode:** import selectArchiveFilter in extension.ts ([82e3f76](https://github.com/EtienneLescot/n8n-as-code/commit/82e3f7625f3fceab84b04bb9e2490863d1e79c84))
+* **vscode:** findWorkflow reveals archived items correctly in tree ([9af823e](https://github.com/EtienneLescot/n8n-as-code/commit/9af823eeec4d2aa3b5048d6867659f6f8751b621))
+* **vscode:** show $(archive) icon only for archived workflows in search ([f4d1f70](https://github.com/EtienneLescot/n8n-as-code/commit/f4d1f7039c2037bee6b6ad1a7fdcfcfc17b5612c))
+* **vscode:** wire loadWorkflows thunk to workflowsSlice via extraReducers ([a3c5571](https://github.com/EtienneLescot/n8n-as-code/commit/a3c5571e0d65065e55909687cd8588cc03421c26))
+* replace colored dots with VS Code codicon icons (file, cloud, alert, etc.) ([883cc7c](https://github.com/EtienneLescot/n8n-as-code/commit/883cc7cc664172b1fe884bca18111c9429020c45))
+* rename 'live' tab to 'workflows', add search badge for archived workflows ([1bbc3a4](https://github.com/EtienneLescot/n8n-as-code/commit/1bbc3a43c356ac9086c4579e23059d6be5575b68))
+* **vscode:** rename 'Active' filter tab to 'Live' to avoid n8n terminology confusion ([a62ae0f](https://github.com/EtienneLescot/n8n-as-code/commit/a62ae0f1b958fcc5ef90368a238cf240bd3a0347))
+* validate WebSocket close codes before forwarding to prevent crash on 1005/1006 ([2fca3c1](https://github.com/EtienneLescot/n8n-as-code/commit/2fca3c10bfc486a226d1990313ea6395af87f7bd))
+
+### Documentation
+
+* include code 1004 in reserved close code comment ([47b0a85](https://github.com/EtienneLescot/n8n-as-code/commit/47b0a85f804c20450eab9b2da5193f07978ad5eb))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.8.2 to 1.9.0
+    * n8nac bumped from 1.6.2 to 1.7.0
+
 ## [1.40.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.38.0...n8n-as-code@v1.40.0) (2026-04-10)
 
 ### Dependencies

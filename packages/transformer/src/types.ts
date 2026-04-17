@@ -25,6 +25,7 @@ export interface WorkflowMetadata {
     id: string;
     name: string;
     active: boolean;
+    description?: string;
     tags?: string[];
     settings?: WorkflowSettings;
     
@@ -139,6 +140,7 @@ export interface N8nWorkflow {
     id: string;
     name: string;
     active: boolean;
+    description?: string;
     nodes: N8nNode[];
     connections: N8nConnections;
     settings?: WorkflowSettings;

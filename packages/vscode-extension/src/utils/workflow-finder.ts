@@ -8,14 +8,18 @@ export interface WorkflowQuickPickItem extends QuickPickItem {
 export function buildWorkflowQuickPickItems(workflows: IWorkflowStatus[]): WorkflowQuickPickItem[] {
     return [...workflows]
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
-        .map(workflow => ({
-            label: workflow.name,
-            description: workflow.id ? `ID: ${workflow.id}` : 'Local only',
-            detail: workflow.filename
-                ? `${workflow.filename} • ${workflow.status}`
-                : `Remote only • ${workflow.status}`,
-            workflow
-        }));
+        .map(workflow => {
+            const archivedIcon = workflow.isArchived ? '$(archive) ' : '';
+            const archivedSuffix = workflow.isArchived ? ' [archived]' : '';
+            return {
+                label: `${archivedIcon}${workflow.name}${archivedSuffix}`,
+                description: workflow.id ? `ID: ${workflow.id}` : 'Local only',
+                detail: workflow.filename
+                    ? `${workflow.filename} • ${workflow.status}`
+                    : `Remote only • ${workflow.status}`,
+                workflow,
+            };
+        });
 }
 
 export function getWorkflowFinderCommand(workflow: IWorkflowStatus): string | undefined {

@@ -240,6 +240,31 @@ export class AiTestWorkflow {
         expect(tsCode).toContain('tags: ["ops","production"]');
     });
 
+    it('should include workflow description in generated TypeScript metadata', async () => {
+        const workflowJson = {
+            id: 'wf-description-1',
+            name: 'Described Workflow',
+            active: false,
+            description: 'This workflow has a description.',
+            nodes: [],
+            connections: {},
+            settings: {}
+        };
+
+        const parser = new JsonToAstParser();
+        const ast = parser.parse(workflowJson as any);
+
+        expect(ast.metadata.description).toBe('This workflow has a description.');
+
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast, {
+            format: false,
+            commentStyle: 'minimal'
+        });
+
+        expect(tsCode).toContain('description: "This workflow has a description."');
+    });
+
     it('should emit multiline strings as template literals for readable jsCode', async () => {
         const workflowJson = {
             id: 'wf-code-1',
