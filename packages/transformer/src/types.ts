@@ -51,6 +51,8 @@ export interface WorkflowSettings {
     saveManualExecutions?: boolean;
     saveDataErrorExecution?: 'all' | 'none';
     saveExecutionProgress?: boolean;
+    availableInMCP?: boolean;
+    callerPolicy?: string;
 }
 
 /**
