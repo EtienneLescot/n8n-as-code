@@ -113,5 +113,87 @@ export class ExistingWebhookIdWorkflow {
 
         expect(workflow.nodes[0].webhookId).toBe('existing-webhook-id');
     });
+});
 
+describe('WorkflowTransformerAdapter settings round-trip', () => {
+    const baseWorkflow = {
+        id: 'wf-settings-test',
+        name: 'Settings Test',
+        active: false,
+        nodes: [],
+        connections: {},
+    };
+
+    it('compileToJson preserves settings present in WorkflowSettings type', async () => {
+        const ts = await WorkflowTransformerAdapter.convertToTypeScript(
+            {
+                ...baseWorkflow,
+                settings: {
+                    executionOrder: 'v1',
+                    availableInMCP: true,
+                    callerPolicy: 'workflowsFromSameOwner',
+                    timezone: 'America/New_York',
+                },
+            } as any,
+            { format: false, commentStyle: 'minimal' },
+        );
+
+        const result = await WorkflowTransformerAdapter.compileToJson(ts);
+
+        expect(result.settings).toMatchObject({
+            executionOrder: 'v1',
+            availableInMCP: true,
+            callerPolicy: 'workflowsFromSameOwner',
+            timezone: 'America/New_York',
+        });
+    });
+
+    it('hash is stable across TS round-trip and direct JSON paths', async () => {
+        const workflow = {
+            ...baseWorkflow,
+            settings: {
+                executionOrder: 'v1',
+                availableInMCP: true,
+                callerPolicy: 'workflowsFromSameOwner',
+                errorWorkflow: 'wf-error',
+                timezone: 'UTC',
+                saveManualExecutions: true,
+                saveDataErrorExecution: 'all',
+                saveExecutionProgress: false,
+            },
+        } as any;
+
+        // Path 1: JSON → TS → compileToJson (cleanForPush) → normalizeForHash
+        const tsCode = await WorkflowTransformerAdapter.convertToTypeScript(workflow, {
+            format: false,
+            commentStyle: 'minimal',
+        });
+        const hashViaTs = await WorkflowTransformerAdapter.hashWorkflow(tsCode);
+
+        // Path 2: JSON string → normalizeForHash (no cleanForPush)
+        const hashViaJson = await WorkflowTransformerAdapter.hashWorkflow(
+            JSON.stringify(workflow),
+        );
+
+        expect(hashViaTs).toBe(hashViaJson);
+    });
+
+    it('changing availableInMCP or callerPolicy changes the hash', async () => {
+        const mkWorkflow = (settings: Record<string, unknown>) =>
+            JSON.stringify({ ...baseWorkflow, settings: { executionOrder: 'v1', ...settings } });
+
+        const hashBase = await WorkflowTransformerAdapter.hashWorkflow(mkWorkflow({}));
+
+        const hashWithMCP = await WorkflowTransformerAdapter.hashWorkflow(
+            mkWorkflow({ availableInMCP: true }),
+        );
+
+        const hashWithCaller = await WorkflowTransformerAdapter.hashWorkflow(
+            mkWorkflow({ callerPolicy: 'workflowsFromSameOwner' }),
+        );
+
+        expect(hashWithMCP).not.toBe(hashBase);
+        expect(hashWithCaller).not.toBe(hashBase);
+        expect(hashWithMCP).not.toBe(hashWithCaller);
+    });
 });

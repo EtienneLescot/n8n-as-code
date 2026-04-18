@@ -12,12 +12,12 @@ export class WorkflowSanitizer {
         // IMPORTANT: executionOrder is PRESERVED because it affects workflow behavior
         const keysToRemove = [
             'executionUrl',
-            'availableInMCP',
-            'callerPolicy',
             'saveDataErrorExecution',
             'saveManualExecutions',
             'saveExecutionProgress',
             // 'executionOrder', // ✅ KEPT - this affects execution behavior and must be preserved
+            // 'availableInMCP', // ✅ KEPT - controls MCP tool access for the workflow
+            // 'callerPolicy', // ✅ KEPT - controls which workflows can call this one
             'trialStartedAt'
         ];
 
@@ -136,7 +136,9 @@ export class WorkflowSanitizer {
             'saveManualExecutions',
             'saveDataErrorExecution',
             'saveExecutionProgress',
-            'executionOrder'
+            'executionOrder',
+            'availableInMCP',
+            'callerPolicy'
         ];
         const filteredSettings: any = {};
         

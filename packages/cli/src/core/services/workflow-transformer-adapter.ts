@@ -170,21 +170,18 @@ export class WorkflowTransformerAdapter {
      * - Node IDs (generated during compilation)
      * - Version fields (versionId, activeVersionId, versionCounter)
      * - Execution data (pinData)
-     * - Non-round-trippable settings fields (callerPolicy, availableInMCP, etc.)
-     *
-     * Settings are filtered to the same allowed set as cleanForPush so that
-     * hashFromJson and hashWorkflow(convertToTypeScript(sameJson)) always match.
+     * - Settings not in the allowed list
      */
     private static normalizeForHash(workflow: IWorkflow): any {
-        // Filter settings to only the fields that survive a TS round-trip
-        // (must mirror the allowedSettings list in cleanForPush)
         const allowedSettings = [
             'errorWorkflow',
             'timezone',
             'saveManualExecutions',
             'saveDataErrorExecution',
             'saveExecutionProgress',
-            'executionOrder'
+            'executionOrder',
+            'availableInMCP',
+            'callerPolicy'
         ];
         const filteredSettings: any = {};
         const rawSettings: any = (workflow as any).settings || {};
@@ -259,10 +256,12 @@ export class WorkflowTransformerAdapter {
             'saveManualExecutions',
             'saveDataErrorExecution',
             'saveExecutionProgress',
-            'executionOrder'
+            'executionOrder',
+            'availableInMCP',
+            'callerPolicy'
         ];
         const filteredSettings: any = {};
-        
+
         if (clean.settings) {
             for (const settingKey of allowedSettings) {
                 if (clean.settings[settingKey] !== undefined) {
@@ -270,12 +269,12 @@ export class WorkflowTransformerAdapter {
                 }
             }
         }
-        
+
         // Ensure executionOrder is always set
         if (!filteredSettings.executionOrder) {
             filteredSettings.executionOrder = 'v1';
         }
-        
+
         clean.settings = filteredSettings;
         clean.nodes = this.ensureWebhookIds(clean.nodes);
         
