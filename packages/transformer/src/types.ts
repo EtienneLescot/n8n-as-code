@@ -43,6 +43,7 @@ export interface WorkflowMetadata {
  * Workflow settings
  */
 export interface WorkflowSettings {
+    [key: string]: unknown;
     executionOrder?: 'v0' | 'v1' | 'v2';
     timeSavedMode?: 'fixed' | 'calculated';
     errorWorkflow?: string;
