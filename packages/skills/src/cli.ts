@@ -8,7 +8,7 @@ import { Command } from 'commander';
 import fs, { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { registerSkillsCommands } from './commands/skills-commander.js';
+import { registerSkillsCommands } from './cli-entry.js';
 
 // Resolve __dirname for ESM and CJS (bundled)
 const _filename = typeof import.meta !== 'undefined' && import.meta.url
@@ -55,4 +55,3 @@ program
 registerSkillsCommands(program, assetsDir);
 
 program.parse(process.argv);
-
