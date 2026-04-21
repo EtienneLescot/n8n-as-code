@@ -8,20 +8,17 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { NodeSchemaProvider } from '../services/node-schema-provider.js';
-import { WorkflowValidator } from '../services/workflow-validator.js';
-import { DocsProvider } from '../services/docs-provider.js';
-import { KnowledgeSearch } from '../services/knowledge-search.js';
-import { AiContextGenerator } from '../services/ai-context-generator.js';
 import { TypeScriptFormatter } from '../services/typescript-formatter.js';
-import { WorkflowRegistry } from '../services/workflow-registry.js';
-import { resolveCustomNodesConfig, type CustomNodesResolution } from '../services/custom-nodes-config.js';
-import { JsonToAstParser, AstToTypeScriptGenerator } from '@n8n-as-code/transformer';
 import fs, { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { join, dirname } from 'path';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
+import type { NodeSchemaProvider } from '../services/node-schema-provider.js';
+import type { DocsProvider } from '../services/docs-provider.js';
+import type { KnowledgeSearch } from '../services/knowledge-search.js';
+import type { WorkflowRegistry } from '../services/workflow-registry.js';
+import type { CustomNodesResolution } from '../services/custom-nodes-config.js';
 
 function getUnifiedCliEntryPath(): string {
     if (process.env.N8NAC_CLI_ENTRY) {
@@ -77,14 +74,67 @@ function printSearchCustomNodesNote(customNodesConfig: CustomNodesResolution, qu
 }
 
 export function registerSkillsCommands(program: Command, assetsDir: string): void {
-    const customNodesConfig = resolveCustomNodesConfig();
-    const customNodesPath = customNodesConfig.resolvedPath;
-    const provider = new NodeSchemaProvider(join(assetsDir, 'n8n-nodes-technical.json'), customNodesPath);
-    const docsProvider = new DocsProvider(join(assetsDir, 'n8n-docs-complete.json'));
-    const knowledgeSearch = new KnowledgeSearch(join(assetsDir, 'n8n-knowledge-index.json'));
+    let customNodesConfigPromise: Promise<CustomNodesResolution> | undefined;
+    let providerPromise: Promise<NodeSchemaProvider> | undefined;
+    let docsProviderPromise: Promise<DocsProvider> | undefined;
+    let knowledgeSearchPromise: Promise<KnowledgeSearch> | undefined;
     let registry: WorkflowRegistry | undefined;
-    const getRegistry = (): WorkflowRegistry => {
+    const getCustomNodesConfig = async (): Promise<CustomNodesResolution> => {
+        if (!customNodesConfigPromise) {
+            customNodesConfigPromise = import('../services/custom-nodes-config.js')
+                .then(({ resolveCustomNodesConfig }) => resolveCustomNodesConfig());
+        }
+
+        return customNodesConfigPromise;
+    };
+    const getProvider = async (): Promise<NodeSchemaProvider> => {
+        if (!providerPromise) {
+            providerPromise = Promise.all([
+                import('../services/node-schema-provider.js'),
+                getCustomNodesConfig(),
+            ]).then(([{ NodeSchemaProvider }, customNodesConfig]) => (
+                new NodeSchemaProvider(join(assetsDir, 'n8n-nodes-technical.json'), customNodesConfig.resolvedPath)
+            ));
+        }
+
+        return providerPromise;
+    };
+    const getDocsProvider = async (): Promise<DocsProvider> => {
+        if (!docsProviderPromise) {
+            docsProviderPromise = import('../services/docs-provider.js')
+                .then(({ DocsProvider }) => new DocsProvider(join(assetsDir, 'n8n-docs-complete.json')));
+        }
+
+        return docsProviderPromise;
+    };
+    const getKnowledgeSearch = async (): Promise<KnowledgeSearch> => {
+        if (!knowledgeSearchPromise) {
+            knowledgeSearchPromise = import('../services/knowledge-search.js')
+                .then(({ KnowledgeSearch }) => new KnowledgeSearch(join(assetsDir, 'n8n-knowledge-index.json')));
+        }
+
+        return knowledgeSearchPromise;
+    };
+    const withCustomNodesWarnings = async (): Promise<CustomNodesResolution> => {
+        const customNodesConfig = await getCustomNodesConfig();
+        printCustomNodesWarnings(customNodesConfig);
+        return customNodesConfig;
+    };
+    const printCustomNodesDebugIfRequested = async (debugEnabled: boolean): Promise<void> => {
+        if (!debugEnabled) {
+            return;
+        }
+
+        const [customNodesConfig, provider] = await Promise.all([
+            getCustomNodesConfig(),
+            getProvider(),
+        ]);
+
+        printCustomNodesDebugInfo(customNodesConfig, provider);
+    };
+    const getRegistry = async (): Promise<WorkflowRegistry> => {
         if (!registry) {
+            const { WorkflowRegistry } = await import('../services/workflow-registry.js');
             registry = new WorkflowRegistry();
         }
         return registry;
@@ -100,11 +150,12 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .option('--limit <limit>', 'Limit results', '10')
         .option('--debug', 'Show custom nodes resolution details on stderr')
         .option('--json', 'Output as JSON instead of TypeScript')
-        .action((query, options) => {
+        .action(async (query, options) => {
             try {
-                printCustomNodesWarnings(customNodesConfig);
+                const customNodesConfig = await withCustomNodesWarnings();
                 if (options.debug) {
                     try {
+                        const provider = await getProvider();
                         printCustomNodesDebugInfo(customNodesConfig, provider);
                     } catch (diagnosticsError: any) {
                         console.error(
@@ -118,6 +169,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                     }
                 }
 
+                const knowledgeSearch = await getKnowledgeSearch();
                 const results = knowledgeSearch.searchAll(query, {
                     category: options.category,
                     type: options.type,
@@ -172,13 +224,12 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .option('--docs', 'List all documentation categories')
         .option('--guides', 'List all available guides')
         .option('--debug', 'Show custom nodes resolution details on stderr')
-        .action((options) => {
+        .action(async (options) => {
             try {
-                printCustomNodesWarnings(customNodesConfig);
-                if (options.debug) {
-                    printCustomNodesDebugInfo(customNodesConfig, provider);
-                }
+                await withCustomNodesWarnings();
+                await printCustomNodesDebugIfRequested(options.debug);
 
+                const [provider, docsProvider] = await Promise.all([getProvider(), getDocsProvider()]);
                 const nodes = provider.listAllNodes();
                 const stats = docsProvider.getStatistics();
 
@@ -218,13 +269,12 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .argument('<name>', 'Node name (exact, e.g. "googleSheets")')
         .option('--debug', 'Show custom nodes resolution details on stderr')
         .option('--json', 'Output as JSON instead of TypeScript')
-        .action((name, options) => {
+        .action(async (name, options) => {
             try {
-                printCustomNodesWarnings(customNodesConfig);
-                if (options.debug) {
-                    printCustomNodesDebugInfo(customNodesConfig, provider);
-                }
+                await withCustomNodesWarnings();
+                await printCustomNodesDebugIfRequested(options.debug);
 
+                const provider = await getProvider();
                 const schema = provider.getNodeSchema(name);
                 if (schema) {
                     if (options.json) {
@@ -263,13 +313,12 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .argument('<name>', 'Node name')
         .option('--debug', 'Show custom nodes resolution details on stderr')
         .option('--json', 'Output as JSON instead of TypeScript')
-        .action((name, options) => {
+        .action(async (name, options) => {
             try {
-                printCustomNodesWarnings(customNodesConfig);
-                if (options.debug) {
-                    printCustomNodesDebugInfo(customNodesConfig, provider);
-                }
+                await withCustomNodesWarnings();
+                await printCustomNodesDebugIfRequested(options.debug);
 
+                const provider = await getProvider();
                 let schema = provider.getNodeSchema(name);
 
                 if (!schema) {
@@ -320,8 +369,9 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .argument('[title]', 'Documentation page title')
         .option('--list', 'List all categories')
         .option('--category <category>', 'Filter by category')
-        .action((title, options) => {
+        .action(async (title, options) => {
             try {
+                const docsProvider = await getDocsProvider();
                 if (options.list) {
                     console.log(JSON.stringify(docsProvider.getCategories(), null, 2));
                 } else if (title) {
@@ -348,8 +398,9 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .argument('[query]', 'Search query')
         .option('--list', 'List all guides')
         .option('--limit <limit>', 'Limit results', '10')
-        .action((query, options) => {
+        .action(async (query, options) => {
             try {
+                const docsProvider = await getDocsProvider();
                 const guides = docsProvider.getGuides(query, parseInt(options.limit));
                 console.log(JSON.stringify(guides, null, 2));
                 if (guides.length > 0) {
@@ -366,8 +417,9 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .command('related')
         .description('Find related nodes and documentation')
         .argument('<query>', 'Node name or concept')
-        .action((query) => {
+        .action(async (query) => {
             try {
+                const [provider, docsProvider] = await Promise.all([getProvider(), getDocsProvider()]);
                 const nodeSchema = provider.getNodeSchema(query);
                 if (nodeSchema) {
                     const nodeDocs = docsProvider.getNodeDocumentation(query);
@@ -403,16 +455,18 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .option('--json', 'Output the validation result as JSON')
         .action(async (file, options) => {
             try {
-                printCustomNodesWarnings(customNodesConfig);
+                const customNodesConfig = await withCustomNodesWarnings();
                 if (options.debug) {
+                    const provider = await getProvider();
                     printCustomNodesDebugInfo(customNodesConfig, provider);
                 }
 
                 const workflowContent = readFileSync(file, 'utf8');
                 const isTypeScript = file.endsWith('.workflow.ts') || file.endsWith('.ts');
+                const { WorkflowValidator } = await import('../services/workflow-validator.js');
                 const validator = new WorkflowValidator(
                     join(assetsDir, 'n8n-nodes-technical.json'),
-                    customNodesPath
+                    customNodesConfig.resolvedPath
                 );
                 const result = await validator.validateWorkflow(
                     isTypeScript ? workflowContent : JSON.parse(workflowContent),
@@ -485,6 +539,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                 const projectRoot = process.cwd();
                 const distTag = options.cliVersion === 'latest' ? undefined : options.cliVersion;
 
+                const { AiContextGenerator } = await import('../services/ai-context-generator.js');
                 const aiContextGenerator = new AiContextGenerator();
                 await aiContextGenerator.generate(projectRoot, options.n8nVersion, distTag);
 
@@ -544,22 +599,23 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .description('Search community workflows')
         .option('-l, --limit <number>', 'Limit number of results', '10')
         .option('--json', 'Output results as JSON')
-        .action((query: string, options: { limit: string; json?: boolean }) => {
+        .action(async (query: string, options: { limit: string; json?: boolean }) => {
             const limit = parseInt(options.limit, 10);
-            const results = getRegistry().search(query, limit);
+            const registry = await getRegistry();
+            const workflows = registry.search(query, limit);
 
             if (options.json) {
-                console.log(JSON.stringify(results, null, 2));
+                console.log(JSON.stringify(workflows, null, 2));
                 return;
             }
 
-            if (results.length === 0) {
+            if (workflows.length === 0) {
                 console.log(chalk.yellow(`No workflows found matching "${query}"`));
                 return;
             }
 
-            console.log(chalk.green(`\nFound ${results.length} workflow(s) matching "${query}":\n`));
-            results.forEach((workflow: any, index: number) => {
+            console.log(chalk.green(`\nFound ${workflows.length} workflow(s) matching "${query}":\n`));
+            workflows.forEach((workflow: any, index: number) => {
                 console.log(chalk.bold(`${index + 1}. ${workflow.name}`) + chalk.gray(` (ID: ${workflow.id})`));
                 if (workflow.tags.length > 0) console.log(chalk.cyan(`   Tags: ${workflow.tags.join(', ')}`));
                 console.log(chalk.gray(`   Author: ${workflow.author}`));
@@ -573,9 +629,10 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .command('list')
         .description('List community workflows (newest first)')
         .option('-l, --limit <number>', 'Limit number of results', '20')
-        .action((options: { limit: string }) => {
+        .action(async (options: { limit: string }) => {
             const limit = parseInt(options.limit, 10);
-            const results = getRegistry().search('', limit);
+            const registry = await getRegistry();
+            const results = registry.search('', limit);
             console.log(JSON.stringify(results, null, 2));
         });
 
@@ -583,8 +640,9 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .command('info <id>')
         .description('Display detailed information about a community workflow')
         .option('--json', 'Output workflow metadata as JSON')
-        .action((id: string, options: { json?: boolean }) => {
-            const workflow = getRegistry().getById(id);
+        .action(async (id: string, options: { json?: boolean }) => {
+            const registry = await getRegistry();
+            const workflow = registry.getById(id);
             if (!workflow) {
                 console.error(chalk.red(`❌ Workflow with ID "${id}" not found.`));
                 process.exit(1);
@@ -592,7 +650,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
             if (options.json) {
                 console.log(JSON.stringify({
                     ...workflow,
-                    rawUrl: getRegistry().getRawUrl(workflow),
+                    rawUrl: registry.getRawUrl(workflow),
                 }, null, 2));
                 return;
             }
@@ -608,7 +666,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                 console.log(chalk.dim(workflow.description));
             }
             console.log(chalk.cyan('\nRaw URL:'));
-            console.log(chalk.blue(getRegistry().getRawUrl(workflow)));
+            console.log(chalk.blue(registry.getRawUrl(workflow)));
             console.log('');
         });
 
@@ -618,7 +676,8 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .option('-o, --output <path>', 'Output file path')
         .option('-f, --force', 'Overwrite existing file')
         .action(async (id: string, options: { output?: string; force?: boolean }) => {
-            const workflow = getRegistry().getById(id);
+            const registry = await getRegistry();
+            const workflow = registry.getById(id);
             if (!workflow) {
                 console.error(chalk.red(`❌ Workflow with ID "${id}" not found.`));
                 process.exit(1);
@@ -637,7 +696,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                 process.exit(1);
             }
 
-            const url = getRegistry().getRawUrl(workflow);
+            const url = registry.getRawUrl(workflow);
             console.log(chalk.blue(`📥 Downloading from: ${url}`));
 
             try {
@@ -646,6 +705,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
 
                 const data = await response.text();
                 const workflowJson = JSON.parse(data);
+                const { JsonToAstParser, AstToTypeScriptGenerator } = await import('@n8n-as-code/transformer');
                 const parser = new JsonToAstParser();
                 const ast = parser.parse(workflowJson);
                 const generator = new AstToTypeScriptGenerator();

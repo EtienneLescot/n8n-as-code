@@ -11,7 +11,6 @@ import { TestPlanCommand } from './commands/test-plan.js';
 import { CredentialCommand } from './commands/credential.js';
 import { WorkflowCommand } from './commands/workflow.js';
 import { ExecutionCommand } from './commands/execution.js';
-import { registerSkillsCommands } from '@n8n-as-code/skills';
 import chalk from 'chalk';
 
 import { readFileSync, existsSync } from 'fs';
@@ -69,6 +68,77 @@ const getSkillsAssetsDir = (): string => {
         const __dirname = dirname(fileURLToPath(import.meta.url));
         return join(__dirname, '..', '..', 'skills', 'dist', 'assets');
     }
+};
+
+const getSkillsCliEntry = (): string => {
+    try {
+        const require = createRequire(import.meta.url);
+        const skillsPkg = require.resolve('@n8n-as-code/skills/package.json');
+        return join(dirname(skillsPkg), 'dist', 'cli-entry.js');
+    } catch {
+        const __dirname = dirname(fileURLToPath(import.meta.url));
+        return join(__dirname, '..', '..', 'skills', 'dist', 'cli-entry.js');
+    }
+};
+
+const getTopLevelCommand = (argv: string[]): string | undefined => {
+    const args = argv.slice(2);
+
+    for (let index = 0; index < args.length; index += 1) {
+        const token = args[index];
+
+        if (!token) {
+            continue;
+        }
+
+        if (token === '--') {
+            return args[index + 1];
+        }
+
+        if (token === '--instance') {
+            index += 1;
+            continue;
+        }
+
+        if (token.startsWith('--instance=')) {
+            continue;
+        }
+
+        if (token.startsWith('-')) {
+            continue;
+        }
+
+        return token;
+    }
+
+    return undefined;
+};
+
+const shouldLoadSkillsCommands = (argv: string[]): boolean => {
+    const topLevelCommand = getTopLevelCommand(argv);
+
+    if (topLevelCommand === 'skills') {
+        return true;
+    }
+
+    if (topLevelCommand !== 'help') {
+        return false;
+    }
+
+    const args = argv.slice(2);
+    const helpIndex = args.indexOf('help');
+    return helpIndex >= 0 && args[helpIndex + 1] === 'skills';
+};
+
+const registerSkillsPlaceholder = (program: Command): Command => program
+    .command('skills')
+    .description('AI tools: search nodes, docs, guides, validate workflows, and more');
+
+const loadSkillsRegistrar = async (): Promise<{
+    registerSkillsCommands: (program: Command, assetsDir: string) => void;
+}> => {
+    const modulePath = getSkillsCliEntry();
+    return import(pathToFileURL(modulePath).href);
 };
 
 const getMcpEntry = (): string => {
@@ -613,16 +683,18 @@ credentialCmd
     });
 
 // skills - AI knowledge tools subcommand group
-const skillsCmd = program
-    .command('skills')
-    .description('AI tools: search nodes, docs, guides, validate workflows, and more');
-registerSkillsCommands(skillsCmd, getSkillsAssetsDir());
+const skillsCmd = registerSkillsPlaceholder(program);
 
 // Backward compatibility alias
 new InitAiCommand(program);
 const updateAiCommand = program.commands.find((cmd) => cmd.name() === 'update-ai');
 if (updateAiCommand && !updateAiCommand.aliases().includes('init-ai')) {
     updateAiCommand.alias('init-ai');
+}
+
+if (shouldLoadSkillsCommands(process.argv)) {
+    const { registerSkillsCommands } = await loadSkillsRegistrar();
+    registerSkillsCommands(skillsCmd, getSkillsAssetsDir());
 }
 
 program.parse();
