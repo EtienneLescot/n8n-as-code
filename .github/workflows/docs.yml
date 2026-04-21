@@ -14,7 +14,7 @@ on:
       - 'scripts/sync-brand-assets.mjs'
       - '.github/workflows/docs.yml'
   pull_request:
-    branches: [ main ]
+    branches: [ main, next ]
     paths:
       - 'docs/**'
       - 'res/**'
