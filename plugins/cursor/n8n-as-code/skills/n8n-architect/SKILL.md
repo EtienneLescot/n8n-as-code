@@ -91,7 +91,7 @@ If CLI access is available, use:
 ```bash
 npx --yes n8nac skills search "http request"
 npx --yes n8nac skills node-info "httpRequest"
-npx --yes n8nac validate workflow.workflow.ts
+npx --yes n8nac skills validate workflow.workflow.ts
 ```
 
 If the MCP tools are available and it is more convenient, use them for the same knowledge tasks:
