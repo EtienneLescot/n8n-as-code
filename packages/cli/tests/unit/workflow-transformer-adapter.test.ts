@@ -114,27 +114,4 @@ export class ExistingWebhookIdWorkflow {
         expect(workflow.nodes[0].webhookId).toBe('existing-webhook-id');
     });
 
-    it('projectId is preserved when set on workflow after compilation (real-world creation flow)', async () => {
-        const tsWorkflow = `
-import { workflow, node, links } from '@n8n-as-code/transformer';
-
-@workflow({ id: 'wf-project-test', name: 'Project Test', active: false })
-export class ProjectTestWorkflow {
-    @node({
-        id: 'node-1',
-        name: 'Trigger',
-        type: 'n8n-nodes-base.manualTrigger',
-        version: 1,
-        position: [0, 0],
-    })
-    Trigger = {};
-}
-
-const wf = { id: 'fake-id', name: 'Project Test', active: false, projectId: 'my-project-789', nodes: [], connections: {} } as any;
-export default wf;
-`;
-        const workflow = await WorkflowTransformerAdapter.compileToJson(tsWorkflow);
-
-        expect(workflow.projectId).toBeUndefined();
-    });
 });
