@@ -81,10 +81,8 @@ const getSkillsCliEntry = (): string => {
     }
 };
 
-const getTopLevelCommand = (argv: string[]): string | undefined => {
-    const args = argv.slice(2);
-
-    for (let index = 0; index < args.length; index += 1) {
+const getFirstPositionalToken = (args: string[], startIndex = 0): string | undefined => {
+    for (let index = startIndex; index < args.length; index += 1) {
         const token = args[index];
 
         if (!token) {
@@ -114,6 +112,8 @@ const getTopLevelCommand = (argv: string[]): string | undefined => {
     return undefined;
 };
 
+const getTopLevelCommand = (argv: string[]): string | undefined => getFirstPositionalToken(argv.slice(2));
+
 const shouldLoadSkillsCommands = (argv: string[]): boolean => {
     const topLevelCommand = getTopLevelCommand(argv);
 
@@ -127,7 +127,7 @@ const shouldLoadSkillsCommands = (argv: string[]): boolean => {
 
     const args = argv.slice(2);
     const helpIndex = args.indexOf('help');
-    return helpIndex >= 0 && args[helpIndex + 1] === 'skills';
+    return helpIndex >= 0 && getFirstPositionalToken(args, helpIndex + 1) === 'skills';
 };
 
 const registerSkillsPlaceholder = (program: Command): Command => program

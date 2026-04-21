@@ -53,6 +53,16 @@ afterAll(() => {
 });
 
 describe('CLI instance management integration', () => {
+    it('loads full skills help when global options are placed between help and skills', () => {
+        const workspaceDir = createTempDir('n8nac-cli-help-workspace-');
+        const homeDir = createTempDir('n8nac-cli-help-home-');
+
+        const output = runCli(workspaceDir, homeDir, ['help', '--instance', 'demo', 'skills']);
+
+        expect(stripAnsi(output)).toContain('search [options] <query>');
+        expect(stripAnsi(output)).toContain('examples');
+    });
+
     it('lists, selects, and deletes saved instance configs non-interactively', () => {
         const workspaceDir = createTempDir('n8nac-cli-instance-workspace-');
         const homeDir = createTempDir('n8nac-cli-instance-home-');
