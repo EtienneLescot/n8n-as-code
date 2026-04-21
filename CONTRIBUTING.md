@@ -22,5 +22,6 @@ npm run build
 - Keep PRs focused — one thing at a time
 - Write tests if you're adding new behavior
 - Don't worry too much about formatting, CI will catch style issues
+- All pull requests must target the `next` branch as base
 
 That's it. No CLA, no bureaucracy.
