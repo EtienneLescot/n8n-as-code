@@ -261,7 +261,9 @@ export class SyncEngine {
             localWf.name = path.parse(filename).name.replace('.workflow', '');
         }
 
-        localWf.projectId = this.projectId;
+        if (this.projectId && this.projectId !== 'personal') {
+            localWf.projectId = this.projectId;
+        }
 
         const newWf = await this.client.createWorkflow(localWf);
         if (!newWf || !newWf.id) {
