@@ -45,6 +45,37 @@ describe('ConfigService', () => {
         }));
     });
 
+    it('finds n8nac-config.json in a parent directory when no workspace root is provided', () => {
+        const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/tmp/workspace/backend');
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockImplementation((filePath: string) =>
+            filePath === '/tmp/workspace/n8nac-config.json'
+        );
+
+        try {
+            const discoveredConfigService = new ConfigService();
+
+            expect(discoveredConfigService.getWorkspaceRoot()).toBe('/tmp/workspace');
+            expect(discoveredConfigService.getInstanceConfigPath()).toBe('/tmp/workspace/n8nac-config.json');
+            expect(discoveredConfigService.resolveWorkspacePath('workflows')).toBe('/tmp/workspace/workflows');
+        } finally {
+            cwdSpy.mockRestore();
+        }
+    });
+
+    it('uses the current directory as workspace root when no config file is found', () => {
+        const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/tmp/workspace/backend');
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+        try {
+            const discoveredConfigService = new ConfigService();
+
+            expect(discoveredConfigService.getWorkspaceRoot()).toBe('/tmp/workspace/backend');
+            expect(discoveredConfigService.getInstanceConfigPath()).toBe('/tmp/workspace/backend/n8nac-config.json');
+        } finally {
+            cwdSpy.mockRestore();
+        }
+    });
+
     it('returns the active instance as the local config when the workspace config already contains a library', () => {
         const workspaceConfig: IWorkspaceConfig = {
             version: 2,
@@ -253,6 +284,69 @@ describe('ConfigService', () => {
         expect(persistedConfig.workflowDir).toBe('//server/share/workflows/unc_instance/production');
     });
 
+    it('preserves an explicit workflowDir instead of recomputing it', () => {
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+        const savedProfile = configService.saveLocalConfig({
+            host: 'https://prod.example.com',
+            syncFolder: 'workflows',
+            projectId: 'project-prod',
+            projectName: 'Production',
+            instanceIdentifier: 'prod_identifier',
+            workflowDir: 'shared/workflows/project',
+        }, {
+            instanceName: 'Production'
+        });
+
+        expect(savedProfile.workflowDir).toBe('shared/workflows/project');
+        const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1]);
+        expect(persistedConfig.workflowDir).toBe('shared/workflows/project');
+    });
+
+    it('recomputes a generated workflowDir when project settings change', () => {
+        const workspaceConfig: IWorkspaceConfig = {
+            version: 2,
+            activeInstanceId: 'prod',
+            instances: [
+                {
+                    id: 'prod',
+                    name: 'Production',
+                    host: 'https://prod.example.com',
+                    syncFolder: 'workflows',
+                    projectId: 'project-old',
+                    projectName: 'Old Project',
+                    instanceIdentifier: 'prod_identifier',
+                    workflowDir: 'workflows/prod_identifier/old_project',
+                }
+            ],
+            host: 'https://prod.example.com',
+            syncFolder: 'workflows',
+            projectId: 'project-old',
+            projectName: 'Old Project',
+            instanceIdentifier: 'prod_identifier',
+            workflowDir: 'workflows/prod_identifier/old_project',
+        };
+
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
+        (fs.readFileSync as any).mockReturnValue(JSON.stringify(workspaceConfig));
+
+        const updated = configService.updateInstanceConfig({
+            host: 'https://prod.example.com',
+            syncFolder: 'n8n-workflows',
+            projectId: 'project-new',
+            projectName: 'New Project',
+        }, {
+            instanceId: 'prod',
+            instanceName: 'Production',
+            setActive: true,
+        });
+
+        expect(updated.workflowDir).toBe('n8n-workflows/prod_identifier/new_project');
+        const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1]);
+        expect(persistedConfig.workflowDir).toBe('n8n-workflows/prod_identifier/new_project');
+        expect(persistedConfig.instances[0].workflowDir).toBe('n8n-workflows/prod_identifier/new_project');
+    });
+
     it('rejects creating a duplicate verified instance config for the same host and authenticated user', async () => {
         (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
 
@@ -308,6 +402,67 @@ describe('ConfigService', () => {
         if (duplicate.status === 'duplicate') {
             expect(duplicate.duplicateInstance.name).toContain('prod.example.com');
         }
+    });
+
+    it('keeps pinned instanceIdentifier and workflowDir when verification resolves a different user', async () => {
+        const workspaceConfig: IWorkspaceConfig = {
+            version: 2,
+            activeInstanceId: 'prod',
+            instances: [
+                {
+                    id: 'prod',
+                    name: 'Production',
+                    host: 'https://prod.example.com',
+                    syncFolder: 'workflows',
+                    projectId: 'project-prod',
+                    projectName: 'Production',
+                    instanceIdentifier: 'shared_instance',
+                    workflowDir: 'workflows/shared/project',
+                }
+            ],
+            host: 'https://prod.example.com',
+            syncFolder: 'workflows',
+            projectId: 'project-prod',
+            projectName: 'Production',
+            instanceIdentifier: 'shared_instance',
+            workflowDir: 'workflows/shared/project',
+        };
+
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
+        (fs.readFileSync as any).mockReturnValue(JSON.stringify(workspaceConfig));
+
+        const result = await configService.upsertInstanceConfigWithVerification({
+            host: 'https://prod.example.com',
+            apiKey: 'bob-key',
+            syncFolder: 'workflows',
+            projectId: 'project-prod',
+            projectName: 'Production',
+        }, {
+            createNew: false,
+            setActive: true,
+            client: {
+                async getCurrentUser() {
+                    return {
+                        id: 'bob',
+                        email: 'bob@example.com',
+                        firstName: 'Bob',
+                        lastName: 'Jones',
+                    };
+                }
+            }
+        });
+
+        expect(result.status).toBe('saved');
+        if (result.status === 'saved') {
+            expect(result.profile.instanceIdentifier).toBe('shared_instance');
+            expect(result.profile.workflowDir).toBe('workflows/shared/project');
+        }
+
+        const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1]);
+        expect(persistedConfig.instanceIdentifier).toBe('shared_instance');
+        expect(persistedConfig.workflowDir).toBe('workflows/shared/project');
+        expect(persistedConfig.instances[0].instanceIdentifier).toBe('shared_instance');
+        expect(persistedConfig.instances[0].workflowDir).toBe('workflows/shared/project');
     });
 
     it('setActiveInstance rewrites the top-level active config cache', () => {
@@ -477,6 +632,39 @@ describe('ConfigService', () => {
         const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1]);
         expect(persistedConfig.instanceIdentifier).toBe('recomputed-id');
         expect(persistedConfig.instances[0].instanceIdentifier).toBe('recomputed-id');
+    });
+
+    it('getOrCreateInstanceIdentifier returns the pinned identifier without re-verifying', async () => {
+        const workspaceConfig: IWorkspaceConfig = {
+            version: 2,
+            activeInstanceId: 'prod',
+            instances: [
+                {
+                    id: 'prod',
+                    name: 'Production',
+                    host: 'https://prod.example.com',
+                    syncFolder: 'workflows',
+                    projectId: 'project-prod',
+                    projectName: 'Production',
+                    instanceIdentifier: 'shared_instance'
+                }
+            ],
+            host: 'https://prod.example.com',
+            syncFolder: 'workflows',
+            projectId: 'project-prod',
+            projectName: 'Production',
+            instanceIdentifier: 'shared_instance'
+        };
+
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
+        (fs.readFileSync as any).mockReturnValue(JSON.stringify(workspaceConfig));
+        mockConf.get.mockReturnValue({ prod: 'test-key' });
+
+        const result = await configService.getOrCreateInstanceIdentifier('https://prod.example.com', 'prod');
+
+        expect(result).toBe('shared_instance');
+        expect(mockResolveInstanceIdentifier).not.toHaveBeenCalled();
+        expect(fs.writeFileSync).not.toHaveBeenCalled();
     });
 
     it('selectInstanceConfigWithVerification switches to the already verified duplicate config', async () => {

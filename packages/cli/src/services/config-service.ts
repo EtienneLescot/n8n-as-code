@@ -59,14 +59,16 @@ export type ISelectInstanceResult =
 export class ConfigService {
     private globalStore: Conf;
     private localConfigPath: string;
+    private workspaceRoot: string;
 
-    constructor(workspaceRoot = process.cwd()) {
+    constructor(workspaceRoot?: string) {
         this.globalStore = new Conf({
             projectName: 'n8nac',
             configName: 'credentials',
             configFileMode: 0o600
         });
-        this.localConfigPath = path.join(workspaceRoot, 'n8nac-config.json');
+        this.workspaceRoot = workspaceRoot ? path.resolve(workspaceRoot) : this.findConfigRoot(process.cwd());
+        this.localConfigPath = path.join(this.workspaceRoot, 'n8nac-config.json');
     }
 
     /**
@@ -280,9 +282,10 @@ export class ConfigService {
             persistedVerification = this.buildPersistedVerification(verifiedOrFailed, current?.verification);
         }
 
-        const profile = this.sanitizeInstanceProfile({
+        const profile = this.prepareInstanceProfile(current, {
             ...current,
             ...input,
+            workflowDir: input.workflowDir,
             id: current?.id || options.instanceId || this.createInstanceId(),
             name: this.resolveInstanceName({
                 current,
@@ -290,9 +293,9 @@ export class ConfigService {
                 requestedName: options.instanceName,
                 verification,
             }),
-            instanceIdentifier: verification
-                ? (verification.status === 'verified' ? verification.instanceIdentifier : undefined)
-                : (input.instanceIdentifier || current?.instanceIdentifier),
+            instanceIdentifier: input.instanceIdentifier
+                || current?.instanceIdentifier
+                || (verification?.status === 'verified' ? verification.instanceIdentifier : undefined),
             verification: persistedVerification,
         });
 
@@ -354,9 +357,10 @@ export class ConfigService {
             ? workspaceConfig.instances.find((instance) => instance.id === targetId)
             : undefined;
 
-        const profile = this.sanitizeInstanceProfile({
+        const profile = this.prepareInstanceProfile(current, {
             ...current,
             ...config,
+            workflowDir: config.workflowDir,
             id: current?.id || options.instanceId || this.createInstanceId(),
             name: options.instanceName?.trim() || current?.name || this.createDefaultInstanceName(config.host || current?.host),
         });
@@ -378,7 +382,7 @@ export class ConfigService {
     ): IInstanceProfile {
         const workspaceConfig = this.getWorkspaceConfig();
         const current = profile.id ? workspaceConfig.instances.find((instance) => instance.id === profile.id) : undefined;
-        const savedProfile = this.sanitizeInstanceProfile({
+        const savedProfile = this.prepareInstanceProfile(current, {
             ...current,
             ...profile,
             id: current?.id || profile.id || this.createInstanceId(),
@@ -478,14 +482,14 @@ export class ConfigService {
 
         const updated = this.saveInstanceProfile({
             ...instance,
+            workflowDir: undefined,
             name: this.resolveInstanceName({
                 current: instance,
                 host,
                 verification,
             }),
-            instanceIdentifier: verification.status === 'verified'
-                ? verification.instanceIdentifier
-                : undefined,
+            instanceIdentifier: instance.instanceIdentifier
+                || (verification.status === 'verified' ? verification.instanceIdentifier : undefined),
             verification: persistedVerification,
         }, {
             setActive: instance.id === this.getActiveInstanceId(),
@@ -587,6 +591,10 @@ export class ConfigService {
         const active = instanceId ? this.getInstance(instanceId) : this.getActiveInstance();
         const apiKey = this.getApiKey(host, instanceId || active?.id);
 
+        if (active?.instanceIdentifier) {
+            return active.instanceIdentifier;
+        }
+
         if (!apiKey) {
             throw new Error('API key not found');
         }
@@ -628,6 +636,32 @@ export class ConfigService {
      */
     getInstanceConfigPath(): string {
         return this.localConfigPath;
+    }
+
+    getWorkspaceRoot(): string {
+        return this.workspaceRoot;
+    }
+
+    resolveWorkspacePath(targetPath: string): string {
+        return path.isAbsolute(targetPath)
+            ? targetPath
+            : path.resolve(this.workspaceRoot, targetPath);
+    }
+
+    private findConfigRoot(startDir: string): string {
+        let currentDir = path.resolve(startDir);
+
+        while (true) {
+            if (fs.existsSync(path.join(currentDir, 'n8nac-config.json'))) {
+                return currentDir;
+            }
+
+            const parentDir = path.dirname(currentDir);
+            if (parentDir === currentDir) {
+                return path.resolve(startDir);
+            }
+            currentDir = parentDir;
+        }
     }
 
     private loadWorkspaceConfig(): { config: IWorkspaceConfig; shouldPersist: boolean } {
@@ -820,13 +854,9 @@ export class ConfigService {
             ? profile.name.trim()
             : this.createDefaultInstanceName(localConfig.host);
 
-        // Recompute workflowDir whenever all three deps are present, so the stored value stays in sync
-        if (localConfig.syncFolder && localConfig.instanceIdentifier && localConfig.projectName) {
-            localConfig.workflowDir = this.normalizeConfigPath(
-                localConfig.syncFolder,
-                localConfig.instanceIdentifier,
-                createProjectSlug(localConfig.projectName),
-            );
+        // Compute workflowDir when absent; preserve explicit/pinned paths from config.
+        if (!localConfig.workflowDir) {
+            localConfig.workflowDir = this.computeWorkflowDir(localConfig);
         }
 
         return {
@@ -835,6 +865,50 @@ export class ConfigService {
             ...localConfig,
             verification: this.sanitizeVerification((profile as Partial<IInstanceProfile>).verification),
         };
+    }
+
+    private prepareInstanceProfile(
+        current: IInstanceProfile | undefined,
+        profile: Record<string, unknown> | Partial<IInstanceProfile>
+    ): IInstanceProfile {
+        const next = { ...profile } as Partial<IInstanceProfile>;
+        const incomingWorkflowDir = typeof next.workflowDir === 'string' && next.workflowDir.trim() !== ''
+            ? next.workflowDir.trim()
+            : undefined;
+        const currentWorkflowDir = current?.workflowDir;
+        const currentWorkflowDirIsGenerated = !!current && this.isGeneratedWorkflowDir(current);
+        const workflowDirIsExplicit = !!incomingWorkflowDir && (
+            !current ||
+            incomingWorkflowDir !== currentWorkflowDir ||
+            !currentWorkflowDirIsGenerated
+        );
+
+        if (workflowDirIsExplicit) {
+            next.workflowDir = incomingWorkflowDir;
+        } else if (!incomingWorkflowDir && currentWorkflowDir && !currentWorkflowDirIsGenerated) {
+            next.workflowDir = currentWorkflowDir;
+        } else {
+            delete next.workflowDir;
+        }
+
+        return this.sanitizeInstanceProfile(next);
+    }
+
+    private computeWorkflowDir(config: Partial<ILocalConfig>): string | undefined {
+        if (!config.syncFolder || !config.instanceIdentifier || !config.projectName) {
+            return undefined;
+        }
+
+        return this.normalizeConfigPath(
+            config.syncFolder,
+            config.instanceIdentifier,
+            createProjectSlug(config.projectName),
+        );
+    }
+
+    private isGeneratedWorkflowDir(config: Partial<ILocalConfig>): boolean {
+        const expectedWorkflowDir = this.computeWorkflowDir(config);
+        return !!config.workflowDir && !!expectedWorkflowDir && config.workflowDir === expectedWorkflowDir;
     }
 
     private sanitizeVerification(verification: IInstanceVerification | undefined): IInstanceVerification | undefined {
