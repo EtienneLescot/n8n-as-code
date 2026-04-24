@@ -262,3 +262,281 @@ describe('WorkflowValidator - custom nodes', () => {
         expect(result.errors.some(e => e.message.includes('endpoint'))).toBe(true);
     });
 });
+
+describe('WorkflowValidator - nested parameter validation', () => {
+    const createValidatorWithNodeSchema = (nodeSchema: any): WorkflowValidator => {
+        const indexPath = path.resolve(_dirname, 'fixtures/n8n-nodes-technical.json');
+        const validator = new WorkflowValidator(indexPath);
+        jest.spyOn(validator['provider'], 'getNodeSchema').mockReturnValue(nodeSchema);
+        return validator;
+    };
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    it('honors displayOptions.hide when checking required parameters', async () => {
+        const validator = createValidatorWithNodeSchema({
+            name: 'postgres',
+            type: 'n8n-nodes-base.postgres',
+            version: 1,
+            schema: {
+                properties: [
+                    {
+                        name: 'operation',
+                        type: 'options',
+                        options: [{ name: 'Execute Query', value: 'executeQuery' }],
+                        required: true,
+                    },
+                    {
+                        name: 'query',
+                        type: 'string',
+                        required: true,
+                        displayOptions: { show: { operation: ['executeQuery'] } },
+                    },
+                    {
+                        name: 'schema',
+                        type: 'string',
+                        required: true,
+                        displayOptions: { hide: { operation: ['executeQuery'] } },
+                    },
+                    {
+                        name: 'table',
+                        type: 'string',
+                        required: true,
+                        displayOptions: { hide: { operation: ['executeQuery'] } },
+                    },
+                ],
+            },
+        });
+
+        const result = await validator.validateWorkflow({
+            nodes: [
+                {
+                    id: '1',
+                    name: 'Postgres',
+                    type: 'n8n-nodes-base.postgres',
+                    typeVersion: 1,
+                    position: [0, 0],
+                    parameters: {
+                        operation: 'executeQuery',
+                        query: 'select 1',
+                    },
+                },
+            ],
+            connections: {},
+        });
+
+        expect(result.valid).toBe(true);
+        expect(result.errors.map(e => e.message)).not.toContain('Missing required parameter: "schema"');
+        expect(result.errors.map(e => e.message)).not.toContain('Missing required parameter: "table"');
+    });
+
+    it('recurses into fixedCollection items and catches missing Switch filter options', async () => {
+        const validator = createValidatorWithNodeSchema({
+            name: 'switch',
+            type: 'n8n-nodes-base.switch',
+            version: 3.2,
+            schema: {
+                properties: [
+                    {
+                        name: 'mode',
+                        type: 'options',
+                        options: [{ name: 'Rules', value: 'rules' }],
+                    },
+                    {
+                        name: 'rules',
+                        type: 'fixedCollection',
+                        displayOptions: { show: { mode: ['rules'] } },
+                        default: {
+                            values: [
+                                {
+                                    conditions: {
+                                        options: {
+                                            caseSensitive: true,
+                                            typeValidation: 'strict',
+                                        },
+                                        conditions: [
+                                            {
+                                                leftValue: '',
+                                                rightValue: '',
+                                                operator: {
+                                                    type: 'string',
+                                                    operation: 'equals',
+                                                },
+                                            },
+                                        ],
+                                        combinator: 'and',
+                                    },
+                                },
+                            ],
+                        },
+                        options: [
+                            {
+                                name: 'values',
+                                displayName: 'Routing Rule',
+                                values: [
+                                    {
+                                        name: 'conditions',
+                                        type: 'filter',
+                                        default: {},
+                                        typeOptions: {
+                                            filter: {
+                                                caseSensitive: '={{!$parameter.options.ignoreCase}}',
+                                                typeValidation: 'strict',
+                                            },
+                                        },
+                                    },
+                                    {
+                                        name: 'renameOutput',
+                                        type: 'boolean',
+                                        default: false,
+                                    },
+                                    {
+                                        name: 'outputKey',
+                                        type: 'string',
+                                        required: true,
+                                        displayOptions: { show: { renameOutput: [true] } },
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+        });
+
+        const result = await validator.validateWorkflow({
+            nodes: [
+                {
+                    id: '1',
+                    name: 'Switch',
+                    type: 'n8n-nodes-base.switch',
+                    typeVersion: 3.2,
+                    position: [0, 0],
+                    parameters: {
+                        mode: 'rules',
+                        rules: {
+                            values: [
+                                {
+                                    conditions: {
+                                        conditions: [
+                                            {
+                                                leftValue: '={{ $json.state }}',
+                                                operator: { type: 'string', operation: 'equals' },
+                                                rightValue: 'planning',
+                                            },
+                                        ],
+                                        combinator: 'and',
+                                    },
+                                    outputIndex: 0,
+                                },
+                            ],
+                        },
+                    },
+                },
+            ],
+            connections: {},
+        });
+
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.path?.endsWith('.rules.values[0].conditions.options'))).toBe(true);
+        expect(result.warnings.some(w => w.message.includes('outputIndex'))).toBe(false);
+
+        const validResult = await validator.validateWorkflow({
+            nodes: [
+                {
+                    id: '1',
+                    name: 'Switch',
+                    type: 'n8n-nodes-base.switch',
+                    typeVersion: 3.2,
+                    position: [0, 0],
+                    parameters: {
+                        mode: 'rules',
+                        rules: {
+                            values: [
+                                {
+                                    conditions: {
+                                        options: {
+                                            caseSensitive: true,
+                                            typeValidation: 'strict',
+                                        },
+                                        conditions: [
+                                            {
+                                                leftValue: '={{ $json.state }}',
+                                                operator: { type: 'string', operation: 'equals' },
+                                                rightValue: 'planning',
+                                            },
+                                        ],
+                                        combinator: 'and',
+                                    },
+                                    outputIndex: 0,
+                                },
+                            ],
+                        },
+                    },
+                },
+            ],
+            connections: {},
+        });
+
+        expect(validResult.valid).toBe(true);
+    });
+
+    it('applies nested fixedCollection displayOptions against item parameters', async () => {
+        const validator = createValidatorWithNodeSchema({
+            name: 'switch',
+            type: 'n8n-nodes-base.switch',
+            version: 3.2,
+            schema: {
+                properties: [
+                    {
+                        name: 'rules',
+                        type: 'fixedCollection',
+                        default: {},
+                        options: [
+                            {
+                                name: 'values',
+                                displayName: 'Routing Rule',
+                                values: [
+                                    { name: 'renameOutput', type: 'boolean', default: false },
+                                    {
+                                        name: 'outputKey',
+                                        type: 'string',
+                                        required: true,
+                                        displayOptions: { show: { renameOutput: [true] } },
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+        });
+
+        const result = await validator.validateWorkflow({
+            nodes: [
+                {
+                    id: '1',
+                    name: 'Switch',
+                    type: 'n8n-nodes-base.switch',
+                    typeVersion: 3.2,
+                    position: [0, 0],
+                    parameters: {
+                        rules: {
+                            values: [
+                                { renameOutput: false },
+                                { renameOutput: true },
+                            ],
+                        },
+                    },
+                },
+            ],
+            connections: {},
+        });
+
+        expect(result.valid).toBe(false);
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].path).toBe('nodes[Switch].parameters.rules.values[1].outputKey');
+    });
+});
