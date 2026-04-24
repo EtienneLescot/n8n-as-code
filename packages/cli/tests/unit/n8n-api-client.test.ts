@@ -226,6 +226,87 @@ describe('N8nApiClient test workflow support', () => {
         expect(mockAxiosGet).toHaveBeenNthCalledWith(2, '/api/v1/projects');
     });
 
+    it('strips fields rejected by the workflow create endpoint and restores description via update', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        mockAxiosPost.mockResolvedValueOnce({
+            data: {
+                id: 'wf-1',
+                name: 'Created Workflow',
+                nodes: [],
+                connections: {},
+                settings: { executionOrder: 'v1' },
+            },
+        });
+        mockAxiosPut.mockResolvedValueOnce({
+            status: 200,
+            data: {
+                id: 'wf-1',
+                name: 'Created Workflow',
+                description: 'Local-only workflow description',
+                nodes: [],
+                connections: {},
+                settings: { executionOrder: 'v1' },
+            },
+        });
+
+        await client.createWorkflow({
+            id: 'local-id',
+            name: 'Created Workflow',
+            description: 'Local-only workflow description',
+            active: false,
+            tags: [{ id: 'tag-1', name: 'Tag 1' }],
+            nodes: [],
+            connections: {},
+            settings: { executionOrder: 'v1' },
+            projectId: 'project-1',
+        } as any);
+
+        expect(mockAxiosPost).toHaveBeenCalledWith('/api/v1/workflows', {
+            name: 'Created Workflow',
+            nodes: [],
+            connections: {},
+            settings: { executionOrder: 'v1' },
+            projectId: 'project-1',
+        });
+        expect(mockAxiosPut).toHaveBeenCalledWith('/api/v1/workflows/wf-1', {
+            name: 'Created Workflow',
+            description: 'Local-only workflow description',
+            nodes: [],
+            connections: {},
+            settings: { executionOrder: 'v1' },
+        });
+    });
+
+    it('still returns the created workflow when the follow-up description update fails', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        mockAxiosPost.mockResolvedValueOnce({
+            data: {
+                id: 'wf-created',
+                name: 'Created Workflow',
+                nodes: [],
+                connections: {},
+                settings: { executionOrder: 'v1' },
+            },
+        });
+        mockAxiosPut.mockRejectedValueOnce(new Error('update failed'));
+
+        await expect(client.createWorkflow({
+            name: 'Created Workflow',
+            description: 'Description that may need update support',
+            nodes: [],
+            connections: {},
+            settings: { executionOrder: 'v1' },
+        } as any)).resolves.toMatchObject({
+            id: 'wf-created',
+            name: 'Created Workflow',
+        });
+
+        expect(mockAxiosPost).toHaveBeenCalledOnce();
+        expect(mockAxiosPut).toHaveBeenCalledOnce();
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Workflow wf-created was created'));
+    });
+
     it('normalizes webhook paths with leading slashes and special characters', () => {
         const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
 
