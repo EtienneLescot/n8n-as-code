@@ -29,6 +29,7 @@ test('buildUnifiedWorkspaceConfig regenerates stale instanceIdentifier from curr
         client: {
             async getCurrentUser() {
                 return {
+                    id: 'user-1',
                     email: 'etienne@example.com',
                     firstName: 'Etienne',
                     lastName: 'Lescot'
@@ -37,10 +38,10 @@ test('buildUnifiedWorkspaceConfig regenerates stale instanceIdentifier from curr
         }
     });
 
-    assert.strictEqual(unified.instanceIdentifier, 'etiennel_cloud_etienne_l');
+    assert.strictEqual(unified.instanceIdentifier, 'n8n_c6c289e49e_etienne_l');
     assert.strictEqual(unified.activeInstanceId, unified.instances[0].id);
     assert.strictEqual(unified.instances[0].name, 'Cloud');
-    assert.strictEqual(unified.instances[0].instanceIdentifier, 'etiennel_cloud_etienne_l');
+    assert.strictEqual(unified.instances[0].instanceIdentifier, 'n8n_c6c289e49e_etienne_l');
 });
 
 test('buildUnifiedWorkspaceConfig clears instanceIdentifier when credentials are incomplete', async () => {
