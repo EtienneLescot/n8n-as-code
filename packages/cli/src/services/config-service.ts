@@ -2,7 +2,7 @@ import Conf from 'conf';
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { N8nApiClient, createInstanceIdentifier, createProjectSlug, normalizeHostForIdentity } from '../core/index.js';
+import { N8nApiClient, createApiKeyInstanceIdentifier, createInstanceIdentifier, createProjectSlug, normalizeHostForIdentity } from '../core/index.js';
 
 // Unified local config written to n8nac-config.json (legacy n8nac.json/n8nac-instance.json deprecated)
 export interface ILocalConfig {
@@ -962,7 +962,7 @@ export class ConfigService {
 
             const resolvedUser = user ?? {};
 
-            const duplicateInstance = this.findVerifiedDuplicate(normalizedHost, userId, exceptInstanceId);
+            const duplicateInstance = this.findVerifiedDuplicate(normalizedHost, userId, resolvedUser.email, exceptInstanceId);
             if (duplicateInstance) {
                 return {
                     status: 'duplicate',
@@ -980,7 +980,9 @@ export class ConfigService {
                 userId,
                 userName: this.createUserDisplayName(resolvedUser),
                 userEmail: resolvedUser.email,
-                instanceIdentifier: createInstanceIdentifier(host, resolvedUser),
+                instanceIdentifier: resolvedUser.id
+                    ? createInstanceIdentifier(host, resolvedUser)
+                    : createApiKeyInstanceIdentifier(apiKey),
             };
         } catch (error: any) {
             return {
@@ -993,13 +995,19 @@ export class ConfigService {
     private findVerifiedDuplicate(
         normalizedHost: string,
         userId: string,
+        userEmail?: string,
         exceptInstanceId?: string
     ): IInstanceProfile | undefined {
+        const normalizedUserEmail = userEmail?.trim().toLowerCase();
+
         return this.listInstances().find((instance) =>
             instance.id !== exceptInstanceId &&
             instance.verification?.status === 'verified' &&
             instance.verification.normalizedHost === normalizedHost &&
-            instance.verification.userId === userId
+            (
+                instance.verification.userId === userId ||
+                (!!normalizedUserEmail && instance.verification.userEmail?.trim().toLowerCase() === normalizedUserEmail)
+            )
         );
     }
 
