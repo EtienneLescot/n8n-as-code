@@ -15,6 +15,8 @@ export interface IInstanceIdentifierClient {
 
 export interface IResolvedInstanceIdentifier {
     identifier: string;
+    source: 'user' | 'apiKey';
+    usedFallback: boolean;
 }
 
 export interface IResolveInstanceIdentifierOptions {
@@ -43,17 +45,23 @@ export async function resolveInstanceIdentifier(
             throw error;
         }
         return {
-            identifier: createApiKeyInstanceIdentifier(credentials.apiKey)
+            identifier: createApiKeyInstanceIdentifier(credentials.apiKey),
+            source: 'apiKey',
+            usedFallback: true,
         };
     }
 
     if (!user?.id) {
         return {
-            identifier: createApiKeyInstanceIdentifier(credentials.apiKey)
+            identifier: createApiKeyInstanceIdentifier(credentials.apiKey),
+            source: 'apiKey',
+            usedFallback: true,
         };
     }
 
     return {
-        identifier: createInstanceIdentifier(credentials.host, user)
+        identifier: createInstanceIdentifier(credentials.host, user),
+        source: 'user',
+        usedFallback: false,
     };
 }

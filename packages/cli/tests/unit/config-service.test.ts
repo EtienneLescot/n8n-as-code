@@ -405,6 +405,90 @@ describe('ConfigService', () => {
         }
     });
 
+    it('uses the API-key fallback identifier when verification resolves email but no user ID', async () => {
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+        const result = await configService.upsertInstanceConfigWithVerification({
+            host: 'https://prod.example.com',
+            apiKey: 'prod-key',
+            syncFolder: 'workflows',
+            projectId: 'project-prod',
+            projectName: 'Production'
+        }, {
+            createNew: true,
+            setActive: true,
+            client: {
+                async getCurrentUser() {
+                    return {
+                        email: 'etienne@example.com',
+                    };
+                }
+            }
+        });
+
+        expect(result.status).toBe('saved');
+        if (result.status === 'saved') {
+            expect(result.profile.verification?.status).toBe('verified');
+            expect(result.profile.verification?.userId).toBe('etienne@example.com');
+            expect(result.profile.instanceIdentifier).toBe('key_037abd8d69');
+            expect(result.profile.workflowDir).toBe('workflows/key_037abd8d69/production');
+        }
+    });
+
+    it('detects duplicates when an email-only verification later resolves a stable user ID', async () => {
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+        const emailOnly = await configService.upsertInstanceConfigWithVerification({
+            host: 'https://prod.example.com',
+            apiKey: 'prod-key',
+            syncFolder: 'workflows',
+            projectId: 'project-prod',
+            projectName: 'Production'
+        }, {
+            createNew: true,
+            setActive: true,
+            client: {
+                async getCurrentUser() {
+                    return {
+                        email: 'etienne@example.com',
+                    };
+                }
+            }
+        });
+
+        expect(emailOnly.status).toBe('saved');
+
+        const persisted = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1];
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
+        (fs.readFileSync as any).mockReturnValue(persisted);
+
+        const withStableId = await configService.upsertInstanceConfigWithVerification({
+            host: 'https://prod.example.com',
+            apiKey: 'another-key',
+            syncFolder: 'workflows-copy',
+            projectId: 'project-prod',
+            projectName: 'Production'
+        }, {
+            createNew: true,
+            setActive: true,
+            client: {
+                async getCurrentUser() {
+                    return {
+                        id: 'user-1',
+                        email: 'etienne@example.com',
+                        firstName: 'Etienne',
+                        lastName: 'Lescot',
+                    };
+                }
+            }
+        });
+
+        expect(withStableId.status).toBe('duplicate');
+        if (withStableId.status === 'duplicate') {
+            expect(withStableId.duplicateInstance.verification?.userId).toBe('etienne@example.com');
+        }
+    });
+
     it('keeps pinned instanceIdentifier and workflowDir when verification resolves a different user', async () => {
         const workspaceConfig: IWorkspaceConfig = {
             version: 2,
