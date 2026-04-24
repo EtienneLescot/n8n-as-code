@@ -6,6 +6,10 @@ import { SyncManager } from '../../src/core/services/sync-manager.js';
 import { MockN8nApiClient } from '../helpers/test-helpers.js';
 
 describe('SyncManager push filename contract', () => {
+    // On macOS /tmp is a symlink to /private/tmp. realpathSync.native resolves
+    // it, so tests must use the real path to avoid scope-mismatch failures.
+    const TMP = fs.realpathSync.native(os.tmpdir());
+
     function createSyncManager(syncDir: string) {
         return new SyncManager(new MockN8nApiClient() as any, {
             directory: syncDir,
@@ -18,7 +22,7 @@ describe('SyncManager push filename contract', () => {
     }
 
     it('accepts a workflow file path within the sync scope', () => {
-        const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
+        const syncDir = path.join(TMP, 'n8nac-sync-manager-test');
         const manager = createSyncManager(syncDir);
         
         // Mock the watcher as it's null by default in the constructor
@@ -31,7 +35,7 @@ describe('SyncManager push filename contract', () => {
     });
 
     it('rejects a plain workflow filename (must use full relative path)', () => {
-        const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
+        const syncDir = path.join(TMP, 'n8nac-sync-manager-test');
         const manager = createSyncManager(syncDir);
 
         (manager as any).watcher = {
@@ -43,7 +47,7 @@ describe('SyncManager push filename contract', () => {
     });
 
     it('rejects a plain workflow filename even when cwd is the sync scope', () => {
-        const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
+        const syncDir = path.join(TMP, 'n8nac-sync-manager-test');
         const manager = createSyncManager(syncDir);
 
         (manager as any).watcher = {
@@ -59,7 +63,7 @@ describe('SyncManager push filename contract', () => {
     });
 
     it('rejects paths outside the sync scope', () => {
-        const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
+        const syncDir = path.join(TMP, 'n8nac-sync-manager-test');
         const manager = createSyncManager(syncDir);
         
         // Mock the watcher
@@ -67,7 +71,7 @@ describe('SyncManager push filename contract', () => {
             getDirectory: () => syncDir
         };
 
-        const outsidePath = '/tmp/outside-workflow.workflow.ts';
+        const outsidePath = path.join(TMP, 'outside-workflow.workflow.ts');
         expect(() => manager.resolvePushTarget(outsidePath)).toThrowError(
             expect.objectContaining({
                 message: expect.stringContaining("Run               : n8nac push '")
@@ -76,7 +80,7 @@ describe('SyncManager push filename contract', () => {
     });
 
     it('rejects paths that share a common prefix with the sync scope but are outside it', () => {
-        const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
+        const syncDir = path.join(TMP, 'n8nac-sync-manager-test');
         const manager = createSyncManager(syncDir);
 
         (manager as any).watcher = {
@@ -89,7 +93,7 @@ describe('SyncManager push filename contract', () => {
     });
 
     it('quotes suggested paths and renders the sync scope as dot-slash when cwd equals the scope', () => {
-        const syncDir = path.resolve('/tmp/n8nac sync-manager-test');
+        const syncDir = path.join(TMP, 'n8nac sync-manager-test');
         const manager = createSyncManager(syncDir);
 
         (manager as any).watcher = {
@@ -98,12 +102,12 @@ describe('SyncManager push filename contract', () => {
 
         const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(syncDir);
 
-        expect(() => manager.resolvePushTarget('/tmp/outside workflow.workflow.ts')).toThrowError(
+        expect(() => manager.resolvePushTarget(path.join(TMP, 'outside workflow.workflow.ts'))).toThrowError(
             expect.objectContaining({
                 message: expect.stringContaining('Active sync scope : ./')
             })
         );
-        expect(() => manager.resolvePushTarget('/tmp/outside workflow.workflow.ts')).toThrowError(
+        expect(() => manager.resolvePushTarget(path.join(TMP, 'outside workflow.workflow.ts'))).toThrowError(
             expect.objectContaining({
                 message: expect.stringContaining("Run               : n8nac push './outside workflow.workflow.ts'")
             })
@@ -113,7 +117,7 @@ describe('SyncManager push filename contract', () => {
     });
 
     it('rejects nested workflow paths inside the sync scope with a clear error', () => {
-        const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
+        const syncDir = path.join(TMP, 'n8nac-sync-manager-test');
         const manager = createSyncManager(syncDir);
 
         (manager as any).watcher = {
@@ -126,7 +130,7 @@ describe('SyncManager push filename contract', () => {
     });
 
     it('rejects empty paths', () => {
-        const syncDir = path.resolve('/tmp/n8nac-sync-manager-test');
+        const syncDir = path.join(TMP, 'n8nac-sync-manager-test');
         const manager = createSyncManager(syncDir);
         
         // Mock the watcher
