@@ -1,6 +1,6 @@
 import { IN8nCredentials } from '../types.js';
 import { N8nApiClient } from './n8n-api-client.js';
-import { createFallbackInstanceIdentifier, createInstanceIdentifier } from './directory-utils.js';
+import { createApiKeyInstanceIdentifier, createInstanceIdentifier } from './directory-utils.js';
 
 type IUserLike = {
     id: string;
@@ -15,7 +15,6 @@ export interface IInstanceIdentifierClient {
 
 export interface IResolvedInstanceIdentifier {
     identifier: string;
-    usedFallback: boolean;
 }
 
 export interface IResolveInstanceIdentifierOptions {
@@ -36,22 +35,25 @@ export async function resolveInstanceIdentifier(
 ): Promise<IResolvedInstanceIdentifier> {
     const client = options.client ?? new N8nApiClient(credentials);
 
+    let user: IUserLike | null;
     try {
-        const user = await client.getCurrentUser();
-        if (user) {
-            return {
-                identifier: createInstanceIdentifier(credentials.host, user),
-                usedFallback: false
-            };
-        }
+        user = await client.getCurrentUser();
     } catch (error) {
         if (options.throwOnConnectionError && isConnectionError(error)) {
             throw error;
         }
+        return {
+            identifier: createApiKeyInstanceIdentifier(credentials.apiKey)
+        };
+    }
+
+    if (!user?.id) {
+        return {
+            identifier: createApiKeyInstanceIdentifier(credentials.apiKey)
+        };
     }
 
     return {
-        identifier: createFallbackInstanceIdentifier(credentials.host, credentials.apiKey),
-        usedFallback: true
+        identifier: createInstanceIdentifier(credentials.host, user)
     };
 }

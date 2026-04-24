@@ -585,7 +585,8 @@ export class ConfigService {
 
     /**
      * Generate or retrieve the instance identifier using Sync's directory-utils
-     * Format: {hostSlug}_{userSlug} (e.g., "local_5678_etienne_l")
+     * Format: n8n_{userIdHash}_{userSlug} when user identity is available.
+     * Falls back to an API-key hash, never to the host.
      */
     async getOrCreateInstanceIdentifier(host: string, instanceId?: string): Promise<string> {
         const active = instanceId ? this.getInstance(instanceId) : this.getActiveInstance();
@@ -599,36 +600,19 @@ export class ConfigService {
             throw new Error('API key not found');
         }
 
-        try {
-            const { resolveInstanceIdentifier } = await import('../core/index.js');
-            const { identifier } = await resolveInstanceIdentifier({ host, apiKey });
+        const { resolveInstanceIdentifier } = await import('../core/index.js');
+        const { identifier } = await resolveInstanceIdentifier({ host, apiKey });
 
-            this.updateInstanceConfig({
-                host,
-                instanceIdentifier: identifier
-            }, {
-                instanceId: instanceId || active?.id,
-                instanceName: active?.name,
-                setActive: true,
-            });
+        this.updateInstanceConfig({
+            host,
+            instanceIdentifier: identifier
+        }, {
+            instanceId: instanceId || active?.id,
+            instanceName: active?.name,
+            setActive: true,
+        });
 
-            return identifier;
-        } catch {
-            console.warn('Could not fetch user info, using fallback identifier');
-            const { createFallbackInstanceIdentifier } = await import('../core/index.js');
-            const fallbackIdentifier = createFallbackInstanceIdentifier(host, apiKey);
-
-            this.updateInstanceConfig({
-                host,
-                instanceIdentifier: fallbackIdentifier
-            }, {
-                instanceId: instanceId || active?.id,
-                instanceName: active?.name,
-                setActive: true,
-            });
-
-            return fallbackIdentifier;
-        }
+        return identifier;
     }
 
     /**

@@ -3,9 +3,8 @@ import { ConfigService, type IWorkspaceConfig } from '../../src/services/config-
 import fs from 'fs';
 import Conf from 'conf';
 
-const { mockResolveInstanceIdentifier, mockCreateFallbackInstanceIdentifier } = vi.hoisted(() => ({
+const { mockResolveInstanceIdentifier } = vi.hoisted(() => ({
     mockResolveInstanceIdentifier: vi.fn(),
-    mockCreateFallbackInstanceIdentifier: vi.fn()
 }));
 
 vi.mock('fs');
@@ -15,7 +14,6 @@ vi.mock('../../src/core/index.js', async () => {
     return {
         ...actual,
         resolveInstanceIdentifier: mockResolveInstanceIdentifier,
-        createFallbackInstanceIdentifier: mockCreateFallbackInstanceIdentifier
     };
 });
 
@@ -26,7 +24,6 @@ describe('ConfigService', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockResolveInstanceIdentifier.mockReset();
-        mockCreateFallbackInstanceIdentifier.mockReset();
 
         mockConf = {
             get: vi.fn(),
@@ -372,6 +369,10 @@ describe('ConfigService', () => {
         });
 
         expect(first.status).toBe('saved');
+        if (first.status === 'saved') {
+            expect(first.profile.instanceIdentifier).toBe('n8n_c6c289e49e_etienne_l');
+            expect(first.profile.workflowDir).toBe('workflows/n8n_c6c289e49e_etienne_l/production');
+        }
 
         const persisted = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1];
         (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
@@ -618,7 +619,6 @@ describe('ConfigService', () => {
         });
         mockResolveInstanceIdentifier.mockResolvedValue({
             identifier: 'recomputed-id',
-            usedFallback: false
         });
 
         const result = await configService.getOrCreateInstanceIdentifier('https://prod.example.com', 'prod');
@@ -632,6 +632,49 @@ describe('ConfigService', () => {
         const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1]);
         expect(persistedConfig.instanceIdentifier).toBe('recomputed-id');
         expect(persistedConfig.instances[0].instanceIdentifier).toBe('recomputed-id');
+    });
+
+    it('getOrCreateInstanceIdentifier uses the hostless API-key fallback when user identity is unavailable', async () => {
+        const workspaceConfig: IWorkspaceConfig = {
+            version: 2,
+            activeInstanceId: 'prod',
+            instances: [
+                {
+                    id: 'prod',
+                    name: 'Production',
+                    host: 'https://prod.example.com',
+                    syncFolder: 'workflows-prod',
+                    projectId: 'project-prod',
+                    projectName: 'Production'
+                }
+            ],
+            host: 'https://prod.example.com',
+            syncFolder: 'workflows-prod',
+            projectId: 'project-prod',
+            projectName: 'Production'
+        };
+
+        (fs.existsSync as ReturnType<typeof vi.fn>).mockReturnValue(true);
+        (fs.readFileSync as any).mockReturnValue(JSON.stringify(workspaceConfig));
+        mockConf.get.mockImplementation((key: string) => {
+            if (key === 'instanceProfiles') {
+                return { prod: 'test-key' };
+            }
+            if (key === 'hosts') {
+                return {};
+            }
+            return {};
+        });
+        mockResolveInstanceIdentifier.mockResolvedValue({
+            identifier: 'key_62af870476',
+        });
+
+        const result = await configService.getOrCreateInstanceIdentifier('https://prod.example.com', 'prod');
+
+        expect(result).toBe('key_62af870476');
+        const persistedConfig = JSON.parse((fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[1]);
+        expect(persistedConfig.instanceIdentifier).toBe('key_62af870476');
+        expect(persistedConfig.instances[0].instanceIdentifier).toBe('key_62af870476');
     });
 
     it('getOrCreateInstanceIdentifier returns the pinned identifier without re-verifying', async () => {

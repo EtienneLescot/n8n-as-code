@@ -80,30 +80,39 @@ export function createUserSlug(user: { id?: string; email?: string; firstName?: 
     return 'user';
 }
 
+function createStableUserIdentitySlug(user: { id?: string; email?: string; firstName?: string; lastName?: string }): string | undefined {
+    if (!user.id) {
+        return undefined;
+    }
+
+    const identityHash = crypto.createHash('sha256').update(user.id).digest('hex').substring(0, 10);
+    const displaySlug = createUserSlug({
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+    });
+
+    return `n8n_${identityHash}_${displaySlug}`;
+}
+
 /**
  * Creates an instance identifier for directory naming
  * @param host The host URL
  * @param user User information (optional)
- * @returns Instance identifier (e.g., "local_5678_etienne_l")
+ * @returns Instance identifier (e.g., "n8n_c6c289e49e_etienne_l")
  */
-export function createInstanceIdentifier(host: string, user?: { id?: string; email?: string; firstName?: string; lastName?: string }): string {
-    const hostSlug = createHostSlug(host);
-    const userSlug = user ? createUserSlug(user) : 'user';
-    
-    return `${hostSlug}_${userSlug}`;
+export function createInstanceIdentifier(_host: string, user?: { id?: string; email?: string; firstName?: string; lastName?: string }): string {
+    const stableUserIdentitySlug = user ? createStableUserIdentitySlug(user) : undefined;
+    if (stableUserIdentitySlug) {
+        return stableUserIdentitySlug;
+    }
+
+    throw new Error('Unable to create a stable instance identifier: n8n user ID is missing.');
 }
 
-/**
- * Creates a fallback instance identifier using API key hash when user info is unavailable
- * @param host The host URL
- * @param apiKey The API key for uniqueness
- * @returns Fallback instance identifier (e.g., "local_5678_abc123")
- */
-export function createFallbackInstanceIdentifier(host: string, apiKey: string): string {
-    const hostSlug = createHostSlug(host);
-    const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex').substring(0, 6);
-    
-    return `${hostSlug}_${apiKeyHash}`;
+export function createApiKeyInstanceIdentifier(apiKey: string): string {
+    const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex').substring(0, 10);
+    return `key_${apiKeyHash}`;
 }
 
 /**
