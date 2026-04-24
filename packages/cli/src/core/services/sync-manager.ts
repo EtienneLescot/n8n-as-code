@@ -31,13 +31,13 @@ export class SyncManager extends EventEmitter {
     private async ensureInitialized() {
         if (this.watcher) return;
 
-        // Build project-scoped directory: baseDir/instanceId/projectSlug
-        const projectSlug = createProjectSlug(this.config.projectName);
-        const instanceDir = path.join(
-            this.config.directory, 
-            this.config.instanceIdentifier || 'default',
-            projectSlug
-        );
+        const instanceDir = this.config.workflowDir
+            ? path.normalize(this.config.workflowDir)
+            : path.join(
+                this.config.directory,
+                this.config.instanceIdentifier || 'default',
+                createProjectSlug(this.config.projectName),
+            );
         
         if (!fs.existsSync(instanceDir)) {
             fs.mkdirSync(instanceDir, { recursive: true });

@@ -48,7 +48,7 @@ export class BaseCommand {
                 process.exit(1);
             }
             this.activeInstanceId = match.id;
-            directory = match.syncFolder || './workflows';
+            directory = this.configService.resolveWorkspacePath(match.syncFolder || './workflows');
             folderSync = match.folderSync ?? false;
         } else {
             const localConfig = this.configService.getLocalConfig();
@@ -76,7 +76,7 @@ export class BaseCommand {
                 process.exit(1);
             }
 
-            directory = localConfig.syncFolder || './workflows';
+            directory = this.configService.resolveWorkspacePath(localConfig.syncFolder || './workflows');
             folderSync = localConfig.folderSync ?? false;
         }
 
@@ -142,6 +142,9 @@ export class BaseCommand {
 
         return {
             directory: this.config.directory,
+            workflowDir: localConfig.workflowDir
+                ? this.configService.resolveWorkspacePath(localConfig.workflowDir)
+                : undefined,
             syncInactive: true,
             ignoredTags: [],
             instanceIdentifier: instanceIdentifier,

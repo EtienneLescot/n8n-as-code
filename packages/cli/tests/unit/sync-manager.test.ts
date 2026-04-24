@@ -167,4 +167,24 @@ describe('SyncManager push filename contract', () => {
         expect(refreshLocalState.mock.invocationCallOrder[0]).toBeLessThan(getWorkflowIdForFilename.mock.invocationCallOrder[0]);
         expect(push).toHaveBeenCalledWith(workflowFilename, 'wf-123', expect.any(String));
     });
+
+    it('uses an explicit workflowDir as the active sync scope', async () => {
+        const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-sync-manager-'));
+        const workflowDir = path.join(workspaceDir, 'shared', 'project');
+        const manager = new SyncManager(new MockN8nApiClient() as any, {
+            directory: path.join(workspaceDir, 'generated-base'),
+            workflowDir,
+            syncInactive: true,
+            ignoredTags: [],
+            projectId: 'project-1',
+            projectName: 'Personal',
+            instanceIdentifier: 'generated_instance',
+        });
+
+        await (manager as any).ensureInitialized();
+
+        expect((manager as any).watcher.getDirectory()).toBe(workflowDir);
+        expect(fs.existsSync(path.join(workflowDir, 'n8n-workflows.d.ts'))).toBe(true);
+        expect(fs.existsSync(path.join(workspaceDir, 'generated-base', 'generated_instance', 'personal'))).toBe(false);
+    });
 });
