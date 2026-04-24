@@ -1,5 +1,11 @@
 # @n8n-as-code/cli
 
+## [1.8.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.8.0...n8nac@v1.8.1) (2026-04-24)
+
+### Bug Fixes
+
+* **cli:** update pinned npx example ([0eba434](https://github.com/EtienneLescot/n8n-as-code/commit/0eba43400ec551236073181801cc37f37beb20fc))
+
 ## [1.8.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.7.0...n8nac@v1.8.0) (2026-04-24)
 
 ### Features
