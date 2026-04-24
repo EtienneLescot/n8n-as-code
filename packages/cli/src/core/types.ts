@@ -6,6 +6,7 @@ export interface IN8nCredentials {
 export interface IWorkflow {
     id: string;
     name: string;
+    description?: string;
     active: boolean;
     nodes: any[];
     connections: any;

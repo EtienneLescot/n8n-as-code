@@ -478,8 +478,51 @@ export class N8nApiClient {
     }
 
     async createWorkflow(payload: Partial<IWorkflow>): Promise<IWorkflow> {
-        const res = await this.client.post('/api/v1/workflows', payload);
-        return res.data;
+        const createPayload = this.cleanWorkflowCreatePayload(payload);
+        const res = await this.client.post('/api/v1/workflows', createPayload);
+        const createdWorkflow = res.data as IWorkflow;
+
+        if (
+            createdWorkflow?.id &&
+            typeof payload.description === 'string' &&
+            payload.description.length > 0
+        ) {
+            try {
+                return await this.updateWorkflow(createdWorkflow.id, {
+                    ...payload,
+                    name: createdWorkflow.name ?? payload.name,
+                    nodes: createdWorkflow.nodes ?? payload.nodes,
+                    connections: createdWorkflow.connections ?? payload.connections,
+                    settings: createdWorkflow.settings ?? payload.settings,
+                });
+            } catch (error: any) {
+                console.warn(
+                    `[N8nApiClient] Workflow ${createdWorkflow.id} was created, but setting its description failed: ${error.message}`
+                );
+            }
+        }
+
+        return createdWorkflow;
+    }
+
+    private cleanWorkflowCreatePayload(payload: Partial<IWorkflow>): Partial<IWorkflow> {
+        const allowedKeys = new Set([
+            'name',
+            'nodes',
+            'connections',
+            'settings',
+            'staticData',
+            'projectId',
+        ]);
+
+        const clean: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+            if (allowedKeys.has(key) && value !== undefined) {
+                clean[key] = value;
+            }
+        }
+
+        return clean as Partial<IWorkflow>;
     }
 
     async getTags(): Promise<ITag[]> {
