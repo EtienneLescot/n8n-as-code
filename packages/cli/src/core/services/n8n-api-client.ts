@@ -558,9 +558,10 @@ export class N8nApiClient {
         // Use console.warn to be more visible in some environments
         console.warn(`[N8nApiClient] Starting PUT /api/v1/workflows/${id}`);
         const startTime = Date.now();
+        const updatePayload = this.cleanWorkflowUpdatePayload(payload);
         
         try {
-            const res = await this.client.put(`/api/v1/workflows/${id}`, payload);
+            const res = await this.client.put(`/api/v1/workflows/${id}`, updatePayload);
             const duration = Date.now() - startTime;
             console.warn(`[N8nApiClient] PUT finished in ${duration}ms. Status: ${res.status}`);
             return res.data;
@@ -572,6 +573,27 @@ export class N8nApiClient {
             }
             throw error;
         }
+    }
+
+    private cleanWorkflowUpdatePayload(payload: Partial<IWorkflow>): Partial<IWorkflow> {
+        const allowedKeys = new Set([
+            'name',
+            'description',
+            'nodes',
+            'connections',
+            'settings',
+            'staticData',
+            'pinData',
+        ]);
+
+        const clean: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+            if (allowedKeys.has(key) && value !== undefined) {
+                clean[key] = value;
+            }
+        }
+
+        return clean as Partial<IWorkflow>;
     }
 
     async deleteWorkflow(id: string): Promise<boolean> {

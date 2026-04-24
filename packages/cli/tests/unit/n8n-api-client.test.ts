@@ -573,6 +573,34 @@ describe('N8nApiClient test workflow support', () => {
         expect(mockAxiosPost).toHaveBeenNthCalledWith(2, '/api/v1/workflows/wf-1/deactivate');
     });
 
+    it('strips project and read-only metadata from workflow update payloads', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        mockAxiosPut.mockResolvedValueOnce({ status: 200, data: { id: 'wf-1', name: 'Updated' } });
+
+        await expect(client.updateWorkflow('wf-1', {
+            id: 'wf-1',
+            name: 'Updated',
+            active: true,
+            nodes: [{ id: 'node-1' }],
+            connections: {},
+            settings: { executionOrder: 'v1' },
+            tags: [{ id: 'tag-1', name: 'ops' }],
+            projectId: 'project-1',
+            projectName: 'Project 1',
+            homeProject: { id: 'project-1', name: 'Project 1' },
+            isArchived: false,
+            createdAt: '2026-04-24T00:00:00.000Z',
+            updatedAt: '2026-04-24T00:00:01.000Z',
+        } as any)).resolves.toEqual({ id: 'wf-1', name: 'Updated' });
+
+        expect(mockAxiosPut).toHaveBeenCalledWith('/api/v1/workflows/wf-1', {
+            name: 'Updated',
+            nodes: [{ id: 'node-1' }],
+            connections: {},
+            settings: { executionOrder: 'v1' },
+        });
+    });
+
     it('falls back to fetching the workflow when activation response has no workflow body', async () => {
         const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
         mockAxiosPost.mockResolvedValueOnce({ status: 200, data: undefined });
