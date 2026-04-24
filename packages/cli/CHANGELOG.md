@@ -1,5 +1,25 @@
 # @n8n-as-code/cli
 
+## [1.8.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.7.0...n8nac@v1.8.0) (2026-04-24)
+
+### Features
+
+* **cli:** sanitize workflow update payloads ([47a92b3](https://github.com/EtienneLescot/n8n-as-code/commit/47a92b3d6b15075136b96c56978dc47264554120))
+
+### Bug Fixes
+
+* preserve availableInMCP and callerPolicy settings on push ([cdb19d8](https://github.com/EtienneLescot/n8n-as-code/commit/cdb19d83909878aea39f20e2403a44380f04f568))
+* handle options in skills help detection ([ba7ce06](https://github.com/EtienneLescot/n8n-as-code/commit/ba7ce06bf812b30da45353559e1177804a24ca12))
+* lazy-load skills CLI startup path ([3b22783](https://github.com/EtienneLescot/n8n-as-code/commit/3b22783fe5843e958f74f892c16f52d622e19bd3))
+* **cli:** skip personal placeholder projectId on create and add sync-engine tests ([9c558b9](https://github.com/EtienneLescot/n8n-as-code/commit/9c558b91c8726737690a8f0e3d85efef024744c7))
+* assign new workflows to configured project on creation ([b2e434d](https://github.com/EtienneLescot/n8n-as-code/commit/b2e434d90382142dc0f09b4d1d27ddbdae1b1ab5))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.9.0 to 1.10.0
+    * @n8n-as-code/transformer bumped from 1.2.0 to 1.2.1
+
 ## [1.7.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.6.2...n8nac@v1.7.0) (2026-04-16)
 
 ### Features

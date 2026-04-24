@@ -1,5 +1,11 @@
 # @n8n-as-code/transformer
 
+## [1.2.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v1.2.0...@n8n-as-code/transformer@v1.2.1) (2026-04-24)
+
+### Bug Fixes
+
+* preserve availableInMCP and callerPolicy settings on push ([cdb19d8](https://github.com/EtienneLescot/n8n-as-code/commit/cdb19d83909878aea39f20e2403a44380f04f568))
+
 ## [1.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v1.1.0...@n8n-as-code/transformer@v1.2.0) (2026-04-16)
 
 ### Features

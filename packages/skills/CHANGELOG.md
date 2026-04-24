@@ -1,5 +1,24 @@
 # @n8n-as-code/skills
 
+## [1.10.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.9.0...@n8n-as-code/skills@v1.10.0) (2026-04-24)
+
+### Features
+
+* **cli:** sanitize workflow update payloads ([47a92b3](https://github.com/EtienneLescot/n8n-as-code/commit/47a92b3d6b15075136b96c56978dc47264554120))
+
+### Bug Fixes
+
+* remove accidental skills asset churn ([f65a2d8](https://github.com/EtienneLescot/n8n-as-code/commit/f65a2d8834f297206aef9ec116d1c063fcdb743b))
+* use skills validate in Cursor skill ([ed560f7](https://github.com/EtienneLescot/n8n-as-code/commit/ed560f79ec0d0cf27447e5a05649deaf008f7994))
+* lazy-load skills CLI startup path ([3b22783](https://github.com/EtienneLescot/n8n-as-code/commit/3b22783fe5843e958f74f892c16f52d622e19bd3))
+* address PR #286 review comments on parameter gating ([148410f](https://github.com/EtienneLescot/n8n-as-code/commit/148410faacd9f68e9ecc53d41d443cf4b651af47))
+* address PR #286 review comments on parameter gating ([fc3b8ee](https://github.com/EtienneLescot/n8n-as-code/commit/fc3b8ee530a23e2bab26008518cd5ae97a8d7e83))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/transformer bumped from 1.2.0 to 1.2.1
+
 ## [1.9.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.8.2...@n8n-as-code/skills@v1.9.0) (2026-04-16)
 
 ### Features
