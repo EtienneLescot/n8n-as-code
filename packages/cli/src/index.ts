@@ -19,6 +19,12 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { createRequire } from 'module';
 import { parsePositiveIntegerOption } from './utils/option-parsers.js';
 import { spawn } from 'child_process';
+import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
+import {
+    N8N_FACADE_SETUP_MODES,
+    isN8nFacadeSetupMode,
+    type N8nFacadeSetupMode,
+} from '@n8n-as-code/workflow-core';
 
 async function readSecretFromStdin(): Promise<string> {
     const chunks: Buffer[] = [];
@@ -33,6 +39,34 @@ async function hydrateApiKeyFromStdin(options: { apiKey?: string; apiKeyStdin?: 
         return;
     }
     options.apiKey = await readSecretFromStdin();
+}
+
+function createManagerFacadeFromOptions(options: { host?: string; apiKey?: string; projectId?: string }) {
+    return createN8nManagerFacade({
+        n8nHost: options.host || process.env.N8N_HOST,
+        n8nApiKey: options.apiKey || process.env.N8N_API_KEY,
+        projectId: options.projectId || process.env.N8N_PROJECT_ID,
+    });
+}
+
+function parseCredentialValues(values: string[] | undefined): Record<string, string> {
+    const parsed: Record<string, string> = {};
+    for (const value of values ?? []) {
+        const separator = value.indexOf('=');
+        if (separator <= 0) {
+            throw new Error(`Invalid --value "${value}". Expected key=value.`);
+        }
+        parsed[value.slice(0, separator)] = value.slice(separator + 1);
+    }
+    return parsed;
+}
+
+function printJsonOrText(options: { json?: boolean }, payload: unknown, text: string): void {
+    if (options.json) {
+        console.log(JSON.stringify(payload, null, 2));
+        return;
+    }
+    console.log(text);
 }
 
 /**
@@ -266,6 +300,151 @@ instanceProgram.command('list')
     .option('--json', 'Output saved instance configs as JSON')
     .action(async (options) => {
         await switchCommand.runInstanceList(options);
+    });
+
+program.command('setup')
+    .description('Choose how this facade should use n8n runtime capabilities')
+    .option('--mode <mode>', 'managed-local, connect-existing, or generation-only', 'connect-existing')
+    .option('--host <url>', 'Existing n8n URL for connect-existing mode')
+    .option('--api-key <key>', 'Existing n8n API key for active credential operations')
+    .option('--api-key-stdin', 'Read the n8n API key from stdin')
+    .option('--project-id <id>', 'n8n project ID for credential operations')
+    .option('--json', 'Output setup result as JSON')
+    .action(async (options) => {
+        await hydrateApiKeyFromStdin(options);
+        const mode = String(options.mode);
+        if (!isN8nFacadeSetupMode(mode)) {
+            console.error(chalk.red(`❌ Invalid setup mode. Use one of: ${N8N_FACADE_SETUP_MODES.map((item) => item.id).join(', ')}`));
+            process.exit(1);
+        }
+
+        const facade = createManagerFacadeFromOptions(options);
+        const instance = await facade.setup({
+            mode: mode as N8nFacadeSetupMode,
+            n8nHost: options.host,
+            n8nApiKeyRef: options.apiKey ? 'n8nac:provided-api-key' : undefined,
+        });
+
+        printJsonOrText(
+            options,
+            { instance, modes: facade.listSetupModes() },
+            [
+                chalk.green('✅ n8n facade setup mode saved.'),
+                `Mode: ${instance.mode}`,
+                instance.baseUrl ? `n8n host: ${instance.baseUrl}` : undefined,
+            ].filter(Boolean).join('\n'),
+        );
+    });
+
+program.command('setup-modes')
+    .description('List supported facade setup modes')
+    .option('--json', 'Output modes as JSON')
+    .action((options) => {
+        printJsonOrText(
+            options,
+            N8N_FACADE_SETUP_MODES,
+            N8N_FACADE_SETUP_MODES
+                .map((mode) => `${mode.id}\t${mode.label}\n  ${mode.description}`)
+                .join('\n'),
+        );
+    });
+
+const credentialsProgram = program.command('credentials')
+    .description('Manage runtime credential readiness through n8n-manager');
+
+credentialsProgram.command('recipes')
+    .description('List credential recipes available to all facades')
+    .option('--json', 'Output recipes as JSON')
+    .action(async (options) => {
+        const facade = createManagerFacadeFromOptions({});
+        const recipes = await facade.listCredentialRecipes();
+        printJsonOrText(
+            options,
+            recipes,
+            recipes.map((recipe) => `${recipe.id}\t${recipe.label}\t${recipe.authMethod}`).join('\n'),
+        );
+    });
+
+credentialsProgram.command('starter-kits')
+    .description('List starter credential kits')
+    .option('--json', 'Output starter kits as JSON')
+    .action(async (options) => {
+        const facade = createManagerFacadeFromOptions({});
+        const starterKits = await facade.listStarterKits();
+        printJsonOrText(
+            options,
+            starterKits,
+            starterKits.map((kit) => `${kit.id}\t${kit.label}\t${kit.recipeIds.join(', ')}`).join('\n'),
+        );
+    });
+
+credentialsProgram.command('inventory')
+    .description('Show local credential readiness inventory')
+    .option('--json', 'Output inventory as JSON')
+    .action(async (options) => {
+        const facade = createManagerFacadeFromOptions({});
+        const inventory = await facade.getCredentialInventory();
+        printJsonOrText(
+            options,
+            inventory,
+            inventory.availableCredentials
+                .map((item) => `${item.recipeId}\t${item.status}${item.reason ? `\t${item.reason}` : ''}`)
+                .join('\n'),
+        );
+    });
+
+credentialsProgram.command('ensure')
+    .description('Create or mark a credential from a shared recipe')
+    .argument('<recipeId>', 'Credential recipe ID')
+    .option('--host <url>', 'n8n URL for real credential creation')
+    .option('--api-key <key>', 'n8n API key for real credential creation')
+    .option('--api-key-stdin', 'Read the n8n API key from stdin')
+    .option('--project-id <id>', 'n8n project ID')
+    .option('--name <name>', 'Credential name')
+    .option('--value <key=value...>', 'Credential input value')
+    .option('--json', 'Output credential ref as JSON')
+    .action(async (recipeId, options) => {
+        await hydrateApiKeyFromStdin(options);
+        const facade = createManagerFacadeFromOptions(options);
+        const credential = await facade.ensureCredential(recipeId, {
+            credentialName: options.name,
+            values: parseCredentialValues(options.value),
+        });
+        printJsonOrText(options, credential, `${credential.id}\t${credential.name}\t${credential.type}`);
+    });
+
+credentialsProgram.command('starter-kit')
+    .description('Bootstrap a shared starter credential kit')
+    .argument('<starterKitId>', 'Starter kit ID')
+    .option('--host <url>', 'n8n URL for real credential creation')
+    .option('--api-key <key>', 'n8n API key for real credential creation')
+    .option('--api-key-stdin', 'Read the n8n API key from stdin')
+    .option('--project-id <id>', 'n8n project ID')
+    .option('--json', 'Output starter kit result as JSON')
+    .action(async (starterKitId, options) => {
+        await hydrateApiKeyFromStdin(options);
+        const facade = createManagerFacadeFromOptions(options);
+        const result = await facade.bootstrapStarterKit(starterKitId);
+        printJsonOrText(
+            options,
+            result,
+            result.items.map((item) => `${item.recipeId}\t${item.status}${item.reason ? `\t${item.reason}` : ''}`).join('\n'),
+        );
+    });
+
+credentialsProgram.command('test')
+    .description('Test a credential by n8n credential ID or recipe ID')
+    .argument('<credentialIdOrRecipeId>', 'Credential ID or recipe ID')
+    .option('--host <url>', 'n8n URL for real credential test')
+    .option('--api-key <key>', 'n8n API key for real credential test')
+    .option('--api-key-stdin', 'Read the n8n API key from stdin')
+    .option('--project-id <id>', 'n8n project ID')
+    .option('--json', 'Output test result as JSON')
+    .action(async (credentialIdOrRecipeId, options) => {
+        await hydrateApiKeyFromStdin(options);
+        const facade = createManagerFacadeFromOptions(options);
+        const result = await facade.testCredential(credentialIdOrRecipeId);
+        printJsonOrText(options, result, `${result.credentialId}\t${result.status}${result.message ? `\t${result.message}` : ''}`);
     });
 
 // init - Interactive wizard to bootstrap the project, with optional non-interactive flags

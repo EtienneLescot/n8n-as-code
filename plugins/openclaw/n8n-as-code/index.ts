@@ -1,5 +1,6 @@
 import { accessSync, constants, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { N8N_FACADE_SETUP_MODES } from "@n8n-as-code/workflow-core";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { registerN8nAcCli } from "./src/cli.js";
 import { createN8nAcTool } from "./src/tool.js";
@@ -9,16 +10,23 @@ import { getWorkspaceDir, isWorkspaceInitialized, readWorkspaceBinding } from ".
 // Lightweight prompt context
 // ---------------------------------------------------------------------------
 
+const SETUP_MODE_CONTEXT = N8N_FACADE_SETUP_MODES
+  .map((mode) => `- \`${mode.id}\`: ${mode.description}`)
+  .join("\n");
+
 const BOOTSTRAP_CONTEXT = `\
 ## n8n-as-code — Bootstrap
 
 The n8n-as-code plugin is installed but the workspace has not been initialized yet.
 
 **Tell the user:**
-> "To start building n8n workflows I need your n8n host URL and API key."
+> "To start building n8n workflows, choose whether I should connect to your existing n8n access, let n8n-manager prepare runtime access, or stay in generation-only mode."
 
-Once you have both, call the \`n8nac\` tool with \`action: "init_auth"\`, then
-\`action: "init_project"\` to finish setup.
+Supported facade runtime modes:
+${SETUP_MODE_CONTEXT}
+
+If the user chooses an existing n8n instance, collect host URL and API key, then call the
+\`n8nac\` tool with \`action: "init_auth"\`, then \`action: "init_project"\`.
 `;
 
 function buildStatusHeader(workspaceDir: string): string {
