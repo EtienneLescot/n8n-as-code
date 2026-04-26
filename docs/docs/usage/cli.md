@@ -411,6 +411,13 @@ Test a credential by n8n credential ID or recipe ID.
 n8nac credentials test http-bearer --json
 ```
 
+#### `credentials delete`
+Delete a credential by n8n credential ID or recipe ID, and remove matching local readiness inventory.
+
+```bash
+n8nac credentials delete http-bearer --json
+```
+
 ### `test-plan`
 Inspect how a workflow can be executed over HTTP.
 
