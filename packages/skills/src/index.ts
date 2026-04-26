@@ -1,6 +1,12 @@
 // Library Exports for Consumers
 export { NodeSchemaProvider } from './services/node-schema-provider.js';
 export { AiContextGenerator } from './services/ai-context-generator.js';
+export {
+  getN8nacDevConfigFilenames,
+  resolveN8nacCommandRefs,
+  type N8nacCommandRefs,
+  type ResolveN8nacCommandOptions,
+} from './services/cli-command-resolver.js';
 export { WorkflowValidator } from './services/workflow-validator.js';
 export { DocsProvider } from './services/docs-provider.js';
 export { KnowledgeSearch } from './services/knowledge-search.js';

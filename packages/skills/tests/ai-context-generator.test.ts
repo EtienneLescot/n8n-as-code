@@ -91,6 +91,24 @@ describe('AiContextGenerator', () => {
             expect(agentsContent).not.toContain('npx --yes n8nac skills');
         });
 
+        test('should resolve the generated CLI command from workspace dev config', async () => {
+            const cliCmd = 'node /tmp/dev/n8n-as-code/packages/cli/dist/index.js';
+            fs.writeFileSync(path.join(tempDir, '.n8nac-dev.json'), JSON.stringify({
+                commands: {
+                    n8nac: cliCmd,
+                },
+            }, null, 2));
+
+            await generator.generate(tempDir, '1.0.0');
+
+            const agentsPath = path.join(tempDir, 'AGENTS.md');
+            const agentsContent = fs.readFileSync(agentsPath, 'utf-8');
+
+            expect(agentsContent).toContain(cliCmd);
+            expect(agentsContent).toContain(`${cliCmd} skills`);
+            expect(agentsContent).not.toContain('npx --yes n8nac skills');
+        });
+
         test('should NOT create shim files (shims removed)', async () => {
             await generator.generate(tempDir, '1.0.0');
 

@@ -16,6 +16,8 @@ The public brand can stay unified as `n8n-as-code` / `n8nac`, but internally the
 
 The workflow engine must not depend on `n8n-manager`. `n8n-manager` must not depend on the workflow engine. Facades may depend on both.
 
+For local end-to-end development across the separate repos, use the meta-workspace documented in [Local Dev Workspace](./local-dev-workspace.md). It preserves the published `npx --yes n8nac` default while letting dev runs override the command through one resolver.
+
 ## 🏗️ Monorepo Structure
 
 ```

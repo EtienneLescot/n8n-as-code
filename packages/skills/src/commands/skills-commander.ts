@@ -533,7 +533,8 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .description('Update AI Context files (AGENTS.md)')
         .option('--n8n-version <version>', 'n8n instance version', 'Unknown')
         .option('--cli-version <version>', 'n8nac CLI version or dist-tag to use in generated AI context', 'latest')
-        .action(async (options: { n8nVersion: string; cliVersion?: string }) => {
+        .option('--cli-cmd <command>', 'Override the generated n8nac command in AGENTS.md')
+        .action(async (options: { n8nVersion: string; cliVersion?: string; cliCmd?: string }) => {
             try {
                 console.error(chalk.blue('🤖 Updating AI Context...'));
                 const projectRoot = process.cwd();
@@ -541,7 +542,9 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
 
                 const { AiContextGenerator } = await import('../services/ai-context-generator.js');
                 const aiContextGenerator = new AiContextGenerator();
-                await aiContextGenerator.generate(projectRoot, options.n8nVersion, distTag);
+                await aiContextGenerator.generate(projectRoot, options.n8nVersion, distTag, {
+                    cliCommandOverride: options.cliCmd,
+                });
 
                 console.error(chalk.green('✅ AI Context updated successfully!'));
             } catch (error: any) {
