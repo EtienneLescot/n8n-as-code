@@ -37,6 +37,7 @@ export interface N8nManagerFacade {
   listStarterKits(): Promise<StarterKit[]>;
   getCredentialInventory(): Promise<CredentialInventory>;
   ensureCredential(recipeId: string, input?: EnsureCredentialInput): Promise<N8nCredentialRef>;
+  deleteCredential(credentialIdOrRecipeId: string): Promise<{ credentialId?: string; recipeId?: string; deletedRemote: boolean; deletedInventory: boolean }>;
   testCredential(credentialIdOrRecipeId: string): Promise<CredentialTestResult>;
   bootstrapStarterKit(starterKitId: string, inputs?: Record<string, EnsureCredentialInput>): Promise<StarterKitResult>;
 }
@@ -65,6 +66,7 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
     listStarterKits: () => credentials.listStarterKits(),
     getCredentialInventory: () => credentials.getCredentialInventory(),
     ensureCredential: (recipeId, input) => credentials.ensureCredential(recipeId, input),
+    deleteCredential: (credentialIdOrRecipeId) => credentials.deleteCredential(credentialIdOrRecipeId),
     testCredential: (credentialIdOrRecipeId) => credentials.testCredential(credentialIdOrRecipeId),
     bootstrapStarterKit: (starterKitId, inputs) => credentials.bootstrapStarterKit(starterKitId, inputs),
   };

@@ -447,6 +447,25 @@ credentialsProgram.command('test')
         printJsonOrText(options, result, `${result.credentialId}\t${result.status}${result.message ? `\t${result.message}` : ''}`);
     });
 
+credentialsProgram.command('delete')
+    .description('Delete a credential by n8n credential ID or shared recipe ID')
+    .argument('<credentialIdOrRecipeId>', 'Credential ID or recipe ID')
+    .option('--host <url>', 'n8n URL for real credential deletion')
+    .option('--api-key <key>', 'n8n API key for real credential deletion')
+    .option('--api-key-stdin', 'Read the n8n API key from stdin')
+    .option('--project-id <id>', 'n8n project ID')
+    .option('--json', 'Output delete result as JSON')
+    .action(async (credentialIdOrRecipeId, options) => {
+        await hydrateApiKeyFromStdin(options);
+        const facade = createManagerFacadeFromOptions(options);
+        const result = await facade.deleteCredential(credentialIdOrRecipeId);
+        printJsonOrText(
+            options,
+            result,
+            `${result.credentialId ?? credentialIdOrRecipeId}\tdeletedRemote=${result.deletedRemote}\tdeletedInventory=${result.deletedInventory}`,
+        );
+    });
+
 // init - Interactive wizard to bootstrap the project, with optional non-interactive flags
 registerInstanceOptions(
     program.command('init')
