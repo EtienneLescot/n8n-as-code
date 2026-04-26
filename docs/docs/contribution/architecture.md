@@ -22,34 +22,33 @@ The workflow engine must not depend on `n8n-manager`. `n8n-manager` must not dep
 n8n-as-code/
 ├── packages/
 │   ├── cli/              # n8nac facade + current embedded sync engine
+│   ├── workflow-core/    # independent workflow contracts and authoring API
+│   ├── manager-adapter/  # optional facade bridge to n8n-manager
 │   ├── skills/           # Workflow intelligence and AI agent context
 │   ├── transformer/      # Workflow JSON <-> TypeScript conversion
+│   ├── mcp/              # Agent facade
 │   └── vscode-extension/ # VS Code/Cursor facade
+├── plugins/
+│   └── openclaw/         # OpenClaw facade
 ├── docs/               # Documentation (Docusaurus)
 ├── scripts/            # Build and utility scripts
 └── plans/              # Architecture planning documents
 ```
 
-Target package direction:
+Current extraction status:
 
 ```txt
 packages/
-  workflow-core/      # independent workflow intelligence
-  validator/
-  schemas/
-  templates/
-  transformer/
-  manager-adapter/    # optional facade bridge to n8n-manager
-
-apps/
-  cli/
-  vscode-extension/
+  workflow-core/      # shared facade setup modes + public workflow authoring API
+  manager-adapter/    # facade bridge to @n8n-as-code/n8n-manager-core and credentials-manager
+  transformer/        # workflow JSON <-> TypeScript conversion
+  skills/             # node knowledge, docs, validation tools
+  cli/                # n8nac facade
+  vscode-extension/   # VS Code/Cursor facade
+  mcp/                # MCP facade
 
 integrations/
-  mcp-server/
-  claude-code/
   openclaw/
-  yagr/
 ```
 
 ## 📦 Package Dependencies
@@ -73,9 +72,9 @@ graph TD
 ```
 
 ### Dependency Flow
-1. **Workflow Engine**: Shared workflow intelligence, currently distributed across `cli/src/core`, `@n8n-as-code/skills`, `@n8n-as-code/transformer`, schemas, and generated indexes.
+1. **Workflow Engine**: Shared workflow intelligence, anchored by `@n8n-as-code/workflow-core` and still progressively extracting code from `cli/src/core`, `@n8n-as-code/skills`, `@n8n-as-code/transformer`, schemas, and generated indexes.
 2. **Runtime Engine**: `n8n-manager`, external repo, owns setup, credentials, diagnostics, deployment, execution, and inspection.
-3. **Facades**: `n8nac`, VS Code/Cursor extension, MCP, Claude Code, OpenClaw, YAGR integration. These provide UX and may orchestrate both engines.
+3. **Facades**: `n8nac`, VS Code/Cursor extension, MCP, Claude Code, OpenClaw, YAGR integration. These provide UX and may orchestrate both engines through `@n8n-as-code/manager-adapter`.
 
 Facade setup UX should converge on:
 

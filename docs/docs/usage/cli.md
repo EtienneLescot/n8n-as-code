@@ -94,13 +94,15 @@ Use the path that matches your active sync folder and project layout in the work
 
 The CLI now covers the most painful post-push steps that used to force users back into the n8n UI:
 
-1. Detect missing credentials with `workflow credential-required`
-2. Inspect the expected credential payload with `credential schema`
-3. Create the credential with `credential create`
-4. Activate the workflow with `workflow activate`
-5. Inspect how to run it with `test-plan`
-6. Execute it with `test`
-7. Debug the actual server-side execution with `execution list` and `execution get`
+1. Choose the facade runtime mode with `setup`
+2. Detect missing credentials with `workflow credential-required`
+3. Inspect shared credential recipes with `credentials recipes`
+4. Prepare credential readiness with `credentials ensure` or `credentials starter-kit`
+5. Use low-level n8n credential commands with `credential schema` / `credential create` when you need exact API control
+6. Activate the workflow with `workflow activate`
+7. Inspect how to run it with `test-plan`
+8. Execute it with `test`
+9. Debug the actual server-side execution with `execution list` and `execution get`
 
 This is a major quality-of-life improvement for agent-driven development: the agent can now provision credentials, run the workflow, and inspect the failing execution directly through n8n's API.
 
@@ -150,6 +152,21 @@ n8nac instance delete --instance-name "https://n8n.example.com / Etienne Lescot"
 ```
 
 Use `init-auth` followed by `init-project` only when you want to split credential discovery from project selection.
+
+### `setup`
+Choose how the `n8nac` facade should use n8n runtime capabilities.
+
+```bash
+n8nac setup-modes
+n8nac setup --mode generation-only
+n8nac setup --mode connect-existing --host https://n8n.example.com --api-key-stdin
+```
+
+Supported modes:
+
+- `managed-local`: ask `n8n-manager` to own local runtime setup and starter credential readiness.
+- `connect-existing`: use an existing n8n URL/API key for runtime operations.
+- `generation-only`: keep workflow generation and validation available without runtime actions.
 
 ### `switch`
 Switch to a different n8n project.
@@ -322,6 +339,8 @@ n8nac workflow activate <workflowId>
 ### `credential`
 Inspect and create credentials from the CLI.
 
+Use this singular command group for low-level n8n API credential operations. For facade-level credential readiness shared with the extension, MCP, OpenClaw, Claude Code, and YAGR integrations, prefer the plural `credentials` command group.
+
 #### `credential schema`
 Return the JSON schema for a credential type.
 
@@ -345,6 +364,51 @@ List existing credentials without exposing secret values.
 
 ```bash
 n8nac credential list --json
+```
+
+### `credentials`
+Manage facade-level credential readiness through `n8n-manager`.
+
+#### `credentials recipes`
+List shared credential recipes.
+
+```bash
+n8nac credentials recipes --json
+```
+
+#### `credentials starter-kits`
+List starter kits.
+
+```bash
+n8nac credentials starter-kits
+```
+
+#### `credentials inventory`
+Show local credential readiness status.
+
+```bash
+n8nac credentials inventory --json
+```
+
+#### `credentials ensure`
+Create or mark a credential from a shared recipe.
+
+```bash
+n8nac credentials ensure http-bearer --value token=... --json
+```
+
+#### `credentials starter-kit`
+Bootstrap a starter kit.
+
+```bash
+n8nac credentials starter-kit ai-workflows --json
+```
+
+#### `credentials test`
+Test a credential by n8n credential ID or recipe ID.
+
+```bash
+n8nac credentials test http-bearer --json
 ```
 
 ### `test-plan`

@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { N8nApiClient, ConfigService, type IN8nCredentials } from 'n8nac';
+import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
+import { N8N_FACADE_SETUP_MODES } from '@n8n-as-code/workflow-core';
 import { getResolvedN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from '../utils/state-detection.js';
 import { writeUnifiedWorkspaceConfig } from '../utils/unified-config.js';
 import { buildConfigurationInitState } from './configuration-state.js';
@@ -173,6 +175,26 @@ export class ConfigurationWebview {
             return;
           }
 
+          case 'configureRuntimeMode': {
+            const mode = String(message.mode || '').trim();
+            if (mode !== 'managed-local' && mode !== 'generation-only') {
+              this._panel.webview.postMessage({
+                type: 'error',
+                message: 'Unsupported runtime mode for direct extension setup.',
+              });
+              return;
+            }
+
+            const facade = createN8nManagerFacade();
+            await facade.setup({ mode });
+            this._panel.webview.postMessage({ type: 'saved' });
+            this._panel.webview.postMessage({
+              type: 'runtimeModeSaved',
+              mode,
+            });
+            return;
+          }
+
           case 'switchInstance': {
             const workspaceRoot = getWorkspaceRoot();
             const instanceId = (message.instanceId || '').trim();
@@ -312,6 +334,7 @@ export class ConfigurationWebview {
 
   private getHtmlForWebview() {
     const nonce = getNonce();
+    const setupModes = JSON.stringify(N8N_FACADE_SETUP_MODES);
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -451,6 +474,36 @@ export class ConfigurationWebview {
       background: var(--surface-muted);
       border: 1px solid var(--border);
     }
+    .mode-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .mode-option {
+      display: grid;
+      gap: 6px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface-strong) 80%, transparent);
+      min-height: 128px;
+      cursor: pointer;
+    }
+    .mode-option input {
+      width: auto;
+      min-height: auto;
+      margin: 0;
+    }
+    .mode-label {
+      font-weight: 650;
+      color: var(--vscode-foreground);
+    }
+    .mode-description {
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      line-height: 1.45;
+    }
     .selector-panel h3,
     .mode-block h3 {
       margin: 0 0 8px;
@@ -567,6 +620,7 @@ export class ConfigurationWebview {
     @media (max-width: 860px) {
       .instance-layout,
       .project-grid,
+      .mode-grid,
       .field-grid {
         grid-template-columns: 1fr;
       }
@@ -581,11 +635,21 @@ export class ConfigurationWebview {
     <section class="hero">
       <h1>n8n-as-code config</h1>
       <p>
-        Connect this workspace to existing n8n instances using their URL and API key. You can save multiple instance configs and choose which one is active.
+        Choose whether this facade connects to an existing n8n instance, lets n8n-manager prepare runtime access, or stays in generation-only mode.
       </p>
     </section>
 
     <div class="layout">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Runtime mode</h2>
+            <p class="card-copy">This choice is shared by CLI, extension, MCP, and agent plugins so every facade exposes the same runtime path.</p>
+          </div>
+        </div>
+        <div id="runtimeModeGrid" class="mode-grid"></div>
+      </section>
+
       <section class="card">
         <div class="card-header">
           <div>
@@ -673,8 +737,10 @@ export class ConfigurationWebview {
 
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
+    const setupModes = ${setupModes};
 
     const instanceSelectEl = document.getElementById('instanceSelect');
+    const runtimeModeGridEl = document.getElementById('runtimeModeGrid');
     const newInstanceBtn = document.getElementById('newInstance');
     const hostEl = document.getElementById('host');
     const apiKeyEl = document.getElementById('apiKey');
@@ -705,6 +771,7 @@ export class ConfigurationWebview {
     let latestStateVersion = 0;
     let autoLoadTimer = null;
     let lastLoadRequest = { host: '', apiKey: '' };
+    let runtimeMode = 'connect-existing';
 
     function createEmptyConfig(overrides = {}) {
       return {
@@ -746,6 +813,36 @@ export class ConfigurationWebview {
     function setPendingAction(action) {
       pendingAction = action || '';
       updateModeUi();
+    }
+
+    function renderRuntimeModes() {
+      runtimeModeGridEl.innerHTML = '';
+      for (const mode of setupModes) {
+        const label = document.createElement('label');
+        label.className = 'mode-option';
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = 'runtimeMode';
+        input.value = mode.id;
+        input.checked = mode.id === runtimeMode;
+        input.addEventListener('change', () => {
+          runtimeMode = mode.id;
+          updateModeUi();
+        });
+
+        const title = document.createElement('span');
+        title.className = 'mode-label';
+        title.textContent = mode.label;
+
+        const description = document.createElement('span');
+        description.className = 'mode-description';
+        description.textContent = mode.description;
+
+        label.appendChild(input);
+        label.appendChild(title);
+        label.appendChild(description);
+        runtimeModeGridEl.appendChild(label);
+      }
     }
 
     function clearPendingAction() {
@@ -824,7 +921,9 @@ export class ConfigurationWebview {
 
       saveBtn.textContent = pendingAction === 'save'
         ? (draftMode ? 'Adding...' : 'Saving...')
-        : 'Save and activate config';
+        : runtimeMode === 'connect-existing'
+          ? 'Save and activate config'
+          : 'Save runtime mode';
       newInstanceBtn.textContent = draftMode ? 'Cancel add' : 'Add instance';
       loadBtn.textContent = pendingAction === 'loadProjects' ? 'Loading...' : 'Load projects';
       deleteBtn.textContent = pendingAction === 'deleteInstance' ? 'Deleting...' : 'Delete config';
@@ -837,6 +936,11 @@ export class ConfigurationWebview {
       apiKeyEl.disabled = isBusy;
       syncFolderEl.disabled = isBusy;
       projectEl.disabled = isBusy || !projects.length;
+      const runtimeDisabled = runtimeMode !== 'connect-existing';
+      hostEl.disabled = hostEl.disabled || runtimeDisabled;
+      apiKeyEl.disabled = apiKeyEl.disabled || runtimeDisabled;
+      loadBtn.disabled = loadBtn.disabled || runtimeDisabled;
+      saveBtn.disabled = isBusy;
 
       activeSummaryTitleEl.textContent = 'Active instance';
       activeSummaryNameEl.textContent = activeLabel;
@@ -848,6 +952,12 @@ export class ConfigurationWebview {
       switchHelpEl.textContent = savedCount
         ? 'Choose a saved instance to edit. It becomes active when you save.'
         : 'Add your first instance to start configuring this workspace.';
+
+      if (runtimeMode === 'managed-local') {
+        switchHelpEl.textContent = 'n8n-manager will own local runtime setup and starter credential readiness.';
+      } else if (runtimeMode === 'generation-only') {
+        switchHelpEl.textContent = 'Workflow generation and validation stay available; runtime actions remain disabled.';
+      }
     }
 
     function renderInstances(selectedId) {
@@ -1117,6 +1227,7 @@ export class ConfigurationWebview {
     hostEl.addEventListener('blur', () => requestProjectsLoad(false));
     apiKeyEl.addEventListener('blur', () => requestProjectsLoad(false));
     projectEl.addEventListener('change', updateModeUi);
+    renderRuntimeModes();
 
     saveBtn.addEventListener('click', () => {
       if (pendingAction) {
@@ -1127,6 +1238,15 @@ export class ConfigurationWebview {
       const form = readFormState();
       const host = form.host;
       const apiKey = form.apiKey;
+
+      if (runtimeMode !== 'connect-existing') {
+        setPendingAction('save');
+        vscode.postMessage({
+          type: 'configureRuntimeMode',
+          mode: runtimeMode,
+        });
+        return;
+      }
 
       if (!host || !apiKey) {
         setError('Host and API key are required to save this instance.');

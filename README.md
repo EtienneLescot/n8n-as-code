@@ -330,6 +330,8 @@ You can keep multiple saved instance configs in the same workspace and switch wh
 
 | Package | What it does | Install |
 |:--------|:-------------|:--------|
+| **[@n8n-as-code/workflow-core](packages/workflow-core)** | Workflow contracts, setup-mode contracts, and workflow authoring API | workspace package |
+| **[@n8n-as-code/manager-adapter](packages/manager-adapter)** | Optional bridge from facades to `n8n-manager` runtime and credentials packages | workspace package |
 | **[n8nac](packages/cli)** | CLI facade — workflow intelligence plus optional runtime setup, credentials, deploy, run | `npx n8nac` |
 | **[VS Code Extension](packages/vscode-extension)** | Visual facade — sidebar, canvas, setup choices, credentials, push-on-save | [Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) |
 | **[@n8n-as-code/n8nac](plugins/openclaw/n8n-as-code)** | OpenClaw facade — setup wizard, prompt context, workflow operations, runtime loop | `openclaw plugins install @n8n-as-code/n8nac` |
