@@ -202,7 +202,10 @@ export class ConfigurationWebview {
                   ? 'Resolving local runtime state...'
                   : 'Saving workspace runtime mode...',
               });
-              return facade.setup({ mode });
+              return facade.setup({
+                mode,
+                tunnel: !!message.tunnel,
+              });
             });
 
             const status = await facade.status();
@@ -589,6 +592,23 @@ export class ConfigurationWebview {
       color: var(--vscode-descriptionForeground);
       line-height: 1.45;
     }
+    .runtime-options {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .runtime-check {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.4;
+    }
+    .runtime-check input {
+      width: auto;
+      min-height: auto;
+      margin-top: 2px;
+    }
     .runtime-status strong {
       display: block;
       color: var(--vscode-foreground);
@@ -755,6 +775,12 @@ export class ConfigurationWebview {
             <h3 id="runtimePathTitle" class="path-title">Connect existing n8n</h3>
             <p id="runtimePathCopy" class="path-copy"></p>
             <ol id="runtimePathNext" class="path-next"></ol>
+            <div id="runtimeOptions" class="runtime-options">
+              <label class="runtime-check">
+                <input id="enableTunnel" type="checkbox" />
+                <span>Expose local n8n through a Cloudflare tunnel for remote webhooks and external facades.</span>
+              </label>
+            </div>
             <div id="runtimeStatus" class="runtime-status hidden"></div>
           </div>
           <button id="runtimePrimaryAction">Continue</button>
@@ -856,6 +882,8 @@ export class ConfigurationWebview {
     const runtimePathTitleEl = document.getElementById('runtimePathTitle');
     const runtimePathCopyEl = document.getElementById('runtimePathCopy');
     const runtimePathNextEl = document.getElementById('runtimePathNext');
+    const runtimeOptionsEl = document.getElementById('runtimeOptions');
+    const enableTunnelEl = document.getElementById('enableTunnel');
     const runtimeStatusEl = document.getElementById('runtimeStatus');
     const runtimePrimaryActionBtn = document.getElementById('runtimePrimaryAction');
     const existingInstanceCardEl = document.getElementById('existingInstanceCard');
@@ -1100,6 +1128,7 @@ export class ConfigurationWebview {
       saveBtn.disabled = isBusy;
       existingInstanceCardEl.classList.toggle('hidden', !isConnectExisting);
       runtimePathPanelEl.classList.toggle('hidden', false);
+      runtimeOptionsEl.classList.toggle('hidden', !isManagedLocal);
 
       activeSummaryTitleEl.textContent = 'Active instance';
       activeSummaryNameEl.textContent = activeLabel;
@@ -1453,6 +1482,7 @@ export class ConfigurationWebview {
       vscode.postMessage({
         type: 'configureRuntimeMode',
         mode: runtimeMode,
+        tunnel: enableTunnelEl.checked,
       });
     });
 
@@ -1479,6 +1509,7 @@ export class ConfigurationWebview {
         vscode.postMessage({
           type: 'configureRuntimeMode',
           mode: runtimeMode,
+          tunnel: enableTunnelEl.checked,
         });
         return;
       }
