@@ -186,11 +186,31 @@ export class ConfigurationWebview {
             }
 
             const facade = createN8nManagerFacade();
-            await facade.setup({ mode });
-            this._panel.webview.postMessage({ type: 'saved' });
+            this._panel.webview.postMessage({
+              type: 'runtimeModeStarted',
+              mode,
+            });
+            const instance = await vscode.window.withProgress({
+              location: vscode.ProgressLocation.Notification,
+              title: mode === 'managed-local'
+                ? 'Preparing local n8n with n8n-manager'
+                : 'Saving n8n generation-only mode',
+              cancellable: false,
+            }, async (progress) => {
+              progress.report({
+                message: mode === 'managed-local'
+                  ? 'Resolving local runtime state...'
+                  : 'Saving workspace runtime mode...',
+              });
+              return facade.setup({ mode });
+            });
+
+            const status = await facade.status();
             this._panel.webview.postMessage({
               type: 'runtimeModeSaved',
               mode,
+              instance,
+              status,
             });
             return;
           }
@@ -560,6 +580,49 @@ export class ConfigurationWebview {
     .path-next li + li {
       margin-top: 3px;
     }
+    .runtime-status {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.45;
+    }
+    .runtime-status strong {
+      display: block;
+      color: var(--vscode-foreground);
+      margin-bottom: 4px;
+    }
+    .runtime-status.progress {
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+    }
+    .runtime-status.success {
+      border-color: color-mix(in srgb, var(--vscode-testing-iconPassed, var(--vscode-charts-green)) 42%, var(--border));
+    }
+    .runtime-progress {
+      position: relative;
+      overflow: hidden;
+      height: 4px;
+      margin-top: 10px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--border) 70%, transparent);
+    }
+    .runtime-progress::before {
+      content: "";
+      position: absolute;
+      left: -42%;
+      top: 0;
+      height: 100%;
+      width: 42%;
+      border-radius: inherit;
+      background: var(--accent);
+      animation: runtime-progress 1.1s ease-in-out infinite;
+    }
+    @keyframes runtime-progress {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(338%); }
+    }
     .hidden {
       display: none !important;
     }
@@ -692,6 +755,7 @@ export class ConfigurationWebview {
             <h3 id="runtimePathTitle" class="path-title">Connect existing n8n</h3>
             <p id="runtimePathCopy" class="path-copy"></p>
             <ol id="runtimePathNext" class="path-next"></ol>
+            <div id="runtimeStatus" class="runtime-status hidden"></div>
           </div>
           <button id="runtimePrimaryAction">Continue</button>
         </div>
@@ -792,6 +856,7 @@ export class ConfigurationWebview {
     const runtimePathTitleEl = document.getElementById('runtimePathTitle');
     const runtimePathCopyEl = document.getElementById('runtimePathCopy');
     const runtimePathNextEl = document.getElementById('runtimePathNext');
+    const runtimeStatusEl = document.getElementById('runtimeStatus');
     const runtimePrimaryActionBtn = document.getElementById('runtimePrimaryAction');
     const existingInstanceCardEl = document.getElementById('existingInstanceCard');
     const newInstanceBtn = document.getElementById('newInstance');
@@ -860,6 +925,35 @@ export class ConfigurationWebview {
       savedEl.style.display = visible ? 'block' : 'none';
       if (visible) {
         setTimeout(() => { savedEl.style.display = 'none'; }, 1500);
+      }
+    }
+
+    function setRuntimeStatus(kind, title, detail, showProgress = false) {
+      if (!title && !detail) {
+        runtimeStatusEl.className = 'runtime-status hidden';
+        runtimeStatusEl.innerHTML = '';
+        return;
+      }
+
+      runtimeStatusEl.className = 'runtime-status ' + (kind || '');
+      runtimeStatusEl.innerHTML = '';
+
+      if (title) {
+        const strong = document.createElement('strong');
+        strong.textContent = title;
+        runtimeStatusEl.appendChild(strong);
+      }
+
+      if (detail) {
+        const body = document.createElement('div');
+        body.textContent = detail;
+        runtimeStatusEl.appendChild(body);
+      }
+
+      if (showProgress) {
+        const progress = document.createElement('div');
+        progress.className = 'runtime-progress';
+        runtimeStatusEl.appendChild(progress);
       }
     }
 
@@ -1341,11 +1435,20 @@ export class ConfigurationWebview {
       setError('');
 
       if (runtimeMode === 'connect-existing') {
+        setRuntimeStatus('', '', '');
         hostEl.focus();
         existingInstanceCardEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
         return;
       }
 
+      setRuntimeStatus(
+        'progress',
+        runtimeMode === 'managed-local' ? 'Preparing local n8n' : 'Saving generation-only mode',
+        runtimeMode === 'managed-local'
+          ? 'n8n-manager is resolving local runtime state. This can take a moment when provider setup is wired.'
+          : 'Saving the workspace runtime mode.',
+        true
+      );
       setPendingAction('save');
       vscode.postMessage({
         type: 'configureRuntimeMode',
@@ -1364,6 +1467,14 @@ export class ConfigurationWebview {
       const apiKey = form.apiKey;
 
       if (runtimeMode !== 'connect-existing') {
+        setRuntimeStatus(
+          'progress',
+          runtimeMode === 'managed-local' ? 'Preparing local n8n' : 'Saving generation-only mode',
+          runtimeMode === 'managed-local'
+            ? 'n8n-manager is resolving local runtime state. This can take a moment when provider setup is wired.'
+            : 'Saving the workspace runtime mode.',
+          true
+        );
         setPendingAction('save');
         vscode.postMessage({
           type: 'configureRuntimeMode',
@@ -1467,9 +1578,37 @@ export class ConfigurationWebview {
         return;
       }
 
+      if (message.type === 'runtimeModeStarted') {
+        setPendingAction('save');
+        setRuntimeStatus(
+          'progress',
+          message.mode === 'managed-local' ? 'Preparing local n8n' : 'Saving runtime mode',
+          message.mode === 'managed-local'
+            ? 'n8n-manager accepted the request and is preparing runtime state.'
+            : 'Saving the workspace runtime mode.',
+          true
+        );
+        return;
+      }
+
       if (message.type === 'runtimeModeSaved') {
         clearPendingAction();
         setSaved(true);
+        const instance = message.instance || {};
+        const status = message.status || {};
+        if (message.mode === 'managed-local') {
+          setRuntimeStatus(
+            'success',
+            'Local n8n is delegated to n8n-manager',
+            'Status: ' + (status.status || 'ready') + '. Instance: ' + (instance.id || 'managed-local') + '. Next: initialize AI context, then use runtime actions when available.'
+          );
+        } else {
+          setRuntimeStatus(
+            'success',
+            'Generation-only mode is active',
+            'Workflow generation and validation are available. Deploy, run, and credential actions stay disabled until a runtime mode is selected.'
+          );
+        }
         return;
       }
 
@@ -1480,12 +1619,14 @@ export class ConfigurationWebview {
 
       if (message.type === 'error') {
         clearPendingAction();
+        setRuntimeStatus('', '', '');
         setError(message.message || 'Error');
         return;
       }
 
       if (message.type === 'cancelled') {
         clearPendingAction();
+        setRuntimeStatus('', '', '');
         return;
       }
     });
