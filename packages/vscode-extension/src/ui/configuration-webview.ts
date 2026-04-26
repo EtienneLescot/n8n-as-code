@@ -490,6 +490,11 @@ export class ConfigurationWebview {
       min-height: 128px;
       cursor: pointer;
     }
+    .mode-option.selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-soft);
+      background: color-mix(in srgb, var(--accent-soft) 42%, var(--surface-strong));
+    }
     .mode-option input {
       width: auto;
       min-height: auto;
@@ -524,6 +529,39 @@ export class ConfigurationWebview {
       display: block;
       margin-bottom: 4px;
       font-size: 14px;
+    }
+    .path-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      margin-top: 12px;
+      padding: 14px;
+      border-radius: 16px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+    }
+    .path-title {
+      margin: 0 0 6px;
+      font-size: 15px;
+      font-weight: 650;
+    }
+    .path-copy {
+      margin: 0;
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.45;
+    }
+    .path-next {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.45;
+    }
+    .path-next li + li {
+      margin-top: 3px;
+    }
+    .hidden {
+      display: none !important;
     }
     .toolbar {
       display: flex;
@@ -620,6 +658,7 @@ export class ConfigurationWebview {
     @media (max-width: 860px) {
       .instance-layout,
       .project-grid,
+      .path-panel,
       .mode-grid,
       .field-grid {
         grid-template-columns: 1fr;
@@ -648,9 +687,17 @@ export class ConfigurationWebview {
           </div>
         </div>
         <div id="runtimeModeGrid" class="mode-grid"></div>
+        <div id="runtimePathPanel" class="path-panel">
+          <div>
+            <h3 id="runtimePathTitle" class="path-title">Connect existing n8n</h3>
+            <p id="runtimePathCopy" class="path-copy"></p>
+            <ol id="runtimePathNext" class="path-next"></ol>
+          </div>
+          <button id="runtimePrimaryAction">Continue</button>
+        </div>
       </section>
 
-      <section class="card">
+      <section id="existingInstanceCard" class="card">
         <div class="card-header">
           <div>
             <h2 class="card-title">Instance</h2>
@@ -741,6 +788,12 @@ export class ConfigurationWebview {
 
     const instanceSelectEl = document.getElementById('instanceSelect');
     const runtimeModeGridEl = document.getElementById('runtimeModeGrid');
+    const runtimePathPanelEl = document.getElementById('runtimePathPanel');
+    const runtimePathTitleEl = document.getElementById('runtimePathTitle');
+    const runtimePathCopyEl = document.getElementById('runtimePathCopy');
+    const runtimePathNextEl = document.getElementById('runtimePathNext');
+    const runtimePrimaryActionBtn = document.getElementById('runtimePrimaryAction');
+    const existingInstanceCardEl = document.getElementById('existingInstanceCard');
     const newInstanceBtn = document.getElementById('newInstance');
     const hostEl = document.getElementById('host');
     const apiKeyEl = document.getElementById('apiKey');
@@ -827,6 +880,7 @@ export class ConfigurationWebview {
         input.checked = mode.id === runtimeMode;
         input.addEventListener('change', () => {
           runtimeMode = mode.id;
+          setError('');
           updateModeUi();
         });
 
@@ -918,17 +972,26 @@ export class ConfigurationWebview {
       const savedCount = instances.length;
       const activeLabel = activeInstanceName || activeConfig.instanceName || 'No active instance';
       const isBusy = pendingAction !== '';
+      const isConnectExisting = runtimeMode === 'connect-existing';
+      const isManagedLocal = runtimeMode === 'managed-local';
+      const isGenerationOnly = runtimeMode === 'generation-only';
 
       saveBtn.textContent = pendingAction === 'save'
         ? (draftMode ? 'Adding...' : 'Saving...')
-        : runtimeMode === 'connect-existing'
-          ? 'Save and activate config'
-          : 'Save runtime mode';
+        : 'Save and activate config';
+      runtimePrimaryActionBtn.textContent = pendingAction === 'save'
+        ? (isManagedLocal ? 'Preparing local n8n...' : 'Saving mode...')
+        : isManagedLocal
+          ? 'Prepare local n8n'
+          : isGenerationOnly
+            ? 'Use generation-only mode'
+            : 'Configure existing instance';
       newInstanceBtn.textContent = draftMode ? 'Cancel add' : 'Add instance';
       loadBtn.textContent = pendingAction === 'loadProjects' ? 'Loading...' : 'Load projects';
       deleteBtn.textContent = pendingAction === 'deleteInstance' ? 'Deleting...' : 'Delete config';
       loadBtn.disabled = isBusy || !normalizeHost(hostEl.value) || !(apiKeyEl.value || '').trim();
       saveBtn.disabled = isBusy;
+      runtimePrimaryActionBtn.disabled = isBusy;
       newInstanceBtn.disabled = isBusy;
       deleteBtn.disabled = isBusy || draftMode || !selectedInstanceId;
       instanceSelectEl.disabled = isBusy || !instances.length;
@@ -936,11 +999,13 @@ export class ConfigurationWebview {
       apiKeyEl.disabled = isBusy;
       syncFolderEl.disabled = isBusy;
       projectEl.disabled = isBusy || !projects.length;
-      const runtimeDisabled = runtimeMode !== 'connect-existing';
+      const runtimeDisabled = !isConnectExisting;
       hostEl.disabled = hostEl.disabled || runtimeDisabled;
       apiKeyEl.disabled = apiKeyEl.disabled || runtimeDisabled;
       loadBtn.disabled = loadBtn.disabled || runtimeDisabled;
       saveBtn.disabled = isBusy;
+      existingInstanceCardEl.classList.toggle('hidden', !isConnectExisting);
+      runtimePathPanelEl.classList.toggle('hidden', false);
 
       activeSummaryTitleEl.textContent = 'Active instance';
       activeSummaryNameEl.textContent = activeLabel;
@@ -953,10 +1018,49 @@ export class ConfigurationWebview {
         ? 'Choose a saved instance to edit. It becomes active when you save.'
         : 'Add your first instance to start configuring this workspace.';
 
-      if (runtimeMode === 'managed-local') {
+      if (isManagedLocal) {
         switchHelpEl.textContent = 'n8n-manager will own local runtime setup and starter credential readiness.';
-      } else if (runtimeMode === 'generation-only') {
+      } else if (isGenerationOnly) {
         switchHelpEl.textContent = 'Workflow generation and validation stay available; runtime actions remain disabled.';
+      }
+
+      for (const option of runtimeModeGridEl.querySelectorAll('.mode-option')) {
+        const input = option.querySelector('input[name="runtimeMode"]');
+        const selected = input && input.value === runtimeMode;
+        option.classList.toggle('selected', !!selected);
+      }
+
+      renderRuntimePathCopy();
+    }
+
+    function renderRuntimePathCopy() {
+      runtimePathNextEl.innerHTML = '';
+      const steps = [];
+
+      if (runtimeMode === 'managed-local') {
+        runtimePathTitleEl.textContent = 'Managed local n8n';
+        runtimePathCopyEl.textContent = 'No host or API key is needed here. n8n-manager owns local runtime setup, lifecycle, and starter credential readiness for this facade.';
+        steps.push('Prepare the local runtime with n8n-manager.');
+        steps.push('Then initialize or refresh the AI context from the extension.');
+        steps.push('Use runtime actions once the manager reports the local n8n instance as ready.');
+      } else if (runtimeMode === 'generation-only') {
+        runtimePathTitleEl.textContent = 'Generation only';
+        runtimePathCopyEl.textContent = 'No live n8n runtime is configured. Workflow generation, validation, documentation, and agent context remain available.';
+        steps.push('Save this mode for the workspace.');
+        steps.push('Generate and validate workflows without deploy, run, or credential actions.');
+        steps.push('Switch to a runtime mode later when execution is needed.');
+      } else {
+        runtimePathTitleEl.textContent = 'Connect existing n8n';
+        runtimePathCopyEl.textContent = 'Use this path when you already have an n8n instance and API key. The extension will store the connection and activate it for this workspace.';
+        steps.push('Enter the n8n host URL and API key below.');
+        steps.push('Load projects, choose the project and sync folder.');
+        steps.push('Save and activate the instance.');
+      }
+
+      for (const step of steps) {
+        const item = document.createElement('li');
+        item.textContent = step;
+        runtimePathNextEl.appendChild(item);
       }
     }
 
@@ -1229,6 +1333,26 @@ export class ConfigurationWebview {
     projectEl.addEventListener('change', updateModeUi);
     renderRuntimeModes();
 
+    runtimePrimaryActionBtn.addEventListener('click', () => {
+      if (pendingAction) {
+        return;
+      }
+
+      setError('');
+
+      if (runtimeMode === 'connect-existing') {
+        hostEl.focus();
+        existingInstanceCardEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+
+      setPendingAction('save');
+      vscode.postMessage({
+        type: 'configureRuntimeMode',
+        mode: runtimeMode,
+      });
+    });
+
     saveBtn.addEventListener('click', () => {
       if (pendingAction) {
         return;
@@ -1338,6 +1462,12 @@ export class ConfigurationWebview {
       }
 
       if (message.type === 'saved') {
+        clearPendingAction();
+        setSaved(true);
+        return;
+      }
+
+      if (message.type === 'runtimeModeSaved') {
         clearPendingAction();
         setSaved(true);
         return;
