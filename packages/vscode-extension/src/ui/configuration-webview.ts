@@ -186,6 +186,8 @@ export class ConfigurationWebview {
             }
 
             const facade = createN8nManagerFacade();
+            const workspaceRoot = getWorkspaceRoot();
+            const syncFolder = String(message.syncFolder || '').trim() || 'workflows';
             this._panel.webview.postMessage({
               type: 'runtimeModeStarted',
               mode,
@@ -209,11 +211,66 @@ export class ConfigurationWebview {
             });
 
             const status = await facade.status();
+            let activatedConfig: { host?: string; syncFolder?: string; projectName?: string } | undefined;
+
+            if (mode === 'managed-local' && status.status === 'ready' && workspaceRoot) {
+              const managed = await facade.getManagedInstance();
+              if (!managed?.baseUrl || !managed.apiKey) {
+                throw new Error('n8n-manager reports local n8n ready, but no managed API key is available yet.');
+              }
+
+              const client = new N8nApiClient({ host: managed.baseUrl, apiKey: managed.apiKey } as IN8nCredentials);
+              const projects = (await client.getProjects()) as any[];
+              const selectedProject = projects.find((project) => project.type === 'personal') || projects[0];
+              if (!selectedProject) {
+                throw new Error('Managed local n8n is ready, but no n8n project is available to sync.');
+              }
+
+              const configService = new ConfigService(workspaceRoot);
+              const existingManagedInstance = configService
+                .listInstances()
+                .find((candidate) => normalizeHost(candidate.host || '') === normalizeHost(managed.baseUrl || ''));
+
+              await writeUnifiedWorkspaceConfig({
+                workspaceRoot,
+                host: managed.baseUrl,
+                apiKey: managed.apiKey,
+                syncFolder,
+                projectId: selectedProject.id,
+                projectName: selectedProject.type === 'personal' ? 'Personal' : selectedProject.name,
+                instanceId: existingManagedInstance?.id,
+                instanceName: existingManagedInstance?.name || 'Managed local n8n',
+                createNew: !existingManagedInstance,
+                setActive: true,
+              });
+
+              await clearLegacyWorkspaceSettings();
+              await this.postInitialState();
+
+              void vscode.commands.executeCommand('n8n.init');
+              activatedConfig = {
+                host: managed.baseUrl,
+                syncFolder,
+                projectName: selectedProject.type === 'personal' ? 'Personal' : selectedProject.name,
+              };
+            }
+
             this._panel.webview.postMessage({
               type: 'runtimeModeSaved',
               mode,
               instance,
               status,
+              activatedConfig,
+            });
+            return;
+          }
+
+          case 'loadCredentialInventory': {
+            const facade = createN8nManagerFacade();
+            const inventory = await facade.getCredentialInventory();
+            this._panel.webview.postMessage({
+              type: 'credentialInventoryLoaded',
+              items: inventory.availableCredentials,
             });
             return;
           }
@@ -609,6 +666,31 @@ export class ConfigurationWebview {
       min-height: auto;
       margin-top: 2px;
     }
+    .credential-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .credential-row {
+      display: grid;
+      grid-template-columns: minmax(140px, 1.2fr) minmax(90px, 0.7fr) minmax(90px, 0.7fr);
+      gap: 10px;
+      align-items: center;
+      padding: 10px 0;
+      border-top: 1px solid var(--vscode-panel-border);
+      font-size: 12px;
+    }
+    .credential-row:first-child {
+      border-top: 0;
+    }
+    .credential-name {
+      color: var(--vscode-foreground);
+      font-weight: 600;
+    }
+    .credential-meta,
+    .credential-status {
+      color: var(--vscode-descriptionForeground);
+    }
     .runtime-status strong {
       display: block;
       color: var(--vscode-foreground);
@@ -746,6 +828,9 @@ export class ConfigurationWebview {
       .field-grid {
         grid-template-columns: 1fr;
       }
+      .credential-row {
+        grid-template-columns: 1fr;
+      }
       .page {
         padding: 16px 12px 24px;
       }
@@ -790,15 +875,15 @@ export class ConfigurationWebview {
       <section id="existingInstanceCard" class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Instance</h2>
-            <p class="card-copy">Enter the URL and API key of an existing n8n instance. Select a saved instance to edit it, then save to make it active in this workspace.</p>
+            <h2 id="instanceCardTitle" class="card-title">Instance</h2>
+            <p id="instanceCardCopy" class="card-copy">Enter the URL and API key of an existing n8n instance. Select a saved instance to edit it, then save to make it active in this workspace.</p>
           </div>
           <button id="newInstance" class="secondary">Add instance</button>
         </div>
 
         <div class="instance-layout">
           <div class="stack">
-            <div class="field-grid">
+            <div id="connectionFields" class="field-grid">
               <div class="field full">
                 <label for="host">n8n host URL</label>
                 <input id="host" type="text" placeholder="https://my-instance.app.n8n.cloud" />
@@ -816,7 +901,7 @@ export class ConfigurationWebview {
           </div>
 
           <div class="stack">
-            <div class="selector-panel">
+            <div id="instanceLibraryPanel" class="selector-panel">
               <h3>Select instance</h3>
               <div class="field">
                 <label for="instanceSelect">Select instance</label>
@@ -867,6 +952,19 @@ export class ConfigurationWebview {
           <button id="save">Save and activate config</button>
         </div>
       </section>
+
+      <section id="credentialsCard" class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Credentials</h2>
+            <p class="card-copy">Review credential readiness for this runtime. Creation, update, and delete operations are delegated to n8n-manager.</p>
+          </div>
+          <button id="loadCredentials" class="secondary">Refresh</button>
+        </div>
+        <div id="credentialList" class="credential-list">
+          <div class="hint">Prepare a runtime, then refresh credential readiness.</div>
+        </div>
+      </section>
     </div>
     <div id="message" class="message error"></div>
     <div id="saved" class="message ok">Saved.</div>
@@ -886,7 +984,14 @@ export class ConfigurationWebview {
     const enableTunnelEl = document.getElementById('enableTunnel');
     const runtimeStatusEl = document.getElementById('runtimeStatus');
     const runtimePrimaryActionBtn = document.getElementById('runtimePrimaryAction');
+    const credentialsCardEl = document.getElementById('credentialsCard');
+    const loadCredentialsBtn = document.getElementById('loadCredentials');
+    const credentialListEl = document.getElementById('credentialList');
     const existingInstanceCardEl = document.getElementById('existingInstanceCard');
+    const instanceCardTitleEl = document.getElementById('instanceCardTitle');
+    const instanceCardCopyEl = document.getElementById('instanceCardCopy');
+    const connectionFieldsEl = document.getElementById('connectionFields');
+    const instanceLibraryPanelEl = document.getElementById('instanceLibraryPanel');
     const newInstanceBtn = document.getElementById('newInstance');
     const hostEl = document.getElementById('host');
     const apiKeyEl = document.getElementById('apiKey');
@@ -982,6 +1087,40 @@ export class ConfigurationWebview {
         const progress = document.createElement('div');
         progress.className = 'runtime-progress';
         runtimeStatusEl.appendChild(progress);
+      }
+    }
+
+    function renderCredentialInventory(items) {
+      credentialListEl.innerHTML = '';
+      const credentials = Array.isArray(items) ? items : [];
+      if (!credentials.length) {
+        const empty = document.createElement('div');
+        empty.className = 'hint';
+        empty.textContent = 'No credential recipes reported yet.';
+        credentialListEl.appendChild(empty);
+        return;
+      }
+
+      for (const item of credentials) {
+        const row = document.createElement('div');
+        row.className = 'credential-row';
+
+        const name = document.createElement('div');
+        name.className = 'credential-name';
+        name.textContent = item.credentialName || item.recipeId || 'Credential';
+
+        const meta = document.createElement('div');
+        meta.className = 'credential-meta';
+        meta.textContent = item.service ? item.service + ' · ' + item.credentialTypeName : item.credentialTypeName;
+
+        const status = document.createElement('div');
+        status.className = 'credential-status';
+        status.textContent = item.status + (item.reason ? ' · ' + item.reason : '');
+
+        row.appendChild(name);
+        row.appendChild(meta);
+        row.appendChild(status);
+        credentialListEl.appendChild(row);
       }
     }
 
@@ -1099,8 +1238,10 @@ export class ConfigurationWebview {
       const isGenerationOnly = runtimeMode === 'generation-only';
 
       saveBtn.textContent = pendingAction === 'save'
-        ? (draftMode ? 'Adding...' : 'Saving...')
-        : 'Save and activate config';
+        ? (isManagedLocal ? 'Preparing...' : (draftMode ? 'Adding...' : 'Saving...'))
+        : isManagedLocal
+          ? 'Prepare and activate managed n8n'
+          : 'Save and activate config';
       runtimePrimaryActionBtn.textContent = pendingAction === 'save'
         ? (isManagedLocal ? 'Preparing local n8n...' : 'Saving mode...')
         : isManagedLocal
@@ -1114,7 +1255,8 @@ export class ConfigurationWebview {
       loadBtn.disabled = isBusy || !normalizeHost(hostEl.value) || !(apiKeyEl.value || '').trim();
       saveBtn.disabled = isBusy;
       runtimePrimaryActionBtn.disabled = isBusy;
-      newInstanceBtn.disabled = isBusy;
+      loadCredentialsBtn.disabled = isBusy;
+      newInstanceBtn.disabled = isBusy || isManagedLocal;
       deleteBtn.disabled = isBusy || draftMode || !selectedInstanceId;
       instanceSelectEl.disabled = isBusy || !instances.length;
       hostEl.disabled = isBusy;
@@ -1126,7 +1268,15 @@ export class ConfigurationWebview {
       apiKeyEl.disabled = apiKeyEl.disabled || runtimeDisabled;
       loadBtn.disabled = loadBtn.disabled || runtimeDisabled;
       saveBtn.disabled = isBusy;
-      existingInstanceCardEl.classList.toggle('hidden', !isConnectExisting);
+      existingInstanceCardEl.classList.toggle('hidden', isGenerationOnly);
+      connectionFieldsEl.classList.toggle('hidden', !isConnectExisting);
+      instanceLibraryPanelEl.classList.toggle('hidden', isManagedLocal);
+      newInstanceBtn.classList.toggle('hidden', isManagedLocal);
+      credentialsCardEl.classList.toggle('hidden', isGenerationOnly);
+      instanceCardTitleEl.textContent = isManagedLocal ? 'Managed workspace sync' : 'Instance';
+      instanceCardCopyEl.textContent = isManagedLocal
+        ? 'Choose the local sync folder. n8n-manager supplies the local URL and API key, and the extension saves the active workspace config after setup.'
+        : 'Enter the URL and API key of an existing n8n instance. Select a saved instance to edit it, then save to make it active in this workspace.';
       runtimePathPanelEl.classList.toggle('hidden', false);
       runtimeOptionsEl.classList.toggle('hidden', !isManagedLocal);
 
@@ -1164,8 +1314,8 @@ export class ConfigurationWebview {
         runtimePathTitleEl.textContent = 'Managed local n8n';
         runtimePathCopyEl.textContent = 'No host or API key is needed here. n8n-manager owns local runtime setup, lifecycle, and starter credential readiness for this facade.';
         steps.push('Prepare the local runtime with n8n-manager.');
-        steps.push('Then initialize or refresh the AI context from the extension.');
-        steps.push('Use runtime actions once the manager reports the local n8n instance as ready.');
+        steps.push('The extension stores the managed URL/API key, auto-selects the n8n project, and uses the sync folder value from this form.');
+        steps.push('Workflow list and runtime actions become available once initialization completes.');
       } else if (runtimeMode === 'generation-only') {
         runtimePathTitleEl.textContent = 'Generation only';
         runtimePathCopyEl.textContent = 'No live n8n runtime is configured. Workflow generation, validation, documentation, and agent context remain available.';
@@ -1456,6 +1606,14 @@ export class ConfigurationWebview {
     projectEl.addEventListener('change', updateModeUi);
     renderRuntimeModes();
 
+    loadCredentialsBtn.addEventListener('click', () => {
+      if (pendingAction) {
+        return;
+      }
+      credentialListEl.innerHTML = '<div class="hint">Loading credential readiness...</div>';
+      vscode.postMessage({ type: 'loadCredentialInventory' });
+    });
+
     runtimePrimaryActionBtn.addEventListener('click', () => {
       if (pendingAction) {
         return;
@@ -1483,6 +1641,7 @@ export class ConfigurationWebview {
         type: 'configureRuntimeMode',
         mode: runtimeMode,
         tunnel: enableTunnelEl.checked,
+        syncFolder: (syncFolderEl.value || '').trim() || 'workflows',
       });
     });
 
@@ -1510,6 +1669,7 @@ export class ConfigurationWebview {
           type: 'configureRuntimeMode',
           mode: runtimeMode,
           tunnel: enableTunnelEl.checked,
+          syncFolder: form.syncFolder,
         });
         return;
       }
@@ -1627,6 +1787,7 @@ export class ConfigurationWebview {
         setSaved(true);
         const instance = message.instance || {};
         const status = message.status || {};
+        const activated = message.activatedConfig || {};
         if (message.mode === 'managed-local') {
           const checkMessages = Array.isArray(status.checks)
             ? status.checks
@@ -1640,8 +1801,11 @@ export class ConfigurationWebview {
             'Status: ' + (status.status || 'unknown')
               + '. URL: ' + (instance.baseUrl || 'not available yet')
               + '. Container: ' + (instance.containerName || instance.id || 'managed-local')
-              + '. ' + (checkMessages || 'Next: open the local n8n URL, finish first-run setup if n8n asks for an owner account, then initialize AI context.')
+              + '. Sync folder: ' + (activated.syncFolder || 'workflows')
+              + '. Project: ' + (activated.projectName || 'auto-selected')
+              + '. ' + (checkMessages || 'Next: initialize AI context and use runtime actions.')
           );
+          vscode.postMessage({ type: 'loadCredentialInventory' });
         } else {
           setRuntimeStatus(
             'success',
@@ -1649,6 +1813,11 @@ export class ConfigurationWebview {
             'Workflow generation and validation are available. Deploy, run, and credential actions stay disabled until a runtime mode is selected.'
           );
         }
+        return;
+      }
+
+      if (message.type === 'credentialInventoryLoaded') {
+        renderCredentialInventory(message.items || []);
         return;
       }
 

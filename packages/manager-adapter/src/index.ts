@@ -39,6 +39,7 @@ export interface N8nFacadeSetupInput {
 export interface N8nManagerFacade {
   setup(input: N8nFacadeSetupInput): Promise<N8nInstanceRef>;
   status(): Promise<N8nHealthSnapshot>;
+  getManagedInstance(): Promise<N8nInstanceRef | undefined>;
   listSetupModes(): typeof N8N_FACADE_SETUP_MODES;
   listCredentialRecipes(): Promise<CredentialRecipe[]>;
   listStarterKits(): Promise<StarterKit[]>;
@@ -82,6 +83,7 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
       });
     },
     status: () => lifecycle.status(),
+    getManagedInstance: () => readFileBackedN8nInstance(statePath),
     listSetupModes: () => N8N_FACADE_SETUP_MODES,
     listCredentialRecipes: async () => (await createCredentialsManager()).listRecipes(),
     listStarterKits: async () => (await createCredentialsManager()).listStarterKits(),
