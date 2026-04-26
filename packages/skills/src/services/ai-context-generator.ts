@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { resolveN8nacCommandRefs, type N8nacCommandRefs } from './cli-command-resolver.js';
 
 // Helper to get __dirname in ESM
 const _filename = typeof __filename !== 'undefined'
@@ -56,17 +57,20 @@ export class AiContextGenerator {
     return Math.max(...versions.map((v: any) => Number(v)));
   }
 
-  private getCommandRefs(distTag?: string, cliCommandOverride?: string): { cliCmd: string; skillsCmd: string } {
-    if (cliCommandOverride) {
-      return {
-        skillsCmd: `${cliCommandOverride} skills`,
-        cliCmd: cliCommandOverride,
-      };
-    }
-    return {
-      skillsCmd: distTag ? `npx --yes n8nac@${distTag} skills` : 'npx --yes n8nac skills',
-      cliCmd: distTag ? `npx --yes n8nac@${distTag}` : 'npx --yes n8nac',
-    };
+  private getCommandRefs(distTag?: string, cliCommandOverride?: string, projectRoot?: string): N8nacCommandRefs {
+    return resolveN8nacCommandRefs({
+      projectRoot,
+      distTag,
+      override: cliCommandOverride,
+    });
+  }
+
+  private applyCommandRefs(content: string, refs: N8nacCommandRefs): string {
+    return content
+      .replaceAll('npx --yes n8nac@next skills', `${refs.cliCmd} skills`)
+      .replaceAll('npx --yes n8nac@next', refs.cliCmd)
+      .replaceAll('npx --yes n8nac skills', refs.skillsCmd)
+      .replaceAll('npx --yes n8nac', refs.cliCmd);
   }
 
   /**
@@ -287,7 +291,7 @@ export class AiContextGenerator {
     distTag?: string,
     options: { cliCommandOverride?: string; cliVersion?: string } = {},
   ): Promise<void> {
-    const agentsContent = this.getAgentsContent(n8nVersion, distTag, options);
+    const agentsContent = this.getAgentsContent(n8nVersion, distTag, options, projectRoot);
 
     // 1. AGENTS.md (Central documentation)
     this.injectOrUpdate(path.join(projectRoot, 'AGENTS.md'), agentsContent, true);
@@ -325,8 +329,9 @@ export class AiContextGenerator {
     n8nVersion: string,
     distTag?: string,
     options: { cliCommandOverride?: string; cliVersion?: string } = {},
+    projectRoot?: string,
   ): string {
-    const { cliCmd, skillsCmd: cmd } = this.getCommandRefs(distTag, options.cliCommandOverride);
+    const { cliCmd, skillsCmd: cmd } = this.getCommandRefs(distTag, options.cliCommandOverride, projectRoot);
     const versionStamp = options.cliVersion ? [`<!-- n8nac-version: ${options.cliVersion} -->`, ``] : [];
     return [
       ...versionStamp,
@@ -686,8 +691,9 @@ export class AiContextGenerator {
   }
 
   getSkillContent(): string {
-    const { cliCmd, skillsCmd } = this.getCommandRefs();
-    return `---
+    const refs = this.getCommandRefs();
+    const { cliCmd, skillsCmd } = refs;
+    return this.applyCommandRefs(`---
 name: n8n-architect
 description: Expert assistant for n8n workflow development. Use when the user asks about n8n workflows, nodes, automation, or needs help creating/editing n8n JSON configurations. Provides access to complete n8n node documentation and prevents parameter hallucination.
 ---
@@ -936,7 +942,7 @@ When a workflow is blocked because a credential is missing, resolve it without o
 If \`credential create\` fails, read the returned validation message and change the payload before retrying. Never rerun the same failing command unchanged. If a subcommand is unfamiliar, run \`npx --yes n8nac <subcommand> --help\` instead of inventing flags.
 
 ${this.getSharedResponseFormatLines(cliCmd).join('\n')}
-`;
+`, refs);
   }
 
   /**
@@ -945,7 +951,8 @@ ${this.getSharedResponseFormatLines(cliCmd).join('\n')}
    * and the lighter OpenClaw prompt/skill handoff to workspace AGENTS.md.
    */
   getOpenClawSkillContent(): string {
-    const { skillsCmd } = this.getCommandRefs();
+    const refs = this.getCommandRefs();
+    const { skillsCmd } = refs;
     const workflowMapLines = this.getWorkflowMapGuidanceLines()
       .map((line) => line === '## 🗺️ Reading Workflow Files Efficiently'
         ? '## Reading workflow files efficiently'
@@ -954,7 +961,7 @@ ${this.getSharedResponseFormatLines(cliCmd).join('\n')}
       .map((line) => line === '### AI Tool Nodes'
         ? '### AI tool nodes'
         : line);
-    return `---
+    return this.applyCommandRefs(`---
 name: n8n-architect
 description: Use when the user explicitly wants to create, edit, validate, sync, or troubleshoot n8n workflows, asks about n8n nodes or automation, or wants to use the n8nac tool.
 ---
@@ -985,7 +992,7 @@ Use this skill only for explicit n8n workflow work.
 ${workflowMapLines.join('\n')}
 
 ${toolGuidanceLines.join('\n')}
-`;
+`, refs);
   }
 
 }

@@ -17,7 +17,8 @@ import { ConfigService } from '../services/config-service.js';
 import dotenv from 'dotenv';
 
 /** Returns 'next' for pre-release builds, undefined for stable builds.
- * AGENTS.md will use `npx --yes n8nac@next` vs `npx --yes n8nac` accordingly. */
+ * The generated command is resolved centrally by @n8n-as-code/skills:
+ * --cli-cmd > N8NAC_COMMAND > .n8nac-dev.json > published npx command. */
 function getDistTag(): string | undefined {
     try {
         const __dir = dirname(fileURLToPath(import.meta.url));
