@@ -132,6 +132,30 @@ From a user point of view, this is a major step forward: the agent is no longer 
 
 Detailed commands live in the [CLI guide](https://n8nascode.dev/docs/usage/cli/).
 
+### Architecture direction: two engines, one product experience
+
+`n8n-as-code` is both the user-facing product experience and the home of the workflow intelligence engine.
+
+The architecture is intentionally split:
+
+- `workflow-core` remains independent and owns workflow representation, generation, validation, schemas, templates, and node knowledge.
+- `n8n-manager` remains independent and owns n8n setup, diagnostics, credentials readiness, starter kits, deployment, execution, and inspection.
+- Facades such as `n8nac`, the VS Code/Cursor extension, MCP, Claude Code, OpenClaw, and YAGR integrations may orchestrate both.
+
+The core workflow packages do not depend on `n8n-manager`. The facades may use `n8n-manager` to provide a complete runtime-ready experience.
+
+All facades should converge on the same setup choice:
+
+```txt
+How do you want to use n8n?
+
+[Recommended] Create and manage a local n8n automatically
+[Connect an existing n8n]
+[Use generation-only mode]
+```
+
+After that, the same facade can offer starter credentials, workflow generation, deployment, execution, and inspection.
+
 ### ⌨️ CLI
 
 Explicit terminal-first workflow for sync and automation.
@@ -306,9 +330,9 @@ You can keep multiple saved instance configs in the same workspace and switch wh
 
 | Package | What it does | Install |
 |:--------|:-------------|:--------|
-| **[n8nac](packages/cli)** | CLI — sync, convert, validate, search | `npx n8nac` |
-| **[VS Code Extension](packages/vscode-extension)** | Visual UI — sidebar, canvas, push-on-save | [Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) |
-| **[@n8n-as-code/n8nac](plugins/openclaw/n8n-as-code)** | OpenClaw plugin — setup wizard, prompt context, workflow operations | `openclaw plugins install @n8n-as-code/n8nac` |
+| **[n8nac](packages/cli)** | CLI facade — workflow intelligence plus optional runtime setup, credentials, deploy, run | `npx n8nac` |
+| **[VS Code Extension](packages/vscode-extension)** | Visual facade — sidebar, canvas, setup choices, credentials, push-on-save | [Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) |
+| **[@n8n-as-code/n8nac](plugins/openclaw/n8n-as-code)** | OpenClaw facade — setup wizard, prompt context, workflow operations, runtime loop | `openclaw plugins install @n8n-as-code/n8nac` |
 | **[@n8n-as-code/skills](packages/skills)** | AI Skill — knowledge base, search, schemas | `npm i @n8n-as-code/skills` |
 | **[@n8n-as-code/transformer](packages/transformer)** | JSON ↔ TypeScript converter | `npm i @n8n-as-code/transformer` |
 
@@ -326,20 +350,27 @@ You can keep multiple saved instance configs in the same workspace and switch wh
                     |                      |
                     v                      v
 +-------------------+----------------------+-----------------------+
-|                          Core Services                          |
+|                      Product Facades / Apps                     |
 |                                                                  |
-|  [Sync Engine]                 [Transformer]                     |
-|  3-way merge / conflicts       JSON <-> TypeScript              |
+|  [n8nac] [VS Code/Cursor] [MCP] [Claude/OpenClaw] [YAGR]        |
 +-------------------------------+----------------------------------+
-                                |
-                                v
+                    |                              |
+                    v                              v
 +------------------------------------------------------------------+
-|                           AI Skills Layer                        |
+|                    Independent Workflow Engine                   |
 |                                                                  |
-|  537 nodes / 10,209 properties / 1,243 docs / 7,702 workflows    |
-|  FlexSearch (~5ms) / Schema validation / Node info / examples    |
+|  workflow-core / schemas / templates / transformer / validation  |
++------------------------------------------------------------------+
+                    |
+                    v
++------------------------------------------------------------------+
+|                    Independent Runtime Engine                    |
+|                                                                  |
+|  n8n-manager / credentials / starter kits / deploy / run         |
 +------------------------------------------------------------------+
 ```
+
+Facades import both engines when they need the full product loop. The workflow engine and runtime engine remain independent from each other.
 
 ---
 

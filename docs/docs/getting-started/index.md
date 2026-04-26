@@ -10,6 +10,14 @@ This guide walks you through setup and your first workflow sync in under 5 minut
 
 ## Prerequisites
 
+Choose one of these modes:
+
+- **Connect an existing n8n** — provide an n8n host URL and API key.
+- **Create and manage local n8n automatically** — the facade can delegate setup, diagnostics, and credentials readiness to `n8n-manager`.
+- **Generation-only mode** — use workflow intelligence without a connected runtime.
+
+For the existing-instance path, you need:
+
 - An **n8n instance** (cloud or self-hosted)
 - An **API key** from your n8n instance (Settings → API)
 
@@ -24,7 +32,19 @@ The VS Code extension gives you the best experience: visual tree view, push/pull
 3. Search for **n8n-as-code**
 4. Click **Install**
 
-### 2. Connect to n8n
+### 2. Choose how to use n8n
+
+All n8n-as-code facades should converge toward the same setup choice:
+
+```txt
+How do you want to use n8n?
+
+[Recommended] Create and manage a local n8n automatically
+[Connect an existing n8n]
+[Use generation-only mode]
+```
+
+The current extension path is existing-instance first:
 
 1. Click the **n8n** icon in the Activity Bar
 2. Click **n8n: Configure** (or the gear icon)
@@ -71,7 +91,14 @@ The CLI was previously published as `@n8n-as-code/cli`, which is now deprecated.
 n8nac init
 ```
 
-The wizard asks for:
+The wizard is evolving toward the same facade-level choice:
+
+- create and manage a local n8n automatically
+- connect an existing n8n
+- use generation-only mode
+
+For the existing-instance path, it asks for:
+
 - **n8n host URL** — your n8n instance address
 - **API key** — from n8n Settings → API  
 - **Sync folder** — where to store workflow files (default: `workflows`)
@@ -106,6 +133,8 @@ In practice, that means an agent can now:
 - inspect the resulting execution directly from n8n when the run fails on the server
 
 This is especially important for AI-assisted workflow development: the agent is no longer limited to editing workflow files. It can now help you reach a successful execution and debug real runtime failures using execution data returned by n8n.
+
+This runtime loop should not be specific to one facade. The same capabilities should become available through the CLI, extension, MCP server, Claude/OpenClaw plugins, and YAGR integration. Internally, workflow intelligence comes from the n8n-as-code workflow engine, while setup, credentials, deployment, execution, and inspection come from `n8n-manager`.
 
 If you want the exact commands for this loop, see the [CLI guide](/docs/usage/cli).
 
