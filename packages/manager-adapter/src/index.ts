@@ -1,4 +1,9 @@
-import { FileBackedN8nLifecycleManager, type N8nHealthSnapshot, type N8nInstanceRef } from '@n8n-as-code/n8n-manager-core';
+import {
+  FileBackedN8nLifecycleManager,
+  readFileBackedN8nInstance,
+  type N8nHealthSnapshot,
+  type N8nInstanceRef,
+} from '@n8n-as-code/n8n-manager-core';
 import {
   N8nCredentialsManager,
   N8nRestCredentialClient,
@@ -27,6 +32,8 @@ export interface N8nFacadeSetupInput {
   mode: N8nFacadeSetupMode;
   n8nHost?: string;
   n8nApiKeyRef?: string;
+  tunnel?: boolean;
+  bootstrapOwner?: boolean;
 }
 
 export interface N8nManagerFacade {
@@ -43,13 +50,25 @@ export interface N8nManagerFacade {
 }
 
 export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N8nManagerFacade {
-  const lifecycle = new FileBackedN8nLifecycleManager(options.statePath ?? process.env.N8N_MANAGER_STATE_PATH);
-  const credentials = new N8nCredentialsManager({
-    projectId: options.projectId,
-    client: options.n8nHost && options.n8nApiKey
-      ? new N8nRestCredentialClient({ baseUrl: options.n8nHost, apiKey: options.n8nApiKey })
-      : undefined,
-  });
+  const statePath = options.statePath ?? process.env.N8N_MANAGER_STATE_PATH;
+  const lifecycle = new FileBackedN8nLifecycleManager(statePath);
+
+  async function createCredentialsManager(): Promise<N8nCredentialsManager> {
+    if (options.n8nHost && options.n8nApiKey) {
+      return new N8nCredentialsManager({
+        projectId: options.projectId,
+        client: new N8nRestCredentialClient({ baseUrl: options.n8nHost, apiKey: options.n8nApiKey }),
+      });
+    }
+
+    const managed = await readFileBackedN8nInstance(statePath);
+    return new N8nCredentialsManager({
+      projectId: options.projectId,
+      client: managed?.baseUrl && managed.apiKey
+        ? new N8nRestCredentialClient({ baseUrl: managed.baseUrl, apiKey: managed.apiKey })
+        : undefined,
+    });
+  }
 
   return {
     async setup(input) {
@@ -58,16 +77,18 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
         mode: mode.managerMode,
         baseUrl: input.n8nHost ?? options.n8nHost,
         apiKeyRef: input.n8nApiKeyRef,
+        tunnel: input.tunnel,
+        bootstrapOwner: input.bootstrapOwner,
       });
     },
     status: () => lifecycle.status(),
     listSetupModes: () => N8N_FACADE_SETUP_MODES,
-    listCredentialRecipes: () => credentials.listRecipes(),
-    listStarterKits: () => credentials.listStarterKits(),
-    getCredentialInventory: () => credentials.getCredentialInventory(),
-    ensureCredential: (recipeId, input) => credentials.ensureCredential(recipeId, input),
-    deleteCredential: (credentialIdOrRecipeId) => credentials.deleteCredential(credentialIdOrRecipeId),
-    testCredential: (credentialIdOrRecipeId) => credentials.testCredential(credentialIdOrRecipeId),
-    bootstrapStarterKit: (starterKitId, inputs) => credentials.bootstrapStarterKit(starterKitId, inputs),
+    listCredentialRecipes: async () => (await createCredentialsManager()).listRecipes(),
+    listStarterKits: async () => (await createCredentialsManager()).listStarterKits(),
+    getCredentialInventory: async () => (await createCredentialsManager()).getCredentialInventory(),
+    ensureCredential: async (recipeId, input) => (await createCredentialsManager()).ensureCredential(recipeId, input),
+    deleteCredential: async (credentialIdOrRecipeId) => (await createCredentialsManager()).deleteCredential(credentialIdOrRecipeId),
+    testCredential: async (credentialIdOrRecipeId) => (await createCredentialsManager()).testCredential(credentialIdOrRecipeId),
+    bootstrapStarterKit: async (starterKitId, inputs) => (await createCredentialsManager()).bootstrapStarterKit(starterKitId, inputs),
   };
 }
