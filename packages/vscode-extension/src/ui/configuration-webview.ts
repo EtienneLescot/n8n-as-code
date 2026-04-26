@@ -1597,10 +1597,19 @@ export class ConfigurationWebview {
         const instance = message.instance || {};
         const status = message.status || {};
         if (message.mode === 'managed-local') {
+          const checkMessages = Array.isArray(status.checks)
+            ? status.checks
+                .map((check) => check && check.message ? check.message : '')
+                .filter(Boolean)
+                .join(' ')
+            : '';
           setRuntimeStatus(
             'success',
-            'Local n8n is delegated to n8n-manager',
-            'Status: ' + (status.status || 'ready') + '. Instance: ' + (instance.id || 'managed-local') + '. Next: initialize AI context, then use runtime actions when available.'
+            'Local n8n is managed by n8n-manager',
+            'Status: ' + (status.status || 'unknown')
+              + '. URL: ' + (instance.baseUrl || 'not available yet')
+              + '. Container: ' + (instance.containerName || instance.id || 'managed-local')
+              + '. ' + (checkMessages || 'Next: open the local n8n URL, finish first-run setup if n8n asks for an owner account, then initialize AI context.')
           );
         } else {
           setRuntimeStatus(
