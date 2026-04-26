@@ -6,41 +6,86 @@ description: Understand the n8n-as-code monorepo architecture, component interac
 
 # Architecture Overview
 
-n8n-as-code is a monorepo built with a modular architecture that separates concerns while maintaining tight integration between components.
+n8n-as-code is a monorepo built with a modular architecture that separates workflow intelligence from user-facing facades.
+
+The public brand can stay unified as `n8n-as-code` / `n8nac`, but internally there are three roles:
+
+1. **Workflow engine**: independent workflow representation, generation, validation, schemas, templates, and node knowledge.
+2. **Runtime engine**: independent `n8n-manager` repo for setup, diagnostics, credentials, deployment, execution, and inspection.
+3. **Facades**: CLI, VS Code/Cursor extension, MCP, Claude Code, OpenClaw, YAGR integrations, and future apps that orchestrate both engines.
+
+The workflow engine must not depend on `n8n-manager`. `n8n-manager` must not depend on the workflow engine. Facades may depend on both.
 
 ## 🏗️ Monorepo Structure
 
 ```
 n8n-as-code/
 ├── packages/
-│   ├── cli/            # Command-line interface + embedded sync engine
-│   ├── skills/      # AI agent integration
-│   └── vscode-extension/ # VS Code extension
+│   ├── cli/              # n8nac facade + current embedded sync engine
+│   ├── skills/           # Workflow intelligence and AI agent context
+│   ├── transformer/      # Workflow JSON <-> TypeScript conversion
+│   └── vscode-extension/ # VS Code/Cursor facade
 ├── docs/               # Documentation (Docusaurus)
 ├── scripts/            # Build and utility scripts
 └── plans/              # Architecture planning documents
+```
+
+Target package direction:
+
+```txt
+packages/
+  workflow-core/      # independent workflow intelligence
+  validator/
+  schemas/
+  templates/
+  transformer/
+  manager-adapter/    # optional facade bridge to n8n-manager
+
+apps/
+  cli/
+  vscode-extension/
+
+integrations/
+  mcp-server/
+  claude-code/
+  openclaw/
+  yagr/
 ```
 
 ## 📦 Package Dependencies
 
 ```mermaid
 graph TD
-    A[VS Code Extension] --> B[CLI - incl. Sync Engine]
-    C[CLI] --> B
-    D[n8nac skills] --> E[n8n API]
-    B --> E
+    A[VS Code / Cursor Facade] --> W[Workflow Engine]
+    C[n8nac CLI Facade] --> W
+    D[Agent Facades: MCP / Claude / OpenClaw / YAGR] --> W
+    A --> M[n8n-manager]
+    C --> M
+    D --> M
+    W -. no dependency .- M
+    M --> E[n8n API]
     
     style A fill:#ff6b35
     style C fill:#ff6b35
     style D fill:#ff6b35
-    style B fill:#2c3e50
+    style W fill:#2c3e50
+    style M fill:#2c3e50
 ```
 
 ### Dependency Flow
-1. **Sync Engine** (embedded in `n8nac`, `cli/src/core`): Shared business logic
-2. **CLI** (`n8nac`): Command-line interface
-3. **VS Code Extension**: Visual interface using `n8nac`
-4. **Skills Library** (`@n8n-as-code/skills`, accessed via `n8nac skills`): AI integration
+1. **Workflow Engine**: Shared workflow intelligence, currently distributed across `cli/src/core`, `@n8n-as-code/skills`, `@n8n-as-code/transformer`, schemas, and generated indexes.
+2. **Runtime Engine**: `n8n-manager`, external repo, owns setup, credentials, diagnostics, deployment, execution, and inspection.
+3. **Facades**: `n8nac`, VS Code/Cursor extension, MCP, Claude Code, OpenClaw, YAGR integration. These provide UX and may orchestrate both engines.
+
+Facade setup UX should converge on:
+
+```txt
+How do you want to use n8n?
+
+[Recommended] Create and manage a local n8n automatically
+[Connect an existing n8n]
+[Use generation-only mode]
+```
 
 ## 🧩 Sync Engine Architecture (inside `cli`)
 
