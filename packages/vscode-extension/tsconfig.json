@@ -9,6 +9,12 @@
     ],
     "references": [
         {
+            "path": "../workflow-core"
+        },
+        {
+            "path": "../manager-adapter"
+        },
+        {
             "path": "../cli"
         }
     ]

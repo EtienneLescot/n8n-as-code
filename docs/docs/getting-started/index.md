@@ -34,7 +34,7 @@ The VS Code extension gives you the best experience: visual tree view, push/pull
 
 ### 2. Choose how to use n8n
 
-All n8n-as-code facades should converge toward the same setup choice:
+All n8n-as-code facades expose the same setup choice:
 
 ```txt
 How do you want to use n8n?
@@ -44,7 +44,7 @@ How do you want to use n8n?
 [Use generation-only mode]
 ```
 
-The current extension path is existing-instance first:
+The current extension can display the shared runtime modes. The existing-instance path is the fully wired sync path:
 
 1. Click the **n8n** icon in the Activity Bar
 2. Click **n8n: Configure** (or the gear icon)
@@ -91,7 +91,15 @@ The CLI was previously published as `@n8n-as-code/cli`, which is now deprecated.
 n8nac init
 ```
 
-The wizard is evolving toward the same facade-level choice:
+You can also select the shared facade runtime mode explicitly:
+
+```bash
+n8nac setup-modes
+n8nac setup --mode generation-only
+n8nac setup --mode connect-existing --host https://your-instance.app.n8n.cloud --api-key-stdin
+```
+
+The facade-level choices are:
 
 - create and manage a local n8n automatically
 - connect an existing n8n
@@ -135,6 +143,16 @@ In practice, that means an agent can now:
 This is especially important for AI-assisted workflow development: the agent is no longer limited to editing workflow files. It can now help you reach a successful execution and debug real runtime failures using execution data returned by n8n.
 
 This runtime loop should not be specific to one facade. The same capabilities should become available through the CLI, extension, MCP server, Claude/OpenClaw plugins, and YAGR integration. Internally, workflow intelligence comes from the n8n-as-code workflow engine, while setup, credentials, deployment, execution, and inspection come from `n8n-manager`.
+
+Credential readiness commands now go through the shared manager adapter:
+
+```bash
+n8nac credentials recipes
+n8nac credentials starter-kits
+n8nac credentials inventory
+n8nac credentials ensure http-bearer --value token=...
+n8nac credentials test http-bearer
+```
 
 If you want the exact commands for this loop, see the [CLI guide](/docs/usage/cli).
 

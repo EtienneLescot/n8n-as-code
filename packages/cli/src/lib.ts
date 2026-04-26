@@ -4,6 +4,8 @@
  * so consumers can simply change their import path without touching business logic.
  */
 export * from './core/index.js';
+export * from '@n8n-as-code/workflow-core';
+export * from '@n8n-as-code/manager-adapter';
 export {
     ConfigService,
     type ILocalConfig,

@@ -5,6 +5,12 @@
             "path": "packages/transformer"
         },
         {
+            "path": "packages/workflow-core"
+        },
+        {
+            "path": "packages/manager-adapter"
+        },
+        {
             "path": "packages/skills"
         },
         {
