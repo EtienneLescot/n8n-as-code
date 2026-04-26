@@ -12,6 +12,9 @@ type UiProject = {
   type?: string;
 };
 
+const MANAGED_LOCAL_PROJECT_ID = 'personal';
+const MANAGED_LOCAL_PROJECT_NAME = 'Personal';
+
 function normalizeHost(host: string): string {
   const trimmed = (host || '').trim();
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
@@ -219,13 +222,6 @@ export class ConfigurationWebview {
                 throw new Error('n8n-manager reports local n8n ready, but no managed API key is available yet.');
               }
 
-              const client = new N8nApiClient({ host: managed.baseUrl, apiKey: managed.apiKey } as IN8nCredentials);
-              const projects = (await client.getProjects()) as any[];
-              const selectedProject = projects.find((project) => project.type === 'personal') || projects[0];
-              if (!selectedProject) {
-                throw new Error('Managed local n8n is ready, but no n8n project is available to sync.');
-              }
-
               const configService = new ConfigService(workspaceRoot);
               const existingManagedInstance = configService
                 .listInstances()
@@ -236,8 +232,8 @@ export class ConfigurationWebview {
                 host: managed.baseUrl,
                 apiKey: managed.apiKey,
                 syncFolder,
-                projectId: selectedProject.id,
-                projectName: selectedProject.type === 'personal' ? 'Personal' : selectedProject.name,
+                projectId: MANAGED_LOCAL_PROJECT_ID,
+                projectName: MANAGED_LOCAL_PROJECT_NAME,
                 instanceId: existingManagedInstance?.id,
                 instanceName: existingManagedInstance?.name || 'Managed local n8n',
                 createNew: !existingManagedInstance,
@@ -251,7 +247,7 @@ export class ConfigurationWebview {
               activatedConfig = {
                 host: managed.baseUrl,
                 syncFolder,
-                projectName: selectedProject.type === 'personal' ? 'Personal' : selectedProject.name,
+                projectName: MANAGED_LOCAL_PROJECT_NAME,
               };
             }
 
@@ -384,7 +380,7 @@ export class ConfigurationWebview {
       ...initState,
     });
 
-    if ((activeInstance?.host || resolved.host) && initState.config.apiKey) {
+    if ((activeInstance?.host || resolved.host) && initState.config.apiKey && activeInstance?.projectId !== MANAGED_LOCAL_PROJECT_ID) {
       try {
         const host = activeInstance?.host || resolved.host;
         const client = new N8nApiClient({ host, apiKey: initState.config.apiKey } as IN8nCredentials);
@@ -930,7 +926,7 @@ export class ConfigurationWebview {
         </div>
 
         <div class="project-grid">
-          <div class="field">
+          <div id="projectField" class="field">
             <label for="project">Project to sync</label>
             <div class="project-selector-row">
               <button id="loadProjects" class="ghost project-load">Load projects</button>
@@ -997,6 +993,7 @@ export class ConfigurationWebview {
     const apiKeyEl = document.getElementById('apiKey');
     const verificationStatusEl = document.getElementById('verificationStatus');
     const projectEl = document.getElementById('project');
+    const projectFieldEl = document.getElementById('projectField');
     const syncFolderEl = document.getElementById('syncFolder');
     const loadBtn = document.getElementById('loadProjects');
     const saveBtn = document.getElementById('save');
@@ -1267,6 +1264,7 @@ export class ConfigurationWebview {
       hostEl.disabled = hostEl.disabled || runtimeDisabled;
       apiKeyEl.disabled = apiKeyEl.disabled || runtimeDisabled;
       loadBtn.disabled = loadBtn.disabled || runtimeDisabled;
+      projectFieldEl.classList.toggle('hidden', isManagedLocal);
       saveBtn.disabled = isBusy;
       existingInstanceCardEl.classList.toggle('hidden', isGenerationOnly);
       connectionFieldsEl.classList.toggle('hidden', !isConnectExisting);
