@@ -265,10 +265,12 @@ export class ConfigurationWebview {
             const facade = createN8nManagerFacade();
             const inventory = await facade.getCredentialInventory();
             const recipes = await facade.listCredentialRecipes();
+            const catalog = await facade.listCredentialCatalog();
             this._panel.webview.postMessage({
               type: 'credentialInventoryLoaded',
               items: inventory.availableCredentials,
               recipes,
+              catalog,
             });
             return;
           }
@@ -288,11 +290,13 @@ export class ConfigurationWebview {
             });
             const inventory = await facade.getCredentialInventory();
             const recipes = await facade.listCredentialRecipes();
+            const catalog = await facade.listCredentialCatalog();
             this._panel.webview.postMessage({
               type: 'credentialSaved',
               credential: ref,
               items: inventory.availableCredentials,
               recipes,
+              catalog,
             });
             return;
           }
@@ -987,7 +991,7 @@ export class ConfigurationWebview {
         <div class="card-header">
           <div>
             <h2 class="card-title">Credentials</h2>
-            <p class="card-copy">Create or update native n8n LLM provider credentials through n8n-manager.</p>
+            <p class="card-copy">Create or update native n8n LLM provider credentials. Credential fields come from the n8n schema catalog.</p>
           </div>
           <button id="loadCredentials" class="secondary">Refresh</button>
         </div>
@@ -1080,6 +1084,7 @@ export class ConfigurationWebview {
     let lastLoadRequest = { host: '', apiKey: '' };
     let runtimeMode = 'connect-existing';
     let credentialRecipes = [];
+    let credentialCatalog = [];
 
     function createEmptyConfig(overrides = {}) {
       return {
@@ -1185,23 +1190,27 @@ export class ConfigurationWebview {
       llmBaseUrlFieldEl.classList.toggle('hidden', !supportsBaseUrl);
     }
 
-    function renderCredentialInventory(items, recipes) {
+    function renderCredentialInventory(items, recipes, catalog) {
       if (Array.isArray(recipes)) {
         credentialRecipes = recipes;
         renderLlmCredentialRecipes();
+      }
+      if (Array.isArray(catalog)) {
+        credentialCatalog = catalog;
       }
       credentialListEl.innerHTML = '';
       const credentials = Array.isArray(items) ? items : [];
       if (!credentials.length) {
         const empty = document.createElement('div');
         empty.className = 'hint';
-        empty.textContent = 'No credential recipes reported yet.';
+        empty.textContent = 'No credential readiness state yet. Use the form above or refresh after preparing a runtime.';
         credentialListEl.appendChild(empty);
         return;
       }
 
       for (const item of credentials) {
         const recipe = credentialRecipes.find((candidate) => candidate.id === item.recipeId);
+        const catalogEntry = credentialCatalog.find((candidate) => candidate.typeName === item.credentialTypeName);
         const row = document.createElement('div');
         row.className = 'credential-row';
 
@@ -1211,7 +1220,11 @@ export class ConfigurationWebview {
 
         const meta = document.createElement('div');
         meta.className = 'credential-meta';
-        meta.textContent = item.service ? item.service + ' · ' + item.credentialTypeName : item.credentialTypeName;
+        meta.textContent = [
+          item.service,
+          item.credentialTypeName,
+          catalogEntry?.source === 'n8n-ontology' ? 'n8n schema' : '',
+        ].filter(Boolean).join(' · ');
 
         const status = document.createElement('div');
         status.className = 'credential-status';
@@ -1964,7 +1977,7 @@ export class ConfigurationWebview {
       }
 
       if (message.type === 'credentialInventoryLoaded') {
-        renderCredentialInventory(message.items || [], message.recipes || []);
+        renderCredentialInventory(message.items || [], message.recipes || [], message.catalog || []);
         return;
       }
 
@@ -1972,7 +1985,7 @@ export class ConfigurationWebview {
         clearPendingAction();
         setSaved(true);
         llmApiKeyEl.value = '';
-        renderCredentialInventory(message.items || [], message.recipes || []);
+        renderCredentialInventory(message.items || [], message.recipes || [], message.catalog || []);
         return;
       }
 

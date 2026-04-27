@@ -437,9 +437,11 @@ async function enrichNodesIndex() {
             group: node.group,
             icon: node.icon,
             usableAsTool: Boolean(node.usableAsTool),
+            credentials: Array.isArray(node.credentials) ? node.credentials : [],
 
             // Full schema for generation
             schema: {
+                credentials: Array.isArray(node.credentials) ? node.credentials : [],
                 properties: node.properties,
                 sourcePath: node.sourcePath
             },
