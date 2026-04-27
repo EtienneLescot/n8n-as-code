@@ -7,6 +7,7 @@ import {
 import {
   N8nCredentialsManager,
   N8nRestCredentialClient,
+  type CredentialCatalogEntry,
   type CredentialInventory,
   type CredentialRecipe,
   type CredentialTestResult,
@@ -42,6 +43,8 @@ export interface N8nManagerFacade {
   getManagedInstance(): Promise<N8nInstanceRef | undefined>;
   listSetupModes(): typeof N8N_FACADE_SETUP_MODES;
   listCredentialRecipes(): Promise<CredentialRecipe[]>;
+  listCredentialCatalog(): Promise<CredentialCatalogEntry[]>;
+  getCredentialSchema(typeName: string): Promise<Record<string, unknown>>;
   listStarterKits(): Promise<StarterKit[]>;
   getCredentialInventory(): Promise<CredentialInventory>;
   ensureCredential(recipeId: string, input?: EnsureCredentialInput): Promise<N8nCredentialRef>;
@@ -86,6 +89,8 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
     getManagedInstance: () => readFileBackedN8nInstance(statePath),
     listSetupModes: () => N8N_FACADE_SETUP_MODES,
     listCredentialRecipes: async () => (await createCredentialsManager()).listRecipes(),
+    listCredentialCatalog: async () => (await createCredentialsManager()).listCredentialCatalog(),
+    getCredentialSchema: async (typeName) => (await createCredentialsManager()).getCredentialSchema(typeName),
     listStarterKits: async () => (await createCredentialsManager()).listStarterKits(),
     getCredentialInventory: async () => (await createCredentialsManager()).getCredentialInventory(),
     ensureCredential: async (recipeId, input) => (await createCredentialsManager()).ensureCredential(recipeId, input),
