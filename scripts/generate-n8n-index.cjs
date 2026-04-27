@@ -316,6 +316,7 @@ async function extractNodes() {
                         icon: description.icon,
                         group: description.group,
                         version: description.allVersions || description.version || 1,
+                        credentials: cloneValue(description.credentials || []),
                         properties: description.properties || [],
                         sourcePath: fullPath.replace(ROOT_DIR, ''),
                         usableAsTool: Boolean(description.usableAsTool)
