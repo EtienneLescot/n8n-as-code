@@ -275,6 +275,24 @@ export class ConfigurationWebview {
             return;
           }
 
+          case 'loadCredentialSchema': {
+            const credentialTypeName = String(message.credentialTypeName || '').trim();
+            const recipeId = String(message.recipeId || '').trim();
+            if (!credentialTypeName) {
+              throw new Error('Credential type is required.');
+            }
+
+            const facade = createN8nManagerFacade();
+            const schema = await facade.getCredentialSchema(credentialTypeName);
+            this._panel.webview.postMessage({
+              type: 'credentialSchemaLoaded',
+              recipeId,
+              credentialTypeName,
+              schema,
+            });
+            return;
+          }
+
           case 'ensureCredential': {
             const recipeId = String(message.recipeId || '').trim();
             const credentialName = String(message.credentialName || '').trim();
@@ -697,7 +715,7 @@ export class ConfigurationWebview {
     }
     .credential-form {
       display: grid;
-      grid-template-columns: minmax(150px, 1fr) minmax(160px, 1fr) minmax(180px, 1.4fr) minmax(120px, 1fr) auto;
+      grid-template-columns: minmax(160px, 1fr) minmax(180px, 1fr) auto;
       gap: 10px;
       align-items: end;
       margin-top: 12px;
@@ -721,6 +739,73 @@ export class ConfigurationWebview {
     .credential-meta,
     .credential-status {
       color: var(--vscode-descriptionForeground);
+    }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: color-mix(in srgb, var(--vscode-editor-background) 72%, transparent);
+    }
+    .credential-modal {
+      width: min(760px, 100%);
+      max-height: min(86vh, 820px);
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--vscode-editor-background);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.36);
+    }
+    .modal-header,
+    .modal-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-footer {
+      justify-content: flex-end;
+      border-top: 1px solid var(--border);
+      border-bottom: 0;
+    }
+    .modal-title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 650;
+    }
+    .modal-body {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+    }
+    .schema-field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .schema-field-grid .field.full {
+      grid-column: 1 / -1;
+    }
+    .checkbox-field {
+      min-height: 40px;
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+    }
+    .checkbox-field input {
+      width: auto;
+      min-height: auto;
+      margin: 0;
+    }
+    .credential-schema-source {
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface-muted);
     }
     .runtime-status strong {
       display: block;
@@ -874,7 +959,8 @@ export class ConfigurationWebview {
         grid-template-columns: 1fr;
       }
       .credential-form,
-      .credential-row {
+      .credential-row,
+      .schema-field-grid {
         grid-template-columns: 1fr;
       }
       .page {
@@ -1012,27 +1098,43 @@ export class ConfigurationWebview {
         </div>
         <div class="credential-form">
           <div class="field">
-            <label for="llmCredentialRecipe">LLM provider</label>
-            <select id="llmCredentialRecipe"></select>
+            <label for="credentialRecipe">Native provider</label>
+            <select id="credentialRecipe"></select>
           </div>
           <div class="field">
-            <label for="llmCredentialName">Credential name</label>
-            <input id="llmCredentialName" type="text" placeholder="OpenAI" />
+            <label for="credentialName">Credential name</label>
+            <input id="credentialName" type="text" placeholder="OpenAI" />
           </div>
-          <div class="field">
-            <label for="llmApiKey">API key</label>
-            <input id="llmApiKey" type="password" placeholder="Provider API key" />
-          </div>
-          <div id="llmBaseUrlField" class="field">
-            <label for="llmBaseUrl">Base URL</label>
-            <input id="llmBaseUrl" type="text" placeholder="Optional" />
-          </div>
-          <button id="setupLlmCredential">Set up</button>
+          <button id="configureCredential">Configure</button>
         </div>
         <div id="credentialList" class="credential-list">
           <div class="hint">Prepare a runtime, then refresh credential readiness.</div>
         </div>
       </section>
+    </div>
+
+    <div id="credentialModalBackdrop" class="modal-backdrop hidden">
+      <div class="credential-modal" role="dialog" aria-modal="true" aria-labelledby="credentialModalTitle">
+        <div class="modal-header">
+          <div>
+            <h2 id="credentialModalTitle" class="modal-title">Configure credential</h2>
+            <p id="credentialModalCopy" class="card-copy">Fields are loaded from n8n's native credential schema.</p>
+          </div>
+          <button id="closeCredentialModal" class="secondary">Close</button>
+        </div>
+        <div class="modal-body">
+          <div class="field">
+            <label for="credentialModalName">Credential name</label>
+            <input id="credentialModalName" type="text" />
+          </div>
+          <div id="credentialSchemaSource" class="credential-schema-source hint"></div>
+          <div id="credentialSchemaFields" class="schema-field-grid"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelCredentialModal" class="secondary">Cancel</button>
+          <button id="saveCredentialFromModal">Save credential</button>
+        </div>
+      </div>
     </div>
     <div id="message" class="message error"></div>
     <div id="saved" class="message ok">Saved.</div>
@@ -1054,12 +1156,18 @@ export class ConfigurationWebview {
     const credentialsCardEl = document.getElementById('credentialsCard');
     const loadCredentialsBtn = document.getElementById('loadCredentials');
     const credentialListEl = document.getElementById('credentialList');
-    const llmCredentialRecipeEl = document.getElementById('llmCredentialRecipe');
-    const llmCredentialNameEl = document.getElementById('llmCredentialName');
-    const llmApiKeyEl = document.getElementById('llmApiKey');
-    const llmBaseUrlFieldEl = document.getElementById('llmBaseUrlField');
-    const llmBaseUrlEl = document.getElementById('llmBaseUrl');
-    const setupLlmCredentialBtn = document.getElementById('setupLlmCredential');
+    const credentialRecipeEl = document.getElementById('credentialRecipe');
+    const credentialNameEl = document.getElementById('credentialName');
+    const configureCredentialBtn = document.getElementById('configureCredential');
+    const credentialModalBackdropEl = document.getElementById('credentialModalBackdrop');
+    const credentialModalTitleEl = document.getElementById('credentialModalTitle');
+    const credentialModalCopyEl = document.getElementById('credentialModalCopy');
+    const closeCredentialModalBtn = document.getElementById('closeCredentialModal');
+    const cancelCredentialModalBtn = document.getElementById('cancelCredentialModal');
+    const saveCredentialFromModalBtn = document.getElementById('saveCredentialFromModal');
+    const credentialModalNameEl = document.getElementById('credentialModalName');
+    const credentialSchemaSourceEl = document.getElementById('credentialSchemaSource');
+    const credentialSchemaFieldsEl = document.getElementById('credentialSchemaFields');
     const existingInstanceCardEl = document.getElementById('existingInstanceCard');
     const instanceCardTitleEl = document.getElementById('instanceCardTitle');
     const instanceCardCopyEl = document.getElementById('instanceCardCopy');
@@ -1099,6 +1207,16 @@ export class ConfigurationWebview {
     let runtimeMode = 'connect-existing';
     let credentialRecipes = [];
     let credentialCatalog = [];
+    let credentialSchemaRequestId = 0;
+    let credentialModalState = {
+      open: false,
+      recipeId: '',
+      credentialTypeName: '',
+      credentialName: '',
+      schema: null,
+      values: {},
+      loading: false,
+    };
 
     function createEmptyConfig(overrides = {}) {
       return {
@@ -1166,7 +1284,7 @@ export class ConfigurationWebview {
       }
     }
 
-    function getLlmCredentialRecipes() {
+    function getNativeCredentialRecipes() {
       return credentialRecipes.filter((recipe) =>
         recipe.service === 'llm'
         && recipe.authMethod === 'api-key'
@@ -1174,40 +1292,37 @@ export class ConfigurationWebview {
       );
     }
 
-    function getSelectedLlmRecipe() {
-      const selectedId = llmCredentialRecipeEl.value;
-      return getLlmCredentialRecipes().find((recipe) => recipe.id === selectedId);
+    function getSelectedCredentialRecipe() {
+      const selectedId = credentialRecipeEl.value;
+      return getNativeCredentialRecipes().find((recipe) => recipe.id === selectedId);
     }
 
-    function renderLlmCredentialRecipes() {
-      const recipes = getLlmCredentialRecipes();
-      llmCredentialRecipeEl.innerHTML = '';
+    function renderCredentialRecipes() {
+      const recipes = getNativeCredentialRecipes();
+      credentialRecipeEl.innerHTML = '';
       for (const recipe of recipes) {
         const option = document.createElement('option');
         option.value = recipe.id;
         option.textContent = recipe.label;
-        llmCredentialRecipeEl.appendChild(option);
+        credentialRecipeEl.appendChild(option);
       }
-      if (!llmCredentialNameEl.value && recipes[0]) {
-        llmCredentialNameEl.value = recipes[0].label;
+      if (!credentialNameEl.value && recipes[0]) {
+        credentialNameEl.value = recipes[0].label;
       }
-      updateLlmCredentialForm();
+      updateCredentialForm();
     }
 
-    function updateLlmCredentialForm() {
-      const recipe = getSelectedLlmRecipe();
-      if (recipe && !llmCredentialNameEl.value) {
-        llmCredentialNameEl.value = recipe.label;
+    function updateCredentialForm() {
+      const recipe = getSelectedCredentialRecipe();
+      if (recipe && !credentialNameEl.value) {
+        credentialNameEl.value = recipe.label;
       }
-      const supportsBaseUrl = !!recipe && Array.isArray(recipe.requiredInputs)
-        && recipe.requiredInputs.some((input) => input.key === 'url');
-      llmBaseUrlFieldEl.classList.toggle('hidden', !supportsBaseUrl);
     }
 
     function renderCredentialInventory(items, recipes, catalog) {
       if (Array.isArray(recipes)) {
         credentialRecipes = recipes;
-        renderLlmCredentialRecipes();
+        renderCredentialRecipes();
       }
       if (Array.isArray(catalog)) {
         credentialCatalog = catalog;
@@ -1249,10 +1364,9 @@ export class ConfigurationWebview {
         action.textContent = recipe?.service === 'llm' && recipe?.authMethod === 'api-key' ? 'Edit' : 'Managed';
         action.disabled = !(recipe?.service === 'llm' && recipe?.authMethod === 'api-key');
         action.addEventListener('click', () => {
-          llmCredentialRecipeEl.value = item.recipeId;
-          llmCredentialNameEl.value = item.credentialName || recipe?.label || '';
-          updateLlmCredentialForm();
-          llmApiKeyEl.focus();
+          credentialRecipeEl.value = item.recipeId;
+          credentialNameEl.value = item.credentialName || recipe?.label || '';
+          openCredentialModal(item.recipeId, item.credentialName || recipe?.label || '');
         });
 
         row.appendChild(name);
@@ -1261,6 +1375,220 @@ export class ConfigurationWebview {
         row.appendChild(action);
         credentialListEl.appendChild(row);
       }
+    }
+
+    function findCredentialCatalogEntry(typeName) {
+      return credentialCatalog.find((entry) => entry.typeName === typeName);
+    }
+
+    function getSchemaProperties(schema) {
+      if (schema && Array.isArray(schema.properties)) return schema.properties;
+      const catalogEntry = findCredentialCatalogEntry(credentialModalState.credentialTypeName);
+      return Array.isArray(catalogEntry?.properties) ? catalogEntry.properties : [];
+    }
+
+    function openCredentialModal(recipeId, credentialName) {
+      const recipe = credentialRecipes.find((candidate) => candidate.id === recipeId);
+      if (!recipe) {
+        setError('Choose a credential provider first.');
+        return;
+      }
+
+      credentialSchemaRequestId += 1;
+      credentialModalState = {
+        open: true,
+        recipeId,
+        credentialTypeName: recipe.credentialTypeName,
+        credentialName: credentialName || credentialNameEl.value || recipe.label,
+        schema: null,
+        values: {},
+        loading: true,
+      };
+      renderCredentialModal();
+      vscode.postMessage({
+        type: 'loadCredentialSchema',
+        recipeId,
+        credentialTypeName: recipe.credentialTypeName,
+        requestId: credentialSchemaRequestId,
+      });
+    }
+
+    function closeCredentialModal() {
+      credentialModalState = {
+        open: false,
+        recipeId: '',
+        credentialTypeName: '',
+        credentialName: '',
+        schema: null,
+        values: {},
+        loading: false,
+      };
+      renderCredentialModal();
+    }
+
+    function applyCredentialSchema(schema) {
+      const values = {};
+      for (const property of getSchemaProperties(schema)) {
+        if (!property || !property.name || property.type === 'notice' || property.type === 'hidden') continue;
+        values[property.name] = credentialModalState.values[property.name] ?? normalizeCredentialDefault(property);
+      }
+      credentialModalState = {
+        ...credentialModalState,
+        schema,
+        values,
+        loading: false,
+      };
+      renderCredentialModal();
+    }
+
+    function normalizeCredentialDefault(property) {
+      if (property.type === 'boolean') return Boolean(property.default);
+      if (property.type === 'number') return property.default ?? '';
+      return property.default == null ? '' : String(property.default);
+    }
+
+    function renderCredentialModal() {
+      credentialModalBackdropEl.classList.toggle('hidden', !credentialModalState.open);
+      if (!credentialModalState.open) return;
+
+      const recipe = credentialRecipes.find((candidate) => candidate.id === credentialModalState.recipeId);
+      credentialModalTitleEl.textContent = recipe ? 'Configure ' + recipe.label : 'Configure credential';
+      credentialModalCopyEl.textContent = credentialModalState.credentialTypeName
+        ? 'Native n8n credential type: ' + credentialModalState.credentialTypeName
+        : 'Fields are loaded from n8n native credential schema.';
+      credentialModalNameEl.value = credentialModalState.credentialName || recipe?.label || '';
+
+      const catalogEntry = findCredentialCatalogEntry(credentialModalState.credentialTypeName);
+      credentialSchemaSourceEl.textContent = credentialModalState.loading
+        ? 'Loading native n8n schema...'
+        : 'Schema source: ' + (credentialModalState.schema?.source || catalogEntry?.source || 'n8n runtime') + '. Secret values cannot be read back from n8n; enter them when creating or updating.';
+
+      renderCredentialSchemaFields();
+      saveCredentialFromModalBtn.disabled = credentialModalState.loading || pendingAction === 'credential';
+    }
+
+    function renderCredentialSchemaFields() {
+      credentialSchemaFieldsEl.innerHTML = '';
+      const properties = getSchemaProperties(credentialModalState.schema);
+      if (!properties.length) {
+        const empty = document.createElement('div');
+        empty.className = 'hint';
+        empty.textContent = credentialModalState.loading ? 'Loading fields...' : 'No editable fields reported by n8n for this credential type.';
+        credentialSchemaFieldsEl.appendChild(empty);
+        return;
+      }
+
+      for (const property of properties) {
+        if (!property || !property.name || property.type === 'notice' || property.type === 'hidden') continue;
+        const visible = isCredentialPropertyVisible(property, credentialModalState.values);
+        const field = document.createElement('div');
+        field.className = 'field' + (property.type === 'boolean' ? ' checkbox-field' : '') + (visible ? '' : ' hidden');
+        if (property.description || property.hint) field.className += ' full';
+
+        const label = document.createElement('label');
+        label.textContent = (property.displayName || property.name) + (property.required ? ' *' : '');
+        label.setAttribute('for', 'credential-field-' + property.name);
+
+        const control = createCredentialFieldControl(property);
+        control.id = 'credential-field-' + property.name;
+        control.dataset.credentialField = property.name;
+
+        if (property.type === 'boolean') {
+          field.appendChild(control);
+          field.appendChild(label);
+        } else {
+          field.appendChild(label);
+          field.appendChild(control);
+        }
+
+        const helpText = property.hint || property.description;
+        if (helpText) {
+          const help = document.createElement('div');
+          help.className = 'hint';
+          help.textContent = helpText;
+          field.appendChild(help);
+        }
+
+        credentialSchemaFieldsEl.appendChild(field);
+      }
+    }
+
+    function createCredentialFieldControl(property) {
+      if (property.type === 'options' && Array.isArray(property.options)) {
+        const select = document.createElement('select');
+        for (const optionDef of property.options) {
+          const option = document.createElement('option');
+          option.value = String(optionDef.value ?? optionDef.name ?? '');
+          option.textContent = String(optionDef.name ?? optionDef.value ?? '');
+          select.appendChild(option);
+        }
+        select.value = String(credentialModalState.values[property.name] ?? normalizeCredentialDefault(property));
+        select.addEventListener('change', () => updateCredentialFieldValue(property.name, select.value));
+        return select;
+      }
+
+      const input = document.createElement('input');
+      if (property.type === 'boolean') {
+        input.type = 'checkbox';
+        input.checked = Boolean(credentialModalState.values[property.name]);
+        input.addEventListener('change', () => updateCredentialFieldValue(property.name, input.checked));
+        return input;
+      }
+
+      input.type = property.type === 'number'
+        ? 'number'
+        : property.typeOptions?.password
+          ? 'password'
+          : 'text';
+      input.value = String(credentialModalState.values[property.name] ?? normalizeCredentialDefault(property));
+      input.placeholder = property.default == null ? '' : String(property.default);
+      input.addEventListener('input', () => updateCredentialFieldValue(property.name, property.type === 'number' && input.value !== '' ? Number(input.value) : input.value));
+      return input;
+    }
+
+    function updateCredentialFieldValue(name, value) {
+      credentialModalState.values = {
+        ...credentialModalState.values,
+        [name]: value,
+      };
+      renderCredentialSchemaFields();
+    }
+
+    function isCredentialPropertyVisible(property, values) {
+      const show = property.displayOptions?.show;
+      if (show && !matchesDisplayOptions(show, values)) return false;
+      const hide = property.displayOptions?.hide;
+      if (hide && matchesDisplayOptions(hide, values)) return false;
+      return true;
+    }
+
+    function matchesDisplayOptions(options, values) {
+      return Object.entries(options).every(([key, allowed]) => {
+        const current = values[key];
+        const allowedValues = Array.isArray(allowed) ? allowed : [allowed];
+        return allowedValues.some((candidate) => current === candidate || String(current) === String(candidate));
+      });
+    }
+
+    function collectCredentialModalValues() {
+      const properties = getSchemaProperties(credentialModalState.schema);
+      const values = {};
+      const missing = [];
+
+      for (const property of properties) {
+        if (!property || !property.name || property.type === 'notice' || property.type === 'hidden') continue;
+        if (!isCredentialPropertyVisible(property, credentialModalState.values)) {
+          values[property.name] = normalizeCredentialDefault(property);
+          continue;
+        }
+        const value = credentialModalState.values[property.name] ?? normalizeCredentialDefault(property);
+        values[property.name] = value;
+        if (property.required && (value === '' || value === undefined || value === null)) {
+          missing.push(property.displayName || property.name);
+        }
+      }
+
+      return { values, missing };
     }
 
     function setPendingAction(action) {
@@ -1389,7 +1717,8 @@ export class ConfigurationWebview {
       loadBtn.disabled = isBusy || !normalizeHost(hostEl.value) || !(apiKeyEl.value || '').trim();
       saveBtn.disabled = isBusy;
       loadCredentialsBtn.disabled = isBusy;
-      setupLlmCredentialBtn.disabled = isBusy || !llmCredentialRecipeEl.value || !(llmApiKeyEl.value || '').trim();
+      configureCredentialBtn.disabled = isBusy || !credentialRecipeEl.value;
+      saveCredentialFromModalBtn.disabled = credentialModalState.loading || isBusy || !credentialModalState.open;
       newInstanceBtn.disabled = isBusy || isManagedLocal;
       deleteBtn.disabled = isBusy || draftMode || !selectedInstanceId;
       instanceSelectEl.disabled = isBusy || !instances.length;
@@ -1748,27 +2077,50 @@ export class ConfigurationWebview {
       credentialListEl.innerHTML = '<div class="hint">Loading credential readiness...</div>';
       vscode.postMessage({ type: 'loadCredentialInventory' });
     });
-    llmCredentialRecipeEl.addEventListener('change', () => {
-      const recipe = getSelectedLlmRecipe();
-      llmCredentialNameEl.value = recipe?.label || '';
-      updateLlmCredentialForm();
+    credentialRecipeEl.addEventListener('change', () => {
+      const recipe = getSelectedCredentialRecipe();
+      credentialNameEl.value = recipe?.label || '';
+      updateCredentialForm();
       updateModeUi();
     });
-    llmApiKeyEl.addEventListener('input', updateModeUi);
-    setupLlmCredentialBtn.addEventListener('click', () => {
+    credentialNameEl.addEventListener('input', updateModeUi);
+    configureCredentialBtn.addEventListener('click', () => {
       if (pendingAction) {
         return;
       }
-      const recipe = getSelectedLlmRecipe();
-      const apiKey = (llmApiKeyEl.value || '').trim();
-      if (!recipe || !apiKey) {
-        setError('Choose an LLM provider and enter an API key.');
+      const recipe = getSelectedCredentialRecipe();
+      if (!recipe) {
+        setError('Choose a credential provider.');
         return;
       }
+      setError('');
+      openCredentialModal(recipe.id, (credentialNameEl.value || '').trim() || recipe.label);
+    });
 
-      const values = { apiKey };
-      if ((llmBaseUrlEl.value || '').trim()) {
-        values.url = (llmBaseUrlEl.value || '').trim();
+    closeCredentialModalBtn.addEventListener('click', closeCredentialModal);
+    cancelCredentialModalBtn.addEventListener('click', closeCredentialModal);
+    credentialModalBackdropEl.addEventListener('click', (event) => {
+      if (event.target === credentialModalBackdropEl) {
+        closeCredentialModal();
+      }
+    });
+    credentialModalNameEl.addEventListener('input', () => {
+      credentialModalState.credentialName = credentialModalNameEl.value;
+    });
+    saveCredentialFromModalBtn.addEventListener('click', () => {
+      if (pendingAction || credentialModalState.loading) {
+        return;
+      }
+      const recipe = credentialRecipes.find((candidate) => candidate.id === credentialModalState.recipeId);
+      if (!recipe) {
+        setError('Credential provider is not available anymore.');
+        return;
+      }
+      const credentialName = (credentialModalNameEl.value || '').trim() || recipe.label;
+      const collected = collectCredentialModalValues();
+      if (collected.missing.length) {
+        setError('Missing required credential fields: ' + collected.missing.join(', '));
+        return;
       }
 
       setError('');
@@ -1776,8 +2128,8 @@ export class ConfigurationWebview {
       vscode.postMessage({
         type: 'ensureCredential',
         recipeId: recipe.id,
-        credentialName: (llmCredentialNameEl.value || '').trim() || recipe.label,
-        values,
+        credentialName,
+        values: collected.values,
       });
     });
 
@@ -1957,10 +2309,21 @@ export class ConfigurationWebview {
         return;
       }
 
+      if (message.type === 'credentialSchemaLoaded') {
+        if (
+          credentialModalState.open
+          && message.recipeId === credentialModalState.recipeId
+          && message.credentialTypeName === credentialModalState.credentialTypeName
+        ) {
+          applyCredentialSchema(message.schema || {});
+        }
+        return;
+      }
+
       if (message.type === 'credentialSaved') {
         clearPendingAction();
         setSaved(true);
-        llmApiKeyEl.value = '';
+        closeCredentialModal();
         renderCredentialInventory(message.items || [], message.recipes || [], message.catalog || []);
         return;
       }
