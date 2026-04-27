@@ -264,11 +264,13 @@ export class ConfigurationWebview {
           case 'loadCredentialInventory': {
             const facade = createN8nManagerFacade();
             const inventory = await facade.getCredentialInventory();
+            const credentials = await facade.listCredentials();
             const recipes = await facade.listCredentialRecipes();
             const catalog = await facade.listCredentialCatalog();
             this._panel.webview.postMessage({
               type: 'credentialInventoryLoaded',
               items: inventory.availableCredentials,
+              credentials,
               recipes,
               catalog,
             });
@@ -293,6 +295,37 @@ export class ConfigurationWebview {
             return;
           }
 
+          case 'ensureCredentialType': {
+            const credentialId = String(message.credentialId || '').trim();
+            const credentialName = String(message.credentialName || '').trim();
+            const credentialTypeName = String(message.credentialTypeName || '').trim();
+            const values = typeof message.values === 'object' && message.values ? message.values : {};
+            if (!credentialName || !credentialTypeName) {
+              throw new Error('Credential name and type are required.');
+            }
+
+            const facade = createN8nManagerFacade();
+            const ref = await facade.ensureCredentialType({
+              credentialId: credentialId || undefined,
+              credentialName,
+              credentialTypeName,
+              values,
+            });
+            const inventory = await facade.getCredentialInventory();
+            const credentials = await facade.listCredentials();
+            const recipes = await facade.listCredentialRecipes();
+            const catalog = await facade.listCredentialCatalog();
+            this._panel.webview.postMessage({
+              type: 'credentialSaved',
+              credential: ref,
+              items: inventory.availableCredentials,
+              credentials,
+              recipes,
+              catalog,
+            });
+            return;
+          }
+
           case 'ensureCredential': {
             const recipeId = String(message.recipeId || '').trim();
             const credentialName = String(message.credentialName || '').trim();
@@ -307,12 +340,14 @@ export class ConfigurationWebview {
               values,
             });
             const inventory = await facade.getCredentialInventory();
+            const credentials = await facade.listCredentials();
             const recipes = await facade.listCredentialRecipes();
             const catalog = await facade.listCredentialCatalog();
             this._panel.webview.postMessage({
               type: 'credentialSaved',
               credential: ref,
               items: inventory.availableCredentials,
+              credentials,
               recipes,
               catalog,
             });
@@ -1092,20 +1127,12 @@ export class ConfigurationWebview {
         <div class="card-header">
           <div>
             <h2 class="card-title">Credentials</h2>
-            <p class="card-copy">Create or update native n8n LLM provider credentials. Credential fields come from the n8n schema catalog.</p>
+            <p class="card-copy">Manage native n8n credentials. Types and fields come from the n8n schema catalog.</p>
           </div>
-          <button id="loadCredentials" class="secondary">Refresh</button>
-        </div>
-        <div class="credential-form">
-          <div class="field">
-            <label for="credentialRecipe">Native provider</label>
-            <select id="credentialRecipe"></select>
+          <div class="toolbar">
+            <button id="addCredential">Add credential</button>
+            <button id="loadCredentials" class="secondary">Refresh</button>
           </div>
-          <div class="field">
-            <label for="credentialName">Credential name</label>
-            <input id="credentialName" type="text" placeholder="OpenAI" />
-          </div>
-          <button id="configureCredential">Configure</button>
         </div>
         <div id="credentialList" class="credential-list">
           <div class="hint">Prepare a runtime, then refresh credential readiness.</div>
@@ -1123,6 +1150,10 @@ export class ConfigurationWebview {
           <button id="closeCredentialModal" class="secondary">Close</button>
         </div>
         <div class="modal-body">
+          <div class="field">
+            <label for="credentialModalType">Credential type</label>
+            <select id="credentialModalType"></select>
+          </div>
           <div class="field">
             <label for="credentialModalName">Credential name</label>
             <input id="credentialModalName" type="text" />
@@ -1156,15 +1187,14 @@ export class ConfigurationWebview {
     const credentialsCardEl = document.getElementById('credentialsCard');
     const loadCredentialsBtn = document.getElementById('loadCredentials');
     const credentialListEl = document.getElementById('credentialList');
-    const credentialRecipeEl = document.getElementById('credentialRecipe');
-    const credentialNameEl = document.getElementById('credentialName');
-    const configureCredentialBtn = document.getElementById('configureCredential');
+    const addCredentialBtn = document.getElementById('addCredential');
     const credentialModalBackdropEl = document.getElementById('credentialModalBackdrop');
     const credentialModalTitleEl = document.getElementById('credentialModalTitle');
     const credentialModalCopyEl = document.getElementById('credentialModalCopy');
     const closeCredentialModalBtn = document.getElementById('closeCredentialModal');
     const cancelCredentialModalBtn = document.getElementById('cancelCredentialModal');
     const saveCredentialFromModalBtn = document.getElementById('saveCredentialFromModal');
+    const credentialModalTypeEl = document.getElementById('credentialModalType');
     const credentialModalNameEl = document.getElementById('credentialModalName');
     const credentialSchemaSourceEl = document.getElementById('credentialSchemaSource');
     const credentialSchemaFieldsEl = document.getElementById('credentialSchemaFields');
@@ -1207,9 +1237,12 @@ export class ConfigurationWebview {
     let runtimeMode = 'connect-existing';
     let credentialRecipes = [];
     let credentialCatalog = [];
+    let n8nCredentials = [];
     let credentialSchemaRequestId = 0;
     let credentialModalState = {
       open: false,
+      mode: 'create',
+      credentialId: '',
       recipeId: '',
       credentialTypeName: '',
       credentialName: '',
@@ -1284,89 +1317,66 @@ export class ConfigurationWebview {
       }
     }
 
-    function getNativeCredentialRecipes() {
-      return credentialRecipes.filter((recipe) =>
-        recipe.service === 'llm'
-        && recipe.authMethod === 'api-key'
-        && recipe.id !== 'llm-proxy'
-      );
-    }
-
-    function getSelectedCredentialRecipe() {
-      const selectedId = credentialRecipeEl.value;
-      return getNativeCredentialRecipes().find((recipe) => recipe.id === selectedId);
-    }
-
-    function renderCredentialRecipes() {
-      const recipes = getNativeCredentialRecipes();
-      credentialRecipeEl.innerHTML = '';
-      for (const recipe of recipes) {
-        const option = document.createElement('option');
-        option.value = recipe.id;
-        option.textContent = recipe.label;
-        credentialRecipeEl.appendChild(option);
-      }
-      if (!credentialNameEl.value && recipes[0]) {
-        credentialNameEl.value = recipes[0].label;
-      }
-      updateCredentialForm();
-    }
-
-    function updateCredentialForm() {
-      const recipe = getSelectedCredentialRecipe();
-      if (recipe && !credentialNameEl.value) {
-        credentialNameEl.value = recipe.label;
-      }
-    }
-
-    function renderCredentialInventory(items, recipes, catalog) {
+    function renderCredentialInventory(items, recipes, catalog, credentials) {
       if (Array.isArray(recipes)) {
         credentialRecipes = recipes;
-        renderCredentialRecipes();
       }
       if (Array.isArray(catalog)) {
-        credentialCatalog = catalog;
+        credentialCatalog = sortCredentialCatalog(catalog);
+      }
+      if (Array.isArray(credentials)) {
+        n8nCredentials = credentials;
       }
       credentialListEl.innerHTML = '';
-      const credentials = Array.isArray(items) ? items : [];
-      if (!credentials.length) {
+      const rows = n8nCredentials.length
+        ? n8nCredentials
+        : (Array.isArray(items) ? items.map((item) => ({
+            id: item.credentialId,
+            name: item.credentialName,
+            type: item.credentialTypeName,
+            recipeId: item.recipeId,
+            service: item.service,
+          })).filter((item) => item.id && item.name) : []);
+
+      if (!rows.length) {
         const empty = document.createElement('div');
         empty.className = 'hint';
-        empty.textContent = 'No credential readiness state yet. Use the form above or refresh after preparing a runtime.';
+        empty.textContent = 'No credentials yet. Add a credential to create one from a native n8n type.';
         credentialListEl.appendChild(empty);
         return;
       }
 
-      for (const item of credentials) {
-        const recipe = credentialRecipes.find((candidate) => candidate.id === item.recipeId);
-        const catalogEntry = credentialCatalog.find((candidate) => candidate.typeName === item.credentialTypeName);
+      for (const item of rows) {
+        const catalogEntry = findCredentialCatalogEntry(item.type);
         const row = document.createElement('div');
         row.className = 'credential-row';
 
         const name = document.createElement('div');
         name.className = 'credential-name';
-        name.textContent = item.credentialName || recipe?.label || item.recipeId || 'Credential';
+        name.textContent = item.name || 'Credential';
 
         const meta = document.createElement('div');
         meta.className = 'credential-meta';
         meta.textContent = [
-          item.service,
-          item.credentialTypeName,
+          catalogEntry?.displayName,
+          item.type,
           catalogEntry?.source === 'n8n-ontology' ? 'n8n schema' : '',
         ].filter(Boolean).join(' · ');
 
         const status = document.createElement('div');
         status.className = 'credential-status';
-        status.textContent = item.status + (item.reason ? ' · ' + item.reason : '');
+        status.textContent = item.id && String(item.id).endsWith(':planned') ? 'planned' : 'ready';
 
         const action = document.createElement('button');
         action.className = 'ghost';
-        action.textContent = recipe?.service === 'llm' && recipe?.authMethod === 'api-key' ? 'Edit' : 'Managed';
-        action.disabled = !(recipe?.service === 'llm' && recipe?.authMethod === 'api-key');
+        action.textContent = 'Edit';
         action.addEventListener('click', () => {
-          credentialRecipeEl.value = item.recipeId;
-          credentialNameEl.value = item.credentialName || recipe?.label || '';
-          openCredentialModal(item.recipeId, item.credentialName || recipe?.label || '');
+          openCredentialModal({
+            mode: 'edit',
+            credentialId: item.id,
+            credentialName: item.name,
+            credentialTypeName: item.type,
+          });
         });
 
         row.appendChild(name);
@@ -1375,6 +1385,12 @@ export class ConfigurationWebview {
         row.appendChild(action);
         credentialListEl.appendChild(row);
       }
+    }
+
+    function sortCredentialCatalog(catalog) {
+      return [...catalog]
+        .filter((entry) => entry && entry.typeName)
+        .sort((a, b) => (a.displayName || a.typeName).localeCompare(b.displayName || b.typeName));
     }
 
     function findCredentialCatalogEntry(typeName) {
@@ -1387,19 +1403,36 @@ export class ConfigurationWebview {
       return Array.isArray(catalogEntry?.properties) ? catalogEntry.properties : [];
     }
 
-    function openCredentialModal(recipeId, credentialName) {
-      const recipe = credentialRecipes.find((candidate) => candidate.id === recipeId);
-      if (!recipe) {
-        setError('Choose a credential provider first.');
+    function findRecipeForType(typeName) {
+      return credentialRecipes.find((candidate) => candidate.credentialTypeName === typeName);
+    }
+
+    function defaultCredentialTypeName() {
+      return findCredentialCatalogEntry('openAiApi')?.typeName
+        ?? credentialCatalog[0]?.typeName
+        ?? '';
+    }
+
+    function defaultCredentialName(typeName) {
+      const catalogEntry = findCredentialCatalogEntry(typeName);
+      return catalogEntry?.displayName || typeName || 'Credential';
+    }
+
+    function openCredentialModal(options = {}) {
+      const typeName = options.credentialTypeName || defaultCredentialTypeName();
+      if (!typeName) {
+        setError('Credential catalog is not loaded yet.');
         return;
       }
 
       credentialSchemaRequestId += 1;
       credentialModalState = {
         open: true,
-        recipeId,
-        credentialTypeName: recipe.credentialTypeName,
-        credentialName: credentialName || credentialNameEl.value || recipe.label,
+        mode: options.mode || 'create',
+        credentialId: options.credentialId || '',
+        recipeId: findRecipeForType(typeName)?.id || '',
+        credentialTypeName: typeName,
+        credentialName: options.credentialName || defaultCredentialName(typeName),
         schema: null,
         values: {},
         loading: true,
@@ -1407,8 +1440,8 @@ export class ConfigurationWebview {
       renderCredentialModal();
       vscode.postMessage({
         type: 'loadCredentialSchema',
-        recipeId,
-        credentialTypeName: recipe.credentialTypeName,
+        recipeId: credentialModalState.recipeId,
+        credentialTypeName: typeName,
         requestId: credentialSchemaRequestId,
       });
     }
@@ -1416,6 +1449,8 @@ export class ConfigurationWebview {
     function closeCredentialModal() {
       credentialModalState = {
         open: false,
+        mode: 'create',
+        credentialId: '',
         recipeId: '',
         credentialTypeName: '',
         credentialName: '',
@@ -1451,20 +1486,34 @@ export class ConfigurationWebview {
       credentialModalBackdropEl.classList.toggle('hidden', !credentialModalState.open);
       if (!credentialModalState.open) return;
 
-      const recipe = credentialRecipes.find((candidate) => candidate.id === credentialModalState.recipeId);
-      credentialModalTitleEl.textContent = recipe ? 'Configure ' + recipe.label : 'Configure credential';
+      const catalogEntry = findCredentialCatalogEntry(credentialModalState.credentialTypeName);
+      credentialModalTitleEl.textContent = credentialModalState.mode === 'edit'
+        ? 'Edit credential'
+        : 'Add credential';
       credentialModalCopyEl.textContent = credentialModalState.credentialTypeName
         ? 'Native n8n credential type: ' + credentialModalState.credentialTypeName
         : 'Fields are loaded from n8n native credential schema.';
-      credentialModalNameEl.value = credentialModalState.credentialName || recipe?.label || '';
+      renderCredentialTypeSelect();
+      credentialModalTypeEl.value = credentialModalState.credentialTypeName;
+      credentialModalTypeEl.disabled = credentialModalState.mode === 'edit' || credentialModalState.loading;
+      credentialModalNameEl.value = credentialModalState.credentialName || catalogEntry?.displayName || '';
 
-      const catalogEntry = findCredentialCatalogEntry(credentialModalState.credentialTypeName);
       credentialSchemaSourceEl.textContent = credentialModalState.loading
         ? 'Loading native n8n schema...'
         : 'Schema source: ' + (credentialModalState.schema?.source || catalogEntry?.source || 'n8n runtime') + '. Secret values cannot be read back from n8n; enter them when creating or updating.';
 
       renderCredentialSchemaFields();
       saveCredentialFromModalBtn.disabled = credentialModalState.loading || pendingAction === 'credential';
+    }
+
+    function renderCredentialTypeSelect() {
+      credentialModalTypeEl.innerHTML = '';
+      for (const entry of credentialCatalog) {
+        const option = document.createElement('option');
+        option.value = entry.typeName;
+        option.textContent = (entry.displayName || entry.typeName) + ' (' + entry.typeName + ')';
+        credentialModalTypeEl.appendChild(option);
+      }
     }
 
     function renderCredentialSchemaFields() {
@@ -1583,8 +1632,12 @@ export class ConfigurationWebview {
         }
         const value = credentialModalState.values[property.name] ?? normalizeCredentialDefault(property);
         values[property.name] = value;
-        if (property.required && (value === '' || value === undefined || value === null)) {
+        const blankEditableSecret = credentialModalState.mode === 'edit' && property.typeOptions?.password && value === '';
+        if (property.required && !blankEditableSecret && (value === '' || value === undefined || value === null)) {
           missing.push(property.displayName || property.name);
+        }
+        if (blankEditableSecret) {
+          delete values[property.name];
         }
       }
 
@@ -1717,7 +1770,7 @@ export class ConfigurationWebview {
       loadBtn.disabled = isBusy || !normalizeHost(hostEl.value) || !(apiKeyEl.value || '').trim();
       saveBtn.disabled = isBusy;
       loadCredentialsBtn.disabled = isBusy;
-      configureCredentialBtn.disabled = isBusy || !credentialRecipeEl.value;
+      addCredentialBtn.disabled = isBusy || !credentialCatalog.length;
       saveCredentialFromModalBtn.disabled = credentialModalState.loading || isBusy || !credentialModalState.open;
       newInstanceBtn.disabled = isBusy || isManagedLocal;
       deleteBtn.disabled = isBusy || draftMode || !selectedInstanceId;
@@ -2077,24 +2130,12 @@ export class ConfigurationWebview {
       credentialListEl.innerHTML = '<div class="hint">Loading credential readiness...</div>';
       vscode.postMessage({ type: 'loadCredentialInventory' });
     });
-    credentialRecipeEl.addEventListener('change', () => {
-      const recipe = getSelectedCredentialRecipe();
-      credentialNameEl.value = recipe?.label || '';
-      updateCredentialForm();
-      updateModeUi();
-    });
-    credentialNameEl.addEventListener('input', updateModeUi);
-    configureCredentialBtn.addEventListener('click', () => {
+    addCredentialBtn.addEventListener('click', () => {
       if (pendingAction) {
         return;
       }
-      const recipe = getSelectedCredentialRecipe();
-      if (!recipe) {
-        setError('Choose a credential provider.');
-        return;
-      }
       setError('');
-      openCredentialModal(recipe.id, (credentialNameEl.value || '').trim() || recipe.label);
+      openCredentialModal({ mode: 'create' });
     });
 
     closeCredentialModalBtn.addEventListener('click', closeCredentialModal);
@@ -2107,16 +2148,38 @@ export class ConfigurationWebview {
     credentialModalNameEl.addEventListener('input', () => {
       credentialModalState.credentialName = credentialModalNameEl.value;
     });
+    credentialModalTypeEl.addEventListener('change', () => {
+      if (credentialModalState.mode === 'edit') {
+        return;
+      }
+      const typeName = credentialModalTypeEl.value;
+      credentialSchemaRequestId += 1;
+      credentialModalState = {
+        ...credentialModalState,
+        recipeId: findRecipeForType(typeName)?.id || '',
+        credentialTypeName: typeName,
+        credentialName: defaultCredentialName(typeName),
+        schema: null,
+        values: {},
+        loading: true,
+      };
+      renderCredentialModal();
+      vscode.postMessage({
+        type: 'loadCredentialSchema',
+        recipeId: credentialModalState.recipeId,
+        credentialTypeName: typeName,
+        requestId: credentialSchemaRequestId,
+      });
+    });
     saveCredentialFromModalBtn.addEventListener('click', () => {
       if (pendingAction || credentialModalState.loading) {
         return;
       }
-      const recipe = credentialRecipes.find((candidate) => candidate.id === credentialModalState.recipeId);
-      if (!recipe) {
-        setError('Credential provider is not available anymore.');
+      if (!credentialModalState.credentialTypeName || !findCredentialCatalogEntry(credentialModalState.credentialTypeName)) {
+        setError('Credential type is not available anymore.');
         return;
       }
-      const credentialName = (credentialModalNameEl.value || '').trim() || recipe.label;
+      const credentialName = (credentialModalNameEl.value || '').trim() || defaultCredentialName(credentialModalState.credentialTypeName);
       const collected = collectCredentialModalValues();
       if (collected.missing.length) {
         setError('Missing required credential fields: ' + collected.missing.join(', '));
@@ -2126,9 +2189,10 @@ export class ConfigurationWebview {
       setError('');
       setPendingAction('credential');
       vscode.postMessage({
-        type: 'ensureCredential',
-        recipeId: recipe.id,
+        type: 'ensureCredentialType',
+        credentialId: credentialModalState.mode === 'edit' ? credentialModalState.credentialId : '',
         credentialName,
+        credentialTypeName: credentialModalState.credentialTypeName,
         values: collected.values,
       });
     });
@@ -2305,7 +2369,7 @@ export class ConfigurationWebview {
       }
 
       if (message.type === 'credentialInventoryLoaded') {
-        renderCredentialInventory(message.items || [], message.recipes || [], message.catalog || []);
+        renderCredentialInventory(message.items || [], message.recipes || [], message.catalog || [], message.credentials || []);
         return;
       }
 
@@ -2324,7 +2388,7 @@ export class ConfigurationWebview {
         clearPendingAction();
         setSaved(true);
         closeCredentialModal();
-        renderCredentialInventory(message.items || [], message.recipes || [], message.catalog || []);
+        renderCredentialInventory(message.items || [], message.recipes || [], message.catalog || [], message.credentials || []);
         return;
       }
 
