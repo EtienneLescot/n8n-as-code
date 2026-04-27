@@ -45,8 +45,10 @@ export interface N8nManagerFacade {
   listCredentialRecipes(): Promise<CredentialRecipe[]>;
   listCredentialCatalog(): Promise<CredentialCatalogEntry[]>;
   getCredentialSchema(typeName: string): Promise<Record<string, unknown>>;
+  listCredentials(): Promise<N8nCredentialRef[]>;
   listStarterKits(): Promise<StarterKit[]>;
   getCredentialInventory(): Promise<CredentialInventory>;
+  ensureCredentialType(input: { credentialId?: string; credentialName: string; credentialTypeName: string; values: Record<string, unknown> }): Promise<N8nCredentialRef>;
   ensureCredential(recipeId: string, input?: EnsureCredentialInput): Promise<N8nCredentialRef>;
   deleteCredential(credentialIdOrRecipeId: string): Promise<{ credentialId?: string; recipeId?: string; deletedRemote: boolean; deletedInventory: boolean }>;
   testCredential(credentialIdOrRecipeId: string): Promise<CredentialTestResult>;
@@ -91,8 +93,10 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
     listCredentialRecipes: async () => (await createCredentialsManager()).listRecipes(),
     listCredentialCatalog: async () => (await createCredentialsManager()).listCredentialCatalog(),
     getCredentialSchema: async (typeName) => (await createCredentialsManager()).getCredentialSchema(typeName),
+    listCredentials: async () => (await createCredentialsManager()).listCredentials(),
     listStarterKits: async () => (await createCredentialsManager()).listStarterKits(),
     getCredentialInventory: async () => (await createCredentialsManager()).getCredentialInventory(),
+    ensureCredentialType: async (input) => (await createCredentialsManager()).ensureCredentialType(input),
     ensureCredential: async (recipeId, input) => (await createCredentialsManager()).ensureCredential(recipeId, input),
     deleteCredential: async (credentialIdOrRecipeId) => (await createCredentialsManager()).deleteCredential(credentialIdOrRecipeId),
     testCredential: async (credentialIdOrRecipeId) => (await createCredentialsManager()).testCredential(credentialIdOrRecipeId),
