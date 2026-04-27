@@ -584,16 +584,16 @@ export class ConfigurationWebview {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
-      margin-top: 12px;
+      margin-top: 10px;
     }
     .mode-option {
       display: grid;
       gap: 6px;
-      padding: 12px;
+      padding: 10px;
       border-radius: 12px;
       border: 1px solid var(--border);
       background: color-mix(in srgb, var(--surface-strong) 80%, transparent);
-      min-height: 128px;
+      min-height: 108px;
       cursor: pointer;
     }
     .mode-option.selected {
@@ -638,12 +638,10 @@ export class ConfigurationWebview {
     }
     .path-panel {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
       gap: 14px;
-      align-items: center;
-      margin-top: 12px;
-      padding: 14px;
-      border-radius: 16px;
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 12px;
       background: var(--surface-muted);
       border: 1px solid var(--border);
     }
@@ -811,8 +809,22 @@ export class ConfigurationWebview {
       white-space: nowrap;
     }
     .section-divider {
-      margin: 18px 0 14px;
+      margin: 14px 0;
       border-top: 1px solid var(--border);
+    }
+    .runtime-workspace {
+      display: grid;
+      gap: 14px;
+    }
+    .workspace-panel {
+      display: grid;
+      gap: 14px;
+    }
+    .subsection-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
     }
     .subsection-title {
       margin: 0 0 4px;
@@ -881,16 +893,19 @@ export class ConfigurationWebview {
     </section>
 
     <div class="layout">
-      <section class="card">
+      <section class="card runtime-workspace">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Runtime mode</h2>
-            <p class="card-copy">This choice is shared by CLI, extension, MCP, and agent plugins so every facade exposes the same runtime path.</p>
+            <h2 class="card-title">Runtime and workspace sync</h2>
+            <p class="card-copy">Choose the runtime path, then activate the workspace sync settings with the same action.</p>
           </div>
         </div>
-        <div id="runtimeModeGrid" class="mode-grid"></div>
-        <div id="runtimePathPanel" class="path-panel">
-          <div>
+
+        <div>
+          <h3 class="subsection-title">Runtime mode</h3>
+          <p class="subsection-copy">Shared by CLI, extension, MCP, and agent plugins.</p>
+          <div id="runtimeModeGrid" class="mode-grid"></div>
+          <div id="runtimePathPanel" class="path-panel">
             <h3 id="runtimePathTitle" class="path-title">Connect existing n8n</h3>
             <p id="runtimePathCopy" class="path-copy"></p>
             <ol id="runtimePathNext" class="path-next"></ol>
@@ -902,86 +917,86 @@ export class ConfigurationWebview {
             </div>
             <div id="runtimeStatus" class="runtime-status hidden"></div>
           </div>
-          <button id="runtimePrimaryAction">Continue</button>
         </div>
-      </section>
 
-      <section id="existingInstanceCard" class="card">
-        <div class="card-header">
+        <div id="existingInstanceCard" class="workspace-panel">
+          <div class="section-divider"></div>
+          <div class="subsection-header">
+            <div>
+              <h3 id="instanceCardTitle" class="subsection-title">Instance</h3>
+              <p id="instanceCardCopy" class="subsection-copy">Enter the URL and API key of an existing n8n instance. Select a saved instance to edit it, then save to make it active in this workspace.</p>
+            </div>
+            <button id="newInstance" class="secondary">Add instance</button>
+          </div>
+
+          <div class="instance-layout">
+            <div class="stack">
+              <div id="connectionFields" class="field-grid">
+                <div class="field full">
+                  <label for="host">n8n host URL</label>
+                  <input id="host" type="text" placeholder="https://my-instance.app.n8n.cloud" />
+                  <div class="hint">Include the protocol and omit the trailing slash.</div>
+                </div>
+                <div class="field">
+                  <label for="apiKey">API key</label>
+                  <input id="apiKey" type="password" placeholder="n8n API key" />
+                </div>
+                <div class="field">
+                  <label>Verification</label>
+                  <div id="verificationStatus" class="hint">Not verified yet</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="stack">
+              <div id="instanceLibraryPanel" class="selector-panel">
+                <h3>Select instance</h3>
+                <div class="field">
+                  <label for="instanceSelect">Select instance</label>
+                  <select id="instanceSelect"></select>
+                </div>
+                <div id="switchHelp" class="hint"></div>
+                <div class="toolbar">
+                  <button id="deleteInstance" class="danger">Delete config</button>
+                </div>
+              </div>
+
+              <div class="summary">
+                <strong id="activeSummaryTitle">Active instance</strong>
+                <div id="activeSummaryName">No active instance.</div>
+                <div id="activeSummaryHost" class="hint"></div>
+                <div id="activeSummaryStatus" class="hint"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-divider"></div>
+
           <div>
-            <h2 id="instanceCardTitle" class="card-title">Instance</h2>
-            <p id="instanceCardCopy" class="card-copy">Enter the URL and API key of an existing n8n instance. Select a saved instance to edit it, then save to make it active in this workspace.</p>
+            <h3 class="subsection-title">Workspace sync</h3>
+            <p class="subsection-copy">Choose the folder to sync. Existing instances can also select a project.</p>
           </div>
-          <button id="newInstance" class="secondary">Add instance</button>
-        </div>
 
-        <div class="instance-layout">
-          <div class="stack">
-            <div id="connectionFields" class="field-grid">
-              <div class="field full">
-                <label for="host">n8n host URL</label>
-                <input id="host" type="text" placeholder="https://my-instance.app.n8n.cloud" />
-                <div class="hint">Include the protocol and omit the trailing slash.</div>
+          <div class="project-grid">
+            <div id="projectField" class="field">
+              <label for="project">Project to sync</label>
+              <div class="project-selector-row">
+                <button id="loadProjects" class="ghost project-load">Load projects</button>
+                <select id="project" disabled>
+                  <option value="">Load projects to select…</option>
+                </select>
               </div>
-              <div class="field">
-                <label for="apiKey">API key</label>
-                <input id="apiKey" type="password" placeholder="n8n API key" />
-              </div>
-              <div class="field">
-                <label>Verification</label>
-                <div id="verificationStatus" class="hint">Not verified yet</div>
-              </div>
+              <div class="hint">Use “Load projects” after entering a valid URL and API key.</div>
+            </div>
+
+            <div class="field">
+              <label for="syncFolder">Sync folder</label>
+              <input id="syncFolder" type="text" placeholder="workflows" />
+              <div class="hint">Example: <code>workflows</code> or <code>n8n/workflows</code>.</div>
             </div>
           </div>
 
-          <div class="stack">
-            <div id="instanceLibraryPanel" class="selector-panel">
-              <h3>Select instance</h3>
-              <div class="field">
-                <label for="instanceSelect">Select instance</label>
-                <select id="instanceSelect"></select>
-              </div>
-              <div id="switchHelp" class="hint"></div>
-              <div class="toolbar">
-                <button id="deleteInstance" class="danger">Delete config</button>
-              </div>
-            </div>
-
-            <div class="summary">
-              <strong id="activeSummaryTitle">Active instance</strong>
-              <div id="activeSummaryName">No active instance.</div>
-              <div id="activeSummaryHost" class="hint"></div>
-              <div id="activeSummaryStatus" class="hint"></div>
-            </div>
-          </div>
         </div>
-
-        <div class="section-divider"></div>
-
-        <div>
-          <h3 class="subsection-title">Project and Sync</h3>
-          <p class="subsection-copy">Load projects from this instance and choose the folder to sync.</p>
-        </div>
-
-        <div class="project-grid">
-          <div id="projectField" class="field">
-            <label for="project">Project to sync</label>
-            <div class="project-selector-row">
-              <button id="loadProjects" class="ghost project-load">Load projects</button>
-              <select id="project" disabled>
-                <option value="">Load projects to select…</option>
-              </select>
-            </div>
-            <div class="hint">Use “Load projects” after entering a valid URL and API key.</div>
-          </div>
-
-          <div class="field">
-            <label for="syncFolder">Sync folder</label>
-            <input id="syncFolder" type="text" placeholder="workflows" />
-            <div class="hint">Example: <code>workflows</code> or <code>n8n/workflows</code>.</div>
-          </div>
-        </div>
-
         <div class="footer-actions">
           <button id="save">Save and activate config</button>
         </div>
@@ -1036,7 +1051,6 @@ export class ConfigurationWebview {
     const runtimeOptionsEl = document.getElementById('runtimeOptions');
     const enableTunnelEl = document.getElementById('enableTunnel');
     const runtimeStatusEl = document.getElementById('runtimeStatus');
-    const runtimePrimaryActionBtn = document.getElementById('runtimePrimaryAction');
     const credentialsCardEl = document.getElementById('credentialsCard');
     const loadCredentialsBtn = document.getElementById('loadCredentials');
     const credentialListEl = document.getElementById('credentialList');
@@ -1366,20 +1380,14 @@ export class ConfigurationWebview {
         ? (isManagedLocal ? 'Preparing...' : (draftMode ? 'Adding...' : 'Saving...'))
         : isManagedLocal
           ? 'Prepare and activate managed n8n'
-          : 'Save and activate config';
-      runtimePrimaryActionBtn.textContent = pendingAction === 'save'
-        ? (isManagedLocal ? 'Preparing local n8n...' : 'Saving mode...')
-        : isManagedLocal
-          ? 'Prepare local n8n'
           : isGenerationOnly
             ? 'Use generation-only mode'
-            : 'Configure existing instance';
+            : 'Save and activate config';
       newInstanceBtn.textContent = draftMode ? 'Cancel add' : 'Add instance';
       loadBtn.textContent = pendingAction === 'loadProjects' ? 'Loading...' : 'Load projects';
       deleteBtn.textContent = pendingAction === 'deleteInstance' ? 'Deleting...' : 'Delete config';
       loadBtn.disabled = isBusy || !normalizeHost(hostEl.value) || !(apiKeyEl.value || '').trim();
       saveBtn.disabled = isBusy;
-      runtimePrimaryActionBtn.disabled = isBusy;
       loadCredentialsBtn.disabled = isBusy;
       setupLlmCredentialBtn.disabled = isBusy || !llmCredentialRecipeEl.value || !(llmApiKeyEl.value || '').trim();
       newInstanceBtn.disabled = isBusy || isManagedLocal;
@@ -1399,7 +1407,6 @@ export class ConfigurationWebview {
       connectionFieldsEl.classList.toggle('hidden', !isConnectExisting);
       instanceLibraryPanelEl.classList.toggle('hidden', isManagedLocal);
       newInstanceBtn.classList.toggle('hidden', isManagedLocal);
-      runtimePrimaryActionBtn.classList.toggle('hidden', isManagedLocal);
       credentialsCardEl.classList.toggle('hidden', isGenerationOnly);
       instanceCardTitleEl.textContent = isManagedLocal ? 'Managed workspace sync' : 'Instance';
       instanceCardCopyEl.textContent = isManagedLocal
@@ -1771,37 +1778,6 @@ export class ConfigurationWebview {
         recipeId: recipe.id,
         credentialName: (llmCredentialNameEl.value || '').trim() || recipe.label,
         values,
-      });
-    });
-
-    runtimePrimaryActionBtn.addEventListener('click', () => {
-      if (pendingAction) {
-        return;
-      }
-
-      setError('');
-
-      if (runtimeMode === 'connect-existing') {
-        setRuntimeStatus('', '', '');
-        hostEl.focus();
-        existingInstanceCardEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        return;
-      }
-
-      setRuntimeStatus(
-        'progress',
-        runtimeMode === 'managed-local' ? 'Preparing local n8n' : 'Saving generation-only mode',
-        runtimeMode === 'managed-local'
-          ? 'n8n-manager is resolving local runtime state. This can take a moment when provider setup is wired.'
-          : 'Saving the workspace runtime mode.',
-        true
-      );
-      setPendingAction('save');
-      vscode.postMessage({
-        type: 'configureRuntimeMode',
-        mode: runtimeMode,
-        tunnel: enableTunnelEl.checked,
-        syncFolder: (syncFolderEl.value || '').trim() || 'workflows',
       });
     });
 
