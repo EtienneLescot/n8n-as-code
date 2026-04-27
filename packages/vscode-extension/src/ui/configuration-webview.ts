@@ -264,9 +264,35 @@ export class ConfigurationWebview {
           case 'loadCredentialInventory': {
             const facade = createN8nManagerFacade();
             const inventory = await facade.getCredentialInventory();
+            const recipes = await facade.listCredentialRecipes();
             this._panel.webview.postMessage({
               type: 'credentialInventoryLoaded',
               items: inventory.availableCredentials,
+              recipes,
+            });
+            return;
+          }
+
+          case 'ensureCredential': {
+            const recipeId = String(message.recipeId || '').trim();
+            const credentialName = String(message.credentialName || '').trim();
+            const values = typeof message.values === 'object' && message.values ? message.values : {};
+            if (!recipeId) {
+              throw new Error('Credential recipe is required.');
+            }
+
+            const facade = createN8nManagerFacade();
+            const ref = await facade.ensureCredential(recipeId, {
+              credentialName: credentialName || undefined,
+              values,
+            });
+            const inventory = await facade.getCredentialInventory();
+            const recipes = await facade.listCredentialRecipes();
+            this._panel.webview.postMessage({
+              type: 'credentialSaved',
+              credential: ref,
+              items: inventory.availableCredentials,
+              recipes,
             });
             return;
           }
@@ -667,9 +693,16 @@ export class ConfigurationWebview {
       gap: 8px;
       margin-top: 12px;
     }
+    .credential-form {
+      display: grid;
+      grid-template-columns: minmax(150px, 1fr) minmax(160px, 1fr) minmax(180px, 1.4fr) minmax(120px, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+      margin-top: 12px;
+    }
     .credential-row {
       display: grid;
-      grid-template-columns: minmax(140px, 1.2fr) minmax(90px, 0.7fr) minmax(90px, 0.7fr);
+      grid-template-columns: minmax(140px, 1.2fr) minmax(90px, 0.7fr) minmax(90px, 0.7fr) auto;
       gap: 10px;
       align-items: center;
       padding: 10px 0;
@@ -824,6 +857,7 @@ export class ConfigurationWebview {
       .field-grid {
         grid-template-columns: 1fr;
       }
+      .credential-form,
       .credential-row {
         grid-template-columns: 1fr;
       }
@@ -953,9 +987,28 @@ export class ConfigurationWebview {
         <div class="card-header">
           <div>
             <h2 class="card-title">Credentials</h2>
-            <p class="card-copy">Review credential readiness for this runtime. Creation, update, and delete operations are delegated to n8n-manager.</p>
+            <p class="card-copy">Create or update native n8n LLM provider credentials through n8n-manager.</p>
           </div>
           <button id="loadCredentials" class="secondary">Refresh</button>
+        </div>
+        <div class="credential-form">
+          <div class="field">
+            <label for="llmCredentialRecipe">LLM provider</label>
+            <select id="llmCredentialRecipe"></select>
+          </div>
+          <div class="field">
+            <label for="llmCredentialName">Credential name</label>
+            <input id="llmCredentialName" type="text" placeholder="OpenAI" />
+          </div>
+          <div class="field">
+            <label for="llmApiKey">API key</label>
+            <input id="llmApiKey" type="password" placeholder="Provider API key" />
+          </div>
+          <div id="llmBaseUrlField" class="field">
+            <label for="llmBaseUrl">Base URL</label>
+            <input id="llmBaseUrl" type="text" placeholder="Optional" />
+          </div>
+          <button id="setupLlmCredential">Set up</button>
         </div>
         <div id="credentialList" class="credential-list">
           <div class="hint">Prepare a runtime, then refresh credential readiness.</div>
@@ -983,6 +1036,12 @@ export class ConfigurationWebview {
     const credentialsCardEl = document.getElementById('credentialsCard');
     const loadCredentialsBtn = document.getElementById('loadCredentials');
     const credentialListEl = document.getElementById('credentialList');
+    const llmCredentialRecipeEl = document.getElementById('llmCredentialRecipe');
+    const llmCredentialNameEl = document.getElementById('llmCredentialName');
+    const llmApiKeyEl = document.getElementById('llmApiKey');
+    const llmBaseUrlFieldEl = document.getElementById('llmBaseUrlField');
+    const llmBaseUrlEl = document.getElementById('llmBaseUrl');
+    const setupLlmCredentialBtn = document.getElementById('setupLlmCredential');
     const existingInstanceCardEl = document.getElementById('existingInstanceCard');
     const instanceCardTitleEl = document.getElementById('instanceCardTitle');
     const instanceCardCopyEl = document.getElementById('instanceCardCopy');
@@ -1020,6 +1079,7 @@ export class ConfigurationWebview {
     let autoLoadTimer = null;
     let lastLoadRequest = { host: '', apiKey: '' };
     let runtimeMode = 'connect-existing';
+    let credentialRecipes = [];
 
     function createEmptyConfig(overrides = {}) {
       return {
@@ -1087,7 +1147,49 @@ export class ConfigurationWebview {
       }
     }
 
-    function renderCredentialInventory(items) {
+    function getLlmCredentialRecipes() {
+      return credentialRecipes.filter((recipe) =>
+        recipe.service === 'llm'
+        && recipe.authMethod === 'api-key'
+        && recipe.id !== 'llm-proxy'
+      );
+    }
+
+    function getSelectedLlmRecipe() {
+      const selectedId = llmCredentialRecipeEl.value;
+      return getLlmCredentialRecipes().find((recipe) => recipe.id === selectedId);
+    }
+
+    function renderLlmCredentialRecipes() {
+      const recipes = getLlmCredentialRecipes();
+      llmCredentialRecipeEl.innerHTML = '';
+      for (const recipe of recipes) {
+        const option = document.createElement('option');
+        option.value = recipe.id;
+        option.textContent = recipe.label;
+        llmCredentialRecipeEl.appendChild(option);
+      }
+      if (!llmCredentialNameEl.value && recipes[0]) {
+        llmCredentialNameEl.value = recipes[0].label;
+      }
+      updateLlmCredentialForm();
+    }
+
+    function updateLlmCredentialForm() {
+      const recipe = getSelectedLlmRecipe();
+      if (recipe && !llmCredentialNameEl.value) {
+        llmCredentialNameEl.value = recipe.label;
+      }
+      const supportsBaseUrl = !!recipe && Array.isArray(recipe.requiredInputs)
+        && recipe.requiredInputs.some((input) => input.key === 'url');
+      llmBaseUrlFieldEl.classList.toggle('hidden', !supportsBaseUrl);
+    }
+
+    function renderCredentialInventory(items, recipes) {
+      if (Array.isArray(recipes)) {
+        credentialRecipes = recipes;
+        renderLlmCredentialRecipes();
+      }
       credentialListEl.innerHTML = '';
       const credentials = Array.isArray(items) ? items : [];
       if (!credentials.length) {
@@ -1099,12 +1201,13 @@ export class ConfigurationWebview {
       }
 
       for (const item of credentials) {
+        const recipe = credentialRecipes.find((candidate) => candidate.id === item.recipeId);
         const row = document.createElement('div');
         row.className = 'credential-row';
 
         const name = document.createElement('div');
         name.className = 'credential-name';
-        name.textContent = item.credentialName || item.recipeId || 'Credential';
+        name.textContent = item.credentialName || recipe?.label || item.recipeId || 'Credential';
 
         const meta = document.createElement('div');
         meta.className = 'credential-meta';
@@ -1114,9 +1217,21 @@ export class ConfigurationWebview {
         status.className = 'credential-status';
         status.textContent = item.status + (item.reason ? ' · ' + item.reason : '');
 
+        const action = document.createElement('button');
+        action.className = 'ghost';
+        action.textContent = recipe?.service === 'llm' && recipe?.authMethod === 'api-key' ? 'Edit' : 'Managed';
+        action.disabled = !(recipe?.service === 'llm' && recipe?.authMethod === 'api-key');
+        action.addEventListener('click', () => {
+          llmCredentialRecipeEl.value = item.recipeId;
+          llmCredentialNameEl.value = item.credentialName || recipe?.label || '';
+          updateLlmCredentialForm();
+          llmApiKeyEl.focus();
+        });
+
         row.appendChild(name);
         row.appendChild(meta);
         row.appendChild(status);
+        row.appendChild(action);
         credentialListEl.appendChild(row);
       }
     }
@@ -1253,6 +1368,7 @@ export class ConfigurationWebview {
       saveBtn.disabled = isBusy;
       runtimePrimaryActionBtn.disabled = isBusy;
       loadCredentialsBtn.disabled = isBusy;
+      setupLlmCredentialBtn.disabled = isBusy || !llmCredentialRecipeEl.value || !(llmApiKeyEl.value || '').trim();
       newInstanceBtn.disabled = isBusy || isManagedLocal;
       deleteBtn.disabled = isBusy || draftMode || !selectedInstanceId;
       instanceSelectEl.disabled = isBusy || !instances.length;
@@ -1270,6 +1386,7 @@ export class ConfigurationWebview {
       connectionFieldsEl.classList.toggle('hidden', !isConnectExisting);
       instanceLibraryPanelEl.classList.toggle('hidden', isManagedLocal);
       newInstanceBtn.classList.toggle('hidden', isManagedLocal);
+      runtimePrimaryActionBtn.classList.toggle('hidden', isManagedLocal);
       credentialsCardEl.classList.toggle('hidden', isGenerationOnly);
       instanceCardTitleEl.textContent = isManagedLocal ? 'Managed workspace sync' : 'Instance';
       instanceCardCopyEl.textContent = isManagedLocal
@@ -1611,6 +1728,38 @@ export class ConfigurationWebview {
       credentialListEl.innerHTML = '<div class="hint">Loading credential readiness...</div>';
       vscode.postMessage({ type: 'loadCredentialInventory' });
     });
+    llmCredentialRecipeEl.addEventListener('change', () => {
+      const recipe = getSelectedLlmRecipe();
+      llmCredentialNameEl.value = recipe?.label || '';
+      updateLlmCredentialForm();
+      updateModeUi();
+    });
+    llmApiKeyEl.addEventListener('input', updateModeUi);
+    setupLlmCredentialBtn.addEventListener('click', () => {
+      if (pendingAction) {
+        return;
+      }
+      const recipe = getSelectedLlmRecipe();
+      const apiKey = (llmApiKeyEl.value || '').trim();
+      if (!recipe || !apiKey) {
+        setError('Choose an LLM provider and enter an API key.');
+        return;
+      }
+
+      const values = { apiKey };
+      if ((llmBaseUrlEl.value || '').trim()) {
+        values.url = (llmBaseUrlEl.value || '').trim();
+      }
+
+      setError('');
+      setPendingAction('credential');
+      vscode.postMessage({
+        type: 'ensureCredential',
+        recipeId: recipe.id,
+        credentialName: (llmCredentialNameEl.value || '').trim() || recipe.label,
+        values,
+      });
+    });
 
     runtimePrimaryActionBtn.addEventListener('click', () => {
       if (pendingAction) {
@@ -1815,7 +1964,15 @@ export class ConfigurationWebview {
       }
 
       if (message.type === 'credentialInventoryLoaded') {
-        renderCredentialInventory(message.items || []);
+        renderCredentialInventory(message.items || [], message.recipes || []);
+        return;
+      }
+
+      if (message.type === 'credentialSaved') {
+        clearPendingAction();
+        setSaved(true);
+        llmApiKeyEl.value = '';
+        renderCredentialInventory(message.items || [], message.recipes || []);
         return;
       }
 
@@ -1839,6 +1996,7 @@ export class ConfigurationWebview {
     });
 
     resetProjectsUi();
+    vscode.postMessage({ type: 'loadCredentialInventory' });
     updateModeUi();
   </script>
 </body>
