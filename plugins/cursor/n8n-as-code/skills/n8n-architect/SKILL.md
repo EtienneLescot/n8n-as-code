@@ -19,7 +19,7 @@ This plugin is installed globally in Cursor. Instance and credential state is gl
 
 Prefer tools in this order:
 
-1. Use the `n8nac` CLI for all workspace operations: initialization, instance selection, list, pull, push, resolve, verify, test, credential management, and execution inspection.
+1. Use `n8n-manager` for global n8n instance/auth/project management. Use `n8nac workspace` for workspace-local overrides. Use `n8nac` workflow commands for list, pull, push, resolve, verify, test, credential management, and execution inspection.
 2. After initialization, read `AGENTS.md` from the workspace root and treat it as the detailed workflow-engineering protocol for that specific workspace.
 3. Use the bundled MCP server only for knowledge lookups or validation fallback when that is more direct than the CLI. Do not rely on MCP for workspace mutations.
 
@@ -31,21 +31,20 @@ Before using any workflow command, check whether the workspace is initialized.
 
 - Look for `n8nac-config.json` at the root of the target workspace.
 - If `n8nac-config.json` is missing, or it exists but does not contain a selected project context, the workspace is not initialized yet.
-- Never ask the user to run `n8nac` commands themselves. You are the agent and must run them.
-- Default non-interactive setup flow:
-  - `npx --yes n8nac init-auth --host <url> --api-key <key> [--sync-folder <path>]`
-  - `npx --yes n8nac init-project --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]`
-- If the target project is already known, a one-command setup is also valid:
-  - `npx --yes n8nac init --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]`
-- If global n8n-manager instances already exist, inspect them first with `npx --yes n8nac instance list --json`.
-- Reuse an existing global instance with `npx --yes n8nac instance select --instance-id <id>` or `--instance-name <name>` when possible.
+- Never ask the user to run setup commands themselves. You are the agent and must run them.
+- Use `n8n-manager instances list` to inspect existing global instances.
+- Use `n8n-manager instances select <id-or-name>` to reuse an existing global instance.
+- If credentials are needed, run `n8n-manager auth set --url <url> --api-key-stdin`.
+- Discover projects with `n8n-manager projects list` and select the instance default with `n8n-manager projects select <project-id-or-name>`.
+- Configure workspace-local sync with `npx --yes n8nac workspace set-sync-folder workflows`.
+- Configure a workspace project override only when needed with `npx --yes n8nac workspace set-project --project-id <id> --project-name <name>`.
 - Never write `n8nac-config.json` by hand.
 
 ### Required order
 
 1. Check for `n8nac-config.json`.
-2. If global n8n-manager instances exist, inspect them with `npx --yes n8nac instance list --json`.
-3. If initialization is missing and credentials are available, run `init-auth`, inspect projects, then run `init-project`.
+2. If global n8n-manager instances exist, inspect them with `n8n-manager instances list`.
+3. If initialization is missing and credentials are available, run `n8n-manager auth set`, inspect projects, then run `n8n-manager projects select` and `npx --yes n8nac workspace set-sync-folder workflows`.
 4. If credentials are missing, ask the user for the n8n host URL and API key, then run the commands yourself.
 5. After initialization, read `AGENTS.md` before making workflow changes.
 

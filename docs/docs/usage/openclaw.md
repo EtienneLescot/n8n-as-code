@@ -52,10 +52,11 @@ openclaw gateway restart
 
 The setup wizard walks through the same core steps as the CLI:
 
-1. Save the n8n host and API key through `n8nac init-auth`.
-2. Select the active n8n project.
-3. Generate `AGENTS.md` with `n8nac update-ai`.
-4. Point OpenClaw at the initialized workspace in `~/.openclaw/n8nac/`.
+1. Save the n8n host and API key through `n8n-manager auth set`.
+2. Select the active n8n project through `n8n-manager projects select`.
+3. Configure workspace-local sync through `n8nac workspace set-sync-folder`.
+4. Generate `AGENTS.md` with `n8nac update-ai`.
+5. Point OpenClaw at the initialized workspace in `~/.openclaw/n8nac/`.
 
 Once the workspace exists, agents can inspect and switch global n8n-manager instances through the shared backend facade instead of rewriting `n8nac-config.json` by hand.
 
@@ -90,14 +91,16 @@ The plugin keeps its working files under:
 | `openclaw n8nac:status` | Check workspace and connection state |
 | `openclaw gateway restart` | Reload the plugin after setup or local changes |
 
-### Underlying n8nac Flow
+### Underlying CLI Flow
 
-The plugin still uses the shared CLI model underneath:
+The plugin uses the two CLI responsibilities underneath:
 
 ```bash
-npx --yes n8nac instance list --json
-npx --yes n8nac instance select --instance-id <instanceId>
-npx --yes n8nac instance delete --instance-id <instanceId> --yes
+n8n-manager instances list
+n8n-manager instances select <instanceId>
+n8n-manager projects list
+n8n-manager projects select <project-id-or-name>
+npx --yes n8nac workspace set-sync-folder workflows
 npx --yes n8nac list
 npx --yes n8nac pull <workflow-id>
 npx --yes n8nac push <file>

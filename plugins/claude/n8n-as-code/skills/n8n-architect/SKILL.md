@@ -19,32 +19,33 @@ Before using any `n8nac` workflow command, check whether the workspace is initia
 ### Initialization Check
 - Look for `n8nac-config.json` at the root of the target n8n-as-code workspace. If you are operating from another folder, use the target workspace path, not your own current root.
 - If `n8nac-config.json` is missing, or it exists but does not yet contain `projectId` and `projectName`, the workspace is not initialized yet.
-- **NEVER tell the user to run `npx --yes n8nac init` themselves.** You are the agent — it is YOUR job to run the command.
-- For autonomous agents, the default non-interactive initialization flow is the explicit 2-step sequence: `npx --yes n8nac init-auth --host <url> --api-key <key> [--sync-folder <path>]`, then `npx --yes n8nac init-project --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]`. Use this when the project is not known yet and you need to discover or inspect projects before choosing one.
-- A 1-command non-interactive flow also exists when the host, API key, and project selector are already known: `npx --yes n8nac instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]`. `npx --yes n8nac init` is the ergonomic alias.
-- If global n8n-manager instances already exist, inspect them with `npx --yes n8nac instance list --json` before deciding whether to add a new one or switch the global active instance.
-- Use `npx --yes n8nac instance select --instance-id <id>` or `npx --yes n8nac instance select --instance-name <name>` to switch the global active instance non-interactively.
-- Use `npx --yes n8nac instance delete --instance-id <id> --yes` or `npx --yes n8nac instance delete --instance-name <name> --yes` to remove stale global n8n-manager instances non-interactively.
-- If the user has already provided the n8n host and API key, prefer the 2-step flow when you still need to inspect projects first. Use the 1-command flow only when the target project is already known.
-- If host or API key are missing, ask the user for them with a single clear question: "To initialize the workspace I need your n8n host URL and API key — what are they?" Then, once you have both values, run the appropriate command yourself.
+- **NEVER tell the user to run setup commands themselves.** You are the agent — it is YOUR job to run the commands.
+- Use `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js` for n8n instance/auth/runtime/project management. Use `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js` only for n8n-as-code workspace/workflow commands.
+- If global n8n-manager instances already exist, inspect them with `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js instances list` before deciding whether to add a new one or switch the global active instance.
+- Use `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js instances select <id-or-name>` to switch the global active instance non-interactively.
+- Use `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js instances delete <id-or-name>` to remove stale global n8n-manager instances. Add `--destroy-data --force` only when the user explicitly wants runtime data destroyed.
+- If host or API key are missing, ask the user for them with a single clear question: "To initialize the workspace I need your n8n host URL and API key — what are they?" Then, once you have both values, run `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js auth set --url <url> --api-key <key> [--name <name>]` yourself.
+- Discover projects with `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js projects list`. Select the instance default project with `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js projects select <project-id-or-name>`.
+- Configure only workspace-local overrides with `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js workspace set-sync-folder <path>`, `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js workspace set-project --project-id <id> --project-name <name>`, and optionally `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js workspace pin-instance --instance-id <id>`.
 - Do not run `n8nac list`, `pull`, `push`, or edit workflow files until initialization is complete.
-- Never write `n8nac-config.json` by hand. Instance setup and switching must go through documented `n8nac` commands so n8n-manager credentials, global active selection, workspace overrides, and AI context stay consistent.
+- Never write `n8nac-config.json` by hand. Workspace changes must go through documented `n8nac workspace` commands so workspace overrides and AI context stay consistent.
 - Do not assume initialization has already happened just because the repository contains workflow files or plugin files.
 
 ### Preferred Agent Commands
-- Default 2-step non-interactive auth: `npx --yes n8nac init-auth --host <url> --api-key <key> [--sync-folder <path>]`
-- Default 2-step non-interactive project selection: `npx --yes n8nac init-project --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]`
-- Optional 1-command non-interactive setup when the project is already known: `npx --yes n8nac instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]`
-- Optional 1-command alias: `npx --yes n8nac init --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]`
-- Global n8n-manager instance management: `npx --yes n8nac instance list --json`, `npx --yes n8nac instance select --instance-id <id>|--instance-name <name>`, `npx --yes n8nac instance delete --instance-id <id>|--instance-name <name> --yes`
-- `npx --yes n8nac init-project` can run interactively after `npx --yes n8nac init-auth`, or non-interactively when the project selector is known.
+- Instance/auth setup: `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js auth set --url <url> --api-key <key> [--name <name>]`
+- Managed local setup: `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js instances add --name <name> --mode managed-local-docker [--tunnel]`
+- Project discovery: `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js projects list`
+- Instance default project: `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js projects select <project-id-or-name>`
+- Workspace sync folder: `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js workspace set-sync-folder workflows`
+- Workspace project override when needed: `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js workspace set-project --project-id <id> --project-name <name>`
+- Workspace status: `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js workspace status --json`
 
 ### Required Order
 1. Check for `n8nac-config.json`.
-2. If global n8n-manager instances already exist: inspect them with `npx --yes n8nac instance list --json`. Reuse them with `npx --yes n8nac instance select` instead of creating duplicates whenever that satisfies the user request.
-3. If initialization is missing and `N8N_HOST` / `N8N_API_KEY` are available: default to `npx --yes n8nac init-auth --host <url> --api-key <key> [--sync-folder <path>]` to discover projects. Only use `npx --yes n8nac instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]` when the project is already known.
-4. If initialization is missing and credentials are absent: ask the user for the host URL and API key, then run the appropriate `n8nac` command yourself. **Do not ask the user to run the command.**
-5. After credentials are saved, inspect the listed projects. If only one project exists, run `npx --yes n8nac init-project --project-index 1 --sync-folder workflows`. If multiple projects exist, ask the user which one to use, then run `npx --yes n8nac init-project --project-id <id> [--sync-folder <path>]`.
+2. Inspect global n8n instances with `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js instances list`. Reuse an existing instance with `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js instances select <id-or-name>` whenever that satisfies the user request.
+3. If no suitable instance exists and `N8N_HOST` / `N8N_API_KEY` are available, run `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js auth set --url <url> --api-key <key> [--name <name>]`. If credentials are absent, ask once, then run this command yourself.
+4. Inspect or set the n8n project with `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js projects list` and `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js projects select <project-id-or-name>`.
+5. Configure workspace-local context with `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js workspace set-sync-folder workflows` and, only when the workspace must override the instance default project, `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js workspace set-project --project-id <id> --project-name <name>`.
 6. Only after initialization is complete, continue with workflow discovery, pull, edit, validate, and push steps.
 
 ---
@@ -53,7 +54,7 @@ Before using any `n8nac` workflow command, check whether the workspace is initia
 ## 📘 Root Agent Context
 
 - After initialization is complete, read `AGENTS.md` from the workspace root.
-- `init` or the completed `init-project` flow automatically bootstraps `AGENTS.md` via `n8nac update-ai`.
+- Workspace context changes automatically bootstrap `AGENTS.md` via `n8nac update-ai` when the facade supports it; otherwise run `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js update-ai` after changing workspace sync/project overrides.
 - Treat `AGENTS.md` as shared workspace context that complements this skill. Use it after initialization, not before.
 
 ## 🔄 Sync Discipline (MANDATORY)
@@ -99,13 +100,13 @@ If the push fails with an OCC conflict (the remote was modified since your last 
 When a user mentions a node type (e.g., "HTTP Request", "Google Sheets", "Code"), first search for it:
 
 ```bash
-npx --yes n8nac skills search "<search term>"
+node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js skills search "<search term>"
 ```
 
 **Examples:**
-- `npx --yes n8nac skills search "http request"`
-- `npx --yes n8nac skills search "google sheets"`
-- `npx --yes n8nac skills search "webhook"`
+- `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js skills search "http request"`
+- `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js skills search "google sheets"`
+- `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js skills search "webhook"`
 
 This returns a list of matching nodes with their exact technical names.
 
@@ -114,13 +115,13 @@ This returns a list of matching nodes with their exact technical names.
 Once you have the exact node name, retrieve its complete schema:
 
 ```bash
-npx --yes n8nac skills node-info "<nodeName>"
+node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js skills node-info "<nodeName>"
 ```
 
 **Examples:**
-- `npx --yes n8nac skills node-info "httpRequest"`
-- `npx --yes n8nac skills node-info "googleSheets"`
-- `npx --yes n8nac skills node-info "code"`
+- `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js skills node-info "httpRequest"`
+- `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js skills node-info "googleSheets"`
+- `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js skills node-info "code"`
 
 This returns the full JSON schema including all parameters, types, defaults, valid options, and input/output structure.
 
@@ -187,7 +188,7 @@ export class MyWorkflow {
     position: [250, 300]
   })
   MyNode = {
-    /* parameters from npx --yes n8nac skills node-info */
+    /* parameters from node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js skills node-info */
   };
 
   @links()
@@ -302,7 +303,7 @@ The exact flags for each node are shown in the `node-info` output under `Conditi
 When an AI agent uses tool nodes:
 
 - ✅ Search for the exact tool node first.
-- ✅ Run `npx --yes n8nac skills node-info <nodeName>` before writing parameters.
+- ✅ Run `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js skills node-info <nodeName>` before writing parameters.
 - ✅ Connect tool nodes as arrays: `this.Agent.uses({ ai_tool: [this.Tool.output] })`.
 - ❌ Do not assume tool parameter names or reuse stale node-specific guidance.
 
@@ -312,7 +313,7 @@ When an AI agent uses tool nodes:
 1. **Always verify node schemas** before generating configuration
 2. **Use descriptive node names** for clarity ("Get Customers", not "HTTP Request")
 3. **Add comments in Code nodes** to explain logic
-4. **Validate node parameters** using `npx --yes n8nac skills node-info <nodeName>`
+4. **Validate node parameters** using `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js skills node-info <nodeName>`
 5. **Reference credentials** by name, never hardcode
 6. **Use error handling** nodes for production workflows
 
@@ -322,17 +323,17 @@ If you're unsure about any node:
 
 1. **List all available nodes:**
    ```bash
-   npx --yes n8nac skills list
+   node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js skills list
    ```
 
 2. **Search for similar nodes:**
    ```bash
-   npx --yes n8nac skills search "keyword"
+   node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js skills search "keyword"
    ```
 
 3. **Get detailed documentation:**
    ```bash
-   npx --yes n8nac skills node-info "nodeName"
+   node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js skills node-info "nodeName"
    ```
 
 ## 🔑 Credential Management
@@ -343,54 +344,54 @@ When a workflow is blocked because a credential is missing, resolve it without o
 
 1. **Detect missing credentials for a workflow (exit 1 = act, exit 0 = all present):**
    ```bash
-   npx --yes n8nac workflow credential-required <workflowId> --json
+   node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js workflow credential-required <workflowId> --json
    ```
    Output: `[{ nodeName, credentialType, credentialName, exists }]`  
    Run this immediately after pushing. Exit code 1 means at least one credential is missing.
 
 2. **Discover required fields for a credential type:**
    ```bash
-   npx --yes n8nac credential schema <type>
+   node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js credential schema <type>
    ```
-   Example: `npx --yes n8nac credential schema notionApi`  
+   Example: `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js credential schema notionApi`  
    Use the output to build the credential data file. Ask the user for secret values — never guess.
 
 3. **Create the credential from a file (preferred — keeps secrets out of shell history):**
    ```bash
-   npx --yes n8nac credential create --type <type> --name "My Credential" --file cred.json --json
+   node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js credential create --type <type> --name "My Credential" --file cred.json --json
    ```
 
 4. **Activate the workflow after credentials are provisioned:**
    ```bash
-   npx --yes n8nac workflow activate <workflowId>
+   node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js workflow activate <workflowId>
    ```
 
 5. **Run the test:**
    ```bash
-   npx --yes n8nac test <workflowId>
+   node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js test <workflowId>
    ```
    A Class A error that was blocking the test should now be resolved.
    If the workflow uses a classic Webhook or Form trigger and the test URL says the webhook is not registered, this is usually a manual arm/listen issue in the n8n editor rather than a code bug.
    Click `Execute workflow` or `Listen for test event` in the editor, then retry the same test request once.
    If the trigger uses GET or HEAD and the workflow reads from `$json.query`, prefer:
    ```bash
-   npx --yes n8nac test <workflowId> --query '{"chatInput":"hello"}'
+   node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js test <workflowId> --query '{"chatInput":"hello"}'
    ```
 
 6. **If the webhook call succeeds but the workflow still misbehaves, inspect executions:**
    ```bash
-   npx --yes n8nac execution list --workflow-id <workflowId> --limit 5 --json
-   npx --yes n8nac execution get <executionId> --include-data --json
+   node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js execution list --workflow-id <workflowId> --limit 5 --json
+   node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js execution get <executionId> --include-data --json
    ```
    Use this to debug server-side execution failures without opening the n8n UI.
 
 **Other credential commands:**
    ```bash
-   npx --yes n8nac credential list --json               # List all existing credentials as JSON
-   npx --yes n8nac workflow deactivate <workflowId>     # Deactivate a workflow
+   node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js credential list --json               # List all existing credentials as JSON
+   node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js workflow deactivate <workflowId>     # Deactivate a workflow
    ```
 
-If `credential create` fails, read the returned validation message and change the payload before retrying. Never rerun the same failing command unchanged. If a subcommand is unfamiliar, run `npx --yes n8nac <subcommand> --help` instead of inventing flags.
+If `credential create` fails, read the returned validation message and change the payload before retrying. Never rerun the same failing command unchanged. If a subcommand is unfamiliar, run `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js <subcommand> --help` instead of inventing flags.
 
 ## 📝 Response Format
 
@@ -398,16 +399,16 @@ When helping users:
 
 1. Acknowledge what they want to achieve.
 2. Check initialization by verifying whether `n8nac-config.json` exists in the workspace root.
-3. If not initialized, ask the user for the host URL and API key if needed, then run `npx --yes n8nac init-auth` and `npx --yes n8nac init-project` yourself.
+3. If not initialized, ask the user for the host URL and API key if needed, then run `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js auth set --url <url> --api-key <key>`, `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js projects list`, `node /home/etienne/repos/n8n-ecosystem-dev/n8n-manager/packages/cli/dist/index.js projects select <project-id-or-name>`, and `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js workspace set-sync-folder workflows` yourself.
 4. Pull the workflow before any modification and show the command.
-5. For a new workflow, run `npx --yes n8nac workspace status --json` and use the returned `workflowDir` to find the local workflow directory. Create the file there and confirm it appears in `npx --yes n8nac list --local` before pushing.
+5. For a new workflow, run `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js workspace status --json` and use the returned `workflowDir` to find the local workflow directory. Create the file there and confirm it appears in `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js list --local` before pushing.
 6. Search for the relevant nodes and show the command you are running.
 7. Retrieve the exact schema.
 8. Generate the TypeScript configuration using the schema.
 9. Explain the key parameters and any credentials needed.
 10. Push the workflow after modification and show the command.
-11. For webhook/chat/form workflows: run `npx --yes n8nac test-plan <id>` after pushing to inspect trigger, endpoints, and suggested payload.
-    - Then run `npx --yes n8nac test <id>` with the inferred payload when runtime validation is needed.
+11. For webhook/chat/form workflows: run `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js test-plan <id>` after pushing to inspect trigger, endpoints, and suggested payload.
+    - Then run `node /home/etienne/repos/n8n-ecosystem-dev/n8n-as-code/packages/cli/dist/index.js test <id>` with the inferred payload when runtime validation is needed.
     - If **Class A** (config gap): report what the user needs to configure — do NOT re-edit the code.
     - If **runtime-state issue** (webhook test URL not armed, production webhook not registered): do NOT re-edit the code. Resolve the state/arming issue first.
     - If **Class B** (wiring error): fix the issue, push again, and re-test.

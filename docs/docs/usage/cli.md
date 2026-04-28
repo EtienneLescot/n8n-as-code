@@ -55,15 +55,18 @@ After removing it, `n8nac --help` should show the full, up-to-date command list.
 
 ## 🚀 Quick Start
 
-### Initialize a Project
+### Configure Runtime and Workspace
 ```bash
-n8nac init
+n8n-manager auth set --url <url> --api-key-stdin
+n8n-manager projects select <project-id-or-name>
+n8nac workspace set-sync-folder workflows
+n8nac update-ai
 ```
 
-This command:
-1. Creates or updates `n8nac-config.json`
-2. Saves an instance config for the n8n environment you want to use
-3. Prompts you to select which **n8n project** to sync
+This sequence:
+1. Saves global n8n instance/auth/project state in `n8n-manager`
+2. Creates or updates the local `n8nac-config.json` workspace overrides
+3. Generates the AI context used by agents
 
 ### Download a Workflow from n8n
 ```bash
@@ -110,48 +113,17 @@ The exact commands for each step are documented below in the command reference, 
 
 ## 📋 Command Reference
 
-### `init`
-Initialize a new n8nac project.
-
-**Description:**
-Interactive wizard that guides you through saving an n8n instance config and selecting the active project.
-
-**Example:**
-```bash
-n8nac init
-```
-
-The wizard will ask for:
-- **n8n Host URL**: The URL of your n8n instance (e.g., `http://localhost:5678`)
-- **API Key**: Your n8n API key (found in n8n Settings > API)
-- **Sync Folder**: Local directory for workflow storage (default: `workflows`)
-- **Project**: The n8n project to sync
-
-`n8nac init` is the ergonomic alias for `n8nac instance add`.
-
-### `instance`
-Manage global n8n-manager instances.
+### Runtime Setup
+Global n8n instance, auth, runtime, and project state belongs to `n8n-manager`.
 
 ```bash
-n8nac instance add
-n8nac instance list
-n8nac instance select
-n8nac instance delete
+n8n-manager auth set --url <url> --api-key <key> --name <name>
+n8n-manager instances list
+n8n-manager instances select <id-or-name>
+n8n-manager instances delete <id-or-name>
+n8n-manager projects list
+n8n-manager projects select <project-id-or-name>
 ```
-
-Use `instance add` for the main setup flow when you want to register a new n8n environment in n8n-manager and choose its project in one command.
-
-For scripts and autonomous agents, prefer the explicit non-interactive forms:
-
-```bash
-n8nac instance list --json
-n8nac instance select --instance-id <instanceId>
-n8nac instance select --instance-name "https://n8n.example.com / Etienne Lescot"
-n8nac instance delete --instance-id <instanceId> --yes
-n8nac instance delete --instance-name "https://n8n.example.com / Etienne Lescot" --yes
-```
-
-Use `init-auth` followed by `init-project` only when you want to split credential discovery from project selection.
 
 ### `workspace`
 Manage explicit workspace overrides over the global n8n-manager defaults.
@@ -162,6 +134,8 @@ n8nac workspace pin-instance --instance-id <instanceId>
 n8nac workspace clear-instance
 n8nac workspace set-sync-folder workflows
 n8nac workspace clear-sync-folder
+n8nac workspace set-project --project-id <id> --project-name <name>
+n8nac workspace clear-project
 ```
 
 The workspace config stores project selection, optional pinned instance, optional sync folder override, and workflow-related settings. It does not store the global instance library or API keys.
@@ -316,10 +290,6 @@ Update AI Context (AGENTS.md and code snippets).
 
 **Description:**
 Regenerates context files that help AI coding assistants (GitHub Copilot, Cursor, Cline, Windsurf…) understand n8n workflow structure and best practices. The command fetches the installed n8n version to tailor the output.
-
-:::note
-`n8nac init-ai` is kept as a backward-compatible alias for `n8nac update-ai`.
-:::
 
 **Example:**
 ```bash
@@ -541,16 +511,20 @@ The source of truth for instances and API keys is n8n-manager under `~/.n8n-mana
 
 ### Git-like Sync Workflow
 ```bash
-# 1. Initialize project
-n8nac init
+# 1. Configure n8n through n8n-manager
+n8n-manager auth set --url <url> --api-key <key> --name <name>
+n8n-manager projects select <project-id-or-name>
+
+# 2. Configure workspace-local sync
+n8nac workspace set-sync-folder workflows
 
 # Optional: switch the global active n8n-manager instance
-n8nac instance select
+n8n-manager instances select <id-or-name>
 
-# 2. List all workflows to see their sync status (lightweight, covers all workflows)
+# 3. List all workflows to see their sync status (lightweight, covers all workflows)
 n8nac list
 
-# 3. Pull a specific workflow (single workflow, by ID)
+# 4. Pull a specific workflow (single workflow, by ID)
 n8nac pull abc123
 
 # 4. Edit workflow files locally
@@ -601,7 +575,7 @@ cp -r workflows/* "$BACKUP_DIR/" 2>/dev/null || true
 
 # Or pull fresh copy to backup directory
 # (Run in a separate folder if you want backups isolated)
-# cd "$BACKUP_DIR" && n8nac init && n8nac pull <workflowId>
+# cd "$BACKUP_DIR" && n8nac workspace set-sync-folder workflows && n8nac pull <workflowId>
 
 # Compress backup
 tar -czf "$BACKUP_DIR.tar.gz" "$BACKUP_DIR"
@@ -618,8 +592,9 @@ echo "Backup created: $BACKUP_DIR.tar.gz"
 export N8N_HOST="https://staging.n8n.example.com"
 export N8N_API_KEY="$STAGING_API_KEY"
 
-# Initialize with environment variables
-n8nac init
+# Configure runtime and workspace
+n8n-manager auth set --url "$N8N_HOST" --api-key "$N8N_API_KEY"
+n8nac workspace set-sync-folder workflows
 
 # List workflows and pull specific ones from staging
 n8nac list
@@ -631,7 +606,7 @@ n8nac pull <workflowId>
 if [ "$DEPLOY_TO_PROD" = "true" ]; then
   export N8N_HOST="https://prod.n8n.example.com"
   export N8N_API_KEY="$PROD_API_KEY"
-  n8nac init
+  n8n-manager auth set --url "$N8N_HOST" --api-key "$N8N_API_KEY"
   n8nac push workflows/instance/project/workflow.workflow.ts
 fi
 ```
@@ -693,8 +668,8 @@ curl -I https://n8n.example.com
 # Verify configuration
 cat n8nac-config.json
 
-# Reinitialize connection
-n8nac init
+# Reconfigure connection
+n8n-manager auth set --url <url> --api-key-stdin
 ```
 
 **File Permission Issues**

@@ -603,10 +603,16 @@ async function openWorkflowBoard(workflow: IWorkflowStatus, viewColumn?: vscode.
     const workspaceRoot = getWorkspaceRoot();
     const facade = createN8nManagerFacade({ workspaceRoot });
     try {
-        const effective = await facade.resolveEffectiveContext({
+        const prepared = await facade.prepareEffectiveContext({
             workspaceRoot,
             syncFolderDefault: workspaceRoot ? 'workspace' : 'global',
+            consumer: 'vscode',
+            autoStart: true,
         });
+        if (prepared.runtime.blocked) {
+            throw new Error(prepared.runtime.blocked.message);
+        }
+        const effective = prepared.context;
         const proxyUrl = await proxyService.start(effective.host);
         const openTarget = await facade.resolveWorkflowWebviewOpen({
             workflowId: workflow.id,
@@ -1224,42 +1230,33 @@ async function updateAiContextAfterSyncInitialization(
     }
 }
 
-async function reconcileManagedInstanceIfNeeded(
-    workspaceRoot: string,
-    activeInstanceId?: string,
-): Promise<void> {
-    if (!activeInstanceId) {
-        return;
-    }
-
-    const instance = configurationController
-        ?.getSnapshot()
-        ?.global.instances.find((candidate) => candidate.id === activeInstanceId);
-    if (instance?.mode !== 'managed-local-docker') {
-        return;
-    }
-
-    outputChannel.appendLine(`[n8n] Reconciling managed local instance "${instance.name}" before sync initialization...`);
-    const facade = createN8nManagerFacade({ workspaceRoot });
-    await facade.setup({
-        mode: 'managed-local',
-        instanceId: instance.id,
-        instanceName: instance.name,
-        tunnel: Boolean(instance.tunnelPublicUrl),
-        bootstrapOwner: true,
-    });
-    await refreshConfigurationSnapshotAfterHandledMutation('managed-instance-reconciled');
-}
-
 async function initializeSyncManager(context: vscode.ExtensionContext) {
     resetExtensionRuntimeState();
 
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     if (!workspaceRoot) throw new Error(NO_WORKSPACE_ERROR_MESSAGE);
 
-    let resolvedConfig = getResolvedN8nConfig(workspaceRoot);
-    await reconcileManagedInstanceIfNeeded(workspaceRoot, resolvedConfig.activeInstanceId);
-    resolvedConfig = getResolvedN8nConfig(workspaceRoot);
+    const facade = createN8nManagerFacade({ workspaceRoot });
+    const prepared = await facade.prepareEffectiveContext({
+        workspaceRoot,
+        syncFolderDefault: 'workspace',
+        consumer: 'vscode',
+        autoStart: true,
+    });
+    if (prepared.runtime.blocked) {
+        throw new Error(prepared.runtime.blocked.message);
+    }
+
+    const effective = prepared.context;
+    const resolvedConfig = {
+        ...getResolvedN8nConfig(workspaceRoot),
+        activeInstanceId: effective.activeInstanceId,
+        host: effective.host,
+        apiKey: effective.apiKey,
+        syncFolder: effective.syncFolder,
+        projectId: effective.projectId,
+        projectName: effective.projectName,
+    };
 
     const { host, apiKey } = resolvedConfig;
     const folder = resolvedConfig.syncFolder || 'workflows';
@@ -1273,7 +1270,12 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     const health = await client.getHealth();
 
     if (!projectId || !projectName) {
-        const projects = await client.getProjects();
+        const projects = await facade.listProjects({
+            workspaceRoot,
+            syncFolderDefault: 'workspace',
+            consumer: 'vscode',
+            autoStart: true,
+        });
         if (!projects.length) throw new Error('No projects found. Cannot initialize sync.');
 
         let selectedProject = projects.find((p: any) => p.type === 'personal');
@@ -1317,7 +1319,6 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         throw new Error(`Cannot connect to n8n instance at "${host}". Please check if n8n is running.`);
     }
 
-    const facade = createN8nManagerFacade({ workspaceRoot });
     const workspaceOverrides = await facade.readWorkspaceOverrides(workspaceRoot);
     await facade.writeWorkspaceOverrides({
         ...workspaceOverrides,

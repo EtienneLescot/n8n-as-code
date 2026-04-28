@@ -9,11 +9,14 @@ import { isWorkspaceInitialized } from "./workspace.js";
 
 const ACTIONS = [
   "setup_check",
-  "init_auth",
-  "init_project",
-  "instance_list",
-  "instance_select",
-  "instance_delete",
+  "manager_auth_set",
+  "manager_projects_list",
+  "manager_projects_select",
+  "manager_instances_list",
+  "manager_instances_select",
+  "manager_instances_delete",
+  "workspace_set_sync_folder",
+  "workspace_set_project",
   "list",
   "pull",
   "push",
@@ -31,11 +34,14 @@ const N8nAcToolSchema = Type.Object({
     description: [
       "Action to perform:",
       "  setup_check  — check whether the workspace is initialized.",
-      "  init_auth    — save n8n credentials through n8n-manager. Requires n8nHost and n8nApiKey. Pass newInstance: true to add another global instance.",
-      "  init_project — select the n8n project. Optionally pass projectId, projectName, or projectIndex (1-based, default 1).",
-      "  instance_list   — list global n8n-manager instances as JSON.",
-      "  instance_select — switch the global active n8n-manager instance. Requires instanceId, instanceName, or instanceIndex.",
-      "  instance_delete — delete a global n8n-manager instance. Requires instanceId, instanceName, or instanceIndex.",
+      "  manager_auth_set — save n8n credentials through n8n-manager. Requires n8nHost and n8nApiKey.",
+      "  manager_projects_list — list n8n projects through n8n-manager.",
+      "  manager_projects_select — set the instance default project through n8n-manager. Requires projectId or projectName.",
+      "  manager_instances_list — list global n8n-manager instances as JSON.",
+      "  manager_instances_select — switch the global active n8n-manager instance. Requires instanceId or instanceName.",
+      "  manager_instances_delete — delete a global n8n-manager instance. Requires instanceId or instanceName.",
+      "  workspace_set_sync_folder — set this workspace's local sync folder. Requires syncFolder.",
+      "  workspace_set_project — set this workspace's project override. Requires projectId and projectName.",
       "  list         — list all workflows with their sync status.",
       "  pull         — download a workflow from n8n. Requires workflowId.",
       "  push         — upload a local workflow file. Requires filename (e.g. my-flow.workflow.ts).",
@@ -44,22 +50,22 @@ const N8nAcToolSchema = Type.Object({
       "  validate     — validate a local workflow file. Requires validateFile.",
     ].join("\n"),
   }),
-  // init_auth
+  // manager_auth_set
   n8nHost: Type.Optional(
-    Type.String({ description: "n8n host URL (for init_auth). Example: https://your-n8n.example.com" }),
+    Type.String({ description: "n8n host URL (for manager_auth_set). Example: https://your-n8n.example.com" }),
   ),
-  n8nApiKey: Type.Optional(Type.String({ description: "n8n API key (for init_auth)" })),
-  newInstance: Type.Optional(Type.Boolean({ description: "Save credentials as a new global n8n-manager instance instead of updating the current one (for init_auth)." })),
-  // init_project
-  projectId: Type.Optional(Type.String({ description: "n8n project ID (for init_project)" })),
-  projectName: Type.Optional(Type.String({ description: "n8n project name (for init_project)" })),
+  n8nApiKey: Type.Optional(Type.String({ description: "n8n API key (for manager_auth_set)" })),
+  instanceName: Type.Optional(Type.String({ description: "Global n8n-manager instance name." })),
+  // manager_projects_select / workspace_set_project
+  projectId: Type.Optional(Type.String({ description: "n8n project ID" })),
+  projectName: Type.Optional(Type.String({ description: "n8n project name" })),
   projectIndex: Type.Optional(
-    Type.Number({ description: "n8n project index, 1-based (for init_project, default: 1)" }),
+    Type.Number({ description: "n8n project index, 1-based, for selecting from manager_projects_list output" }),
   ),
-  // instance_select / instance_delete
-  instanceId: Type.Optional(Type.String({ description: "Global n8n-manager instance ID (for instance_select, instance_delete)." })),
-  instanceName: Type.Optional(Type.String({ description: "Global n8n-manager instance name (for instance_select, instance_delete)." })),
-  instanceIndex: Type.Optional(Type.Number({ description: "Global n8n-manager instance index, 1-based (for instance_select, instance_delete)." })),
+  // manager_instances_select / manager_instances_delete
+  instanceId: Type.Optional(Type.String({ description: "Global n8n-manager instance ID." })),
+  instanceIndex: Type.Optional(Type.Number({ description: "Global n8n-manager instance index, 1-based." })),
+  syncFolder: Type.Optional(Type.String({ description: "Workspace sync folder for workspace_set_sync_folder." })),
   listScope: Type.Optional(
     Type.Unsafe<(typeof LIST_SCOPES)[number]>({
       type: "string",
@@ -109,13 +115,14 @@ type RunResult = {
   timedOut: boolean;
 };
 
-function runNpx(
+function runCommand(
+  command: string,
   args: string[],
   cwd: string,
   stdinInput?: string,
 ): Promise<RunResult> {
   return new Promise((resolve) => {
-    const child = spawn("npx", ["--yes", "n8nac", ...args], {
+    const child = spawn(command, args, {
       cwd,
       stdio: "pipe",
       env: getChildEnv(),
@@ -166,6 +173,26 @@ function runNpx(
       finish({ stdout, stderr, exitCode: code ?? 1, timedOut });
     });
   });
+}
+
+function getN8nManagerCommand(): { command: string; args: string[] } {
+  const override = process.env.N8N_MANAGER_COMMAND?.trim();
+  if (override) {
+    const parsed = splitArgv(override);
+    if (parsed?.length) {
+      return { command: parsed[0], args: parsed.slice(1) };
+    }
+  }
+  return { command: "npx", args: ["--yes", "n8n-manager"] };
+}
+
+function runN8nac(args: string[], cwd: string, stdinInput?: string): Promise<RunResult> {
+  return runCommand("npx", ["--yes", "n8nac", ...args], cwd, stdinInput);
+}
+
+function runN8nManager(args: string[], cwd: string, stdinInput?: string): Promise<RunResult> {
+  const manager = getN8nManagerCommand();
+  return runCommand(manager.command, [...manager.args, ...args], cwd, stdinInput);
 }
 
 function ok(data: unknown) {
@@ -240,8 +267,8 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
     label: "n8n-as-code",
     description:
       "Create and manage n8n workflows using n8n-as-code. " +
-      "Handles workspace initialization (init_auth → init_project), global n8n-manager instance management, " +
-      "workflow sync (list, pull, push, verify), and AI knowledge lookup (skills, validate). " +
+      "Uses n8n-manager for global instance/auth/project management, n8nac workspace commands for workspace-local context, " +
+      "and n8nac workflow commands for sync (list, pull, push, verify) plus AI knowledge lookup (skills, validate). " +
       "Always call setup_check first to determine initialization state.",
     parameters: N8nAcToolSchema,
 
@@ -255,104 +282,99 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
           initialized,
           workspaceDir,
           next: initialized
-            ? "Workspace is ready. Use instance_list, instance_select, list, pull, push, verify, or skills."
-            : "Workspace not initialized. Ask the user for their n8n host URL and API key, then call init_auth.",
+            ? "Workspace is ready. Use manager_instances_list, manager_instances_select, list, pull, push, verify, or skills."
+            : "Workspace not initialized. Ask the user for their n8n host URL and API key, then call manager_auth_set, manager_projects_select, and workspace_set_sync_folder.",
         });
       }
 
-      // ---- init_auth ----------------------------------------------------
-      if (action === "init_auth") {
+      // ---- manager_auth_set --------------------------------------------
+      if (action === "manager_auth_set") {
         const host = str(params.n8nHost);
         const key = str(params.n8nApiKey);
+        const instanceName = str(params.instanceName);
         if (!host || !key) {
-          return ok({ error: "n8nHost and n8nApiKey are required for init_auth" });
+          return ok({ error: "n8nHost and n8nApiKey are required for manager_auth_set" });
         }
-        const args = ["init-auth", "--host", host, "--api-key-stdin"];
-        if (params.newInstance === true) {
-          args.push("--new-instance");
-        }
-        const r = await runNpx(args, workspaceDir, key);
+        const args = ["auth", "set", "--url", host, "--api-key-stdin"];
+        if (instanceName) args.push("--name", instanceName);
+        const r = await runN8nManager(args, workspaceDir, key);
         if (r.exitCode !== 0) {
           return ok({ error: r.stderr || r.stdout, exitCode: r.exitCode });
         }
         return ok({
           ok: true,
           output: r.stdout,
-          next: "Credentials saved. Now call init_project. If you need to inspect remote workflows first, use list with listScope: 'remote'.",
+          next: "Credentials saved. Now call manager_projects_list, manager_projects_select, and workspace_set_sync_folder.",
         });
       }
 
-      // ---- init_project -------------------------------------------------
-      if (action === "init_project") {
+      // ---- manager_projects_list ---------------------------------------
+      if (action === "manager_projects_list") {
+        const r = await runN8nManager(["projects", "list"], workspaceDir);
+        return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
+      }
+
+      // ---- manager_projects_select -------------------------------------
+      if (action === "manager_projects_select") {
         const id = str(params.projectId);
         const name = str(params.projectName);
-        const idx = typeof params.projectIndex === "number" ? params.projectIndex : 1;
-        const args: string[] = ["init-project", "--sync-folder", "workflows"];
-        if (id) args.push("--project-id", id);
-        else if (name) args.push("--project-name", name);
-        else args.push("--project-index", String(idx));
-
-        const r = await runNpx(args, workspaceDir);
+        if (!id && !name) return ok({ error: "projectId or projectName is required for manager_projects_select" });
+        const r = await runN8nManager(["projects", "select", id || name], workspaceDir);
         if (r.exitCode !== 0) {
           return ok({ error: r.stderr || r.stdout, exitCode: r.exitCode });
-        }
-        // Refresh AGENTS.md after successful init
-        const ai = await runNpx(["update-ai"], workspaceDir);
-        if (ai.exitCode !== 0) {
-          return ok({
-            ok: true,
-            output: r.stdout,
-            warning: ai.stderr || ai.stdout || "AGENTS.md regeneration failed.",
-            next:
-              "Workspace initialized, but AI context regeneration failed. Run `npx --yes n8nac update-ai` before relying on agent-guided workflow work.",
-          });
         }
         return ok({
           ok: true,
           output: r.stdout,
-          next: "Workspace initialized. AGENTS.md regenerated. You can now list, pull, push, and verify workflows.",
+          next: "Instance default project selected. Now call workspace_set_sync_folder and update-ai if needed.",
         });
       }
 
-      // ---- instance_list -----------------------------------------------
-      if (action === "instance_list") {
-        const r = await runNpx(["instance", "list", "--json"], workspaceDir);
+      // ---- manager_instances_list --------------------------------------
+      if (action === "manager_instances_list") {
+        const r = await runN8nManager(["instances", "list"], workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 
-      // ---- instance_select ---------------------------------------------
-      if (action === "instance_select") {
+      // ---- manager_instances_select ------------------------------------
+      if (action === "manager_instances_select") {
         const instanceId = str(params.instanceId);
         const instanceName = str(params.instanceName);
-        const instanceIndex = typeof params.instanceIndex === "number" ? params.instanceIndex : undefined;
-        if (!instanceId && !instanceName && instanceIndex === undefined) {
-          return ok({ error: "instanceId, instanceName, or instanceIndex is required for instance_select" });
+        if (!instanceId && !instanceName) {
+          return ok({ error: "instanceId or instanceName is required for manager_instances_select" });
         }
 
-        const args = ["instance", "select"];
-        if (instanceId) args.push("--instance-id", instanceId);
-        else if (instanceName) args.push("--instance-name", instanceName);
-        else args.push("--instance-index", String(instanceIndex));
-
-        const r = await runNpx(args, workspaceDir);
+        const r = await runN8nManager(["instances", "select", instanceId || instanceName], workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 
-      // ---- instance_delete ---------------------------------------------
-      if (action === "instance_delete") {
+      // ---- manager_instances_delete ------------------------------------
+      if (action === "manager_instances_delete") {
         const instanceId = str(params.instanceId);
         const instanceName = str(params.instanceName);
-        const instanceIndex = typeof params.instanceIndex === "number" ? params.instanceIndex : undefined;
-        if (!instanceId && !instanceName && instanceIndex === undefined) {
-          return ok({ error: "instanceId, instanceName, or instanceIndex is required for instance_delete" });
+        if (!instanceId && !instanceName) {
+          return ok({ error: "instanceId or instanceName is required for manager_instances_delete" });
         }
 
-        const args = ["instance", "delete", "--yes"];
-        if (instanceId) args.push("--instance-id", instanceId);
-        else if (instanceName) args.push("--instance-name", instanceName);
-        else args.push("--instance-index", String(instanceIndex));
+        const r = await runN8nManager(["instances", "delete", instanceId || instanceName, "--force"], workspaceDir);
+        return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
+      }
 
-        const r = await runNpx(args, workspaceDir);
+      // ---- workspace_set_sync_folder -----------------------------------
+      if (action === "workspace_set_sync_folder") {
+        const syncFolder = str(params.syncFolder) || "workflows";
+        const r = await runN8nac(["workspace", "set-sync-folder", syncFolder], workspaceDir);
+        return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
+      }
+
+      // ---- workspace_set_project ---------------------------------------
+      if (action === "workspace_set_project") {
+        const id = str(params.projectId);
+        const name = str(params.projectName);
+        if (!id || !name) {
+          return ok({ error: "projectId and projectName are required for workspace_set_project" });
+        }
+        const r = await runN8nac(["workspace", "set-project", "--project-id", id, "--project-name", name], workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 
@@ -363,7 +385,7 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
         if (scope === "local" || scope === "remote" || scope === "distant") {
           args.push(`--${scope}`);
         }
-        const r = await runNpx(args, workspaceDir);
+        const r = await runN8nac(args, workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 
@@ -371,7 +393,7 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
       if (action === "pull") {
         const id = str(params.workflowId);
         if (!id) return ok({ error: "workflowId is required for pull" });
-        const r = await runNpx(["pull", id], workspaceDir);
+        const r = await runN8nac(["pull", id], workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 
@@ -379,7 +401,7 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
       if (action === "push") {
         const file = str(params.filename);
         if (!file) return ok({ error: "filename is required for push (e.g. my-flow.workflow.ts)" });
-        const r = await runNpx(["push", file, "--verify"], workspaceDir);
+        const r = await runN8nac(["push", file, "--verify"], workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 
@@ -387,7 +409,7 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
       if (action === "verify") {
         const id = str(params.workflowId);
         if (!id) return ok({ error: "workflowId is required for verify" });
-        const r = await runNpx(["verify", id], workspaceDir);
+        const r = await runN8nac(["verify", id], workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 
@@ -408,7 +430,7 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
           return ok({ error: "skillsArgs contains an unterminated quote. Prefer skillsArgv when values contain spaces." });
         }
         const args = ["skills", ...parsedArgs];
-        const r = await runNpx(args, workspaceDir);
+        const r = await runN8nac(args, workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 
@@ -416,7 +438,7 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
       if (action === "validate") {
         const file = str(params.validateFile);
         if (!file) return ok({ error: "validateFile is required for validate" });
-        const r = await runNpx(["skills", "validate", file], workspaceDir);
+        const r = await runN8nac(["skills", "validate", file], workspaceDir);
         return ok({ exitCode: r.exitCode, output: r.stdout, error: r.stderr || undefined });
       }
 

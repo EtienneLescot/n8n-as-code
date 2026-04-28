@@ -41,7 +41,9 @@ Then initialize your workspace once:
 
 ```bash
 cd /path/to/your/n8n-project
-npx --yes n8nac init
+n8n-manager auth set --url <url> --api-key-stdin
+n8n-manager projects select <project-id-or-name>
+npx --yes n8nac workspace set-sync-folder workflows
 npx --yes n8nac update-ai
 ```
 
@@ -79,7 +81,9 @@ Use the local MCP server to give Claude Desktop access to the n8n knowledge base
 
    ```bash
    cd /path/to/your/n8n-project
-   npx --yes n8nac init
+   n8n-manager auth set --url <url> --api-key-stdin
+   n8n-manager projects select <project-id-or-name>
+   npx --yes n8nac workspace set-sync-folder workflows
    npx --yes n8nac update-ai
    ```
 
@@ -130,7 +134,7 @@ Upload the skill manually:
 If you use Claude Code with planning and coding agent handoffs:
 
 1. Install the plugin
-2. Initialize the workspace with `n8nac init` so `n8nac-config.json` exists
+2. Configure the workspace with `n8n-manager auth set`, `n8n-manager projects select`, and `n8nac workspace set-sync-folder`
 3. Run `n8nac update-ai` — this generates `AGENTS.md` at the project root with all the workflow rules, sync protocol, and node lookup commands
 4. Point any handoff file (e.g. `CLAUDE.md`) at `AGENTS.md`:
 

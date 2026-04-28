@@ -24,10 +24,12 @@ openclaw n8nac:setup
 ```
 
 The wizard asks for your n8n host URL and API key once, saves the instance in the global
-`n8n-manager` SSOT via `n8nac init-auth`, selects your workspace project, and generates an AI context file
+`n8n-manager` SSOT via `n8n-manager auth set`, selects the n8n project through
+`n8n-manager projects select`, configures the workspace sync folder with `n8nac workspace`,
+and generates an AI context file
 (`AGENTS.md`) in the workspace (`~/.openclaw/n8nac/`).
 
-After setup, global n8n-manager instances can also be listed, selected, and deleted through the same `n8nac` facade used by the CLI and VS Code extension.
+After setup, global n8n-manager instances are listed, selected, and deleted through `n8n-manager`.
 
 ## Usage
 
@@ -80,11 +82,14 @@ The plugin registers the `n8nac` tool with these actions:
 | Action | Description |
 |---|---|
 | `setup_check` | Check initialization state |
-| `init_auth` | Save n8n credentials through n8n-manager; pass `newInstance: true` to add another global instance |
-| `init_project` | Select n8n project |
-| `instance_list` | List global n8n-manager instances |
-| `instance_select` | Select the global active n8n-manager instance |
-| `instance_delete` | Delete a global n8n-manager instance |
+| `manager_auth_set` | Save n8n credentials through n8n-manager |
+| `manager_projects_list` | List n8n projects through n8n-manager |
+| `manager_projects_select` | Select the instance default n8n project through n8n-manager |
+| `manager_instances_list` | List global n8n-manager instances |
+| `manager_instances_select` | Select the global active n8n-manager instance |
+| `manager_instances_delete` | Delete a global n8n-manager instance |
+| `workspace_set_sync_folder` | Set this workspace's sync folder |
+| `workspace_set_project` | Set this workspace's project override |
 | `list` | List all workflows |
 | `pull` | Download a workflow by ID |
 | `push` | Upload a workflow file |

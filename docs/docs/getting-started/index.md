@@ -88,7 +88,10 @@ The CLI was previously published as `@n8n-as-code/cli`, which is now deprecated.
 ### 2. Connect and Initialize
 
 ```bash
-n8nac init
+n8n-manager auth set --url <url> --api-key-stdin
+n8n-manager projects select <project-id-or-name>
+n8nac workspace set-sync-folder workflows
+n8nac update-ai
 ```
 
 You can also select the shared facade runtime mode explicitly:

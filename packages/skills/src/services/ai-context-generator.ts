@@ -157,7 +157,7 @@ export class AiContextGenerator {
     ].join('\n');
   }
 
-  private getWorkspaceBootstrapLines(cliCmd: string): string[] {
+  private getWorkspaceBootstrapLines(cliCmd: string, managerCmd: string): string[] {
     return [
       `## 🚀 Workspace Bootstrap (MANDATORY)`,
       ``,
@@ -166,32 +166,33 @@ export class AiContextGenerator {
       `### Initialization Check`,
       `- Look for \`n8nac-config.json\` at the root of the target n8n-as-code workspace. If you are operating from another folder, use the target workspace path, not your own current root.`,
       `- If \`n8nac-config.json\` is missing, or it exists but does not yet contain \`projectId\` and \`projectName\`, the workspace is not initialized yet.`,
-      `- **NEVER tell the user to run \`${cliCmd} init\` themselves.** You are the agent — it is YOUR job to run the command.`,
-      `- For autonomous agents, the default non-interactive initialization flow is the explicit 2-step sequence: \`${cliCmd} init-auth --host <url> --api-key <key> [--sync-folder <path>]\`, then \`${cliCmd} init-project --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]\`. Use this when the project is not known yet and you need to discover or inspect projects before choosing one.`,
-      `- A 1-command non-interactive flow also exists when the host, API key, and project selector are already known: \`${cliCmd} instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]\`. \`${cliCmd} init\` is the ergonomic alias.`,
-      `- If global n8n-manager instances already exist, inspect them with \`${cliCmd} instance list --json\` before deciding whether to add a new one or switch the global active instance.`,
-      `- Use \`${cliCmd} instance select --instance-id <id>\` or \`${cliCmd} instance select --instance-name <name>\` to switch the global active instance non-interactively.`,
-      `- Use \`${cliCmd} instance delete --instance-id <id> --yes\` or \`${cliCmd} instance delete --instance-name <name> --yes\` to remove stale global n8n-manager instances non-interactively.`,
-      `- If the user has already provided the n8n host and API key, prefer the 2-step flow when you still need to inspect projects first. Use the 1-command flow only when the target project is already known.`,
-      `- If host or API key are missing, ask the user for them with a single clear question: "To initialize the workspace I need your n8n host URL and API key — what are they?" Then, once you have both values, run the appropriate command yourself.`,
+      `- **NEVER tell the user to run setup commands themselves.** You are the agent — it is YOUR job to run the commands.`,
+      `- Use \`${managerCmd}\` for n8n instance/auth/runtime/project management. Use \`${cliCmd}\` only for n8n-as-code workspace/workflow commands.`,
+      `- If global n8n-manager instances already exist, inspect them with \`${managerCmd} instances list\` before deciding whether to add a new one or switch the global active instance.`,
+      `- Use \`${managerCmd} instances select <id-or-name>\` to switch the global active instance non-interactively.`,
+      `- Use \`${managerCmd} instances delete <id-or-name>\` to remove stale global n8n-manager instances. Add \`--destroy-data --force\` only when the user explicitly wants runtime data destroyed.`,
+      `- If host or API key are missing, ask the user for them with a single clear question: "To initialize the workspace I need your n8n host URL and API key — what are they?" Then, once you have both values, run \`${managerCmd} auth set --url <url> --api-key <key> [--name <name>]\` yourself.`,
+      `- Discover projects with \`${managerCmd} projects list\`. Select the instance default project with \`${managerCmd} projects select <project-id-or-name>\`.`,
+      `- Configure only workspace-local overrides with \`${cliCmd} workspace set-sync-folder <path>\`, \`${cliCmd} workspace set-project --project-id <id> --project-name <name>\`, and optionally \`${cliCmd} workspace pin-instance --instance-id <id>\`.`,
       `- Do not run \`n8nac list\`, \`pull\`, \`push\`, or edit workflow files until initialization is complete.`,
-      `- Never write \`n8nac-config.json\` by hand. Instance setup and switching must go through documented \`n8nac\` commands so n8n-manager credentials, global active selection, workspace overrides, and AI context stay consistent.`,
+      `- Never write \`n8nac-config.json\` by hand. Workspace changes must go through documented \`n8nac workspace\` commands so workspace overrides and AI context stay consistent.`,
       `- Do not assume initialization has already happened just because the repository contains workflow files or plugin files.`,
       ``,
       `### Preferred Agent Commands`,
-      `- Default 2-step non-interactive auth: \`${cliCmd} init-auth --host <url> --api-key <key> [--sync-folder <path>]\``,
-      `- Default 2-step non-interactive project selection: \`${cliCmd} init-project --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]\``,
-      `- Optional 1-command non-interactive setup when the project is already known: \`${cliCmd} instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]\``,
-      `- Optional 1-command alias: \`${cliCmd} init --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]\``,
-      `- Global n8n-manager instance management: \`${cliCmd} instance list --json\`, \`${cliCmd} instance select --instance-id <id>|--instance-name <name>\`, \`${cliCmd} instance delete --instance-id <id>|--instance-name <name> --yes\``,
-      `- \`${cliCmd} init-project\` can run interactively after \`${cliCmd} init-auth\`, or non-interactively when the project selector is known.`,
+      `- Instance/auth setup: \`${managerCmd} auth set --url <url> --api-key <key> [--name <name>]\``,
+      `- Managed local setup: \`${managerCmd} instances add --name <name> --mode managed-local-docker [--tunnel]\``,
+      `- Project discovery: \`${managerCmd} projects list\``,
+      `- Instance default project: \`${managerCmd} projects select <project-id-or-name>\``,
+      `- Workspace sync folder: \`${cliCmd} workspace set-sync-folder workflows\``,
+      `- Workspace project override when needed: \`${cliCmd} workspace set-project --project-id <id> --project-name <name>\``,
+      `- Workspace status: \`${cliCmd} workspace status --json\``,
       ``,
       `### Required Order`,
       `1. Check for \`n8nac-config.json\`.`,
-      `2. If global n8n-manager instances already exist: inspect them with \`${cliCmd} instance list --json\`. Reuse them with \`${cliCmd} instance select\` instead of creating duplicates whenever that satisfies the user request.`,
-      `3. If initialization is missing and \`N8N_HOST\` / \`N8N_API_KEY\` are available: default to \`${cliCmd} init-auth --host <url> --api-key <key> [--sync-folder <path>]\` to discover projects. Only use \`${cliCmd} instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]\` when the project is already known.`,
-      `4. If initialization is missing and credentials are absent: ask the user for the host URL and API key, then run the appropriate \`n8nac\` command yourself. **Do not ask the user to run the command.**`,
-      `5. After credentials are saved, inspect the listed projects. If only one project exists, run \`${cliCmd} init-project --project-index 1 --sync-folder workflows\`. If multiple projects exist, ask the user which one to use, then run \`${cliCmd} init-project --project-id <id> [--sync-folder <path>]\`.`,
+      `2. Inspect global n8n instances with \`${managerCmd} instances list\`. Reuse an existing instance with \`${managerCmd} instances select <id-or-name>\` whenever that satisfies the user request.`,
+      `3. If no suitable instance exists and \`N8N_HOST\` / \`N8N_API_KEY\` are available, run \`${managerCmd} auth set --url <url> --api-key <key> [--name <name>]\`. If credentials are absent, ask once, then run this command yourself.`,
+      `4. Inspect or set the n8n project with \`${managerCmd} projects list\` and \`${managerCmd} projects select <project-id-or-name>\`.`,
+      `5. Configure workspace-local context with \`${cliCmd} workspace set-sync-folder workflows\` and, only when the workspace must override the instance default project, \`${cliCmd} workspace set-project --project-id <id> --project-name <name>\`.`,
       `6. Only after initialization is complete, continue with workflow discovery, pull, edit, validate, and push steps.`,
       ``,
       `---`,
@@ -257,7 +258,7 @@ export class AiContextGenerator {
     ];
   }
 
-  private getSharedResponseFormatLines(cliCmd: string): string[] {
+  private getSharedResponseFormatLines(cliCmd: string, managerCmd: string): string[] {
     return [
       `## 📝 Response Format`,
       ``,
@@ -265,7 +266,7 @@ export class AiContextGenerator {
       ``,
       `1. Acknowledge what they want to achieve.`,
       `2. Check initialization by verifying whether \`n8nac-config.json\` exists in the workspace root.`,
-      `3. If not initialized, ask the user for the host URL and API key if needed, then run \`${cliCmd} init-auth\` and \`${cliCmd} init-project\` yourself.`,
+      `3. If not initialized, ask the user for the host URL and API key if needed, then run \`${managerCmd} auth set --url <url> --api-key <key>\`, \`${managerCmd} projects list\`, \`${managerCmd} projects select <project-id-or-name>\`, and \`${cliCmd} workspace set-sync-folder workflows\` yourself.`,
       `4. Pull the workflow before any modification and show the command.`,
       `5. For a new workflow, run \`${cliCmd} workspace status --json\` and use the returned \`workflowDir\` to find the local workflow directory. Create the file there and confirm it appears in \`${cliCmd} list --local\` before pushing.`,
       `6. Search for the relevant nodes and show the command you are running.`,
@@ -289,7 +290,7 @@ export class AiContextGenerator {
     projectRoot: string,
     n8nVersion: string = "Unknown",
     distTag?: string,
-    options: { cliCommandOverride?: string; cliVersion?: string } = {},
+    options: { cliCommandOverride?: string; managerCommandOverride?: string; cliVersion?: string } = {},
   ): Promise<void> {
     const agentsContent = this.getAgentsContent(n8nVersion, distTag, options, projectRoot);
 
@@ -328,10 +329,11 @@ export class AiContextGenerator {
   private getAgentsContent(
     n8nVersion: string,
     distTag?: string,
-    options: { cliCommandOverride?: string; cliVersion?: string } = {},
+    options: { cliCommandOverride?: string; managerCommandOverride?: string; cliVersion?: string } = {},
     projectRoot?: string,
   ): string {
     const { cliCmd, skillsCmd: cmd } = this.getCommandRefs(distTag, options.cliCommandOverride, projectRoot);
+    const managerCmd = options.managerCommandOverride || process.env.N8N_MANAGER_COMMAND || 'n8n-manager';
     const versionStamp = options.cliVersion ? [`<!-- n8nac-version: ${options.cliVersion} -->`, ``] : [];
     return [
       ...versionStamp,
@@ -346,7 +348,7 @@ export class AiContextGenerator {
       ``,
       `---`,
       ``,
-      ...this.getWorkspaceBootstrapLines(cliCmd),
+      ...this.getWorkspaceBootstrapLines(cliCmd, managerCmd),
       `## 🔄 GitOps & Synchronization Protocol (CRITICAL)`,
       ``,
       `n8n-as-code uses a **Git-like sync architecture**. The local code is the source of truth, but the user might have modified the workflow in the n8n UI.`,
@@ -439,7 +441,7 @@ export class AiContextGenerator {
       `- **Explicit over automatic**: All operations are user-triggered or ai-agent-triggered.`,
       `- **Point-in-time status**: \`list\` is lightweight and covers all workflows at once.`,
       `- **Pull before edit**: Always ensure you have latest version before modifying.`,
-      `- **new workflows must be created in the active local workflow directory**: Read \`workflowDir\` from \`${cliCmd} workspace status --json\`. This is backend-resolved from n8n-manager global state plus workspace overrides and is correct regardless of \`--instance\` overrides or prior \`instance select\` calls. Do not write workflows in the repo root or an ad-hoc folder.`,
+      `- **new workflows must be created in the active local workflow directory**: Read \`workflowDir\` from \`${cliCmd} workspace status --json\`. This is backend-resolved from n8n-manager global state plus workspace overrides and is correct regardless of \`--instance\` overrides or prior global instance selections. Do not write workflows in the repo root or an ad-hoc folder.`,
       `- **push requires the full workflow file path**: Always use either the absolute path from \`workflowDir\` or the workspace-root-relative equivalent, such as \`workflowDir/<filename>.workflow.ts\` in the common relative case. Never use a bare filename. A bare name has no implicit scope prefix and will be rejected with a clear error showing the expected path.`,
       `- **inspect then test after push for webhook/chat/form workflows**: Run \`${cliCmd} test-plan <id>\` first, then activate and test with \`--prod\`. **ALWAYS activate the workflow first (\`workflow activate <id>\`), then test with \`${cliCmd} test <id> --prod\`. Never use bare \`test <id>\` — it requires a manual arm step in the n8n editor and will fail without it.** A Class A error is not a bug — tell the user. A runtime-state issue is also not a code bug — fix the state/arming problem, not the workflow code. A Class B error is fixable — iterate.`,
       ``,
@@ -693,6 +695,7 @@ export class AiContextGenerator {
   getSkillContent(): string {
     const refs = this.getCommandRefs();
     const { cliCmd, skillsCmd } = refs;
+    const managerCmd = process.env.N8N_MANAGER_COMMAND || 'n8n-manager';
     return this.applyCommandRefs(`---
 name: n8n-architect
 description: Expert assistant for n8n workflow development. Use when the user asks about n8n workflows, nodes, automation, or needs help creating/editing n8n JSON configurations. Provides access to complete n8n node documentation and prevents parameter hallucination.
@@ -707,12 +710,12 @@ You are an expert n8n workflow engineer. Your role is to help users create, edit
 - **Workflow Format**: TypeScript files using \`@workflow\`, \`@node\`, \`@links\` decorators
 - **Tool Access**: You have access to the complete n8n node documentation via CLI commands
 
-${this.getWorkspaceBootstrapLines(cliCmd).join('\n')}
+${this.getWorkspaceBootstrapLines(cliCmd, managerCmd).join('\n')}
 
 ## 📘 Root Agent Context
 
 - After initialization is complete, read \`AGENTS.md\` from the workspace root.
-- \`init\` or the completed \`init-project\` flow automatically bootstraps \`AGENTS.md\` via \`n8nac update-ai\`.
+- Workspace context changes automatically bootstrap \`AGENTS.md\` via \`n8nac update-ai\` when the facade supports it; otherwise run \`${cliCmd} update-ai\` after changing workspace sync/project overrides.
 - Treat \`AGENTS.md\` as shared workspace context that complements this skill. Use it after initialization, not before.
 
 ## 🔄 Sync Discipline (MANDATORY)
@@ -941,7 +944,7 @@ When a workflow is blocked because a credential is missing, resolve it without o
 
 If \`credential create\` fails, read the returned validation message and change the payload before retrying. Never rerun the same failing command unchanged. If a subcommand is unfamiliar, run \`npx --yes n8nac <subcommand> --help\` instead of inventing flags.
 
-${this.getSharedResponseFormatLines(cliCmd).join('\n')}
+${this.getSharedResponseFormatLines(cliCmd, managerCmd).join('\n')}
 `, refs);
   }
 
@@ -975,12 +978,12 @@ Use this skill only for explicit n8n workflow work.
 1. Check whether \`n8nac-config.json\` exists in the workspace root.
 2. If the workspace is initialized, read \`AGENTS.md\` from the workspace root before making workflow changes. It is the detailed, workspace-specific source of truth generated by \`n8nac update-ai\`.
 3. If \`AGENTS.md\` is missing or unreadable, regenerate it with \`npx --yes n8nac update-ai\` or run the \`openclaw n8nac:setup\` command before attempting workflow authoring.
-4. If the workspace is not initialized, ask the user for the n8n host URL and API key, then use the \`n8nac\` tool with \`action: "init_auth"\` and \`action: "init_project"\` to complete setup yourself. If you need to add a second n8n-manager global instance later, call \`action: "init_auth"\` with \`newInstance: true\` first.
+4. If the workspace is not initialized, ask the user for the n8n host URL and API key, then use the shell commands documented in \`AGENTS.md\`: \`n8n-manager\` for instance/auth/project setup and \`n8nac workspace ...\` for local workspace overrides.
 
 ## Using the n8nac tool
 
-- Use the \`n8nac\` tool for setup checks, global n8n-manager instance management, workflow list/pull/push/verify, validation, and \`skills\` lookups.
-- Use \`action: "instance_list"\` to inspect global n8n-manager instances, \`action: "instance_select"\` to switch the global active instance, and \`action: "instance_delete"\` to remove a stale global instance.
+- Use \`n8n-manager\` shell commands for global n8n instance management. Use the \`n8nac\` tool for workspace status, workflow list/pull/push/verify, validation, and \`skills\` lookups.
+- Do not manage global instances through \`n8nac\` when \`n8n-manager\` is available.
 - Use \`action: "skills"\` whenever you need node search or schema details.
 - Never guess node parameters. The schema lookup is the source of truth.
 - Treat \`AGENTS.md\` as the authoritative workflow-engineering protocol once this skill is active.

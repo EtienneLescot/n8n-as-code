@@ -53,7 +53,16 @@ afterAll(() => {
     }
 });
 
-describe('CLI instance management integration', () => {
+function runCliExpectFailure(cwd: string, homeDir: string, args: string[]) {
+    try {
+        runCli(cwd, homeDir, args);
+        throw new Error('Expected command to fail');
+    } catch (error: any) {
+        return `${error.stdout?.toString() || ''}${error.stderr?.toString() || ''}`;
+    }
+}
+
+describe('CLI workspace integration', () => {
     it('loads full skills help when global options are placed between help and skills', () => {
         const workspaceDir = createTempDir('n8nac-cli-help-workspace-');
         const homeDir = createTempDir('n8nac-cli-help-home-');
@@ -64,7 +73,7 @@ describe('CLI instance management integration', () => {
         expect(stripAnsi(output)).toContain('examples');
     });
 
-    it('lists, selects, deletes global instances, and exposes effective workspace context non-interactively', () => {
+    it('does not expose legacy instance management commands and resolves workspace context non-interactively', () => {
         const workspaceDir = createTempDir('n8nac-cli-instance-workspace-');
         const homeDir = createTempDir('n8nac-cli-instance-home-');
         const managerHome = path.join(homeDir, '.n8n-manager');
@@ -120,16 +129,8 @@ describe('CLI instance management integration', () => {
             projectName: 'Test Project',
         }, null, 2));
 
-        const listed = runCli(workspaceDir, homeDir, ['instance', 'list', '--json']);
-        const listedInstances = JSON.parse(listed);
-        expect(listedInstances).toHaveLength(2);
-        expect(listedInstances.find((instance: any) => instance.id === 'test')?.active).toBe(true);
-
-        const selected = runCli(workspaceDir, homeDir, ['instance', 'select', '--instance-name', 'Production']);
-        expect(stripAnsi(selected)).toContain('Selected instance: Production');
-
-        const selectedManagerConfig = JSON.parse(fs.readFileSync(managerConfigPath, 'utf8'));
-        expect(selectedManagerConfig.activeInstanceId).toBe('prod');
+        const legacyOutput = runCliExpectFailure(workspaceDir, homeDir, ['instance', 'list', '--json']);
+        expect(stripAnsi(legacyOutput)).toContain("unknown command 'instance'");
 
         const workspaceStatus = JSON.parse(runCli(workspaceDir, homeDir, ['workspace', 'status', '--json']));
         expect(workspaceStatus.activeInstanceId).toBe('test');
@@ -139,13 +140,5 @@ describe('CLI instance management integration', () => {
         const workspaceConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         expect(workspaceConfig.activeInstanceId).toBe('test');
         expect(workspaceConfig.projectId).toBe('project-test');
-
-        const deleted = runCli(workspaceDir, homeDir, ['instance', 'delete', '--instance-id', 'prod', '--yes']);
-        expect(stripAnsi(deleted)).toContain('Deleted global instance: Production');
-
-        const deletedManagerConfig = JSON.parse(fs.readFileSync(managerConfigPath, 'utf8'));
-        expect(deletedManagerConfig.instances).toHaveLength(1);
-        expect(deletedManagerConfig.instances[0].id).toBe('test');
-        expect(deletedManagerConfig.activeInstanceId).toBe('test');
     });
 });

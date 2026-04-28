@@ -225,7 +225,7 @@ This includes:
 ## 🔄 Related Tools
 
 ### AI Context Generation
-The main CLI (`n8nac`) includes an `update-ai` command (with `init-ai` kept as an alias) that generates comprehensive context files for AI assistants:
+The main CLI (`n8nac`) includes an `update-ai` command that generates comprehensive context files for AI assistants:
 
 ```bash
 n8nac update-ai

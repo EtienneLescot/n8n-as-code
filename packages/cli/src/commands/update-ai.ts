@@ -136,7 +136,7 @@ export class UpdateAiCommand {
     static async checkAndRefreshIfStale(projectRoot: string): Promise<void> {
         try {
             const agentsMdPath = join(projectRoot, 'AGENTS.md');
-            if (!existsSync(agentsMdPath)) return; // init handles first-time creation
+            if (!existsSync(agentsMdPath)) return;
 
             const stampedVersion = readAgentsMdVersion(projectRoot);
             const currentVersion = getCliVersion();
@@ -185,6 +185,7 @@ export class UpdateAiCommand {
             const aiContextGenerator = new AiContextGenerator();
             await aiContextGenerator.generate(projectRoot, version, getDistTag(), {
                 cliCommandOverride: options.cliCmd || inferLocalDevCliCommand(projectRoot),
+                managerCommandOverride: options.managerCmd || inferLocalDevManagerCommand(),
                 cliVersion: getCliVersion(),
             });
             injectOrUpdateMarkdownBlock(
@@ -248,6 +249,3 @@ export class UpdateAiCommand {
         }
     }
 }
-
-// Keep backward compatibility with old command name
-export class InitAiCommand extends UpdateAiCommand { }

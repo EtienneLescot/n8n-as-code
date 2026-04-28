@@ -27,7 +27,9 @@ This directory is the actual plugin root used by the marketplace entry, so Claud
 Initialize your workspace with:
 
 ```bash
-npx --yes n8nac init
+n8n-manager auth set --url <url> --api-key-stdin
+n8n-manager projects select <project-id-or-name>
+npx --yes n8nac workspace set-sync-folder workflows
 npx --yes n8nac update-ai
 ```
 

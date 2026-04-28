@@ -26,7 +26,9 @@ Supported facade runtime modes:
 ${SETUP_MODE_CONTEXT}
 
 If the user chooses an existing n8n instance, collect host URL and API key, then call the
-\`n8nac\` tool with \`action: "init_auth"\`, then \`action: "init_project"\`.
+\`n8nac\` tool with \`action: "manager_auth_set"\`, \`action: "manager_projects_select"\`,
+and \`action: "workspace_set_sync_folder"\`. Instance/auth/project management belongs to
+\`n8n-manager\`; workspace overrides belong to \`n8nac workspace\`.
 `;
 
 function buildStatusHeader(workspaceDir: string): string {
