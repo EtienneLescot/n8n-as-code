@@ -60,6 +60,8 @@ describe('CLI update-ai integration', () => {
         expect(agentsContent).toContain(`node ${cliEntry} instance list --json`);
         expect(agentsContent).toContain(`node ${cliEntry} instance select --instance-id <id>`);
         expect(agentsContent).toContain(`node ${cliEntry} instance delete --instance-id <id> --yes`);
+        expect(agentsContent).toContain('global n8n-manager instances');
+        expect(agentsContent).not.toContain('saved instance configs');
     });
 
     it('embeds the n8nac CLI version stamp in AGENTS.md', () => {

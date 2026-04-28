@@ -62,7 +62,7 @@ If no project selector is provided, `init --yes` will auto-select the only avail
 ---
 
 ### `instance`
-Manage saved n8n instance configs in the current workspace.
+Manage global n8n-manager instances.
 
 ```bash
 n8nac instance add
@@ -71,7 +71,7 @@ n8nac instance list
 n8nac instance delete
 ```
 
-Use these commands when you want to keep multiple existing n8n environments in one workspace and choose which config is active.
+Use these commands when you want to register multiple n8n environments in the shared n8n-manager SSOT and choose the global active instance. Workspace-specific pins live under `n8nac workspace`.
 
 For scripts and agents:
 
@@ -84,6 +84,21 @@ n8nac instance delete --instance-id <instanceId> --yes
 ```
 
 `instance add` is the primary onboarding command. Use `init-auth` + `init-project` only when you want to split credential discovery from project selection.
+
+---
+
+### `workspace`
+Manage explicit workspace overrides over the global n8n-manager defaults.
+
+```bash
+n8nac workspace status --json
+n8nac workspace pin-instance --instance-id <instanceId>
+n8nac workspace clear-instance
+n8nac workspace set-sync-folder workflows
+n8nac workspace clear-sync-folder
+```
+
+The workspace config stays minimal: project selection, optional pinned instance, optional sync folder override, and related workflow settings. It does not store an instance library or API keys.
 
 ---
 

@@ -169,13 +169,13 @@ export class AiContextGenerator {
       `- **NEVER tell the user to run \`${cliCmd} init\` themselves.** You are the agent — it is YOUR job to run the command.`,
       `- For autonomous agents, the default non-interactive initialization flow is the explicit 2-step sequence: \`${cliCmd} init-auth --host <url> --api-key <key> [--sync-folder <path>]\`, then \`${cliCmd} init-project --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]\`. Use this when the project is not known yet and you need to discover or inspect projects before choosing one.`,
       `- A 1-command non-interactive flow also exists when the host, API key, and project selector are already known: \`${cliCmd} instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]\`. \`${cliCmd} init\` is the ergonomic alias.`,
-      `- If the workspace already has saved instance configs, inspect them with \`${cliCmd} instance list --json\` before deciding whether to add a new one or switch the active config.`,
-      `- Use \`${cliCmd} instance select --instance-id <id>\` or \`${cliCmd} instance select --instance-name <name>\` to switch saved configs non-interactively.`,
-      `- Use \`${cliCmd} instance delete --instance-id <id> --yes\` or \`${cliCmd} instance delete --instance-name <name> --yes\` to remove stale saved configs non-interactively.`,
+      `- If global n8n-manager instances already exist, inspect them with \`${cliCmd} instance list --json\` before deciding whether to add a new one or switch the global active instance.`,
+      `- Use \`${cliCmd} instance select --instance-id <id>\` or \`${cliCmd} instance select --instance-name <name>\` to switch the global active instance non-interactively.`,
+      `- Use \`${cliCmd} instance delete --instance-id <id> --yes\` or \`${cliCmd} instance delete --instance-name <name> --yes\` to remove stale global n8n-manager instances non-interactively.`,
       `- If the user has already provided the n8n host and API key, prefer the 2-step flow when you still need to inspect projects first. Use the 1-command flow only when the target project is already known.`,
       `- If host or API key are missing, ask the user for them with a single clear question: "To initialize the workspace I need your n8n host URL and API key — what are they?" Then, once you have both values, run the appropriate command yourself.`,
       `- Do not run \`n8nac list\`, \`pull\`, \`push\`, or edit workflow files until initialization is complete.`,
-      `- Never write \`n8nac-config.json\` by hand. Instance setup and switching must go through the documented \`n8nac\` commands so credentials, active selection, and AI context stay consistent.`,
+      `- Never write \`n8nac-config.json\` by hand. Instance setup and switching must go through documented \`n8nac\` commands so n8n-manager credentials, global active selection, workspace overrides, and AI context stay consistent.`,
       `- Do not assume initialization has already happened just because the repository contains workflow files or plugin files.`,
       ``,
       `### Preferred Agent Commands`,
@@ -183,12 +183,12 @@ export class AiContextGenerator {
       `- Default 2-step non-interactive project selection: \`${cliCmd} init-project --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]\``,
       `- Optional 1-command non-interactive setup when the project is already known: \`${cliCmd} instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]\``,
       `- Optional 1-command alias: \`${cliCmd} init --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]\``,
-      `- Saved config management: \`${cliCmd} instance list --json\`, \`${cliCmd} instance select --instance-id <id>|--instance-name <name>\`, \`${cliCmd} instance delete --instance-id <id>|--instance-name <name> --yes\``,
+      `- Global n8n-manager instance management: \`${cliCmd} instance list --json\`, \`${cliCmd} instance select --instance-id <id>|--instance-name <name>\`, \`${cliCmd} instance delete --instance-id <id>|--instance-name <name> --yes\``,
       `- \`${cliCmd} init-project\` can run interactively after \`${cliCmd} init-auth\`, or non-interactively when the project selector is known.`,
       ``,
       `### Required Order`,
       `1. Check for \`n8nac-config.json\`.`,
-      `2. If saved configs already exist: inspect them with \`${cliCmd} instance list --json\`. Reuse them with \`${cliCmd} instance select\` instead of creating duplicates whenever that satisfies the user request.`,
+      `2. If global n8n-manager instances already exist: inspect them with \`${cliCmd} instance list --json\`. Reuse them with \`${cliCmd} instance select\` instead of creating duplicates whenever that satisfies the user request.`,
       `3. If initialization is missing and \`N8N_HOST\` / \`N8N_API_KEY\` are available: default to \`${cliCmd} init-auth --host <url> --api-key <key> [--sync-folder <path>]\` to discover projects. Only use \`${cliCmd} instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]\` when the project is already known.`,
       `4. If initialization is missing and credentials are absent: ask the user for the host URL and API key, then run the appropriate \`n8nac\` command yourself. **Do not ask the user to run the command.**`,
       `5. After credentials are saved, inspect the listed projects. If only one project exists, run \`${cliCmd} init-project --project-index 1 --sync-folder workflows\`. If multiple projects exist, ask the user which one to use, then run \`${cliCmd} init-project --project-id <id> [--sync-folder <path>]\`.`,
@@ -267,7 +267,7 @@ export class AiContextGenerator {
       `2. Check initialization by verifying whether \`n8nac-config.json\` exists in the workspace root.`,
       `3. If not initialized, ask the user for the host URL and API key if needed, then run \`${cliCmd} init-auth\` and \`${cliCmd} init-project\` yourself.`,
       `4. Pull the workflow before any modification and show the command.`,
-      `5. For a new workflow, read \`workflowDir\` from the active instance in \`n8nac-config.json\` to find the correct directory. In the common case it is workspace-relative, but it can also be absolute if \`syncFolder\` is absolute. Create the file there and confirm it appears in \`${cliCmd} list --local\` before pushing.`,
+      `5. For a new workflow, run \`${cliCmd} workspace status --json\` and use the returned \`workflowDir\` to find the local workflow directory. Create the file there and confirm it appears in \`${cliCmd} list --local\` before pushing.`,
       `6. Search for the relevant nodes and show the command you are running.`,
       `7. Retrieve the exact schema.`,
       `8. Generate the TypeScript configuration using the schema.`,
@@ -363,7 +363,7 @@ export class AiContextGenerator {
       `   - \`${cliCmd} list --remote\`: List only remote workflows.`,
       `   - Identify workflow IDs, filenames, and sync status. Archived workflows are shown with an \`[archived]\` badge.`,
       `   - ⚠️ **ARCHIVED WORKFLOWS ARE READ-ONLY**: Archived workflows cannot be pushed or modified via the API.`,
-      `   - Read \`n8nac-config.json\` to understand the active sync context. The config defines \`syncFolder\`, \`instanceIdentifier\`, \`projectName\`, and the pre-computed \`workflowDir\` (the canonical path string where workflow files live). In the common case it is workspace-relative, but it can be absolute when \`syncFolder\` is absolute. You never need to reconstruct it manually.`,
+      `   - Run \`${cliCmd} workspace status --json\` to understand the effective backend-resolved sync context. The result includes \`syncFolder\`, \`instanceIdentifier\`, \`projectName\`, and the pre-computed \`workflowDir\` where workflow files live. Do not reconstruct it manually from raw config files.`,
       `   - Always run \`${cliCmd}\` from the workspace root. Never construct sync paths manually.`,
       ``,
       `2. **PULL IF NEEDED**: Download remote changes before editing`,
@@ -372,8 +372,8 @@ export class AiContextGenerator {
       ``,
       `3. **EDIT / CREATE LOCALLY**: Work on the local \`.workflow.ts\` file inside the active workflow directory.`,
       `   - For an existing workflow: edit the pulled local file.`,
-      `   - For a brand-new workflow: read \`workflowDir\` from the **active instance** in \`n8nac-config.json\` — that is the instance whose \`id\` matches \`activeInstanceId\`. That path string is the canonical location for all workflow files. In the common case it is workspace-relative, but it can be absolute. Create the file there; never in the workspace root.`,
-      `   - \`workflowDir\` is recomputed and persisted automatically on every \`instance add\` / \`instance select\` / \`init\`. It is always the authoritative source — do not reconstruct it from \`syncFolder\` + \`instanceIdentifier\` + \`projectName\` manually.`,
+      `   - For a brand-new workflow: read \`workflowDir\` from \`${cliCmd} workspace status --json\`. That path string is the canonical location for all workflow files. In the common case it is workspace-relative, but it can be absolute. Create the file there; never in the workspace root.`,
+      `   - \`workflowDir\` is backend-resolved from n8n-manager global state plus workspace overrides. It is always the authoritative path — do not reconstruct it from \`syncFolder\` + \`instanceIdentifier\` + \`projectName\` manually.`,
       `   - After writing a new file, confirm it appears in \`${cliCmd} list --local\` before running \`${cliCmd} push <path>\` with either the absolute path or the workspace-root-relative path, such as \`workflows/127_0_0_1_5678_yagr_l/personal/slack-notification.workflow.ts\`.`,
       ``,
       `4. **PUSH**: Upload your changes explicitly`,
@@ -439,7 +439,7 @@ export class AiContextGenerator {
       `- **Explicit over automatic**: All operations are user-triggered or ai-agent-triggered.`,
       `- **Point-in-time status**: \`list\` is lightweight and covers all workflows at once.`,
       `- **Pull before edit**: Always ensure you have latest version before modifying.`,
-      `- **new workflows must be created in the active local workflow directory**: Read \`workflowDir\` from the active instance in \`n8nac-config.json\` (the instance whose \`id\` === \`activeInstanceId\`) — this is always correct regardless of \`--instance\` overrides or prior \`instance select\` calls. In the common case it is workspace-relative, but it can be absolute if \`syncFolder\` is absolute. Do not write workflows in the repo root or an ad-hoc folder.`,
+      `- **new workflows must be created in the active local workflow directory**: Read \`workflowDir\` from \`${cliCmd} workspace status --json\`. This is backend-resolved from n8n-manager global state plus workspace overrides and is correct regardless of \`--instance\` overrides or prior \`instance select\` calls. Do not write workflows in the repo root or an ad-hoc folder.`,
       `- **push requires the full workflow file path**: Always use either the absolute path from \`workflowDir\` or the workspace-root-relative equivalent, such as \`workflowDir/<filename>.workflow.ts\` in the common relative case. Never use a bare filename. A bare name has no implicit scope prefix and will be rejected with a clear error showing the expected path.`,
       `- **inspect then test after push for webhook/chat/form workflows**: Run \`${cliCmd} test-plan <id>\` first, then activate and test with \`--prod\`. **ALWAYS activate the workflow first (\`workflow activate <id>\`), then test with \`${cliCmd} test <id> --prod\`. Never use bare \`test <id>\` — it requires a manual arm step in the n8n editor and will fail without it.** A Class A error is not a bug — tell the user. A runtime-state issue is also not a code bug — fix the state/arming problem, not the workflow code. A Class B error is fixable — iterate.`,
       ``,
@@ -975,12 +975,12 @@ Use this skill only for explicit n8n workflow work.
 1. Check whether \`n8nac-config.json\` exists in the workspace root.
 2. If the workspace is initialized, read \`AGENTS.md\` from the workspace root before making workflow changes. It is the detailed, workspace-specific source of truth generated by \`n8nac update-ai\`.
 3. If \`AGENTS.md\` is missing or unreadable, regenerate it with \`npx --yes n8nac update-ai\` or run the \`openclaw n8nac:setup\` command before attempting workflow authoring.
-4. If the workspace is not initialized, ask the user for the n8n host URL and API key, then use the \`n8nac\` tool with \`action: "init_auth"\` and \`action: "init_project"\` to complete setup yourself. If you need to add a second saved instance later, call \`action: "init_auth"\` with \`newInstance: true\` first.
+4. If the workspace is not initialized, ask the user for the n8n host URL and API key, then use the \`n8nac\` tool with \`action: "init_auth"\` and \`action: "init_project"\` to complete setup yourself. If you need to add a second n8n-manager global instance later, call \`action: "init_auth"\` with \`newInstance: true\` first.
 
 ## Using the n8nac tool
 
-- Use the \`n8nac\` tool for setup checks, saved instance config management, workflow list/pull/push/verify, validation, and \`skills\` lookups.
-- Use \`action: "instance_list"\` to inspect saved configs, \`action: "instance_select"\` to switch the active config, and \`action: "instance_delete"\` to remove a stale saved config.
+- Use the \`n8nac\` tool for setup checks, global n8n-manager instance management, workflow list/pull/push/verify, validation, and \`skills\` lookups.
+- Use \`action: "instance_list"\` to inspect global n8n-manager instances, \`action: "instance_select"\` to switch the global active instance, and \`action: "instance_delete"\` to remove a stale global instance.
 - Use \`action: "skills"\` whenever you need node search or schema details.
 - Never guess node parameters. The schema lookup is the source of truth.
 - Treat \`AGENTS.md\` as the authoritative workflow-engineering protocol once this skill is active.

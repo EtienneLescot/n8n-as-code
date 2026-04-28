@@ -25,7 +25,9 @@ export function getChildEnv(): NodeJS.ProcessEnv {
       // Specific safe NODE_* vars (deliberately NOT a prefix match to exclude NODE_AUTH_TOKEN)
       /^NODE_(ENV|NO_WARNINGS|ICU_DATA)$/.test(upperKey) ||
       // n8n-as-code specific vars
-      key.startsWith("N8N_AS_CODE_")
+      key.startsWith("N8N_AS_CODE_") ||
+      // n8n-as-code/n8n-manager local dev command and state overrides (non-secret)
+      /^(N8N_MANAGER_HOME|N8N_MANAGER_STATE_PATH|N8N_MANAGER_COMMAND|N8NAC_COMMAND)$/.test(upperKey)
     ) {
       env[key] = process.env[key];
     }

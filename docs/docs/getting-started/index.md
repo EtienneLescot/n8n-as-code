@@ -48,12 +48,12 @@ The current extension can display the shared runtime modes. The existing-instanc
 
 1. Click the **n8n** icon in the Activity Bar
 2. Click **n8n: Configure** (or the gear icon)
-3. Click **Add instance** if you want to save a new n8n environment in this workspace
+3. Click **Add instance** if you want to register a new global n8n-manager instance
 4. Enter your **n8n host URL** (e.g. `https://your-instance.app.n8n.cloud`)
 5. Enter your **API key**
 6. Click **Load projects**, then select the one you want to sync
-7. Click **Save and activate config**
-8. The workspace can keep multiple saved instance configs; only one is active at a time
+7. Click **Save workspace context**
+8. The workspace can optionally pin one global instance; otherwise it follows the global active n8n-manager instance
 9. Click **Initialize n8n as code** to load the workspace
 
 ### 3. Sync Your First Workflow
@@ -192,7 +192,7 @@ After setup, your project looks like this:
 
 ```
 your-project/
-├── n8nac-config.json             # Saved instance configs + active selection (safe to commit)
+├── n8nac-config.json             # Workspace project/sync overrides (safe to commit)
 ├── AGENTS.md                     # AI agent instructions (auto-generated)
 ├── workflows/                    # Your workflow files
 │   └── instance-name_user/       # Organized by instance
@@ -203,8 +203,8 @@ your-project/
 └── .git/                         # Version control (recommended)
 ```
 
-- **`n8nac-config.json`** — workspace config, saved instance configs, and active instance selection; safe to commit
-- **API keys** — stored in your system credential store, never in the config file
+- **`n8nac-config.json`** — minimal workspace project/sync overrides; safe to commit
+- **Instances and API keys** — stored by n8n-manager under `~/.n8n-manager`, never in the workspace config file
 - **`AGENTS.md`** — generated instructions for AI agents (regenerate with `n8nac update-ai`)
 
 ## The Sync Model

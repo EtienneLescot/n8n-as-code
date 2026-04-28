@@ -31,11 +31,11 @@ const N8nAcToolSchema = Type.Object({
     description: [
       "Action to perform:",
       "  setup_check  — check whether the workspace is initialized.",
-      "  init_auth    — save n8n credentials. Requires n8nHost and n8nApiKey. Pass newInstance: true to add another saved config.",
+      "  init_auth    — save n8n credentials through n8n-manager. Requires n8nHost and n8nApiKey. Pass newInstance: true to add another global instance.",
       "  init_project — select the n8n project. Optionally pass projectId, projectName, or projectIndex (1-based, default 1).",
-      "  instance_list   — list saved n8n instance configs as JSON.",
-      "  instance_select — switch the active saved instance config. Requires instanceId, instanceName, or instanceIndex.",
-      "  instance_delete — delete a saved instance config. Requires instanceId, instanceName, or instanceIndex.",
+      "  instance_list   — list global n8n-manager instances as JSON.",
+      "  instance_select — switch the global active n8n-manager instance. Requires instanceId, instanceName, or instanceIndex.",
+      "  instance_delete — delete a global n8n-manager instance. Requires instanceId, instanceName, or instanceIndex.",
       "  list         — list all workflows with their sync status.",
       "  pull         — download a workflow from n8n. Requires workflowId.",
       "  push         — upload a local workflow file. Requires filename (e.g. my-flow.workflow.ts).",
@@ -49,7 +49,7 @@ const N8nAcToolSchema = Type.Object({
     Type.String({ description: "n8n host URL (for init_auth). Example: https://your-n8n.example.com" }),
   ),
   n8nApiKey: Type.Optional(Type.String({ description: "n8n API key (for init_auth)" })),
-  newInstance: Type.Optional(Type.Boolean({ description: "Save credentials as a new saved instance config instead of updating the current one (for init_auth)." })),
+  newInstance: Type.Optional(Type.Boolean({ description: "Save credentials as a new global n8n-manager instance instead of updating the current one (for init_auth)." })),
   // init_project
   projectId: Type.Optional(Type.String({ description: "n8n project ID (for init_project)" })),
   projectName: Type.Optional(Type.String({ description: "n8n project name (for init_project)" })),
@@ -57,9 +57,9 @@ const N8nAcToolSchema = Type.Object({
     Type.Number({ description: "n8n project index, 1-based (for init_project, default: 1)" }),
   ),
   // instance_select / instance_delete
-  instanceId: Type.Optional(Type.String({ description: "Saved instance config ID (for instance_select, instance_delete)." })),
-  instanceName: Type.Optional(Type.String({ description: "Saved instance config name (for instance_select, instance_delete)." })),
-  instanceIndex: Type.Optional(Type.Number({ description: "Saved instance config index, 1-based (for instance_select, instance_delete)." })),
+  instanceId: Type.Optional(Type.String({ description: "Global n8n-manager instance ID (for instance_select, instance_delete)." })),
+  instanceName: Type.Optional(Type.String({ description: "Global n8n-manager instance name (for instance_select, instance_delete)." })),
+  instanceIndex: Type.Optional(Type.Number({ description: "Global n8n-manager instance index, 1-based (for instance_select, instance_delete)." })),
   listScope: Type.Optional(
     Type.Unsafe<(typeof LIST_SCOPES)[number]>({
       type: "string",
@@ -240,7 +240,7 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
     label: "n8n-as-code",
     description:
       "Create and manage n8n workflows using n8n-as-code. " +
-      "Handles workspace initialization (init_auth → init_project), saved instance config management, " +
+      "Handles workspace initialization (init_auth → init_project), global n8n-manager instance management, " +
       "workflow sync (list, pull, push, verify), and AI knowledge lookup (skills, validate). " +
       "Always call setup_check first to determine initialization state.",
     parameters: N8nAcToolSchema,

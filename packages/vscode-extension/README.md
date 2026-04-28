@@ -61,7 +61,7 @@ This editor distribution is one entry point into the wider `n8n-as-code` product
 
 ## ⚙️ Configuration
 
-The extension stores saved instance configs and the active selection in `n8nac-config.json` at the workspace root. This lets one workspace keep multiple n8n environments without losing previously saved configs.
+The extension reads global instances and API keys from n8n-manager. `n8nac-config.json` at the workspace root stores only workspace overrides such as pinned instance, selected project, and sync folder.
 
 The legacy native editor settings below still exist as compatibility fallbacks:
 
@@ -73,9 +73,10 @@ The legacy native editor settings below still exist as compatibility fallbacks:
 
 In the configuration screen:
 
-- `Add instance` saves another existing n8n environment in the workspace
-- `Select instance` loads a saved config into the form
-- `Save and activate config` makes that config the active one for the workspace
+- `Add instance` creates or updates a global n8n-manager instance
+- the global selector changes the global active instance
+- the workspace controls explicitly pin an instance or sync folder for the current workspace
+- `Save workspace context` persists workspace-level project and sync context
 
 ## Philosophy
 

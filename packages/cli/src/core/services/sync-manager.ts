@@ -352,7 +352,7 @@ export class SyncManager extends EventEmitter {
                 `Active sync scope : ${scopeLabel}\n` +
                 `Expected path form: ${suggestedPath}\n` +
                 `Run               : n8nac push ${this.quoteShellArg(suggestedPath)}\n\n` +
-                `Tip: read \`workflowDir\` from the active instance in \`n8nac-config.json\` to ` +
+                `Tip: run \`n8nac workspace status --json\` and read \`workflowDir\` to ` +
                 `get the exact relative path where workflow files must be created and pushed from.`
             );
         }

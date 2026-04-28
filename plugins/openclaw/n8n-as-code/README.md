@@ -23,11 +23,11 @@ Restart the gateway, then run the setup wizard:
 openclaw n8nac:setup
 ```
 
-The wizard asks for your n8n host URL and API key once, saves an instance config via
-`n8nac init-auth`, selects your project, and generates an AI context file
+The wizard asks for your n8n host URL and API key once, saves the instance in the global
+`n8n-manager` SSOT via `n8nac init-auth`, selects your workspace project, and generates an AI context file
 (`AGENTS.md`) in the workspace (`~/.openclaw/n8nac/`).
 
-After setup, saved instance configs can also be listed, selected, and deleted through the same shared `n8nac` instance library used by the CLI and VS Code extension.
+After setup, global n8n-manager instances can also be listed, selected, and deleted through the same `n8nac` facade used by the CLI and VS Code extension.
 
 ## Usage
 
@@ -65,10 +65,13 @@ All files live in `~/.openclaw/n8nac/`:
 
 ```
 ~/.openclaw/n8nac/
-  n8nac-config.json     ← saved instance configs + active selection
+  n8nac-config.json     ← workspace project/sync overrides only
   AGENTS.md             ← AI context (written by n8nac update-ai)
   workflows/            ← .workflow.ts files (your n8n workflows)
 ```
+
+Instances and API keys are not stored in this workspace. They live in the global
+`n8n-manager` configuration under `~/.n8n-manager`.
 
 ## Agent tool
 
@@ -77,11 +80,11 @@ The plugin registers the `n8nac` tool with these actions:
 | Action | Description |
 |---|---|
 | `setup_check` | Check initialization state |
-| `init_auth` | Save n8n credentials; pass `newInstance: true` to add another saved config |
+| `init_auth` | Save n8n credentials through n8n-manager; pass `newInstance: true` to add another global instance |
 | `init_project` | Select n8n project |
-| `instance_list` | List saved instance configs |
-| `instance_select` | Select the active saved instance config |
-| `instance_delete` | Delete a saved instance config |
+| `instance_list` | List global n8n-manager instances |
+| `instance_select` | Select the global active n8n-manager instance |
+| `instance_delete` | Delete a global n8n-manager instance |
 | `list` | List all workflows |
 | `pull` | Download a workflow by ID |
 | `push` | Upload a workflow file |
@@ -123,8 +126,9 @@ You should see status `loaded` and the tool `n8nac` in the tools list.
 openclaw n8nac:setup
 ```
 
-Enter your n8n host and API key when prompted. The wizard writes
-`~/.openclaw/n8nac/n8nac-config.json` with the saved instance configs and active selection, then generates `AGENTS.md`.
+Enter your n8n host and API key when prompted. The wizard writes the global
+instance and secret through n8n-manager, writes only workspace project/sync
+context in `~/.openclaw/n8nac/n8nac-config.json`, then generates `AGENTS.md`.
 
 ### 4. Iterate on the code
 
@@ -146,7 +150,7 @@ The plugin prefixes all `api.logger` calls with `[n8nac]`.
 
 ```
 ~/.openclaw/n8nac/
-  n8nac-config.json   ← saved instance configs + active selection
+  n8nac-config.json   ← workspace project/sync overrides only
   AGENTS.md           ← written by update-ai
   workflows/          ← .workflow.ts files
 ```
