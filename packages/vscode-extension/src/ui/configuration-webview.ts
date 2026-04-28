@@ -1399,8 +1399,41 @@ export class ConfigurationWebview {
 
     function getSchemaProperties(schema) {
       if (schema && Array.isArray(schema.properties)) return schema.properties;
+      if (schema && schema.properties && typeof schema.properties === 'object') {
+        const required = Array.isArray(schema.required) ? schema.required : [];
+        const catalogEntry = findCredentialCatalogEntry(credentialModalState.credentialTypeName);
+        const catalogProperties = Array.isArray(catalogEntry?.properties) ? catalogEntry.properties : [];
+        return Object.entries(schema.properties).map(([name, definition]) => {
+          const schemaDefinition = definition && typeof definition === 'object' ? definition : {};
+          const catalogProperty = catalogProperties.find((property) => property?.name === name);
+          return {
+            ...schemaDefinition,
+            ...catalogProperty,
+            name,
+            displayName: catalogProperty?.displayName || schemaDefinition.title || toDisplayLabel(name),
+            type: normalizeJsonSchemaType(schemaDefinition.type || catalogProperty?.type),
+            typeOptions: catalogProperty?.typeOptions,
+            required: required.includes(name) || Boolean(catalogProperty?.required),
+            default: catalogProperty?.default ?? schemaDefinition.default ?? '',
+            description: catalogProperty?.description || schemaDefinition.description,
+          };
+        });
+      }
       const catalogEntry = findCredentialCatalogEntry(credentialModalState.credentialTypeName);
       return Array.isArray(catalogEntry?.properties) ? catalogEntry.properties : [];
+    }
+
+    function normalizeJsonSchemaType(type) {
+      if (type === 'boolean') return 'boolean';
+      if (type === 'number' || type === 'integer') return 'number';
+      return 'string';
+    }
+
+    function toDisplayLabel(name) {
+      return String(name || '')
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/[_-]+/g, ' ')
+        .replace(/^./, (letter) => letter.toUpperCase());
     }
 
     function findRecipeForType(typeName) {
@@ -1498,9 +1531,12 @@ export class ConfigurationWebview {
       credentialModalTypeEl.disabled = credentialModalState.mode === 'edit' || credentialModalState.loading;
       credentialModalNameEl.value = credentialModalState.credentialName || catalogEntry?.displayName || '';
 
+      const schemaSource = credentialModalState.schema
+        ? (credentialModalState.schema.source || 'n8n runtime')
+        : (catalogEntry?.source || 'n8n runtime');
       credentialSchemaSourceEl.textContent = credentialModalState.loading
         ? 'Loading native n8n schema...'
-        : 'Schema source: ' + (credentialModalState.schema?.source || catalogEntry?.source || 'n8n runtime') + '. Secret values cannot be read back from n8n; enter them when creating or updating.';
+        : 'Schema source: ' + schemaSource + '. Secret values cannot be read back from n8n; enter them when creating or updating.';
 
       renderCredentialSchemaFields();
       saveCredentialFromModalBtn.disabled = credentialModalState.loading || pendingAction === 'credential';
