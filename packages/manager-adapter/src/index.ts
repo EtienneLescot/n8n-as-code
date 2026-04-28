@@ -3,6 +3,7 @@ import {
   N8nConfigurationService,
   createManagedLocalLifecycleManager,
   readFileBackedN8nInstance,
+  resolveWorkflowWebviewOpen,
   resolveN8nManagerHome,
   resolveFileBackedN8nStatePath,
   type EffectiveN8nContext,
@@ -13,6 +14,7 @@ import {
   type N8nHealthSnapshot,
   type N8nInstanceRef,
   type N8nWorkspaceOverrides,
+  type WorkflowWebviewOpenPayload,
 } from '@n8n-as-code/n8n-manager-core';
 import path from 'node:path';
 import {
@@ -66,6 +68,7 @@ export interface N8nManagerFacade {
   writeWorkspaceOverrides(overrides: Partial<N8nWorkspaceOverrides>, workspaceRoot?: string): Promise<N8nWorkspaceOverrides>;
   clearWorkspaceOverrides(workspaceRoot?: string): Promise<void>;
   resolveEffectiveContext(input?: { workspaceRoot?: string; instanceId?: string; requireProject?: boolean; syncFolderDefault?: N8nSyncFolderDefaultPolicy }): Promise<EffectiveN8nContext>;
+  resolveWorkflowWebviewOpen(input: { workflowId: string; proxyBaseUrl: string; workflowUrl?: string; workspaceRoot?: string; instanceId?: string; routePath?: string }): Promise<WorkflowWebviewOpenPayload>;
   listSetupModes(): typeof N8N_FACADE_SETUP_MODES;
   listCredentialRecipes(): Promise<CredentialRecipe[]>;
   listCredentialCatalog(): Promise<CredentialCatalogEntry[]>;
@@ -168,6 +171,10 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
       requireProject: input.requireProject,
       syncFolderDefault: input.syncFolderDefault,
     }),
+    resolveWorkflowWebviewOpen: async (input) => resolveWorkflowWebviewOpen({
+      ...input,
+      workspaceRoot: input.workspaceRoot ?? options.workspaceRoot,
+    }, configuration),
     listSetupModes: () => N8N_FACADE_SETUP_MODES,
     listCredentialRecipes: async () => (await createCredentialsManager()).listRecipes(),
     listCredentialCatalog: async () => (await createCredentialsManager()).listCredentialCatalog(),

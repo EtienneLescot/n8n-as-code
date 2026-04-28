@@ -7,7 +7,7 @@ import {
     type N8nInstanceVerification,
     type N8nInstanceVerificationStatus,
 } from '@n8n-as-code/n8n-manager-core';
-import { N8nApiClient } from '../core/index.js';
+import { N8nApiClient, createProjectSlug } from '../core/index.js';
 
 export interface ILocalConfig {
     host?: string;
@@ -115,6 +115,11 @@ export class ConfigService {
 
     getActiveInstance(): IInstanceProfile | undefined {
         const effective = tryResolve(() => this.resolveWorkspaceContext());
+        return effective ? this.contextToInstanceProfile(effective) : undefined;
+    }
+
+    getEffectiveInstanceConfig(instanceId?: string): IInstanceProfile | undefined {
+        const effective = tryResolve(() => this.resolveWorkspaceContext(instanceId));
         return effective ? this.contextToInstanceProfile(effective) : undefined;
     }
 
@@ -416,9 +421,10 @@ export class ConfigService {
         });
     }
 
-    private resolveWorkspaceContext(): EffectiveN8nContext {
+    private resolveWorkspaceContext(instanceId?: string): EffectiveN8nContext {
         return this.manager.resolveEffectiveContext({
             workspaceRoot: this.workspaceRoot,
+            instanceId,
             syncFolderDefault: 'workspace',
         });
     }
@@ -446,6 +452,7 @@ export class ConfigService {
             projectId: context.projectId,
             projectName: context.projectName,
             instanceIdentifier: context.instanceIdentifier,
+            workflowDir: this.buildWorkflowDir(context.syncFolder, context.instanceIdentifier, context.projectName),
             customNodesPath: context.customNodesPath,
             folderSync: context.folderSync,
         };
@@ -457,13 +464,18 @@ export class ConfigService {
 
     private toLocalConfig(profile?: Partial<ILocalConfig>): Partial<ILocalConfig> {
         if (!profile) return {};
+        const workflowDir = profile.workflowDir || this.buildWorkflowDir(
+            profile.syncFolder,
+            profile.instanceIdentifier,
+            profile.projectName,
+        );
         return stripUndefined({
             host: profile.host,
             syncFolder: profile.syncFolder,
             projectId: profile.projectId,
             projectName: profile.projectName,
             instanceIdentifier: profile.instanceIdentifier,
-            workflowDir: profile.workflowDir,
+            workflowDir,
             customNodesPath: profile.customNodesPath,
             folderSync: profile.folderSync,
         });
@@ -513,6 +525,12 @@ export class ConfigService {
             return current.baseUrl;
         }
         return host;
+    }
+
+    private buildWorkflowDir(syncFolder?: string, instanceIdentifier?: string, projectName?: string): string | undefined {
+        return syncFolder && instanceIdentifier && projectName
+            ? path.join(syncFolder, instanceIdentifier, createProjectSlug(projectName))
+            : undefined;
     }
 
     private findConfigRoot(startDir: string): string {

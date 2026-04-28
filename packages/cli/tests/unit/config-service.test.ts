@@ -62,6 +62,28 @@ describe('ConfigService', () => {
         expect(configService.getActiveInstance()?.id).toBe('prod');
     });
 
+    it('resolves workspace default sync folder for effective instance configs', () => {
+        const configService = new ConfigService(workspaceRoot);
+        configService.saveLocalConfig({
+            host: 'https://prod.example.test',
+            projectId: 'personal',
+            projectName: 'Personal',
+            instanceIdentifier: 'prod_instance',
+        }, {
+            instanceId: 'prod',
+            instanceName: 'Production',
+        });
+
+        const effective = configService.getEffectiveInstanceConfig('prod');
+
+        expect(effective?.syncFolder).toBe(path.join(workspaceRoot, 'workflows'));
+        expect(effective?.workflowDir).toBe(path.join(workspaceRoot, 'workflows', 'prod_instance', 'personal'));
+        expect(configService.getLocalConfig()).toMatchObject({
+            syncFolder: path.join(workspaceRoot, 'workflows'),
+            workflowDir: path.join(workspaceRoot, 'workflows', 'prod_instance', 'personal'),
+        });
+    });
+
     it('rejects legacy workspace configs with embedded instances', () => {
         writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
             version: 2,
