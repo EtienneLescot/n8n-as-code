@@ -239,6 +239,8 @@ export class ConfigurationWebview {
         cancellable: false,
       }, () => facade.setup({
         mode: 'managed-local',
+        instanceId,
+        instanceName,
         tunnel: Boolean(payload.tunnel),
       }));
 
