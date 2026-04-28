@@ -266,8 +266,8 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     
     // 2. Explanation
     const explanationItem = new InfoItem(
-      'Instance is unreachable',
-      'It may have stopped',
+      'Connection failed',
+      this.initializationError || 'Check the effective instance configuration',
       new vscode.ThemeIcon('warning')
     );
     explanationItem.tooltip = this.initializationError;

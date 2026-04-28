@@ -67,8 +67,18 @@
       },
       {
         "command": "n8n.switchInstance",
-        "title": "n8n: Select Instance",
+        "title": "n8n: Select Global Instance",
         "icon": "$(list-selection)"
+      },
+      {
+        "command": "n8n.pinWorkspaceInstance",
+        "title": "n8n: Pin Instance for Workspace",
+        "icon": "$(pinned)"
+      },
+      {
+        "command": "n8n.clearWorkspaceInstance",
+        "title": "n8n: Clear Workspace Instance Pin",
+        "icon": "$(pinned-dirty)"
       },
       {
         "command": "n8n.deleteInstance",

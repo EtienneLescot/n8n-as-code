@@ -73,6 +73,10 @@ export class N8nApiClient {
         }
     }
 
+    async assertApiAccess(): Promise<void> {
+        await this.client.get('/api/v1/workflows');
+    }
+
     async getCurrentUser(): Promise<{ id: string; email?: string; firstName?: string; lastName?: string; } | null> {
         // 1. Try to extract userId from API key (JWT sub claim)
         const jwtUserId = this.extractUserIdFromApiKey();

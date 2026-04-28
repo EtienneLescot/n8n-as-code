@@ -182,7 +182,7 @@ export function getSyncDirectoryPath(): string | undefined {
 
   const folder = getResolvedN8nConfig(workspaceRoot).syncFolder;
   
-  return path.join(workspaceRoot, folder);
+  return path.isAbsolute(folder) ? folder : path.resolve(workspaceRoot, folder);
 }
 
 /**

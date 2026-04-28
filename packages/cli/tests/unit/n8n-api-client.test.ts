@@ -45,6 +45,27 @@ describe('N8nApiClient test workflow support', () => {
         }));
     });
 
+    it('asserts API access through the authenticated workflows endpoint', async () => {
+        mockAxiosGet.mockResolvedValueOnce({ data: { data: [] } });
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        await expect(client.assertApiAccess()).resolves.toBeUndefined();
+
+        expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/workflows');
+    });
+
+    it('surfaces authentication failures when asserting API access', async () => {
+        const unauthorized = Object.assign(new Error('Request failed with status code 401'), {
+            response: { status: 401 },
+        });
+        mockAxiosGet.mockRejectedValueOnce(unauthorized);
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'bad-key' });
+
+        await expect(client.assertApiAccess()).rejects.toMatchObject({
+            response: { status: 401 },
+        });
+    });
+
     it('detects a webhook trigger and uses explicit path and HTTP method', () => {
         const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
         const trigger = client.detectTrigger(createMockWorkflow({
