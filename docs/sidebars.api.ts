@@ -54,10 +54,8 @@ const sidebars: SidebarsConfig = {
           label: 'Commands',
           items: [
             'cli/commands/base',
-            'cli/commands/init',
-            'cli/commands/init-ai',
+            'cli/commands/update-ai',
             'cli/commands/sync',
-            'cli/commands/watch',
           ],
         },
         {
