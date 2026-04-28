@@ -1,10 +1,9 @@
 import * as vscode from 'vscode';
-import { N8nApiClient, ConfigService, type IN8nCredentials } from 'n8nac';
+import { N8nApiClient, type IN8nCredentials } from 'n8nac';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
-import { N8N_FACADE_SETUP_MODES } from '@n8n-as-code/workflow-core';
-import { getResolvedN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from '../utils/state-detection.js';
-import { writeUnifiedWorkspaceConfig } from '../utils/unified-config.js';
-import { buildConfigurationInitState } from './configuration-state.js';
+import { getWorkspaceRoot } from '../utils/state-detection.js';
+import type { N8nConfigurationController, N8nConfigurationSnapshot } from '../services/n8n-configuration-controller.js';
+import { getConfigurationHtml } from './configuration-webview-html.js';
 
 type UiProject = {
   id: string;
@@ -12,8 +11,11 @@ type UiProject = {
   type?: string;
 };
 
-const MANAGED_LOCAL_PROJECT_ID = 'personal';
-const MANAGED_LOCAL_PROJECT_NAME = 'Personal';
+const PERSONAL_PROJECT: UiProject = {
+  id: 'personal',
+  name: 'Personal',
+  type: 'personal',
+};
 
 function normalizeHost(host: string): string {
   const trimmed = (host || '').trim();
@@ -41,7 +43,7 @@ async function clearLegacyWorkspaceSettings(): Promise<void> {
   }
 }
 
-function getNonce() {
+function getNonce(): string {
   let text = '';
   const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   for (let i = 0; i < 32; i++) {
@@ -55,364 +57,37 @@ export class ConfigurationWebview {
 
   private readonly _panel: vscode.WebviewPanel;
   private readonly _context: vscode.ExtensionContext;
+  private readonly _configurationController: N8nConfigurationController;
+  private readonly _disposables: vscode.Disposable[] = [];
   private _stateVersion = 0;
 
-  private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
+  private constructor(
+    panel: vscode.WebviewPanel,
+    context: vscode.ExtensionContext,
+    configurationController: N8nConfigurationController,
+  ) {
     this._panel = panel;
     this._context = context;
+    this._configurationController = configurationController;
 
     this._panel.onDidDispose(() => {
+      for (const disposable of this._disposables) {
+        disposable.dispose();
+      }
+      this._disposables.length = 0;
       ConfigurationWebview.currentPanel = undefined;
     });
 
-    this._panel.webview.options = {
-      enableScripts: true,
-    };
-
-    this._panel.webview.onDidReceiveMessage(async (message) => {
-      try {
-        if (!message || typeof message !== 'object') return;
-
-        switch (message.type) {
-          case 'loadProjects': {
-            const host = normalizeHost(message.host);
-            const apiKey = (message.apiKey || '').trim();
-            const selectedProjectId = (message.projectId || '').trim();
-            const selectedProjectName = (message.projectName || '').trim();
-
-            if (!host || !apiKey) {
-              this._panel.webview.postMessage({
-                type: 'error',
-                message: 'Host and API key are required to load projects.',
-              });
-              return;
-            }
-
-            const client = new N8nApiClient({ host, apiKey } as IN8nCredentials);
-            const projects = (await client.getProjects()) as any[];
-
-            const uiProjects: UiProject[] = projects.map((project) => ({
-              id: project.id,
-              name: project.name,
-              type: project.type,
-            }));
-
-            this._panel.webview.postMessage({
-              type: 'projectsLoaded',
-              projects: uiProjects,
-              selectedProjectId,
-              selectedProjectName,
-            });
-            return;
-          }
-
-          case 'saveSettings': {
-            const host = normalizeHost(message.host);
-            const apiKey = (message.apiKey || '').trim();
-            const syncFolder = (message.syncFolder || '').trim();
-            const instanceId = (message.instanceId || '').trim() || undefined;
-            const instanceName = (message.instanceName || '').trim() || undefined;
-            const createNew = !!message.createNew;
-
-            const workspaceRoot = getWorkspaceRoot();
-            const shouldAutoApply = !!workspaceRoot && isFolderPreviouslyInitialized(workspaceRoot);
-            if (workspaceRoot) {
-              await this._context.workspaceState.update('n8n.suppressSettingsChangedOnce', true);
-            }
-
-            let projectId = (message.projectId || '').trim();
-            let projectName = (message.projectName || '').trim();
-
-            if (host && apiKey && (!projectId || !projectName)) {
-              const client = new N8nApiClient({ host, apiKey } as IN8nCredentials);
-              const projects = (await client.getProjects()) as any[];
-              const personal = projects.find((project) => project.type === 'personal');
-              const fallback = personal || (projects.length === 1 ? projects[0] : undefined);
-              if (fallback) {
-                projectId = fallback.id;
-                projectName = fallback.type === 'personal' ? 'Personal' : fallback.name;
-              }
-            }
-
-            if (workspaceRoot) {
-              await writeUnifiedWorkspaceConfig({
-                workspaceRoot,
-                host,
-                apiKey,
-                syncFolder: syncFolder || 'workflows',
-                projectId,
-                projectName,
-                instanceId,
-                instanceName,
-                createNew,
-                setActive: true,
-              });
-
-              await clearLegacyWorkspaceSettings();
-            }
-
-            await this.postInitialState();
-            this._panel.webview.postMessage({ type: 'saved' });
-
-            void (async () => {
-              try {
-                if (host && apiKey) {
-                  if (shouldAutoApply) {
-                    await vscode.commands.executeCommand('n8n.applySettings');
-                    await vscode.window.showInformationMessage('✅ Settings applied. Sync resumed.');
-                  } else {
-                    await vscode.commands.executeCommand('n8n.init');
-                  }
-
-                  await this.postInitialState();
-                } else {
-                  await vscode.window.showInformationMessage('✅ Settings saved.');
-                }
-              } catch (error: any) {
-                this._panel.webview.postMessage({
-                  type: 'error',
-                  message: error?.message || 'Failed to apply saved settings.',
-                });
-              }
-            })();
-            return;
-          }
-
-          case 'configureRuntimeMode': {
-            const mode = String(message.mode || '').trim();
-            if (mode !== 'managed-local' && mode !== 'generation-only') {
-              this._panel.webview.postMessage({
-                type: 'error',
-                message: 'Unsupported runtime mode for direct extension setup.',
-              });
-              return;
-            }
-
-            const facade = createN8nManagerFacade();
-            const workspaceRoot = getWorkspaceRoot();
-            const syncFolder = String(message.syncFolder || '').trim() || 'workflows';
-            this._panel.webview.postMessage({
-              type: 'runtimeModeStarted',
-              mode,
-            });
-            const instance = await vscode.window.withProgress({
-              location: vscode.ProgressLocation.Notification,
-              title: mode === 'managed-local'
-                ? 'Preparing local n8n with n8n-manager'
-                : 'Saving n8n generation-only mode',
-              cancellable: false,
-            }, async (progress) => {
-              progress.report({
-                message: mode === 'managed-local'
-                  ? 'Resolving local runtime state...'
-                  : 'Saving workspace runtime mode...',
-              });
-              return facade.setup({
-                mode,
-                tunnel: !!message.tunnel,
-              });
-            });
-
-            const status = await facade.status();
-            let activatedConfig: { host?: string; syncFolder?: string; projectName?: string } | undefined;
-
-            if (mode === 'managed-local' && status.status === 'ready' && workspaceRoot) {
-              const managed = await facade.getManagedInstance();
-              if (!managed?.baseUrl || !managed.apiKey) {
-                throw new Error('n8n-manager reports local n8n ready, but no managed API key is available yet.');
-              }
-
-              const configService = new ConfigService(workspaceRoot);
-              const existingManagedInstance = configService
-                .listInstances()
-                .find((candidate) => normalizeHost(candidate.host || '') === normalizeHost(managed.baseUrl || ''));
-
-              await writeUnifiedWorkspaceConfig({
-                workspaceRoot,
-                host: managed.baseUrl,
-                apiKey: managed.apiKey,
-                syncFolder,
-                projectId: MANAGED_LOCAL_PROJECT_ID,
-                projectName: MANAGED_LOCAL_PROJECT_NAME,
-                instanceId: existingManagedInstance?.id,
-                instanceName: existingManagedInstance?.name || 'Managed local n8n',
-                createNew: !existingManagedInstance,
-                setActive: true,
-              });
-
-              await clearLegacyWorkspaceSettings();
-              await this.postInitialState();
-
-              void vscode.commands.executeCommand('n8n.init');
-              activatedConfig = {
-                host: managed.baseUrl,
-                syncFolder,
-                projectName: MANAGED_LOCAL_PROJECT_NAME,
-              };
-            }
-
-            this._panel.webview.postMessage({
-              type: 'runtimeModeSaved',
-              mode,
-              instance,
-              status,
-              activatedConfig,
-            });
-            return;
-          }
-
-          case 'loadCredentialInventory': {
-            const facade = createN8nManagerFacade();
-            const inventory = await facade.getCredentialInventory();
-            const credentials = await facade.listCredentials();
-            const recipes = await facade.listCredentialRecipes();
-            const catalog = await facade.listCredentialCatalog();
-            this._panel.webview.postMessage({
-              type: 'credentialInventoryLoaded',
-              items: inventory.availableCredentials,
-              credentials,
-              recipes,
-              catalog,
-            });
-            return;
-          }
-
-          case 'loadCredentialSchema': {
-            const credentialTypeName = String(message.credentialTypeName || '').trim();
-            const recipeId = String(message.recipeId || '').trim();
-            if (!credentialTypeName) {
-              throw new Error('Credential type is required.');
-            }
-
-            const facade = createN8nManagerFacade();
-            const schema = await facade.getCredentialSchema(credentialTypeName);
-            this._panel.webview.postMessage({
-              type: 'credentialSchemaLoaded',
-              recipeId,
-              credentialTypeName,
-              schema,
-            });
-            return;
-          }
-
-          case 'ensureCredentialType': {
-            const credentialId = String(message.credentialId || '').trim();
-            const credentialName = String(message.credentialName || '').trim();
-            const credentialTypeName = String(message.credentialTypeName || '').trim();
-            const values = typeof message.values === 'object' && message.values ? message.values : {};
-            if (!credentialName || !credentialTypeName) {
-              throw new Error('Credential name and type are required.');
-            }
-
-            const facade = createN8nManagerFacade();
-            const ref = await facade.ensureCredentialType({
-              credentialId: credentialId || undefined,
-              credentialName,
-              credentialTypeName,
-              values,
-            });
-            const inventory = await facade.getCredentialInventory();
-            const credentials = await facade.listCredentials();
-            const recipes = await facade.listCredentialRecipes();
-            const catalog = await facade.listCredentialCatalog();
-            this._panel.webview.postMessage({
-              type: 'credentialSaved',
-              credential: ref,
-              items: inventory.availableCredentials,
-              credentials,
-              recipes,
-              catalog,
-            });
-            return;
-          }
-
-          case 'ensureCredential': {
-            const recipeId = String(message.recipeId || '').trim();
-            const credentialName = String(message.credentialName || '').trim();
-            const values = typeof message.values === 'object' && message.values ? message.values : {};
-            if (!recipeId) {
-              throw new Error('Credential recipe is required.');
-            }
-
-            const facade = createN8nManagerFacade();
-            const ref = await facade.ensureCredential(recipeId, {
-              credentialName: credentialName || undefined,
-              values,
-            });
-            const inventory = await facade.getCredentialInventory();
-            const credentials = await facade.listCredentials();
-            const recipes = await facade.listCredentialRecipes();
-            const catalog = await facade.listCredentialCatalog();
-            this._panel.webview.postMessage({
-              type: 'credentialSaved',
-              credential: ref,
-              items: inventory.availableCredentials,
-              credentials,
-              recipes,
-              catalog,
-            });
-            return;
-          }
-
-          case 'switchInstance': {
-            const workspaceRoot = getWorkspaceRoot();
-            const instanceId = (message.instanceId || '').trim();
-            if (!workspaceRoot || !instanceId) {
-              return;
-            }
-
-            await vscode.commands.executeCommand('n8n.switchInstance', {
-              instanceId,
-              silent: true,
-            });
-            await this.postInitialState();
-            return;
-          }
-
-          case 'deleteInstance': {
-            const workspaceRoot = getWorkspaceRoot();
-            const instanceId = (message.instanceId || '').trim();
-            const skipConfirm = !!message.skipConfirm;
-            if (!workspaceRoot || !instanceId) {
-              return;
-            }
-
-            const deletedInstanceId = await vscode.commands.executeCommand('n8n.deleteInstance', {
-              instanceId,
-              skipConfirm,
-              silent: true,
-            });
-            if (deletedInstanceId) {
-              this._panel.webview.postMessage({
-                type: 'instanceDeleted',
-                instanceId: deletedInstanceId,
-              });
-              await this.postInitialState();
-              this._panel.webview.postMessage({ type: 'saved' });
-            } else {
-              this._panel.webview.postMessage({ type: 'cancelled' });
-            }
-            return;
-          }
-
-          case 'openSettings': {
-            await vscode.commands.executeCommand('n8n.openSettings');
-            return;
-          }
-        }
-      } catch (error: any) {
-        if (message.type === 'deleteInstance') {
-          await this.postInitialState();
-        }
-        this._panel.webview.postMessage({
-          type: 'error',
-          message: error?.message || 'Unexpected error',
-        });
-      }
+    this._panel.webview.options = { enableScripts: true };
+    this._panel.webview.onDidReceiveMessage((message) => {
+      void this.handleMessage(message);
     });
 
     this._panel.webview.html = this.getHtmlForWebview();
     void this.postInitialState();
+    this._disposables.push(this._configurationController.onDidChangeSnapshot((event) => {
+      void this.postInitialState(event.snapshot);
+    }));
 
     this._panel.onDidChangeViewState(() => {
       if (this._panel.visible) {
@@ -421,7 +96,10 @@ export class ConfigurationWebview {
     });
   }
 
-  public static createOrShow(context: vscode.ExtensionContext) {
+  public static createOrShow(
+    context: vscode.ExtensionContext,
+    configurationController: N8nConfigurationController,
+  ): void {
     const column = vscode.ViewColumn.One;
 
     if (ConfigurationWebview.currentPanel) {
@@ -433,2025 +111,221 @@ export class ConfigurationWebview {
       'n8nConfiguration',
       'n8n: Configure',
       column,
-      { enableScripts: true }
+      { enableScripts: true },
     );
 
-    ConfigurationWebview.currentPanel = new ConfigurationWebview(panel, context);
+    ConfigurationWebview.currentPanel = new ConfigurationWebview(panel, context, configurationController);
   }
 
-  private async postInitialState() {
-    const stateVersion = ++this._stateVersion;
-    const workspaceRoot = getWorkspaceRoot();
-    const resolved = getResolvedN8nConfig(workspaceRoot);
-    const configService = workspaceRoot ? new ConfigService(workspaceRoot) : undefined;
-    const workspaceConfig = workspaceRoot && configService
-      ? configService.getWorkspaceConfig()
-      : { instances: [], activeInstanceId: undefined };
-    const activeInstance = workspaceRoot && configService ? configService.getActiveInstance() : undefined;
+  private async handleMessage(message: unknown): Promise<void> {
+    try {
+      if (!message || typeof message !== 'object') return;
+      const payload = message as Record<string, unknown>;
+      const workspaceRoot = getWorkspaceRoot();
+      const facade = createN8nManagerFacade({ workspaceRoot });
 
-    const initState = buildConfigurationInitState({
-      workspaceConfig,
-      activeInstance,
-      resolved,
-      getApiKey: (host, instanceId) => (workspaceRoot && configService ? configService.getApiKey(host, instanceId) : undefined),
-      normalizeHost,
-    });
+      switch (payload.type) {
+        case 'refreshState':
+          await this._configurationController.refresh('webview-refresh', { force: true });
+          return;
+
+        case 'loadProjects': {
+          const instanceId = String(payload.instanceId || '').trim() || undefined;
+          const effective = await facade.resolveEffectiveContext({ workspaceRoot, instanceId, syncFolderDefault: 'workspace' });
+          const host = normalizeHost(effective.host || '');
+          const apiKey = String(effective.apiKey || '').trim();
+          if (!host || !apiKey) {
+            throw new Error('The effective instance needs a host and API key before projects can be loaded.');
+          }
+          const client = new N8nApiClient({ host, apiKey } as IN8nCredentials);
+          const uiProjects = await this.loadProjectsWithFallback(client);
+          this._panel.webview.postMessage({
+            type: 'projectsLoaded',
+            projects: uiProjects,
+            selectedProjectId: String(payload.projectId || ''),
+            selectedProjectName: String(payload.projectName || ''),
+          });
+          return;
+        }
+
+        case 'saveGlobalInstance':
+          await this.saveGlobalInstance(payload, facade);
+          await this._configurationController.refresh('webview-save-global-instance', { force: true });
+          this._panel.webview.postMessage({ type: 'saved' });
+          return;
+
+        case 'setGlobalActiveInstance': {
+          const instanceId = String(payload.instanceId || '').trim();
+          if (!instanceId) throw new Error('Instance is required.');
+          await facade.setGlobalActiveInstance(instanceId);
+          await this._configurationController.refresh('webview-set-global-active', { force: true });
+          this._panel.webview.postMessage({ type: 'saved' });
+          return;
+        }
+
+        case 'saveWorkspaceContext': {
+          if (!workspaceRoot) throw new Error('Open a workspace before saving workspace n8n settings.');
+          const syncFolder = String(payload.syncFolder || '').trim();
+          await facade.writeWorkspaceOverrides({
+            version: 3,
+            activeInstanceId: String(payload.activeInstanceId || '').trim() || undefined,
+            syncFolder: syncFolder || undefined,
+            projectId: String(payload.projectId || '').trim() || undefined,
+            projectName: String(payload.projectName || '').trim() || undefined,
+            folderSync: Boolean(payload.folderSync),
+          }, workspaceRoot);
+          await clearLegacyWorkspaceSettings();
+          await this._context.workspaceState.update('n8n.suppressSettingsChangedOnce', true);
+          await this._configurationController.refresh('webview-save-workspace-context', { force: true });
+          this._panel.webview.postMessage({ type: 'saved' });
+          return;
+        }
+
+        case 'deleteInstance': {
+          const instanceId = String(payload.instanceId || '').trim();
+          if (!instanceId) throw new Error('Instance is required.');
+          const instanceName = String(payload.instanceName || instanceId).trim();
+          const confirmation = await vscode.window.showWarningMessage(
+            `Delete global n8n instance "${instanceName}"?`,
+            { modal: true },
+            'Delete',
+          );
+          if (confirmation !== 'Delete') {
+            this._panel.webview.postMessage({ type: 'cancelled' });
+            return;
+          }
+          const workspaceOverrides = workspaceRoot ? await facade.readWorkspaceOverrides(workspaceRoot) : undefined;
+          await facade.deleteInstance(instanceId);
+          if (workspaceRoot && workspaceOverrides?.activeInstanceId === instanceId) {
+            await facade.writeWorkspaceOverrides({
+              ...workspaceOverrides,
+              activeInstanceId: undefined,
+            }, workspaceRoot);
+          }
+          await this._configurationController.refresh('webview-delete-instance', { force: true });
+          this._panel.webview.postMessage({ type: 'instanceDeleted', instanceId });
+          return;
+        }
+
+        case 'openSettings':
+          await vscode.commands.executeCommand('n8n.openSettings');
+          return;
+      }
+    } catch (error: any) {
+      await this._configurationController.refresh('webview-error-refresh', { force: true }).catch(() => undefined);
+      this._panel.webview.postMessage({
+        type: 'error',
+        message: error?.message || 'Unexpected error',
+      });
+    }
+  }
+
+  private async saveGlobalInstance(
+    payload: Record<string, unknown>,
+    facade: ReturnType<typeof createN8nManagerFacade>,
+  ): Promise<void> {
+    const mode = String(payload.mode || 'existing').trim();
+    const host = normalizeHost(String(payload.host || ''));
+    const apiKey = String(payload.apiKey || '').trim();
+    const instanceId = String(payload.instanceId || '').trim() || undefined;
+    const instanceName = String(payload.instanceName || '').trim() || undefined;
+    const setActive = Boolean(payload.setActive);
+
+    if (mode === 'managed-local-docker') {
+      const previousActive = await facade.getGlobalActiveInstance();
+      const instance = await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: 'Preparing managed local n8n',
+        cancellable: false,
+      }, () => facade.setup({
+        mode: 'managed-local',
+        tunnel: Boolean(payload.tunnel),
+      }));
+
+      if (instanceName) {
+        await facade.upsertInstance({
+          id: instance.id,
+          name: instanceName,
+          mode: instance.mode,
+          baseUrl: instance.baseUrl,
+          tunnelPublicUrl: instance.tunnelPublicUrl,
+          tunnelPid: instance.tunnelPid,
+        }, { setActive });
+      }
+      if (!setActive && previousActive?.id && previousActive.id !== instance.id) {
+        await facade.setGlobalActiveInstance(previousActive.id);
+      }
+      return;
+    }
+
+    if (mode === 'existing' && !instanceId && (!host || !apiKey)) {
+      throw new Error('Host and API key are required for a new existing n8n instance.');
+    }
+
+    await facade.upsertInstance({
+      id: instanceId,
+      name: instanceName,
+      mode: mode === 'generation-only' ? 'generation-only' : 'existing',
+      baseUrl: host || undefined,
+      apiKey: apiKey || undefined,
+    }, { setActive });
+  }
+
+  private async loadProjectsWithFallback(client: N8nApiClient): Promise<UiProject[]> {
+    try {
+      const projects = (await client.getProjects()) as Array<{ id: string; name: string; type?: string }>;
+      const mapped = projects
+        .filter((project) => project?.id)
+        .map((project) => ({
+          id: project.id,
+          name: project.type === 'personal' ? 'Personal' : (project.name || project.id),
+          type: project.type,
+        }));
+      return mapped.length ? mapped : [PERSONAL_PROJECT];
+    } catch {
+      return [PERSONAL_PROJECT];
+    }
+  }
+
+  private async postInitialState(snapshot?: N8nConfigurationSnapshot): Promise<void> {
+    const stateVersion = ++this._stateVersion;
+    const currentSnapshot = snapshot ?? this._configurationController.getSnapshot()
+      ?? await this._configurationController.refresh('webview-open', { force: true });
+    const globalConfig = currentSnapshot.global;
+    const workspaceOverrides = currentSnapshot.workspace;
+    const effectiveContext = currentSnapshot.effective;
 
     this._panel.webview.postMessage({
       type: 'init',
       stateVersion,
-      ...initState,
+      global: {
+        activeInstanceId: globalConfig.activeInstanceId || '',
+        defaultSyncFolder: globalConfig.defaultSyncFolder,
+        instances: globalConfig.instances.map((instance) => ({
+          ...instance,
+          host: instance.tunnelPublicUrl || instance.baseUrl || '',
+          verificationStatus: instance.verification?.status || 'unverified',
+          verificationLabel: instance.verification?.status === 'verified'
+            ? 'Verified'
+            : instance.verification?.status === 'failed'
+              ? 'Verification failed'
+              : 'Not verified yet',
+        })),
+      },
+      workspace: workspaceOverrides,
+      effective: effectiveContext ? {
+        activeInstanceId: effectiveContext.activeInstanceId,
+        activeInstanceName: effectiveContext.activeInstanceName,
+        host: effectiveContext.host,
+        syncFolder: effectiveContext.syncFolder,
+        projectId: effectiveContext.projectId || '',
+        projectName: effectiveContext.projectName || '',
+        sources: effectiveContext.sources,
+      } : undefined,
     });
-
-    if ((activeInstance?.host || resolved.host) && initState.config.apiKey && activeInstance?.projectId !== MANAGED_LOCAL_PROJECT_ID) {
-      try {
-        const host = activeInstance?.host || resolved.host;
-        const client = new N8nApiClient({ host, apiKey: initState.config.apiKey } as IN8nCredentials);
-        const projects = (await client.getProjects()) as any[];
-
-        const uiProjects: UiProject[] = projects.map((project) => ({
-          id: project.id,
-          name: project.name,
-          type: project.type,
-        }));
-
-        this._panel.webview.postMessage({
-          type: 'projectsLoaded',
-          stateVersion,
-          projects: uiProjects,
-          selectedProjectId: activeInstance?.projectId || resolved.projectId,
-          selectedProjectName: activeInstance?.projectName || resolved.projectName,
-        });
-      } catch (error: any) {
-        this._panel.webview.postMessage({
-          type: 'error',
-          message: `Failed to load projects: ${error?.message || 'unknown error'}`,
-        });
-      }
-    }
   }
 
-  private getHtmlForWebview() {
-    const nonce = getNonce();
-    const setupModes = JSON.stringify(N8N_FACADE_SETUP_MODES);
-
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>n8n Configure</title>
-  <style>
-    :root {
-      --surface: color-mix(in srgb, var(--vscode-editor-background) 84%, transparent);
-      --surface-strong: color-mix(in srgb, var(--vscode-editor-background) 92%, var(--vscode-input-background));
-      --surface-muted: color-mix(in srgb, var(--vscode-panel-border, var(--vscode-input-border)) 25%, transparent);
-      --accent: var(--vscode-button-background);
-      --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
-      --border: color-mix(in srgb, var(--vscode-input-border) 80%, transparent);
-      --shadow: 0 14px 36px rgba(0, 0, 0, 0.16);
-      --radius: 18px;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: var(--vscode-font-family);
-      color: var(--vscode-foreground);
-      background:
-        radial-gradient(circle at top left, var(--accent-soft), transparent 34%),
-        linear-gradient(180deg, color-mix(in srgb, var(--vscode-editor-background) 96%, transparent), var(--vscode-editor-background));
-    }
-    .page {
-      max-width: 1040px;
-      margin: 0 auto;
-      padding: 24px 18px 32px;
-    }
-    .hero {
-      margin-bottom: 16px;
-      padding: 22px 24px;
-      border: 1px solid var(--border);
-      border-radius: calc(var(--radius) + 4px);
-      background: linear-gradient(180deg, var(--surface-strong), var(--surface));
-      box-shadow: var(--shadow);
-    }
-    h1 {
-      margin: 0 0 10px;
-      font-size: 30px;
-      line-height: 1.1;
-      font-weight: 700;
-    }
-    .hero p {
-      margin: 0;
-      max-width: 760px;
-      color: var(--vscode-descriptionForeground);
-      line-height: 1.55;
-    }
-    .layout {
-      display: grid;
-      gap: 14px;
-    }
-    .card {
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 18px;
-      background: linear-gradient(180deg, var(--surface), var(--surface-strong));
-      box-shadow: var(--shadow);
-    }
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      margin-bottom: 14px;
-    }
-    .card-title {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 650;
-    }
-    .card-copy {
-      margin: 6px 0 0;
-      color: var(--vscode-descriptionForeground);
-      line-height: 1.45;
-      max-width: 720px;
-    }
-    .instance-layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.95fr);
-      gap: 18px;
-    }
-    .stack {
-      display: grid;
-      gap: 12px;
-    }
-    .field-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .field.full {
-      grid-column: 1 / -1;
-    }
-    label {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--vscode-descriptionForeground);
-      letter-spacing: 0.01em;
-    }
-    input, select {
-      width: 100%;
-      min-height: 40px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      background: var(--vscode-input-background);
-      color: var(--vscode-input-foreground);
-      transition: border-color 120ms ease, box-shadow 120ms ease;
-    }
-    input:focus, select:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 1px var(--accent-soft);
-    }
-    input[type=password] {
-      font-family: var(--vscode-editor-font-family);
-    }
-    .hint {
-      color: var(--vscode-descriptionForeground);
-      font-size: 12px;
-      line-height: 1.45;
-    }
-    .selector-panel {
-      padding: 14px;
-      border-radius: 16px;
-      background: var(--surface-muted);
-      border: 1px solid var(--border);
-    }
-    .mode-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-      margin-top: 10px;
-    }
-    .mode-option {
-      display: grid;
-      gap: 6px;
-      padding: 10px;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      background: color-mix(in srgb, var(--surface-strong) 80%, transparent);
-      min-height: 108px;
-      cursor: pointer;
-    }
-    .mode-option.selected {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 1px var(--accent-soft);
-      background: color-mix(in srgb, var(--accent-soft) 42%, var(--surface-strong));
-    }
-    .mode-option input {
-      width: auto;
-      min-height: auto;
-      margin: 0;
-    }
-    .mode-label {
-      font-weight: 650;
-      color: var(--vscode-foreground);
-    }
-    .mode-description {
-      color: var(--vscode-descriptionForeground);
-      font-size: 12px;
-      line-height: 1.45;
-    }
-    .selector-panel h3,
-    .mode-block h3 {
-      margin: 0 0 8px;
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--vscode-descriptionForeground);
-    }
-    .summary {
-      min-height: 56px;
-      padding: 12px 14px;
-      border-radius: 14px;
-      background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
-      border: 1px solid var(--border);
-      line-height: 1.45;
-    }
-    .summary strong {
-      display: block;
-      margin-bottom: 4px;
-      font-size: 14px;
-    }
-    .path-panel {
-      display: grid;
-      gap: 14px;
-      margin-top: 10px;
-      padding: 12px;
-      border-radius: 12px;
-      background: var(--surface-muted);
-      border: 1px solid var(--border);
-    }
-    .path-title {
-      margin: 0 0 6px;
-      font-size: 15px;
-      font-weight: 650;
-    }
-    .path-copy {
-      margin: 0;
-      color: var(--vscode-descriptionForeground);
-      line-height: 1.45;
-    }
-    .path-next {
-      margin: 10px 0 0;
-      padding-left: 18px;
-      color: var(--vscode-descriptionForeground);
-      line-height: 1.45;
-    }
-    .path-next li + li {
-      margin-top: 3px;
-    }
-    .runtime-status {
-      margin-top: 12px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
-      color: var(--vscode-descriptionForeground);
-      line-height: 1.45;
-    }
-    .runtime-options {
-      display: grid;
-      gap: 8px;
-      margin-top: 12px;
-    }
-    .runtime-check {
-      display: flex;
-      gap: 8px;
-      align-items: flex-start;
-      color: var(--vscode-descriptionForeground);
-      line-height: 1.4;
-    }
-    .runtime-check input {
-      width: auto;
-      min-height: auto;
-      margin-top: 2px;
-    }
-    .credential-list {
-      display: grid;
-      gap: 8px;
-      margin-top: 12px;
-    }
-    .credential-form {
-      display: grid;
-      grid-template-columns: minmax(160px, 1fr) minmax(180px, 1fr) auto;
-      gap: 10px;
-      align-items: end;
-      margin-top: 12px;
-    }
-    .credential-row {
-      display: grid;
-      grid-template-columns: minmax(140px, 1.2fr) minmax(90px, 0.7fr) minmax(90px, 0.7fr) auto;
-      gap: 10px;
-      align-items: center;
-      padding: 10px 0;
-      border-top: 1px solid var(--vscode-panel-border);
-      font-size: 12px;
-    }
-    .credential-row:first-child {
-      border-top: 0;
-    }
-    .credential-name {
-      color: var(--vscode-foreground);
-      font-weight: 600;
-    }
-    .credential-meta,
-    .credential-status {
-      color: var(--vscode-descriptionForeground);
-    }
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: 50;
-      display: grid;
-      place-items: center;
-      padding: 18px;
-      background: color-mix(in srgb, var(--vscode-editor-background) 72%, transparent);
-    }
-    .credential-modal {
-      width: min(760px, 100%);
-      max-height: min(86vh, 820px);
-      overflow: auto;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--vscode-editor-background);
-      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.36);
-    }
-    .modal-header,
-    .modal-footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      padding: 16px;
-      border-bottom: 1px solid var(--border);
-    }
-    .modal-footer {
-      justify-content: flex-end;
-      border-top: 1px solid var(--border);
-      border-bottom: 0;
-    }
-    .modal-title {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 650;
-    }
-    .modal-body {
-      display: grid;
-      gap: 14px;
-      padding: 16px;
-    }
-    .schema-field-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-    .schema-field-grid .field.full {
-      grid-column: 1 / -1;
-    }
-    .checkbox-field {
-      min-height: 40px;
-      flex-direction: row;
-      align-items: center;
-      gap: 10px;
-    }
-    .checkbox-field input {
-      width: auto;
-      min-height: auto;
-      margin: 0;
-    }
-    .credential-schema-source {
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      background: var(--surface-muted);
-    }
-    .runtime-status strong {
-      display: block;
-      color: var(--vscode-foreground);
-      margin-bottom: 4px;
-    }
-    .runtime-status.progress {
-      border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-    }
-    .runtime-status.success {
-      border-color: color-mix(in srgb, var(--vscode-testing-iconPassed, var(--vscode-charts-green)) 42%, var(--border));
-    }
-    .runtime-progress {
-      position: relative;
-      overflow: hidden;
-      height: 4px;
-      margin-top: 10px;
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--border) 70%, transparent);
-    }
-    .runtime-progress::before {
-      content: "";
-      position: absolute;
-      left: -42%;
-      top: 0;
-      height: 100%;
-      width: 42%;
-      border-radius: inherit;
-      background: var(--accent);
-      animation: runtime-progress 1.1s ease-in-out infinite;
-    }
-    @keyframes runtime-progress {
-      0% { transform: translateX(0); }
-      100% { transform: translateX(338%); }
-    }
-    .hidden {
-      display: none !important;
-    }
-    .toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 4px;
-    }
-    button {
-      min-height: 40px;
-      padding: 0 14px;
-      border-radius: 12px;
-      border: 1px solid transparent;
-      background: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
-      cursor: pointer;
-      font-weight: 600;
-    }
-    button.secondary {
-      background: transparent;
-      color: var(--vscode-foreground);
-      border-color: var(--border);
-    }
-    button.ghost {
-      background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
-      color: var(--vscode-foreground);
-      border-color: var(--border);
-    }
-    button.danger {
-      background: color-mix(in srgb, var(--vscode-errorForeground) 14%, transparent);
-      color: var(--vscode-errorForeground);
-      border-color: color-mix(in srgb, var(--vscode-errorForeground) 36%, transparent);
-    }
-    button:disabled {
-      opacity: 0.58;
-      cursor: not-allowed;
-    }
-    .project-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.5fr) minmax(220px, 0.7fr);
-      gap: 12px;
-    }
-    .project-selector-row {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      gap: 10px;
-      align-items: end;
-    }
-    .project-load {
-      white-space: nowrap;
-    }
-    .section-divider {
-      margin: 14px 0;
-      border-top: 1px solid var(--border);
-    }
-    .runtime-workspace {
-      display: grid;
-      gap: 14px;
-    }
-    .workspace-panel {
-      display: grid;
-      gap: 14px;
-    }
-    .subsection-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-    }
-    .subsection-title {
-      margin: 0 0 4px;
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--vscode-descriptionForeground);
-    }
-    .subsection-copy {
-      margin: 0 0 12px;
-      color: var(--vscode-descriptionForeground);
-      line-height: 1.45;
-    }
-    .footer-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      margin-top: 6px;
-    }
-    .message {
-      margin-top: 14px;
-      padding: 12px 14px;
-      border-radius: 14px;
-      border: 1px solid transparent;
-      white-space: pre-wrap;
-      line-height: 1.45;
-    }
-    .message.error {
-      display: none;
-      color: var(--vscode-errorForeground);
-      background: color-mix(in srgb, var(--vscode-inputValidation-errorBackground, transparent) 70%, transparent);
-      border-color: color-mix(in srgb, var(--vscode-errorForeground) 40%, transparent);
-    }
-    .message.ok {
-      display: none;
-      color: var(--vscode-foreground);
-      background: color-mix(in srgb, var(--vscode-testing-iconPassed, var(--vscode-charts-green)) 20%, transparent);
-      border-color: color-mix(in srgb, var(--vscode-testing-iconPassed, var(--vscode-charts-green)) 40%, transparent);
-    }
-    @media (max-width: 860px) {
-      .instance-layout,
-      .project-grid,
-      .path-panel,
-      .mode-grid,
-      .field-grid {
-        grid-template-columns: 1fr;
-      }
-      .credential-form,
-      .credential-row,
-      .schema-field-grid {
-        grid-template-columns: 1fr;
-      }
-      .page {
-        padding: 16px 12px 24px;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="page">
-    <section class="hero">
-      <h1>n8n-as-code config</h1>
-      <p>
-        Choose whether this facade connects to an existing n8n instance, lets n8n-manager prepare runtime access, or stays in generation-only mode.
-      </p>
-    </section>
-
-    <div class="layout">
-      <section class="card runtime-workspace">
-        <div class="card-header">
-          <div>
-            <h2 class="card-title">Runtime and workspace sync</h2>
-            <p class="card-copy">Choose the runtime path, then activate the workspace sync settings with the same action.</p>
-          </div>
-        </div>
-
-        <div>
-          <h3 class="subsection-title">Runtime mode</h3>
-          <p class="subsection-copy">Shared by CLI, extension, MCP, and agent plugins.</p>
-          <div id="runtimeModeGrid" class="mode-grid"></div>
-          <div id="runtimePathPanel" class="path-panel">
-            <h3 id="runtimePathTitle" class="path-title">Connect existing n8n</h3>
-            <p id="runtimePathCopy" class="path-copy"></p>
-            <ol id="runtimePathNext" class="path-next"></ol>
-            <div id="runtimeOptions" class="runtime-options">
-              <label class="runtime-check">
-                <input id="enableTunnel" type="checkbox" />
-                <span>Expose local n8n through a Cloudflare tunnel for remote webhooks and external facades.</span>
-              </label>
-            </div>
-            <div id="runtimeStatus" class="runtime-status hidden"></div>
-          </div>
-        </div>
-
-        <div id="existingInstanceCard" class="workspace-panel">
-          <div class="section-divider"></div>
-          <div class="subsection-header">
-            <div>
-              <h3 id="instanceCardTitle" class="subsection-title">Instance</h3>
-              <p id="instanceCardCopy" class="subsection-copy">Enter the URL and API key of an existing n8n instance. Select a saved instance to edit it, then save to make it active in this workspace.</p>
-            </div>
-            <button id="newInstance" class="secondary">Add instance</button>
-          </div>
-
-          <div class="instance-layout">
-            <div class="stack">
-              <div id="connectionFields" class="field-grid">
-                <div class="field full">
-                  <label for="host">n8n host URL</label>
-                  <input id="host" type="text" placeholder="https://my-instance.app.n8n.cloud" />
-                  <div class="hint">Include the protocol and omit the trailing slash.</div>
-                </div>
-                <div class="field">
-                  <label for="apiKey">API key</label>
-                  <input id="apiKey" type="password" placeholder="n8n API key" />
-                </div>
-                <div class="field">
-                  <label>Verification</label>
-                  <div id="verificationStatus" class="hint">Not verified yet</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="stack">
-              <div id="instanceLibraryPanel" class="selector-panel">
-                <h3>Select instance</h3>
-                <div class="field">
-                  <label for="instanceSelect">Select instance</label>
-                  <select id="instanceSelect"></select>
-                </div>
-                <div id="switchHelp" class="hint"></div>
-                <div class="toolbar">
-                  <button id="deleteInstance" class="danger">Delete config</button>
-                </div>
-              </div>
-
-              <div class="summary">
-                <strong id="activeSummaryTitle">Active instance</strong>
-                <div id="activeSummaryName">No active instance.</div>
-                <div id="activeSummaryHost" class="hint"></div>
-                <div id="activeSummaryStatus" class="hint"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="section-divider"></div>
-
-          <div>
-            <h3 class="subsection-title">Workspace sync</h3>
-            <p class="subsection-copy">Choose the folder to sync. Existing instances can also select a project.</p>
-          </div>
-
-          <div class="project-grid">
-            <div id="projectField" class="field">
-              <label for="project">Project to sync</label>
-              <div class="project-selector-row">
-                <button id="loadProjects" class="ghost project-load">Load projects</button>
-                <select id="project" disabled>
-                  <option value="">Load projects to select…</option>
-                </select>
-              </div>
-              <div class="hint">Use “Load projects” after entering a valid URL and API key.</div>
-            </div>
-
-            <div class="field">
-              <label for="syncFolder">Sync folder</label>
-              <input id="syncFolder" type="text" placeholder="workflows" />
-              <div class="hint">Example: <code>workflows</code> or <code>n8n/workflows</code>.</div>
-            </div>
-          </div>
-
-        </div>
-        <div class="footer-actions">
-          <button id="save">Save and activate config</button>
-        </div>
-      </section>
-
-      <section id="credentialsCard" class="card">
-        <div class="card-header">
-          <div>
-            <h2 class="card-title">Credentials</h2>
-            <p class="card-copy">Manage native n8n credentials. Types and fields come from the n8n schema catalog.</p>
-          </div>
-          <div class="toolbar">
-            <button id="addCredential">Add credential</button>
-            <button id="loadCredentials" class="secondary">Refresh</button>
-          </div>
-        </div>
-        <div id="credentialList" class="credential-list">
-          <div class="hint">Prepare a runtime, then refresh credential readiness.</div>
-        </div>
-      </section>
-    </div>
-
-    <div id="credentialModalBackdrop" class="modal-backdrop hidden">
-      <div class="credential-modal" role="dialog" aria-modal="true" aria-labelledby="credentialModalTitle">
-        <div class="modal-header">
-          <div>
-            <h2 id="credentialModalTitle" class="modal-title">Configure credential</h2>
-            <p id="credentialModalCopy" class="card-copy">Fields are loaded from n8n's native credential schema.</p>
-          </div>
-          <button id="closeCredentialModal" class="secondary">Close</button>
-        </div>
-        <div class="modal-body">
-          <div class="field">
-            <label for="credentialModalType">Credential type</label>
-            <select id="credentialModalType"></select>
-          </div>
-          <div class="field">
-            <label for="credentialModalName">Credential name</label>
-            <input id="credentialModalName" type="text" />
-          </div>
-          <div id="credentialSchemaSource" class="credential-schema-source hint"></div>
-          <div id="credentialSchemaFields" class="schema-field-grid"></div>
-        </div>
-        <div class="modal-footer">
-          <button id="cancelCredentialModal" class="secondary">Cancel</button>
-          <button id="saveCredentialFromModal">Save credential</button>
-        </div>
-      </div>
-    </div>
-    <div id="message" class="message error"></div>
-    <div id="saved" class="message ok">Saved.</div>
-  </div>
-
-  <script nonce="${nonce}">
-    const vscode = acquireVsCodeApi();
-    const setupModes = ${setupModes};
-
-    const instanceSelectEl = document.getElementById('instanceSelect');
-    const runtimeModeGridEl = document.getElementById('runtimeModeGrid');
-    const runtimePathPanelEl = document.getElementById('runtimePathPanel');
-    const runtimePathTitleEl = document.getElementById('runtimePathTitle');
-    const runtimePathCopyEl = document.getElementById('runtimePathCopy');
-    const runtimePathNextEl = document.getElementById('runtimePathNext');
-    const runtimeOptionsEl = document.getElementById('runtimeOptions');
-    const enableTunnelEl = document.getElementById('enableTunnel');
-    const runtimeStatusEl = document.getElementById('runtimeStatus');
-    const credentialsCardEl = document.getElementById('credentialsCard');
-    const loadCredentialsBtn = document.getElementById('loadCredentials');
-    const credentialListEl = document.getElementById('credentialList');
-    const addCredentialBtn = document.getElementById('addCredential');
-    const credentialModalBackdropEl = document.getElementById('credentialModalBackdrop');
-    const credentialModalTitleEl = document.getElementById('credentialModalTitle');
-    const credentialModalCopyEl = document.getElementById('credentialModalCopy');
-    const closeCredentialModalBtn = document.getElementById('closeCredentialModal');
-    const cancelCredentialModalBtn = document.getElementById('cancelCredentialModal');
-    const saveCredentialFromModalBtn = document.getElementById('saveCredentialFromModal');
-    const credentialModalTypeEl = document.getElementById('credentialModalType');
-    const credentialModalNameEl = document.getElementById('credentialModalName');
-    const credentialSchemaSourceEl = document.getElementById('credentialSchemaSource');
-    const credentialSchemaFieldsEl = document.getElementById('credentialSchemaFields');
-    const existingInstanceCardEl = document.getElementById('existingInstanceCard');
-    const instanceCardTitleEl = document.getElementById('instanceCardTitle');
-    const instanceCardCopyEl = document.getElementById('instanceCardCopy');
-    const connectionFieldsEl = document.getElementById('connectionFields');
-    const instanceLibraryPanelEl = document.getElementById('instanceLibraryPanel');
-    const newInstanceBtn = document.getElementById('newInstance');
-    const hostEl = document.getElementById('host');
-    const apiKeyEl = document.getElementById('apiKey');
-    const verificationStatusEl = document.getElementById('verificationStatus');
-    const projectEl = document.getElementById('project');
-    const projectFieldEl = document.getElementById('projectField');
-    const syncFolderEl = document.getElementById('syncFolder');
-    const loadBtn = document.getElementById('loadProjects');
-    const saveBtn = document.getElementById('save');
-    const deleteBtn = document.getElementById('deleteInstance');
-    const activeSummaryTitleEl = document.getElementById('activeSummaryTitle');
-    const activeSummaryNameEl = document.getElementById('activeSummaryName');
-    const activeSummaryHostEl = document.getElementById('activeSummaryHost');
-    const activeSummaryStatusEl = document.getElementById('activeSummaryStatus');
-    const switchHelpEl = document.getElementById('switchHelp');
-    const messageEl = document.getElementById('message');
-    const savedEl = document.getElementById('saved');
-
-    let instances = [];
-    let projects = [];
-    let activeInstanceId = '';
-    let activeInstanceName = '';
-    let selectedInstanceId = '';
-    let draftMode = false;
-    let draftSourceInstanceId = '';
-    let activeConfig = createEmptyConfig();
-    let currentConfig = createEmptyConfig();
-    let pendingAction = '';
-    let latestStateVersion = 0;
-    let autoLoadTimer = null;
-    let lastLoadRequest = { host: '', apiKey: '' };
-    let runtimeMode = 'connect-existing';
-    let credentialRecipes = [];
-    let credentialCatalog = [];
-    let n8nCredentials = [];
-    let credentialSchemaRequestId = 0;
-    let credentialModalState = {
-      open: false,
-      mode: 'create',
-      credentialId: '',
-      recipeId: '',
-      credentialTypeName: '',
-      credentialName: '',
-      schema: null,
-      values: {},
-      loading: false,
-    };
-
-    function createEmptyConfig(overrides = {}) {
-      return {
-        instanceId: '',
-        instanceName: '',
-        host: '',
-        apiKey: '',
-        projectId: '',
-        projectName: '',
-        syncFolder: 'workflows',
-        verificationStatus: 'unverified',
-        verificationLabel: 'Not verified yet',
-        ...overrides
-      };
-    }
-
-    function normalizeHost(host) {
-      const trimmed = (host || '').trim();
-      return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
-    }
-
-    function setError(text) {
-      if (!text) {
-        messageEl.style.display = 'none';
-        messageEl.textContent = '';
-        return;
-      }
-      messageEl.style.display = 'block';
-      messageEl.textContent = text;
-    }
-
-    function setSaved(visible) {
-      savedEl.style.display = visible ? 'block' : 'none';
-      if (visible) {
-        setTimeout(() => { savedEl.style.display = 'none'; }, 1500);
-      }
-    }
-
-    function setRuntimeStatus(kind, title, detail, showProgress = false) {
-      if (!title && !detail) {
-        runtimeStatusEl.className = 'runtime-status hidden';
-        runtimeStatusEl.innerHTML = '';
-        return;
-      }
-
-      runtimeStatusEl.className = 'runtime-status ' + (kind || '');
-      runtimeStatusEl.innerHTML = '';
-
-      if (title) {
-        const strong = document.createElement('strong');
-        strong.textContent = title;
-        runtimeStatusEl.appendChild(strong);
-      }
-
-      if (detail) {
-        const body = document.createElement('div');
-        body.textContent = detail;
-        runtimeStatusEl.appendChild(body);
-      }
-
-      if (showProgress) {
-        const progress = document.createElement('div');
-        progress.className = 'runtime-progress';
-        runtimeStatusEl.appendChild(progress);
-      }
-    }
-
-    function renderCredentialInventory(items, recipes, catalog, credentials) {
-      if (Array.isArray(recipes)) {
-        credentialRecipes = recipes;
-      }
-      if (Array.isArray(catalog)) {
-        credentialCatalog = sortCredentialCatalog(catalog);
-      }
-      if (Array.isArray(credentials)) {
-        n8nCredentials = credentials;
-      }
-      credentialListEl.innerHTML = '';
-      const rows = n8nCredentials.length
-        ? n8nCredentials
-        : (Array.isArray(items) ? items.map((item) => ({
-            id: item.credentialId,
-            name: item.credentialName,
-            type: item.credentialTypeName,
-            recipeId: item.recipeId,
-            service: item.service,
-          })).filter((item) => item.id && item.name) : []);
-
-      if (!rows.length) {
-        const empty = document.createElement('div');
-        empty.className = 'hint';
-        empty.textContent = 'No credentials yet. Add a credential to create one from a native n8n type.';
-        credentialListEl.appendChild(empty);
-        return;
-      }
-
-      for (const item of rows) {
-        const catalogEntry = findCredentialCatalogEntry(item.type);
-        const row = document.createElement('div');
-        row.className = 'credential-row';
-
-        const name = document.createElement('div');
-        name.className = 'credential-name';
-        name.textContent = item.name || 'Credential';
-
-        const meta = document.createElement('div');
-        meta.className = 'credential-meta';
-        meta.textContent = [
-          catalogEntry?.displayName,
-          item.type,
-          catalogEntry?.source === 'n8n-ontology' ? 'n8n schema' : '',
-        ].filter(Boolean).join(' · ');
-
-        const status = document.createElement('div');
-        status.className = 'credential-status';
-        status.textContent = item.id && String(item.id).endsWith(':planned') ? 'planned' : 'ready';
-
-        const action = document.createElement('button');
-        action.className = 'ghost';
-        action.textContent = 'Edit';
-        action.addEventListener('click', () => {
-          openCredentialModal({
-            mode: 'edit',
-            credentialId: item.id,
-            credentialName: item.name,
-            credentialTypeName: item.type,
-          });
-        });
-
-        row.appendChild(name);
-        row.appendChild(meta);
-        row.appendChild(status);
-        row.appendChild(action);
-        credentialListEl.appendChild(row);
-      }
-    }
-
-    function sortCredentialCatalog(catalog) {
-      return [...catalog]
-        .filter((entry) => entry && entry.typeName)
-        .sort((a, b) => (a.displayName || a.typeName).localeCompare(b.displayName || b.typeName));
-    }
-
-    function findCredentialCatalogEntry(typeName) {
-      return credentialCatalog.find((entry) => entry.typeName === typeName);
-    }
-
-    function getSchemaProperties(schema) {
-      if (schema && Array.isArray(schema.properties)) return schema.properties;
-      if (schema && schema.properties && typeof schema.properties === 'object') {
-        const required = Array.isArray(schema.required) ? schema.required : [];
-        const catalogEntry = findCredentialCatalogEntry(credentialModalState.credentialTypeName);
-        const catalogProperties = Array.isArray(catalogEntry?.properties) ? catalogEntry.properties : [];
-        return Object.entries(schema.properties).map(([name, definition]) => {
-          const schemaDefinition = definition && typeof definition === 'object' ? definition : {};
-          const catalogProperty = catalogProperties.find((property) => property?.name === name);
-          return {
-            ...schemaDefinition,
-            ...catalogProperty,
-            name,
-            displayName: catalogProperty?.displayName || schemaDefinition.title || toDisplayLabel(name),
-            type: normalizeJsonSchemaType(schemaDefinition.type || catalogProperty?.type),
-            typeOptions: catalogProperty?.typeOptions,
-            required: required.includes(name) || Boolean(catalogProperty?.required),
-            default: catalogProperty?.default ?? schemaDefinition.default ?? '',
-            description: catalogProperty?.description || schemaDefinition.description,
-          };
-        });
-      }
-      const catalogEntry = findCredentialCatalogEntry(credentialModalState.credentialTypeName);
-      return Array.isArray(catalogEntry?.properties) ? catalogEntry.properties : [];
-    }
-
-    function normalizeJsonSchemaType(type) {
-      if (type === 'boolean') return 'boolean';
-      if (type === 'number' || type === 'integer') return 'number';
-      return 'string';
-    }
-
-    function toDisplayLabel(name) {
-      return String(name || '')
-        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-        .replace(/[_-]+/g, ' ')
-        .replace(/^./, (letter) => letter.toUpperCase());
-    }
-
-    function findRecipeForType(typeName) {
-      return credentialRecipes.find((candidate) => candidate.credentialTypeName === typeName);
-    }
-
-    function defaultCredentialTypeName() {
-      return findCredentialCatalogEntry('openAiApi')?.typeName
-        ?? credentialCatalog[0]?.typeName
-        ?? '';
-    }
-
-    function defaultCredentialName(typeName) {
-      const catalogEntry = findCredentialCatalogEntry(typeName);
-      return catalogEntry?.displayName || typeName || 'Credential';
-    }
-
-    function openCredentialModal(options = {}) {
-      const typeName = options.credentialTypeName || defaultCredentialTypeName();
-      if (!typeName) {
-        setError('Credential catalog is not loaded yet.');
-        return;
-      }
-
-      credentialSchemaRequestId += 1;
-      credentialModalState = {
-        open: true,
-        mode: options.mode || 'create',
-        credentialId: options.credentialId || '',
-        recipeId: findRecipeForType(typeName)?.id || '',
-        credentialTypeName: typeName,
-        credentialName: options.credentialName || defaultCredentialName(typeName),
-        schema: null,
-        values: {},
-        loading: true,
-      };
-      renderCredentialModal();
-      vscode.postMessage({
-        type: 'loadCredentialSchema',
-        recipeId: credentialModalState.recipeId,
-        credentialTypeName: typeName,
-        requestId: credentialSchemaRequestId,
-      });
-    }
-
-    function closeCredentialModal() {
-      credentialModalState = {
-        open: false,
-        mode: 'create',
-        credentialId: '',
-        recipeId: '',
-        credentialTypeName: '',
-        credentialName: '',
-        schema: null,
-        values: {},
-        loading: false,
-      };
-      renderCredentialModal();
-    }
-
-    function applyCredentialSchema(schema) {
-      const values = {};
-      for (const property of getSchemaProperties(schema)) {
-        if (!property || !property.name || property.type === 'notice' || property.type === 'hidden') continue;
-        values[property.name] = credentialModalState.values[property.name] ?? normalizeCredentialDefault(property);
-      }
-      credentialModalState = {
-        ...credentialModalState,
-        schema,
-        values,
-        loading: false,
-      };
-      renderCredentialModal();
-    }
-
-    function normalizeCredentialDefault(property) {
-      if (property.type === 'boolean') return Boolean(property.default);
-      if (property.type === 'number') return property.default ?? '';
-      return property.default == null ? '' : String(property.default);
-    }
-
-    function renderCredentialModal() {
-      credentialModalBackdropEl.classList.toggle('hidden', !credentialModalState.open);
-      if (!credentialModalState.open) return;
-
-      const catalogEntry = findCredentialCatalogEntry(credentialModalState.credentialTypeName);
-      credentialModalTitleEl.textContent = credentialModalState.mode === 'edit'
-        ? 'Edit credential'
-        : 'Add credential';
-      credentialModalCopyEl.textContent = credentialModalState.credentialTypeName
-        ? 'Native n8n credential type: ' + credentialModalState.credentialTypeName
-        : 'Fields are loaded from n8n native credential schema.';
-      renderCredentialTypeSelect();
-      credentialModalTypeEl.value = credentialModalState.credentialTypeName;
-      credentialModalTypeEl.disabled = credentialModalState.mode === 'edit' || credentialModalState.loading;
-      credentialModalNameEl.value = credentialModalState.credentialName || catalogEntry?.displayName || '';
-
-      const schemaSource = credentialModalState.schema
-        ? (credentialModalState.schema.source || 'n8n runtime')
-        : (catalogEntry?.source || 'n8n runtime');
-      credentialSchemaSourceEl.textContent = credentialModalState.loading
-        ? 'Loading native n8n schema...'
-        : 'Schema source: ' + schemaSource + '. Secret values cannot be read back from n8n; enter them when creating or updating.';
-
-      renderCredentialSchemaFields();
-      saveCredentialFromModalBtn.disabled = credentialModalState.loading || pendingAction === 'credential';
-    }
-
-    function renderCredentialTypeSelect() {
-      credentialModalTypeEl.innerHTML = '';
-      for (const entry of credentialCatalog) {
-        const option = document.createElement('option');
-        option.value = entry.typeName;
-        option.textContent = (entry.displayName || entry.typeName) + ' (' + entry.typeName + ')';
-        credentialModalTypeEl.appendChild(option);
-      }
-    }
-
-    function renderCredentialSchemaFields() {
-      credentialSchemaFieldsEl.innerHTML = '';
-      const properties = getSchemaProperties(credentialModalState.schema);
-      if (!properties.length) {
-        const empty = document.createElement('div');
-        empty.className = 'hint';
-        empty.textContent = credentialModalState.loading ? 'Loading fields...' : 'No editable fields reported by n8n for this credential type.';
-        credentialSchemaFieldsEl.appendChild(empty);
-        return;
-      }
-
-      for (const property of properties) {
-        if (!property || !property.name || property.type === 'notice' || property.type === 'hidden') continue;
-        const visible = isCredentialPropertyVisible(property, credentialModalState.values);
-        const field = document.createElement('div');
-        field.className = 'field' + (property.type === 'boolean' ? ' checkbox-field' : '') + (visible ? '' : ' hidden');
-        if (property.description || property.hint) field.className += ' full';
-
-        const label = document.createElement('label');
-        label.textContent = (property.displayName || property.name) + (property.required ? ' *' : '');
-        label.setAttribute('for', 'credential-field-' + property.name);
-
-        const control = createCredentialFieldControl(property);
-        control.id = 'credential-field-' + property.name;
-        control.dataset.credentialField = property.name;
-
-        if (property.type === 'boolean') {
-          field.appendChild(control);
-          field.appendChild(label);
-        } else {
-          field.appendChild(label);
-          field.appendChild(control);
-        }
-
-        const helpText = property.hint || property.description;
-        if (helpText) {
-          const help = document.createElement('div');
-          help.className = 'hint';
-          help.textContent = helpText;
-          field.appendChild(help);
-        }
-
-        credentialSchemaFieldsEl.appendChild(field);
-      }
-    }
-
-    function createCredentialFieldControl(property) {
-      if (property.type === 'options' && Array.isArray(property.options)) {
-        const select = document.createElement('select');
-        for (const optionDef of property.options) {
-          const option = document.createElement('option');
-          option.value = String(optionDef.value ?? optionDef.name ?? '');
-          option.textContent = String(optionDef.name ?? optionDef.value ?? '');
-          select.appendChild(option);
-        }
-        select.value = String(credentialModalState.values[property.name] ?? normalizeCredentialDefault(property));
-        select.addEventListener('change', () => updateCredentialFieldValue(property.name, select.value));
-        return select;
-      }
-
-      const input = document.createElement('input');
-      if (property.type === 'boolean') {
-        input.type = 'checkbox';
-        input.checked = Boolean(credentialModalState.values[property.name]);
-        input.addEventListener('change', () => updateCredentialFieldValue(property.name, input.checked));
-        return input;
-      }
-
-      input.type = property.type === 'number'
-        ? 'number'
-        : property.typeOptions?.password
-          ? 'password'
-          : 'text';
-      input.value = String(credentialModalState.values[property.name] ?? normalizeCredentialDefault(property));
-      input.placeholder = property.default == null ? '' : String(property.default);
-      input.addEventListener('input', () => updateCredentialFieldValue(property.name, property.type === 'number' && input.value !== '' ? Number(input.value) : input.value));
-      return input;
-    }
-
-    function updateCredentialFieldValue(name, value) {
-      credentialModalState.values = {
-        ...credentialModalState.values,
-        [name]: value,
-      };
-      renderCredentialSchemaFields();
-    }
-
-    function isCredentialPropertyVisible(property, values) {
-      const show = property.displayOptions?.show;
-      if (show && !matchesDisplayOptions(show, values)) return false;
-      const hide = property.displayOptions?.hide;
-      if (hide && matchesDisplayOptions(hide, values)) return false;
-      return true;
-    }
-
-    function matchesDisplayOptions(options, values) {
-      return Object.entries(options).every(([key, allowed]) => {
-        const current = values[key];
-        const allowedValues = Array.isArray(allowed) ? allowed : [allowed];
-        return allowedValues.some((candidate) => current === candidate || String(current) === String(candidate));
-      });
-    }
-
-    function collectCredentialModalValues() {
-      const properties = getSchemaProperties(credentialModalState.schema);
-      const values = {};
-      const missing = [];
-
-      for (const property of properties) {
-        if (!property || !property.name || property.type === 'notice' || property.type === 'hidden') continue;
-        if (!isCredentialPropertyVisible(property, credentialModalState.values)) {
-          values[property.name] = normalizeCredentialDefault(property);
-          continue;
-        }
-        const value = credentialModalState.values[property.name] ?? normalizeCredentialDefault(property);
-        values[property.name] = value;
-        const blankEditableSecret = credentialModalState.mode === 'edit' && property.typeOptions?.password && value === '';
-        if (property.required && !blankEditableSecret && (value === '' || value === undefined || value === null)) {
-          missing.push(property.displayName || property.name);
-        }
-        if (blankEditableSecret) {
-          delete values[property.name];
-        }
-      }
-
-      return { values, missing };
-    }
-
-    function setPendingAction(action) {
-      pendingAction = action || '';
-      updateModeUi();
-    }
-
-    function renderRuntimeModes() {
-      runtimeModeGridEl.innerHTML = '';
-      for (const mode of setupModes) {
-        const label = document.createElement('label');
-        label.className = 'mode-option';
-        const input = document.createElement('input');
-        input.type = 'radio';
-        input.name = 'runtimeMode';
-        input.value = mode.id;
-        input.checked = mode.id === runtimeMode;
-        input.addEventListener('change', () => {
-          runtimeMode = mode.id;
-          setError('');
-          updateModeUi();
-        });
-
-        const title = document.createElement('span');
-        title.className = 'mode-label';
-        title.textContent = mode.label;
-
-        const description = document.createElement('span');
-        description.className = 'mode-description';
-        description.textContent = mode.description;
-
-        label.appendChild(input);
-        label.appendChild(title);
-        label.appendChild(description);
-        runtimeModeGridEl.appendChild(label);
-      }
-    }
-
-    function clearPendingAction() {
-      pendingAction = '';
-      updateModeUi();
-    }
-
-    function resetProjectsUi(emptyLabel = 'Load projects to select…') {
-      projects = [];
-      projectEl.disabled = true;
-      projectEl.innerHTML = '';
-      const opt = document.createElement('option');
-      opt.value = '';
-      opt.textContent = emptyLabel;
-      projectEl.appendChild(opt);
-    }
-
-    function cloneConfig(config) {
-      return createEmptyConfig(config || {});
-    }
-
-    function isOutdatedStateMessage(message) {
-      if (!message || typeof message.stateVersion !== 'number') {
-        return false;
-      }
-      return message.stateVersion < latestStateVersion;
-    }
-
-    function rememberStateVersion(message) {
-      if (message && typeof message.stateVersion === 'number') {
-        latestStateVersion = Math.max(latestStateVersion, message.stateVersion);
-      }
-    }
-
-    function readSelectedProjectName() {
-      const selectedOption = projectEl.options[projectEl.selectedIndex];
-      if (selectedOption && selectedOption.dataset && selectedOption.dataset.projectName) {
-        return selectedOption.dataset.projectName;
-      }
-      return '';
-    }
-
-    function readFormState() {
-      return {
-        instanceId: draftMode ? '' : (selectedInstanceId || ''),
-        instanceName: currentConfig.instanceName || '',
-        host: normalizeHost(hostEl.value),
-        apiKey: (apiKeyEl.value || '').trim(),
-        projectId: projectEl.value || '',
-        projectName: readSelectedProjectName() || currentConfig.projectName || '',
-        syncFolder: (syncFolderEl.value || '').trim() || 'workflows',
-        verificationStatus: currentConfig.verificationStatus || 'unverified',
-        verificationLabel: currentConfig.verificationLabel || 'Not verified yet'
-      };
-    }
-
-    function applyConfig(config) {
-      currentConfig = cloneConfig(config);
-      hostEl.value = currentConfig.host;
-      apiKeyEl.value = currentConfig.apiKey;
-      syncFolderEl.value = currentConfig.syncFolder || 'workflows';
-      verificationStatusEl.textContent = currentConfig.verificationLabel || 'Not verified yet';
-      setError('');
-      updateModeUi();
-    }
-
-    function isDirty() {
-      const form = readFormState();
-      return JSON.stringify(form) !== JSON.stringify(currentConfig);
-    }
-
-    function updateModeUi() {
-      const savedCount = instances.length;
-      const activeLabel = activeInstanceName || activeConfig.instanceName || 'No active instance';
-      const isBusy = pendingAction !== '';
-      const isConnectExisting = runtimeMode === 'connect-existing';
-      const isManagedLocal = runtimeMode === 'managed-local';
-      const isGenerationOnly = runtimeMode === 'generation-only';
-
-      saveBtn.textContent = pendingAction === 'save'
-        ? (isManagedLocal ? 'Preparing...' : (draftMode ? 'Adding...' : 'Saving...'))
-        : isManagedLocal
-          ? 'Prepare and activate managed n8n'
-          : isGenerationOnly
-            ? 'Use generation-only mode'
-            : 'Save and activate config';
-      newInstanceBtn.textContent = draftMode ? 'Cancel add' : 'Add instance';
-      loadBtn.textContent = pendingAction === 'loadProjects' ? 'Loading...' : 'Load projects';
-      deleteBtn.textContent = pendingAction === 'deleteInstance' ? 'Deleting...' : 'Delete config';
-      loadBtn.disabled = isBusy || !normalizeHost(hostEl.value) || !(apiKeyEl.value || '').trim();
-      saveBtn.disabled = isBusy;
-      loadCredentialsBtn.disabled = isBusy;
-      addCredentialBtn.disabled = isBusy || !credentialCatalog.length;
-      saveCredentialFromModalBtn.disabled = credentialModalState.loading || isBusy || !credentialModalState.open;
-      newInstanceBtn.disabled = isBusy || isManagedLocal;
-      deleteBtn.disabled = isBusy || draftMode || !selectedInstanceId;
-      instanceSelectEl.disabled = isBusy || !instances.length;
-      hostEl.disabled = isBusy;
-      apiKeyEl.disabled = isBusy;
-      syncFolderEl.disabled = isBusy;
-      projectEl.disabled = isBusy || !projects.length;
-      const runtimeDisabled = !isConnectExisting;
-      hostEl.disabled = hostEl.disabled || runtimeDisabled;
-      apiKeyEl.disabled = apiKeyEl.disabled || runtimeDisabled;
-      loadBtn.disabled = loadBtn.disabled || runtimeDisabled;
-      projectFieldEl.classList.toggle('hidden', isManagedLocal);
-      saveBtn.disabled = isBusy;
-      existingInstanceCardEl.classList.toggle('hidden', isGenerationOnly);
-      connectionFieldsEl.classList.toggle('hidden', !isConnectExisting);
-      instanceLibraryPanelEl.classList.toggle('hidden', isManagedLocal);
-      newInstanceBtn.classList.toggle('hidden', isManagedLocal);
-      credentialsCardEl.classList.toggle('hidden', isGenerationOnly);
-      instanceCardTitleEl.textContent = isManagedLocal ? 'Managed workspace sync' : 'Instance';
-      instanceCardCopyEl.textContent = isManagedLocal
-        ? 'Choose the local sync folder. n8n-manager supplies the local URL and API key, and the extension saves the active workspace config after setup.'
-        : 'Enter the URL and API key of an existing n8n instance. Select a saved instance to edit it, then save to make it active in this workspace.';
-      runtimePathPanelEl.classList.toggle('hidden', false);
-      runtimeOptionsEl.classList.toggle('hidden', !isManagedLocal);
-
-      activeSummaryTitleEl.textContent = 'Active instance';
-      activeSummaryNameEl.textContent = activeLabel;
-      activeSummaryHostEl.textContent = activeConfig.host
-        ? activeConfig.host
-        : 'Save and activate an instance to use it in this workspace.';
-      activeSummaryStatusEl.textContent = activeConfig.verificationLabel || '';
-
-      switchHelpEl.textContent = savedCount
-        ? 'Choose a saved instance to edit. It becomes active when you save.'
-        : 'Add your first instance to start configuring this workspace.';
-
-      if (isManagedLocal) {
-        switchHelpEl.textContent = 'n8n-manager will own local runtime setup and starter credential readiness.';
-      } else if (isGenerationOnly) {
-        switchHelpEl.textContent = 'Workflow generation and validation stay available; runtime actions remain disabled.';
-      }
-
-      for (const option of runtimeModeGridEl.querySelectorAll('.mode-option')) {
-        const input = option.querySelector('input[name="runtimeMode"]');
-        const selected = input && input.value === runtimeMode;
-        option.classList.toggle('selected', !!selected);
-      }
-
-      renderRuntimePathCopy();
-    }
-
-    function renderRuntimePathCopy() {
-      runtimePathNextEl.innerHTML = '';
-      const steps = [];
-
-      if (runtimeMode === 'managed-local') {
-        runtimePathTitleEl.textContent = 'Managed local n8n';
-        runtimePathCopyEl.textContent = 'No host or API key is needed here. n8n-manager owns local runtime setup, lifecycle, and starter credential readiness for this facade.';
-        steps.push('Prepare the local runtime with n8n-manager.');
-        steps.push('The extension stores the managed URL/API key, auto-selects the n8n project, and uses the sync folder value from this form.');
-        steps.push('Workflow list and runtime actions become available once initialization completes.');
-      } else if (runtimeMode === 'generation-only') {
-        runtimePathTitleEl.textContent = 'Generation only';
-        runtimePathCopyEl.textContent = 'No live n8n runtime is configured. Workflow generation, validation, documentation, and agent context remain available.';
-        steps.push('Save this mode for the workspace.');
-        steps.push('Generate and validate workflows without deploy, run, or credential actions.');
-        steps.push('Switch to a runtime mode later when execution is needed.');
-      } else {
-        runtimePathTitleEl.textContent = 'Connect existing n8n';
-        runtimePathCopyEl.textContent = 'Use this path when you already have an n8n instance and API key. The extension will store the connection and activate it for this workspace.';
-        steps.push('Enter the n8n host URL and API key below.');
-        steps.push('Load projects, choose the project and sync folder.');
-        steps.push('Save and activate the instance.');
-      }
-
-      for (const step of steps) {
-        const item = document.createElement('li');
-        item.textContent = step;
-        runtimePathNextEl.appendChild(item);
-      }
-    }
-
-    function renderInstances(selectedId) {
-      instanceSelectEl.innerHTML = '';
-
-      const placeholder = document.createElement('option');
-      placeholder.value = '';
-      placeholder.textContent = instances.length ? 'Select instance…' : 'No saved configs yet';
-      instanceSelectEl.appendChild(placeholder);
-
-      for (const instance of instances) {
-        const opt = document.createElement('option');
-        opt.value = instance.id;
-        const activeSuffix = instance.id === activeInstanceId ? ' (active)' : '';
-        const verificationSuffix = instance.verificationStatus === 'verified'
-          ? ' [verified]'
-          : instance.verificationStatus === 'failed'
-            ? ' [unreachable]'
-            : '';
-        opt.textContent = instance.name + activeSuffix + verificationSuffix + (instance.host ? ' - ' + instance.host : '');
-        instanceSelectEl.appendChild(opt);
-      }
-
-      if (selectedId && instances.some((instance) => instance.id === selectedId)) {
-        instanceSelectEl.value = selectedId;
-      } else {
-        instanceSelectEl.value = instances.length ? (selectedInstanceId || '') : '';
-      }
-
-      updateModeUi();
-    }
-
-    function renderProjects(selectedId) {
-      projectEl.innerHTML = '';
-
-      if (!projects.length) {
-        projectEl.disabled = true;
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = 'No projects found';
-        projectEl.appendChild(opt);
-        return;
-      }
-
-      projectEl.disabled = false;
-
-      let defaultId = selectedId;
-      if (!defaultId) {
-        const personal = projects.find((project) => project.type === 'personal');
-        defaultId = personal ? personal.id : projects[0].id;
-      }
-
-      for (const project of projects) {
-        const opt = document.createElement('option');
-        opt.value = project.id;
-        opt.textContent = project.type === 'personal' ? 'Personal' : project.name;
-        opt.dataset.projectName = project.type === 'personal' ? 'Personal' : project.name;
-        projectEl.appendChild(opt);
-      }
-
-      projectEl.value = defaultId;
-
-      const selected = projects.find((project) => project.id === defaultId);
-      if (selected) {
-        currentConfig.projectId = selected.id;
-        currentConfig.projectName = selected.type === 'personal' ? 'Personal' : selected.name;
-      }
-    }
-
-    function createDraftFromActiveConfig() {
-      const draft = createEmptyConfig({
-        syncFolder: currentConfig.syncFolder || activeConfig.syncFolder || 'workflows'
-      });
-      draftSourceInstanceId = selectedInstanceId;
-      selectedInstanceId = '';
-      draftMode = true;
-      applyConfig(draft);
-      resetProjectsUi();
-      lastLoadRequest = { host: '', apiKey: '' };
-      renderInstances(selectedInstanceId);
-    }
-
-    function applyDeletedInstanceLocally(instanceId) {
-      if (!instanceId) {
-        return;
-      }
-
-      instances = instances.filter((instance) => instance.id !== instanceId);
-
-      if (activeInstanceId === instanceId) {
-        const nextActive = instances[0];
-        activeInstanceId = nextActive ? nextActive.id : '';
-        activeInstanceName = nextActive ? nextActive.name : '';
-        activeConfig = nextActive
-          ? cloneConfig({
-              instanceId: nextActive.id,
-              instanceName: nextActive.name,
-              host: nextActive.host,
-              apiKey: nextActive.apiKey,
-              projectId: nextActive.projectId,
-              projectName: nextActive.projectName,
-              syncFolder: nextActive.syncFolder,
-              verificationStatus: nextActive.verificationStatus,
-              verificationLabel: nextActive.verificationLabel,
-            })
-          : createEmptyConfig();
-      }
-
-      if (selectedInstanceId === instanceId) {
-        const fallbackSelectedId = activeInstanceId || instances[0]?.id || '';
-        selectedInstanceId = fallbackSelectedId;
-      }
-
-      if (draftSourceInstanceId === instanceId) {
-        draftSourceInstanceId = activeInstanceId || instances[0]?.id || '';
-      }
-
-      if (!draftMode) {
-        const nextSelected = instances.find((instance) => instance.id === selectedInstanceId);
-        if (nextSelected) {
-          selectInstanceForEditing(nextSelected.id);
-          return;
-        }
-
-        applyConfig(createEmptyConfig());
-        resetProjectsUi();
-      }
-
-      renderInstances(selectedInstanceId);
-    }
-
-    function selectInstanceForEditing(instanceId, options = { loadProjects: true }) {
-      const selectedInstance = instances.find((instance) => instance.id === instanceId);
-      if (!selectedInstance) {
-        return;
-      }
-
-      selectedInstanceId = selectedInstance.id;
-      draftMode = false;
-      draftSourceInstanceId = '';
-      applyConfig({
-        instanceId: selectedInstance.id,
-        instanceName: selectedInstance.name,
-        host: selectedInstance.host,
-        apiKey: selectedInstance.apiKey,
-        projectId: selectedInstance.projectId,
-        projectName: selectedInstance.projectName,
-        syncFolder: selectedInstance.syncFolder,
-        verificationStatus: selectedInstance.verificationStatus,
-        verificationLabel: selectedInstance.verificationLabel,
-      });
-      renderInstances(selectedInstanceId);
-
-      if (options.loadProjects && selectedInstance.host && selectedInstance.apiKey) {
-        requestProjectsLoad(true);
-      } else if (!selectedInstance.host || !selectedInstance.apiKey) {
-        resetProjectsUi();
-      }
-    }
-
-    function requestProjectsLoad(force = false) {
-      if (pendingAction) {
-        return;
-      }
-
-      const host = normalizeHost(hostEl.value);
-      const apiKey = (apiKeyEl.value || '').trim();
-
-      if (!host || !apiKey) {
-        lastLoadRequest = { host: '', apiKey: '' };
-        resetProjectsUi('Enter a host and API key to load projects…');
-        updateModeUi();
-        return;
-      }
-
-      if (!force && lastLoadRequest.host === host && lastLoadRequest.apiKey === apiKey) {
-        renderProjects(currentConfig.projectId || '');
-        return;
-      }
-
-      lastLoadRequest = { host, apiKey };
-      setError('');
-      setPendingAction('loadProjects');
-      vscode.postMessage({
-        type: 'loadProjects',
-        host,
-        apiKey,
-        projectId: currentConfig.projectId || '',
-        projectName: currentConfig.projectName || '',
-      });
-    }
-
-    function scheduleAutoLoadProjects() {
-      if (autoLoadTimer) clearTimeout(autoLoadTimer);
-      autoLoadTimer = setTimeout(() => {
-        requestProjectsLoad(false);
-      }, 500);
-    }
-
-    instanceSelectEl.addEventListener('change', () => {
-      if (pendingAction) {
-        return;
-      }
-
-      const selectedId = instanceSelectEl.value;
-      if (!selectedId || selectedId === selectedInstanceId) {
-        renderInstances(selectedInstanceId);
-        return;
-      }
-
-      if (isDirty() && !window.confirm('Selecting another instance will discard unsaved changes in this form. Continue?')) {
-        renderInstances(selectedInstanceId);
-        return;
-      }
-
-      setError('');
-      selectInstanceForEditing(selectedId);
-    });
-
-    newInstanceBtn.addEventListener('click', () => {
-      if (pendingAction) {
-        return;
-      }
-
-      if (draftMode) {
-        if (isDirty() && !window.confirm('Discard this new config draft?')) {
-          return;
-        }
-        const restoreId = draftSourceInstanceId || activeInstanceId || instances[0]?.id || '';
-        draftMode = false;
-        draftSourceInstanceId = '';
-        if (restoreId) {
-          selectInstanceForEditing(restoreId);
-        } else {
-          selectedInstanceId = '';
-          applyConfig(activeConfig);
-          renderInstances(selectedInstanceId);
-          if (activeConfig.host && activeConfig.apiKey) {
-            requestProjectsLoad(true);
-          } else {
-            resetProjectsUi();
-          }
-        }
-        return;
-      }
-
-      if (isDirty() && !window.confirm('Start a new config and discard unsaved changes to the current form?')) {
-        return;
-      }
-
-      createDraftFromActiveConfig();
-    });
-
-    loadBtn.addEventListener('click', () => {
-      requestProjectsLoad(true);
-    });
-
-    hostEl.addEventListener('input', () => {
-      updateModeUi();
-      scheduleAutoLoadProjects();
-    });
-    apiKeyEl.addEventListener('input', () => {
-      updateModeUi();
-      scheduleAutoLoadProjects();
-    });
-    syncFolderEl.addEventListener('input', updateModeUi);
-    hostEl.addEventListener('blur', () => requestProjectsLoad(false));
-    apiKeyEl.addEventListener('blur', () => requestProjectsLoad(false));
-    projectEl.addEventListener('change', updateModeUi);
-    renderRuntimeModes();
-
-    loadCredentialsBtn.addEventListener('click', () => {
-      if (pendingAction) {
-        return;
-      }
-      credentialListEl.innerHTML = '<div class="hint">Loading credential readiness...</div>';
-      vscode.postMessage({ type: 'loadCredentialInventory' });
-    });
-    addCredentialBtn.addEventListener('click', () => {
-      if (pendingAction) {
-        return;
-      }
-      setError('');
-      openCredentialModal({ mode: 'create' });
-    });
-
-    closeCredentialModalBtn.addEventListener('click', closeCredentialModal);
-    cancelCredentialModalBtn.addEventListener('click', closeCredentialModal);
-    credentialModalBackdropEl.addEventListener('click', (event) => {
-      if (event.target === credentialModalBackdropEl) {
-        closeCredentialModal();
-      }
-    });
-    credentialModalNameEl.addEventListener('input', () => {
-      credentialModalState.credentialName = credentialModalNameEl.value;
-    });
-    credentialModalTypeEl.addEventListener('change', () => {
-      if (credentialModalState.mode === 'edit') {
-        return;
-      }
-      const typeName = credentialModalTypeEl.value;
-      credentialSchemaRequestId += 1;
-      credentialModalState = {
-        ...credentialModalState,
-        recipeId: findRecipeForType(typeName)?.id || '',
-        credentialTypeName: typeName,
-        credentialName: defaultCredentialName(typeName),
-        schema: null,
-        values: {},
-        loading: true,
-      };
-      renderCredentialModal();
-      vscode.postMessage({
-        type: 'loadCredentialSchema',
-        recipeId: credentialModalState.recipeId,
-        credentialTypeName: typeName,
-        requestId: credentialSchemaRequestId,
-      });
-    });
-    saveCredentialFromModalBtn.addEventListener('click', () => {
-      if (pendingAction || credentialModalState.loading) {
-        return;
-      }
-      if (!credentialModalState.credentialTypeName || !findCredentialCatalogEntry(credentialModalState.credentialTypeName)) {
-        setError('Credential type is not available anymore.');
-        return;
-      }
-      const credentialName = (credentialModalNameEl.value || '').trim() || defaultCredentialName(credentialModalState.credentialTypeName);
-      const collected = collectCredentialModalValues();
-      if (collected.missing.length) {
-        setError('Missing required credential fields: ' + collected.missing.join(', '));
-        return;
-      }
-
-      setError('');
-      setPendingAction('credential');
-      vscode.postMessage({
-        type: 'ensureCredentialType',
-        credentialId: credentialModalState.mode === 'edit' ? credentialModalState.credentialId : '',
-        credentialName,
-        credentialTypeName: credentialModalState.credentialTypeName,
-        values: collected.values,
-      });
-    });
-
-    saveBtn.addEventListener('click', () => {
-      if (pendingAction) {
-        return;
-      }
-
-      setError('');
-      const form = readFormState();
-      const host = form.host;
-      const apiKey = form.apiKey;
-
-      if (runtimeMode !== 'connect-existing') {
-        setRuntimeStatus(
-          'progress',
-          runtimeMode === 'managed-local' ? 'Preparing local n8n' : 'Saving generation-only mode',
-          runtimeMode === 'managed-local'
-            ? 'n8n-manager is resolving local runtime state. This can take a moment when provider setup is wired.'
-            : 'Saving the workspace runtime mode.',
-          true
-        );
-        setPendingAction('save');
-        vscode.postMessage({
-          type: 'configureRuntimeMode',
-          mode: runtimeMode,
-          tunnel: enableTunnelEl.checked,
-          syncFolder: form.syncFolder,
-        });
-        return;
-      }
-
-      if (!host || !apiKey) {
-        setError('Host and API key are required to save this instance.');
-        return;
-      }
-
-      setPendingAction('save');
-      vscode.postMessage({
-        type: 'saveSettings',
-        instanceId: draftMode ? '' : (selectedInstanceId || ''),
-        instanceName: form.instanceName,
-        createNew: draftMode,
-        host,
-        apiKey,
-        projectId: form.projectId,
-        projectName: form.projectName,
-        syncFolder: form.syncFolder,
-      });
-    });
-
-    deleteBtn.addEventListener('click', () => {
-      if (pendingAction || draftMode || !selectedInstanceId) {
-        return;
-      }
-      const targetInstanceId = selectedInstanceId;
-      setError('');
-      applyDeletedInstanceLocally(targetInstanceId);
-      setPendingAction('deleteInstance');
-      vscode.postMessage({
-        type: 'deleteInstance',
-        instanceId: targetInstanceId,
-        skipConfirm: true,
-      });
-    });
-
-    window.addEventListener('message', (event) => {
-      const message = event.data;
-      if (!message || typeof message !== 'object') return;
-
-      if (message.type === 'init') {
-        if (isOutdatedStateMessage(message)) {
-          return;
-        }
-        rememberStateVersion(message);
-        clearPendingAction();
-        instances = message.instances || [];
-        const nextActiveInstanceId = message.activeInstanceId || (message.config && message.config.instanceId) || '';
-        const hasVisibleActiveInstance = instances.some((instance) => instance.id === nextActiveInstanceId);
-        if (hasVisibleActiveInstance) {
-          activeInstanceId = nextActiveInstanceId;
-          activeInstanceName = message.activeInstanceName || (message.config && message.config.instanceName) || '';
-          activeConfig = cloneConfig(message.config || createEmptyConfig());
-        } else if (!instances.length) {
-          activeInstanceId = '';
-          activeInstanceName = '';
-          activeConfig = createEmptyConfig();
-        }
-        draftMode = false;
-        draftSourceInstanceId = '';
-        selectedInstanceId = instances.some((instance) => instance.id === activeInstanceId)
-          ? activeInstanceId
-          : (instances[0]?.id || '');
-        const selectedInstance = instances.find((instance) => instance.id === selectedInstanceId);
-        applyConfig(selectedInstance ? {
-          instanceId: selectedInstance.id,
-          instanceName: selectedInstance.name,
-          host: selectedInstance.host,
-          apiKey: selectedInstance.apiKey,
-          projectId: selectedInstance.projectId,
-          projectName: selectedInstance.projectName,
-          syncFolder: selectedInstance.syncFolder,
-          verificationStatus: selectedInstance.verificationStatus,
-          verificationLabel: selectedInstance.verificationLabel,
-        } : activeConfig);
-        renderInstances(selectedInstanceId);
-        return;
-      }
-
-      if (message.type === 'projectsLoaded') {
-        if (isOutdatedStateMessage(message)) {
-          return;
-        }
-        rememberStateVersion(message);
-        clearPendingAction();
-        projects = message.projects || [];
-        const selectedId = message.selectedProjectId || currentConfig.projectId || '';
-        renderProjects(selectedId);
-        return;
-      }
-
-      if (message.type === 'saved') {
-        clearPendingAction();
-        setSaved(true);
-        return;
-      }
-
-      if (message.type === 'runtimeModeStarted') {
-        setPendingAction('save');
-        setRuntimeStatus(
-          'progress',
-          message.mode === 'managed-local' ? 'Preparing local n8n' : 'Saving runtime mode',
-          message.mode === 'managed-local'
-            ? 'n8n-manager accepted the request and is preparing runtime state.'
-            : 'Saving the workspace runtime mode.',
-          true
-        );
-        return;
-      }
-
-      if (message.type === 'runtimeModeSaved') {
-        clearPendingAction();
-        setSaved(true);
-        const instance = message.instance || {};
-        const status = message.status || {};
-        const activated = message.activatedConfig || {};
-        if (message.mode === 'managed-local') {
-          const checkMessages = Array.isArray(status.checks)
-            ? status.checks
-                .map((check) => check && check.message ? check.message : '')
-                .filter(Boolean)
-                .join(' ')
-            : '';
-          setRuntimeStatus(
-            'success',
-            'Local n8n is managed by n8n-manager',
-            'Status: ' + (status.status || 'unknown')
-              + '. URL: ' + (instance.baseUrl || 'not available yet')
-              + '. Container: ' + (instance.containerName || instance.id || 'managed-local')
-              + '. Sync folder: ' + (activated.syncFolder || 'workflows')
-              + '. Project: ' + (activated.projectName || 'auto-selected')
-              + '. ' + (checkMessages || 'Next: initialize AI context and use runtime actions.')
-          );
-          vscode.postMessage({ type: 'loadCredentialInventory' });
-        } else {
-          setRuntimeStatus(
-            'success',
-            'Generation-only mode is active',
-            'Workflow generation and validation are available. Deploy, run, and credential actions stay disabled until a runtime mode is selected.'
-          );
-        }
-        return;
-      }
-
-      if (message.type === 'credentialInventoryLoaded') {
-        renderCredentialInventory(message.items || [], message.recipes || [], message.catalog || [], message.credentials || []);
-        return;
-      }
-
-      if (message.type === 'credentialSchemaLoaded') {
-        if (
-          credentialModalState.open
-          && message.recipeId === credentialModalState.recipeId
-          && message.credentialTypeName === credentialModalState.credentialTypeName
-        ) {
-          applyCredentialSchema(message.schema || {});
-        }
-        return;
-      }
-
-      if (message.type === 'credentialSaved') {
-        clearPendingAction();
-        setSaved(true);
-        closeCredentialModal();
-        renderCredentialInventory(message.items || [], message.recipes || [], message.catalog || [], message.credentials || []);
-        return;
-      }
-
-      if (message.type === 'instanceDeleted') {
-        clearPendingAction();
-        return;
-      }
-
-      if (message.type === 'error') {
-        clearPendingAction();
-        setRuntimeStatus('', '', '');
-        setError(message.message || 'Error');
-        return;
-      }
-
-      if (message.type === 'cancelled') {
-        clearPendingAction();
-        setRuntimeStatus('', '', '');
-        return;
-      }
-    });
-
-    resetProjectsUi();
-    vscode.postMessage({ type: 'loadCredentialInventory' });
-    updateModeUi();
-  </script>
-</body>
-</html>`;
+  private getHtmlForWebview(): string {
+    return getConfigurationHtml(getNonce());
   }
 }
