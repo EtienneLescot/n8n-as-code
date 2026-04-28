@@ -215,7 +215,6 @@ n8nac skills validate email-automation.workflow.ts
 ## Next Steps
 
 **Phase 5**: Adapt CLI commands:
-- `n8nac init` - Initialize with TypeScript workflows
 - `n8nac sync` - Already works via Phase 3 changes
 - Add `n8nac convert` - Bidirectional JSON ↔ TypeScript conversion
 

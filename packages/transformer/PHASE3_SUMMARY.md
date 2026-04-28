@@ -112,7 +112,6 @@ npm run build -w @n8n-as-code/sync ✅
 - Modify n8n-agent to work with `.workflow.ts` files
 
 **Phase 5**: Adapt CLI commands:
-- `n8nac init` - Initialize with TypeScript workflows
 - `n8nac validate` - Validate TypeScript syntax
 - `n8nac convert` - Convert JSON ↔ TypeScript
 
