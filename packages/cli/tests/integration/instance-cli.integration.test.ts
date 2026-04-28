@@ -64,7 +64,7 @@ describe('CLI instance management integration', () => {
         expect(stripAnsi(output)).toContain('examples');
     });
 
-    it('lists, selects, and deletes saved instance configs non-interactively', () => {
+    it('lists, selects, deletes global instances, and exposes effective workspace context non-interactively', () => {
         const workspaceDir = createTempDir('n8nac-cli-instance-workspace-');
         const homeDir = createTempDir('n8nac-cli-instance-home-');
         const managerHome = path.join(homeDir, '.n8n-manager');
@@ -82,6 +82,7 @@ describe('CLI instance management integration', () => {
                     name: 'Production',
                     mode: 'existing',
                     baseUrl: 'https://prod.example.com',
+                    instanceIdentifier: 'user-prod',
                     defaultProject: {
                         id: 'project-prod',
                         name: 'Production Project',
@@ -97,6 +98,7 @@ describe('CLI instance management integration', () => {
                     name: 'Test',
                     mode: 'existing',
                     baseUrl: 'https://test.example.com',
+                    instanceIdentifier: 'user-test',
                     defaultProject: {
                         id: 'project-test',
                         name: 'Test Project',
@@ -129,12 +131,17 @@ describe('CLI instance management integration', () => {
         const selectedManagerConfig = JSON.parse(fs.readFileSync(managerConfigPath, 'utf8'));
         expect(selectedManagerConfig.activeInstanceId).toBe('prod');
 
+        const workspaceStatus = JSON.parse(runCli(workspaceDir, homeDir, ['workspace', 'status', '--json']));
+        expect(workspaceStatus.activeInstanceId).toBe('test');
+        expect(workspaceStatus.projectId).toBe('project-test');
+        expect(workspaceStatus.workflowDir).toContain(path.join('workflows-test', 'user-test', 'test_project'));
+
         const workspaceConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         expect(workspaceConfig.activeInstanceId).toBe('test');
         expect(workspaceConfig.projectId).toBe('project-test');
 
         const deleted = runCli(workspaceDir, homeDir, ['instance', 'delete', '--instance-id', 'prod', '--yes']);
-        expect(stripAnsi(deleted)).toContain('Deleted saved config: Production');
+        expect(stripAnsi(deleted)).toContain('Deleted global instance: Production');
 
         const deletedManagerConfig = JSON.parse(fs.readFileSync(managerConfigPath, 'utf8'));
         expect(deletedManagerConfig.instances).toHaveLength(1);

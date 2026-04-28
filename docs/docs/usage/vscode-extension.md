@@ -73,23 +73,23 @@ Visualize the n8n canvas beside your code using the integrated Webview while edi
 ### Initial Setup
 1. Click the **n8n** icon in the Activity Bar
 2. Click **n8n: Configure** (or the Configure link shown in the panel)
-3. Click **Add instance** if you want to register a new n8n environment in this workspace
+3. Click **Add instance** if you want to register a new global n8n-manager instance
 4. Enter the **Host** and **API Key** of the existing n8n instance you want to connect
 5. Click **Load projects**, then choose the **Project to sync**
 6. Set the **Sync Folder** (default: `workflows`)
-7. Click **Save and activate config**
-8. Click **Initialize n8n as code** in the n8n view to initialize the workspace and load the active project context
+7. Click **Save workspace context**
+8. The n8n view reloads from the effective context resolved by the backend
 
-The extension stores saved instance configs plus the active instance selection in `n8nac-config.json`. Legacy `n8n.*` VS Code settings remain as a fallback compatibility layer, not the primary source of truth.
+The extension reads global instances and API keys from n8n-manager. `n8nac-config.json` stores only workspace overrides such as pinned instance, project, and sync folder.
 
 ### Switching Instances
 
 Use either:
 
-- the **Select instance** dropdown in **n8n: Configure** to load a saved config into the form, then click **Save and activate config**
-- the **n8n: Select Instance** command from the Command Palette
+- the global instance selector in **n8n: Configure** to change the global active n8n-manager instance
+- the workspace pin action in **n8n: Configure** to pin the current workspace to a specific global instance
 
-This lets one workspace keep multiple saved instance configs while the runtime stays bound to one active instance at a time.
+The backend resolves the effective context from explicit command overrides, workspace overrides, then global n8n-manager defaults.
 
 ### Apply Changes (safety)
 When you change critical settings (host / API key / sync folder / project), synchronization is paused and an **Apply Changes** action appears (status bar and n8n panel). This prevents partial or accidental settings edits from triggering unexpected sync behavior.

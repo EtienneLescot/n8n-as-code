@@ -62,8 +62,8 @@ export class InitCommand {
             return;
         }
 
-        console.log(chalk.cyan(`\n🛠️ Updating saved config: ${currentInstance.name}`));
-        console.log(chalk.gray('This updates the currently selected instance config.\n'));
+        console.log(chalk.cyan(`\n🛠️ Updating global instance: ${currentInstance.name}`));
+        console.log(chalk.gray('This updates the currently selected n8n-manager instance.\n'));
 
         const currentLocal = this.configService.getLocalConfig();
         const currentApiKey = currentLocal.host
@@ -151,7 +151,7 @@ export class InitCommand {
             });
 
             if (savedResult.status === 'duplicate') {
-                spinner.fail(chalk.red(`This n8n instance is already saved as "${savedResult.duplicateInstance.name}".`));
+                spinner.fail(chalk.red(`This n8n instance is already registered as "${savedResult.duplicateInstance.name}".`));
                 process.exitCode = 1;
                 return;
             }
@@ -160,7 +160,7 @@ export class InitCommand {
 
             console.log(chalk.green('\n✔ Credentials saved successfully!'));
             console.log(chalk.blue('📁 Workspace bootstrap:') + ' n8nac-config.json');
-            console.log(chalk.blue('🔑 API Key:') + ' Stored securely in global config\n');
+            console.log(chalk.blue('🔑 API Key:') + ' Stored securely by n8n-manager\n');
             console.log(chalk.blue('🧩 Selected instance:') + ` ${savedInstance.name}\n`);
             if (savedResult.verificationStatus === 'verified') {
                 console.log(chalk.green('✔ Instance identity verified.\n'));
@@ -193,7 +193,7 @@ export class InitCommand {
         const resolvedOptions = this.resolveOptions(options, currentLocal, currentApiKey);
 
         if (!resolvedOptions.host) {
-            console.error(chalk.red('❌ Missing saved n8n host. Run n8nac init-auth first, or pass --host <url>.'));
+            console.error(chalk.red('❌ Missing n8n host in the effective n8n-manager context. Run n8nac init-auth first, or pass --host <url>.'));
             process.exitCode = 1;
             return;
         }
@@ -206,7 +206,7 @@ export class InitCommand {
         }
 
         if (!resolvedOptions.apiKey) {
-            console.error(chalk.red('❌ Missing saved n8n API key. Run n8nac init-auth first, or pass --api-key <key>.'));
+            console.error(chalk.red('❌ Missing n8n API key in n8n-manager. Run n8nac init-auth first, or pass --api-key <key>.'));
             process.exitCode = 1;
             return;
         }

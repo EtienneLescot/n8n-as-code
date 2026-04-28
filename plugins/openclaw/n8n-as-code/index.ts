@@ -31,7 +31,6 @@ If the user chooses an existing n8n instance, collect host URL and API key, then
 
 function buildStatusHeader(workspaceDir: string): string {
   const cfg = readWorkspaceBinding(workspaceDir);
-  const host = cfg.host ?? "(unknown)";
   const project = cfg.projectName ?? cfg.projectId ?? "(unknown)";
   return [
     "## ✅ n8n-as-code Workspace Status",
@@ -39,9 +38,9 @@ function buildStatusHeader(workspaceDir: string): string {
     "**The workspace is already fully initialized. Do NOT ask the user for credentials.**",
     "",
     `- Workspace directory: \`${workspaceDir}\``,
-    `- Active instance: \`${cfg.activeInstanceName ?? cfg.activeInstanceId ?? "(unknown)"}\``,
-    `- n8n host: \`${host}\``,
+    `- Workspace-pinned instance: \`${cfg.activeInstanceId ?? "(global active instance)"}\``,
     `- Active project: \`${project}\``,
+    `- Sync folder: \`${cfg.syncFolder ?? "(unknown)"}\``,
   ].join("\n");
 }
 

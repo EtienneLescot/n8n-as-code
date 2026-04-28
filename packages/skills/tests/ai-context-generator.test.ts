@@ -223,7 +223,8 @@ describe('AiContextGenerator', () => {
             await generator.generate(tempDir, '1.0.0');
 
             const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
-            expect(agentsContent).toContain('In the common case it is workspace-relative, but it can be absolute if `syncFolder` is absolute.');
+            expect(agentsContent).toContain('workspace status --json');
+            expect(agentsContent).toContain('backend-resolved from n8n-manager global state plus workspace overrides');
             expect(agentsContent).toContain('Use either the absolute path from `workflowDir` or the workspace-root-relative path that starts with `workflowDir`');
             expect(agentsContent).toContain('`push` always starts from **the full path of the local workflow file** — either absolute or workspace-root-relative');
         });

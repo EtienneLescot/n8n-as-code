@@ -44,7 +44,7 @@ describe('SwitchCommand instance management', () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
     });
 
-    it('selects a saved instance non-interactively by name', async () => {
+    it('selects a global instance non-interactively by name', async () => {
         configService.listInstances.mockReturnValue([
             { id: 'prod', name: 'Production', host: 'https://prod.example.com', projectName: 'Personal' },
             { id: 'test', name: 'Test', host: 'https://test.example.com', projectName: 'Sandbox' },
@@ -62,7 +62,7 @@ describe('SwitchCommand instance management', () => {
         expect(logSpy).toHaveBeenCalledWith('\n✔ Selected instance: Production');
     });
 
-    it('deletes a saved instance non-interactively by id', async () => {
+    it('deletes a global instance non-interactively by id', async () => {
         configService.listInstances.mockReturnValue([
             { id: 'prod', name: 'Production', host: 'https://prod.example.com', projectName: 'Personal' },
             { id: 'test', name: 'Test', host: 'https://test.example.com', projectName: 'Sandbox' },
@@ -76,10 +76,10 @@ describe('SwitchCommand instance management', () => {
         await command.runInstanceDeletion({ instanceId: 'prod', yes: true });
 
         expect(configService.deleteInstanceConfig).toHaveBeenCalledWith('prod');
-        expect(logSpy).toHaveBeenCalledWith('\n✔ Deleted saved config: Production');
+        expect(logSpy).toHaveBeenCalledWith('\n✔ Deleted global instance: Production');
     });
 
-    it('renders saved instance configs as JSON for scripts', async () => {
+    it('renders global instances as JSON for scripts', async () => {
         configService.listInstances.mockReturnValue([
             { id: 'prod', name: 'Production', host: 'https://prod.example.com' },
             { id: 'test', name: 'Test', host: 'https://test.example.com' },

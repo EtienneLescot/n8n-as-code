@@ -66,7 +66,7 @@ async function runTest(suite) {
             }
 
             // Parse counts (even if it failed, we want the stats if available)
-            if (scenarioMatches.length === 0 && (suite.name === 'transformer' || suite.name === 'skills' || suite.name === 'cli')) {
+            if (scenarioMatches.length === 0 && (suite.name === 'transformer' || suite.name === 'skills' || suite.name === 'cli' || suite.name === 'openclaw' || suite.name === 'vscode-unit')) {
                 // Support both Vitest and Jest formats:
                 // Vitest: "Tests  53 passed (53)"
                 // Jest: "Tests:       29 passed, 29 total"
@@ -79,10 +79,18 @@ async function runTest(suite) {
                     if (match) {
                         const counts = match.map(m => parseInt(m.match(/(\d+)/)[0]));
                         passed = Math.max(...counts).toString();
+                    } else {
+                        // Node TAP summary: "# pass 31"
+                        const tapPassMatch = output.match(/^#\s*pass\s+(\d+)/im);
+                        if (tapPassMatch) passed = tapPassMatch[1];
                     }
                 }
                 const failMatch = output.match(/Tests:?\s+(\d+)\s+failed/i);
                 if (failMatch) failed = failMatch[1];
+                else {
+                    const tapFailMatch = output.match(/^#\s*fail\s+(\d+)/im);
+                    if (tapFailMatch) failed = tapFailMatch[1];
+                }
             } else if (scenarioMatches.length === 0) {
                 const passMatch = output.match(/pass\s+(\d+)/i);
                 if (passMatch) passed = passMatch[1];

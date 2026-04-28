@@ -130,7 +130,7 @@ The wizard will ask for:
 `n8nac init` is the ergonomic alias for `n8nac instance add`.
 
 ### `instance`
-Manage saved n8n instance configs in the current workspace.
+Manage global n8n-manager instances.
 
 ```bash
 n8nac instance add
@@ -139,7 +139,7 @@ n8nac instance select
 n8nac instance delete
 ```
 
-Use `instance add` for the main setup flow when you want to save a new n8n environment and choose its project in one command.
+Use `instance add` for the main setup flow when you want to register a new n8n environment in n8n-manager and choose its project in one command.
 
 For scripts and autonomous agents, prefer the explicit non-interactive forms:
 
@@ -152,6 +152,19 @@ n8nac instance delete --instance-name "https://n8n.example.com / Etienne Lescot"
 ```
 
 Use `init-auth` followed by `init-project` only when you want to split credential discovery from project selection.
+
+### `workspace`
+Manage explicit workspace overrides over the global n8n-manager defaults.
+
+```bash
+n8nac workspace status --json
+n8nac workspace pin-instance --instance-id <instanceId>
+n8nac workspace clear-instance
+n8nac workspace set-sync-folder workflows
+n8nac workspace clear-sync-folder
+```
+
+The workspace config stores project selection, optional pinned instance, optional sync folder override, and workflow-related settings. It does not store the global instance library or API keys.
 
 ### `setup`
 Choose how the `n8nac` facade should use n8n runtime capabilities.
@@ -507,38 +520,22 @@ n8nac convert-batch ./workflows --format json          # Convert all TS to JSON
 ## ⚙️ Configuration
 
 ### Configuration File
-The CLI uses a configuration file (`n8nac-config.json`) with the following structure:
+The CLI uses a minimal workspace configuration file (`n8nac-config.json`) with the following structure:
 
 ```json
 {
-  "version": 2,
-  "activeInstanceId": "prod",
-  "instances": [
-    {
-      "id": "test",
-      "name": "Test",
-      "host": "https://test.n8n.example.com",
-      "syncFolder": "workflows-test",
-      "projectId": "your-test-project-id",
-      "projectName": "Test",
-      "instanceIdentifier": "test_instance_user"
-    },
-    {
-      "id": "prod",
-      "name": "Production",
-      "host": "https://n8n.example.com",
-      "syncFolder": "workflows-prod",
-      "projectId": "your-project-id",
-      "projectName": "Personal",
-      "instanceIdentifier": "local_5678_user"
-    }
-  ]
+  "version": 3,
+  "activeInstanceId": "optional-workspace-pin",
+  "syncFolder": "workflows",
+  "projectId": "your-project-id",
+  "projectName": "Personal",
+  "folderSync": false
 }
 ```
 
-The active instance is also mirrored at the top level for compatibility, but the source of truth is the `instances` array plus `activeInstanceId`.
+The source of truth for instances and API keys is n8n-manager under `~/.n8n-manager`. The workspace file only stores explicit project and sync context overrides.
 
-**Note:** API keys are stored securely in your system's credential store, scoped by saved instance config when available, not in this file.
+**Note:** API keys are stored by n8n-manager and scoped by global instance ID, not in this file.
 
 ## 🔄 Workflow Management
 
@@ -547,7 +544,7 @@ The active instance is also mirrored at the top level for compatibility, but the
 # 1. Initialize project
 n8nac init
 
-# Optional: switch to another saved instance config
+# Optional: switch the global active n8n-manager instance
 n8nac instance select
 
 # 2. List all workflows to see their sync status (lightweight, covers all workflows)

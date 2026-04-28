@@ -35,7 +35,7 @@ export class BaseCommand {
                 const duplicateInstances = matches
                     .map((i) => `- ${i.name} (${i.id})`)
                     .join('\n');
-                console.error(chalk.red(`❌ Ambiguous instance name: "${requestedInstanceName}". Multiple saved instances match this name:`));
+                console.error(chalk.red(`❌ Ambiguous instance name: "${requestedInstanceName}". Multiple global n8n-manager instances match this name:`));
                 console.error(chalk.yellow(duplicateInstances));
                 console.error(chalk.yellow('Please rename the instance(s) to use unique names, or use an `--instance-id` option if available.'));
                 process.exit(1);

@@ -361,7 +361,12 @@ import nock from 'nock';
 beforeEach(() => {
   mockFs({
     'workflows': {},
-    'n8nac-config.json': JSON.stringify({ host: 'http://test.n8n' })
+    'n8nac-config.json': JSON.stringify({
+      version: 3,
+      projectId: 'personal',
+      projectName: 'Personal',
+      syncFolder: 'workflows'
+    })
   });
   
   nock('http://test.n8n')

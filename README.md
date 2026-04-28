@@ -310,9 +310,9 @@ n8nac pull <id> > workflow.json && n8nac convert workflow.json --format typescri
 
 1. Install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) or [OpenVSX Marketplace](https://open-vsx.org/extension/etienne-lescot/n8n-as-code)
 2. Click the **n8n** icon in the Activity Bar
-3. Open **n8n: Configure**, add an instance, load the project, then **Save and activate config**
+3. Open **n8n: Configure**, add or select a global n8n-manager instance, choose the workspace project/sync folder, then **Save workspace context**
 
-You can keep multiple saved instance configs in the same workspace and switch which one is active when needed.
+You can keep multiple global n8n-manager instances and explicitly pin a workspace to one when needed.
 
 > ℹ️ **Workspace required**: Open a folder or a `.code-workspace` before running **Initialize n8n as code**.  
 > The extension needs an active workspace to index files and settings.
