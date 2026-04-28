@@ -1,9 +1,19 @@
 import {
   FileBackedN8nLifecycleManager,
+  N8nConfigurationService,
   readFileBackedN8nInstance,
+  resolveN8nManagerHome,
+  resolveFileBackedN8nStatePath,
+  type EffectiveN8nContext,
+  type GlobalN8nInstance,
+  type N8nGlobalConfiguration,
+  type N8nSyncFolderDefaultPolicy,
+  type UpsertGlobalN8nInstanceInput,
   type N8nHealthSnapshot,
   type N8nInstanceRef,
+  type N8nWorkspaceOverrides,
 } from '@n8n-as-code/n8n-manager-core';
+import path from 'node:path';
 import {
   N8nCredentialsManager,
   N8nRestCredentialClient,
@@ -27,6 +37,7 @@ export interface N8nManagerFacadeOptions {
   n8nApiKey?: string;
   projectId?: string;
   statePath?: string;
+  workspaceRoot?: string;
 }
 
 export interface N8nFacadeSetupInput {
@@ -41,6 +52,17 @@ export interface N8nManagerFacade {
   setup(input: N8nFacadeSetupInput): Promise<N8nInstanceRef>;
   status(): Promise<N8nHealthSnapshot>;
   getManagedInstance(): Promise<N8nInstanceRef | undefined>;
+  listInstances(): Promise<GlobalN8nInstance[]>;
+  getGlobalConfig(): Promise<N8nGlobalConfiguration>;
+  upsertInstance(input: UpsertGlobalN8nInstanceInput, options?: { setActive?: boolean }): Promise<GlobalN8nInstance>;
+  getGlobalActiveInstance(): Promise<GlobalN8nInstance | undefined>;
+  setGlobalActiveInstance(instanceId: string): Promise<GlobalN8nInstance>;
+  setDefaultSyncFolder(syncFolder: string): Promise<unknown>;
+  deleteInstance(instanceId: string): Promise<{ deletedInstance: GlobalN8nInstance; activeInstance?: GlobalN8nInstance }>;
+  readWorkspaceOverrides(workspaceRoot?: string): Promise<N8nWorkspaceOverrides>;
+  writeWorkspaceOverrides(overrides: Partial<N8nWorkspaceOverrides>, workspaceRoot?: string): Promise<N8nWorkspaceOverrides>;
+  clearWorkspaceOverrides(workspaceRoot?: string): Promise<void>;
+  resolveEffectiveContext(input?: { workspaceRoot?: string; instanceId?: string; requireProject?: boolean; syncFolderDefault?: N8nSyncFolderDefaultPolicy }): Promise<EffectiveN8nContext>;
   listSetupModes(): typeof N8N_FACADE_SETUP_MODES;
   listCredentialRecipes(): Promise<CredentialRecipe[]>;
   listCredentialCatalog(): Promise<CredentialCatalogEntry[]>;
@@ -58,12 +80,21 @@ export interface N8nManagerFacade {
 export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N8nManagerFacade {
   const statePath = options.statePath ?? process.env.N8N_MANAGER_STATE_PATH;
   const lifecycle = new FileBackedN8nLifecycleManager(statePath);
+  const configuration = new N8nConfigurationService();
 
   async function createCredentialsManager(): Promise<N8nCredentialsManager> {
     if (options.n8nHost && options.n8nApiKey) {
       return new N8nCredentialsManager({
         projectId: options.projectId,
         client: new N8nRestCredentialClient({ baseUrl: options.n8nHost, apiKey: options.n8nApiKey }),
+      });
+    }
+
+    const effective = await tryResolveEffectiveContext(configuration, options.workspaceRoot);
+    if (effective?.host && effective.apiKey) {
+      return new N8nCredentialsManager({
+        projectId: options.projectId ?? effective.projectId,
+        client: new N8nRestCredentialClient({ baseUrl: effective.host, apiKey: effective.apiKey }),
       });
     }
 
@@ -79,16 +110,52 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
   return {
     async setup(input) {
       const mode = getN8nFacadeSetupMode(input.mode);
-      return lifecycle.setup({
+      const instance = await lifecycle.setup({
         mode: mode.managerMode,
         baseUrl: input.n8nHost ?? options.n8nHost,
         apiKeyRef: input.n8nApiKeyRef,
         tunnel: input.tunnel,
         bootstrapOwner: input.bootstrapOwner,
       });
+      const privateInstance = await readFileBackedN8nInstance(statePath);
+      const lifecycleInstance = {
+        ...instance,
+        ...(privateInstance ?? {}),
+        runtimeStatePath: resolveFileBackedN8nStatePath(statePath),
+      };
+      configuration.upsertInstanceFromLifecycle(lifecycleInstance, {
+        apiKey: options.n8nApiKey ?? privateInstance?.apiKey,
+        setActive: true,
+      });
+      return instance;
     },
     status: () => lifecycle.status(),
     getManagedInstance: () => readFileBackedN8nInstance(statePath),
+    listInstances: async () => configuration.listInstances(),
+    getGlobalConfig: async () => configuration.getGlobalConfig(),
+    upsertInstance: async (input, upsertOptions) => configuration.upsertInstance(input, upsertOptions),
+    getGlobalActiveInstance: async () => configuration.getGlobalActiveInstance(),
+    setGlobalActiveInstance: async (instanceId) => configuration.setGlobalActiveInstance(instanceId),
+    setDefaultSyncFolder: async (syncFolder) => configuration.setDefaultSyncFolder(syncFolder),
+    deleteInstance: async (instanceId) => configuration.deleteInstance(instanceId),
+    readWorkspaceOverrides: async (workspaceRoot = options.workspaceRoot) => {
+      if (!workspaceRoot) return { version: 3 };
+      return configuration.readWorkspaceOverrides(workspaceRoot);
+    },
+    writeWorkspaceOverrides: async (overrides, workspaceRoot = options.workspaceRoot) => {
+      if (!workspaceRoot) throw new Error('workspaceRoot is required to write n8n workspace overrides.');
+      return configuration.writeWorkspaceOverrides(workspaceRoot, overrides);
+    },
+    clearWorkspaceOverrides: async (workspaceRoot = options.workspaceRoot) => {
+      if (!workspaceRoot) return;
+      configuration.clearWorkspaceOverrides(workspaceRoot);
+    },
+    resolveEffectiveContext: async (input = {}) => configuration.resolveEffectiveContext({
+      workspaceRoot: input.workspaceRoot ?? options.workspaceRoot,
+      instanceId: input.instanceId,
+      requireProject: input.requireProject,
+      syncFolderDefault: input.syncFolderDefault,
+    }),
     listSetupModes: () => N8N_FACADE_SETUP_MODES,
     listCredentialRecipes: async () => (await createCredentialsManager()).listRecipes(),
     listCredentialCatalog: async () => (await createCredentialsManager()).listCredentialCatalog(),
@@ -102,4 +169,28 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
     testCredential: async (credentialIdOrRecipeId) => (await createCredentialsManager()).testCredential(credentialIdOrRecipeId),
     bootstrapStarterKit: async (starterKitId, inputs) => (await createCredentialsManager()).bootstrapStarterKit(starterKitId, inputs),
   };
+}
+
+export function resolveN8nManagerConfigurationPaths(): {
+  homeDir: string;
+  instancesPath: string;
+  secretsPath: string;
+} {
+  const homeDir = resolveN8nManagerHome();
+  return {
+    homeDir,
+    instancesPath: path.join(homeDir, 'instances.json'),
+    secretsPath: path.join(homeDir, 'secrets.json'),
+  };
+}
+
+async function tryResolveEffectiveContext(
+  configuration: N8nConfigurationService,
+  workspaceRoot?: string,
+): Promise<EffectiveN8nContext | undefined> {
+  try {
+    return configuration.resolveEffectiveContext({ workspaceRoot });
+  } catch {
+    return undefined;
+  }
 }

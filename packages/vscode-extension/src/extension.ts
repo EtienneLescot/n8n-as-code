@@ -18,10 +18,14 @@ import { ConfigurationWebview } from './ui/configuration-webview.js';
 import { WorkflowDecorationProvider } from './ui/workflow-decoration-provider.js';
 
 import { ProxyService } from './services/proxy-service.js';
+import {
+    N8nConfigurationController,
+    type N8nConfigurationChangeEvent,
+} from './services/n8n-configuration-controller.js';
+import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
 import { ExtensionState } from './types.js';
-import { getN8nConfig, getResolvedN8nConfig, validateN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from './utils/state-detection.js';
+import { getN8nConfig, getResolvedN8nConfig, validateN8nConfig, getWorkspaceRoot } from './utils/state-detection.js';
 import { NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION } from './constants/workspace.js';
-import { writeUnifiedWorkspaceConfig } from './utils/unified-config.js';
 import { buildWorkflowQuickPickItems } from './utils/workflow-finder.js';
 import { isClipboardBridgeRequired } from './utils/clipboard-utils.js';
 import { IWorkflowStatus } from 'n8nac';
@@ -67,8 +71,11 @@ let syncManager: SyncManager | undefined;
  *  list, fetch, pull, push. This is the only object the command handlers touch. */
 let cli: CliApi | undefined;
 let initializingPromise: Promise<void> | undefined;
-let lastConfigRefreshSignature: string | undefined;
 let runtimeDisposables: vscode.Disposable[] = [];
+let configurationController: N8nConfigurationController | undefined;
+let suppressNextConfigurationReaction = false;
+let failedAutoInitRuntimeSignature: string | undefined;
+let failedAutoInitConnectionKey: string | undefined;
 
 const statusBar = new StatusBar();
 const proxyService = new ProxyService();
@@ -120,6 +127,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
     proxyService.setOutputChannel(outputChannel);
     proxyService.setSecrets(context.secrets);
+    configurationController = new N8nConfigurationController(outputChannel);
+    context.subscriptions.push(
+        configurationController,
+        configurationController.onDidChangeSnapshot((event) => {
+            void handleConfigurationSnapshotChanged(context, event);
+        }),
+    );
 
     // ── Register Commands ──────────────────────────────────────────────────────
     // Commands are registered early so they are available during activation.
@@ -131,11 +145,19 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         vscode.commands.registerCommand('n8n.configure', async () => {
-            ConfigurationWebview.createOrShow(context);
+            ConfigurationWebview.createOrShow(context, requireConfigurationController());
         }),
 
         vscode.commands.registerCommand('n8n.switchInstance', async (args?: SwitchInstanceCommandArgs) => {
             await switchWorkspaceInstance(context, args);
+        }),
+
+        vscode.commands.registerCommand('n8n.pinWorkspaceInstance', async (args?: SwitchInstanceCommandArgs) => {
+            await pinWorkspaceInstance(context, args);
+        }),
+
+        vscode.commands.registerCommand('n8n.clearWorkspaceInstance', async () => {
+            await clearWorkspaceInstancePin(context);
         }),
 
         vscode.commands.registerCommand('n8n.deleteInstance', async (args?: DeleteInstanceCommandArgs) => {
@@ -414,30 +436,28 @@ export async function activate(context: vscode.ExtensionContext) {
             }
             const client = new N8nApiClient({ host, apiKey });
             const rootPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-            const runInit = async (progress?: vscode.Progress<{ message?: string }>) => {
-                try {
-                    const health = await client.getHealth();
-                    const version = health.version;
-                    progress?.report({ message: 'Generating AGENTS.md...' });
-                    const distTag = (typeof __N8NAC_VERSION__ !== 'undefined' && __N8NAC_VERSION__ === 'next') ? 'next' : undefined;
-                    const cliVersion = (typeof __N8NAC_CLI_SEMVER__ !== 'undefined' && __N8NAC_CLI_SEMVER__) ? __N8NAC_CLI_SEMVER__ : undefined;
-                    await new AiContextGenerator().generate(rootPath, version, distTag, { cliVersion });
-                    context.workspaceState.update('n8n.lastInitVersion', version);
-                    enhancedTreeProvider.setAIContextInfo(version, false);
-                    if (!options?.silent) vscode.window.showInformationMessage(`✨ n8n AI Context Initialized! (v${version})`);
-                } catch (e: any) {
-                    if (!options?.silent) vscode.window.showErrorMessage(`AI Init Failed: ${e.message}`);
-                    else outputChannel.appendLine(`[n8n] Silent AI Init failed: ${e.message}`);
+            const runInit = (progress?: vscode.Progress<{ message?: string }>) => generateAiContextForWorkspace(
+                context,
+                client,
+                rootPath,
+                { silent: options?.silent, progress, host }
+            );
+            try {
+                if (options?.silent) {
+                    await runInit();
+                } else {
+                    await vscode.window.withProgress({
+                        location: vscode.ProgressLocation.Notification,
+                        title: 'n8n: Initializing AI Context...',
+                        cancellable: false
+                    }, runInit);
                 }
-            };
-            if (options?.silent) {
-                await runInit();
-            } else {
-                await vscode.window.withProgress({
-                    location: vscode.ProgressLocation.Notification,
-                    title: 'n8n: Initializing AI Context...',
-                    cancellable: false
-                }, runInit);
+            } catch (error: any) {
+                if (options?.silent) {
+                    outputChannel.appendLine(`[n8n] Silent AI Init failed: ${error.message}`);
+                } else {
+                    vscode.window.showErrorMessage(`AI Init Failed: ${error.message}`);
+                }
             }
         }),
 
@@ -499,13 +519,8 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
     );
 
-    // ── Background initialization (fire-and-forget) ────────────────────────
-    determineInitialState(context).then(() => {
-        updateContextKeys();
-    }).catch(err => {
-        outputChannel.appendLine(`[n8n] Background initialization error: ${err?.message}`);
-        updateContextKeys();
-    });
+    // ── Backend configuration snapshot initialization ────────────────────────
+    configurationController.start();
 
     // ── Settings change listener ───────────────────────────────────────────
     context.subscriptions.push(
@@ -543,25 +558,6 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         })
     );
-
-    if (vscode.workspace.workspaceFolders?.length) {
-        const configWatcher = vscode.workspace.createFileSystemWatcher(
-            new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], 'n8nac-config.json'),
-            false,
-            false,
-            false
-        );
-
-        const refreshFromConfigFile = async () => {
-            outputChannel.appendLine('[n8n] Workspace config changed. Refreshing extension state...');
-            await refreshStateFromWorkspaceConfig(context);
-        };
-
-        configWatcher.onDidCreate(refreshFromConfigFile);
-        configWatcher.onDidChange(refreshFromConfigFile);
-        configWatcher.onDidDelete(refreshFromConfigFile);
-        context.subscriptions.push(configWatcher);
-    }
 }
 
 function getExistingWorkflowFileUri(workflow: IWorkflowStatus): vscode.Uri | undefined {
@@ -622,6 +618,82 @@ function updateContextKeys() {
     const state = enhancedTreeProvider.getExtensionState();
     vscode.commands.executeCommand('setContext', 'n8n.state', state);
     vscode.commands.executeCommand('setContext', 'n8n.initialized', state === ExtensionState.INITIALIZED);
+}
+
+function requireConfigurationController(): N8nConfigurationController {
+    if (!configurationController) {
+        throw new Error('n8n configuration controller is not initialized.');
+    }
+    return configurationController;
+}
+
+function getAutoInitConnectionKey(workspaceRoot?: string): string {
+    const resolved = getResolvedN8nConfig(workspaceRoot);
+    return JSON.stringify({
+        workspaceRoot: workspaceRoot || '',
+        activeInstanceId: resolved.activeInstanceId || '',
+        host: resolved.host || '',
+        hasApiKey: Boolean(resolved.apiKey),
+        syncFolder: resolved.syncFolder || '',
+        projectId: resolved.projectId || '',
+        projectName: resolved.projectName || '',
+    });
+}
+
+async function handleConfigurationSnapshotChanged(
+    context: vscode.ExtensionContext,
+    event: N8nConfigurationChangeEvent,
+): Promise<void> {
+    if (suppressNextConfigurationReaction) {
+        return;
+    }
+
+    if (initializingPromise) {
+        outputChannel.appendLine(`[n8n] Configuration changed (${event.reason}) while initialization is running.`);
+        return;
+    }
+
+    const runtimeChanged = Boolean(
+        event.previous
+        && event.previous.runtimeSignature !== event.snapshot.runtimeSignature,
+    );
+    if (runtimeChanged) {
+        failedAutoInitRuntimeSignature = undefined;
+    }
+    if (runtimeChanged || event.reason.includes('secret') || event.reason.includes('save')) {
+        failedAutoInitConnectionKey = undefined;
+    }
+
+    if (syncManager && runtimeChanged) {
+        if (event.snapshot.hasValidConnection) {
+            await reinitializeSyncManager(context, { silent: event.reason !== 'manual' });
+        } else {
+            resetExtensionRuntimeState();
+            await determineInitialState(context);
+        }
+        return;
+    }
+
+    if (syncManager) {
+        updateContextKeys();
+        return;
+    }
+
+    await determineInitialState(context);
+}
+
+async function refreshConfigurationSnapshotAfterHandledMutation(reason: string): Promise<void> {
+    const controller = configurationController;
+    if (!controller) {
+        return;
+    }
+
+    suppressNextConfigurationReaction = true;
+    try {
+        await controller.refresh(reason, { force: true });
+    } finally {
+        suppressNextConfigurationReaction = false;
+    }
 }
 
 function disposeRuntimeDisposables(): void {
@@ -695,8 +767,9 @@ async function switchWorkspaceInstance(
     if (syncManager) {
         await reinitializeSyncManager(context);
     } else {
-        await refreshStateFromWorkspaceConfig(context);
+        await determineInitialState(context);
     }
+    await refreshConfigurationSnapshotAfterHandledMutation('command-switch-global-instance');
 
     updateContextKeys();
 
@@ -715,6 +788,74 @@ async function switchWorkspaceInstance(
     }
 
     return selectedInstance.id;
+}
+
+async function pinWorkspaceInstance(
+    context: vscode.ExtensionContext,
+    args: SwitchInstanceCommandArgs = {}
+): Promise<string | undefined> {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) {
+        vscode.window.showErrorMessage(NO_WORKSPACE_ERROR_MESSAGE);
+        return undefined;
+    }
+
+    const configService = new ConfigService(workspaceRoot);
+    const instances = configService.listInstances();
+    if (!instances.length) {
+        vscode.window.showWarningMessage('No configured n8n instances found.');
+        return undefined;
+    }
+
+    let targetInstanceId = args.instanceId?.trim();
+    if (!targetInstanceId) {
+        const activeInstanceId = configService.getActiveInstanceId();
+        const picked = await vscode.window.showQuickPick(
+            instances.map((instance) => toInstanceQuickPickItem(instance, activeInstanceId)),
+            {
+                title: 'Pin n8n instance for this workspace',
+                ignoreFocusOut: true,
+            }
+        );
+        if (!picked) {
+            return undefined;
+        }
+        targetInstanceId = picked.instanceId;
+    }
+
+    const selectedInstance = configService.pinWorkspaceInstance(targetInstanceId);
+    if (syncManager) {
+        await reinitializeSyncManager(context);
+    } else {
+        await determineInitialState(context);
+    }
+    await refreshConfigurationSnapshotAfterHandledMutation('command-pin-workspace-instance');
+    updateContextKeys();
+
+    if (!args.silent) {
+        vscode.window.showInformationMessage(`Workspace n8n instance pinned: ${selectedInstance.name}`);
+    }
+
+    return selectedInstance.id;
+}
+
+async function clearWorkspaceInstancePin(context: vscode.ExtensionContext): Promise<void> {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) {
+        vscode.window.showErrorMessage(NO_WORKSPACE_ERROR_MESSAGE);
+        return;
+    }
+
+    const configService = new ConfigService(workspaceRoot);
+    configService.clearWorkspaceInstanceOverride();
+    if (syncManager) {
+        await reinitializeSyncManager(context);
+    } else {
+        await determineInitialState(context);
+    }
+    await refreshConfigurationSnapshotAfterHandledMutation('command-clear-workspace-instance');
+    updateContextKeys();
+    vscode.window.showInformationMessage('Workspace n8n instance pin cleared.');
 }
 
 async function deleteWorkspaceInstance(
@@ -776,14 +917,17 @@ async function deleteWorkspaceInstance(
 
     const refreshAfterDelete = async () => {
         if (!wasActive) {
+            await refreshConfigurationSnapshotAfterHandledMutation('command-delete-instance');
+            updateContextKeys();
             return;
         }
 
         if (result.activeInstance) {
             await reinitializeSyncManager(context);
         } else {
-            await refreshStateFromWorkspaceConfig(context);
+            await determineInitialState(context);
         }
+        await refreshConfigurationSnapshotAfterHandledMutation('command-delete-instance');
         updateContextKeys();
     };
 
@@ -814,27 +958,6 @@ async function deleteWorkspaceInstance(
     return result.deletedInstance.id;
 }
 
-function getConfigRefreshSignature(workspaceRoot?: string): string {
-    if (!workspaceRoot) {
-        return 'no-workspace';
-    }
-
-    const configPath = path.join(workspaceRoot, 'n8nac-config.json');
-    if (!fs.existsSync(configPath)) {
-        return 'missing-config';
-    }
-
-    const resolvedConfig = getResolvedN8nConfig(workspaceRoot);
-    return JSON.stringify({
-        activeInstanceId: resolvedConfig.activeInstanceId,
-        host: resolvedConfig.host,
-        hasApiKey: Boolean(resolvedConfig.apiKey),
-        syncFolder: resolvedConfig.syncFolder,
-        projectId: resolvedConfig.projectId,
-        projectName: resolvedConfig.projectName,
-    });
-}
-
 function resetExtensionRuntimeState(): void {
     if (syncManager) {
         syncManager.removeAllListeners();
@@ -851,43 +974,9 @@ function resetExtensionRuntimeState(): void {
     store.dispatch(clearConflicts());
 }
 
-async function refreshStateFromWorkspaceConfig(context: vscode.ExtensionContext): Promise<void> {
-    if (initializingPromise) {
-        outputChannel.appendLine('[n8n] Ignoring config refresh while initialization is already in progress.');
-        return;
-    }
-
-    const workspaceRoot = getWorkspaceRoot();
-    const nextSignature = getConfigRefreshSignature(workspaceRoot);
-    if (lastConfigRefreshSignature === nextSignature) {
-        return;
-    }
-    lastConfigRefreshSignature = nextSignature;
-
-    if (!workspaceRoot) {
-        resetExtensionRuntimeState();
-        enhancedTreeProvider.setExtensionState(ExtensionState.UNINITIALIZED);
-        statusBar.hide();
-        updateContextKeys();
-        return;
-    }
-
-    const hasUnifiedConfig = fs.existsSync(path.join(workspaceRoot, 'n8nac-config.json'));
-    if (!hasUnifiedConfig) {
-        resetExtensionRuntimeState();
-        enhancedTreeProvider.setExtensionState(ExtensionState.CONFIGURING);
-        statusBar.showConfiguring();
-        updateContextKeys();
-        return;
-    }
-
-    await determineInitialState(context);
-}
-
 async function determineInitialState(context: vscode.ExtensionContext) {
     const configValidation = validateN8nConfig();
     const workspaceRoot = getWorkspaceRoot();
-    lastConfigRefreshSignature = getConfigRefreshSignature(workspaceRoot);
 
     if (!workspaceRoot) {
         resetExtensionRuntimeState();
@@ -906,19 +995,35 @@ async function determineInitialState(context: vscode.ExtensionContext) {
         return;
     }
 
-    const previouslyInitialized = isFolderPreviouslyInitialized(workspaceRoot);
+    if (configValidation.isValid) {
+        const autoInitConnectionKey = getAutoInitConnectionKey(workspaceRoot);
+        if (failedAutoInitConnectionKey === autoInitConnectionKey) {
+            outputChannel.appendLine('[n8n] Skipping automatic sync initialization for unchanged connection after previous failure.');
+            updateContextKeys();
+            return;
+        }
 
-    if (previouslyInitialized && configValidation.isValid) {
-        outputChannel.appendLine('[n8n] Previously initialized folder detected. Auto-loading...');
+        const runtimeSignature = configurationController?.getSnapshot()?.runtimeSignature;
+        if (runtimeSignature && failedAutoInitRuntimeSignature === runtimeSignature) {
+            outputChannel.appendLine('[n8n] Skipping automatic sync initialization for unchanged config after previous failure.');
+            updateContextKeys();
+            return;
+        }
+
+        outputChannel.appendLine('[n8n] Valid effective n8n config detected. Loading sync manager...');
         enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZING);
         updateContextKeys();
         statusBar.showLoading();
         try {
             initializingPromise = initializeSyncManager(context);
             await initializingPromise;
+            failedAutoInitRuntimeSignature = undefined;
+            failedAutoInitConnectionKey = undefined;
             enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZED);
             statusBar.showSynced();
         } catch (error: any) {
+            failedAutoInitRuntimeSignature = runtimeSignature;
+            failedAutoInitConnectionKey = autoInitConnectionKey;
             outputChannel.appendLine(`[n8n] Auto-load failed: ${error.message}`);
             enhancedTreeProvider.setExtensionState(ExtensionState.ERROR, error.message);
             statusBar.showError(error.message);
@@ -928,9 +1033,6 @@ async function determineInitialState(context: vscode.ExtensionContext) {
     } else if (!configValidation.isValid) {
         enhancedTreeProvider.setExtensionState(ExtensionState.CONFIGURING);
         statusBar.showConfiguring();
-    } else {
-        enhancedTreeProvider.setExtensionState(ExtensionState.UNINITIALIZED);
-        statusBar.showNotInitialized();
     }
     updateContextKeys();
 }
@@ -955,7 +1057,7 @@ async function handleInitializeCommand(context: vscode.ExtensionContext) {
     const configValidation = validateN8nConfig();
     if (!configValidation.isValid) {
         vscode.window.showErrorMessage(`Missing configuration: ${configValidation.missing.join(', ')}`);
-        ConfigurationWebview.createOrShow(context);
+        ConfigurationWebview.createOrShow(context, requireConfigurationController());
         return;
     }
 
@@ -964,15 +1066,19 @@ async function handleInitializeCommand(context: vscode.ExtensionContext) {
     statusBar.showLoading();
 
     try {
+        failedAutoInitRuntimeSignature = undefined;
+        failedAutoInitConnectionKey = undefined;
         initializingPromise = initializeSyncManager(context);
         await initializingPromise;
+        failedAutoInitRuntimeSignature = undefined;
+        failedAutoInitConnectionKey = undefined;
         enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZED);
         updateContextKeys();
         statusBar.showSynced();
-        outputChannel.appendLine('[n8n] Auto-initializing AI context...');
-        await vscode.commands.executeCommand('n8n.initializeAI', { silent: true });
         vscode.window.showInformationMessage('✅ n8n as code initialized successfully!');
     } catch (error: any) {
+        failedAutoInitRuntimeSignature = configurationController?.getSnapshot()?.runtimeSignature;
+        failedAutoInitConnectionKey = getAutoInitConnectionKey(getWorkspaceRoot());
         outputChannel.appendLine(`[n8n] Initialization failed: ${error.message}`);
         enhancedTreeProvider.setExtensionState(ExtensionState.ERROR, error.message);
         statusBar.showError(error.message);
@@ -989,27 +1095,141 @@ async function showNoWorkspaceError() {
     }
 }
 
-async function initializeSyncManager(context: vscode.ExtensionContext) {
-    if (syncManager) {
-        syncManager.removeAllListeners();
+function getHttpStatus(error: any): number | undefined {
+    return error?.response?.status;
+}
+
+function formatN8nApiError(error: any, host: string): string {
+    const status = getHttpStatus(error);
+    if (status === 401) {
+        return `Cannot authenticate to n8n at "${host}". Check the API key for the effective instance.`;
     }
-    disposeRuntimeDisposables();
+    if (status === 403) {
+        return `The API key reached n8n at "${host}", but it cannot access workflows. Check the API key permissions.`;
+    }
+    if (status === 404) {
+        return `The n8n workflows API is not available at "${host}". Check the instance URL.`;
+    }
+    if (!error?.response) {
+        return `Cannot connect to n8n at "${host}": ${error?.message || error}`;
+    }
+    return `n8n API request failed at "${host}" with status ${status}: ${error?.message || error}`;
+}
+
+async function assertN8nApiAccess(client: N8nApiClient, host: string): Promise<void> {
+    try {
+        await client.assertApiAccess();
+    } catch (error: any) {
+        throw new Error(formatN8nApiError(error, host));
+    }
+}
+
+async function generateAiContextForWorkspace(
+    context: vscode.ExtensionContext,
+    client: N8nApiClient,
+    workspaceRoot: string,
+    options: {
+        host?: string;
+        progress?: vscode.Progress<{ message?: string }>;
+        silent?: boolean;
+        skipApiValidation?: boolean;
+        versionHint?: string;
+    } = {},
+): Promise<string> {
+    if (!options.skipApiValidation && options.host) {
+        options.progress?.report({ message: 'Checking n8n API access...' });
+        await assertN8nApiAccess(client, options.host);
+    }
+
+    const version = options.versionHint || (await client.getHealth()).version;
+    options.progress?.report({ message: 'Generating AGENTS.md...' });
+
+    const distTag = (typeof __N8NAC_VERSION__ !== 'undefined' && __N8NAC_VERSION__ === 'next') ? 'next' : undefined;
+    const cliVersion = (typeof __N8NAC_CLI_SEMVER__ !== 'undefined' && __N8NAC_CLI_SEMVER__) ? __N8NAC_CLI_SEMVER__ : undefined;
+    await new AiContextGenerator().generate(workspaceRoot, version, distTag, { cliVersion });
+    await context.workspaceState.update('n8n.lastInitVersion', version);
+    enhancedTreeProvider.setAIContextInfo(version, false);
+
+    if (!options.silent) {
+        vscode.window.showInformationMessage(`✨ n8n AI Context Initialized! (v${version})`);
+    }
+
+    return version;
+}
+
+async function updateAiContextAfterSyncInitialization(
+    context: vscode.ExtensionContext,
+    client: N8nApiClient,
+    workspaceRoot: string,
+    versionHint?: string,
+): Promise<void> {
+    const currentVersion = versionHint || (await client.getHealth()).version;
+    const lastVersion = context.workspaceState.get<string>('n8n.lastInitVersion');
+    const missingAgentsFile = !fs.existsSync(path.join(workspaceRoot, 'AGENTS.md'));
+    const needsUpdate = missingAgentsFile || Boolean(currentVersion && lastVersion && currentVersion !== lastVersion);
+
+    enhancedTreeProvider.setAIContextInfo(currentVersion, needsUpdate);
+    if (!needsUpdate) {
+        return;
+    }
+
+    try {
+        outputChannel.appendLine('[n8n] Updating AI context after sync initialization...');
+        await generateAiContextForWorkspace(context, client, workspaceRoot, {
+            silent: true,
+            skipApiValidation: true,
+            versionHint: currentVersion,
+        });
+    } catch (error: any) {
+        outputChannel.appendLine(`[n8n] Failed to auto-generate AI context: ${error.message}`);
+    }
+}
+
+async function reconcileManagedInstanceIfNeeded(
+    workspaceRoot: string,
+    activeInstanceId?: string,
+): Promise<void> {
+    if (!activeInstanceId) {
+        return;
+    }
+
+    const instance = configurationController
+        ?.getSnapshot()
+        ?.global.instances.find((candidate) => candidate.id === activeInstanceId);
+    if (instance?.mode !== 'managed-local-docker') {
+        return;
+    }
+
+    outputChannel.appendLine(`[n8n] Reconciling managed local instance "${instance.name}" before sync initialization...`);
+    const facade = createN8nManagerFacade({ workspaceRoot });
+    await facade.setup({
+        mode: 'managed-local',
+        tunnel: false,
+        bootstrapOwner: true,
+    });
+    await refreshConfigurationSnapshotAfterHandledMutation('managed-instance-reconciled');
+}
+
+async function initializeSyncManager(context: vscode.ExtensionContext) {
+    resetExtensionRuntimeState();
 
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     if (!workspaceRoot) throw new Error(NO_WORKSPACE_ERROR_MESSAGE);
 
-    const resolvedConfig = getResolvedN8nConfig(workspaceRoot);
+    let resolvedConfig = getResolvedN8nConfig(workspaceRoot);
+    await reconcileManagedInstanceIfNeeded(workspaceRoot, resolvedConfig.activeInstanceId);
+    resolvedConfig = getResolvedN8nConfig(workspaceRoot);
+
     const { host, apiKey } = resolvedConfig;
     const folder = resolvedConfig.syncFolder || 'workflows';
     let projectId = resolvedConfig.projectId || undefined;
     let projectName = resolvedConfig.projectName || undefined;
-    const activeInstanceId = resolvedConfig.activeInstanceId || undefined;
-    const activeInstanceName = resolvedConfig.activeInstanceName || undefined;
-
     if (!host || !apiKey) throw new Error('Host/API Key missing. Please configure n8n.');
 
     const credentials: IN8nCredentials = { host, apiKey };
     const client = new N8nApiClient(credentials);
+    await assertN8nApiAccess(client, host);
+    const health = await client.getHealth();
 
     if (!projectId || !projectName) {
         const projects = await client.getProjects();
@@ -1038,7 +1258,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         outputChannel.appendLine(`[n8n] Selected project: ${projectName} (${projectId})`);
     }
 
-    const absDirectory = path.join(workspaceRoot, folder);
+    const absDirectory = path.isAbsolute(folder) ? folder : path.resolve(workspaceRoot, folder);
 
     let instanceIdentifier: string;
     try {
@@ -1056,20 +1276,13 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         throw new Error(`Cannot connect to n8n instance at "${host}". Please check if n8n is running.`);
     }
 
-    await writeUnifiedWorkspaceConfig({
-        workspaceRoot,
-        host,
-        apiKey,
-        syncFolder: folder,
-        projectId: projectId!,
-        projectName: projectName!,
-        instanceIdentifier,
-        instanceId: activeInstanceId,
-        instanceName: activeInstanceName,
-        setActive: true,
-    });
-    lastConfigRefreshSignature = getConfigRefreshSignature(workspaceRoot);
-
+    const facade = createN8nManagerFacade({ workspaceRoot });
+    const workspaceOverrides = await facade.readWorkspaceOverrides(workspaceRoot);
+    await facade.writeWorkspaceOverrides({
+        ...workspaceOverrides,
+        projectId: workspaceOverrides.projectId || projectId,
+        projectName: workspaceOverrides.projectName || projectName,
+    }, workspaceRoot);
     // Create SyncManager (the stateful engine: WorkflowStateTracker, events, etc.)
     syncManager = new SyncManager(client, {
         directory: absDirectory,
@@ -1207,32 +1420,18 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         store.dispatch(setWorkflows(workflows));
         outputChannel.appendLine(`[n8n] Found ${workflows.length} workflows.`);
     } catch (error: any) {
+        resetExtensionRuntimeState();
         outputChannel.appendLine(`[n8n] Failed to load workflows: ${error.message}`);
+        throw error;
     }
 
-    // AI context check
-    const missingAny = !fs.existsSync(path.join(workspaceRoot, 'AGENTS.md'));
-    const lastVersion = context.workspaceState.get<string>('n8n.lastInitVersion');
-    let currentVersion: string | undefined;
-    try { currentVersion = (await client.getHealth()).version; } catch { }
-
-    const needsUpdate = missingAny || (currentVersion && lastVersion && currentVersion !== lastVersion);
-    enhancedTreeProvider.setAIContextInfo(currentVersion, !!needsUpdate);
-
-    if (needsUpdate && missingAny && !lastVersion) {
-        try {
-            await vscode.commands.executeCommand('n8n.initializeAI', { silent: true });
-            enhancedTreeProvider.setAIContextInfo(
-                context.workspaceState.get<string>('n8n.lastInitVersion') || currentVersion,
-                false
-            );
-        } catch (error: any) {
-            outputChannel.appendLine(`[n8n] Failed to auto-generate AI context: ${error.message}`);
-        }
-    }
+    await updateAiContextAfterSyncInitialization(context, client, workspaceRoot, health.version);
 }
 
-async function reinitializeSyncManager(context: vscode.ExtensionContext) {
+async function reinitializeSyncManager(
+    context: vscode.ExtensionContext,
+    options: { silent?: boolean } = {},
+) {
     if (!syncManager) return;
     if (initializingPromise) {
         await initializingPromise;
@@ -1247,12 +1446,18 @@ async function reinitializeSyncManager(context: vscode.ExtensionContext) {
         enhancedTreeProvider.setExtensionState(ExtensionState.INITIALIZED);
         updateContextKeys();
         enhancedTreeProvider.refresh();
-        vscode.window.showInformationMessage('✅ n8n settings updated successfully.');
+        if (!options.silent) {
+            vscode.window.showInformationMessage('✅ n8n settings updated successfully.');
+        }
     } catch (error: any) {
+        failedAutoInitRuntimeSignature = configurationController?.getSnapshot()?.runtimeSignature;
+        failedAutoInitConnectionKey = getAutoInitConnectionKey(getWorkspaceRoot());
         outputChannel.appendLine(`[n8n] Failed to reinitialize: ${error.message}`);
         enhancedTreeProvider.setExtensionState(ExtensionState.ERROR, error.message);
         updateContextKeys();
-        vscode.window.showErrorMessage(`Failed to update settings: ${error.message}`);
+        if (!options.silent) {
+            vscode.window.showErrorMessage(`Failed to update settings: ${error.message}`);
+        }
     } finally {
         initializingPromise = undefined;
     }

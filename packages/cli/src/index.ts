@@ -20,6 +20,7 @@ import { createRequire } from 'module';
 import { parsePositiveIntegerOption } from './utils/option-parsers.js';
 import { spawn } from 'child_process';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
+import { ConfigService } from './services/config-service.js';
 import {
     N8N_FACADE_SETUP_MODES,
     isN8nFacadeSetupMode,
@@ -300,6 +301,55 @@ instanceProgram.command('list')
     .option('--json', 'Output saved instance configs as JSON')
     .action(async (options) => {
         await switchCommand.runInstanceList(options);
+    });
+
+const workspaceProgram = program.command('workspace')
+    .description('Manage n8n workspace overrides');
+
+workspaceProgram.command('pin-instance')
+    .description('Pin the effective n8n instance for this workspace')
+    .requiredOption('--instance-id <id>', 'Global n8n instance ID to pin')
+    .option('--json', 'Output workspace config as JSON')
+    .action((options) => {
+        const configService = new ConfigService();
+        const instance = configService.pinWorkspaceInstance(options.instanceId);
+        const workspaceConfig = configService.getWorkspaceConfig();
+        printJsonOrText(
+            options,
+            workspaceConfig,
+            chalk.green(`✔ Workspace pinned to n8n instance: ${instance.name}`),
+        );
+    });
+
+workspaceProgram.command('clear-instance')
+    .description('Clear the workspace n8n instance pin and fall back to the global active instance')
+    .option('--json', 'Output workspace config as JSON')
+    .action((options) => {
+        const configService = new ConfigService();
+        configService.clearWorkspaceInstanceOverride();
+        const workspaceConfig = configService.getWorkspaceConfig();
+        printJsonOrText(options, workspaceConfig, chalk.green('✔ Workspace instance override cleared.'));
+    });
+
+workspaceProgram.command('set-sync-folder')
+    .description('Set the n8n sync folder override for this workspace')
+    .argument('<path>', 'Workspace sync folder path')
+    .option('--json', 'Output workspace config as JSON')
+    .action((syncFolder, options) => {
+        const configService = new ConfigService();
+        configService.setWorkspaceSyncFolder(syncFolder);
+        const workspaceConfig = configService.getWorkspaceConfig();
+        printJsonOrText(options, workspaceConfig, chalk.green(`✔ Workspace sync folder set to: ${syncFolder}`));
+    });
+
+workspaceProgram.command('clear-sync-folder')
+    .description('Clear the workspace n8n sync folder override and fall back to the global default')
+    .option('--json', 'Output workspace config as JSON')
+    .action((options) => {
+        const configService = new ConfigService();
+        configService.clearWorkspaceSyncFolderOverride();
+        const workspaceConfig = configService.getWorkspaceConfig();
+        printJsonOrText(options, workspaceConfig, chalk.green('✔ Workspace sync folder override cleared.'));
     });
 
 program.command('setup')

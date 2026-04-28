@@ -41,7 +41,10 @@ export function toStoredSyncFolder(workspaceRoot: string, syncFolder: string): s
         return 'workflows';
     }
 
-    return syncFolder.startsWith(workspaceRoot)
+    const normalizedWorkspaceRoot = path.resolve(workspaceRoot);
+    const normalizedSyncFolder = path.resolve(syncFolder);
+
+    return path.isAbsolute(syncFolder) && normalizedSyncFolder.startsWith(`${normalizedWorkspaceRoot}${path.sep}`)
         ? path.relative(workspaceRoot, syncFolder) || 'workflows'
         : syncFolder;
 }
@@ -132,7 +135,7 @@ export async function buildUnifiedWorkspaceConfig(
     const active = instances.find((instance) => instance.id === activeInstanceId);
 
     return {
-        version: 2,
+        version: 3,
         activeInstanceId,
         instances,
         ...toActiveFields(active),
