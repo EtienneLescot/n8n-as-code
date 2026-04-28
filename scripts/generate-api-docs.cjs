@@ -81,10 +81,10 @@ The sync package provides the foundational services for managing n8n workflows a
 Command-line interface for managing n8n workflows from the terminal.
 
 **Key Commands:**
-- \`init\` - Initialize a new n8n-as-code project
-- \`init-ai\` - Initialize with AI-assisted configuration
+- \`workspace\` - Manage workspace-local overrides
+- \`update-ai\` - Regenerate AI context files
 - \`sync\` - Synchronize workflows between files and n8n
-- \`watch\` - Watch for changes and auto-sync
+- \`list\`, \`pull\`, \`push\` - Work with n8n workflows
 
 ### Skills CLI Package
 Tools for AI agents to work with n8n workflows.
