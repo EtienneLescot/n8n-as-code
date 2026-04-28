@@ -100,6 +100,17 @@ test('injectClipboardBridge: appends script when no </head> or </body>', () => {
     assert.ok(result.includes('<script>'), 'Script must still be appended when no standard closing tag found');
 });
 
+test('ProxyService: registered HTML routes are normalized by pathname', () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const service = new ProxyService();
+    service.registerHtmlRoute('/__n8n-manager/open-workflow/wf-1', '<html>login</html>');
+
+    assert.equal(
+        (service as any).getRegisteredHtmlRoute('/__n8n-manager/open-workflow/wf-1?x=1'),
+        '<html>login</html>',
+    );
+});
+
 // ── 3 : parent webview HTML — grant token & rate-limit markers ──────────────
 // buildWebviewHtml is a pure function (no vscode dependency) that generates
 // the parent-webview HTML. We assert on the security-relevant parts of the

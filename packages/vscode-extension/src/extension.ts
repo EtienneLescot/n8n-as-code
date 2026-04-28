@@ -191,18 +191,7 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('n8n.openBoard', async (arg: any) => {
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf) return;
-            const { host } = getN8nConfig();
-            if (host) {
-                try {
-                    const proxyUrl = await proxyService.start(host);
-                    WorkflowWebview.createOrShow(wf, `${proxyUrl}/workflow/${wf.id}`, undefined);
-                    registerClipboardHandler();
-                } catch (e: any) {
-                    vscode.window.showErrorMessage(`Failed to start proxy: ${e.message}`);
-                }
-            } else {
-                vscode.window.showErrorMessage('n8n Host not configured.');
-            }
+            await openWorkflowBoard(wf);
         }),
 
         vscode.commands.registerCommand('n8n.openJson', async (arg: any) => {
@@ -224,7 +213,6 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('n8n.openSplit', async (arg: any) => {
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf || !syncManager) return;
-            const { host } = getN8nConfig();
             const uri = getExistingWorkflowFileUri(wf);
             if (uri) {
                 try {
@@ -234,15 +222,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     vscode.window.showErrorMessage(`Could not open file: ${e.message}`);
                 }
             }
-            if (host) {
-                try {
-                    const proxyUrl = await proxyService.start(host);
-                    WorkflowWebview.createOrShow(wf, `${proxyUrl}/workflow/${wf.id}`, vscode.ViewColumn.Two);
-                    registerClipboardHandler();
-                } catch (e: any) {
-                    vscode.window.showErrorMessage(`Failed to start proxy: ${e.message}`);
-                }
-            }
+            await openWorkflowBoard(wf, vscode.ViewColumn.Two);
         }),
 
         // n8nac push <path>
@@ -612,6 +592,40 @@ async function openWorkflowFromFinder(workflow: IWorkflowStatus): Promise<void> 
     }
 
     vscode.window.showWarningMessage(`Cannot open workflow "${workflow.name}": no local file or remote ID is available.`);
+}
+
+async function openWorkflowBoard(workflow: IWorkflowStatus, viewColumn?: vscode.ViewColumn): Promise<void> {
+    if (!workflow.id) {
+        vscode.window.showWarningMessage(`Cannot open workflow "${workflow.name}": no remote ID is available.`);
+        return;
+    }
+
+    const workspaceRoot = getWorkspaceRoot();
+    const facade = createN8nManagerFacade({ workspaceRoot });
+    try {
+        const effective = await facade.resolveEffectiveContext({
+            workspaceRoot,
+            syncFolderDefault: workspaceRoot ? 'workspace' : 'global',
+        });
+        const proxyUrl = await proxyService.start(effective.host);
+        const openTarget = await facade.resolveWorkflowWebviewOpen({
+            workflowId: workflow.id,
+            proxyBaseUrl: proxyUrl,
+            workspaceRoot,
+        });
+
+        if (openTarget.routePath && openTarget.autoLoginPageHtml) {
+            proxyService.registerHtmlRoute(openTarget.routePath, openTarget.autoLoginPageHtml);
+            outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} through managed auto-login webview route.`);
+        } else {
+            outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} through direct webview route.`);
+        }
+
+        WorkflowWebview.createOrShow(workflow, openTarget.url, viewColumn);
+        registerClipboardHandler();
+    } catch (e: any) {
+        vscode.window.showErrorMessage(`Failed to open n8n workflow: ${e.message}`);
+    }
 }
 
 function updateContextKeys() {

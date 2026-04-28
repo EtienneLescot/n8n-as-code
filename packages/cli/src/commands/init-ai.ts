@@ -13,6 +13,9 @@ import {
 import {
     AiContextGenerator
 } from '@n8n-as-code/skills';
+import {
+    getN8nManagerAgentInstructions
+} from '@n8n-as-code/n8n-manager-core';
 import { ConfigService } from '../services/config-service.js';
 import dotenv from 'dotenv';
 import { getN8nacDevConfigFilenames } from '@n8n-as-code/skills';
@@ -76,12 +79,49 @@ function inferLocalDevCliCommand(projectRoot: string): string | undefined {
     return `node ${quoteShellArg(entrypoint)}`;
 }
 
+function inferLocalDevManagerCommand(): string | undefined {
+    if (process.env.N8N_MANAGER_COMMAND) {
+        return process.env.N8N_MANAGER_COMMAND;
+    }
+
+    const currentFile = fileURLToPath(import.meta.url);
+    const n8nAsCodeRoot = resolve(dirname(currentFile), '..', '..', '..', '..');
+    const siblingManagerCli = resolve(n8nAsCodeRoot, '..', 'n8n-manager', 'packages', 'cli', 'dist', 'index.js');
+    if (existsSync(siblingManagerCli)) {
+        return `node ${quoteShellArg(siblingManagerCli)}`;
+    }
+
+    return undefined;
+}
+
+function injectOrUpdateMarkdownBlock(filePath: string, blockName: string, content: string): void {
+    const startMarker = `<!-- ${blockName}-start -->`;
+    const endMarker = `<!-- ${blockName}-end -->`;
+    const block = `\n${startMarker}\n${content.trim()}\n${endMarker}\n`;
+
+    if (!existsSync(filePath)) {
+        fs.writeFileSync(filePath, `# 🤖 AI Agents Guidelines\n${block.trim()}\n`);
+        return;
+    }
+
+    const existing = readFileSync(filePath, 'utf8');
+    const startIdx = existing.indexOf(startMarker);
+    const endIdx = existing.indexOf(endMarker);
+    if (startIdx !== -1 && endIdx !== -1) {
+        fs.writeFileSync(filePath, existing.substring(0, startIdx) + block.trim() + existing.substring(endIdx + endMarker.length));
+        return;
+    }
+
+    fs.writeFileSync(filePath, `${existing.trim()}\n${block}`);
+}
+
 export class UpdateAiCommand {
     constructor(private program: Command) {
         this.program
             .command('update-ai')
             .description('Update AI Context (AGENTS.md and snippets)')
             .option('--cli-cmd <command>', 'Override the generated n8nac command in AGENTS.md (for local dev builds)')
+            .option('--manager-cmd <command>', 'Override the generated n8n-manager command in AGENTS.md (for local dev builds)')
             .option('--silent', 'Suppress all output (used for background refresh)')
             .action(async (options) => {
                 await this.run(options);
@@ -147,6 +187,13 @@ export class UpdateAiCommand {
                 cliCommandOverride: options.cliCmd || inferLocalDevCliCommand(projectRoot),
                 cliVersion: getCliVersion(),
             });
+            injectOrUpdateMarkdownBlock(
+                join(projectRoot, 'AGENTS.md'),
+                'n8n-manager-agent-tools',
+                getN8nManagerAgentInstructions({
+                    command: options.managerCmd || inferLocalDevManagerCommand() || 'n8n-manager',
+                }),
+            );
             if (!silent) console.log(chalk.green('   ✅ AI context files created.'));
 
             // 3. Update n8n-workflows.d.ts for all configured instances
