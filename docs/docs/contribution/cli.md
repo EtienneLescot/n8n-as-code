@@ -25,10 +25,8 @@ packages/cli/
 │   ├── index.ts              # CLI entry point (registers all commands)
 │   ├── commands/
 │   │   ├── base.ts           # Base command class
-│   │   ├── init.ts           # Init command
-│   │   ├── init-ai.ts        # UpdateAiCommand (init-ai is a backward-compat alias)
+│   │   ├── update-ai.ts      # UpdateAiCommand
 │   │   ├── list.ts           # List command
-│   │   ├── switch.ts         # Switch project command
 │   │   ├── convert.ts        # Convert command (JSON ↔ TypeScript)
 │   │   └── sync.ts           # Sync command (pull / push / fetch / resolve)
 │   ├── core/
@@ -47,15 +45,11 @@ packages/cli/
 ```mermaid
 graph TD
     A[n8n-as-code CLI] --> B[BaseCommand]
-    B --> C[InitCommand]
     B --> D[UpdateAiCommand]
     B --> E[SyncCommand]
     B --> F[ListCommand]
-    B --> G[SwitchCommand]
     B --> H[ConvertCommand]
     
-    D --> |init-ai alias| D
-    C --> I[CLI Core / Sync Engine]
     E --> |pull/push/fetch/resolve| I
     F --> I
     G --> I
@@ -130,38 +124,14 @@ abstract class BaseCommand {
 }
 ```
 
-### 3. **Init Command (`commands/init.ts`)**
-Initializes a new n8n-as-code project.
+### 3. **Workspace Commands**
+Workspace commands own only local overrides over the global `n8n-manager` configuration.
 
 **Key Responsibilities:**
-- Create project directory structure
-- Generate configuration files
-- Set up n8n instance connections
-- Initialize Git repository (optional)
-
-**Implementation:**
-```typescript
-class InitCommand extends BaseCommand {
-  constructor(program: Command) {
-    super(program);
-    
-    program
-      .command('init')
-      .description('Initialize a new n8n-as-code project')
-      .option('--host <url>', 'n8n instance URL')
-      .option('--api-key <key>', 'n8n API key')
-      .option('--no-git', 'Skip Git initialization')
-      .action(this.execute.bind(this));
-  }
-  
-  async execute(options: any): Promise<void> {
-    // Create directory structure
-    // Generate config file
-    // Test connection to n8n
-    // Initialize Git if requested
-  }
-}
-```
+- Show backend-resolved workspace status
+- Pin or clear the effective workspace instance
+- Set or clear the workspace sync folder
+- Set or clear the workspace project override
 
 ### 4. **Sync Command (`commands/sync.ts`)**
 Synchronizes workflows between local files and n8n.
@@ -191,17 +161,13 @@ Shows current sync status of all workflows.
 - Display color-coded status table
 - Support `--local` / `--remote` filters for focused views
 
-### 6. **Update AI Command (`commands/init-ai.ts`)**
+### 6. **Update AI Command (`commands/update-ai.ts`)**
 Regenerates AI context files for the project.
 
 **Key Responsibilities:**
 - Generate `AGENTS.md` with n8n-specific AI agent instructions
 - Generate `.vscode/n8n.code-snippets` from the n8n node index
 - Optionally connect to n8n to embed the running instance version
-
-:::note
-The class `UpdateAiCommand` registers the `update-ai` command. `InitAiCommand` extends it as a backward-compatible alias for `init-ai`.
-:::
 
 ### 7. **Config Service (`services/config-service.ts`)**
 Manages CLI configuration.
@@ -286,9 +252,11 @@ n8nac --help
 ### Testing with Local n8n
 1. Start a local n8n instance
 2. Get API key from n8n settings
-3. Configure CLI:
+3. Configure runtime and workspace:
 ```bash
-n8nac init
+n8n-manager auth set --url <url> --api-key-stdin
+n8n-manager projects select <project-id-or-name>
+n8nac workspace set-sync-folder workflows
 ```
 
 ## 🔧 Adding New Commands
@@ -440,7 +408,7 @@ curl -H "X-N8N-API-KEY: your-key" https://your-n8n.com/api/v1/workflows
 
 #### Configuration Not Found
 1. Check current directory for `n8nac-config.json`
-2. Run `n8nac init` to create config
+2. Run `n8nac workspace set-sync-folder workflows` to create config
 
 #### Sync Conflicts
 1. Review conflict details in output

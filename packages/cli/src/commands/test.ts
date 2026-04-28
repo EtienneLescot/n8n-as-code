@@ -55,6 +55,7 @@ export class TestCommand extends BaseCommand {
 
         let result: ITestResult;
         try {
+            await this.prepareRuntimeContext();
             result = await this.client.testWorkflow(workflowId, {
                 data: parsedData ?? {},
                 query: parsedQuery,

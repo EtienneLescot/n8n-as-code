@@ -45,8 +45,10 @@ Or jump straight to the [Getting Started guide](/docs/getting-started) for step-
 # Install
 npm install -g n8nac
 
-# Save an instance config and select a project
-n8nac init
+# Configure runtime and workspace
+n8n-manager auth set --url <url> --api-key-stdin
+n8n-manager projects select <project-id-or-name>
+n8nac workspace set-sync-folder workflows
 
 # See all workflows and their sync status
 n8nac list

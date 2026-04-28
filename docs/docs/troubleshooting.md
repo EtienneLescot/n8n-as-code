@@ -20,16 +20,16 @@ Quick fixes for the most common issues. If your problem isn't listed here, check
    ```bash
    curl -H "X-N8N-API-KEY: your-api-key" https://your-n8n-instance.com/api/v1/workflows
    ```
-3. **Re-run init** to reconfigure:
+3. **Reconfigure n8n-manager**:
    ```bash
-   n8nac init
+   n8n-manager auth set --url <url> --api-key-stdin
    ```
 
 ### "Invalid API key" or "Unauthorized"
 
 - Go to n8n **Settings → API** and regenerate the key
 - Check that the key has workflow read/write permissions
-- Re-run `n8nac init` to save the new key
+- Re-run `n8n-manager auth set --url <url> --api-key-stdin` to save the new key
 
 ## VS Code Extension
 
@@ -92,7 +92,9 @@ Someone (or you in the n8n UI) modified the workflow remotely since your last pu
 2. Restart Claude Code after installing
 3. Check that the workspace is initialized:
    ```bash
-   npx --yes n8nac init
+   n8n-manager auth set --url <url> --api-key-stdin
+   n8n-manager projects select <project-id-or-name>
+   npx --yes n8nac workspace set-sync-folder workflows
    npx --yes n8nac update-ai
    ```
 
@@ -172,7 +174,7 @@ export PATH="$PATH:$(npm config get prefix)/bin"
 
 ### "Configuration not found"
 
-Run `n8nac init` to create `n8nac-config.json`. Verify it exists:
+Run `n8nac workspace set-sync-folder workflows` to create `n8nac-config.json`. Verify it exists:
 ```bash
 cat n8nac-config.json
 ```
@@ -214,8 +216,10 @@ cp -r workflows/ workflows-backup-$(date +%Y%m%d)
 # Reset config
 rm n8nac-config.json
 
-# Reinitialize
-n8nac init
+# Reconfigure
+n8n-manager auth set --url <url> --api-key-stdin
+n8n-manager projects select <project-id-or-name>
+n8nac workspace set-sync-folder workflows
 n8nac list
 n8nac pull <workflowId>
 ```

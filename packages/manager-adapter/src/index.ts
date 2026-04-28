@@ -1,11 +1,13 @@
 import {
   FileBackedN8nLifecycleManager,
   N8nConfigurationService,
+  N8nRuntimeOrchestrator,
   createManagedLocalLifecycleManager,
   readFileBackedN8nInstance,
   resolveWorkflowWebviewOpen,
   resolveN8nManagerHome,
   resolveFileBackedN8nStatePath,
+  listN8nProjects,
   type EffectiveN8nContext,
   type GlobalN8nInstance,
   type N8nGlobalConfiguration,
@@ -13,8 +15,12 @@ import {
   type UpsertGlobalN8nInstanceInput,
   type N8nHealthSnapshot,
   type N8nInstanceRef,
+  type N8nRuntimeConsumer,
+  type N8nRuntimeStatusSnapshot,
+  type PreparedEffectiveN8nContext,
   type N8nWorkspaceOverrides,
   type WorkflowWebviewOpenPayload,
+  type N8nProjectSnapshot,
 } from '@n8n-as-code/n8n-manager-core';
 import path from 'node:path';
 import {
@@ -55,7 +61,7 @@ export interface N8nFacadeSetupInput {
 
 export interface N8nManagerFacade {
   setup(input: N8nFacadeSetupInput): Promise<N8nInstanceRef>;
-  status(): Promise<N8nHealthSnapshot>;
+  status(input?: { instanceId?: string }): Promise<N8nRuntimeStatusSnapshot | N8nHealthSnapshot>;
   getManagedInstance(): Promise<N8nInstanceRef | undefined>;
   listInstances(): Promise<GlobalN8nInstance[]>;
   getGlobalConfig(): Promise<N8nGlobalConfiguration>;
@@ -68,6 +74,21 @@ export interface N8nManagerFacade {
   writeWorkspaceOverrides(overrides: Partial<N8nWorkspaceOverrides>, workspaceRoot?: string): Promise<N8nWorkspaceOverrides>;
   clearWorkspaceOverrides(workspaceRoot?: string): Promise<void>;
   resolveEffectiveContext(input?: { workspaceRoot?: string; instanceId?: string; requireProject?: boolean; syncFolderDefault?: N8nSyncFolderDefaultPolicy }): Promise<EffectiveN8nContext>;
+  prepareEffectiveContext(input?: {
+    workspaceRoot?: string;
+    instanceId?: string;
+    requireProject?: boolean;
+    syncFolderDefault?: N8nSyncFolderDefaultPolicy;
+    consumer?: N8nRuntimeConsumer;
+    autoStart?: boolean;
+  }): Promise<PreparedEffectiveN8nContext>;
+  listProjects(input?: {
+    workspaceRoot?: string;
+    instanceId?: string;
+    syncFolderDefault?: N8nSyncFolderDefaultPolicy;
+    consumer?: N8nRuntimeConsumer;
+    autoStart?: boolean;
+  }): Promise<N8nProjectSnapshot[]>;
   resolveWorkflowWebviewOpen(input: { workflowId: string; proxyBaseUrl: string; workflowUrl?: string; workspaceRoot?: string; instanceId?: string; routePath?: string }): Promise<WorkflowWebviewOpenPayload>;
   listSetupModes(): typeof N8N_FACADE_SETUP_MODES;
   listCredentialRecipes(): Promise<CredentialRecipe[]>;
@@ -87,6 +108,7 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
   const statePath = options.statePath ?? process.env.N8N_MANAGER_STATE_PATH;
   const lifecycle = new FileBackedN8nLifecycleManager(statePath);
   const configuration = new N8nConfigurationService();
+  const runtime = new N8nRuntimeOrchestrator({ configuration });
 
   async function createCredentialsManager(): Promise<N8nCredentialsManager> {
     if (options.n8nHost && options.n8nApiKey) {
@@ -96,11 +118,11 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
       });
     }
 
-    const effective = await tryResolveEffectiveContext(configuration, options.workspaceRoot);
-    if (effective?.host && effective.apiKey) {
+    const prepared = await tryPrepareEffectiveContext(runtime, options.workspaceRoot);
+    if (prepared?.context.host && prepared.context.apiKey && !prepared.runtime.blocked) {
       return new N8nCredentialsManager({
-        projectId: options.projectId ?? effective.projectId,
-        client: new N8nRestCredentialClient({ baseUrl: effective.host, apiKey: effective.apiKey }),
+        projectId: options.projectId ?? prepared.context.projectId,
+        client: new N8nRestCredentialClient({ baseUrl: prepared.context.host, apiKey: prepared.context.apiKey }),
       });
     }
 
@@ -144,7 +166,12 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
       });
       return instance;
     },
-    status: () => lifecycle.status(),
+    status: async (input = {}) => {
+      const selected = input.instanceId
+        ? configuration.getInstance(input.instanceId)
+        : configuration.getGlobalActiveInstance();
+      return selected ? runtime.getRuntimeStatus(selected.id) : lifecycle.status();
+    },
     getManagedInstance: () => readFileBackedN8nInstance(statePath),
     listInstances: async () => configuration.listInstances(),
     getGlobalConfig: async () => configuration.getGlobalConfig(),
@@ -171,6 +198,31 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
       requireProject: input.requireProject,
       syncFolderDefault: input.syncFolderDefault,
     }),
+    prepareEffectiveContext: async (input = {}) => runtime.prepareEffectiveContext({
+      workspaceRoot: input.workspaceRoot ?? options.workspaceRoot,
+      instanceId: input.instanceId,
+      requireProject: input.requireProject,
+      syncFolderDefault: input.syncFolderDefault,
+      consumer: input.consumer ?? 'plugin',
+      autoStart: input.autoStart,
+    }),
+    listProjects: async (input = {}) => {
+      const prepared = await runtime.prepareEffectiveContext({
+        workspaceRoot: input.workspaceRoot ?? options.workspaceRoot,
+        instanceId: input.instanceId,
+        syncFolderDefault: input.syncFolderDefault,
+        consumer: input.consumer ?? 'plugin',
+        autoStart: input.autoStart,
+      });
+      if (prepared.runtime.blocked) {
+        throw new Error(prepared.runtime.blocked.message);
+      }
+      const { host, apiKey, activeInstanceName } = prepared.context;
+      if (!host || !apiKey) {
+        throw new Error(`Instance "${activeInstanceName}" needs a host and API key before projects can be loaded.`);
+      }
+      return listN8nProjects({ baseUrl: host, apiKey });
+    },
     resolveWorkflowWebviewOpen: async (input) => resolveWorkflowWebviewOpen({
       ...input,
       workspaceRoot: input.workspaceRoot ?? options.workspaceRoot,
@@ -203,12 +255,17 @@ export function resolveN8nManagerConfigurationPaths(): {
   };
 }
 
-async function tryResolveEffectiveContext(
-  configuration: N8nConfigurationService,
+async function tryPrepareEffectiveContext(
+  runtime: N8nRuntimeOrchestrator,
   workspaceRoot?: string,
-): Promise<EffectiveN8nContext | undefined> {
+): Promise<PreparedEffectiveN8nContext | undefined> {
   try {
-    return configuration.resolveEffectiveContext({ workspaceRoot });
+    return await runtime.prepareEffectiveContext({
+      workspaceRoot,
+      syncFolderDefault: workspaceRoot ? 'workspace' : 'global',
+      consumer: 'plugin',
+      autoStart: true,
+    });
   } catch {
     return undefined;
   }

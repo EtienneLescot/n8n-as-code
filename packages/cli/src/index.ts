@@ -2,9 +2,7 @@
 import { Command, Option } from 'commander';
 import { ListCommand } from './commands/list.js';
 import { SyncCommand } from './commands/sync.js';
-import { InitAiCommand } from './commands/init-ai.js';
-import { InitCommand } from './commands/init.js';
-import { SwitchCommand } from './commands/switch.js';
+import { UpdateAiCommand } from './commands/update-ai.js';
 import { ConvertCommand } from './commands/convert.js';
 import { TestCommand } from './commands/test.js';
 import { TestPlanCommand } from './commands/test-plan.js';
@@ -228,81 +226,6 @@ const restoreGlobalInstanceOption = () => {
 program.hook('preAction', applyGlobalInstanceOption);
 program.hook('postAction', restoreGlobalInstanceOption);
 
-const initCommand = new InitCommand();
-const switchCommand = new SwitchCommand(program);
-
-const registerInstanceOptions = (command: Command, options: { includeNewInstance?: boolean } = {}) => {
-    command
-        .option('--host <url>', 'n8n instance URL')
-        .option('--api-key <key>', 'n8n API key (or set N8N_API_KEY)')
-        .option('--api-key-stdin', 'Read the n8n API key from stdin')
-        .option('--sync-folder <path>', 'Local folder for workflows')
-        .option('--instance-name <name>', 'Friendly name for the global n8n-manager instance');
-
-    if (options.includeNewInstance) {
-        command.option('--new-instance', 'Add a new global n8n-manager instance instead of updating the selected one');
-    }
-
-    return command
-        .option('--project-id <id>', 'Project ID to select non-interactively')
-        .option('--project-name <name>', 'Project name to select non-interactively')
-        .option('--project-index <number>', '1-based project index to select non-interactively', (value) => parseInt(value, 10))
-        .option('--yes', 'Run non-interactively when enough information is available');
-};
-
-const instanceProgram = program.command('instance')
-    .description('Manage global n8n-manager instances');
-
-registerInstanceOptions(
-    instanceProgram.command('add')
-        .description('Add and select an existing n8n instance')
-).action(async (options) => {
-    await hydrateApiKeyFromStdin(options);
-    await initCommand.runInstanceCreate(options);
-});
-
-registerInstanceOptions(
-    instanceProgram.command('create')
-        .description('Alias for `n8nac instance add`')
-).action(async (options) => {
-    await hydrateApiKeyFromStdin(options);
-    await initCommand.runInstanceCreate(options);
-});
-
-registerInstanceOptions(
-    instanceProgram.command('update')
-        .description('Update the selected n8n instance config')
-).action(async (options) => {
-    await hydrateApiKeyFromStdin(options);
-    await initCommand.runInstanceUpdate(options);
-});
-
-instanceProgram.command('select')
-    .description('Select the global active n8n instance')
-    .option('--instance-id <id>', 'Global n8n-manager instance ID to select')
-    .option('--instance-name <name>', 'Global n8n-manager instance name to select')
-    .option('--instance-index <number>', '1-based global n8n-manager instance index to select', (value) => parsePositiveIntegerOption(value, '--instance-index'))
-    .action(async (options) => {
-        await switchCommand.runInstanceSwitch(options);
-    });
-
-instanceProgram.command('delete')
-    .description('Delete a global n8n-manager instance')
-    .option('--instance-id <id>', 'Global n8n-manager instance ID to delete')
-    .option('--instance-name <name>', 'Global n8n-manager instance name to delete')
-    .option('--instance-index <number>', '1-based global n8n-manager instance index to delete', (value) => parsePositiveIntegerOption(value, '--instance-index'))
-    .option('--yes', 'Delete without asking for confirmation')
-    .action(async (options) => {
-        await switchCommand.runInstanceDeletion(options);
-    });
-
-instanceProgram.command('list')
-    .description('List global n8n-manager instances')
-    .option('--json', 'Output global n8n-manager instances as JSON')
-    .action(async (options) => {
-        await switchCommand.runInstanceList(options);
-    });
-
 const workspaceProgram = program.command('workspace')
     .description('Manage n8n workspace overrides');
 
@@ -370,6 +293,31 @@ workspaceProgram.command('clear-sync-folder')
         configService.clearWorkspaceSyncFolderOverride();
         const workspaceConfig = configService.getWorkspaceConfig();
         printJsonOrText(options, workspaceConfig, chalk.green('✔ Workspace sync folder override cleared.'));
+    });
+
+workspaceProgram.command('set-project')
+    .description('Set the n8n project override for this workspace from known project values')
+    .requiredOption('--project-id <id>', 'n8n project ID to store in this workspace')
+    .requiredOption('--project-name <name>', 'n8n project display name to store in this workspace')
+    .option('--json', 'Output workspace config as JSON')
+    .action((options) => {
+        const configService = new ConfigService();
+        configService.setWorkspaceProject({
+            projectId: options.projectId,
+            projectName: options.projectName,
+        });
+        const workspaceConfig = configService.getWorkspaceConfig();
+        printJsonOrText(options, workspaceConfig, chalk.green(`✔ Workspace project set to: ${options.projectName}`));
+    });
+
+workspaceProgram.command('clear-project')
+    .description('Clear the workspace n8n project override and fall back to the instance default project')
+    .option('--json', 'Output workspace config as JSON')
+    .action((options) => {
+        const configService = new ConfigService();
+        configService.clearWorkspaceProjectOverride();
+        const workspaceConfig = configService.getWorkspaceConfig();
+        printJsonOrText(options, workspaceConfig, chalk.green('✔ Workspace project override cleared.'));
     });
 
 program.command('setup')
@@ -535,48 +483,6 @@ credentialsProgram.command('delete')
             `${result.credentialId ?? credentialIdOrRecipeId}\tdeletedRemote=${result.deletedRemote}\tdeletedInventory=${result.deletedInventory}`,
         );
     });
-
-// init - Interactive wizard to bootstrap the project, with optional non-interactive flags
-registerInstanceOptions(
-    program.command('init')
-        .description('Alias for `n8nac instance add`')
-)
-    .action(async (options) => {
-        await hydrateApiKeyFromStdin(options);
-        await initCommand.runInstanceCreate(options);
-    });
-
-program.command('init-auth')
-    .description('Save n8n host/API credentials and list available projects')
-    .option('--host <url>', 'n8n instance URL')
-    .option('--api-key <key>', 'n8n API key (or set N8N_API_KEY)')
-    .option('--api-key-stdin', 'Read the n8n API key from stdin')
-    .option('--sync-folder <path>', 'Default local folder for workflows')
-    .option('--instance-name <name>', 'Friendly name for the global n8n-manager instance')
-    .option('--new-instance', 'Add a new global n8n-manager instance instead of updating the selected one')
-    .action(async (options) => {
-        await hydrateApiKeyFromStdin(options);
-        await initCommand.runAuthSetup(options);
-    });
-
-program.command('init-project')
-    .description('Select the active n8n project and local sync folder')
-    .option('--host <url>', 'n8n instance URL (optional if already saved)')
-    .option('--api-key <key>', 'n8n API key (optional if already saved)')
-    .option('--api-key-stdin', 'Read the n8n API key from stdin')
-    .option('--sync-folder <path>', 'Local folder for workflows')
-    .option('--instance-name <name>', 'Friendly name for the global n8n-manager instance')
-    .option('--new-instance', 'Add a new global n8n-manager instance instead of updating the selected one')
-    .option('--project-id <id>', 'Project ID to select non-interactively')
-    .option('--project-name <name>', 'Project name to select non-interactively')
-    .option('--project-index <number>', '1-based project index to select non-interactively', (value) => parseInt(value, 10))
-    .option('--yes', 'Run non-interactively when enough information is available')
-    .action(async (options) => {
-        await hydrateApiKeyFromStdin(options);
-        await initCommand.runProjectSetup(options);
-    });
-
-// switch - Switch between projects
 
 // list - Snapshot view of all workflows and their status
 program.command('list')
@@ -953,12 +859,7 @@ credentialCmd
 // skills - AI knowledge tools subcommand group
 const skillsCmd = registerSkillsPlaceholder(program);
 
-// Backward compatibility alias
-new InitAiCommand(program);
-const updateAiCommand = program.commands.find((cmd) => cmd.name() === 'update-ai');
-if (updateAiCommand && !updateAiCommand.aliases().includes('init-ai')) {
-    updateAiCommand.alias('init-ai');
-}
+new UpdateAiCommand(program);
 
 if (shouldLoadSkillsCommands(process.argv)) {
     const { registerSkillsCommands } = await loadSkillsRegistrar();

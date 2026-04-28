@@ -84,6 +84,53 @@ describe('ConfigService', () => {
         });
     });
 
+    it('prepares effective workspace context through n8n-manager runtime service', async () => {
+        const configService = new ConfigService(workspaceRoot);
+        configService.saveLocalConfig({
+            host: 'https://prod.example.test',
+            projectId: 'personal',
+            projectName: 'Personal',
+        }, {
+            instanceId: 'prod',
+            instanceName: 'Production',
+            apiKey: 'prod-key',
+        });
+
+        const prepared = await configService.prepareWorkspaceContext('prod');
+
+        expect(prepared.activeInstanceId).toBe('prod');
+        expect(prepared.host).toBe('https://prod.example.test');
+        expect(prepared.apiKey).toBe('prod-key');
+        expect(prepared.syncFolder).toBe(path.join(workspaceRoot, 'workflows'));
+    });
+
+    it('stores workspace project overrides without managing the n8n instance', () => {
+        const configService = new ConfigService(workspaceRoot);
+        configService.saveLocalConfig({
+            host: 'https://prod.example.test',
+            projectId: 'global-project',
+            projectName: 'Global Project',
+        }, {
+            instanceId: 'prod',
+            instanceName: 'Production',
+        });
+
+        configService.setWorkspaceProject({
+            projectId: 'workspace-project',
+            projectName: 'Workspace Project',
+        });
+
+        expect(configService.getWorkspaceConfig()).toMatchObject({
+            activeInstanceId: 'prod',
+            projectId: 'workspace-project',
+            projectName: 'Workspace Project',
+        });
+
+        configService.clearWorkspaceProjectOverride();
+        expect(configService.getWorkspaceConfig().projectId).toBeUndefined();
+        expect(configService.getWorkspaceConfig().projectName).toBeUndefined();
+    });
+
     it('rejects legacy workspace configs with embedded instances', () => {
         writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
             version: 2,

@@ -8,13 +8,31 @@ description: Understand the n8n-as-code monorepo architecture, component interac
 
 n8n-as-code is a monorepo built with a modular architecture that separates workflow intelligence from user-facing facades.
 
-The public brand can stay unified as `n8n-as-code` / `n8nac`, but internally there are three roles:
+The public brand can stay unified as `n8n-as-code` / `n8nac`, but internally there are three concerns:
 
-1. **Workflow engine**: independent workflow representation, generation, validation, schemas, templates, and node knowledge.
-2. **Runtime engine**: independent `n8n-manager` repo for setup, diagnostics, credentials, deployment, execution, and inspection.
-3. **Facades**: CLI, VS Code/Cursor extension, MCP, Claude Code, OpenClaw, YAGR integrations, and future apps that orchestrate both engines.
+1. **n8n runtime manager**: independent `n8n-manager` repo for n8n instances, auth/API keys, managed Docker runtime, tunnels, n8n projects, n8n credentials, and runtime diagnostics.
+2. **n8n-as-code workspace manager**: workspace-local concerns owned by this repo: sync folder, workspace project override, AI context files, local workflow directory conventions, caches, and generated helper files.
+3. **Workflow engine/commands**: workflow representation, generation, validation, schemas, templates, node knowledge, and commands that read/write workflows through a prepared n8n context.
 
-The workflow engine must not depend on `n8n-manager`. `n8n-manager` must not depend on the workflow engine. Facades may depend on both.
+The dependency rule is:
+
+- `n8n-manager` must not depend on `n8n-as-code` or on workspace layout.
+- Workspace management must not create, repair, or authenticate n8n instances.
+- Workflow commands may compose both contexts: the effective n8n context from `n8n-manager`, and the local workspace context from `n8n-as-code`.
+- User-facing and agent-facing tooling should treat `n8n-manager` and `n8nac` as two distinct CLIs, not as one meta-CLI.
+
+In practice:
+
+```txt
+n8n-manager
+  instances/auth/runtime/tunnel/projects/credentials
+
+n8nac workspace
+  workspace status, sync folder override, workspace project override, AI context
+
+n8nac workflow commands
+  list/pull/push/sync/test/workflow/execution using a prepared n8n context
+```
 
 For local end-to-end development across the separate repos, use the meta-workspace documented in [Local Dev Workspace](./local-dev-workspace.md). It preserves the published `npx --yes n8nac` default while letting dev runs override the command through one resolver.
 

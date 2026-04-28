@@ -8,17 +8,13 @@ Turns Claude into a specialized n8n workflow engineer using the `n8nac` CLI and 
 
 ## Recommended Claude Code setup
 
-After installing the plugin, initialize the target workspace. For autonomous agents, prefer the explicit 2-step non-interactive flow by default, and use the 1-command flow only when the project is already known. `update-ai` refreshes the generated context later:
+After installing the plugin, configure the target workspace with the two CLI responsibilities: `n8n-manager` owns n8n instance/auth/project state, and `n8nac workspace` owns local workspace overrides. `update-ai` refreshes the generated context later:
 
 ```bash
-# Default 2-step flow when Claude needs to inspect the project list first
-# npx --yes n8nac init-auth --host <your-n8n-url> --api-key <your-api-key>
-# npx --yes n8nac init-project --project-id <id>|--project-name "Personal"|--project-index <n>
-
-# Optional 1-command setup when the project selector is already known
-# npx --yes n8nac instance add --yes --host <your-n8n-url> --api-key <your-api-key> --project-name "Personal"
-
-# Optional: refresh AGENTS.md and snippets later
+n8n-manager auth set --url <your-n8n-url> --api-key-stdin
+n8n-manager projects list
+n8n-manager projects select <project-id-or-name>
+npx --yes n8nac workspace set-sync-folder workflows
 npx --yes n8nac update-ai
 ```
 

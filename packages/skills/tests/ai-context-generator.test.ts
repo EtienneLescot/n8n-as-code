@@ -175,30 +175,20 @@ describe('AiContextGenerator', () => {
             expect(skillContent).toContain('does not yet contain `projectId` and `projectName`');
             expect(agentsContent).toContain('Never write `n8nac-config.json` by hand.');
             expect(skillContent).toContain('Never write `n8nac-config.json` by hand.');
-            expect(agentsContent).toContain('npx --yes n8nac instance add');
-            expect(skillContent).toContain('npx --yes n8nac instance add');
-            expect(agentsContent).toContain('For autonomous agents, the default non-interactive initialization flow is the explicit 2-step sequence');
-            expect(skillContent).toContain('For autonomous agents, the default non-interactive initialization flow is the explicit 2-step sequence');
-            expect(agentsContent).toContain('npx --yes n8nac instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]');
-            expect(skillContent).toContain('npx --yes n8nac instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]');
-            expect(agentsContent).toContain('Optional 1-command non-interactive setup when the project is already known');
-            expect(skillContent).toContain('Optional 1-command non-interactive setup when the project is already known');
-            expect(agentsContent).toContain('npx --yes n8nac instance list --json');
-            expect(skillContent).toContain('npx --yes n8nac instance list --json');
-            expect(agentsContent).toContain('npx --yes n8nac init-auth');
-            expect(skillContent).toContain('npx --yes n8nac init-auth');
-            expect(agentsContent).toContain('npx --yes n8nac init-project');
-            expect(skillContent).toContain('npx --yes n8nac init-project');
+            expect(agentsContent).toContain('n8n-manager auth set --url <url> --api-key <key>');
+            expect(skillContent).toContain('n8n instance/auth/runtime/project management');
+            expect(agentsContent).toContain('n8n-manager projects list');
+            expect(agentsContent).toContain('npx --yes n8nac workspace set-sync-folder workflows');
+            expect(agentsContent).toContain('npx --yes n8nac workspace set-project --project-id <id> --project-name <name>');
         });
 
         test('getOpenClawSkillContent() should describe OpenClaw tool usage and AGENTS handoff', () => {
             const content = generator.getOpenClawSkillContent();
 
             expect(content).toContain('Use this skill only for explicit n8n workflow work.');
-            expect(content).toContain('use the `n8nac` tool with `action: "init_auth"` and `action: "init_project"`');
-            expect(content).toContain('`action: "instance_list"`');
-            expect(content).toContain('`action: "instance_select"`');
-            expect(content).toContain('`action: "instance_delete"`');
+            expect(content).toContain('`n8n-manager` for instance/auth/project setup');
+            expect(content).toContain('Use `n8n-manager` shell commands for global n8n instance management.');
+            expect(content).toContain('Do not manage global instances through `n8nac`');
             expect(content).toContain('Treat `AGENTS.md` as the authoritative workflow-engineering protocol once this skill is active.');
             expect(content).toContain('npx --yes n8nac workflow credential-required <workflowId> --json');
             expect(content).toContain('credential create --type <type> --name "<name>" --file cred.json --json');
