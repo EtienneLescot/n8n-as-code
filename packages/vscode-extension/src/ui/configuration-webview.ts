@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { N8nApiClient, type IN8nCredentials } from 'n8nac';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
 import { getWorkspaceRoot } from '../utils/state-detection.js';
 import type { N8nConfigurationController, N8nConfigurationSnapshot } from '../services/n8n-configuration-controller.js';
@@ -131,14 +130,17 @@ export class ConfigurationWebview {
 
         case 'loadProjects': {
           const instanceId = String(payload.instanceId || '').trim() || undefined;
-          const effective = await facade.resolveEffectiveContext({ workspaceRoot, instanceId, syncFolderDefault: 'workspace' });
-          const host = normalizeHost(effective.host || '');
-          const apiKey = String(effective.apiKey || '').trim();
-          if (!host || !apiKey) {
-            throw new Error('The effective instance needs a host and API key before projects can be loaded.');
-          }
-          const client = new N8nApiClient({ host, apiKey } as IN8nCredentials);
-          const uiProjects = await this.loadProjectsWithFallback(client);
+          const uiProjects = (await facade.listProjects({
+            workspaceRoot,
+            instanceId,
+            syncFolderDefault: 'workspace',
+            consumer: 'vscode',
+            autoStart: true,
+          })).map((project) => ({
+            id: project.id,
+            name: project.type === 'personal' ? 'Personal' : (project.name || project.id),
+            type: project.type,
+          }));
           this._panel.webview.postMessage({
             type: 'projectsLoaded',
             projects: uiProjects,
@@ -271,22 +273,6 @@ export class ConfigurationWebview {
       baseUrl: host || undefined,
       apiKey: apiKey || undefined,
     }, { setActive });
-  }
-
-  private async loadProjectsWithFallback(client: N8nApiClient): Promise<UiProject[]> {
-    try {
-      const projects = (await client.getProjects()) as Array<{ id: string; name: string; type?: string }>;
-      const mapped = projects
-        .filter((project) => project?.id)
-        .map((project) => ({
-          id: project.id,
-          name: project.type === 'personal' ? 'Personal' : (project.name || project.id),
-          type: project.type,
-        }));
-      return mapped.length ? mapped : [PERSONAL_PROJECT];
-    } catch {
-      return [PERSONAL_PROJECT];
-    }
   }
 
   private async postInitialState(snapshot?: N8nConfigurationSnapshot): Promise<void> {

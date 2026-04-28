@@ -169,6 +169,7 @@ export class SyncCommand extends BaseCommand {
         let workflow: any;
 
         try {
+            await this.prepareRuntimeContext();
             workflow = await this.client.getWorkflow(workflowId);
         } catch (e: any) {
             spinner.fail(`Could not fetch workflow: ${e.message}`);

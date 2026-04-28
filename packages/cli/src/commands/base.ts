@@ -11,6 +11,7 @@ export class BaseCommand {
     protected configService: ConfigService;
     protected activeInstanceId?: string;
     protected instanceIdentifier: string | null = null;
+    private runtimePrepared = false;
 
     constructor() {
         this.configService = new ConfigService();
@@ -19,6 +20,7 @@ export class BaseCommand {
         let apiKey: string;
         let directory: string;
         let folderSync: boolean;
+        let envCredentialsProvided = false;
 
         // If --instance <name> was passed as a global option, resolve that instance;
         // otherwise fall back to the locally active instance / env vars.
@@ -28,7 +30,7 @@ export class BaseCommand {
                 (i) => i.name.toLowerCase() === requestedInstanceName.toLowerCase()
             );
             if (matches.length === 0) {
-                console.error(chalk.red(`❌ Unknown instance: "${requestedInstanceName}". Run \`n8nac instance list\` to see available instances.`));
+                console.error(chalk.red(`❌ Unknown instance: "${requestedInstanceName}". Run \`n8n-manager instances list\` to see available instances.`));
                 process.exit(1);
             }
             if (matches.length > 1) {
@@ -43,9 +45,14 @@ export class BaseCommand {
             const match = matches[0];
             host = match.host || '';
             apiKey = host ? (this.configService.getApiKey(host, match.id) || '') : '';
+            const effectiveContext = this.configService.getEffectiveContext(match.id);
+            const canPrepareManagedRuntime = effectiveContext?.instance.mode === 'managed-local-docker' && Boolean(host);
             if (!host || !apiKey) {
-                console.error(chalk.red(`❌ Instance "${requestedInstanceName}" has no host or API key configured.`));
-                process.exit(1);
+                if (!canPrepareManagedRuntime) {
+                    console.error(chalk.red(`❌ Instance "${requestedInstanceName}" has no host or API key configured.`));
+                    process.exit(1);
+                }
+                apiKey = '';
             }
             this.activeInstanceId = match.id;
             const effectiveConfig = this.configService.getEffectiveInstanceConfig(match.id) ?? match;
@@ -54,27 +61,33 @@ export class BaseCommand {
         } else {
             const localConfig = this.configService.getLocalConfig();
             this.activeInstanceId = this.configService.getActiveInstanceId();
+            const effectiveContext = this.configService.getEffectiveContext(this.activeInstanceId);
 
-            // Resolve host: local config → env var
+            // Resolve host: explicit env override → backend-resolved config.
             const rawEnvHost = process.env.N8N_HOST;
             const envHost = rawEnvHost
                 ? rawEnvHost.trim().replace(/^['"]|['"]$/g, '')
                 : '';
-            host = localConfig.host || envHost || '';
+            host = envHost || localConfig.host || '';
 
-            // Resolve API key: global Conf store → env var
+            // Resolve API key: explicit env override → backend-resolved secret.
             const rawEnvApiKey = process.env.N8N_API_KEY;
             const envApiKey = rawEnvApiKey
                 ? rawEnvApiKey.trim().replace(/^['"]|['"]$/g, '')
                 : '';
-            apiKey = (host ? this.configService.getApiKey(host, this.activeInstanceId) : undefined)
-                || envApiKey
+            envCredentialsProvided = Boolean(envHost && envApiKey);
+            apiKey = envApiKey
+                || (host ? this.configService.getApiKey(host, this.activeInstanceId) : undefined)
                 || '';
 
+            const canPrepareManagedRuntime = effectiveContext?.instance.mode === 'managed-local-docker' && Boolean(host);
             if (!host || !apiKey) {
-                console.error(chalk.red('❌ CLI not configured.'));
-                console.error(chalk.yellow('Please run `n8nac init` to set up your environment, or set N8N_HOST and N8N_API_KEY environment variables.'));
-                process.exit(1);
+                if (!canPrepareManagedRuntime) {
+                    console.error(chalk.red('❌ CLI not configured.'));
+                    console.error(chalk.yellow('Configure n8n with `n8n-manager auth set` and set workspace context with `n8nac workspace ...`.'));
+                    process.exit(1);
+                }
+                apiKey = '';
             }
 
             directory = this.configService.resolveWorkspacePath(localConfig.syncFolder || './workflows');
@@ -87,8 +100,10 @@ export class BaseCommand {
             syncInactive: true,
             ignoredTags: [],
             host,
+            apiKeyConfigured: Boolean(apiKey),
             folderSync,
         };
+        this.runtimePrepared = envCredentialsProvided;
 
         // Silently refresh AGENTS.md in the background if the installed n8nac version changed.
         // Spawned as a fully-detached child process so it never blocks the command, never
@@ -109,6 +124,7 @@ export class BaseCommand {
      * Get or create instance identifier and ensure it's in the config
      */
     protected async ensureInstanceIdentifier(): Promise<string> {
+        await this.prepareRuntimeContext();
         if (this.instanceIdentifier) {
             return this.instanceIdentifier;
         }
@@ -122,6 +138,7 @@ export class BaseCommand {
      * Validates that required project fields are present; exits with a clear error if not.
      */
     protected async getSyncConfig(): Promise<any> {
+        await this.prepareRuntimeContext();
         const localConfig = this.activeInstanceId
             ? (this.configService.getEffectiveInstanceConfig(this.activeInstanceId) ?? this.configService.getLocalConfig())
             : this.configService.getLocalConfig();
@@ -133,7 +150,7 @@ export class BaseCommand {
 
         if (missing.length > 0) {
             console.error(chalk.red(`❌ Missing required project configuration: ${missing.join(', ')}.`));
-            console.error(chalk.yellow('Please run `n8nac init` to configure your project, or create an `n8nac-config.json` file with the required fields.'));
+            console.error(chalk.yellow('Set workspace context with `n8nac workspace set-sync-folder workflows` and configure the n8n project through `n8n-manager projects select`.'));
             process.exit(1);
         }
 
@@ -152,6 +169,36 @@ export class BaseCommand {
             projectName: localConfig.projectName,
             folderSync: localConfig.folderSync ?? false,
         };
+    }
+
+    protected async prepareRuntimeContext(): Promise<void> {
+        if (this.runtimePrepared) {
+            return;
+        }
+
+        try {
+            const context = await this.configService.prepareWorkspaceContext(this.activeInstanceId);
+            if (!context.host || !context.apiKey) {
+                this.exitWithError(`Instance "${context.activeInstanceName}" needs a host and API key before this command can run`);
+            }
+
+            this.activeInstanceId = context.activeInstanceId;
+            this.client = new N8nApiClient({ host: context.host, apiKey: context.apiKey } as IN8nCredentials);
+            this.config = {
+                ...this.config,
+                directory: this.configService.resolveWorkspacePath(context.syncFolder || './workflows'),
+                host: context.host,
+                apiKeyConfigured: true,
+                folderSync: context.folderSync ?? false,
+            };
+            this.runtimePrepared = true;
+        } catch (error) {
+            if (this.config?.host && this.config?.apiKeyConfigured) {
+                this.runtimePrepared = true;
+                return;
+            }
+            this.exitWithError('Unable to prepare n8n runtime', error);
+        }
     }
 
     protected formatErrorDetails(error: unknown): string {

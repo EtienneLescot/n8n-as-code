@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import {
     N8nConfigurationService,
+    N8nRuntimeOrchestrator,
     type EffectiveN8nContext,
     type GlobalN8nInstance,
     type N8nInstanceVerification,
@@ -53,11 +54,13 @@ export type ISelectInstanceResult =
 
 export class ConfigService {
     private readonly manager: N8nConfigurationService;
+    private readonly runtime: N8nRuntimeOrchestrator;
     private readonly workspaceRoot: string;
 
     constructor(workspaceRoot?: string) {
         this.workspaceRoot = workspaceRoot ? path.resolve(workspaceRoot) : this.findConfigRoot(process.cwd());
         this.manager = new N8nConfigurationService();
+        this.runtime = new N8nRuntimeOrchestrator({ configuration: this.manager });
     }
 
     getLocalConfig(): Partial<ILocalConfig> {
@@ -123,6 +126,24 @@ export class ConfigService {
         return effective ? this.contextToInstanceProfile(effective) : undefined;
     }
 
+    getEffectiveContext(instanceId?: string): EffectiveN8nContext | undefined {
+        return tryResolve(() => this.resolveWorkspaceContext(instanceId));
+    }
+
+    async prepareWorkspaceContext(instanceId?: string): Promise<EffectiveN8nContext> {
+        const prepared = await this.runtime.prepareEffectiveContext({
+            workspaceRoot: this.workspaceRoot,
+            instanceId,
+            syncFolderDefault: 'workspace',
+            consumer: 'cli',
+            autoStart: true,
+        });
+        if (prepared.runtime.blocked) {
+            throw new Error(prepared.runtime.blocked.message);
+        }
+        return prepared.context;
+    }
+
     getCurrentInstanceConfigId(): string | undefined {
         return this.getActiveInstanceId();
     }
@@ -181,6 +202,24 @@ export class ConfigService {
         this.manager.writeWorkspaceOverrides(this.workspaceRoot, {
             ...current,
             syncFolder: undefined,
+        });
+    }
+
+    setWorkspaceProject(project: { projectId: string; projectName: string }): void {
+        const current = this.manager.readWorkspaceOverrides(this.workspaceRoot);
+        this.manager.writeWorkspaceOverrides(this.workspaceRoot, {
+            ...current,
+            projectId: project.projectId,
+            projectName: project.projectName,
+        });
+    }
+
+    clearWorkspaceProjectOverride(): void {
+        const current = this.manager.readWorkspaceOverrides(this.workspaceRoot);
+        this.manager.writeWorkspaceOverrides(this.workspaceRoot, {
+            ...current,
+            projectId: undefined,
+            projectName: undefined,
         });
     }
 

@@ -20,7 +20,67 @@ type RunResult = {
   timedOut: boolean;
 };
 
-function runN8nac(
+type ProjectListPayload = { projects?: Array<{ id: string; name?: string }> };
+
+function parseProjects(stdout: string): Array<{ id: string; name?: string }> {
+  const payload = JSON.parse(stdout || "{}") as ProjectListPayload;
+  return payload.projects ?? [];
+}
+
+function splitCommand(input: string): string[] | null {
+  const args: string[] = [];
+  let current = "";
+  let quote: '"' | "'" | null = null;
+  let escaping = false;
+
+  for (const ch of input) {
+    if (escaping) {
+      current += ch;
+      escaping = false;
+      continue;
+    }
+    if (ch === "\\" && quote !== "'") {
+      escaping = true;
+      continue;
+    }
+    if (quote) {
+      if (ch === quote) quote = null;
+      else current += ch;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      if (current) {
+        args.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += ch;
+  }
+
+  if (escaping) current += "\\";
+  if (quote) return null;
+  if (current) args.push(current);
+  return args;
+}
+
+function getN8nManagerCommand(): { command: string; args: string[] } {
+  const override = process.env.N8N_MANAGER_COMMAND?.trim();
+  if (override) {
+    const parsed = splitCommand(override);
+    if (parsed?.length) {
+      return { command: parsed[0], args: parsed.slice(1) };
+    }
+  }
+  return { command: "npx", args: ["--yes", "n8n-manager"] };
+}
+
+function runCommand(
+  command: string,
   args: string[],
   opts: {
     cwd: string;
@@ -37,8 +97,8 @@ function runN8nac(
 
     const child: ChildProcess | ChildProcessWithoutNullStreams =
       opts.stdio === "inherit"
-        ? spawn("npx", ["--yes", "n8nac", ...args], { ...baseOptions, stdio: "inherit" })
-        : spawn("npx", ["--yes", "n8nac", ...args], { ...baseOptions, stdio: "pipe" });
+        ? spawn(command, args, { ...baseOptions, stdio: "inherit" })
+        : spawn(command, args, { ...baseOptions, stdio: "pipe" });
 
     let stdout = "";
     let stderr = "";
@@ -89,6 +149,31 @@ function runN8nac(
       finish({ stdout, stderr, exitCode: code ?? 1, timedOut });
     });
   });
+}
+
+function runN8nac(
+  args: string[],
+  opts: {
+    cwd: string;
+    timeout: number;
+    stdinInput?: string;
+    stdio?: "pipe" | "inherit";
+  },
+): Promise<RunResult> {
+  return runCommand("npx", ["--yes", "n8nac", ...args], opts);
+}
+
+function runN8nManager(
+  args: string[],
+  opts: {
+    cwd: string;
+    timeout: number;
+    stdinInput?: string;
+    stdio?: "pipe" | "inherit";
+  },
+): Promise<RunResult> {
+  const manager = getN8nManagerCommand();
+  return runCommand(manager.command, [...manager.args, ...args], opts);
 }
 
 export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
@@ -155,12 +240,12 @@ export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
       }
 
       // ------------------------------------------------------------------
-      // Step 2: init-auth
+      // Step 2: n8n-manager auth set
       // ------------------------------------------------------------------
       const authSpinner = p.spinner();
       authSpinner.start("Saving credentials…");
 
-      const authResult = await runN8nac(["init-auth", "--host", host, "--api-key-stdin"], {
+      const authResult = await runN8nManager(["auth", "set", "--url", host, "--api-key-stdin"], {
         cwd: workspaceDir,
         timeout: 60_000,
         stdinInput: apiKey,
@@ -169,7 +254,7 @@ export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
       if (authResult.exitCode !== 0) {
         authSpinner.stop("Failed to save credentials.");
         if (authResult.timedOut) {
-          p.log.error("n8nac init-auth timed out.");
+          p.log.error("n8n-manager auth set timed out.");
         }
         p.log.error(authResult.stderr || authResult.stdout || "Unknown error.");
         p.outro("Setup failed. Check your host URL and API key and try again.");
@@ -178,13 +263,11 @@ export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
       authSpinner.stop("Credentials saved ✓");
 
       // ------------------------------------------------------------------
-      // Step 3: init-project
-      // If the user passed --project-index, run non-interactively.
-      // Otherwise inherit stdio so n8nac's own interactive project picker can appear.
+      // Step 3: n8n-manager projects select
       // ------------------------------------------------------------------
       const projectSpinner = p.spinner();
-      const projectArgs = ["init-project", "--sync-folder", "workflows"];
       let projectResult: RunResult;
+      let selectedProjectId = "";
 
       if (opts.projectIndex) {
         const projectIdx = Number.parseInt(opts.projectIndex, 10);
@@ -193,32 +276,84 @@ export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
           p.outro("Setup failed.");
           process.exit(1);
         }
-        projectSpinner.start("Selecting project…");
-        projectResult = await runN8nac([...projectArgs, "--project-index", String(projectIdx)], {
+        projectSpinner.start("Loading projects…");
+        const listResult = await runN8nManager(["projects", "list"], {
           cwd: workspaceDir,
-          timeout: 120_000,
+          timeout: 60_000,
         });
+        if (listResult.exitCode !== 0) {
+          projectSpinner.stop("Failed to load projects.");
+          p.log.error(listResult.stderr || listResult.stdout || "Unknown error.");
+          p.outro("Setup failed.");
+          process.exit(1);
+        }
+        const project = parseProjects(listResult.stdout)[projectIdx - 1];
+        if (!project?.id) {
+          projectSpinner.stop("Invalid project index.");
+          p.log.error(`No project found at index ${projectIdx}.`);
+          p.outro("Setup failed.");
+          process.exit(1);
+        }
+        selectedProjectId = project.id;
       } else {
-        projectSpinner.start("Opening project picker…");
-        projectSpinner.stop("Project picker ready");
-        projectResult = await runN8nac(projectArgs, {
+        projectSpinner.start("Loading projects…");
+        const listResult = await runN8nManager(["projects", "list"], {
           cwd: workspaceDir,
-          timeout: 120_000,
-          stdio: "inherit",
+          timeout: 60_000,
         });
+        if (listResult.exitCode !== 0) {
+          projectSpinner.stop("Failed to load projects.");
+          p.log.error(listResult.stderr || listResult.stdout || "Unknown error.");
+          p.outro("Setup failed.");
+          process.exit(1);
+        }
+        const projects = parseProjects(listResult.stdout);
+        if (!projects.length) {
+          projectSpinner.stop("No projects found.");
+          p.outro("Setup failed.");
+          process.exit(1);
+        }
+        projectSpinner.stop("Projects loaded");
+        const answer = await p.select({
+          message: "Select n8n project",
+          options: projects.map((project, index) => ({
+            label: `[${index + 1}] ${project.name || project.id}`,
+            value: project.id,
+          })),
+        });
+        if (p.isCancel(answer)) {
+          p.cancel("Setup cancelled.");
+          process.exit(0);
+        }
+        selectedProjectId = answer as string;
       }
 
+      projectSpinner.start("Selecting project…");
+      projectResult = await runN8nManager(["projects", "select", selectedProjectId], {
+        cwd: workspaceDir,
+        timeout: 60_000,
+      });
       if (projectResult.exitCode !== 0) {
         projectSpinner.stop("Failed to select project.");
-        if (projectResult.timedOut) {
-          p.log.error("n8nac init-project timed out.");
-        }
         p.log.error(projectResult.stderr || projectResult.stdout || "Unknown error.");
-        p.log.info("If you have multiple projects, rerun with --project-index <n>.");
         p.outro("Setup failed.");
         process.exit(1);
       }
       projectSpinner.stop("Project selected ✓");
+
+      const workspaceSpinner = p.spinner();
+      workspaceSpinner.start("Configuring workspace sync folder…");
+      const workspaceResult = await runN8nac(["workspace", "set-sync-folder", "workflows"], {
+        cwd: workspaceDir,
+        timeout: 60_000,
+      });
+      if (workspaceResult.exitCode !== 0) {
+        workspaceSpinner.stop("Failed to configure workspace.");
+        p.log.error(workspaceResult.stderr || workspaceResult.stdout || "Unknown error.");
+        p.outro("Setup failed.");
+        process.exit(1);
+      }
+      workspaceSpinner.stop("Workspace configured ✓");
 
       // ------------------------------------------------------------------
       // Step 4: update-ai — generate AGENTS.md

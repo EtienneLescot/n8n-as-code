@@ -9,6 +9,7 @@ export class WorkflowCommand extends BaseCommand {
      */
     async activate(workflowId: string): Promise<void> {
         try {
+            await this.prepareRuntimeContext();
             const workflow = await this.client.activateWorkflow(workflowId, true);
             if (workflow?.active === true) {
                 console.log(chalk.green(`✅ Workflow ${workflowId} activated.`));
@@ -28,6 +29,7 @@ export class WorkflowCommand extends BaseCommand {
      */
     async deactivate(workflowId: string): Promise<void> {
         try {
+            await this.prepareRuntimeContext();
             const workflow = await this.client.activateWorkflow(workflowId, false);
             if (workflow?.active === false) {
                 console.log(chalk.green(`✅ Workflow ${workflowId} deactivated.`));
@@ -62,6 +64,7 @@ export class WorkflowCommand extends BaseCommand {
         let existing: Array<Record<string, unknown>>;
 
         try {
+            await this.prepareRuntimeContext();
             workflow = await this.client.getWorkflow(workflowId);
             existing = await this.client.listCredentials();
         } catch (error) {

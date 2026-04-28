@@ -32,58 +32,16 @@ npm install -g n8nac
 
 ## Commands
 
-### `init`
-Interactive wizard by default — save an n8n instance config and pick the active project.
+### Runtime setup
+`n8nac` does not manage n8n instances or API keys. Use `n8n-manager` for global n8n runtime state, then use `n8nac workspace` for local workspace overrides.
 
 ```bash
-n8nac init
+n8n-manager auth set --url http://localhost:5678 --api-key-stdin
+n8n-manager projects list
+n8n-manager projects select <project-id-or-name>
+n8nac workspace set-sync-folder workflows
+n8nac update-ai
 ```
-
-Creates or updates `n8nac-config.json` in the current folder and stores the API key outside the repo.
-
-For automation and AI agents, `init` also supports a non-interactive mode:
-
-```bash
-n8nac init --yes --host http://localhost:5678 --api-key "$N8N_API_KEY"
-```
-
-If multiple projects are available, pass one of the project selectors:
-
-```bash
-n8nac init --yes --host http://localhost:5678 --api-key "$N8N_API_KEY" --project-id <projectId>
-n8nac init --yes --host http://localhost:5678 --api-key "$N8N_API_KEY" --project-name "Personal"
-n8nac init --yes --host http://localhost:5678 --api-key "$N8N_API_KEY" --project-index 1
-```
-
-If no project selector is provided, `init --yes` will auto-select the only available project, or the single personal project when that choice is unambiguous. Otherwise it fails with a list of available projects.
-
-`init` is the ergonomic alias for `n8nac instance add`.
-
----
-
-### `instance`
-Manage global n8n-manager instances.
-
-```bash
-n8nac instance add
-n8nac instance select
-n8nac instance list
-n8nac instance delete
-```
-
-Use these commands when you want to register multiple n8n environments in the shared n8n-manager SSOT and choose the global active instance. Workspace-specific pins live under `n8nac workspace`.
-
-For scripts and agents:
-
-```bash
-n8nac instance list --json
-n8nac instance select --instance-name "https://n8n.example.com / Etienne Lescot"
-n8nac instance select --instance-id <instanceId>
-n8nac instance delete --instance-name "https://n8n.example.com / Etienne Lescot" --yes
-n8nac instance delete --instance-id <instanceId> --yes
-```
-
-`instance add` is the primary onboarding command. Use `init-auth` + `init-project` only when you want to split credential discovery from project selection.
 
 ---
 
@@ -96,18 +54,13 @@ n8nac workspace pin-instance --instance-id <instanceId>
 n8nac workspace clear-instance
 n8nac workspace set-sync-folder workflows
 n8nac workspace clear-sync-folder
+n8nac workspace set-project --project-id <id> --project-name <name>
+n8nac workspace clear-project
 ```
 
 The workspace config stays minimal: project selection, optional pinned instance, optional sync folder override, and related workflow settings. It does not store an instance library or API keys.
 
----
-
-### `switch`
-Switch the active n8n project (updates `projectId` / `projectName` in `n8nac-config.json`).
-
-```bash
-n8nac switch
-```
+Project defaults are selected with `n8n-manager projects select`. Workspace-specific project overrides use `n8nac workspace set-project`.
 
 ---
 

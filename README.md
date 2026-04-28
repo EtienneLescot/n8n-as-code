@@ -163,7 +163,8 @@ Explicit terminal-first workflow for sync and automation.
 **Best for:** scripts, CI, GitOps pipelines, direct workflow operations
 
 **Run**  
-<code>npx --yes n8nac init</code>
+<code>n8n-manager auth set --url &lt;url&gt; --api-key-stdin</code><br>
+<code>npx --yes n8nac workspace set-sync-folder workflows</code>
 
 [Full Getting Started Guide](https://n8nascode.dev/docs/getting-started/)
 
@@ -186,7 +187,9 @@ If you are using Claude Desktop or another MCP client, point it at the local MCP
 Initialize your workspace first so it has both the sync config and AI context it needs:
 
 ```bash
-npx --yes n8nac init
+n8n-manager auth set --url <url> --api-key-stdin
+n8n-manager projects select <project-id-or-name>
+npx --yes n8nac workspace set-sync-folder workflows
 npx --yes n8nac update-ai
 ```
 
@@ -248,7 +251,9 @@ Thanks to the `n8nworkflows.xyz` project for maintaining the public archive that
 ```
 
 ```bash
-npx n8nac init                              # Save an instance config and select a project
+n8n-manager auth set --url <url> --api-key-stdin
+n8n-manager projects select <project-id-or-name>
+npx n8nac workspace set-sync-folder workflows
 npx n8nac list                              # See sync status at a glance
 npx n8nac pull <id>                         # Pull remote → local
 npx n8nac push my-workflow.workflow.ts      # Push local → remote

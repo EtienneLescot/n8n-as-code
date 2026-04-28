@@ -18,6 +18,7 @@ export class TestPlanCommand extends BaseCommand {
 
         let plan: ITestPlan;
         try {
+            await this.prepareRuntimeContext();
             plan = await this.client.getTestPlan(workflowId);
         } catch (err: any) {
             spinner.fail(`Unexpected error: ${String(err?.message ?? err)}`);

@@ -15,6 +15,7 @@ export class ExecutionCommand extends BaseCommand {
         json?: boolean;
     } = {}): Promise<void> {
         try {
+            await this.prepareRuntimeContext();
             const result = await this.client.listExecutions(options);
 
             if (options.json) {
@@ -62,6 +63,7 @@ export class ExecutionCommand extends BaseCommand {
 
     async get(id: string, options: { includeData?: boolean; json?: boolean } = {}): Promise<void> {
         try {
+            await this.prepareRuntimeContext();
             const execution = await this.client.getExecution(id, { includeData: options.includeData });
             console.log(JSON.stringify(execution, null, 2));
         } catch (error) {

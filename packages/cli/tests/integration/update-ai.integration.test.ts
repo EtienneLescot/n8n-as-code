@@ -56,11 +56,11 @@ describe('CLI update-ai integration', () => {
         expect(fs.existsSync(agentsPath)).toBe(true);
 
         const agentsContent = fs.readFileSync(agentsPath, 'utf8');
-        expect(agentsContent).toContain(`node ${cliEntry} instance add`);
-        expect(agentsContent).toContain(`node ${cliEntry} instance list --json`);
-        expect(agentsContent).toContain(`node ${cliEntry} instance select --instance-id <id>`);
-        expect(agentsContent).toContain(`node ${cliEntry} instance delete --instance-id <id> --yes`);
-        expect(agentsContent).toContain('global n8n-manager instances');
+        expect(agentsContent).toContain('auth set --url <url> --api-key <key>');
+        expect(agentsContent).toContain('instances list');
+        expect(agentsContent).toContain('projects list');
+        expect(agentsContent).toContain(`node ${cliEntry} workspace status --json`);
+        expect(agentsContent).toContain(`node ${cliEntry} workspace set-sync-folder workflows`);
         expect(agentsContent).not.toContain('saved instance configs');
     });
 
@@ -99,8 +99,8 @@ describe('CLI update-ai integration', () => {
 
         // Call checkAndRefreshIfStale directly — this exercises the actual stale-detection
         // logic rather than just running update-ai (which always regenerates unconditionally).
-        const initAiDistPath = path.join(repoRoot, 'packages/cli/dist/commands/init-ai.js');
-        const { UpdateAiCommand } = await import(initAiDistPath) as typeof import('../../src/commands/init-ai.js');
+        const updateAiDistPath = path.join(repoRoot, 'packages/cli/dist/commands/update-ai.js');
+        const { UpdateAiCommand } = await import(updateAiDistPath) as typeof import('../../src/commands/update-ai.js');
         await UpdateAiCommand.checkAndRefreshIfStale(workspaceDir);
 
         const refreshed = fs.readFileSync(agentsPath, 'utf8');

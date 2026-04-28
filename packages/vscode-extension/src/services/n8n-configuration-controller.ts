@@ -9,13 +9,16 @@ import {
 type N8nManagerFacade = ReturnType<typeof createN8nManagerFacade>;
 type N8nGlobalConfig = Awaited<ReturnType<N8nManagerFacade['getGlobalConfig']>>;
 type N8nWorkspaceOverrides = Awaited<ReturnType<N8nManagerFacade['readWorkspaceOverrides']>>;
-type EffectiveN8nContext = Awaited<ReturnType<N8nManagerFacade['resolveEffectiveContext']>>;
+type PreparedN8nContext = Awaited<ReturnType<N8nManagerFacade['prepareEffectiveContext']>>;
+type EffectiveN8nContext = PreparedN8nContext['context'];
 
 export interface N8nConfigurationSnapshot {
   workspaceRoot?: string;
   global: N8nGlobalConfig;
   workspace: N8nWorkspaceOverrides;
   effective?: EffectiveN8nContext;
+  runtime?: PreparedN8nContext['runtime'];
+  diagnostics?: PreparedN8nContext['diagnostics'];
   hasWorkspaceConfig: boolean;
   hasValidConnection: boolean;
   signature: string;
@@ -108,13 +111,21 @@ export class N8nConfigurationController implements vscode.Disposable {
     try {
       const global = await facade.getGlobalConfig();
       const workspace = workspaceRoot ? await facade.readWorkspaceOverrides(workspaceRoot) : { version: 3 as const };
-      const effective = await facade.resolveEffectiveContext({ workspaceRoot, syncFolderDefault: 'workspace' }).catch(() => undefined);
-      const hasValidConnection = Boolean(effective?.host && effective.apiKey);
+      const prepared = await facade.prepareEffectiveContext({
+        workspaceRoot,
+        syncFolderDefault: 'workspace',
+        consumer: 'vscode',
+        autoStart: false,
+      }).catch(() => undefined);
+      const effective = prepared?.context;
+      const hasValidConnection = Boolean(effective?.host && effective.apiKey && !prepared?.runtime.blocked);
       return this.buildSnapshot({
         workspaceRoot,
         global,
         workspace,
         effective,
+        runtime: prepared?.runtime,
+        diagnostics: prepared?.diagnostics,
         hasWorkspaceConfig,
         hasValidConnection,
       });
@@ -143,6 +154,8 @@ export class N8nConfigurationController implements vscode.Disposable {
     global: N8nGlobalConfig;
     workspace: N8nWorkspaceOverrides;
     effective?: EffectiveN8nContext;
+    runtime?: PreparedN8nContext['runtime'];
+    diagnostics?: PreparedN8nContext['diagnostics'];
     hasWorkspaceConfig: boolean;
     hasValidConnection: boolean;
     error?: string;
@@ -157,6 +170,11 @@ export class N8nConfigurationController implements vscode.Disposable {
       projectName: input.effective?.projectName || '',
       instanceIdentifier: input.effective?.instanceIdentifier || '',
       folderSync: Boolean(input.effective?.folderSync),
+      runtimeStatus: input.runtime?.status || '',
+      runtimeReady: Boolean(input.runtime?.ready),
+      runtimeBlocked: input.runtime?.blocked?.code || '',
+      tunnelPublicUrl: input.runtime?.tunnel?.publicUrl || '',
+      tunnelRunning: Boolean(input.runtime?.tunnel?.running),
       error: input.error || '',
     });
 

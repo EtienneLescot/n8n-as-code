@@ -113,6 +113,7 @@ export class CredentialCommand extends BaseCommand {
      */
     async schema(typeName: string, options: { json?: boolean } = {}): Promise<void> {
         try {
+            await this.prepareRuntimeContext();
             const schema = await this.client.getCredentialSchema(typeName);
             console.log(JSON.stringify(schema, null, 2));
         } catch (error) {
@@ -126,6 +127,7 @@ export class CredentialCommand extends BaseCommand {
      */
     async list(options: { json?: boolean } = {}): Promise<void> {
         try {
+            await this.prepareRuntimeContext();
             const credentials = await this.client.listCredentials();
             if (options.json) {
                 console.log(JSON.stringify(credentials, null, 2));
@@ -159,6 +161,7 @@ export class CredentialCommand extends BaseCommand {
      */
     async get(id: string, options: { json?: boolean } = {}): Promise<void> {
         try {
+            await this.prepareRuntimeContext();
             const credential = await this.client.getCredential(id);
             console.log(JSON.stringify(credential, null, 2));
         } catch (error) {
@@ -206,6 +209,7 @@ export class CredentialCommand extends BaseCommand {
         };
 
         try {
+            await this.prepareRuntimeContext();
             const result = await this.client.createCredential(payload);
 
             if (options.json) {
@@ -244,6 +248,7 @@ export class CredentialCommand extends BaseCommand {
      */
     async delete(id: string): Promise<void> {
         try {
+            await this.prepareRuntimeContext();
             const ok = await this.client.deleteCredential(id);
             if (ok) {
                 console.log(chalk.green(`✅ Credential ${id} deleted.`));

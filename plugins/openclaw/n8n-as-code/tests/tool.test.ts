@@ -63,56 +63,76 @@ describe("createN8nAcTool", () => {
     spawnMock.mockReset();
   });
 
-  it("describes instance actions as global n8n-manager operations", () => {
+  it("describes n8n-manager actions as global operations", () => {
     const tool = createN8nAcTool({ workspaceDir: "/tmp/openclaw-workspace" });
 
-    expect(tool.description).toContain("global n8n-manager instance management");
+    expect(tool.description).toContain("Uses n8n-manager for global instance/auth/project management");
     expect(JSON.stringify(tool.parameters)).toContain("global n8n-manager instances");
   });
 
-  it("routes instance_list to `n8nac instance list --json`", async () => {
+  it("routes manager_instances_list to n8n-manager", async () => {
     spawnMock.mockReturnValueOnce(createMockChild('[{"id":"prod"}]', "", 0));
     const tool = createN8nAcTool({ workspaceDir: "/tmp/openclaw-workspace" });
 
-    const result = await tool.execute("call-1", { action: "instance_list" });
+    const result = await tool.execute("call-1", { action: "manager_instances_list" });
     const payload = JSON.parse(result.content[0].text);
 
     expect(spawnMock).toHaveBeenCalledWith(
       "npx",
-      ["--yes", "n8nac", "instance", "list", "--json"],
+      ["--yes", "n8n-manager", "instances", "list"],
       expect.objectContaining({ cwd: "/tmp/openclaw-workspace", stdio: "pipe" }),
     );
     expect(payload.output).toContain('"id":"prod"');
   });
 
-  it("routes instance_select by name to the non-interactive CLI command", async () => {
+  it("routes manager_auth_set to n8n-manager using stdin for the API key", async () => {
+    const child = createMockChild('{"ok":true}', "", 0);
+    spawnMock.mockReturnValueOnce(child);
+    const tool = createN8nAcTool({ workspaceDir: "/tmp/openclaw-workspace" });
+
+    await tool.execute("call-auth", {
+      action: "manager_auth_set",
+      n8nHost: "http://localhost:5678",
+      n8nApiKey: "secret-key",
+      instanceName: "Local",
+    });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      "npx",
+      ["--yes", "n8n-manager", "auth", "set", "--url", "http://localhost:5678", "--api-key-stdin", "--name", "Local"],
+      expect.objectContaining({ cwd: "/tmp/openclaw-workspace", stdio: "pipe" }),
+    );
+    expect(child.stdin.write).toHaveBeenCalledWith("secret-key\n");
+  });
+
+  it("routes manager_instances_select by name to n8n-manager", async () => {
     spawnMock.mockReturnValueOnce(createMockChild("selected", "", 0));
     const tool = createN8nAcTool({ workspaceDir: "/tmp/openclaw-workspace" });
 
     await tool.execute("call-2", {
-      action: "instance_select",
+      action: "manager_instances_select",
       instanceName: "Production",
     });
 
     expect(spawnMock).toHaveBeenCalledWith(
       "npx",
-      ["--yes", "n8nac", "instance", "select", "--instance-name", "Production"],
+      ["--yes", "n8n-manager", "instances", "select", "Production"],
       expect.objectContaining({ cwd: "/tmp/openclaw-workspace", stdio: "pipe" }),
     );
   });
 
-  it("routes instance_delete by id to the non-interactive CLI command", async () => {
+  it("routes manager_instances_delete by id to n8n-manager", async () => {
     spawnMock.mockReturnValueOnce(createMockChild("deleted", "", 0));
     const tool = createN8nAcTool({ workspaceDir: "/tmp/openclaw-workspace" });
 
     await tool.execute("call-3", {
-      action: "instance_delete",
+      action: "manager_instances_delete",
       instanceId: "prod",
     });
 
     expect(spawnMock).toHaveBeenCalledWith(
       "npx",
-      ["--yes", "n8nac", "instance", "delete", "--yes", "--instance-id", "prod"],
+      ["--yes", "n8n-manager", "instances", "delete", "prod", "--force"],
       expect.objectContaining({ cwd: "/tmp/openclaw-workspace", stdio: "pipe" }),
     );
   });
