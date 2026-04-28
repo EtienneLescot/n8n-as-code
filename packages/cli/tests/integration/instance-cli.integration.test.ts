@@ -19,6 +19,7 @@ function makeEnv(homeDir: string) {
         ...process.env,
         HOME: homeDir,
         XDG_CONFIG_HOME: path.join(homeDir, '.config'),
+        N8N_MANAGER_HOME: path.join(homeDir, '.n8n-manager'),
         N8N_HOST: '',
         N8N_API_KEY: '',
         FORCE_COLOR: '0',
@@ -66,19 +67,25 @@ describe('CLI instance management integration', () => {
     it('lists, selects, and deletes saved instance configs non-interactively', () => {
         const workspaceDir = createTempDir('n8nac-cli-instance-workspace-');
         const homeDir = createTempDir('n8nac-cli-instance-home-');
+        const managerHome = path.join(homeDir, '.n8n-manager');
         const configPath = path.join(workspaceDir, 'n8nac-config.json');
+        const managerConfigPath = path.join(managerHome, 'instances.json');
 
-        fs.writeFileSync(configPath, JSON.stringify({
-            version: 2,
+        fs.mkdirSync(managerHome, { recursive: true });
+        fs.writeFileSync(managerConfigPath, JSON.stringify({
+            version: 1,
             activeInstanceId: 'test',
+            defaultSyncFolder: 'workflows',
             instances: [
                 {
                     id: 'prod',
                     name: 'Production',
-                    host: 'https://prod.example.com',
-                    syncFolder: 'workflows-prod',
-                    projectId: 'project-prod',
-                    projectName: 'Production Project',
+                    mode: 'existing',
+                    baseUrl: 'https://prod.example.com',
+                    defaultProject: {
+                        id: 'project-prod',
+                        name: 'Production Project',
+                    },
                     verification: {
                         status: 'verified',
                         normalizedHost: 'https://prod.example.com',
@@ -88,10 +95,12 @@ describe('CLI instance management integration', () => {
                 {
                     id: 'test',
                     name: 'Test',
-                    host: 'https://test.example.com',
-                    syncFolder: 'workflows-test',
-                    projectId: 'project-test',
-                    projectName: 'Test Project',
+                    mode: 'existing',
+                    baseUrl: 'https://test.example.com',
+                    defaultProject: {
+                        id: 'project-test',
+                        name: 'Test Project',
+                    },
                     verification: {
                         status: 'verified',
                         normalizedHost: 'https://test.example.com',
@@ -99,7 +108,11 @@ describe('CLI instance management integration', () => {
                     },
                 },
             ],
-            host: 'https://test.example.com',
+        }, null, 2));
+
+        fs.writeFileSync(configPath, JSON.stringify({
+            version: 3,
+            activeInstanceId: 'test',
             syncFolder: 'workflows-test',
             projectId: 'project-test',
             projectName: 'Test Project',
@@ -113,16 +126,19 @@ describe('CLI instance management integration', () => {
         const selected = runCli(workspaceDir, homeDir, ['instance', 'select', '--instance-name', 'Production']);
         expect(stripAnsi(selected)).toContain('Selected instance: Production');
 
-        const selectedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        expect(selectedConfig.activeInstanceId).toBe('prod');
-        expect(selectedConfig.projectId).toBe('project-prod');
+        const selectedManagerConfig = JSON.parse(fs.readFileSync(managerConfigPath, 'utf8'));
+        expect(selectedManagerConfig.activeInstanceId).toBe('prod');
+
+        const workspaceConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        expect(workspaceConfig.activeInstanceId).toBe('test');
+        expect(workspaceConfig.projectId).toBe('project-test');
 
         const deleted = runCli(workspaceDir, homeDir, ['instance', 'delete', '--instance-id', 'prod', '--yes']);
         expect(stripAnsi(deleted)).toContain('Deleted saved config: Production');
 
-        const deletedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        expect(deletedConfig.instances).toHaveLength(1);
-        expect(deletedConfig.instances[0].id).toBe('test');
-        expect(deletedConfig.activeInstanceId).toBe('test');
+        const deletedManagerConfig = JSON.parse(fs.readFileSync(managerConfigPath, 'utf8'));
+        expect(deletedManagerConfig.instances).toHaveLength(1);
+        expect(deletedManagerConfig.instances[0].id).toBe('test');
+        expect(deletedManagerConfig.activeInstanceId).toBe('test');
     });
 });
