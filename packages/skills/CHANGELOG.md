@@ -1,5 +1,11 @@
 # @n8n-as-code/skills
 
+## [1.10.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.10.0...@n8n-as-code/skills@v1.10.1) (2026-04-28)
+
+### Bug Fixes
+
+* **skills:** rebuild knowledge base for n8n@2.17.8 ([a81c923](https://github.com/EtienneLescot/n8n-as-code/commit/a81c9239afffd0659c3d5152fd362349ba751692))
+
 ## [1.10.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.9.0...@n8n-as-code/skills@v1.10.0) (2026-04-24)
 
 ### Features
