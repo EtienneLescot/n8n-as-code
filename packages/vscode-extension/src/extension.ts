@@ -790,7 +790,7 @@ async function switchWorkspaceInstance(
     if (!args.silent) {
         if (selection.status === 'duplicate') {
             vscode.window.showWarningMessage(
-                `This config resolves to the already saved instance "${selection.duplicateInstance.name}". Switched to the existing verified config instead.`
+                `This config resolves to the existing global instance "${selection.duplicateInstance.name}". Switched to that verified instance instead.`
             );
         } else if (selection.verificationStatus === 'failed') {
             vscode.window.showWarningMessage(

@@ -195,7 +195,7 @@ program
     .name('n8nac')
     .description('N8N Sync Command Line Interface - Manage n8n workflows as code')
     .version(getVersion())
-    .option('--instance <name>', 'Target a specific saved instance by name instead of the currently active one');
+    .option('--instance <name>', 'Target a specific global n8n-manager instance by name instead of the effective one');
 
 // Inject --instance into the environment only for the lifetime of the command action
 // so BaseCommand can pick it up without leaking process-wide state afterwards.
@@ -237,10 +237,10 @@ const registerInstanceOptions = (command: Command, options: { includeNewInstance
         .option('--api-key <key>', 'n8n API key (or set N8N_API_KEY)')
         .option('--api-key-stdin', 'Read the n8n API key from stdin')
         .option('--sync-folder <path>', 'Local folder for workflows')
-        .option('--instance-name <name>', 'Friendly name for the saved instance');
+        .option('--instance-name <name>', 'Friendly name for the global n8n-manager instance');
 
     if (options.includeNewInstance) {
-        command.option('--new-instance', 'Add a new saved config instead of updating the selected one');
+        command.option('--new-instance', 'Add a new global n8n-manager instance instead of updating the selected one');
     }
 
     return command
@@ -251,7 +251,7 @@ const registerInstanceOptions = (command: Command, options: { includeNewInstance
 };
 
 const instanceProgram = program.command('instance')
-    .description('Manage saved n8n instance configs');
+    .description('Manage global n8n-manager instances');
 
 registerInstanceOptions(
     instanceProgram.command('add')
@@ -278,33 +278,53 @@ registerInstanceOptions(
 });
 
 instanceProgram.command('select')
-    .description('Select the current n8n instance')
-    .option('--instance-id <id>', 'Saved instance config ID to select')
-    .option('--instance-name <name>', 'Saved instance config name to select')
-    .option('--instance-index <number>', '1-based saved instance index to select', (value) => parsePositiveIntegerOption(value, '--instance-index'))
+    .description('Select the global active n8n instance')
+    .option('--instance-id <id>', 'Global n8n-manager instance ID to select')
+    .option('--instance-name <name>', 'Global n8n-manager instance name to select')
+    .option('--instance-index <number>', '1-based global n8n-manager instance index to select', (value) => parsePositiveIntegerOption(value, '--instance-index'))
     .action(async (options) => {
         await switchCommand.runInstanceSwitch(options);
     });
 
 instanceProgram.command('delete')
-    .description('Delete a saved n8n instance config')
-    .option('--instance-id <id>', 'Saved instance config ID to delete')
-    .option('--instance-name <name>', 'Saved instance config name to delete')
-    .option('--instance-index <number>', '1-based saved instance index to delete', (value) => parsePositiveIntegerOption(value, '--instance-index'))
+    .description('Delete a global n8n-manager instance')
+    .option('--instance-id <id>', 'Global n8n-manager instance ID to delete')
+    .option('--instance-name <name>', 'Global n8n-manager instance name to delete')
+    .option('--instance-index <number>', '1-based global n8n-manager instance index to delete', (value) => parsePositiveIntegerOption(value, '--instance-index'))
     .option('--yes', 'Delete without asking for confirmation')
     .action(async (options) => {
         await switchCommand.runInstanceDeletion(options);
     });
 
 instanceProgram.command('list')
-    .description('List saved n8n instance configs')
-    .option('--json', 'Output saved instance configs as JSON')
+    .description('List global n8n-manager instances')
+    .option('--json', 'Output global n8n-manager instances as JSON')
     .action(async (options) => {
         await switchCommand.runInstanceList(options);
     });
 
 const workspaceProgram = program.command('workspace')
     .description('Manage n8n workspace overrides');
+
+workspaceProgram.command('status')
+    .alias('get')
+    .description('Show the effective n8n workspace context resolved by the backend')
+    .option('--json', 'Output effective workspace context as JSON')
+    .action((options) => {
+        const configService = new ConfigService();
+        const workspaceConfig = configService.getWorkspaceConfig();
+        printJsonOrText(
+            options,
+            workspaceConfig,
+            [
+                chalk.cyan('\nEffective n8n workspace context:\n'),
+                `Instance: ${chalk.bold(workspaceConfig.activeInstanceId || '(none)')}`,
+                `Project : ${chalk.bold(workspaceConfig.projectName || workspaceConfig.projectId || '(none)')}`,
+                `Sync    : ${chalk.bold(workspaceConfig.workflowDir || workspaceConfig.syncFolder || '(none)')}`,
+                '',
+            ].join('\n'),
+        );
+    });
 
 workspaceProgram.command('pin-instance')
     .description('Pin the effective n8n instance for this workspace')
@@ -532,8 +552,8 @@ program.command('init-auth')
     .option('--api-key <key>', 'n8n API key (or set N8N_API_KEY)')
     .option('--api-key-stdin', 'Read the n8n API key from stdin')
     .option('--sync-folder <path>', 'Default local folder for workflows')
-    .option('--instance-name <name>', 'Friendly name for the saved instance')
-    .option('--new-instance', 'Add a new saved config instead of updating the selected one')
+    .option('--instance-name <name>', 'Friendly name for the global n8n-manager instance')
+    .option('--new-instance', 'Add a new global n8n-manager instance instead of updating the selected one')
     .action(async (options) => {
         await hydrateApiKeyFromStdin(options);
         await initCommand.runAuthSetup(options);
@@ -545,8 +565,8 @@ program.command('init-project')
     .option('--api-key <key>', 'n8n API key (optional if already saved)')
     .option('--api-key-stdin', 'Read the n8n API key from stdin')
     .option('--sync-folder <path>', 'Local folder for workflows')
-    .option('--instance-name <name>', 'Friendly name for the saved instance')
-    .option('--new-instance', 'Add a new saved config instead of updating the selected one')
+    .option('--instance-name <name>', 'Friendly name for the global n8n-manager instance')
+    .option('--new-instance', 'Add a new global n8n-manager instance instead of updating the selected one')
     .option('--project-id <id>', 'Project ID to select non-interactively')
     .option('--project-name <name>', 'Project name to select non-interactively')
     .option('--project-index <number>', '1-based project index to select non-interactively', (value) => parseInt(value, 10))

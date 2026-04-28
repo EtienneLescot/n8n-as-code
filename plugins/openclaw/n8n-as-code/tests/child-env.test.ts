@@ -95,6 +95,20 @@ describe("getChildEnv", () => {
     expect(env.N8N_AS_CODE_ASSETS_DIR).toBe("/workspace/assets");
   });
 
+  it("forwards non-secret n8n-as-code and n8n-manager dev overrides so child commands use the same SSOT", () => {
+    process.env.N8N_MANAGER_HOME = "/tmp/n8n-manager-home";
+    process.env.N8N_MANAGER_COMMAND = "node /repo/n8n-manager/packages/cli/dist/index.js";
+    process.env.N8N_MANAGER_STATE_PATH = "/tmp/n8n-manager-state";
+    process.env.N8NAC_COMMAND = "node /repo/n8n-as-code/packages/cli/dist/index.js";
+
+    const env = getChildEnv();
+
+    expect(env.N8N_MANAGER_HOME).toBe("/tmp/n8n-manager-home");
+    expect(env.N8N_MANAGER_COMMAND).toBe("node /repo/n8n-manager/packages/cli/dist/index.js");
+    expect(env.N8N_MANAGER_STATE_PATH).toBe("/tmp/n8n-manager-state");
+    expect(env.N8NAC_COMMAND).toBe("node /repo/n8n-as-code/packages/cli/dist/index.js");
+  });
+
   it("blocks arbitrary LLM API keys and other sensitive vars", () => {
     process.env.ANTHROPIC_API_KEY = "sk-ant-secret";
     process.env.OPENAI_API_KEY = "sk-openai-secret";

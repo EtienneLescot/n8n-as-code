@@ -150,7 +150,7 @@ export class ConfigService {
     pinWorkspaceInstance(instanceId: string): IInstanceProfile {
         const instance = this.manager.getInstance(instanceId);
         if (!instance) {
-            throw new Error(`Unknown instance config: ${instanceId}`);
+            throw new Error(`Unknown global n8n-manager instance: ${instanceId}`);
         }
         const current = this.manager.readWorkspaceOverrides(this.workspaceRoot);
         this.manager.writeWorkspaceOverrides(this.workspaceRoot, {
@@ -314,7 +314,7 @@ export class ConfigService {
         | ({ status: 'skipped'; instance: IInstanceProfile; reason: string })
     > {
         const instance = this.getInstanceConfig(instanceId);
-        if (!instance) throw new Error(`Unknown instance config: ${instanceId}`);
+        if (!instance) throw new Error(`Unknown global n8n-manager instance: ${instanceId}`);
         if (!instance.host) return { status: 'skipped', instance, reason: 'Missing host' };
         const apiKey = this.getApiKey(instance.host, instance.id);
         if (!apiKey) return { status: 'skipped', instance, reason: 'Missing API key' };

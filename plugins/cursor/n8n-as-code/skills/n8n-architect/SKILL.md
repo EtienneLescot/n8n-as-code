@@ -9,10 +9,10 @@ Use this skill only for explicit n8n workflow work.
 
 ## Operating model
 
-This plugin is installed globally in Cursor, but n8n-as-code operations are still workspace-scoped.
+This plugin is installed globally in Cursor. Instance and credential state is global in n8n-manager, while project and sync-folder context is resolved for the active workspace.
 
 - Each workspace that should sync workflows must be initialized independently.
-- The active workspace is the source of truth for `n8nac-config.json`, `AGENTS.md`, and the local workflow files.
+- n8n-manager is the source of truth for instances and API keys. The active workspace owns only `n8nac-config.json` overrides, `AGENTS.md`, and local workflow files.
 - Do not assume that because the plugin is globally available, the current workspace is already initialized.
 
 ## Tool priority
@@ -37,14 +37,14 @@ Before using any workflow command, check whether the workspace is initialized.
   - `npx --yes n8nac init-project --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]`
 - If the target project is already known, a one-command setup is also valid:
   - `npx --yes n8nac init --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]`
-- If saved instances already exist, inspect them first with `npx --yes n8nac instance list --json`.
-- Reuse an existing saved instance with `npx --yes n8nac instance select --instance-id <id>` or `--instance-name <name>` when possible.
+- If global n8n-manager instances already exist, inspect them first with `npx --yes n8nac instance list --json`.
+- Reuse an existing global instance with `npx --yes n8nac instance select --instance-id <id>` or `--instance-name <name>` when possible.
 - Never write `n8nac-config.json` by hand.
 
 ### Required order
 
 1. Check for `n8nac-config.json`.
-2. If saved configs exist, inspect them with `npx --yes n8nac instance list --json`.
+2. If global n8n-manager instances exist, inspect them with `npx --yes n8nac instance list --json`.
 3. If initialization is missing and credentials are available, run `init-auth`, inspect projects, then run `init-project`.
 4. If credentials are missing, ask the user for the n8n host URL and API key, then run the commands yourself.
 5. After initialization, read `AGENTS.md` before making workflow changes.

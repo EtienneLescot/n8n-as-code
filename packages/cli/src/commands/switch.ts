@@ -28,18 +28,18 @@ export class SwitchCommand {
 
         program
             .command('switch-instance')
-            .description('Select the current n8n instance')
-            .option('--instance-id <id>', 'Saved instance config ID to select')
-            .option('--instance-name <name>', 'Saved instance config name to select')
-            .option('--instance-index <number>', '1-based saved instance index to select', (value) => parsePositiveIntegerOption(value, '--instance-index'))
+            .description('Select the global active n8n instance')
+            .option('--instance-id <id>', 'Global n8n-manager instance ID to select')
+            .option('--instance-name <name>', 'Global n8n-manager instance name to select')
+            .option('--instance-index <number>', '1-based global n8n-manager instance index to select', (value) => parsePositiveIntegerOption(value, '--instance-index'))
             .action((options) => this.runInstanceSwitch(options));
 
         program
             .command('delete-instance')
-            .description('Delete a saved n8n instance config')
-            .option('--instance-id <id>', 'Saved instance config ID to delete')
-            .option('--instance-name <name>', 'Saved instance config name to delete')
-            .option('--instance-index <number>', '1-based saved instance index to delete', (value) => parsePositiveIntegerOption(value, '--instance-index'))
+            .description('Delete a global n8n-manager instance')
+            .option('--instance-id <id>', 'Global n8n-manager instance ID to delete')
+            .option('--instance-name <name>', 'Global n8n-manager instance name to delete')
+            .option('--instance-index <number>', '1-based global n8n-manager instance index to delete', (value) => parsePositiveIntegerOption(value, '--instance-index'))
             .option('--yes', 'Delete without asking for confirmation')
             .action((options) => this.runInstanceDeletion(options));
     }
@@ -133,8 +133,8 @@ export class SwitchCommand {
         const activeInstanceId = this.configService.getCurrentInstanceConfigId();
 
         if (instances.length === 0) {
-            console.error(chalk.red('❌ No saved instances found.'));
-            console.error(chalk.yellow('Please run `n8nac instance add` first to save one.'));
+            console.error(chalk.red('❌ No global n8n-manager instances found.'));
+            console.error(chalk.yellow('Please run `n8nac instance add` first to add one.'));
             process.exit(1);
         }
 
@@ -144,7 +144,7 @@ export class SwitchCommand {
         }
 
         if (!selectedFromFlags && instances.length === 1) {
-            console.log(chalk.yellow(`Only one saved instance is available: ${instances[0].name}`));
+            console.log(chalk.yellow(`Only one global n8n-manager instance is available: ${instances[0].name}`));
             return;
         }
 
@@ -166,7 +166,7 @@ export class SwitchCommand {
         const selectedInstance = selection.profile;
 
         if (selection.status === 'duplicate') {
-            console.log(chalk.yellow(`\n⚠ This config resolves to the already saved instance "${selection.duplicateInstance.name}".`));
+            console.log(chalk.yellow(`\n⚠ This config resolves to the existing global instance "${selection.duplicateInstance.name}".`));
         }
         console.log(chalk.green(`\n✔ Selected instance: ${chalk.bold(selectedInstance.name)}`));
         if (selectedInstance.projectName) {
@@ -183,8 +183,8 @@ export class SwitchCommand {
         const activeInstanceId = this.configService.getCurrentInstanceConfigId();
 
         if (instances.length === 0) {
-            console.error(chalk.red('❌ No saved instances found.'));
-            console.error(chalk.yellow('Please run `n8nac instance add` first to save one.'));
+            console.error(chalk.red('❌ No global n8n-manager instances found.'));
+            console.error(chalk.yellow('Please run `n8nac instance add` first to add one.'));
             process.exit(1);
         }
 
@@ -200,7 +200,7 @@ export class SwitchCommand {
                 {
                     type: 'rawlist',
                     name: 'selectedInstanceId',
-                    message: 'Select the saved config to delete:',
+                    message: 'Select the global n8n-manager instance to delete:',
                     choices: instances.map((instance, index) => ({
                         name: `[${index + 1}] ${instance.name}${instance.id === activeInstanceId ? ' (current)' : ''} - ${instance.host || 'host not set'}`,
                         value: instance.id
@@ -225,7 +225,7 @@ export class SwitchCommand {
                     type: 'confirm',
                     name: 'confirmed',
                     default: false,
-                    message: `Delete the saved config "${selectedInstance.name}"? This will not delete the n8n instance itself.`
+                    message: `Delete the global n8n-manager instance "${selectedInstance.name}"? This will not destroy runtime data.`
                 }
             ])).confirmed;
 
@@ -235,7 +235,7 @@ export class SwitchCommand {
         }
 
         const result = this.configService.deleteInstanceConfig(selectedInstance.id);
-        console.log(chalk.green(`\n✔ Deleted saved config: ${chalk.bold(result.deletedInstance.name)}`));
+        console.log(chalk.green(`\n✔ Deleted global instance: ${chalk.bold(result.deletedInstance.name)}`));
 
         if (result.activeInstance) {
             console.log(chalk.cyan(`Selected instance: ${chalk.bold(result.activeInstance.name)}`));
@@ -260,7 +260,7 @@ export class SwitchCommand {
                 console.log('[]');
                 return;
             }
-            console.log(chalk.yellow('No saved instances found.'));
+            console.log(chalk.yellow('No global n8n-manager instances found.'));
             console.log(chalk.gray(`Run ${chalk.bold('n8nac instance add')} to add one.\n`));
             return;
         }
@@ -277,7 +277,7 @@ export class SwitchCommand {
             return;
         }
 
-        console.log(chalk.cyan('\nSaved instance configs:\n'));
+        console.log(chalk.cyan('\nGlobal n8n-manager instances:\n'));
         for (const instance of instances) {
             const marker = instance.id === activeInstanceId ? chalk.green('●') : chalk.gray('○');
             const host = instance.host || 'host not set';
@@ -314,7 +314,7 @@ export class SwitchCommand {
             }
             if (matches.length > 1) {
                 console.error(chalk.red(`❌ Instance name is ambiguous: ${options.instanceName}`));
-                console.error(chalk.yellow('Use --instance-id to target one config exactly.'));
+                console.error(chalk.yellow('Use --instance-id to target one global instance exactly.'));
                 return undefined;
             }
             return matches[0];

@@ -26,26 +26,19 @@ describe("buildPromptContext", () => {
     const workspaceDir = createWorkspaceDir();
     try {
       writeConfig(workspaceDir, {
-        version: 2,
+        version: 3,
         activeInstanceId: "prod",
-        instances: [
-          {
-            id: "prod",
-            name: "Production",
-            host: "https://n8n.example.com",
-            projectId: "proj_123",
-            projectName: "My Project",
-            syncFolder: "workflows",
-          },
-        ],
+        projectId: "proj_123",
+        projectName: "My Project",
+        syncFolder: "workflows",
       });
       fs.writeFileSync(path.join(workspaceDir, "AGENTS.md"), "# Heavy Context\nDO NOT INLINE ME");
 
       const context = buildPromptContext(workspaceDir);
 
       expect(context).toContain("n8n-architect");
-      expect(context).toContain("Active instance");
-      expect(context).toContain("Production");
+      expect(context).toContain("Workspace-pinned instance");
+      expect(context).toContain("prod");
       expect(context).toContain("For unrelated requests, ignore this plugin context.");
       expect(context).toContain(path.join(workspaceDir, "AGENTS.md"));
       expect(context).not.toContain("DO NOT INLINE ME");
@@ -58,18 +51,11 @@ describe("buildPromptContext", () => {
     const workspaceDir = createWorkspaceDir();
     try {
       writeConfig(workspaceDir, {
-        version: 2,
+        version: 3,
         activeInstanceId: "prod",
-        instances: [
-          {
-            id: "prod",
-            name: "Production",
-            host: "https://n8n.example.com",
-            projectId: "proj_123",
-            projectName: "My Project",
-            syncFolder: "workflows",
-          },
-        ],
+        projectId: "proj_123",
+        projectName: "My Project",
+        syncFolder: "workflows",
       });
 
       const context = buildPromptContext(workspaceDir);

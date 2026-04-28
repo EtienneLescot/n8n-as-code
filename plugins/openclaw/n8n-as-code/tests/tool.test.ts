@@ -63,6 +63,13 @@ describe("createN8nAcTool", () => {
     spawnMock.mockReset();
   });
 
+  it("describes instance actions as global n8n-manager operations", () => {
+    const tool = createN8nAcTool({ workspaceDir: "/tmp/openclaw-workspace" });
+
+    expect(tool.description).toContain("global n8n-manager instance management");
+    expect(JSON.stringify(tool.parameters)).toContain("global n8n-manager instances");
+  });
+
   it("routes instance_list to `n8nac instance list --json`", async () => {
     spawnMock.mockReturnValueOnce(createMockChild('[{"id":"prod"}]', "", 0));
     const tool = createN8nAcTool({ workspaceDir: "/tmp/openclaw-workspace" });

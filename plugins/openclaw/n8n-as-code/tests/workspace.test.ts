@@ -27,15 +27,23 @@ describe("isWorkspaceInitialized", () => {
   it("returns true when project metadata and sync folder are present", () => {
     const workspaceDir = createWorkspaceDir();
     writeConfig(workspaceDir, {
+      version: 3,
+      activeInstanceId: "prod",
       projectId: "proj_123",
       projectName: "My Project",
       syncFolder: "workflows",
     });
 
     expect(isWorkspaceInitialized(workspaceDir)).toBe(true);
+    expect(readWorkspaceBinding(workspaceDir)).toMatchObject({
+      activeInstanceId: "prod",
+      projectId: "proj_123",
+      projectName: "My Project",
+      syncFolder: "workflows",
+    });
   });
 
-  it("returns true when the active instance is resolved from the instances library", () => {
+  it("ignores legacy workspace instances libraries because n8n-manager owns instances globally", () => {
     const workspaceDir = createWorkspaceDir();
     writeConfig(workspaceDir, {
       version: 2,
@@ -60,14 +68,9 @@ describe("isWorkspaceInitialized", () => {
       ],
     });
 
-    expect(isWorkspaceInitialized(workspaceDir)).toBe(true);
+    expect(isWorkspaceInitialized(workspaceDir)).toBe(false);
     expect(readWorkspaceBinding(workspaceDir)).toMatchObject({
       activeInstanceId: "prod",
-      activeInstanceName: "Production",
-      host: "https://prod.example.com",
-      projectId: "proj_prod",
-      projectName: "Production Project",
-      syncFolder: "workflows-prod",
     });
   });
 
