@@ -1204,7 +1204,9 @@ async function reconcileManagedInstanceIfNeeded(
     const facade = createN8nManagerFacade({ workspaceRoot });
     await facade.setup({
         mode: 'managed-local',
-        tunnel: false,
+        instanceId: instance.id,
+        instanceName: instance.name,
+        tunnel: Boolean(instance.tunnelPublicUrl),
         bootstrapOwner: true,
     });
     await refreshConfigurationSnapshotAfterHandledMutation('managed-instance-reconciled');

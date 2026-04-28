@@ -1,6 +1,7 @@
 import {
   FileBackedN8nLifecycleManager,
   N8nConfigurationService,
+  createManagedLocalLifecycleManager,
   readFileBackedN8nInstance,
   resolveN8nManagerHome,
   resolveFileBackedN8nStatePath,
@@ -42,6 +43,8 @@ export interface N8nManagerFacadeOptions {
 
 export interface N8nFacadeSetupInput {
   mode: N8nFacadeSetupMode;
+  instanceId?: string;
+  instanceName?: string;
   n8nHost?: string;
   n8nApiKeyRef?: string;
   tunnel?: boolean;
@@ -110,20 +113,29 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
   return {
     async setup(input) {
       const mode = getN8nFacadeSetupMode(input.mode);
-      const instance = await lifecycle.setup({
+      const managedRuntime = mode.managerMode === 'managed-local-docker'
+        ? await createManagedLocalLifecycleManager(configuration, {
+          instanceId: input.instanceId,
+          name: input.instanceName,
+        })
+        : undefined;
+      const selectedLifecycle = managedRuntime?.lifecycle ?? lifecycle;
+      const selectedStatePath = managedRuntime?.statePath ?? statePath;
+      const instance = await selectedLifecycle.setup({
         mode: mode.managerMode,
         baseUrl: input.n8nHost ?? options.n8nHost,
         apiKeyRef: input.n8nApiKeyRef,
         tunnel: input.tunnel,
         bootstrapOwner: input.bootstrapOwner,
       });
-      const privateInstance = await readFileBackedN8nInstance(statePath);
+      const privateInstance = await readFileBackedN8nInstance(selectedStatePath);
       const lifecycleInstance = {
         ...instance,
         ...(privateInstance ?? {}),
-        runtimeStatePath: resolveFileBackedN8nStatePath(statePath),
+        runtimeStatePath: resolveFileBackedN8nStatePath(selectedStatePath),
       };
       configuration.upsertInstanceFromLifecycle(lifecycleInstance, {
+        name: input.instanceName,
         apiKey: options.n8nApiKey ?? privateInstance?.apiKey,
         setActive: true,
       });
