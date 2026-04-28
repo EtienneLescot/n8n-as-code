@@ -15,6 +15,7 @@ import {
 } from '@n8n-as-code/skills';
 import { ConfigService } from '../services/config-service.js';
 import dotenv from 'dotenv';
+import { getN8nacDevConfigFilenames } from '@n8n-as-code/skills';
 
 /** Returns 'next' for pre-release builds, undefined for stable builds.
  * The generated command is resolved centrally by @n8n-as-code/skills:
@@ -47,6 +48,32 @@ function readAgentsMdVersion(projectRoot: string): string | undefined {
     const content = readFileSync(agentsMdPath, 'utf8');
     const match = content.match(/<!--\s*n8nac-version:\s*([^\s>]+)\s*-->/);
     return match?.[1];
+}
+
+function quoteShellArg(value: string): string {
+    return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function hasWorkspaceDevCommand(projectRoot: string): boolean {
+    return getN8nacDevConfigFilenames().some((filename) => existsSync(join(projectRoot, filename)));
+}
+
+function inferLocalDevCliCommand(projectRoot: string): string | undefined {
+    if (process.env.N8NAC_COMMAND || hasWorkspaceDevCommand(projectRoot)) {
+        return undefined;
+    }
+
+    const entrypoint = process.argv[1] ? resolve(process.argv[1]) : '';
+    if (!entrypoint || entrypoint.includes(`${join('node_modules', '')}`)) {
+        return undefined;
+    }
+    if (!entrypoint.endsWith(join('packages', 'cli', 'dist', 'index.js'))) {
+        return undefined;
+    }
+    if (!existsSync(entrypoint)) {
+        return undefined;
+    }
+    return `node ${quoteShellArg(entrypoint)}`;
 }
 
 export class UpdateAiCommand {
@@ -117,7 +144,7 @@ export class UpdateAiCommand {
             if (!silent) console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md)...'));
             const aiContextGenerator = new AiContextGenerator();
             await aiContextGenerator.generate(projectRoot, version, getDistTag(), {
-                cliCommandOverride: options.cliCmd,
+                cliCommandOverride: options.cliCmd || inferLocalDevCliCommand(projectRoot),
                 cliVersion: getCliVersion(),
             });
             if (!silent) console.log(chalk.green('   ✅ AI context files created.'));

@@ -9,7 +9,7 @@ import {
     SyncManager, CliApi, N8nApiClient, IN8nCredentials, WorkflowSyncStatus, ConfigService,
     resolveInstanceIdentifier
 } from 'n8nac';
-import { AiContextGenerator } from '@n8n-as-code/skills';
+import { AiContextGenerator, getN8nacDevConfigFilenames } from '@n8n-as-code/skills';
 
 import { StatusBar } from './ui/status-bar.js';
 import { EnhancedWorkflowTreeProvider } from './ui/enhanced-workflow-tree-provider.js';
@@ -1146,7 +1146,10 @@ async function generateAiContextForWorkspace(
 
     const distTag = (typeof __N8NAC_VERSION__ !== 'undefined' && __N8NAC_VERSION__ === 'next') ? 'next' : undefined;
     const cliVersion = (typeof __N8NAC_CLI_SEMVER__ !== 'undefined' && __N8NAC_CLI_SEMVER__) ? __N8NAC_CLI_SEMVER__ : undefined;
-    await new AiContextGenerator().generate(workspaceRoot, version, distTag, { cliVersion });
+    await new AiContextGenerator().generate(workspaceRoot, version, distTag, {
+        cliVersion,
+        cliCommandOverride: resolveAiContextCliCommandOverride(context, workspaceRoot),
+    });
     await context.workspaceState.update('n8n.lastInitVersion', version);
     enhancedTreeProvider.setAIContextInfo(version, false);
 
@@ -1155,6 +1158,28 @@ async function generateAiContextForWorkspace(
     }
 
     return version;
+}
+
+function resolveAiContextCliCommandOverride(context: vscode.ExtensionContext, workspaceRoot: string): string | undefined {
+    if (process.env.N8NAC_COMMAND) {
+        return undefined;
+    }
+    if (getN8nacDevConfigFilenames().some((filename) => fs.existsSync(path.join(workspaceRoot, filename)))) {
+        return undefined;
+    }
+    if (context.extensionMode !== vscode.ExtensionMode.Development) {
+        return undefined;
+    }
+
+    const localCliPath = path.resolve(context.extensionPath, '..', 'cli', 'dist', 'index.js');
+    if (!fs.existsSync(localCliPath)) {
+        return undefined;
+    }
+    return `node ${quoteShellArg(localCliPath)}`;
+}
+
+function quoteShellArg(value: string): string {
+    return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 async function updateAiContextAfterSyncInitialization(
