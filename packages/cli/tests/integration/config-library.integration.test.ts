@@ -1,16 +1,22 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { ConfigService } from '../../src/services/config-service.js';
 
 const tempDirs: string[] = [];
+const previousManagerHome = process.env.N8N_MANAGER_HOME;
 
 afterEach(() => {
     for (const dir of tempDirs) {
         fs.rmSync(dir, { recursive: true, force: true });
     }
     tempDirs.length = 0;
+    if (previousManagerHome === undefined) {
+        delete process.env.N8N_MANAGER_HOME;
+    } else {
+        process.env.N8N_MANAGER_HOME = previousManagerHome;
+    }
 });
 
 function createWorkspaceDir(): string {
@@ -19,29 +25,23 @@ function createWorkspaceDir(): string {
     return workspaceDir;
 }
 
-function createService(workspaceDir: string, state?: Record<string, any>): ConfigService {
-    const configService = new ConfigService(workspaceDir) as ConfigService & {
-        globalStore: {
-            get: ReturnType<typeof vi.fn>;
-            set: ReturnType<typeof vi.fn>;
-        };
-    };
-    const storeState = state || { hosts: {}, instanceProfiles: {} };
-    configService.globalStore = {
-        get: vi.fn((key: string) => storeState[key]),
-        set: vi.fn((key: string, value: unknown) => {
-            storeState[key] = value;
-        })
-    };
-    return configService;
+function createManagerHome(): string {
+    const managerHome = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-config-library-manager-'));
+    tempDirs.push(managerHome);
+    process.env.N8N_MANAGER_HOME = managerHome;
+    return managerHome;
+}
+
+function createService(workspaceDir: string): ConfigService {
+    return new ConfigService(workspaceDir);
 }
 
 describe('ConfigService filesystem integration', () => {
-    it('persists multiple instance configs and rehydrates the active instance from disk', () => {
+    it('persists global instances and rehydrates the effective workspace context from disk', () => {
         const workspaceDir = createWorkspaceDir();
-        const storeState = { hosts: {}, instanceProfiles: {} };
+        createManagerHome();
 
-        const configService = createService(workspaceDir, storeState);
+        const configService = createService(workspaceDir);
         const testProfile = configService.saveLocalConfig({
             host: 'https://shared.example.com',
             syncFolder: 'workflows-test',
@@ -65,43 +65,47 @@ describe('ConfigService filesystem integration', () => {
         });
         configService.saveApiKey('https://shared.example.com', 'prod-key', prodProfile.id);
 
-        const reloaded = createService(workspaceDir, storeState);
+        const reloaded = createService(workspaceDir);
         expect(reloaded.listInstances().map((instance) => instance.name).sort()).toEqual(['Production', 'Test']);
         expect(reloaded.getActiveInstance()?.id).toBe(prodProfile.id);
         expect(reloaded.getLocalConfig()).toMatchObject({
             host: 'https://shared.example.com',
-            syncFolder: 'workflows-prod',
+            syncFolder: path.join(workspaceDir, 'workflows-prod'),
             projectId: 'project-prod',
             projectName: 'Production',
-            workflowDir: 'workflows-prod/prod_instance/production'
+            workflowDir: path.join(workspaceDir, 'workflows-prod', 'prod_instance', 'production')
         });
         expect(reloaded.getApiKey('https://shared.example.com', testProfile.id)).toBe('test-key');
         expect(reloaded.getApiKey('https://shared.example.com', prodProfile.id)).toBe('prod-key');
 
-        reloaded.setActiveInstance(testProfile.id);
+        reloaded.pinWorkspaceInstance(testProfile.id);
 
-        const switched = createService(workspaceDir, storeState);
-        expect(switched.getActiveInstance()?.id).toBe(testProfile.id);
-        expect(switched.getLocalConfig()).toMatchObject({
-            syncFolder: 'workflows-test',
-            projectId: 'project-test',
-            projectName: 'Test',
-            workflowDir: 'workflows-test/test_instance/test'
+        const pinned = createService(workspaceDir);
+        expect(pinned.getActiveInstance()?.id).toBe(testProfile.id);
+        expect(pinned.getLocalConfig()).toMatchObject({
+            syncFolder: path.join(workspaceDir, 'workflows-prod'),
+            projectId: 'project-prod',
+            projectName: 'Production',
+            workflowDir: path.join(workspaceDir, 'workflows-prod', 'test_instance', 'production')
         });
 
         const rawConfig = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'n8nac-config.json'), 'utf-8'));
-        expect(rawConfig.version).toBe(2);
-        expect(rawConfig.instances).toHaveLength(2);
-        expect(rawConfig.activeInstanceId).toBe(testProfile.id);
-        expect(rawConfig.syncFolder).toBe('workflows-test');
-        expect(rawConfig.workflowDir).toBe('workflows-test/test_instance/test');
+        expect(rawConfig).toMatchObject({
+            version: 3,
+            activeInstanceId: testProfile.id,
+            syncFolder: 'workflows-prod',
+            projectId: 'project-prod',
+            projectName: 'Production',
+        });
+        expect(rawConfig.instances).toBeUndefined();
+        expect(rawConfig.workflowDir).toBeUndefined();
     });
 
-    it('deletes an instance, removes its scoped secret, and promotes the next active instance when needed', () => {
+    it('deletes a global instance, removes its scoped secret, and promotes the next active instance when needed', () => {
         const workspaceDir = createWorkspaceDir();
-        const storeState = { hosts: {}, instanceProfiles: {} as Record<string, string> };
+        createManagerHome();
 
-        const configService = createService(workspaceDir, storeState);
+        const configService = createService(workspaceDir);
         const testProfile = configService.saveLocalConfig({
             host: 'https://shared.example.com',
             syncFolder: 'workflows-test',
@@ -127,19 +131,18 @@ describe('ConfigService filesystem integration', () => {
 
         expect(deletion.deletedInstance.id).toBe(prodProfile.id);
         expect(deletion.activeInstance?.id).toBe(testProfile.id);
-        expect(storeState.instanceProfiles).toEqual({
-            [testProfile.id]: 'test-key',
-        });
+        expect(configService.getApiKey('https://shared.example.com', testProfile.id)).toBe('test-key');
+        expect(configService.getApiKey('https://prod.example.com', prodProfile.id)).toBeUndefined();
 
-        const reloaded = createService(workspaceDir, storeState);
-        expect(reloaded.getActiveInstance()?.id).toBe(testProfile.id);
+        const reloaded = createService(workspaceDir);
+        expect(reloaded.getCurrentInstanceConfigId()).toBe(testProfile.id);
         expect(reloaded.listInstances()).toHaveLength(1);
         expect(reloaded.listInstances()[0].id).toBe(testProfile.id);
-        expect(storeState.instanceProfiles[prodProfile.id]).toBeUndefined();
     });
 
-    it('migrates legacy config files into the unified instance library on first read', () => {
+    it('does not migrate legacy sidecar config files into the global instance store', () => {
         const workspaceDir = createWorkspaceDir();
+        createManagerHome();
         fs.writeFileSync(path.join(workspaceDir, 'n8nac.json'), JSON.stringify({
             host: 'http://localhost:5678',
             syncFolder: 'workflows',
@@ -150,28 +153,18 @@ describe('ConfigService filesystem integration', () => {
             instanceIdentifier: 'legacy_identifier'
         }, null, 2));
 
-        const configService = createService(workspaceDir, { hosts: {}, instanceProfiles: {} });
+        const configService = createService(workspaceDir);
         const workspaceConfig = configService.getWorkspaceConfig();
 
-        expect(workspaceConfig.version).toBe(2);
-        expect(workspaceConfig.instances).toHaveLength(1);
-        expect(workspaceConfig.activeInstanceId).toBe(workspaceConfig.instances[0].id);
-        expect(workspaceConfig.instances[0]).toMatchObject({
-            host: 'http://localhost:5678',
-            syncFolder: 'workflows',
-            projectId: 'project-1',
-            projectName: 'Personal',
-            instanceIdentifier: 'legacy_identifier'
-        });
-
-        const persisted = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'n8nac-config.json'), 'utf-8'));
-        expect(persisted.version).toBe(2);
-        expect(persisted.host).toBe('http://localhost:5678');
-        expect(persisted.instanceIdentifier).toBe('legacy_identifier');
+        expect(workspaceConfig.version).toBe(3);
+        expect(workspaceConfig.instances).toHaveLength(0);
+        expect(workspaceConfig.activeInstanceId).toBeUndefined();
+        expect(fs.existsSync(path.join(workspaceDir, 'n8nac-config.json'))).toBe(false);
     });
 
-    it('migrates a mono-instance n8nac-config.json into the unified instance library on first read', () => {
+    it('rejects a legacy mono-instance n8nac-config.json without automatic migration', () => {
         const workspaceDir = createWorkspaceDir();
+        createManagerHome();
         fs.writeFileSync(path.join(workspaceDir, 'n8nac-config.json'), JSON.stringify({
             host: 'http://localhost:5678',
             syncFolder: 'workflows',
@@ -180,24 +173,8 @@ describe('ConfigService filesystem integration', () => {
             instanceIdentifier: 'legacy_identifier'
         }, null, 2));
 
-        const configService = createService(workspaceDir, { hosts: {}, instanceProfiles: {} });
-        const workspaceConfig = configService.getWorkspaceConfig();
+        const configService = createService(workspaceDir);
 
-        expect(workspaceConfig.version).toBe(2);
-        expect(workspaceConfig.instances).toHaveLength(1);
-        expect(workspaceConfig.activeInstanceId).toBe(workspaceConfig.instances[0].id);
-        expect(workspaceConfig.instances[0]).toMatchObject({
-            host: 'http://localhost:5678',
-            syncFolder: 'workflows',
-            projectId: 'project-1',
-            projectName: 'Personal',
-            instanceIdentifier: 'legacy_identifier'
-        });
-
-        const persisted = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'n8nac-config.json'), 'utf-8'));
-        expect(persisted.version).toBe(2);
-        expect(persisted.instances).toHaveLength(1);
-        expect(persisted.host).toBe('http://localhost:5678');
-        expect(persisted.instanceIdentifier).toBe('legacy_identifier');
+        expect(() => configService.getWorkspaceConfig()).toThrow(/Unsupported legacy n8n workspace config/);
     });
 });
