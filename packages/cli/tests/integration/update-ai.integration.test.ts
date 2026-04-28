@@ -20,10 +20,14 @@ function createTempDir(prefix: string): string {
 
 const baseEnv = { ...process.env, N8N_HOST: '', N8N_API_KEY: '' };
 
-function runUpdateAi(workspaceDir: string): string {
-    return execFileSync('node', [cliEntry, 'update-ai', '--cli-cmd', `node ${cliEntry}`], {
+function runUpdateAi(workspaceDir: string, extraArgs: string[] = [], envOverrides: NodeJS.ProcessEnv = {}): string {
+    return execFileSync('node', [cliEntry, 'update-ai', '--cli-cmd', `node ${cliEntry}`, ...extraArgs], {
         cwd: workspaceDir,
-        env: baseEnv,
+        env: {
+            ...baseEnv,
+            N8N_MANAGER_HOME: createTempDir('n8nac-update-ai-manager-home-'),
+            ...envOverrides,
+        },
         stdio: 'pipe',
         encoding: 'utf8',
     });
@@ -66,6 +70,18 @@ describe('CLI update-ai integration', () => {
         expect(agentsContent).toContain(`<!-- n8nac-version: ${cliVersion} -->`);
     });
 
+    it('injects n8n-manager agent tooling instructions from the manager SSOT', () => {
+        const workspaceDir = createTempDir('n8nac-update-ai-manager-tools-');
+        const managerCmd = 'node /tmp/n8n-manager.js';
+        runUpdateAi(workspaceDir, ['--manager-cmd', managerCmd]);
+
+        const agentsContent = fs.readFileSync(path.join(workspaceDir, 'AGENTS.md'), 'utf8');
+        expect(agentsContent).toContain('<!-- n8n-manager-agent-tools-start -->');
+        expect(agentsContent).toContain(`${managerCmd} presentWorkflowResult --workflow-id <workflowId>`);
+        expect(agentsContent).toContain(`${managerCmd} llm-proxy status`);
+        expect(agentsContent).toContain('<!-- n8n-manager-agent-tools-end -->');
+    });
+
     it('checkAndRefreshIfStale silently refreshes AGENTS.md when the version stamp is stale', async () => {
         const workspaceDir = createTempDir('n8nac-update-ai-stale-');
 
@@ -99,6 +115,7 @@ describe('CLI update-ai integration', () => {
         const syncFolder = 'workflows';
         const projectName = 'My Project';
         const projectSlug = 'my_project';
+        const managerHome = createTempDir('n8nac-update-ai-dts-manager-home-');
 
         const instanceDir = path.join(workspaceDir, syncFolder, instanceIdentifier, projectSlug);
         fs.mkdirSync(instanceDir, { recursive: true });
@@ -106,18 +123,33 @@ describe('CLI update-ai integration', () => {
         const dtsPath = path.join(instanceDir, 'n8n-workflows.d.ts');
         fs.writeFileSync(dtsPath, '// stale', 'utf8');
 
+        fs.writeFileSync(
+            path.join(managerHome, 'instances.json'),
+            JSON.stringify({
+                version: 1,
+                activeInstanceId: 'inst-1',
+                defaultSyncFolder: 'workflows',
+                instances: [{
+                    id: 'inst-1',
+                    name: 'Test Instance',
+                    mode: 'existing',
+                    baseUrl: 'http://localhost:5678',
+                    instanceIdentifier,
+                    defaultProject: {
+                        id: 'proj-1',
+                        name: projectName,
+                    },
+                }],
+            }, null, 2),
+            'utf8'
+        );
+
         const config = {
-            version: 2,
+            version: 3,
             activeInstanceId: 'inst-1',
-            instances: [{
-                id: 'inst-1',
-                name: 'Test Instance',
-                host: 'http://localhost:5678',
-                syncFolder,
-                projectId: 'proj-1',
-                projectName,
-                instanceIdentifier,
-            }],
+            syncFolder,
+            projectId: 'proj-1',
+            projectName,
         };
         fs.writeFileSync(
             path.join(workspaceDir, 'n8nac-config.json'),
@@ -125,7 +157,7 @@ describe('CLI update-ai integration', () => {
             'utf8'
         );
 
-        runUpdateAi(workspaceDir);
+        runUpdateAi(workspaceDir, [], { N8N_MANAGER_HOME: managerHome });
 
         expect(fs.existsSync(dtsPath)).toBe(true);
         const dtsContent = fs.readFileSync(dtsPath, 'utf8');

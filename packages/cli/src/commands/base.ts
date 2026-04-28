@@ -48,8 +48,9 @@ export class BaseCommand {
                 process.exit(1);
             }
             this.activeInstanceId = match.id;
-            directory = this.configService.resolveWorkspacePath(match.syncFolder || './workflows');
-            folderSync = match.folderSync ?? false;
+            const effectiveConfig = this.configService.getEffectiveInstanceConfig(match.id) ?? match;
+            directory = this.configService.resolveWorkspacePath(effectiveConfig.syncFolder || './workflows');
+            folderSync = effectiveConfig.folderSync ?? false;
         } else {
             const localConfig = this.configService.getLocalConfig();
             this.activeInstanceId = this.configService.getActiveInstanceId();
@@ -121,10 +122,8 @@ export class BaseCommand {
      * Validates that required project fields are present; exits with a clear error if not.
      */
     protected async getSyncConfig(): Promise<any> {
-        // When --instance overrides the active instance, use that instance's stored config
-        // instead of the file's active instance config so projectId/syncFolder are consistent.
         const localConfig = this.activeInstanceId
-            ? (this.configService.getInstanceConfig(this.activeInstanceId) ?? this.configService.getLocalConfig())
+            ? (this.configService.getEffectiveInstanceConfig(this.activeInstanceId) ?? this.configService.getLocalConfig())
             : this.configService.getLocalConfig();
 
         const missing: string[] = [];

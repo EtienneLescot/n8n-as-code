@@ -15,6 +15,7 @@ export class ProxyService {
     private secrets: vscode.SecretStorage | undefined;
 
     private cookieJar = new Map<string, string>();
+    private htmlRoutes = new Map<string, string>();
 
     constructor() { }
 
@@ -24,6 +25,10 @@ export class ProxyService {
 
     public setOutputChannel(channel: vscode.OutputChannel) {
         this.outputChannel = channel;
+    }
+
+    public registerHtmlRoute(routePath: string, html: string): void {
+        this.htmlRoutes.set(this.normalizeRoutePath(routePath), html);
     }
 
     /**
@@ -119,6 +124,7 @@ export class ProxyService {
 
         // Reset state
         this.cookieJar.clear();
+        this.htmlRoutes.clear();
         this.target = normalizedTarget;
         this.port = stablePort;
 
@@ -241,6 +247,16 @@ export class ProxyService {
         });
 
         this.server = http.createServer((req, res) => {
+            const routeHtml = this.getRegisteredHtmlRoute(req.url);
+            if (routeHtml && req.method === 'GET') {
+                res.writeHead(200, {
+                    'content-type': 'text/html; charset=utf-8',
+                    'cache-control': 'no-store',
+                });
+                res.end(routeHtml);
+                return;
+            }
+
             // Handle CORS preflight
             if (req.method === 'OPTIONS') {
                 res.writeHead(200, {
@@ -583,5 +599,24 @@ export class ProxyService {
 
     public getProxyUrl(): string {
         return this.port > 0 ? `http://localhost:${this.port}` : '';
+    }
+
+    private getRegisteredHtmlRoute(requestUrl?: string): string | undefined {
+        try {
+            const url = new URL(requestUrl ?? '/', `http://localhost:${this.port || 0}`);
+            return this.htmlRoutes.get(this.normalizeRoutePath(url.pathname));
+        } catch {
+            return undefined;
+        }
+    }
+
+    private normalizeRoutePath(routePath: string): string {
+        const trimmed = routePath.trim();
+        if (!trimmed) return '/';
+        try {
+            return new URL(trimmed, 'http://localhost').pathname;
+        } catch {
+            return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+        }
     }
 }
