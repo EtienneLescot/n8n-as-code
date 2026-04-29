@@ -281,21 +281,21 @@ function parseTagVersion(tag, prefix) {
 }
 
 function getLatestStableTag(pkg) {
-  const tags = gitLines(['tag', '--list', `${pkg.tagPrefix}*`]);
-  let latest = null;
-
+  const tags = gitLines([
+    'for-each-ref',
+    '--sort=-creatordate',
+    '--format=%(refname:short)',
+    `refs/tags/${pkg.tagPrefix}*`,
+  ]);
   for (const tag of tags) {
     const version = parseTagVersion(tag, pkg.tagPrefix);
     if (!version) {
       continue;
     }
-
-    if (!latest || compareVersions(version, latest.version) > 0) {
-      latest = { tag, version };
-    }
+    return { tag, version };
   }
 
-  return latest;
+  return null;
 }
 
 const commitCache = new Map();
@@ -378,6 +378,35 @@ function parseCommitBump(message) {
   }
   if (PATCH_TYPES.has(conventional.type)) {
     return 'patch';
+  }
+
+  return null;
+}
+
+function parseReleaseTrainVersion(message) {
+  const match = /^Release-Train:\s*(\d+\.\d+\.\d+)\s*$/im.exec(message);
+  return match?.[1] ?? null;
+}
+
+function getReleaseTrainOverride() {
+  const latestTag = getLatestStableTag(extensionPackage);
+  const commits = latestTag ? getCommitsSinceTag(latestTag.tag) : gitLines(['log', '--format=%H']);
+
+  for (const sha of commits) {
+    const details = getCommitDetails(sha);
+    const version = parseReleaseTrainVersion(details.message);
+    if (!version) {
+      continue;
+    }
+
+    if (!parseVersion(version)) {
+      throw new Error(`Unsupported Release-Train version in ${sha}: ${version}`);
+    }
+
+    return {
+      version,
+      commit: { sha, subject: details.subject, bump: 'major' },
+    };
   }
 
   return null;
@@ -601,6 +630,7 @@ function propagateDependencyBumps(directBumps) {
 function computeStablePlan() {
   const directBumps = buildDirectBumps();
   const resolvedBumps = propagateDependencyBumps(directBumps);
+  const releaseTrain = getReleaseTrainOverride();
 
   const packages = PACKAGES.map(pkg => {
     const packageJson = readJson(pkg.packageJsonPath);
@@ -616,8 +646,11 @@ function computeStablePlan() {
     const currentStableString = currentVersion.replace(/-.*$/, '');
     const initialRelease = latestTag === null;
     const versionAheadOfTag = latestTag ? compareVersions(currentStableVersion, latestTag.version) > 0 : false;
-    const changed = Boolean(bumpInfo.bump) || versionAheadOfTag || initialRelease;
-    const targetVersion = pkg.publishTarget === 'vscode'
+    const releaseTrainChanged = Boolean(releaseTrain && currentStableString !== releaseTrain.version);
+    const changed = Boolean(bumpInfo.bump) || versionAheadOfTag || initialRelease || releaseTrainChanged;
+    const targetVersion = releaseTrain
+      ? releaseTrain.version
+      : pkg.publishTarget === 'vscode'
       ? (
           versionAheadOfTag
             ? currentStableString
@@ -627,6 +660,15 @@ function computeStablePlan() {
         )
       : (bumpInfo.bump ? formatVersion(incrementVersion(currentStableVersion, bumpInfo.bump)) : currentStableString);
     const reasons = [...bumpInfo.reasons];
+    const commits = [...directInfo.commits];
+    if (releaseTrain) {
+      if (!reasons.includes('release-train')) {
+        reasons.push('release-train');
+      }
+      if (!commits.some(commit => commit.sha === releaseTrain.commit.sha)) {
+        commits.unshift(releaseTrain.commit);
+      }
+    }
     if (initialRelease && !reasons.includes('initial-release')) {
       reasons.push('initial-release');
     }
@@ -642,11 +684,11 @@ function computeStablePlan() {
       currentVersion,
       latestStableTag: latestTag?.tag ?? null,
       latestStableVersion: latestTag ? formatVersion(latestTag.version) : null,
-      bump: bumpInfo.bump,
-      directBump: directInfo.bump,
+      bump: releaseTrain ? maxBump(bumpInfo.bump, 'major') : bumpInfo.bump,
+      directBump: releaseTrain ? maxBump(directInfo.bump, 'major') : directInfo.bump,
       changed,
       targetVersion,
-      commits: directInfo.commits,
+      commits,
       reasons,
     };
   });
@@ -706,7 +748,7 @@ function computePendingStablePlan() {
 
     const latestTag = getLatestStableTag(pkg);
     const latestStableVersion = latestTag ? formatVersion(latestTag.version) : null;
-    const changed = latestTag ? compareVersions(currentStableVersion, latestTag.version) > 0 : true;
+    const changed = latestTag ? currentVersion !== latestStableVersion : true;
 
     return {
       ...pkg,
