@@ -685,6 +685,16 @@ async function handleConfigurationSnapshotChanged(
     }
 
     if (syncManager && runtimeChanged) {
+        const workspaceRoot = getWorkspaceRoot();
+        const hasUnifiedConfig = workspaceRoot
+            ? fs.existsSync(path.join(workspaceRoot, 'n8nac-config.json'))
+            : false;
+        if (!hasUnifiedConfig) {
+            resetExtensionRuntimeState();
+            await determineInitialState(context);
+            return;
+        }
+
         if (event.snapshot.hasValidConnection) {
             await reinitializeSyncManager(context, { silent: event.reason !== 'manual' });
         } else {
@@ -1175,6 +1185,7 @@ async function generateAiContextForWorkspace(
         'n8n-manager-agent-tools',
         getN8nManagerAgentInstructions({
             command: resolveAiContextManagerCommandOverride(context) || 'n8n-manager',
+            workspaceRoot,
         }),
     );
     await context.workspaceState.update('n8n.lastInitVersion', version);
@@ -1362,12 +1373,6 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         throw new Error(`Cannot connect to n8n instance at "${host}". Please check if n8n is running.`);
     }
 
-    const workspaceOverrides = await facade.readWorkspaceOverrides(workspaceRoot);
-    await facade.writeWorkspaceOverrides({
-        ...workspaceOverrides,
-        projectId: workspaceOverrides.projectId || projectId,
-        projectName: workspaceOverrides.projectName || projectName,
-    }, workspaceRoot);
     // Create SyncManager (the stateful engine: WorkflowStateTracker, events, etc.)
     syncManager = new SyncManager(client, {
         directory: absDirectory,
