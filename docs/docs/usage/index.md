@@ -55,6 +55,14 @@ An optional decorator-based format that makes workflows more readable and AI-fri
 
 [**TypeScript Workflows Guide →**](/docs/usage/typescript-workflows)
 
+## n8n-manager: The Runtime Engine
+
+All facades delegate runtime management to `n8n-manager`, an independent engine that owns n8n instances, authentication, managed Docker runtime, tunnels, credentials infrastructure, and workflow presentation.
+
+Whether you use the CLI, VS Code extension, MCP server, or Claude/OpenClaw plugins — they all use `n8n-manager` under the hood for instance and credential operations.
+
+[**n8n-manager Guide →**](/docs/usage/n8n-manager)
+
 ## Typical Tasks
 
 | Need | Best entry point |
