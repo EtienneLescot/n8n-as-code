@@ -53,8 +53,15 @@ jobs:
       - name: Verify committed generated skills are up to date
         run: |
           for file in \
+            skills/README.md \
+            skills/n8n-manager/SKILL.md \
+            skills/n8n-architect/SKILL.md \
             plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md \
-            plugins/openclaw/n8n-as-code/skills/n8n-architect/SKILL.md
+            plugins/claude/n8n-as-code/skills/n8n-manager/SKILL.md \
+            plugins/openclaw/n8n-as-code/skills/n8n-architect/SKILL.md \
+            plugins/openclaw/n8n-as-code/skills/n8n-manager/SKILL.md \
+            plugins/cursor/n8n-as-code/skills/n8n-architect/SKILL.md \
+            plugins/cursor/n8n-as-code/skills/n8n-manager/SKILL.md
           do
             if ! git diff --quiet --exit-code -- "$file"; then
               echo "Error: $file was modified by the skill adapters build."
@@ -62,6 +69,7 @@ jobs:
               exit 1
             fi
           done
+          npm run check:adapters --workspace=packages/skills
           echo 'Committed generated skill files match the current SSOT.'
 
       - name: Run tests
