@@ -18,7 +18,10 @@ pre-commit:
       run: |
         npm run build --workspace=packages/skills
         node packages/skills/scripts/build-skill-adapters.js
-        git add plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md \
+        git add skills/README.md \
+                skills/n8n-architect/SKILL.md \
+                skills/n8n-manager/SKILL.md \
+                plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md \
                 plugins/claude/n8n-as-code/skills/n8n-manager/SKILL.md \
                 plugins/openclaw/n8n-as-code/skills/n8n-architect/SKILL.md \
                 plugins/openclaw/n8n-as-code/skills/n8n-manager/SKILL.md \
