@@ -10,7 +10,11 @@ Use this skill for workflow engineering. Use the `n8n-manager` skill for instanc
 ## Context Root Protocol
 
 - Treat the current context root as the directory containing `n8nac-config.json`, `AGENTS.md`, `.agents/skills`, and the workflow sync folder.
-- If `AGENTS.md` exists, read it first. It is bootstrap context only, not a source of configuration truth.
+- {{N8NAC_CONTEXT_ROOT_HINT}}
+- Before any n8n work, first run `{{N8NAC_CMD}} update-ai` from the context root, then read `AGENTS.md`. `update-ai` is designed to create or refresh the n8n-as-code block without destroying existing user or agent instructions.
+- Use the exact `n8nac command` and `n8n-manager command` listed in `AGENTS.md`. Those context-root commands override the portable examples in this skill.
+- Run every `{{N8NAC_CMD}} workspace ...`, `{{N8NAC_CMD}} list`, `pull`, `push`, `validate`, `test`, and `update-ai` command from the context root unless the user explicitly gives another context root.
+- `AGENTS.md` is bootstrap context only, not a source of configuration truth.
 - Do not infer instance, project, sync folder, or workflow directory from `AGENTS.md`.
 - Before n8n work, resolve the effective context from the backend:
 
@@ -23,11 +27,14 @@ Use this skill for workflow engineering. Use the `n8n-manager` skill for instanc
 
 ## Bootstrap Order
 
-1. Run `{{N8NAC_CMD}} workspace status --json`.
-2. If the context root is not ready, inspect instances with `{{N8N_MANAGER_CMD}} instances list`.
-3. Reuse an existing instance when suitable, or use the `n8n-manager` skill to create/setup a managed local instance.
-4. Ask for host/API key only for an explicitly remote or existing n8n instance.
-5. Configure context-root overrides with:
+1. `cd` to the context root.
+2. Run `{{N8NAC_CMD}} update-ai`, then read `AGENTS.md`.
+3. Run `{{N8NAC_CMD}} workspace status --json`.
+4. If the context root is not ready, inspect instances with `{{N8N_MANAGER_CMD}} instances list`.
+5. Reuse an existing instance when suitable.
+6. If no suitable instance exists, stop and ask the user whether they want to reuse/configure an existing instance, create a managed local n8n instance, or connect an existing/remote n8n instance. Do not create infrastructure by default. If the user chooses a managed local instance, ask separately whether they want a public tunnel.
+7. Ask for host/API key only for an explicitly remote or existing n8n instance.
+8. Configure context-root overrides with:
 
 ```bash
 {{N8NAC_CMD}} workspace pin-instance --instance-id <id>
@@ -35,7 +42,13 @@ Use this skill for workflow engineering. Use the `n8n-manager` skill for instanc
 {{N8NAC_CMD}} workspace set-project --project-id <id> --project-name <name>
 ```
 
-6. Run `{{N8NAC_CMD}} update-ai` after changing context-root overrides when the facade does not do it automatically.
+For self-hosted n8n instances where the projects API is unavailable or returns 401/403, do not keep retrying project discovery. Use the standard personal project override unless the user gave another project:
+
+```bash
+{{N8NAC_CMD}} workspace set-project --project-id personal --project-name Personal
+```
+
+9. Run `{{N8NAC_CMD}} update-ai` after changing context-root overrides when the facade does not do it automatically.
 
 ## Sync Discipline
 
