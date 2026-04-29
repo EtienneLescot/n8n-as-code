@@ -3,6 +3,7 @@ import {
   N8nConfigurationService,
   N8nRuntimeOrchestrator,
   createManagedLocalLifecycleManager,
+  getN8nManagerAgentInstructions,
   readFileBackedN8nInstance,
   resolveWorkflowWebviewOpen,
   resolveN8nManagerHome,
@@ -22,6 +23,8 @@ import {
   type WorkflowWebviewOpenPayload,
   type N8nProjectSnapshot,
 } from '@n8n-as-code/n8n-manager-core';
+
+export { getN8nManagerAgentInstructions };
 import path from 'node:path';
 import {
   N8nCredentialsManager,

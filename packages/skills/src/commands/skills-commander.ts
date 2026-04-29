@@ -534,16 +534,42 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .option('--n8n-version <version>', 'n8n instance version', 'Unknown')
         .option('--cli-version <version>', 'n8nac CLI version or dist-tag to use in generated AI context', 'latest')
         .option('--cli-cmd <command>', 'Override the generated n8nac command in AGENTS.md')
-        .action(async (options: { n8nVersion: string; cliVersion?: string; cliCmd?: string }) => {
+        .option('--manager-cmd <command>', 'Override the generated n8n-manager command in AGENTS.md')
+        .action(async (options: { n8nVersion: string; cliVersion?: string; cliCmd?: string; managerCmd?: string }) => {
             try {
                 console.error(chalk.blue('🤖 Updating AI Context...'));
-                const projectRoot = process.cwd();
-                const distTag = options.cliVersion === 'latest' ? undefined : options.cliVersion;
 
-                const { AiContextGenerator } = await import('../services/ai-context-generator.js');
-                const aiContextGenerator = new AiContextGenerator();
-                await aiContextGenerator.generate(projectRoot, options.n8nVersion, distTag, {
-                    cliCommandOverride: options.cliCmd,
+                const cliEntry = getUnifiedCliEntryPath();
+                const args = [cliEntry, 'update-ai', '--n8n-version', options.n8nVersion];
+                if (options.cliVersion && options.cliVersion !== 'latest') {
+                    args.push('--cli-version', options.cliVersion);
+                }
+                if (options.cliCmd) {
+                    args.push('--cli-cmd', options.cliCmd);
+                }
+                if (options.managerCmd) {
+                    args.push('--manager-cmd', options.managerCmd);
+                }
+
+                const child = spawn(process.execPath, args, {
+                    cwd: process.cwd(),
+                    env: process.env,
+                    stdio: 'inherit',
+                });
+
+                await new Promise<void>((resolvePromise, reject) => {
+                    child.on('error', reject);
+                    child.on('exit', (code, signal) => {
+                        if (signal) {
+                            process.kill(process.pid, signal);
+                            return;
+                        }
+                        if ((code ?? 1) !== 0) {
+                            reject(new Error(`n8nac update-ai exited with code ${code ?? 1}.`));
+                            return;
+                        }
+                        resolvePromise();
+                    });
                 });
 
                 console.error(chalk.green('✅ AI Context updated successfully!'));
