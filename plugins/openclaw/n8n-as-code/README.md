@@ -4,6 +4,10 @@
 
 Use OpenClaw to build, update, validate, and manage n8n workflows with the same `n8nac` CLI and AI context model used across the wider `n8n-as-code` project.
 
+## v2 migration note
+
+Version 2 removes the facade-specific OpenClaw runtime tool path. The plugin now delegates instance, auth, project, tunnel, credential, and presentation operations to `n8n-manager`, while workspace sync context is stored through `n8nac workspace` in `~/.openclaw/n8nac/`.
+
 ## Install
 
 ```bash
