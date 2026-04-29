@@ -19,6 +19,7 @@ This directory is the actual plugin root used by the marketplace entry, so Claud
 ## Included
 
 - `.claude-plugin/plugin.json`
+- `skills/n8n-manager/SKILL.md`
 - `skills/n8n-architect/SKILL.md`
 - `skills/n8n-architect/README.md`
 
@@ -27,11 +28,14 @@ This directory is the actual plugin root used by the marketplace entry, so Claud
 Initialize your workspace with:
 
 ```bash
-n8n-manager auth set --url <url> --api-key-stdin
-n8n-manager projects select <project-id-or-name>
+n8n-manager instances list
+# Reuse an instance, create a managed local instance, or add remote auth through n8n-manager.
+npx --yes n8nac workspace status --json
 npx --yes n8nac workspace set-sync-folder workflows
 npx --yes n8nac update-ai
 ```
+
+`AGENTS.md` is a lightweight context-root bootstrap. It points agents to the local `.agents/skills` copies and to `n8nac workspace status --json`, which resolves effective state through the backend.
 
 For Claude Desktop or other MCP clients, use:
 

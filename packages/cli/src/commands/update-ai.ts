@@ -13,9 +13,6 @@ import {
 import {
     AiContextGenerator
 } from '@n8n-as-code/skills';
-import {
-    getN8nManagerAgentInstructions
-} from '@n8n-as-code/n8n-manager-core';
 import { ConfigService } from '../services/config-service.js';
 import dotenv from 'dotenv';
 import { getN8nacDevConfigFilenames } from '@n8n-as-code/skills';
@@ -94,27 +91,6 @@ function inferLocalDevManagerCommand(): string | undefined {
     return undefined;
 }
 
-function injectOrUpdateMarkdownBlock(filePath: string, blockName: string, content: string): void {
-    const startMarker = `<!-- ${blockName}-start -->`;
-    const endMarker = `<!-- ${blockName}-end -->`;
-    const block = `\n${startMarker}\n${content.trim()}\n${endMarker}\n`;
-
-    if (!existsSync(filePath)) {
-        fs.writeFileSync(filePath, `# 🤖 AI Agents Guidelines\n${block.trim()}\n`);
-        return;
-    }
-
-    const existing = readFileSync(filePath, 'utf8');
-    const startIdx = existing.indexOf(startMarker);
-    const endIdx = existing.indexOf(endMarker);
-    if (startIdx !== -1 && endIdx !== -1) {
-        fs.writeFileSync(filePath, existing.substring(0, startIdx) + block.trim() + existing.substring(endIdx + endMarker.length));
-        return;
-    }
-
-    fs.writeFileSync(filePath, `${existing.trim()}\n${block}`);
-}
-
 export class UpdateAiCommand {
     constructor(private program: Command) {
         this.program
@@ -156,7 +132,7 @@ export class UpdateAiCommand {
 
         if (!silent) {
             console.log(chalk.blue('🤖 Updating AI Context...'));
-            console.log(chalk.gray('   Regenerating AGENTS.md and snippets\n'));
+            console.log(chalk.gray('   Regenerating AGENTS.md and local agent skills\n'));
         }
 
         const projectRoot: string = options.projectRoot ?? process.cwd();
@@ -185,7 +161,7 @@ export class UpdateAiCommand {
             }
 
             // 2. Generate Context (AGENTS.md)
-            if (!silent) console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md)...'));
+            if (!silent) console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md + .agents/skills)...'));
             const aiContextGenerator = new AiContextGenerator();
             const distTag = typeof options.cliVersion === 'string' && options.cliVersion.trim()
                 ? options.cliVersion.trim()
@@ -195,14 +171,6 @@ export class UpdateAiCommand {
                 managerCommandOverride: options.managerCmd || inferLocalDevManagerCommand(),
                 cliVersion: getCliVersion(),
             });
-            injectOrUpdateMarkdownBlock(
-                join(projectRoot, 'AGENTS.md'),
-                'n8n-manager-agent-tools',
-                getN8nManagerAgentInstructions({
-                    command: options.managerCmd || inferLocalDevManagerCommand() || 'n8n-manager',
-                    workspaceRoot: projectRoot,
-                }),
-            );
             if (!silent) console.log(chalk.green('   ✅ AI context files created.'));
 
             // 3. Update n8n-workflows.d.ts for all configured instances
@@ -236,7 +204,8 @@ export class UpdateAiCommand {
                 }
 
                 console.log(chalk.green('\n✨ AI Context Updated Successfully!'));
-                console.log(chalk.gray('   ✔ AGENTS.md: Complete AI agent guidelines'));
+                console.log(chalk.gray('   ✔ AGENTS.md: Lightweight context-root bootstrap'));
+                console.log(chalk.gray('   ✔ .agents/skills: Portable n8n-manager and n8n-architect skills'));
                 console.log(chalk.gray('   ✔ n8n-workflows.d.ts: TypeScript stubs (per instance)'));
                 console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/skills)\n'));
             } else if (updatedCount > 0 || existsSync(join(projectRoot, 'AGENTS.md'))) {

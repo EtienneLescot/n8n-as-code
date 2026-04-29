@@ -37,11 +37,15 @@ describe("buildPromptContext", () => {
       const context = buildPromptContext(workspaceDir);
 
       expect(context).toContain("n8n-architect");
-      expect(context).toContain("Workspace-pinned instance");
-      expect(context).toContain("prod");
+      expect(context).toContain("Context root");
+      expect(context).toContain("n8nac workspace status --json");
+      expect(context).toContain("Do NOT infer effective n8n config from this prompt");
       expect(context).toContain("For unrelated requests, ignore this plugin context.");
       expect(context).toContain(path.join(workspaceDir, "AGENTS.md"));
+      expect(context).toContain(path.join(workspaceDir, ".agents", "skills"));
       expect(context).not.toContain("DO NOT INLINE ME");
+      expect(context).not.toContain("Active project");
+      expect(context).not.toContain("prod");
     } finally {
       fs.rmSync(workspaceDir, { recursive: true, force: true });
     }

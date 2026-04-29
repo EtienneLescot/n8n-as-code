@@ -1,6 +1,6 @@
 # @n8n-as-code/n8nac
 
-**OpenClaw-native access to the `n8n-as-code` workflow stack.**
+**OpenClaw access to the standard `n8n-as-code` skills and workflow stack.**
 
 Use OpenClaw to build, update, validate, and manage n8n workflows with the same `n8nac` CLI and AI context model used across the wider `n8n-as-code` project.
 
@@ -25,9 +25,9 @@ openclaw n8nac:setup
 
 The wizard asks for your n8n host URL and API key once, saves the instance in the global
 `n8n-manager` SSOT via `n8n-manager auth set`, selects the n8n project through
-`n8n-manager projects select`, configures the workspace sync folder with `n8nac workspace`,
-and generates an AI context file
-(`AGENTS.md`) in the workspace (`~/.openclaw/n8nac/`).
+`n8n-manager projects select`, configures the context-root sync folder with
+`n8nac workspace`, and generates the local agent bootstrap files in
+`~/.openclaw/n8nac/`.
 
 After setup, global n8n-manager instances are listed, selected, and deleted through `n8n-manager`.
 
@@ -41,10 +41,10 @@ Once setup is done, just talk to OpenClaw:
 
 > "What operations does the Google Sheets node support?"
 
-The plugin now keeps its default prompt hook lightweight. OpenClaw can activate
-the bundled `n8n-architect` skill for explicit n8n workflow sessions, and that
-skill then reads the generated workspace `AGENTS.md` for the full workflow
-engineering guidance.
+The plugin keeps its prompt hook lightweight. OpenClaw uses the bundled
+`n8n-manager` and `n8n-architect` skills for explicit n8n sessions. Those
+skills use the same shell commands as Claude, Codex, Cursor, VS Code, and other
+agents: `n8n-manager ...` and `n8nac ...`.
 
 ## CLI commands
 
@@ -68,34 +68,31 @@ All files live in `~/.openclaw/n8nac/`:
 ```
 ~/.openclaw/n8nac/
   n8nac-config.json     ← workspace project/sync overrides only
-  AGENTS.md             ← AI context (written by n8nac update-ai)
+  AGENTS.md             ← lightweight agent bootstrap (written by n8nac update-ai)
+  .agents/skills/       ← portable n8n-manager + n8n-architect skills
   workflows/            ← .workflow.ts files (your n8n workflows)
 ```
 
 Instances and API keys are not stored in this workspace. They live in the global
 `n8n-manager` configuration under `~/.n8n-manager`.
 
-## Agent tool
+## Agent skills
 
-The plugin registers the `n8nac` tool with these actions:
+The plugin does not register a facade-specific agent tool. Agents should use
+the portable skills and shell commands directly:
 
-| Action | Description |
-|---|---|
-| `setup_check` | Check initialization state |
-| `manager_auth_set` | Save n8n credentials through n8n-manager |
-| `manager_projects_list` | List n8n projects through n8n-manager |
-| `manager_projects_select` | Select the instance default n8n project through n8n-manager |
-| `manager_instances_list` | List global n8n-manager instances |
-| `manager_instances_select` | Select the global active n8n-manager instance |
-| `manager_instances_delete` | Delete a global n8n-manager instance |
-| `workspace_set_sync_folder` | Set this workspace's sync folder |
-| `workspace_set_project` | Set this workspace's project override |
-| `list` | List all workflows |
-| `pull` | Download a workflow by ID |
-| `push` | Upload a workflow file |
-| `verify` | Validate live workflow against schema |
-| `skills` | Run any `npx n8nac skills` subcommand |
-| `validate` | Validate a local `.workflow.ts` file |
+```bash
+n8n-manager instances list
+n8nac workspace status --json
+n8nac list
+n8nac pull <workflowId>
+n8nac push <path-to-workflow.workflow.ts> --verify
+n8nac skills node-info <nodeName>
+```
+
+`AGENTS.md` is not a configuration source of truth. It points agents to the
+local skills and to `n8nac workspace status --json`, which resolves the
+effective context through the backend.
 
 ## Local development
 
@@ -123,7 +120,9 @@ What this does:
 openclaw plugins info n8nac
 ```
 
-You should see status `loaded` and the tool `n8nac` in the tools list.
+You should see status `loaded`, the bundled skills, and the `n8nac:setup` /
+`n8nac:status` CLI commands. The plugin intentionally does not register a
+facade-specific agent tool.
 
 ### 3. Run the setup wizard
 
@@ -133,14 +132,15 @@ openclaw n8nac:setup
 
 Enter your n8n host and API key when prompted. The wizard writes the global
 instance and secret through n8n-manager, writes only workspace project/sync
-context in `~/.openclaw/n8nac/n8nac-config.json`, then generates `AGENTS.md`.
+context in `~/.openclaw/n8nac/n8nac-config.json`, then generates `AGENTS.md`
+and `.agents/skills`.
 
 ### 4. Iterate on the code
 
 - Edit any `.ts` file in `plugins/openclaw/n8n-as-code/`
 - **Restart the gateway** to reload: `openclaw stop && openclaw start` (or the
   equivalent service restart on your setup)
-- The `before_prompt_build` hook, tool schema, and CLI commands all reload on
+- The `before_prompt_build` hook and CLI commands reload on
   gateway start
 
 ### 5. Check gateway logs
@@ -156,7 +156,8 @@ The plugin prefixes all `api.logger` calls with `[n8nac]`.
 ```
 ~/.openclaw/n8nac/
   n8nac-config.json   ← workspace project/sync overrides only
-  AGENTS.md           ← written by update-ai
+  AGENTS.md           ← lightweight bootstrap written by update-ai
+  .agents/skills/     ← portable skills written by update-ai
   workflows/          ← .workflow.ts files
 ```
 

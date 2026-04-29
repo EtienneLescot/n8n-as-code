@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { N8N_FACADE_SETUP_MODES } from "@n8n-as-code/workflow-core";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { registerN8nAcCli } from "./src/cli.js";
-import { createN8nAcTool } from "./src/tool.js";
 import { getWorkspaceDir, isWorkspaceInitialized, readWorkspaceBinding } from "./src/workspace.js";
 
 // ---------------------------------------------------------------------------
@@ -25,24 +24,27 @@ The n8n-as-code plugin is installed but the workspace has not been initialized y
 Supported facade runtime modes:
 ${SETUP_MODE_CONTEXT}
 
-If the user chooses an existing n8n instance, collect host URL and API key, then call the
-\`n8nac\` tool with \`action: "manager_auth_set"\`, \`action: "manager_projects_select"\`,
-and \`action: "workspace_set_sync_folder"\`. Instance/auth/project management belongs to
-\`n8n-manager\`; workspace overrides belong to \`n8nac workspace\`.
+If the user chooses an existing n8n instance, run \`openclaw n8nac:setup\`.
+For agent-driven flows, use the installed \`n8n-manager\` and \`n8n-architect\`
+skills and their documented shell commands. Instance/auth/project management
+belongs to \`n8n-manager\`; context-root overrides belong to \`n8nac workspace\`.
 `;
 
 function buildStatusHeader(workspaceDir: string): string {
   const cfg = readWorkspaceBinding(workspaceDir);
-  const project = cfg.projectName ?? cfg.projectId ?? "(unknown)";
   return [
-    "## ✅ n8n-as-code Workspace Status",
+    "## n8n-as-code Context Root Status",
     "",
-    "**The workspace is already fully initialized. Do NOT ask the user for credentials.**",
+    "**The context root is initialized. Do NOT infer effective n8n config from this prompt.**",
     "",
-    `- Workspace directory: \`${workspaceDir}\``,
-    `- Workspace-pinned instance: \`${cfg.activeInstanceId ?? "(global active instance)"}\``,
-    `- Active project: \`${project}\``,
-    `- Sync folder: \`${cfg.syncFolder ?? "(unknown)"}\``,
+    `- Context root: \`${workspaceDir}\``,
+    `- Local overrides file: \`${join(workspaceDir, "n8nac-config.json")}\``,
+    `- Bootstrap file: \`${join(workspaceDir, "AGENTS.md")}\``,
+    "",
+    "Before n8n work, run `n8nac workspace status --json` from the context root and use the backend-resolved result.",
+    cfg.activeInstanceId || cfg.projectId || cfg.projectName || cfg.syncFolder
+      ? "The local overrides file exists, but n8n-manager plus n8nac backend resolution remains the only source of effective state."
+      : "The local overrides file is present but incomplete.",
   ].join("\n");
 }
 
@@ -67,7 +69,7 @@ export function buildPromptContext(workspaceDir: string): string {
         "",
         "Detailed workflow-authoring guidance is intentionally scoped to the `n8n-architect` skill.",
         "Only use that deeper n8n workflow context when the request is clearly about n8n workflow work.",
-        `When that happens, read \`${agentsPath}\` for workspace-specific instructions.`,
+        `When that happens, read \`${agentsPath}\` and the local \`${join(workspaceDir, ".agents", "skills")}\` skills.`,
       ]
     : [
         "",
@@ -102,13 +104,10 @@ const n8nAcPlugin = {
 
     // -- Context injection ---------------------------------------------------
     // Keep default context lightweight; full workflow-authoring guidance lives
-    // in the bundled `n8n-architect` skill and the workspace AGENTS.md file.
+    // in the bundled skills and the context-root AGENTS.md file.
     api.on("before_prompt_build", () => {
       return { prependContext: buildPromptContext(workspaceDir) };
     });
-
-    // -- Agent tool ----------------------------------------------------------
-    api.registerTool(createN8nAcTool({ workspaceDir }));
 
     // -- CLI wizard ----------------------------------------------------------
     api.registerCli(

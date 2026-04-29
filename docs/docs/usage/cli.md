@@ -286,10 +286,10 @@ n8nac resolve abc123 --mode keep-incoming  # Force-pull remote
 ```
 
 ### `update-ai`
-Update AI Context (AGENTS.md and code snippets).
+Update AI Context (`AGENTS.md` and local portable skills).
 
 **Description:**
-Regenerates context files that help AI coding assistants (GitHub Copilot, Cursor, Cline, Windsurf…) understand n8n workflow structure and best practices. The command fetches the installed n8n version to tailor the output.
+Regenerates context files that help AI coding assistants (GitHub Copilot, Cursor, Cline, Windsurf…) find the standard n8n skills and resolve effective state through the backend. `AGENTS.md` is a bootstrap file, not a configuration source of truth.
 
 **Example:**
 ```bash
@@ -297,8 +297,9 @@ n8nac update-ai
 ```
 
 **Creates / updates:**
-- `AGENTS.md`: Instructions for AI assistants on n8n workflow development
-- `.vscode/n8n.code-snippets`: Code completion snippets for VS Code
+- `AGENTS.md`: lightweight context-root bootstrap
+- `.agents/skills/n8n-manager/SKILL.md`: portable instance/runtime/auth guidance
+- `.agents/skills/n8n-architect/SKILL.md`: portable workflow authoring and sync guidance
 
 ### `workflow`
 Workflow lifecycle and credential inspection helpers.
