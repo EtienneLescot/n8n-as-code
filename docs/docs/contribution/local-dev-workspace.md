@@ -12,7 +12,9 @@ Local end-to-end development uses an explicit override instead of changing that 
 
 ## Workspace
 
-Use the meta-workspace:
+Use the [`n8n-ecosystem-dev`](https://github.com/EtienneLescot/n8n-ecosystem-dev) helper workspace when you need to test multiple local repos together. It bootstraps `n8n-as-code`, `n8n-manager`, dev state, command overrides, and smoke-test commands in one place.
+
+Example local workflow:
 
 ```bash
 cd /home/etienne/repos/n8n-ecosystem-dev
@@ -39,6 +41,8 @@ Generated `AGENTS.md` and skill prompts resolve the `n8nac` command in this orde
 4. published fallback: `npx --yes n8nac`
 
 This keeps production and extension behavior safe while making local dev reproducible.
+
+The helper repository is optional for normal package work in this repo, but it is the recommended path for end-to-end facade/runtime testing across `n8n-as-code` and `n8n-manager`.
 
 ## Local AI Context Test
 
