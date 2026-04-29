@@ -50,6 +50,11 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'doc',
+          id: 'usage/n8n-manager',
+          label: 'n8n-manager',
+        },
+        {
+          type: 'doc',
           id: 'usage/typescript-workflows',
           label: 'TypeScript Workflows',
         },

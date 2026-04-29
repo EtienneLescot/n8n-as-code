@@ -285,6 +285,28 @@ n8nac resolve abc123 --mode keep-current   # Force-push local
 n8nac resolve abc123 --mode keep-incoming  # Force-pull remote
 ```
 
+### `verify`
+Fetch a workflow from n8n and validate its nodes against the local schema.
+
+**Description:**
+After pushing a workflow, verify that n8n has accepted it correctly. This catches runtime errors that local validation misses, such as invalid `typeVersion`, invalid `operation` values, and missing required parameters.
+
+**Arguments:**
+- `<workflowId>` (**required**): The ID of the workflow to verify
+
+**Example:**
+```bash
+n8nac verify abc123
+```
+
+**What it detects:**
+- Invalid `typeVersion` (e.g., schema only has version 2.2 but workflow uses 1.6)
+- Invalid `operation` values (e.g., 'post' vs 'create')
+- Missing required parameters
+- Unknown node types
+
+**Tip:** Use `n8nac push <path> --verify` to push and verify in one step.
+
 ### `update-ai`
 Update AI Context (`AGENTS.md` and local portable skills).
 

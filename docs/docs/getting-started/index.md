@@ -10,16 +10,22 @@ This guide walks you through setup and your first workflow sync in under 5 minut
 
 ## Prerequisites
 
-Choose one of these modes:
+You do not need a connected n8n instance to start. The required runtime setup depends on the facade and mode you choose during onboarding.
 
-- **Connect an existing n8n** — provide an n8n host URL and API key.
-- **Create and manage local n8n automatically** — the facade can delegate setup, diagnostics, and credentials readiness to `n8n-manager`.
-- **Generation-only mode** — use workflow intelligence without a connected runtime.
-
-For the existing-instance path, you need:
+For sync against an existing n8n instance, have these ready:
 
 - An **n8n instance** (cloud or self-hosted)
 - An **API key** from your n8n instance (Settings → API)
+
+If you choose managed local n8n, `n8n-manager` can create and manage the runtime for you. If you choose generation-only mode, no connected runtime is required.
+
+## Onboarding modes
+
+During setup, choose how your facade should use n8n:
+
+- **Connect an existing n8n** — provide an n8n host URL and API key.
+- **Create and manage local n8n automatically** — the facade delegates to `n8n-manager` for Docker-based local n8n setup, tunnels, and lifecycle management.
+- **Generation-only mode** — use workflow intelligence without a connected runtime.
 
 ## Option A: VS Code Extension (Recommended)
 
@@ -145,7 +151,7 @@ In practice, that means an agent can now:
 
 This is especially important for AI-assisted workflow development: the agent is no longer limited to editing workflow files. It can now help you reach a successful execution and debug real runtime failures using execution data returned by n8n.
 
-This runtime loop should not be specific to one facade. The same capabilities should become available through the CLI, extension, MCP server, Claude/OpenClaw plugins, and YAGR integration. Internally, workflow intelligence comes from the n8n-as-code workflow engine, while setup, credentials, deployment, execution, and inspection come from `n8n-manager`.
+This runtime loop is not specific to one facade. The same capabilities are available through the CLI, extension, MCP server, Claude/OpenClaw plugins, and YAGR integration. Internally, workflow intelligence comes from the n8n-as-code workflow engine, while setup, credentials, deployment, execution, and inspection come from `n8n-manager`.
 
 Credential readiness commands now go through the shared manager adapter:
 
@@ -230,5 +236,6 @@ If both sides changed since the last sync, `pull` or `push` will report a confli
 - [**Claude Plugin**](/docs/usage/claude-plugin) — AI-powered workflow creation
 - [**OpenClaw Plugin**](/docs/usage/openclaw) — AI workflows inside OpenClaw
 - [**CLI Reference**](/docs/usage/cli) — full command reference for automation
+- [**n8n-manager**](/docs/usage/n8n-manager) — runtime engine for instances, tunnels, and credentials
 - [**TypeScript Workflows**](/docs/usage/typescript-workflows) — decorator-based workflow format
 - [**Troubleshooting**](/docs/troubleshooting) — common issues and fixes

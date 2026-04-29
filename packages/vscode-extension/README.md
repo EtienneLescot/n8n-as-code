@@ -61,6 +61,10 @@ This editor distribution is one entry point into the wider `n8n-as-code` product
 
 ## ⚙️ Configuration
 
+### v2 migration note
+
+Version 2 makes `n8n-manager` the source of truth for instance registration, API keys, managed Docker runtimes, tunnels, and project defaults. Existing workspace-local instance libraries are no longer migrated automatically; reconfigure the extension through `n8n: Configure`, then save explicit workspace overrides when the workspace should differ from the global default.
+
 The extension reads global instances and API keys from n8n-manager. `n8nac-config.json` at the workspace root stores only workspace overrides such as pinned instance, selected project, and sync folder.
 
 The legacy native editor settings below still exist as compatibility fallbacks:

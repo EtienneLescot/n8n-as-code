@@ -6,6 +6,8 @@ This package powers the shared n8n ontology behind `n8n-as-code`: searchable nod
 
 > **⚠️ BREAKING CHANGE (v0.16.0)**: Workflows are now generated and documented in **TypeScript format** (`.workflow.ts`) instead of JSON for better AI compatibility and readability.
 
+> **BREAKING CHANGE (v2.0.0)**: Generated agent context now assumes the split runtime model: use `n8n-manager` for global instance/auth/runtime/project state and `n8nac workspace` for workspace overrides. Legacy workspace-local instance libraries are no longer treated as the runtime source of truth.
+
 > **📌 Internal Library** — This package is not meant to be used directly. Public access is via [`n8nac`](https://www.npmjs.com/package/n8nac): `npx n8nac skills <command>`.
 
 Specialized tooling for AI agents across Copilot, Cursor, Windsurf, Claude Code, and related editor or CLI workflows.

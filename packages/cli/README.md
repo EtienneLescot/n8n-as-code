@@ -32,6 +32,10 @@ npm install -g n8nac
 
 ## Commands
 
+### v2 migration note
+
+Version 2 moves runtime ownership out of workspace-local `n8nac-config.json` instance libraries and into the global `n8n-manager` store. The legacy `init`, `switch`, and `instance` command flows are replaced by `n8n-manager` for instance/auth/project state and `n8nac workspace` for explicit workspace overrides.
+
 ### Runtime setup
 `n8nac` does not manage n8n instances or API keys. Use `n8n-manager` for global n8n runtime state, then use `n8nac workspace` for local workspace overrides.
 
