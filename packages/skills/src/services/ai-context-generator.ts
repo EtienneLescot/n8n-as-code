@@ -20,6 +20,7 @@ export class AiContextGenerator {
       projectRoot,
       distTag,
       override: cliCommandOverride,
+      env: projectRoot ? process.env : {},
     });
   }
 
@@ -30,7 +31,7 @@ export class AiContextGenerator {
     projectRoot?: string,
   ): string {
     const { cliCmd, skillsCmd } = this.getCommandRefs(distTag, options.cliCommandOverride, projectRoot);
-    const managerCmd = options.managerCommandOverride || process.env.N8N_MANAGER_COMMAND || 'n8n-manager';
+    const managerCmd = options.managerCommandOverride || (projectRoot ? process.env.N8N_MANAGER_COMMAND : undefined) || 'n8n-manager';
     const contextRootHint = projectRoot
       ? `Generated context root hint: \`${path.resolve(projectRoot)}\`. If this path exists, run workspace commands from there.`
       : 'Generated context root hint: not embedded. Use the shell launch directory or the workspace path explicitly given by the user.';

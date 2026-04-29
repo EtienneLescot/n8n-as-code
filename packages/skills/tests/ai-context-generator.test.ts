@@ -91,18 +91,56 @@ describe('AiContextGenerator', () => {
 
         test('resolves generated CLI command from workspace dev config', async () => {
             const cliCmd = 'node /tmp/dev/n8n-as-code/packages/cli/dist/index.js';
+            const previousEnvCommand = process.env.N8NAC_COMMAND;
+            delete process.env.N8NAC_COMMAND;
             fs.writeFileSync(path.join(tempDir, '.n8nac-dev.json'), JSON.stringify({
                 commands: { n8nac: cliCmd },
             }, null, 2));
 
-            await generator.generate(tempDir, '1.0.0');
+            try {
+                await generator.generate(tempDir, '1.0.0');
 
-            const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
-            const architectSkill = fs.readFileSync(path.join(tempDir, '.agents/skills/n8n-architect/SKILL.md'), 'utf-8');
+                const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
+                const architectSkill = fs.readFileSync(path.join(tempDir, '.agents/skills/n8n-architect/SKILL.md'), 'utf-8');
 
-            expect(agentsContent).toContain(cliCmd);
-            expect(architectSkill).toContain(cliCmd);
-            expect(architectSkill).not.toContain('{{N8NAC_CMD}}');
+                expect(agentsContent).toContain(cliCmd);
+                expect(architectSkill).toContain(cliCmd);
+                expect(architectSkill).not.toContain('{{N8NAC_CMD}}');
+            } finally {
+                if (previousEnvCommand === undefined) {
+                    delete process.env.N8NAC_COMMAND;
+                } else {
+                    process.env.N8NAC_COMMAND = previousEnvCommand;
+                }
+            }
+        });
+
+        test('prefers N8NAC_COMMAND over workspace dev config', async () => {
+            const envCmd = 'node /tmp/env/n8n-as-code/packages/cli/dist/index.js';
+            const workspaceCmd = 'node /tmp/dev/n8n-as-code/packages/cli/dist/index.js';
+            const previousEnvCommand = process.env.N8NAC_COMMAND;
+            process.env.N8NAC_COMMAND = envCmd;
+            fs.writeFileSync(path.join(tempDir, '.n8nac-dev.json'), JSON.stringify({
+                commands: { n8nac: workspaceCmd },
+            }, null, 2));
+
+            try {
+                await generator.generate(tempDir, '1.0.0');
+
+                const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
+                const architectSkill = fs.readFileSync(path.join(tempDir, '.agents/skills/n8n-architect/SKILL.md'), 'utf-8');
+
+                expect(agentsContent).toContain(envCmd);
+                expect(agentsContent).not.toContain(workspaceCmd);
+                expect(architectSkill).toContain(envCmd);
+                expect(architectSkill).not.toContain(workspaceCmd);
+            } finally {
+                if (previousEnvCommand === undefined) {
+                    delete process.env.N8NAC_COMMAND;
+                } else {
+                    process.env.N8NAC_COMMAND = previousEnvCommand;
+                }
+            }
         });
 
         test('does not create legacy shim files', async () => {
