@@ -12,7 +12,8 @@
         "postbuild": "mkdir -p dist/assets dist/agent-skills && cp src/assets/*.json dist/assets/ && cp -R src/agent-skills/* dist/agent-skills/",
         "clean": "rm -rf dist tsconfig.tsbuildinfo",
         "test": "node --experimental-vm-modules ../../node_modules/.bin/jest",
-        "build:adapters": "node scripts/build-skill-adapters.js"
+        "build:adapters": "node scripts/build-skill-adapters.js",
+        "check:adapters": "node scripts/build-skill-adapters.js --check"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.27.1",
