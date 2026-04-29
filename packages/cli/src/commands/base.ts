@@ -150,7 +150,7 @@ export class BaseCommand {
 
         if (missing.length > 0) {
             console.error(chalk.red(`❌ Missing required project configuration: ${missing.join(', ')}.`));
-            console.error(chalk.yellow('Set workspace context with `n8nac workspace set-sync-folder workflows` and configure the n8n project through `n8n-manager projects select`.'));
+            console.error(chalk.yellow('Set workspace context with `n8nac workspace set-sync-folder workflows`. For self-hosted n8n where the projects API is unavailable, use `n8nac workspace set-project --project-id personal --project-name Personal`; otherwise select a project with `n8n-manager projects select`.'));
             process.exit(1);
         }
 

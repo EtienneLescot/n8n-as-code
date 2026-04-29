@@ -31,10 +31,14 @@ export class AiContextGenerator {
   ): string {
     const { cliCmd, skillsCmd } = this.getCommandRefs(distTag, options.cliCommandOverride, projectRoot);
     const managerCmd = options.managerCommandOverride || process.env.N8N_MANAGER_COMMAND || 'n8n-manager';
+    const contextRootHint = projectRoot
+      ? `Generated context root hint: \`${path.resolve(projectRoot)}\`. If this path exists, run workspace commands from there.`
+      : 'Generated context root hint: not embedded. Use the shell launch directory or the workspace path explicitly given by the user.';
     return this.readCanonicalAgentSkill(skillName)
       .replaceAll('{{N8NAC_CMD}}', cliCmd)
       .replaceAll('{{N8NAC_SKILLS_CMD}}', skillsCmd)
-      .replaceAll('{{N8N_MANAGER_CMD}}', managerCmd);
+      .replaceAll('{{N8N_MANAGER_CMD}}', managerCmd)
+      .replaceAll('{{N8NAC_CONTEXT_ROOT_HINT}}', contextRootHint);
   }
 
   private readCanonicalAgentSkill(skillName: string): string {
@@ -137,6 +141,8 @@ export class AiContextGenerator {
       `- n8n-manager command: \`${managerCmd}\``,
       `- n8n knowledge command: \`${skillsCmd}\``,
       ``,
+      `Run workspace commands from this context root. Do not \`cd\` into the n8n-as-code source repository, n8n-manager source repository, plugin directory, or package directory to run \`${cliCmd} workspace ...\`, \`${cliCmd} list\`, \`${cliCmd} pull\`, \`${cliCmd} push\`, or \`${cliCmd} update-ai\`.`,
+      ``,
       `---`,
       ``,
       `## Required Local Skills`,
@@ -162,6 +168,7 @@ export class AiContextGenerator {
       `Before any n8n workflow command, run:`,
       ``,
       `\`\`\`bash`,
+      `cd ${contextRoot}`,
       `${cliCmd} workspace status --json`,
       `\`\`\``,
       ``,
