@@ -12,6 +12,7 @@ For user-facing documentation, see [Usage](/docs/usage).
 - **[VS Code Extension](vscode-extension.md)** — extension components and development
 - **[Skills & AI Tools](skills.md)** — the `@n8n-as-code/skills` library (node schemas, AI context generation, MCP server)
 - **[Claude Adapter](claude-skill.md)** — how the Claude plugin artifacts are generated from Skills
+- **[Local Dev Workspace](local-dev-workspace.md)** — optional helper workspace for testing `n8n-as-code` facades with local `n8n-manager` builds
 
 ## Development Setup
 
@@ -28,6 +29,8 @@ npm install
 npm run build
 npm test
 ```
+
+For end-to-end work across `n8n-as-code` and `n8n-manager`, the optional helper repository [`n8n-ecosystem-dev`](https://github.com/EtienneLescot/n8n-ecosystem-dev) bootstraps both local repos, shared environment overrides, and smoke-test commands. Use it when you need to validate facades against local `n8nac` and `n8n-manager` builds instead of published packages.
 
 ## Package Structure
 

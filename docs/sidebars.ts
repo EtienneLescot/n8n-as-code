@@ -106,6 +106,11 @@ const sidebars: SidebarsConfig = {
           id: 'contribution/claude-skill',
           label: 'Claude Adapter',
         },
+        {
+          type: 'doc',
+          id: 'contribution/local-dev-workspace',
+          label: 'Local Dev Workspace',
+        },
       ],
     },
     {
