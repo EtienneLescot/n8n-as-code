@@ -82,14 +82,14 @@ The package registers the `n8nac skills` subcommand tree consumed by the CLI pac
 
 ### `AiContextGenerator`
 
-`AiContextGenerator` produces the canonical instructions reused across AI surfaces. Its responsibilities now include:
+`AiContextGenerator` materializes the canonical skills and lightweight context-root bootstrap reused across AI surfaces. Its responsibilities now include:
 
 - Generating and updating `AGENTS.md`
-- Emitting the shared research protocol used by agents
-- Defining canonical TypeScript workflow examples
-- Producing the generated skill adapter outputs, including the Claude `SKILL.md` and the OpenClaw skill mirror
+- Generating `.agents/skills/n8n-manager/SKILL.md`
+- Generating `.agents/skills/n8n-architect/SKILL.md`
+- Applying local dev command overrides to those generated files
 
-This shared generator is the reason `AGENTS.md` and the Claude adapter stay aligned.
+The canonical skill content lives in `packages/skills/src/agent-skills/`. `AGENTS.md` is not the source of truth for effective config.
 
 ### `SnippetGenerator`
 
@@ -106,19 +106,19 @@ The build copies generated indexes into `dist/assets/`, including technical sche
 `n8nac skills update-ai` generates or refreshes:
 
 - `AGENTS.md`
-- `.vscode/n8n.code-snippets`
+- `.agents/skills/n8n-manager/SKILL.md`
+- `.agents/skills/n8n-architect/SKILL.md`
 
 `AGENTS.md` is updated in-place using markers so user-authored content outside the managed block is preserved.
 
-### Claude adapter artifacts
+### Agent skill adapter artifacts
 
-The same package also builds Claude artifacts under `packages/skills/dist/adapters/claude/`, including:
+The same package mirrors the canonical skills under `packages/skills/dist/adapters/agent-skills/`, including:
 
 - `n8n-architect/SKILL.md`
-- `n8n-architect/README.md`
-- `install.sh`
+- `n8n-manager/SKILL.md`
 
-The build script also mirrors generated skill files into the plugin distribution trees under `plugins/claude/...` and `plugins/openclaw/...`.
+The build script also mirrors generated skill files into the plugin distribution trees under `plugins/claude/...`, `plugins/openclaw/...`, and `plugins/cursor/...`.
 
 ## 🔄 Integration With Other Packages
 
@@ -130,9 +130,9 @@ The build script also mirrors generated skill files into the plugin distribution
 
 The VS Code extension depends on the same package for AI context generation and node-aware assistance.
 
-### Claude adapter
+### Agent skill adapters
 
-Claude-specific distribution is not an independent package. It is a build artifact generated from `packages/skills/scripts/build-skill-adapters.js` using `AiContextGenerator.getSkillContent()`.
+Facade-specific distribution is not an independent source of truth. It is a build artifact generated from `packages/skills/scripts/build-skill-adapters.js` and the canonical `src/agent-skills` files.
 
 ## 🧪 Build And Test
 
@@ -165,14 +165,14 @@ cd packages/skills
 npm test
 ```
 
-Key coverage includes `AiContextGenerator` behavior and the expectation that generated guidance uses `npx --yes n8nac skills`.
+Key coverage includes `AiContextGenerator` behavior, `.agents/skills` generation, lightweight `AGENTS.md`, and parity between canonical and packaged plugin skills.
 
 ## 📌 Contribution Notes
 
 - Do not document `@n8n-as-code/skills` as a standalone end-user CLI.
 - Do not reintroduce references to `get` if the real command is `node-info` or `node-schema`.
 - Keep AI guidance centered on TypeScript workflows, not legacy JSON-only examples.
-- Treat Claude adapter content as derived from the shared generator, not as hand-maintained standalone instructions.
+- Treat packaged Claude/OpenClaw/Cursor skill content as derived from the canonical `src/agent-skills` files, not as hand-maintained standalone instructions.
 
 ## 📚 Related Documentation
 

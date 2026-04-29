@@ -6,22 +6,21 @@ description: Install the n8n-as-code OpenClaw plugin, bootstrap the workspace, a
 
 # OpenClaw Plugin
 
-The `@n8n-as-code/n8nac` package gives OpenClaw native access to the same `n8nac` workflow model used across the rest of the project.
+The `@n8n-as-code/n8nac` package gives OpenClaw the same portable `n8n-manager` and `n8n-architect` skills used by Claude, Cursor, VS Code workspaces, and generic coding agents.
 
 It is the right entry point when you want OpenClaw to:
 
 - bootstrap an n8n workspace for you
-- carry the generated `AGENTS.md` context into prompts automatically
-- run workflow operations through the shared `n8nac` CLI and tool surface
+- materialize `AGENTS.md` and `.agents/skills` in the OpenClaw context root
+- run workflow operations through the shared `n8n-manager` and `n8nac` shell commands
 
 ## What It Adds
 
 Once installed, the plugin gives OpenClaw:
 
-- an `n8nac` tool for setup, workflow sync, validation, and skills access
-- global n8n-manager instance management through the same underlying `n8nac` commands
+- bundled `n8n-manager` and `n8n-architect` skills
 - an `openclaw n8nac:setup` wizard for host, API key, project selection, and workspace context
-- automatic prompt grounding from the generated `AGENTS.md`
+- lightweight prompt grounding that points to the generated `AGENTS.md` and skills
 - an OpenClaw-native workspace rooted at `~/.openclaw/n8nac/`
 
 ## Install
@@ -74,11 +73,13 @@ The plugin keeps its working files under:
 ~/.openclaw/n8nac/
   n8nac-config.json
   AGENTS.md
+  .agents/skills/
   workflows/
 ```
 
 - `n8nac-config.json` stores workspace project/sync overrides only
-- `AGENTS.md` contains the generated workflow instructions and schema-first guardrails
+- `AGENTS.md` is a lightweight bootstrap, not a configuration source of truth
+- `.agents/skills/` contains the portable `n8n-manager` and `n8n-architect` skills
 - `workflows/` holds the local `.workflow.ts` files you pull and edit
 
 ## Commands
@@ -91,9 +92,9 @@ The plugin keeps its working files under:
 | `openclaw n8nac:status` | Check workspace and connection state |
 | `openclaw gateway restart` | Reload the plugin after setup or local changes |
 
-### Underlying CLI Flow
+### Agent CLI Flow
 
-The plugin uses the two CLI responsibilities underneath:
+Agents use the same shell commands as other facades:
 
 ```bash
 n8n-manager instances list
