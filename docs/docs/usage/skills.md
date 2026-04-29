@@ -203,9 +203,11 @@ The Skills CLI is designed to be used by AI coding assistants to:
 ```bash
 # AI Assistant workflow for generating n8n workflow code
 1. User asks: "Create a workflow that reads from Google Sheets"
-2. AI runs: npx n8nac skills search "google sheets"
-3. AI gets node schemas: npx n8nac skills node-info googleSheets
-4. AI generates accurate JSON with proper parameters
+2. AI reads AGENTS.md and the local .agents/skills files if present
+3. AI runs: npx --yes n8nac workspace status --json
+4. AI runs: npx --yes n8nac skills search "google sheets"
+5. AI gets node schemas: npx --yes n8nac skills node-info googleSheets
+6. AI generates accurate TypeScript workflow code with proper parameters
 ```
 
 ## 📁 Data Source

@@ -1,82 +1,56 @@
 ---
 sidebar_position: 5
-title: Claude Adapter
-description: Internal documentation for the Claude adapter generated from packages/skills.
+title: Agent Skills Adapters
+description: Internal documentation for the portable n8n agent skills and facade packaging.
 ---
 
-# Claude Adapter
+# Agent Skills Adapters
 
-This page documents the Claude-specific adapter built from `packages/skills`. It is not a standalone package anymore.
+This page documents the standard agent skills distributed by `n8n-as-code`.
 
-## 📦 Package Overview
+## Package Overview
 
 - **Source package**: `packages/skills/`
+- **Canonical skills**:
+  - `packages/skills/src/agent-skills/n8n-manager/SKILL.md`
+  - `packages/skills/src/agent-skills/n8n-architect/SKILL.md`
 - **Build script**: `packages/skills/scripts/build-skill-adapters.js`
-- **Purpose**: Package shared n8n instructions as a [Claude Agent Skill](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills)
-- **Type**: Generated distribution artifact, not a published npm package
-- **Source of truth**: `AiContextGenerator.getSkillContent()`
+- **Purpose**: Package shared n8n instructions as portable skills for Claude, OpenClaw, Cursor, VS Code-generated workspaces, and generic agents.
+- **Source of truth**: the canonical `src/agent-skills/*/SKILL.md` files.
 
-## 🏗️ Architecture
+## Architecture
 
-### Source And Output Structure
+`n8n-manager` owns instance, runtime, tunnel, auth, project, credential, and workflow presentation management.
 
-```
-packages/skills/
-├── src/services/ai-context-generator.ts
-├── scripts/build-skill-adapters.js
-├── dist/adapters/claude/
-│   ├── n8n-architect/
-│   │   ├── SKILL.md
-│   │   └── README.md
-│   └── install.sh
-└── package.json
-```
+`n8n-architect` owns context-root workflow authoring, sync, schema lookup, validation, push/pull, and workflow testing discipline.
 
-### Build Output
+`AGENTS.md` is generated in the context root by `n8nac update-ai`, but it is only a bootstrap file. It points agents to `.agents/skills` and tells them to resolve effective state with `n8nac workspace status --json`. It must not duplicate effective instance, project, or sync-folder state.
 
-```
-packages/skills/dist/adapters/claude/
-├── n8n-architect/
-│   ├── SKILL.md
-│   └── README.md
-└── install.sh
+## Build Output
+
+The adapter build mirrors the two canonical skills into:
+
+```text
+packages/skills/dist/adapters/agent-skills/
+plugins/claude/n8n-as-code/skills/
+plugins/openclaw/n8n-as-code/skills/
+plugins/cursor/n8n-as-code/skills/
 ```
 
-The build also mirrors `SKILL.md` into the repository plugin tree under `plugins/claude/n8n-as-code/skills/n8n-architect/`.
+The package build also copies canonical skills into:
 
-## 🔧 Development
-
-### Building the adapter
-
-```bash
-cd packages/skills
-npm run build:adapters
+```text
+packages/skills/dist/agent-skills/
 ```
 
-This:
-1. Loads the compiled `AiContextGenerator` from `dist/`
-2. Generates `SKILL.md` via `getSkillContent()`
-3. Writes the Claude distribution files into `dist/adapters/claude/`
-4. Mirrors the skill into the plugin distribution tree
+At runtime, `n8nac update-ai` materializes context-root copies:
 
-From the workspace root, the compatibility entrypoint is:
-
-```bash
-npm run build:claude-plugin
+```text
+.agents/skills/n8n-manager/SKILL.md
+.agents/skills/n8n-architect/SKILL.md
 ```
 
-### What is actually generated
-
-The builder writes:
-
-- `packages/skills/dist/adapters/claude/n8n-architect/SKILL.md`
-- `packages/skills/dist/adapters/claude/n8n-architect/README.md`
-- `packages/skills/dist/adapters/claude/install.sh`
-- `plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md`
-
-There is no separate `validate.js` or hand-maintained template directory in the current implementation.
-
-### Local verification
+## Development
 
 ```bash
 cd packages/skills
@@ -84,143 +58,35 @@ npm run build
 npm run build:adapters
 ```
 
-Then inspect the generated files in `dist/adapters/claude/` and verify that `SKILL.md` contains the current shared guidance.
+Change the canonical `SKILL.md` files first. Do not hand-edit generated plugin copies except to inspect build output.
 
-### Testing Locally
+## Local Verification
 
 ```bash
-cd packages/skills
-npm run build
-npm run build:adapters
-cd dist/adapters/claude
-./install.sh
+npm test --workspace=packages/skills -- --runInBand ai-context-generator.test.ts
+npx vitest run --config packages/cli/vitest.config.ts packages/cli/tests/integration/update-ai.integration.test.ts
 ```
 
-That installs `n8n-architect` into `~/.claude/skills/` for Claude Code. For hosted Claude flows, zip the generated `n8n-architect/` directory.
+The tests verify that:
 
-## 📝 SKILL.md Format
+- `AGENTS.md` remains lightweight.
+- `.agents/skills` is generated.
+- packaged plugin skills match canonical generated skills.
+- OpenClaw no longer relies on native `n8nac` tool actions.
 
-The generated file must follow Anthropic's skill format:
+## SKILL.md Format
+
+Each skill must follow the standard frontmatter shape:
 
 ```yaml
 ---
-name: n8n-architect              # lowercase, hyphens, max 64 chars
-description: Expert assistant... # max 1024 chars, explains WHEN to use
+name: n8n-architect
+description: Use when the user wants to create, edit, validate, sync, or troubleshoot n8n workflows.
 ---
-
-# n8n Architect
-
-## Instructions
-[Markdown content with instructions for Claude]
-
-## Examples
-[Usage examples]
 ```
 
-### Content Guidelines
+Use clear imperative instructions and shell commands. Do not add facade-specific tool calls or undocumented CLI flags.
 
-**DO:**
-- Reuse content from `AiContextGenerator.getSkillContent()`
-- Use `npx n8nac skills` (via the `n8nac` unified CLI)
-- Provide concrete examples in bash code blocks
-- Keep instructions imperative and clear
+## Release Notes
 
-**DON'T:**
-- Invent parameters or hallucinate capabilities
-- Remove YAML frontmatter
-- Use vague language
-- Add commands not supported by `n8nac skills`
-
-## 🔄 Content Consistency
-
-The adapter is derived from the same source used for agent context generation. In practice:
-
-```typescript
-// packages/skills/src/services/ai-context-generator.ts
-public getSkillContent(distTag?: string): string {
-  // Builds Claude skill content from shared command references and guidance
-}
-```
-
-This keeps `AGENTS.md` and the Claude adapter aligned around the same workflow rules, command forms, and TypeScript examples.
-
-## 📦 Distribution
-
-### Repository distribution
-
-The generated adapter lives in the repository output tree and plugin tree. It can be zipped for Claude-compatible distribution, but it is not versioned as its own npm package.
-
-### Release relationship
-
-Changes to Claude instructions should usually be treated as changes to `@n8n-as-code/skills`, because that package owns the generator and build script.
-
-## 🧪 Testing Checklist
-
-Before releasing:
-
-- [ ] `cd packages/skills && npm run build` succeeds
-- [ ] `cd packages/skills && npm run build:adapters` succeeds
-- [ ] Generated `SKILL.md` has valid YAML frontmatter
-- [ ] Test in Claude.ai (upload ZIP)
-- [ ] Test in Claude Code (local install)
-- [ ] Verify NPX commands execute correctly
-- [ ] Confirm generated guidance still matches current `n8nac skills` commands
-
-## 🔧 Scripts Reference
-
-### `cd packages/skills && npm run build`
-Compiles the package and copies JSON assets into `dist/assets/`.
-
-### `cd packages/skills && npm run build:adapters`
-Generates the Claude adapter distribution files.
-
-### `npm run build:claude-plugin`
-Workspace-level convenience script that builds the Skills package and its Claude adapter.
-
-## 🚀 Release Process
-
-The adapter follows the Skills package lifecycle:
-
-1. **Make changes** to `packages/skills/src/services/ai-context-generator.ts` or `packages/skills/scripts/build-skill-adapters.js`
-2. **Commit with a conventional message** so CI can infer the bump level
-3. **Push to `next`** for prerelease validation
-4. **Merge `next` into `main`** and let the release PR apply the final version bump
-
-## 📚 Key Dependencies
-
-- **n8nac**: The unified CLI that exposes `@n8n-as-code/skills` commands via `npx n8nac skills`
-- **@n8n-as-code/skills**: Owns the shared generator and command surface
-- **Node.js**: Required for build and NPX execution
-
-## 🐛 Common Issues
-
-### Adapter content is stale
-- Rebuild `packages/skills` before `build:adapters`
-- Check whether the source change was made in `AiContextGenerator` rather than a generated file
-
-### Generated files do not match the current CLI
-- Verify the command examples still use `npx --yes n8nac skills`
-- Check `packages/skills/tests/ai-context-generator.test.ts` for the expected canonical forms
-
-### Skill not recognized by Claude
-- Verify YAML `name` field matches reference
-- Check `description` explains WHEN to use
-- Ensure SKILL.md is in root of distribution folder
-
-## 📖 References
-
-- [Anthropic Agent Skills Docs](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills)
-- [Agent Skills Engineering Blog](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills)
-- [Skills CLI Package](skills.md)
-
-## 🤝 Contributing
-
-To improve this package:
-
-1. Understand the [Claude Agent Skills spec](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills)
-2. Edit the shared generator in `packages/skills/src/services/ai-context-generator.ts`
-3. Run `cd packages/skills && npm run build && npm run build:adapters`
-4. Test in Claude.ai or Claude Code
-5. Commit with a conventional message and submit PR
-
-See [Contribution Guide](index.md) for general guidelines.
+Changes to these skills are changes to `@n8n-as-code/skills`, because that package owns canonical skill content, generated workspace context, and facade mirrors.

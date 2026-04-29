@@ -25,8 +25,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.0.1",
-    "@n8n-as-code/workflow-core": "0.1.0",
-    "@sinclair/typebox": "0.34.48"
+    "@n8n-as-code/workflow-core": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

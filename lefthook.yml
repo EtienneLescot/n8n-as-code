@@ -13,9 +13,14 @@ pre-commit:
     regen-skill-adapters:
       glob:
         - "packages/skills/src/services/ai-context-generator.ts"
+        - "packages/skills/src/agent-skills/**"
         - "packages/skills/scripts/build-skill-adapters.js"
       run: |
         npm run build --workspace=packages/skills
         node packages/skills/scripts/build-skill-adapters.js
         git add plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md \
-                plugins/openclaw/n8n-as-code/skills/n8n-architect/SKILL.md
+                plugins/claude/n8n-as-code/skills/n8n-manager/SKILL.md \
+                plugins/openclaw/n8n-as-code/skills/n8n-architect/SKILL.md \
+                plugins/openclaw/n8n-as-code/skills/n8n-manager/SKILL.md \
+                plugins/cursor/n8n-as-code/skills/n8n-architect/SKILL.md \
+                plugins/cursor/n8n-as-code/skills/n8n-manager/SKILL.md

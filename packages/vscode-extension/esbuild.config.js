@@ -66,6 +66,28 @@ const copySkillsAssets = {
                 }
             }
 
+            // Copy canonical agent skills so the bundled AiContextGenerator can
+            // materialize .agents/skills in user workspaces. The bundled generator
+            // resolves these relative to out/extension.js.
+            const skillsDirCandidates = [
+                path.join(__dirname, 'node_modules', '@n8n-as-code', 'skills', 'dist', 'agent-skills'),
+                path.join(__dirname, '..', 'skills', 'src', 'agent-skills'),
+                path.join(__dirname, '..', 'skills', 'dist', 'agent-skills'),
+            ];
+            const skillsDirSrc = skillsDirCandidates.find(p => fs.existsSync(p));
+            const bundledSkillsTargetDir = path.join(__dirname, 'out', 'agent-skills');
+            if (!skillsDirSrc) {
+                console.warn(
+                    '⚠️  agent skills not found — AiContextGenerator will be unable to ' +
+                    'write .agents/skills to user workspaces. Checked:\n' +
+                    skillsDirCandidates.map(p => `  ${p}`).join('\n')
+                );
+            } else {
+                fs.rmSync(bundledSkillsTargetDir, { recursive: true, force: true });
+                fs.cpSync(skillsDirSrc, bundledSkillsTargetDir, { recursive: true });
+                console.log('✅ Copied agent skills to out/agent-skills/');
+            }
+
             // Copy n8n-workflows.d.ts so WorkspaceSetupService can locate it when
             // n8nac is bundled into out/extension.js (resolveAssetPath looks at
             // path.join(__dirname, '..', 'assets') relative to the bundle, which

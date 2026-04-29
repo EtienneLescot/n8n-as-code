@@ -79,6 +79,17 @@ function getN8nManagerCommand(): { command: string; args: string[] } {
   return { command: "npx", args: ["--yes", "n8n-manager"] };
 }
 
+function getN8nacCommand(): { command: string; args: string[] } {
+  const override = process.env.N8NAC_COMMAND?.trim();
+  if (override) {
+    const parsed = splitCommand(override);
+    if (parsed?.length) {
+      return { command: parsed[0], args: parsed.slice(1) };
+    }
+  }
+  return { command: "npx", args: ["--yes", "n8nac"] };
+}
+
 function runCommand(
   command: string,
   args: string[],
@@ -160,7 +171,8 @@ function runN8nac(
     stdio?: "pipe" | "inherit";
   },
 ): Promise<RunResult> {
-  return runCommand("npx", ["--yes", "n8nac", ...args], opts);
+  const n8nac = getN8nacCommand();
+  return runCommand(n8nac.command, [...n8nac.args, ...args], opts);
 }
 
 function runN8nManager(

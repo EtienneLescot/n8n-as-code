@@ -10,8 +10,8 @@ export type WorkspaceBinding = {
 };
 
 /**
- * Fixed workspace directory for V1.
- * All n8nac workspace files (n8nac-config.json, AGENTS.md, workflows/) live here.
+ * Fixed context-root directory for V1.
+ * All n8nac context files (n8nac-config.json, AGENTS.md, .agents/skills, workflows/) live here.
  * n8n instances and credentials are stored globally by n8n-manager.
  */
 export function getWorkspaceDir(): string {

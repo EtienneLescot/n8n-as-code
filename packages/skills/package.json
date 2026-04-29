@@ -9,7 +9,7 @@
     "scripts": {
         "prebuild": "node ../../scripts/ensure-n8n-cache.cjs && node ../../scripts/stamp-n8n-version.cjs && node ../../scripts/generate-n8n-index.cjs && node ../../scripts/generate-credential-ontology.cjs && node ../../scripts/download-complete-docs.cjs && node ../../scripts/build-complete-index.cjs && node ../../scripts/enrich-nodes-technical.cjs && node ../../scripts/build-knowledge-index.cjs && node ../../scripts/build-workflow-index.cjs",
         "build": "tsc -b",
-        "postbuild": "mkdir -p dist/assets && cp src/assets/*.json dist/assets/",
+        "postbuild": "mkdir -p dist/assets dist/agent-skills && cp src/assets/*.json dist/assets/ && cp -R src/agent-skills/* dist/agent-skills/",
         "clean": "rm -rf dist tsconfig.tsbuildinfo",
         "test": "node --experimental-vm-modules ../../node_modules/.bin/jest",
         "build:adapters": "node scripts/build-skill-adapters.js"
