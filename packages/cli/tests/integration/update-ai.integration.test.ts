@@ -79,7 +79,7 @@ describe('CLI update-ai integration', () => {
 
         const agentsContent = fs.readFileSync(path.join(workspaceDir, 'AGENTS.md'), 'utf8');
         expect(agentsContent).toContain('<!-- n8n-manager-agent-tools-start -->');
-        expect(agentsContent).toContain(`${managerCmd} presentWorkflowResult --workflow-id <workflowId>`);
+        expect(agentsContent).toContain(`${managerCmd} presentWorkflowResult --workflow-id <workflowId> --workspace-root '${workspaceDir}'`);
         expect(agentsContent).toContain(`${managerCmd} llm-proxy status`);
         expect(agentsContent).toContain('<!-- n8n-manager-agent-tools-end -->');
     });

@@ -200,6 +200,7 @@ export class UpdateAiCommand {
                 'n8n-manager-agent-tools',
                 getN8nManagerAgentInstructions({
                     command: options.managerCmd || inferLocalDevManagerCommand() || 'n8n-manager',
+                    workspaceRoot: projectRoot,
                 }),
             );
             if (!silent) console.log(chalk.green('   ✅ AI context files created.'));
