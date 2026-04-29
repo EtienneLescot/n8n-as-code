@@ -22,7 +22,7 @@ import {
     N8nConfigurationController,
     type N8nConfigurationChangeEvent,
 } from './services/n8n-configuration-controller.js';
-import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
+import { createN8nManagerFacade, getN8nManagerAgentInstructions } from '@n8n-as-code/manager-adapter';
 import { ExtensionState } from './types.js';
 import { getN8nConfig, getResolvedN8nConfig, validateN8nConfig, getWorkspaceRoot } from './utils/state-detection.js';
 import { NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION } from './constants/workspace.js';
@@ -1170,6 +1170,13 @@ async function generateAiContextForWorkspace(
         cliVersion,
         cliCommandOverride: resolveAiContextCliCommandOverride(context, workspaceRoot),
     });
+    injectOrUpdateMarkdownBlock(
+        path.join(workspaceRoot, 'AGENTS.md'),
+        'n8n-manager-agent-tools',
+        getN8nManagerAgentInstructions({
+            command: resolveAiContextManagerCommandOverride(context) || 'n8n-manager',
+        }),
+    );
     await context.workspaceState.update('n8n.lastInitVersion', version);
     enhancedTreeProvider.setAIContextInfo(version, false);
 
@@ -1196,6 +1203,42 @@ function resolveAiContextCliCommandOverride(context: vscode.ExtensionContext, wo
         return undefined;
     }
     return `node ${quoteShellArg(localCliPath)}`;
+}
+
+function resolveAiContextManagerCommandOverride(context: vscode.ExtensionContext): string | undefined {
+    if (process.env.N8N_MANAGER_COMMAND) {
+        return process.env.N8N_MANAGER_COMMAND;
+    }
+    if (context.extensionMode !== vscode.ExtensionMode.Development) {
+        return undefined;
+    }
+
+    const siblingManagerCliPath = path.resolve(context.extensionPath, '..', '..', '..', 'n8n-manager', 'packages', 'cli', 'dist', 'index.js');
+    if (!fs.existsSync(siblingManagerCliPath)) {
+        return undefined;
+    }
+    return `node ${quoteShellArg(siblingManagerCliPath)}`;
+}
+
+function injectOrUpdateMarkdownBlock(filePath: string, blockName: string, content: string): void {
+    const startMarker = `<!-- ${blockName}-start -->`;
+    const endMarker = `<!-- ${blockName}-end -->`;
+    const block = `\n${startMarker}\n${content.trim()}\n${endMarker}\n`;
+
+    if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, `# 🤖 AI Agents Guidelines\n${block.trim()}\n`);
+        return;
+    }
+
+    const existing = fs.readFileSync(filePath, 'utf8');
+    const startIdx = existing.indexOf(startMarker);
+    const endIdx = existing.indexOf(endMarker);
+    if (startIdx !== -1 && endIdx !== -1) {
+        fs.writeFileSync(filePath, existing.substring(0, startIdx) + block.trim() + existing.substring(endIdx + endMarker.length));
+        return;
+    }
+
+    fs.writeFileSync(filePath, `${existing.trim()}\n${block}`);
 }
 
 function quoteShellArg(value: string): string {

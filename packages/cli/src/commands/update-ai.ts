@@ -120,6 +120,8 @@ export class UpdateAiCommand {
         this.program
             .command('update-ai')
             .description('Update AI Context (AGENTS.md and snippets)')
+            .option('--n8n-version <version>', 'n8n instance version to write when API discovery is unavailable')
+            .option('--cli-version <version>', 'n8nac CLI dist tag to use in generated AI context')
             .option('--cli-cmd <command>', 'Override the generated n8nac command in AGENTS.md (for local dev builds)')
             .option('--manager-cmd <command>', 'Override the generated n8n-manager command in AGENTS.md (for local dev builds)')
             .option('--silent', 'Suppress all output (used for background refresh)')
@@ -172,8 +174,10 @@ export class UpdateAiCommand {
             }
 
             // 1. Fetch version once if possible
-            let version = "Unknown";
-            if (client) {
+            let version = typeof options.n8nVersion === 'string' && options.n8nVersion.trim()
+                ? options.n8nVersion.trim()
+                : "Unknown";
+            if (client && version === "Unknown") {
                 try {
                     const health = await client.getHealth();
                     version = health.version;
@@ -183,7 +187,10 @@ export class UpdateAiCommand {
             // 2. Generate Context (AGENTS.md)
             if (!silent) console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md)...'));
             const aiContextGenerator = new AiContextGenerator();
-            await aiContextGenerator.generate(projectRoot, version, getDistTag(), {
+            const distTag = typeof options.cliVersion === 'string' && options.cliVersion.trim()
+                ? options.cliVersion.trim()
+                : getDistTag();
+            await aiContextGenerator.generate(projectRoot, version, distTag, {
                 cliCommandOverride: options.cliCmd || inferLocalDevCliCommand(projectRoot),
                 managerCommandOverride: options.managerCmd || inferLocalDevManagerCommand(),
                 cliVersion: getCliVersion(),
