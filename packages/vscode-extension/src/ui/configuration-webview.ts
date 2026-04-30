@@ -312,8 +312,9 @@ export class ConfigurationWebview {
       try {
         const runtime = await facade.status({ instanceId: instance.id });
         const tunnelPublicUrl = 'tunnel' in runtime ? (runtime.tunnel?.publicUrl ?? instance.tunnelPublicUrl) : instance.tunnelPublicUrl;
-        const authBridgePublicUrl = 'authBridgeTunnel' in runtime ? runtime.authBridgeTunnel?.publicUrl : undefined;
-        const displayUrl = authBridgePublicUrl || tunnelPublicUrl || (instance.publicUrlEnabled ? '' : instance.baseUrl || '');
+        const authBridgeOpenUrl = 'authBridgeOpenUrl' in runtime ? runtime.authBridgeOpenUrl : undefined;
+        const authBridgePublicUrl = authBridgeOpenUrl || ('authBridgeTunnel' in runtime ? runtime.authBridgeTunnel?.publicUrl : undefined);
+        const displayUrl = authBridgeOpenUrl || (instance.publicUrlEnabled ? '' : instance.baseUrl || '');
         return {
           ...instance,
           host: displayUrl,
@@ -329,6 +330,7 @@ export class ConfigurationWebview {
           runtimeReady: 'ready' in runtime ? runtime.ready : runtime.status === 'ready',
           runtimeBlockedCode: 'blocked' in runtime ? runtime.blocked?.code : undefined,
           runtimeBlockedMessage: 'blocked' in runtime ? runtime.blocked?.message : undefined,
+          runtimeWarnings: 'warnings' in runtime ? runtime.warnings : undefined,
           tunnelRunning: 'tunnel' in runtime ? runtime.tunnel?.running : undefined,
           tunnelPublicUrl,
         };
