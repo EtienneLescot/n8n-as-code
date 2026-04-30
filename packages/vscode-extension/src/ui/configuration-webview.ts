@@ -151,9 +151,12 @@ export class ConfigurationWebview {
         }
 
         case 'saveGlobalInstance':
-          await this.saveGlobalInstance(payload, facade);
+          const warnings = await this.saveGlobalInstance(payload, facade);
           await this._configurationController.refresh('webview-save-global-instance', { force: true });
           this._panel.webview.postMessage({ type: 'saved' });
+          if (warnings.length) {
+            this._panel.webview.postMessage({ type: 'error', message: warnings.join('\n') });
+          }
           return;
 
         case 'setGlobalActiveInstance': {
@@ -162,6 +165,33 @@ export class ConfigurationWebview {
           await facade.setGlobalActiveInstance(instanceId);
           await this._configurationController.refresh('webview-set-global-active', { force: true });
           this._panel.webview.postMessage({ type: 'saved' });
+          return;
+        }
+
+        case 'manageInstanceRuntime': {
+          const instanceId = String(payload.instanceId || '').trim();
+          const action = String(payload.action || '').trim();
+          if (!instanceId) throw new Error('Instance is required.');
+          if (!['start', 'stop', 'restart'].includes(action)) throw new Error('Unsupported instance action.');
+          const actionLabel = action === 'start' ? 'Starting' : action === 'stop' ? 'Stopping' : 'Restarting';
+          await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: `${actionLabel} n8n instance`,
+            cancellable: false,
+          }, async () => {
+            if (action === 'start') await facade.startInstance(instanceId);
+            if (action === 'stop') await facade.stopInstance(instanceId);
+            if (action === 'restart') await facade.restartInstance(instanceId);
+          });
+          await this._configurationController.refresh(`webview-${action}-instance`, { force: true });
+          this._panel.webview.postMessage({ type: 'saved' });
+          return;
+        }
+
+        case 'openExternal': {
+          const url = String(payload.url || '').trim();
+          if (!url) return;
+          await vscode.env.openExternal(vscode.Uri.parse(url));
           return;
         }
 
@@ -225,7 +255,7 @@ export class ConfigurationWebview {
   private async saveGlobalInstance(
     payload: Record<string, unknown>,
     facade: ReturnType<typeof createN8nManagerFacade>,
-  ): Promise<void> {
+  ): Promise<string[]> {
     const mode = String(payload.mode || 'existing').trim();
     const host = normalizeHost(String(payload.host || ''));
     const apiKey = String(payload.apiKey || '').trim();
@@ -247,19 +277,12 @@ export class ConfigurationWebview {
       }));
 
       if (instanceName) {
-        await facade.upsertInstance({
-          id: instance.id,
-          name: instanceName,
-          mode: instance.mode,
-          baseUrl: instance.baseUrl,
-          tunnelPublicUrl: instance.tunnelPublicUrl,
-          tunnelPid: instance.tunnelPid,
-        }, { setActive });
+        await facade.upsertInstance({ id: instance.id, name: instanceName, publicUrlEnabled: Boolean(payload.tunnel) }, { setActive });
       }
       if (!setActive && previousActive?.id && previousActive.id !== instance.id) {
         await facade.setGlobalActiveInstance(previousActive.id);
       }
-      return;
+      return Array.isArray(instance.warnings) ? instance.warnings : [];
     }
 
     if (mode === 'existing' && !instanceId && (!host || !apiKey)) {
@@ -273,23 +296,44 @@ export class ConfigurationWebview {
       baseUrl: host || undefined,
       apiKey: apiKey || undefined,
     }, { setActive });
+    return [];
   }
 
   private async postInitialState(snapshot?: N8nConfigurationSnapshot): Promise<void> {
     const stateVersion = ++this._stateVersion;
     const currentSnapshot = snapshot ?? this._configurationController.getSnapshot()
       ?? await this._configurationController.refresh('webview-open', { force: true });
+    const workspaceRoot = getWorkspaceRoot();
+    const facade = createN8nManagerFacade({ workspaceRoot });
     const globalConfig = currentSnapshot.global;
     const workspaceOverrides = currentSnapshot.workspace;
     const effectiveContext = currentSnapshot.effective;
-
-    this._panel.webview.postMessage({
-      type: 'init',
-      stateVersion,
-      global: {
-        activeInstanceId: globalConfig.activeInstanceId || '',
-        defaultSyncFolder: globalConfig.defaultSyncFolder,
-        instances: globalConfig.instances.map((instance) => ({
+    const instances = await Promise.all(globalConfig.instances.map(async (instance) => {
+      try {
+        const runtime = await facade.status({ instanceId: instance.id });
+        const tunnelPublicUrl = 'tunnel' in runtime ? (runtime.tunnel?.publicUrl ?? instance.tunnelPublicUrl) : instance.tunnelPublicUrl;
+        const authBridgePublicUrl = 'authBridgeTunnel' in runtime ? runtime.authBridgeTunnel?.publicUrl : undefined;
+        const displayUrl = authBridgePublicUrl || tunnelPublicUrl || (instance.publicUrlEnabled ? '' : instance.baseUrl || '');
+        return {
+          ...instance,
+          host: displayUrl,
+          displayUrl,
+          authBridgePublicUrl,
+          verificationStatus: instance.verification?.status || 'unverified',
+          verificationLabel: instance.verification?.status === 'verified'
+            ? 'Verified'
+            : instance.verification?.status === 'failed'
+              ? 'Verification failed'
+              : 'Not verified yet',
+          runtimeStatus: runtime.status,
+          runtimeReady: 'ready' in runtime ? runtime.ready : runtime.status === 'ready',
+          runtimeBlockedCode: 'blocked' in runtime ? runtime.blocked?.code : undefined,
+          runtimeBlockedMessage: 'blocked' in runtime ? runtime.blocked?.message : undefined,
+          tunnelRunning: 'tunnel' in runtime ? runtime.tunnel?.running : undefined,
+          tunnelPublicUrl,
+        };
+      } catch (error: any) {
+        return {
           ...instance,
           host: instance.tunnelPublicUrl || instance.baseUrl || '',
           verificationStatus: instance.verification?.status || 'unverified',
@@ -298,7 +342,20 @@ export class ConfigurationWebview {
             : instance.verification?.status === 'failed'
               ? 'Verification failed'
               : 'Not verified yet',
-        })),
+          runtimeStatus: 'unknown',
+          runtimeReady: false,
+          runtimeBlockedMessage: error?.message || 'Runtime status unavailable.',
+        };
+      }
+    }));
+
+    this._panel.webview.postMessage({
+      type: 'init',
+      stateVersion,
+      global: {
+        activeInstanceId: globalConfig.activeInstanceId || '',
+        defaultSyncFolder: globalConfig.defaultSyncFolder,
+        instances,
       },
       workspace: workspaceOverrides,
       effective: effectiveContext ? {

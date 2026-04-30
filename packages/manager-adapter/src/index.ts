@@ -65,6 +65,9 @@ export interface N8nFacadeSetupInput {
 export interface N8nManagerFacade {
   setup(input: N8nFacadeSetupInput): Promise<N8nInstanceRef>;
   status(input?: { instanceId?: string }): Promise<N8nRuntimeStatusSnapshot | N8nHealthSnapshot>;
+  startInstance(instanceId: string): Promise<N8nRuntimeStatusSnapshot>;
+  stopInstance(instanceId: string): Promise<N8nRuntimeStatusSnapshot>;
+  restartInstance(instanceId: string): Promise<N8nRuntimeStatusSnapshot>;
   getManagedInstance(): Promise<N8nInstanceRef | undefined>;
   listInstances(): Promise<GlobalN8nInstance[]>;
   getGlobalConfig(): Promise<N8nGlobalConfiguration>;
@@ -175,6 +178,9 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
         : configuration.getGlobalActiveInstance();
       return selected ? runtime.getRuntimeStatus(selected.id) : lifecycle.status();
     },
+    startInstance: async (instanceId) => runtime.startInstance(instanceId),
+    stopInstance: async (instanceId) => runtime.stopInstance(instanceId),
+    restartInstance: async (instanceId) => runtime.restartInstance(instanceId),
     getManagedInstance: () => readFileBackedN8nInstance(statePath),
     listInstances: async () => configuration.listInstances(),
     getGlobalConfig: async () => configuration.getGlobalConfig(),
@@ -182,7 +188,13 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
     getGlobalActiveInstance: async () => configuration.getGlobalActiveInstance(),
     setGlobalActiveInstance: async (instanceId) => configuration.setGlobalActiveInstance(instanceId),
     setDefaultSyncFolder: async (syncFolder) => configuration.setDefaultSyncFolder(syncFolder),
-    deleteInstance: async (instanceId) => configuration.deleteInstance(instanceId),
+    deleteInstance: async (instanceId) => {
+      const instance = configuration.getInstance(instanceId);
+      if (instance?.mode === 'managed-local-docker') {
+        await runtime.cleanupInstanceProcesses(instanceId);
+      }
+      return configuration.deleteInstance(instanceId);
+    },
     readWorkspaceOverrides: async (workspaceRoot = options.workspaceRoot) => {
       if (!workspaceRoot) return { version: 3 };
       return configuration.readWorkspaceOverrides(workspaceRoot);
