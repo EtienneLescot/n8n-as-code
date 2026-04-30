@@ -125,10 +125,11 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
     }
 
     const prepared = await tryPrepareEffectiveContext(runtime, options.workspaceRoot);
-    if (prepared?.context.host && prepared.context.apiKey && !prepared.runtime.blocked) {
+    const apiBaseUrl = prepared?.context.apiBaseUrl ?? prepared?.context.host;
+    if (apiBaseUrl && prepared?.context.apiKey && !prepared.runtime.blocked) {
       return new N8nCredentialsManager({
         projectId: options.projectId ?? prepared.context.projectId,
-        client: new N8nRestCredentialClient({ baseUrl: prepared.context.host, apiKey: prepared.context.apiKey }),
+        client: new N8nRestCredentialClient({ baseUrl: apiBaseUrl, apiKey: prepared.context.apiKey }),
       });
     }
 
