@@ -170,6 +170,13 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
         apiKey: options.n8nApiKey ?? privateInstance?.apiKey,
         setActive: true,
       });
+      if (mode.managerMode === 'managed-local-docker' && input.tunnel && instance.tunnelPublicUrl) {
+        const status = await runtime.ensureTunnel(instance.id);
+        return {
+          ...instance,
+          warnings: (status as { warnings?: string[] }).warnings,
+        };
+      }
       return instance;
     },
     status: async (input = {}) => {

@@ -364,6 +364,7 @@ export function getConfigurationHtml(nonce: string): string {
     function statusBadge(instance) {
       if (instance.runtimeBlockedCode === 'docker-unavailable') return badge('Docker not found', 'error');
       if (instance.runtimeBlockedCode) return badge(instance.runtimeBlockedMessage || 'Needs attention', 'warning');
+      if (instance.runtimeWarnings?.length) return badge(instance.runtimeWarnings[0], 'warning');
       if (instance.runtimeStatus === 'ready') return badge('Started', 'ready');
       if (instance.runtimeStatus === 'stopped') return badge('Stopped', 'stopped');
       if (instance.runtimeStatus === 'starting') return badge('Starting', 'warning');
@@ -405,7 +406,7 @@ export function getConfigurationHtml(nonce: string): string {
         title.textContent = instance.name || instance.id;
         const meta = document.createElement('div');
         meta.className = 'muted instance-meta';
-        const displayUrl = instance.authBridgePublicUrl || instance.displayUrl || instance.tunnelPublicUrl || instance.host || instance.baseUrl || '';
+        const displayUrl = instance.authBridgePublicUrl || instance.displayUrl || (instance.publicUrlEnabled ? '' : instance.host || instance.baseUrl || '');
         const mode = document.createElement('span');
         mode.textContent = modeLabel(instance.mode) || instance.id;
         meta.appendChild(mode);
