@@ -43,14 +43,14 @@ export function getConfigurationHtml(nonce: string): string {
     .muted { color: var(--muted); line-height: 1.45; }
     .grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
+      grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr);
       gap: 14px;
       align-items: start;
     }
     .panel {
       border: 1px solid var(--border);
       background: var(--soft);
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 14px;
       display: grid;
       gap: 12px;
@@ -62,22 +62,49 @@ export function getConfigurationHtml(nonce: string): string {
       gap: 10px;
     }
     .toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
-    .instances { display: grid; gap: 8px; }
+    .instances { display: grid; gap: 10px; }
     .instance-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px;
-      align-items: center;
+      grid-template-columns: 1fr;
+      gap: 12px;
       border: 1px solid var(--border);
       background: var(--vscode-editor-background);
-      border-radius: 8px;
-      padding: 10px;
+      border-radius: 14px;
+      padding: 13px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color .14s ease, box-shadow .14s ease, background .14s ease, transform .14s ease;
     }
-    .instance-main { min-width: 0; display: grid; gap: 4px; }
-    .instance-title { font-weight: 650; overflow-wrap: anywhere; }
-    .instance-meta { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .instance-row.selectable { cursor: pointer; }
+    .instance-row.selectable:hover {
+      border-color: color-mix(in srgb, var(--vscode-focusBorder, var(--accent)) 70%, var(--border));
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px color-mix(in srgb, var(--vscode-editor-background) 65%, black);
+    }
+    .instance-row.selected {
+      border-color: var(--vscode-focusBorder, var(--accent));
+      box-shadow: 0 0 0 1px var(--vscode-focusBorder, var(--accent)), 0 10px 30px color-mix(in srgb, var(--vscode-button-background) 18%, transparent);
+      background: color-mix(in srgb, var(--vscode-button-background) 9%, var(--vscode-editor-background));
+    }
+    .instance-row.selected::before {
+      content: '';
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      background: var(--vscode-focusBorder, var(--accent));
+    }
+    .instance-main { min-width: 0; display: grid; gap: 9px; }
+    .instance-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+    .instance-identity { min-width: 0; display: grid; gap: 3px; }
+    .instance-title { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+    .instance-mode { color: var(--muted); font-size: 12px; }
+    .instance-status { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+    .instance-url-line { min-width: 0; }
     .instance-url { color: var(--vscode-textLink-foreground); text-decoration: none; overflow-wrap: anywhere; }
     .instance-url:hover { text-decoration: underline; }
+    .instance-subtle { color: var(--muted); font-size: 12px; }
+    .instance-foot { display: flex; justify-content: space-between; gap: 10px; align-items: center; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); padding-top: 10px; }
+    .instance-hint { color: var(--muted); font-size: 12px; }
     .inline-action {
       min-height: 0;
       padding: 0;
@@ -88,30 +115,31 @@ export function getConfigurationHtml(nonce: string): string {
       font-weight: 600;
     }
     .inline-action:hover { text-decoration: underline; }
-    .badges { display: flex; flex-wrap: wrap; gap: 6px; }
     .badge {
       border: 1px solid var(--border);
       border-radius: 999px;
       padding: 2px 8px;
       font-size: 11px;
       color: var(--muted);
+      overflow-wrap: anywhere;
     }
     .badge.active { color: var(--vscode-button-foreground); background: var(--accent); border-color: var(--accent); }
-    .badge.workspace { color: var(--vscode-editorWarning-foreground, var(--vscode-foreground)); }
     .badge.ready { color: var(--vscode-testing-iconPassed, var(--vscode-foreground)); border-color: color-mix(in srgb, var(--vscode-testing-iconPassed, var(--vscode-foreground)) 55%, var(--border)); }
     .badge.stopped { color: var(--vscode-testing-iconSkipped, var(--muted)); }
     .badge.warning { color: var(--vscode-editorWarning-foreground, var(--vscode-foreground)); border-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, var(--vscode-foreground)) 55%, var(--border)); }
     .badge.error { color: var(--vscode-errorForeground); border-color: color-mix(in srgb, var(--vscode-errorForeground) 55%, var(--border)); }
-    .summary {
-      display: grid;
-      gap: 8px;
+    .field-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+    .credential-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+    .credential-value {
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      padding: 6px 10px;
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px;
-      background: var(--vscode-editor-background);
+      border-radius: 6px;
+      background: var(--vscode-input-background);
+      overflow-wrap: anywhere;
     }
-    .kv { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 8px; font-size: 12px; }
-    .kv span:first-child { color: var(--muted); }
     label { display: grid; gap: 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
     input, select {
       width: 100%;
@@ -186,8 +214,9 @@ export function getConfigurationHtml(nonce: string): string {
     .message.error { color: var(--vscode-errorForeground); }
     .message.ok { color: var(--vscode-testing-iconPassed, var(--vscode-foreground)); }
     @media (max-width: 860px) {
-      header, .grid, .form-grid, .instance-row { grid-template-columns: 1fr; }
-      .kv { grid-template-columns: 1fr; gap: 2px; }
+      header, .grid, .form-grid, .field-row, .credential-row { grid-template-columns: 1fr; }
+      .instance-top, .instance-foot { display: grid; grid-template-columns: 1fr; }
+      .instance-status { justify-content: flex-start; }
     }
   </style>
 </head>
@@ -196,7 +225,7 @@ export function getConfigurationHtml(nonce: string): string {
     <header>
       <div>
         <h1>n8n configuration</h1>
-        <p class="muted">Global instances are owned by n8n-manager. Workspace settings only choose the effective instance and sync folder.</p>
+        <p class="muted">Manage n8n instances and click a card to choose what this workspace uses.</p>
       </div>
       <button id="refresh" class="secondary">Refresh</button>
     </header>
@@ -205,48 +234,33 @@ export function getConfigurationHtml(nonce: string): string {
       <section class="panel">
         <div class="panel-head">
           <div>
-            <h2>Global instances</h2>
-            <p class="muted">Create, edit, delete, and choose the global active n8n instance.</p>
+            <h2>n8n instances</h2>
+            <p class="muted">Click a card to connect this workspace to that instance. The active workspace instance is highlighted.</p>
           </div>
           <button id="addInstance">Add instance</button>
-        </div>
-        <div class="summary">
-          <div class="kv"><span>Global active</span><strong id="globalActive">None</strong></div>
-          <div class="kv"><span>Global sync</span><span id="globalSync">-</span></div>
         </div>
         <div id="instanceList" class="instances"></div>
       </section>
 
       <section class="panel">
         <div>
-          <h2>Workspace context</h2>
-          <p class="muted">This workspace can pin a different instance and sync folder. Empty fields fall back to global config.</p>
-        </div>
-        <div class="summary">
-          <div class="kv"><span>Effective instance</span><strong id="effectiveInstance">None</strong></div>
-          <div class="kv"><span>Source</span><span id="effectiveSource">-</span></div>
-          <div class="kv"><span>Effective sync</span><span id="effectiveSync">-</span></div>
+          <h2>Workspace settings</h2>
+          <p class="muted">Folder and project stay scoped to this workspace.</p>
         </div>
         <label>
-          Workspace instance
-          <select id="workspaceInstance"></select>
-        </label>
-        <label>
-          Workspace sync folder
+          Sync folder
           <input id="workspaceSync" type="text" placeholder="Use workspace default: workflows" />
         </label>
-        <div class="form-grid">
+        <div class="field-row">
           <label>
             Project
             <select id="workspaceProject" disabled><option value="">Load projects from effective instance</option></select>
           </label>
-          <div class="toolbar" style="align-self:end">
-            <button id="loadProjects" class="secondary">Load projects</button>
-          </div>
+          <button id="loadProjects" class="secondary">Load projects</button>
         </div>
         <div class="toolbar">
-          <button id="saveWorkspace">Save workspace context</button>
-          <button id="clearWorkspace" class="secondary">Clear overrides</button>
+          <button id="saveWorkspace">Save settings</button>
+          <button id="clearWorkspaceSettings" class="secondary">Clear folder/project</button>
         </div>
       </section>
     </div>
@@ -308,23 +322,63 @@ export function getConfigurationHtml(nonce: string): string {
     </div>
   </div>
 
+  <div id="connectModal" class="modal-backdrop hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="connectTitle">
+      <div class="modal-head">
+        <div>
+          <h2 id="connectTitle">Connect workspace</h2>
+          <p class="muted" id="connectDescription">Connect this workspace to the selected n8n instance.</p>
+        </div>
+        <button id="closeConnectModal" class="secondary">Close</button>
+      </div>
+      <div class="modal-body">
+        <p id="connectText">Connect this workspace to this n8n instance?</p>
+      </div>
+      <div class="modal-foot">
+        <button id="cancelConnect" class="secondary">Cancel</button>
+        <button id="confirmConnect">Connect workspace</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="credentialsModal" class="modal-backdrop hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="credentialsTitle">
+      <div class="modal-head">
+        <div>
+          <h2 id="credentialsTitle">Managed instance credentials</h2>
+          <p class="muted">Values are masked in the UI. Use copy when you need to log in manually.</p>
+        </div>
+        <button id="closeCredentialsModal" class="secondary">Close</button>
+      </div>
+      <div class="modal-body">
+        <div class="credential-row">
+          <strong>Username</strong>
+          <div id="credentialUsername" class="credential-value">-</div>
+          <button id="copyCredentialUsername" class="secondary">Copy</button>
+        </div>
+        <div class="credential-row">
+          <strong>Password</strong>
+          <div id="credentialPassword" class="credential-value">••••••••••••</div>
+          <button id="copyCredentialPassword" class="secondary">Copy</button>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button id="closeCredentialsFoot" class="secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     const els = {
       refresh: document.getElementById('refresh'),
       addInstance: document.getElementById('addInstance'),
       instanceList: document.getElementById('instanceList'),
-      globalActive: document.getElementById('globalActive'),
-      globalSync: document.getElementById('globalSync'),
-      effectiveInstance: document.getElementById('effectiveInstance'),
-      effectiveSource: document.getElementById('effectiveSource'),
-      effectiveSync: document.getElementById('effectiveSync'),
-      workspaceInstance: document.getElementById('workspaceInstance'),
       workspaceSync: document.getElementById('workspaceSync'),
       workspaceProject: document.getElementById('workspaceProject'),
       loadProjects: document.getElementById('loadProjects'),
       saveWorkspace: document.getElementById('saveWorkspace'),
-      clearWorkspace: document.getElementById('clearWorkspace'),
+      clearWorkspaceSettings: document.getElementById('clearWorkspaceSettings'),
       error: document.getElementById('error'),
       saved: document.getElementById('saved'),
       modal: document.getElementById('instanceModal'),
@@ -341,12 +395,29 @@ export function getConfigurationHtml(nonce: string): string {
       closeModal: document.getElementById('closeModal'),
       cancelModal: document.getElementById('cancelModal'),
       saveInstance: document.getElementById('saveInstance'),
+      connectModal: document.getElementById('connectModal'),
+      connectDescription: document.getElementById('connectDescription'),
+      connectText: document.getElementById('connectText'),
+      closeConnectModal: document.getElementById('closeConnectModal'),
+      cancelConnect: document.getElementById('cancelConnect'),
+      confirmConnect: document.getElementById('confirmConnect'),
+      credentialsModal: document.getElementById('credentialsModal'),
+      credentialUsername: document.getElementById('credentialUsername'),
+      credentialPassword: document.getElementById('credentialPassword'),
+      copyCredentialUsername: document.getElementById('copyCredentialUsername'),
+      copyCredentialPassword: document.getElementById('copyCredentialPassword'),
+      closeCredentialsModal: document.getElementById('closeCredentialsModal'),
+      closeCredentialsFoot: document.getElementById('closeCredentialsFoot'),
     };
 
     let state = { global: { instances: [] }, workspace: {}, effective: undefined };
     const PERSONAL_PROJECT = { id: 'personal', name: 'Personal', type: 'personal' };
     let projects = [PERSONAL_PROJECT];
     let editingInstanceId = '';
+    let workspaceInstanceOverrideId = '';
+    let connectingInstanceId = '';
+    let connectingInstanceIsGlobalDefault = false;
+    let credentialValues = { username: '', password: '' };
 
     function showError(message) {
       els.error.style.display = message ? 'block' : 'none';
@@ -383,18 +454,11 @@ export function getConfigurationHtml(nonce: string): string {
       return undefined;
     }
     function render() {
-      const global = state.global || {};
       const workspace = state.workspace || {};
       const effective = state.effective;
-      const globalActive = instanceById(global.activeInstanceId);
-      els.globalActive.textContent = globalActive ? globalActive.name : 'None';
-      els.globalSync.textContent = global.defaultSyncFolder || '-';
-      els.effectiveInstance.textContent = effective?.activeInstanceName || 'None';
-      els.effectiveSource.textContent = effective?.sources?.instance || '-';
-      els.effectiveSync.textContent = effective?.syncFolder || '-';
+      workspaceInstanceOverrideId = workspace.activeInstanceId || '';
       els.workspaceSync.value = workspace.syncFolder || '';
       renderInstanceList();
-      renderWorkspaceInstanceSelect(workspace.activeInstanceId || '');
       renderProjects(workspace.projectId || effective?.projectId || 'personal');
     }
     function renderInstanceList() {
@@ -407,53 +471,68 @@ export function getConfigurationHtml(nonce: string): string {
         return;
       }
       for (const instance of instances()) {
+        const isEffective = instance.id === state.effective?.activeInstanceId;
+        const isGlobalDefault = instance.id === state.global?.activeInstanceId;
+        const canChangeWorkspaceSelection = !isEffective || Boolean(state.workspace?.activeInstanceId && isGlobalDefault);
         const row = document.createElement('div');
-        row.className = 'instance-row';
+        row.className = 'instance-row' + (canChangeWorkspaceSelection ? ' selectable' : '') + (isEffective ? ' selected' : '');
+        row.title = canChangeWorkspaceSelection ? 'Click to update this workspace connection.' : 'This workspace uses this instance.';
         const main = document.createElement('div');
         main.className = 'instance-main';
+        const top = document.createElement('div');
+        top.className = 'instance-top';
+        const identity = document.createElement('div');
+        identity.className = 'instance-identity';
         const title = document.createElement('div');
         title.className = 'instance-title';
         title.textContent = instance.name || instance.id;
-        const meta = document.createElement('div');
-        meta.className = 'muted instance-meta';
-        const displayUrl = instance.authBridgePublicUrl || instance.displayUrl || (instance.publicUrlEnabled ? '' : instance.host || instance.baseUrl || '');
         const mode = document.createElement('span');
+        mode.className = 'instance-mode';
         mode.textContent = modeLabel(instance.mode) || instance.id;
-        meta.appendChild(mode);
+        identity.append(title, mode);
+        const status = document.createElement('div');
+        status.className = 'instance-status';
+        const runtimeBadge = statusBadge(instance);
+        if (runtimeBadge) status.appendChild(runtimeBadge);
+        if (isEffective) status.appendChild(badge('Workspace instance', 'active'));
+        top.append(identity, status);
+        const displayUrl = instance.authBridgePublicUrl || instance.displayUrl || (instance.publicUrlEnabled ? '' : instance.host || instance.baseUrl || '');
+        const urlLine = document.createElement('div');
+        urlLine.className = 'instance-url-line';
         if (displayUrl) {
-          const separator = document.createElement('span');
-          separator.textContent = '·';
           const url = document.createElement('a');
           url.className = 'instance-url';
           url.href = '#';
           url.textContent = displayUrl;
           url.addEventListener('click', (event) => {
             event.preventDefault();
+            event.stopPropagation();
             post('openExternal', { url: displayUrl });
           });
-          meta.append(separator, url);
+          urlLine.appendChild(url);
         } else if (instance.publicUrlEnabled) {
-          const separator = document.createElement('span');
-          separator.textContent = '·';
           const pending = document.createElement('span');
+          pending.className = 'instance-subtle';
           pending.textContent = 'Public URL pending';
           const refresh = button('Refresh', 'inline-action', () => post('refreshPublicUrl', { instanceId: instance.id }));
-          meta.append(separator, pending, refresh);
+          urlLine.append(pending, document.createTextNode(' '), refresh);
+        } else {
+          const localOnly = document.createElement('span');
+          localOnly.className = 'instance-subtle';
+          localOnly.textContent = 'Local access only';
+          urlLine.appendChild(localOnly);
         }
-        const badges = document.createElement('div');
-        badges.className = 'badges';
-        const runtimeBadge = statusBadge(instance);
-        if (runtimeBadge) badges.appendChild(runtimeBadge);
-        if (instance.id === state.global?.activeInstanceId) badges.appendChild(badge('global active', 'active'));
-        if (instance.id === state.workspace?.activeInstanceId) badges.appendChild(badge('workspace pin', 'workspace'));
-        if (instance.apiKeyAvailable) badges.appendChild(badge('api key', ''));
-        if (instance.authBridgePublicUrl) badges.appendChild(badge('auto-login URL', ''));
-        if (instance.publicUrlEnabled || instance.tunnelPublicUrl || instance.tunnelTargetUrl) badges.appendChild(badge('public URL', ''));
-        main.append(title, meta, badges);
+        const foot = document.createElement('div');
+        foot.className = 'instance-foot';
+        const hint = document.createElement('div');
+        hint.className = 'instance-hint';
+        hint.textContent = isEffective
+          ? (state.workspace?.activeInstanceId ? 'Selected for this workspace' : 'Using global default')
+          : (isGlobalDefault ? 'Click to use the global default in this workspace' : 'Click to select this instance for this workspace');
         const actions = document.createElement('div');
         actions.className = 'toolbar';
-        const edit = button('Edit', 'secondary', () => openModal(instance));
-        const del = button('Delete', 'danger', () => {
+        const edit = button('Edit', 'secondary compact', () => openModal(instance));
+        const del = button('Delete', 'danger compact', () => {
           post('deleteInstance', { instanceId: instance.id, instanceName: instance.name || instance.id });
         });
         if (instance.mode === 'managed-local-docker') {
@@ -464,13 +543,21 @@ export function getConfigurationHtml(nonce: string): string {
             actions.append(button('Stop', 'secondary compact', () => post('manageInstanceRuntime', { instanceId: instance.id, action: 'stop' })));
           }
           actions.append(button('Restart', 'secondary compact', () => post('manageInstanceRuntime', { instanceId: instance.id, action: 'restart' })));
+          if (instance.ownerCredentialsAvailable) {
+            actions.append(button('Credentials', 'secondary compact', () => post('showManagedCredentials', { instanceId: instance.id })));
+          }
         }
         actions.append(edit);
         if (instance.id !== state.global?.activeInstanceId) {
-          actions.append(button('Activate', 'secondary', () => post('setGlobalActiveInstance', { instanceId: instance.id })));
+          actions.append(button('Make default', 'secondary compact', () => post('setGlobalActiveInstance', { instanceId: instance.id })));
         }
         actions.append(del);
-        row.append(main, actions);
+        foot.append(hint, actions);
+        main.append(top, urlLine, foot);
+        row.addEventListener('click', () => {
+          if (canChangeWorkspaceSelection) openConnectModal(instance);
+        });
+        row.append(main);
         els.instanceList.appendChild(row);
       }
     }
@@ -484,22 +571,11 @@ export function getConfigurationHtml(nonce: string): string {
       const el = document.createElement('button');
       el.className = cls || '';
       el.textContent = text;
-      el.addEventListener('click', onClick);
+      el.addEventListener('click', (event) => {
+        event.stopPropagation();
+        onClick(event);
+      });
       return el;
-    }
-    function renderWorkspaceInstanceSelect(selectedId) {
-      els.workspaceInstance.innerHTML = '';
-      const fallback = document.createElement('option');
-      fallback.value = '';
-      fallback.textContent = 'Use global active instance';
-      els.workspaceInstance.appendChild(fallback);
-      for (const instance of instances()) {
-        const opt = document.createElement('option');
-        opt.value = instance.id;
-        opt.textContent = instance.name || instance.id;
-        els.workspaceInstance.appendChild(opt);
-      }
-      els.workspaceInstance.value = selectedId || '';
     }
     function renderProjects(selectedId) {
       els.workspaceProject.innerHTML = '';
@@ -541,6 +617,82 @@ export function getConfigurationHtml(nonce: string): string {
       editingInstanceId = '';
       els.modal.classList.add('hidden');
     }
+    function currentWorkspaceInstanceId() {
+      return workspaceInstanceOverrideId;
+    }
+    function openConnectModal(instance) {
+      connectingInstanceId = instance?.id || '';
+      connectingInstanceIsGlobalDefault = connectingInstanceId && connectingInstanceId === state.global?.activeInstanceId;
+      const name = instance?.name || instance?.id || 'this instance';
+      els.connectDescription.textContent = connectingInstanceIsGlobalDefault
+        ? 'This will clear the workspace override and follow the global default instance.'
+        : 'This only changes the current workspace connection.';
+      els.connectText.textContent = connectingInstanceIsGlobalDefault
+        ? 'Use the global default "' + name + '" for this workspace?'
+        : 'Connect this workspace to "' + name + '"?';
+      els.confirmConnect.textContent = connectingInstanceIsGlobalDefault ? 'Use global default' : 'Connect to ' + name;
+      els.connectModal.classList.remove('hidden');
+    }
+    function closeConnectModal() {
+      connectingInstanceId = '';
+      connectingInstanceIsGlobalDefault = false;
+      els.connectModal.classList.add('hidden');
+    }
+    function applyWorkspaceSelectionOptimistically(instance, useGlobalDefault) {
+      if (!instance) return;
+      workspaceInstanceOverrideId = useGlobalDefault ? '' : instance.id;
+      state = {
+        ...state,
+        workspace: {
+          ...(state.workspace || {}),
+          activeInstanceId: useGlobalDefault ? '' : instance.id,
+        },
+        effective: {
+          ...(state.effective || {}),
+          activeInstanceId: instance.id,
+          activeInstanceName: instance.name || instance.id,
+          host: instance.host || instance.baseUrl || state.effective?.host || '',
+          syncFolder: state.effective?.syncFolder || state.workspace?.syncFolder || 'workflows',
+          sources: {
+            ...(state.effective?.sources || {}),
+            instance: useGlobalDefault ? 'global' : 'workspace',
+          },
+        },
+      };
+      renderInstanceList();
+    }
+    function saveWorkspaceContext(activeInstanceId) {
+      workspaceInstanceOverrideId = activeInstanceId || '';
+      const selectedOption = els.workspaceProject.selectedOptions[0];
+      post('saveWorkspaceContext', {
+        activeInstanceId,
+        syncFolder: els.workspaceSync.value,
+        projectId: els.workspaceProject.value,
+        projectName: selectedOption?.dataset?.projectName || '',
+      });
+    }
+    function openCredentialsModal(credentials) {
+      credentialValues = {
+        username: credentials?.username || '',
+        password: credentials?.password || '',
+      };
+      els.credentialUsername.textContent = credentialValues.username || '-';
+      els.credentialPassword.textContent = credentialValues.password ? '••••••••••••' : '-';
+      els.credentialsModal.classList.remove('hidden');
+    }
+    function closeCredentialsModal() {
+      credentialValues = { username: '', password: '' };
+      els.credentialsModal.classList.add('hidden');
+    }
+    function copyText(value) {
+      if (!value) return;
+      const copy = navigator.clipboard?.writeText?.(value);
+      if (copy) {
+        copy.then(showSaved, () => post('copyText', { value }));
+      } else {
+        post('copyText', { value });
+      }
+    }
     function renderModalFields() {
       const mode = els.modalMode.value;
       const isExisting = mode === 'existing';
@@ -557,6 +709,18 @@ export function getConfigurationHtml(nonce: string): string {
     els.addInstance.addEventListener('click', () => openModal(undefined));
     els.closeModal.addEventListener('click', closeModal);
     els.cancelModal.addEventListener('click', closeModal);
+    els.closeConnectModal.addEventListener('click', closeConnectModal);
+    els.cancelConnect.addEventListener('click', closeConnectModal);
+    els.confirmConnect.addEventListener('click', () => {
+      if (!connectingInstanceId) return;
+      applyWorkspaceSelectionOptimistically(instanceById(connectingInstanceId), connectingInstanceIsGlobalDefault);
+      saveWorkspaceContext(connectingInstanceIsGlobalDefault ? '' : connectingInstanceId);
+      closeConnectModal();
+    });
+    els.closeCredentialsModal.addEventListener('click', closeCredentialsModal);
+    els.closeCredentialsFoot.addEventListener('click', closeCredentialsModal);
+    els.copyCredentialUsername.addEventListener('click', () => copyText(credentialValues.username));
+    els.copyCredentialPassword.addEventListener('click', () => copyText(credentialValues.password));
     els.modalMode.addEventListener('change', renderModalFields);
     els.saveInstance.addEventListener('click', () => {
       post('saveGlobalInstance', {
@@ -572,25 +736,17 @@ export function getConfigurationHtml(nonce: string): string {
     });
     els.loadProjects.addEventListener('click', () => {
       post('loadProjects', {
-        instanceId: els.workspaceInstance.value || state.global?.activeInstanceId || '',
+        instanceId: currentWorkspaceInstanceId() || state.global?.activeInstanceId || '',
         projectId: state.workspace?.projectId || state.effective?.projectId || '',
         projectName: state.workspace?.projectName || state.effective?.projectName || '',
       });
     });
-    els.saveWorkspace.addEventListener('click', () => {
-      const selectedOption = els.workspaceProject.selectedOptions[0];
-      post('saveWorkspaceContext', {
-        activeInstanceId: els.workspaceInstance.value,
-        syncFolder: els.workspaceSync.value,
-        projectId: els.workspaceProject.value,
-        projectName: selectedOption?.dataset?.projectName || '',
-      });
-    });
-    els.clearWorkspace.addEventListener('click', () => {
-      els.workspaceInstance.value = '';
+    els.saveWorkspace.addEventListener('click', () => saveWorkspaceContext(currentWorkspaceInstanceId()));
+    els.clearWorkspaceSettings.addEventListener('click', () => {
       els.workspaceSync.value = '';
-      renderProjects('personal');
+      renderProjects('');
       showError('');
+      saveWorkspaceContext(currentWorkspaceInstanceId());
     });
     window.addEventListener('message', (event) => {
       const message = event.data || {};
@@ -609,6 +765,10 @@ export function getConfigurationHtml(nonce: string): string {
         renderProjects(message.selectedProjectId || state.workspace?.projectId || state.effective?.projectId || 'personal');
       } else if (message.type === 'saved') {
         showSaved();
+      } else if (message.type === 'copied') {
+        showSaved();
+      } else if (message.type === 'managedCredentials') {
+        openCredentialsModal(message.credentials);
       } else if (message.type === 'error') {
         showError(message.message || 'Unexpected error');
       } else if (message.type === 'instanceDeleted') {
