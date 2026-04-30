@@ -24,7 +24,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@clack/prompts": "^1.0.1",
     "@n8n-as-code/workflow-core": "0.1.0"
   },
   "devDependencies": {
