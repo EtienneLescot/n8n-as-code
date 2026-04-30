@@ -255,9 +255,8 @@ export function getConfigurationHtml(nonce: string): string {
           <label>
             Type
             <select id="modalMode">
-              <option value="existing">Existing n8n</option>
-              <option value="managed-local-docker">Managed local Docker</option>
-              <option value="generation-only">Generation only</option>
+              <option value="managed-local-docker">Create an instance for me (Require Docker)</option>
+              <option value="existing">Use an existing n8n instance</option>
             </select>
           </label>
           <label>
@@ -278,8 +277,8 @@ export function getConfigurationHtml(nonce: string): string {
           <label id="modalTunnelField" class="full">
             Managed tunnel
             <select id="modalTunnel">
-              <option value="no">No tunnel</option>
-              <option value="yes">Enable Cloudflare tunnel</option>
+              <option value="yes">Create a public URL</option>
+              <option value="no">Accessible only locally</option>
             </select>
           </label>
         </div>
