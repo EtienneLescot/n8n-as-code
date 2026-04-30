@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-04-29T04:19:30.804Z",
+  "generatedAt": "2026-04-30T04:24:04.824Z",
   "repository": "https://github.com/nusquama/n8nworkflows.xyz.git",
   "sourceRef": "main",
-  "sourceCommit": "be7386aee8150249f6f76a0e5ff3e859cedfe4a2",
+  "sourceCommit": "fa318daa01a93d1e58730e0972f66259cb542437",
   "refreshStrategy": "fresh-clone-per-build",
-  "totalWorkflows": 8671,
+  "totalWorkflows": 8673,
   "workflows": [
     {
       "id": 15300,
@@ -2021,6 +2021,30 @@
         "@n8n/n8n-nodes-langchain.agent",
         "@n8n/n8n-nodes-langchain.lmChatOpenAi",
         "@n8n/n8n-nodes-langchain.outputParserStructured"
+      ]
+    },
+    {
+      "id": 15181,
+      "slug": "Turn podcast videos into TikTok shorts using WayinVideo and PostPulse-15181",
+      "name": "Turn Podcast Videos Into TikTok Shorts Using WayinVideo And PostPulse",
+      "tags": [
+        "Content Creation",
+        "Multimodal AI"
+      ],
+      "author": "alex97po",
+      "createdAt": null,
+      "description": null,
+      "hasWorkflow": true,
+      "workflowFile": "turn_podcast_videos_into_tiktok_shorts_using_wayinvideo_and_postpulse.json",
+      "workflowPath": "workflows/Turn podcast videos into TikTok shorts using WayinVideo and PostPulse-15181/turn_podcast_videos_into_tiktok_shorts_using_wayinvideo_and_postpulse.json",
+      "url": "https://n8nworkflows.xyz/workflows/turn-podcast-videos-into-tiktok-shorts-using-wayinvideo-and-postpulse-15181\n",
+      "nodeTypes": [
+        "n8n-nodes-base.wait",
+        "n8n-nodes-base.splitOut",
+        "n8n-nodes-base.stickyNote",
+        "n8n-nodes-base.formTrigger",
+        "n8n-nodes-base.httpRequest",
+        "@postpulse/n8n-nodes-postpulse.postPulse"
       ]
     },
     {
@@ -4360,6 +4384,28 @@
         "@n8n/n8n-nodes-langchain.lmChatOpenAi",
         "@mookielianhd/n8n-nodes-instagram.instagram",
         "@n8n/n8n-nodes-langchain.outputParserStructured"
+      ]
+    },
+    {
+      "id": 15032,
+      "slug": "Send Guesty new booking SMS confirmations and reminders with Aloware-15032",
+      "name": "Send Guesty New Booking SMS Confirmations And Reminders With Aloware",
+      "tags": [
+        "Lead Nurturing"
+      ],
+      "author": "dudnyk",
+      "createdAt": null,
+      "description": null,
+      "hasWorkflow": true,
+      "workflowFile": "send_guesty_new_booking_sms_confirmations_and_reminders_with_aloware.json",
+      "workflowPath": "workflows/Send Guesty new booking SMS confirmations and reminders with Aloware-15032/send_guesty_new_booking_sms_confirmations_and_reminders_with_aloware.json",
+      "url": "https://n8nworkflows.xyz/workflows/send-guesty-new-booking-sms-confirmations-and-reminders-with-aloware-15032\n",
+      "nodeTypes": [
+        "n8n-nodes-base.set",
+        "n8n-nodes-base.wait",
+        "n8n-nodes-base.webhook",
+        "n8n-nodes-base.stickyNote",
+        "n8n-nodes-base.httpRequest"
       ]
     },
     {
