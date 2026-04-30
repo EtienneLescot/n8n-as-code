@@ -1,5 +1,17 @@
 # @n8n-as-code/cli
 
+## [1.8.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.8.1...n8nac@v1.8.2) (2026-04-30)
+
+### Bug Fixes
+
+* **cli:** resolve macOS /tmp symlink in sync-manager tests (#357) ([63764b9](https://github.com/EtienneLescot/n8n-as-code/commit/63764b90a7d2b6684d56a26d9dbd36f31fcc84a7))
+* **cli:** implement stable instance identifiers ([eddc29d](https://github.com/EtienneLescot/n8n-as-code/commit/eddc29d36af5c6ce514cbff7423f8c2b615a7b85))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.10.0 to 1.10.1
+
 ## [1.8.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.8.0...n8nac@v1.8.1) (2026-04-24)
 
 ### Bug Fixes
