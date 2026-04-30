@@ -75,6 +75,9 @@ export function getConfigurationHtml(nonce: string): string {
     }
     .instance-main { min-width: 0; display: grid; gap: 4px; }
     .instance-title { font-weight: 650; overflow-wrap: anywhere; }
+    .instance-meta { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .instance-url { color: var(--vscode-textLink-foreground); text-decoration: none; overflow-wrap: anywhere; }
+    .instance-url:hover { text-decoration: underline; }
     .badges { display: flex; flex-wrap: wrap; gap: 6px; }
     .badge {
       border: 1px solid var(--border);
@@ -85,6 +88,10 @@ export function getConfigurationHtml(nonce: string): string {
     }
     .badge.active { color: var(--vscode-button-foreground); background: var(--accent); border-color: var(--accent); }
     .badge.workspace { color: var(--vscode-editorWarning-foreground, var(--vscode-foreground)); }
+    .badge.ready { color: var(--vscode-testing-iconPassed, var(--vscode-foreground)); border-color: color-mix(in srgb, var(--vscode-testing-iconPassed, var(--vscode-foreground)) 55%, var(--border)); }
+    .badge.stopped { color: var(--vscode-testing-iconSkipped, var(--muted)); }
+    .badge.warning { color: var(--vscode-editorWarning-foreground, var(--vscode-foreground)); border-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, var(--vscode-foreground)) 55%, var(--border)); }
+    .badge.error { color: var(--vscode-errorForeground); border-color: color-mix(in srgb, var(--vscode-errorForeground) 55%, var(--border)); }
     .summary {
       display: grid;
       gap: 8px;
@@ -126,6 +133,7 @@ export function getConfigurationHtml(nonce: string): string {
       background: transparent;
       border-color: color-mix(in srgb, var(--vscode-errorForeground) 45%, var(--border));
     }
+    button.compact { min-height: 28px; padding: 0 9px; font-size: 12px; }
     button:disabled { opacity: .55; cursor: not-allowed; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .full { grid-column: 1 / -1; }
@@ -275,7 +283,7 @@ export function getConfigurationHtml(nonce: string): string {
             <input id="modalApiKey" type="password" placeholder="Leave empty to keep existing key" />
           </label>
           <label id="modalTunnelField" class="full">
-            Managed tunnel
+            Access
             <select id="modalTunnel">
               <option value="yes">Create a public URL</option>
               <option value="no">Accessible only locally</option>
@@ -348,6 +356,21 @@ export function getConfigurationHtml(nonce: string): string {
     function instanceById(id) {
       return instances().find((instance) => instance.id === id);
     }
+    function modeLabel(mode) {
+      if (mode === 'managed-local-docker') return 'Managed Docker instance';
+      if (mode === 'existing') return 'Existing n8n instance';
+      return mode || '';
+    }
+    function statusBadge(instance) {
+      if (instance.runtimeBlockedCode === 'docker-unavailable') return badge('Docker not found', 'error');
+      if (instance.runtimeBlockedCode) return badge(instance.runtimeBlockedMessage || 'Needs attention', 'warning');
+      if (instance.runtimeStatus === 'ready') return badge('Started', 'ready');
+      if (instance.runtimeStatus === 'stopped') return badge('Stopped', 'stopped');
+      if (instance.runtimeStatus === 'starting') return badge('Starting', 'warning');
+      if (instance.runtimeStatus === 'unhealthy') return badge('Unhealthy', 'error');
+      if (instance.runtimeStatus === 'unknown') return badge('Status unknown', 'warning');
+      return undefined;
+    }
     function render() {
       const global = state.global || {};
       const workspace = state.workspace || {};
@@ -381,15 +404,39 @@ export function getConfigurationHtml(nonce: string): string {
         title.className = 'instance-title';
         title.textContent = instance.name || instance.id;
         const meta = document.createElement('div');
-        meta.className = 'muted';
-        const displayUrl = instance.tunnelPublicUrl || instance.host || instance.baseUrl || '';
-        meta.textContent = [instance.mode, displayUrl].filter(Boolean).join(' · ') || instance.id;
+        meta.className = 'muted instance-meta';
+        const displayUrl = instance.authBridgePublicUrl || instance.displayUrl || instance.tunnelPublicUrl || instance.host || instance.baseUrl || '';
+        const mode = document.createElement('span');
+        mode.textContent = modeLabel(instance.mode) || instance.id;
+        meta.appendChild(mode);
+        if (displayUrl) {
+          const separator = document.createElement('span');
+          separator.textContent = '·';
+          const url = document.createElement('a');
+          url.className = 'instance-url';
+          url.href = '#';
+          url.textContent = displayUrl;
+          url.addEventListener('click', (event) => {
+            event.preventDefault();
+            post('openExternal', { url: displayUrl });
+          });
+          meta.append(separator, url);
+        } else if (instance.publicUrlEnabled) {
+          const separator = document.createElement('span');
+          separator.textContent = '·';
+          const pending = document.createElement('span');
+          pending.textContent = 'Public URL pending';
+          meta.append(separator, pending);
+        }
         const badges = document.createElement('div');
         badges.className = 'badges';
+        const runtimeBadge = statusBadge(instance);
+        if (runtimeBadge) badges.appendChild(runtimeBadge);
         if (instance.id === state.global?.activeInstanceId) badges.appendChild(badge('global active', 'active'));
         if (instance.id === state.workspace?.activeInstanceId) badges.appendChild(badge('workspace pin', 'workspace'));
         if (instance.apiKeyAvailable) badges.appendChild(badge('api key', ''));
-        if (instance.tunnelPublicUrl) badges.appendChild(badge('tunnel', ''));
+        if (instance.authBridgePublicUrl) badges.appendChild(badge('auto-login URL', ''));
+        if (instance.publicUrlEnabled || instance.tunnelPublicUrl || instance.tunnelTargetUrl) badges.appendChild(badge('public URL', ''));
         main.append(title, meta, badges);
         const actions = document.createElement('div');
         actions.className = 'toolbar';
@@ -397,6 +444,15 @@ export function getConfigurationHtml(nonce: string): string {
         const del = button('Delete', 'danger', () => {
           post('deleteInstance', { instanceId: instance.id, instanceName: instance.name || instance.id });
         });
+        if (instance.mode === 'managed-local-docker') {
+          if (instance.runtimeStatus !== 'ready') {
+            actions.append(button('Start', 'secondary compact', () => post('manageInstanceRuntime', { instanceId: instance.id, action: 'start' })));
+          }
+          if (instance.runtimeStatus !== 'stopped') {
+            actions.append(button('Stop', 'secondary compact', () => post('manageInstanceRuntime', { instanceId: instance.id, action: 'stop' })));
+          }
+          actions.append(button('Restart', 'secondary compact', () => post('manageInstanceRuntime', { instanceId: instance.id, action: 'restart' })));
+        }
         actions.append(edit);
         if (instance.id !== state.global?.activeInstanceId) {
           actions.append(button('Activate', 'secondary', () => post('setGlobalActiveInstance', { instanceId: instance.id })));
@@ -461,11 +517,11 @@ export function getConfigurationHtml(nonce: string): string {
       editingInstanceId = instance?.id || '';
       els.modalTitle.textContent = editingInstanceId ? 'Edit instance' : 'Add instance';
       els.modalName.value = instance?.name || '';
-      els.modalMode.value = instance?.mode || 'existing';
+      els.modalMode.value = instance?.mode || 'managed-local-docker';
       els.modalSetActive.value = editingInstanceId && editingInstanceId !== state.global?.activeInstanceId ? 'no' : 'yes';
       els.modalHost.value = instance?.host || instance?.baseUrl || '';
       els.modalApiKey.value = '';
-      els.modalTunnel.value = instance?.tunnelPublicUrl ? 'yes' : 'no';
+      els.modalTunnel.value = instance ? (instance.publicUrlEnabled || instance.tunnelPublicUrl || instance.tunnelTargetUrl ? 'yes' : 'no') : 'yes';
       renderModalFields();
       els.modal.classList.remove('hidden');
     }
