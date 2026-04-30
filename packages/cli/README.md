@@ -24,6 +24,15 @@ If you need fully repeatable automation, pin an explicit package version instead
 npx --yes n8nac@1.8.0 <command>
 ```
 
+For prerelease testing, use the `next` npm dist-tag consistently with any prerelease plugin or generated agent instructions:
+
+```bash
+npx --yes n8nac@next <command>
+npx --yes @n8n-as-code/n8n-manager@next <command>
+```
+
+Do not use `npx --yes n8nac` for a workspace whose plugin or `AGENTS.md` was generated from the `next` branch; that resolves npm `latest` and may expose older stable commands.
+
 Or install globally if you prefer:
 
 ```bash

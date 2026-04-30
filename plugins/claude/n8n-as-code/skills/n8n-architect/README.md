@@ -18,6 +18,8 @@ npx --yes n8nac workspace set-sync-folder workflows
 npx --yes n8nac update-ai
 ```
 
+For prerelease testing from `https://github.com/EtienneLescot/n8n-as-code#next`, use matching npm tags in manual commands: `npx --yes n8nac@next ...` and `npx --yes @n8n-as-code/n8n-manager@next ...`.
+
 That leaves `AGENTS.md` in the project root. For multi-agent setups that use a repo-level `CLAUDE.md`, keep it small and point it back to `AGENTS.md` so planners and coding agents use the generated n8n-as-code instructions instead of inventing node schemas.
 
 ## Source Repository

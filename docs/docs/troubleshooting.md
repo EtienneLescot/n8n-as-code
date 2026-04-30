@@ -89,6 +89,15 @@ Someone (or you in the n8n UI) modified the workflow remotely since your last pu
    /plugin marketplace add https://github.com/EtienneLescot/n8n-as-code
    /plugin install n8n-as-code@n8nac-marketplace
    ```
+   If you are testing the prerelease plugin, the marketplace URL must include the branch and manual commands should use matching npm tags:
+   ```text
+   /plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#next
+   /plugin install n8n-as-code@n8nac-marketplace
+   ```
+   ```bash
+   npx --yes n8nac@next workspace status --json
+   npx --yes @n8n-as-code/n8n-manager@next instances list
+   ```
 2. Restart Claude Code after installing
 3. Check that the workspace is initialized:
    ```bash

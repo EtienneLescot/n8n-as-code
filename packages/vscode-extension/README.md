@@ -22,6 +22,15 @@ Marketplace links:
 - Microsoft Marketplace: https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code
 - Open VSX: https://open-vsx.org/extension/etienne-lescot/n8n-as-code
 
+Prerelease builds are published on the VS Code Marketplace prerelease channel when available. If you use a prerelease extension with manual CLI commands or generated agent context, keep the CLI on the same prerelease line:
+
+```bash
+npx --yes n8nac@next <command>
+npx --yes @n8n-as-code/n8n-manager@next <command>
+```
+
+Open VSX prereleases are not published; use the stable Open VSX extension unless you install from a local development build.
+
 ---
 
 ## What You Get

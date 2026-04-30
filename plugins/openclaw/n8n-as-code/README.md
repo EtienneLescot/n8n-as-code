@@ -14,6 +14,16 @@ Version 2 removes the facade-specific OpenClaw runtime tool path. The plugin now
 openclaw plugins install @n8n-as-code/n8nac
 ```
 
+For prerelease testing, install the `next` dist-tag and use matching prerelease CLI commands in any manual shell steps:
+
+```bash
+openclaw plugins install @n8n-as-code/n8nac@next
+npx --yes n8nac@next workspace status --json
+npx --yes @n8n-as-code/n8n-manager@next instances list
+```
+
+Do not mix an OpenClaw plugin installed from `@next` with `n8nac@latest`; bundled prerelease skills may reference CLI commands that are not in the stable release yet.
+
 If you previously installed `@n8n-as-code/openclaw-plugin`, remove the old install first so OpenClaw re-registers the plugin cleanly under `n8nac`:
 
 ```bash

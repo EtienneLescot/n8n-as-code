@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
+import { execFileSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -203,17 +204,18 @@ describe('AiContextGenerator', () => {
 
         test('packaged plugin skills do not diverge from canonical generated skills', () => {
             const repoRoot = path.resolve(__dirname, '../../..');
-            const expected = {
-                'n8n-manager': generator.getAgentSkillContent('n8n-manager'),
-                'n8n-architect': generator.getAgentSkillContent('n8n-architect'),
-            };
             const pluginSkillRoots = [
                 path.join(repoRoot, 'plugins/claude/n8n-as-code/skills'),
                 path.join(repoRoot, 'plugins/openclaw/n8n-as-code/skills'),
                 path.join(repoRoot, 'plugins/cursor/n8n-as-code/skills'),
             ];
+            const distTag = resolveAdapterDistTag(repoRoot);
 
             for (const pluginRoot of pluginSkillRoots) {
+                const expected = {
+                    'n8n-manager': generator.getAgentSkillContent('n8n-manager', distTag),
+                    'n8n-architect': generator.getAgentSkillContent('n8n-architect', distTag),
+                };
                 for (const skillName of Object.keys(expected) as Array<keyof typeof expected>) {
                     const skillPath = path.join(pluginRoot, skillName, 'SKILL.md');
                     expect(fs.existsSync(skillPath)).toBe(true);
@@ -223,3 +225,38 @@ describe('AiContextGenerator', () => {
         });
     });
 });
+
+function resolveAdapterDistTag(repoRoot: string): string | undefined {
+    const explicit = process.env.N8NAC_SKILL_ADAPTER_DIST_TAG?.trim();
+    if (explicit) {
+        return ['stable', 'latest', 'none'].includes(explicit) ? undefined : explicit;
+    }
+
+    if (process.env.GITHUB_BASE_REF === 'main') {
+        return undefined;
+    }
+
+    const versions = [
+        path.join(repoRoot, 'packages/cli/package.json'),
+        path.join(repoRoot, 'packages/skills/package.json'),
+    ].map((packagePath) => JSON.parse(fs.readFileSync(packagePath, 'utf8')).version as string);
+
+    if (versions.some((version) => version.includes('-next'))) {
+        return 'next';
+    }
+
+    const branch = process.env.GITHUB_REF_NAME || process.env.BRANCH_NAME || readGitBranch(repoRoot);
+    return branch === 'next' ? 'next' : undefined;
+}
+
+function readGitBranch(repoRoot: string): string | undefined {
+    try {
+        return execFileSync('git', ['branch', '--show-current'], {
+            cwd: repoRoot,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+    } catch {
+        return undefined;
+    }
+}

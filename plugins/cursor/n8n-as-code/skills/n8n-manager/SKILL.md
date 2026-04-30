@@ -10,11 +10,11 @@ Use this skill for global n8n instance management. `n8n-manager` is the source o
 ## Responsibility Boundary
 
 - Generated context root hint: not embedded. Use the shell launch directory or the workspace path explicitly given by the user.
-- If `n8nac` is available, first run `npx --yes n8nac update-ai` from the context root, then read `AGENTS.md`. `update-ai` is designed to create or refresh the n8n-as-code block without destroying existing user or agent instructions.
+- If `n8nac` is available, first run `npx --yes n8nac@next update-ai` from the context root, then read `AGENTS.md`. `update-ai` is designed to create or refresh the n8n-as-code block without destroying existing user or agent instructions.
 - Use the exact `n8n-manager command` and `n8nac command` listed in `AGENTS.md` when present. Those context-root commands override the portable examples in this skill.
-- Use `npx --yes @n8n-as-code/n8n-manager` for global instance, auth, runtime, tunnel, project-default, credential, and workflow-presentation operations.
-- Use `npx --yes n8nac workspace ...` only for context-root overrides such as pinned instance, sync folder, and project override.
-- Use `npx --yes n8nac` workflow commands only after the effective context is ready.
+- Use `npx --yes @n8n-as-code/n8n-manager@next` for global instance, auth, runtime, tunnel, project-default, credential, and workflow-presentation operations.
+- Use `npx --yes n8nac@next workspace ...` only for context-root overrides such as pinned instance, sync folder, and project override.
+- Use `npx --yes n8nac@next` workflow commands only after the effective context is ready.
 - Never edit `n8nac-config.json`, `~/.n8n-manager`, or n8n-manager secret files by hand.
 
 ## Core Commands
@@ -22,9 +22,9 @@ Use this skill for global n8n instance management. `n8n-manager` is the source o
 Inspect existing instances before changing state:
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager instances list
-npx --yes @n8n-as-code/n8n-manager instances --help
-npx --yes @n8n-as-code/n8n-manager config get
+npx --yes @n8n-as-code/n8n-manager@next instances list
+npx --yes @n8n-as-code/n8n-manager@next instances --help
+npx --yes @n8n-as-code/n8n-manager@next config get
 ```
 
 Do not invent n8n-manager subcommands. In particular, `instances create` and `--type local` are not valid. Use `instances add --mode ...` exactly as documented by `instances --help`.
@@ -53,56 +53,56 @@ Only run these commands after the user has explicitly chosen the corresponding o
 Managed local Docker without public tunnel:
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager instances add --name <name> --mode managed-local-docker
-npx --yes @n8n-as-code/n8n-manager instances setup <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances start <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances status <id-or-name>
+npx --yes @n8n-as-code/n8n-manager@next instances add --name <name> --mode managed-local-docker
+npx --yes @n8n-as-code/n8n-manager@next instances setup <id-or-name>
+npx --yes @n8n-as-code/n8n-manager@next instances start <id-or-name>
+npx --yes @n8n-as-code/n8n-manager@next instances status <id-or-name>
 ```
 
 Managed local Docker with public tunnel:
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager instances add --name <name> --mode managed-local-docker --tunnel
-npx --yes @n8n-as-code/n8n-manager instances setup <id-or-name> --tunnel
-npx --yes @n8n-as-code/n8n-manager instances start <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances tunnel status <id-or-name>
+npx --yes @n8n-as-code/n8n-manager@next instances add --name <name> --mode managed-local-docker --tunnel
+npx --yes @n8n-as-code/n8n-manager@next instances setup <id-or-name> --tunnel
+npx --yes @n8n-as-code/n8n-manager@next instances start <id-or-name>
+npx --yes @n8n-as-code/n8n-manager@next instances tunnel status <id-or-name>
 ```
 
 Remote or existing instances require user-provided credentials. Prefer stdin for API keys:
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager auth set --url <url> --api-key-stdin --name <name>
-npx --yes @n8n-as-code/n8n-manager auth test --instance <id-or-name>
+npx --yes @n8n-as-code/n8n-manager@next auth set --url <url> --api-key-stdin --name <name>
+npx --yes @n8n-as-code/n8n-manager@next auth test --instance <id-or-name>
 ```
 
 Project selection is instance-level unless the context root explicitly needs a workspace override:
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager projects list --instance <id-or-name>
-npx --yes @n8n-as-code/n8n-manager projects select <project-id-or-name> --instance <id-or-name>
+npx --yes @n8n-as-code/n8n-manager@next projects list --instance <id-or-name>
+npx --yes @n8n-as-code/n8n-manager@next projects select <project-id-or-name> --instance <id-or-name>
 ```
 
 Self-hosted n8n may not expose the projects API or may return 401/403. In that case, do not retry project discovery. Use the n8n-architect workspace override path with the standard personal project unless the user gave another project:
 
 ```bash
-npx --yes n8nac workspace set-project --project-id personal --project-name Personal
+npx --yes n8nac@next workspace set-project --project-id personal --project-name Personal
 ```
 
 Runtime and tunnel operations are per instance:
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager instances start <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances stop <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances restart <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances tunnel status <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances tunnel start <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances tunnel refresh <id-or-name>
+npx --yes @n8n-as-code/n8n-manager@next instances start <id-or-name>
+npx --yes @n8n-as-code/n8n-manager@next instances stop <id-or-name>
+npx --yes @n8n-as-code/n8n-manager@next instances restart <id-or-name>
+npx --yes @n8n-as-code/n8n-manager@next instances tunnel status <id-or-name>
+npx --yes @n8n-as-code/n8n-manager@next instances tunnel start <id-or-name>
+npx --yes @n8n-as-code/n8n-manager@next instances tunnel refresh <id-or-name>
 ```
 
 Present workflow results after creating, modifying, pushing, or running a workflow:
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager presentWorkflowResult --workflow-id <workflowId> --workspace-root <contextRoot>
+npx --yes @n8n-as-code/n8n-manager@next presentWorkflowResult --workflow-id <workflowId> --workspace-root <contextRoot>
 ```
 
 ## Guardrails

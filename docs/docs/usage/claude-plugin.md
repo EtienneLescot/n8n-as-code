@@ -37,6 +37,23 @@ Two commands in Claude Code:
 /plugin install n8n-as-code@n8nac-marketplace
 ```
 
+For prerelease testing from the `next` branch, add the marketplace with a branch suffix:
+
+```text
+/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#next
+/plugin install n8n-as-code@n8nac-marketplace
+```
+
+When you run setup commands manually with the prerelease plugin, use matching npm dist-tags:
+
+```bash
+npx --yes @n8n-as-code/n8n-manager@next instances list
+npx --yes n8nac@next workspace status --json
+npx --yes n8nac@next update-ai
+```
+
+The prerelease plugin skills are stamped to use those `@next` commands automatically.
+
 Then initialize your workspace once:
 
 ```bash

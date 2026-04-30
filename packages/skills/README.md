@@ -29,6 +29,15 @@ npx n8nac skills --help
 
 For installation: `npm install -g n8nac`
 
+For prerelease skills or plugin payloads from the `next` branch, run the matching CLI dist-tag so generated instructions and available commands stay aligned:
+
+```bash
+npx --yes n8nac@next skills --help
+npx --yes n8nac@next update-ai
+```
+
+Stable documentation examples intentionally omit `@next`; use the prerelease tag only when testing prerelease builds.
+
 ## 📖 CLI Usage (`n8nac skills`)
 
 ### `search <query>` - Deep Unified Search (PRIMARY TOOL)

@@ -37,6 +37,23 @@ npx --yes n8nac update-ai
 
 `AGENTS.md` is a lightweight context-root bootstrap. It points agents to the local `.agents/skills` copies and to `n8nac workspace status --json`, which resolves effective state through the backend.
 
+## Prerelease Marketplace
+
+To test the prerelease plugin from the `next` branch, add the marketplace with the branch suffix and use matching npm prerelease tags for any manual commands:
+
+```text
+/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#next
+/plugin install n8n-as-code@n8nac-marketplace
+```
+
+```bash
+npx --yes @n8n-as-code/n8n-manager@next instances list
+npx --yes n8nac@next workspace status --json
+npx --yes n8nac@next update-ai
+```
+
+The prerelease plugin payload is stamped so its bundled skills call `n8nac@next` and `@n8n-as-code/n8n-manager@next`; the commands above are only needed when you run setup manually.
+
 For Claude Desktop or other MCP clients, use:
 
 ```json

@@ -115,6 +115,23 @@ Guided onboarding, persistent runtime, cleanest path into n8n-as-code.
 > **Then simply tell your agent what you want to do with your n8n workflows.**
 > Build new flows, update existing ones, search nodes and templates, validate changes, pull from n8n, push updates, and keep everything in sync.
 
+### Prereleases
+
+Stable docs and examples use npm `latest` and the default plugin marketplace branch. To test prerelease builds from `next`, keep every entry point on the same prerelease line:
+
+```text
+/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#next
+/plugin install n8n-as-code@n8nac-marketplace
+```
+
+```bash
+npx --yes n8nac@next <command>
+npx --yes @n8n-as-code/n8n-manager@next <command>
+openclaw plugins install @n8n-as-code/n8nac@next
+```
+
+Do not mix the `next` Claude/OpenClaw plugin payload with `n8nac@latest`: prerelease skills may rely on commands that are not available in the stable CLI yet.
+
 ### New: Agents can now complete the runtime loop
 
 `n8n-as-code` now removes a major source of friction in AI-assisted workflow development.

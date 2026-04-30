@@ -8,6 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execFileSync } from 'child_process';
 
 const PACKAGES = [
     'packages/transformer',
@@ -51,8 +52,18 @@ for (const pkg of PACKAGES) {
     fs.writeFileSync(pkgPath, JSON.stringify(json, null, 4) + '\n');
 }
 
+// Step 3: Regenerate generated skill adapters from the SSOT for stable output.
+execFileSync('npm', ['run', 'build:adapters', '--workspace=packages/skills'], {
+    cwd: root,
+    stdio: 'inherit',
+    env: {
+        ...process.env,
+        N8NAC_SKILL_ADAPTER_DIST_TAG: 'stable',
+    },
+});
+
 console.log('\n✅ Done. Review changes, then:');
-console.log('   git add packages/*/package.json');
+console.log('   git add packages/*/package.json skills plugins/*/n8n-as-code/skills packages/skills/dist/adapters/agent-skills');
 console.log('   git commit -m "chore: promote next to stable"');
 console.log('   git push origin next');
 console.log('   gh pr create --base main --head next --title "chore: release next → main"');

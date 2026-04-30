@@ -176,6 +176,15 @@ Let an AI agent set up the workspace and manage workflows for you.
 /plugin install n8n-as-code@n8nac-marketplace
 ```
 
+To test the prerelease plugin from `next`, use:
+
+```text
+/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#next
+/plugin install n8n-as-code@n8nac-marketplace
+```
+
+For any manual CLI commands while using that prerelease plugin, prefer the matching tags: `npx --yes n8nac@next ...` and `npx --yes @n8n-as-code/n8n-manager@next ...`.
+
 Then ask Claude:
 > "Create a workflow that watches Typeform responses and sends them to Slack"
 
