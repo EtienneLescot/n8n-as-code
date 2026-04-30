@@ -18,6 +18,8 @@ import {
   type N8nInstanceRef,
   type N8nRuntimeConsumer,
   type N8nRuntimeStatusSnapshot,
+  type N8nInstanceAccessSnapshot,
+  type ResolveN8nInstanceAccessInput,
   type PreparedEffectiveN8nContext,
   type N8nWorkspaceOverrides,
   type WorkflowWebviewOpenPayload,
@@ -88,6 +90,7 @@ export interface N8nManagerFacade {
     consumer?: N8nRuntimeConsumer;
     autoStart?: boolean;
   }): Promise<PreparedEffectiveN8nContext>;
+  resolveInstanceAccess(input?: ResolveN8nInstanceAccessInput): Promise<N8nInstanceAccessSnapshot>;
   listProjects(input?: {
     workspaceRoot?: string;
     instanceId?: string;
@@ -228,6 +231,10 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
       syncFolderDefault: input.syncFolderDefault,
       consumer: input.consumer ?? 'plugin',
       autoStart: input.autoStart,
+    }),
+    resolveInstanceAccess: async (input = {}) => runtime.resolveInstanceAccess({
+      ...input,
+      workspaceRoot: input.workspaceRoot ?? options.workspaceRoot,
     }),
     listProjects: async (input = {}) => {
       const prepared = await runtime.prepareEffectiveContext({
