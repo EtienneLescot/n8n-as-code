@@ -19,9 +19,9 @@
     "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
-    "@n8n-as-code/n8n-credentials-manager": "file:../../../n8n-manager/packages/credentials-manager",
-    "@n8n-as-code/n8n-manager-core": "file:../../../n8n-manager/packages/core",
-    "@n8n-as-code/workflow-core": "0.1.0"
+    "@n8n-as-code/n8n-credentials-manager": "^0.1.0",
+    "@n8n-as-code/n8n-manager-core": "^0.1.0",
+    "@n8n-as-code/workflow-core": "^0.1.0"
   },
   "devDependencies": {
     "typescript": "^5.3.3"
