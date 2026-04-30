@@ -62,6 +62,21 @@ describe('ConfigService', () => {
         expect(configService.getActiveInstance()?.id).toBe('prod');
     });
 
+    it('preserves the active workspace instance when saving another instance with setActive false', () => {
+        const configService = new ConfigService(workspaceRoot);
+        configService.saveLocalConfig({ host: 'https://prod.example.test' }, { instanceId: 'prod', instanceName: 'Production' });
+
+        const saved = configService.saveLocalConfig({ host: 'https://dev.example.test' }, {
+            instanceId: 'dev',
+            instanceName: 'Development',
+            setActive: false,
+        });
+
+        expect(saved.id).toBe('dev');
+        expect(configService.getActiveInstance()?.id).toBe('prod');
+        expect(configService.getWorkspaceConfig().activeInstanceId).toBe('prod');
+    });
+
     it('resolves workspace default sync folder for effective instance configs', () => {
         const configService = new ConfigService(workspaceRoot);
         configService.saveLocalConfig({

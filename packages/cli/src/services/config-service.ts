@@ -324,7 +324,7 @@ export class ConfigService {
             setActive: options.setActive,
         });
 
-        this.writeWorkspaceFields(saved.id, config);
+        this.writeWorkspaceFields(saved.id, config, options.setActive !== false);
         return this.toInstanceProfile(saved, this.manager.readWorkspaceOverrides(this.workspaceRoot));
     }
 
@@ -447,11 +447,11 @@ export class ConfigService {
             : path.resolve(this.workspaceRoot, targetPath);
     }
 
-    private writeWorkspaceFields(instanceId: string, config: Partial<ILocalConfig>): void {
+    private writeWorkspaceFields(instanceId: string, config: Partial<ILocalConfig>, setActive: boolean): void {
         const current = tryResolve(() => this.manager.readWorkspaceOverrides(this.workspaceRoot)) || { version: 3 as const };
         this.manager.writeWorkspaceOverrides(this.workspaceRoot, {
             ...current,
-            activeInstanceId: instanceId,
+            activeInstanceId: setActive ? instanceId : current.activeInstanceId,
             syncFolder: config.syncFolder || current.syncFolder,
             projectId: config.projectId || current.projectId,
             projectName: config.projectName || current.projectName,
