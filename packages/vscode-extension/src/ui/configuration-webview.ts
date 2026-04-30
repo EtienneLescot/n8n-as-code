@@ -211,6 +211,23 @@ export class ConfigurationWebview {
           return;
         }
 
+        case 'showManagedCredentials': {
+          const instanceId = String(payload.instanceId || '').trim();
+          if (!instanceId) throw new Error('Instance is required.');
+          const credentials = await facade.getManagedOwnerCredentials(instanceId);
+          if (!credentials) throw new Error('Managed owner credentials are not available for this instance.');
+          this._panel.webview.postMessage({ type: 'managedCredentials', credentials });
+          return;
+        }
+
+        case 'copyText': {
+          const value = String(payload.value || '');
+          if (!value) return;
+          await vscode.env.clipboard.writeText(value);
+          this._panel.webview.postMessage({ type: 'copied' });
+          return;
+        }
+
         case 'openExternal': {
           const url = String(payload.url || '').trim();
           if (!url) return;
@@ -349,6 +366,7 @@ export class ConfigurationWebview {
               : 'Not verified yet',
           runtimeStatus: runtime.status,
           runtimeReady: 'ready' in runtime ? runtime.ready : runtime.status === 'ready',
+          ownerCredentialsAvailable: Boolean(runtime.instance?.ownerCredentialsAvailable),
           runtimeBlockedCode: 'blocked' in runtime ? runtime.blocked?.code : undefined,
           runtimeBlockedMessage: 'blocked' in runtime ? runtime.blocked?.message : undefined,
           runtimeWarnings: access.warnings.length ? access.warnings : ('warnings' in runtime ? runtime.warnings : undefined),

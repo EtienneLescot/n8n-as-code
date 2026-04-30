@@ -66,6 +66,7 @@ export interface N8nFacadeSetupInput {
 
 export interface N8nManagerFacade {
   setup(input: N8nFacadeSetupInput): Promise<N8nInstanceRef>;
+  getManagedOwnerCredentials(instanceId: string): Promise<{ username: string; password: string } | undefined>;
   status(input?: { instanceId?: string }): Promise<N8nRuntimeStatusSnapshot | N8nHealthSnapshot>;
   startInstance(instanceId: string): Promise<N8nRuntimeStatusSnapshot>;
   stopInstance(instanceId: string): Promise<N8nRuntimeStatusSnapshot>;
@@ -182,6 +183,20 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
         };
       }
       return instance;
+    },
+    getManagedOwnerCredentials: async (instanceId) => {
+      const instance = configuration.getInstance(instanceId);
+      if (!instance || instance.mode !== 'managed-local-docker') {
+        return undefined;
+      }
+      const privateState = await readFileBackedN8nInstance(instance.runtimeStatePath);
+      if (!privateState?.ownerEmail || !privateState.ownerPassword) {
+        return undefined;
+      }
+      return {
+        username: privateState.ownerEmail,
+        password: privateState.ownerPassword,
+      };
     },
     status: async (input = {}) => {
       const selected = input.instanceId
