@@ -188,6 +188,28 @@ export class ConfigurationWebview {
           return;
         }
 
+        case 'refreshPublicUrl': {
+          const instanceId = String(payload.instanceId || '').trim();
+          if (!instanceId) throw new Error('Instance is required.');
+          const access = await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: 'Refreshing public URL',
+            cancellable: false,
+          }, () => facade.resolveInstanceAccess({
+            workspaceRoot,
+            instanceId,
+            syncFolderDefault: 'workspace',
+            consumer: 'vscode',
+            mode: 'reconcile',
+          }));
+          await this._configurationController.refresh('webview-refresh-public-url', { force: true });
+          this._panel.webview.postMessage({ type: 'saved' });
+          if (access.warnings.length) {
+            this._panel.webview.postMessage({ type: 'error', message: access.warnings.join('\n') });
+          }
+          return;
+        }
+
         case 'openExternal': {
           const url = String(payload.url || '').trim();
           if (!url) return;
@@ -311,15 +333,13 @@ export class ConfigurationWebview {
     const instances = await Promise.all(globalConfig.instances.map(async (instance) => {
       try {
         const runtime = await facade.status({ instanceId: instance.id });
-        const tunnelPublicUrl = 'tunnel' in runtime ? (runtime.tunnel?.publicUrl ?? instance.tunnelPublicUrl) : instance.tunnelPublicUrl;
-        const authBridgeOpenUrl = 'authBridgeOpenUrl' in runtime ? runtime.authBridgeOpenUrl : undefined;
-        const authBridgePublicUrl = authBridgeOpenUrl || ('authBridgeTunnel' in runtime ? runtime.authBridgeTunnel?.publicUrl : undefined);
-        const displayUrl = authBridgeOpenUrl || (instance.publicUrlEnabled ? '' : instance.baseUrl || '');
+        const access = await facade.resolveInstanceAccess({ instanceId: instance.id, workspaceRoot, mode: 'observe' });
+        const displayUrl = access.authUrl || (access.publicUrlEnabled ? '' : access.apiBaseUrl || '');
         return {
           ...instance,
           host: displayUrl,
           displayUrl,
-          authBridgePublicUrl,
+          authBridgePublicUrl: access.authUrl,
           verificationStatus: instance.verification?.status || 'unverified',
           verificationLabel: instance.verification?.status === 'verified'
             ? 'Verified'
@@ -330,9 +350,10 @@ export class ConfigurationWebview {
           runtimeReady: 'ready' in runtime ? runtime.ready : runtime.status === 'ready',
           runtimeBlockedCode: 'blocked' in runtime ? runtime.blocked?.code : undefined,
           runtimeBlockedMessage: 'blocked' in runtime ? runtime.blocked?.message : undefined,
-          runtimeWarnings: 'warnings' in runtime ? runtime.warnings : undefined,
-          tunnelRunning: 'tunnel' in runtime ? runtime.tunnel?.running : undefined,
-          tunnelPublicUrl,
+          runtimeWarnings: access.warnings.length ? access.warnings : ('warnings' in runtime ? runtime.warnings : undefined),
+          tunnelRunning: access.tunnel?.running,
+          tunnelPublicUrl: access.publicN8nUrl || instance.tunnelPublicUrl,
+          access,
         };
       } catch (error: any) {
         return {
