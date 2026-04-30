@@ -109,14 +109,17 @@ export class N8nConfigurationController implements vscode.Disposable {
       : false;
 
     try {
-      const global = await facade.getGlobalConfig();
+      let global = await facade.getGlobalConfig();
       const workspace = workspaceRoot ? await facade.readWorkspaceOverrides(workspaceRoot) : { version: 3 as const };
       const prepared = await facade.prepareEffectiveContext({
         workspaceRoot,
         syncFolderDefault: 'workspace',
         consumer: 'vscode',
-        autoStart: false,
+        autoStart: true,
       }).catch(() => undefined);
+      if (prepared) {
+        global = await facade.getGlobalConfig();
+      }
       const effective = prepared?.context;
       const hasValidConnection = Boolean(effective?.host && effective.apiKey && !prepared?.runtime.blocked);
       return this.buildSnapshot({
