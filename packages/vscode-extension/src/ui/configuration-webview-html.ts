@@ -172,6 +172,18 @@ export function getConfigurationHtml(nonce: string): string {
       border-color: color-mix(in srgb, var(--vscode-errorForeground) 45%, var(--border));
     }
     button.compact { min-height: 28px; padding: 0 9px; font-size: 12px; }
+    button.icon-button {
+      width: 34px;
+      min-height: 34px;
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+    }
+    button.icon-button svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
     button:disabled { opacity: .55; cursor: not-allowed; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .full { grid-column: 1 / -1; }
@@ -291,13 +303,6 @@ export function getConfigurationHtml(nonce: string): string {
               <option value="existing">Use an existing n8n instance</option>
             </select>
           </label>
-          <label>
-            Activate globally
-            <select id="modalSetActive">
-              <option value="yes">Yes</option>
-              <option value="no">No</option>
-            </select>
-          </label>
           <label id="modalHostField" class="full">
             n8n host URL
             <input id="modalHost" type="text" placeholder="https://my-instance.app.n8n.cloud" />
@@ -348,22 +353,25 @@ export function getConfigurationHtml(nonce: string): string {
           <h2 id="credentialsTitle">Managed instance credentials</h2>
           <p class="muted">Values are masked in the UI. Use copy when you need to log in manually.</p>
         </div>
-        <button id="closeCredentialsModal" class="secondary">Close</button>
+        <button id="closeCredentialsModal" class="secondary icon-button" aria-label="Close credentials">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.72 3 3 3.72 7.28 8 3 12.28l.72.72L8 8.72 12.28 13l.72-.72L8.72 8 13 3.72 12.28 3 8 7.28 3.72 3z" /></svg>
+        </button>
       </div>
       <div class="modal-body">
         <div class="credential-row">
           <strong>Username</strong>
           <div id="credentialUsername" class="credential-value">-</div>
-          <button id="copyCredentialUsername" class="secondary">Copy</button>
+          <button id="copyCredentialUsername" class="secondary icon-button" aria-label="Copy username">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4h7a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm0 1v8h7V5H4zm2-3h7a1 1 0 0 1 1 1v8h-1V3H6V2z" /></svg>
+          </button>
         </div>
         <div class="credential-row">
           <strong>Password</strong>
           <div id="credentialPassword" class="credential-value">••••••••••••</div>
-          <button id="copyCredentialPassword" class="secondary">Copy</button>
+          <button id="copyCredentialPassword" class="secondary icon-button" aria-label="Copy password">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4h7a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm0 1v8h7V5H4zm2-3h7a1 1 0 0 1 1 1v8h-1V3H6V2z" /></svg>
+          </button>
         </div>
-      </div>
-      <div class="modal-foot">
-        <button id="closeCredentialsFoot" class="secondary">Close</button>
       </div>
     </div>
   </div>
@@ -385,7 +393,6 @@ export function getConfigurationHtml(nonce: string): string {
       modalTitle: document.getElementById('modalTitle'),
       modalName: document.getElementById('modalName'),
       modalMode: document.getElementById('modalMode'),
-      modalSetActive: document.getElementById('modalSetActive'),
       modalHost: document.getElementById('modalHost'),
       modalApiKey: document.getElementById('modalApiKey'),
       modalTunnel: document.getElementById('modalTunnel'),
@@ -407,7 +414,6 @@ export function getConfigurationHtml(nonce: string): string {
       copyCredentialUsername: document.getElementById('copyCredentialUsername'),
       copyCredentialPassword: document.getElementById('copyCredentialPassword'),
       closeCredentialsModal: document.getElementById('closeCredentialsModal'),
-      closeCredentialsFoot: document.getElementById('closeCredentialsFoot'),
     };
 
     let state = { global: { instances: [] }, workspace: {}, effective: undefined };
@@ -416,7 +422,6 @@ export function getConfigurationHtml(nonce: string): string {
     let editingInstanceId = '';
     let workspaceInstanceOverrideId = '';
     let connectingInstanceId = '';
-    let connectingInstanceIsGlobalDefault = false;
     let credentialValues = { username: '', password: '' };
 
     function showError(message) {
@@ -472,8 +477,7 @@ export function getConfigurationHtml(nonce: string): string {
       }
       for (const instance of instances()) {
         const isEffective = instance.id === state.effective?.activeInstanceId;
-        const isGlobalDefault = instance.id === state.global?.activeInstanceId;
-        const canChangeWorkspaceSelection = !isEffective || Boolean(state.workspace?.activeInstanceId && isGlobalDefault);
+        const canChangeWorkspaceSelection = !isEffective;
         const row = document.createElement('div');
         row.className = 'instance-row' + (canChangeWorkspaceSelection ? ' selectable' : '') + (isEffective ? ' selected' : '');
         row.title = canChangeWorkspaceSelection ? 'Click to update this workspace connection.' : 'This workspace uses this instance.';
@@ -527,8 +531,8 @@ export function getConfigurationHtml(nonce: string): string {
         const hint = document.createElement('div');
         hint.className = 'instance-hint';
         hint.textContent = isEffective
-          ? (state.workspace?.activeInstanceId ? 'Selected for this workspace' : 'Using global default')
-          : (isGlobalDefault ? 'Click to use the global default in this workspace' : 'Click to select this instance for this workspace');
+          ? 'Selected for this workspace'
+          : 'Click to select this instance for this workspace';
         const actions = document.createElement('div');
         actions.className = 'toolbar';
         const edit = button('Edit', 'secondary compact', () => openModal(instance));
@@ -548,9 +552,6 @@ export function getConfigurationHtml(nonce: string): string {
           }
         }
         actions.append(edit);
-        if (instance.id !== state.global?.activeInstanceId) {
-          actions.append(button('Make default', 'secondary compact', () => post('setGlobalActiveInstance', { instanceId: instance.id })));
-        }
         actions.append(del);
         foot.append(hint, actions);
         main.append(top, urlLine, foot);
@@ -606,7 +607,6 @@ export function getConfigurationHtml(nonce: string): string {
       els.modalTitle.textContent = editingInstanceId ? 'Edit instance' : 'Add instance';
       els.modalName.value = instance?.name || '';
       els.modalMode.value = instance?.mode || 'managed-local-docker';
-      els.modalSetActive.value = editingInstanceId && editingInstanceId !== state.global?.activeInstanceId ? 'no' : 'yes';
       els.modalHost.value = instance?.host || instance?.baseUrl || '';
       els.modalApiKey.value = '';
       els.modalTunnel.value = instance ? (instance.publicUrlEnabled || instance.tunnelPublicUrl || instance.tunnelTargetUrl ? 'yes' : 'no') : 'yes';
@@ -622,30 +622,24 @@ export function getConfigurationHtml(nonce: string): string {
     }
     function openConnectModal(instance) {
       connectingInstanceId = instance?.id || '';
-      connectingInstanceIsGlobalDefault = connectingInstanceId && connectingInstanceId === state.global?.activeInstanceId;
       const name = instance?.name || instance?.id || 'this instance';
-      els.connectDescription.textContent = connectingInstanceIsGlobalDefault
-        ? 'This will clear the workspace override and follow the global default instance.'
-        : 'This only changes the current workspace connection.';
-      els.connectText.textContent = connectingInstanceIsGlobalDefault
-        ? 'Use the global default "' + name + '" for this workspace?'
-        : 'Connect this workspace to "' + name + '"?';
-      els.confirmConnect.textContent = connectingInstanceIsGlobalDefault ? 'Use global default' : 'Connect to ' + name;
+      els.connectDescription.textContent = 'This only changes the current workspace connection.';
+      els.connectText.textContent = 'Connect this workspace to "' + name + '"?';
+      els.confirmConnect.textContent = 'Connect to ' + name;
       els.connectModal.classList.remove('hidden');
     }
     function closeConnectModal() {
       connectingInstanceId = '';
-      connectingInstanceIsGlobalDefault = false;
       els.connectModal.classList.add('hidden');
     }
-    function applyWorkspaceSelectionOptimistically(instance, useGlobalDefault) {
+    function applyWorkspaceSelectionOptimistically(instance) {
       if (!instance) return;
-      workspaceInstanceOverrideId = useGlobalDefault ? '' : instance.id;
+      workspaceInstanceOverrideId = instance.id;
       state = {
         ...state,
         workspace: {
           ...(state.workspace || {}),
-          activeInstanceId: useGlobalDefault ? '' : instance.id,
+          activeInstanceId: instance.id,
         },
         effective: {
           ...(state.effective || {}),
@@ -655,7 +649,7 @@ export function getConfigurationHtml(nonce: string): string {
           syncFolder: state.effective?.syncFolder || state.workspace?.syncFolder || 'workflows',
           sources: {
             ...(state.effective?.sources || {}),
-            instance: useGlobalDefault ? 'global' : 'workspace',
+            instance: 'workspace',
           },
         },
       };
@@ -713,12 +707,11 @@ export function getConfigurationHtml(nonce: string): string {
     els.cancelConnect.addEventListener('click', closeConnectModal);
     els.confirmConnect.addEventListener('click', () => {
       if (!connectingInstanceId) return;
-      applyWorkspaceSelectionOptimistically(instanceById(connectingInstanceId), connectingInstanceIsGlobalDefault);
-      saveWorkspaceContext(connectingInstanceIsGlobalDefault ? '' : connectingInstanceId);
+      applyWorkspaceSelectionOptimistically(instanceById(connectingInstanceId));
+      saveWorkspaceContext(connectingInstanceId);
       closeConnectModal();
     });
     els.closeCredentialsModal.addEventListener('click', closeCredentialsModal);
-    els.closeCredentialsFoot.addEventListener('click', closeCredentialsModal);
     els.copyCredentialUsername.addEventListener('click', () => copyText(credentialValues.username));
     els.copyCredentialPassword.addEventListener('click', () => copyText(credentialValues.password));
     els.modalMode.addEventListener('change', renderModalFields);
@@ -730,7 +723,7 @@ export function getConfigurationHtml(nonce: string): string {
         host: normalizeHost(els.modalHost.value),
         apiKey: els.modalApiKey.value,
         tunnel: els.modalTunnel.value === 'yes',
-        setActive: els.modalSetActive.value === 'yes',
+        setActive: false,
       });
       closeModal();
     });
