@@ -367,7 +367,7 @@ export function getConfigurationHtml(nonce: string): string {
       return instances().find((instance) => instance.id === id);
     }
     function modeLabel(mode) {
-      if (mode === 'managed-local-docker') return 'Managed Docker instance';
+      if (mode === 'managed-local-docker') return 'Managed instance';
       if (mode === 'existing') return 'Existing n8n instance';
       return mode || '';
     }

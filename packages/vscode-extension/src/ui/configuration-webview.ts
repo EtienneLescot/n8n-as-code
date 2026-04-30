@@ -201,6 +201,7 @@ export class ConfigurationWebview {
             syncFolderDefault: 'workspace',
             consumer: 'vscode',
             mode: 'reconcile',
+            refreshPublicUrl: true,
           }));
           await this._configurationController.refresh('webview-refresh-public-url', { force: true });
           this._panel.webview.postMessage({ type: 'saved' });
