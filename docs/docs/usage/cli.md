@@ -170,6 +170,9 @@ Shows a color-coded table of all workflows with their sync status, helping you u
 - `--local`: Show only workflows that exist locally (including `EXIST_ONLY_LOCALLY`, `TRACKED`, `CONFLICT`)
 - `--remote` / `--distant`: Show only workflows that exist remotely (including `EXIST_ONLY_REMOTELY`, `TRACKED`, `CONFLICT`)
 - `--search <query>`: Case-insensitive partial match on workflow name, workflow ID, or local filename
+- `--tag <name>`: Exact workflow tag filter. Repeat this option to require multiple tags.
+- `--tag-contains <query>`: Case-insensitive partial match against workflow tag names
+- `--tag-starts-with <prefix>`: Case-insensitive prefix match against workflow tag names
 - `--sort <status|name>`: Keep the default sync-oriented ordering or force alphabetical sorting
 - `--limit <n>`: Return only the first `n` matching workflows after filtering/sorting
 - `--include-archived`: Include archived workflows in the output (by default only non-archived workflows are shown)
@@ -184,6 +187,8 @@ n8nac list --only-archived      # Show only archived workflows
 n8nac list --local              # Show only local workflows
 n8nac list --remote            # Show only remote workflows
 n8nac list --search billing     # Find workflows by partial name, ID, or filename
+n8nac list --tag folder:billing # Find workflows with an exact tag
+n8nac list --tag-starts-with folder:
 n8nac list --sort name         # Sort alphabetically
 n8nac list --raw               # Output raw JSON
 ```
@@ -203,6 +208,9 @@ Optimized for large installations where you already know part of the workflow na
 - `<query>` (**required**): Search text
 - `--local`: Limit results to workflows with a local file
 - `--remote` / `--distant`: Limit results to workflows known remotely
+- `--tag <name>`: Exact workflow tag filter. Repeat this option to require multiple tags.
+- `--tag-contains <query>`: Case-insensitive partial match against workflow tag names
+- `--tag-starts-with <prefix>`: Case-insensitive prefix match against workflow tag names
 - `--sort <status|name>`: Sort search results by sync status or alphabetically (defaults to `name`)
 - `--limit <n>`: Return only the first `n` matching workflows
 - `--include-archived`: Include archived workflows in search results
@@ -214,6 +222,7 @@ Optimized for large installations where you already know part of the workflow na
 n8nac find billing
 n8nac find wf-123 --raw
 n8nac find importer --limit 10
+n8nac find billing --tag folder:billing
 n8nac find archived-workflow --only-archived
 ```
 
@@ -317,6 +326,26 @@ Activate a workflow once credentials are provisioned.
 
 ```bash
 n8nac workflow activate <workflowId>
+```
+
+### `tag`
+Manage remote n8n workflow tags.
+
+Tag commands update n8n's remote workflow tag metadata. They do not edit local workflow files automatically; run `n8nac pull <workflowId>` after attaching or detaching tags if you want the local file metadata refreshed.
+
+```bash
+n8nac tag list
+n8nac tag list --json
+n8nac tag workflows folder:billing
+n8nac tag attach <workflowId> folder:billing
+n8nac tag detach <workflowId> folder:billing
+```
+
+Aliases are available for users who prefer add/remove wording:
+
+```bash
+n8nac tag add <workflowId> folder:billing
+n8nac tag remove <workflowId> folder:billing
 ```
 
 ### `credential`

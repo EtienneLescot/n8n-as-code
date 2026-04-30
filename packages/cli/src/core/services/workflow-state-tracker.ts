@@ -69,6 +69,8 @@ export class WorkflowStateTracker extends EventEmitter {
     private remoteNames: Map<string, string> = new Map(); // workflowId -> name
     /** Remote active flag per workflow (populated by refreshRemoteState / updateSingleRemoteState). */
     private remoteActive: Map<string, boolean> = new Map(); // workflowId -> active
+    /** Remote tags per workflow (populated by refreshRemoteState / updateSingleRemoteState). */
+    private remoteTags: Map<string, IWorkflow['tags']> = new Map(); // workflowId -> tags
     /** Remote archived flag per workflow (populated by refreshRemoteState / updateSingleRemoteState). */
     private remoteArchived: Map<string, boolean> = new Map(); // workflowId -> isArchived
 
@@ -262,6 +264,7 @@ export class WorkflowStateTracker extends EventEmitter {
             this.remoteIds.clear();
             this.remoteNames.clear();
             this.remoteActive.clear();
+            this.remoteTags.clear();
             this.remoteArchived.clear();
 
             // Build set of already-assigned filenames to prevent collisions
@@ -275,6 +278,7 @@ export class WorkflowStateTracker extends EventEmitter {
                 if (wf.name) this.remoteNames.set(wf.id, wf.name);
                 // Store active and archived flags from API
                 this.remoteActive.set(wf.id, wf.active === true);
+                this.remoteTags.set(wf.id, wf.tags || []);
                 this.remoteArchived.set(wf.id, wf.isArchived === true);
 
                 // CRITICAL: Use ID-based mapping with PERSISTED state as source of truth
@@ -460,6 +464,7 @@ export class WorkflowStateTracker extends EventEmitter {
         this.remoteTimestamps.delete(id);
         this.remoteNames.delete(id);
         this.remoteActive.delete(id);
+        this.remoteTags.delete(id);
         this.remoteArchived.delete(id);
         this.remoteIds.delete(id);
     }
@@ -709,6 +714,19 @@ export class WorkflowStateTracker extends EventEmitter {
                         result.name = nameMatch[1];
                     }
 
+                    const tagsMatch = decoratorContent.match(/tags:\s*\[([\s\S]*?)\]/);
+                    if (tagsMatch) {
+                        const tags: Array<{ id: string; name: string }> = [];
+                        const tagPattern = /["'`]([^"'`]+)["'`]/g;
+                        let tagMatch: RegExpExecArray | null;
+                        while ((tagMatch = tagPattern.exec(tagsMatch[1])) !== null) {
+                            // Local decorator tags only store names; use the name as a placeholder ID
+                            // because lightweight filters only need tag names.
+                            tags.push({ id: tagMatch[1], name: tagMatch[1] });
+                        }
+                        result.tags = tags;
+                    }
+
                     // Return at least the extracted data (even if no id)
                     // This allows EXIST_ONLY_LOCALLY workflows to be detected
                     return Object.keys(result).length > 0 ? result : {};
@@ -814,9 +832,13 @@ export class WorkflowStateTracker extends EventEmitter {
             // Prefer the remote canonical name (keyed by ID, not by name since names are non-unique).
             // For local-only files, extract the name from the @workflow decorator for an accurate display.
             // Fall back to filename-derived name as last resort.
+            const localMetadata = this.readJsonFile(path.join(this.directory, filename));
             const workflowName = (workflowId && this.remoteNames.get(workflowId))
-                || this.readJsonFile(path.join(this.directory, filename))?.name
+                || localMetadata?.name
                 || filename.replace('.workflow.ts', '');
+            const tags = workflowId && remoteKnown
+                ? this.remoteTags.get(workflowId)
+                : localMetadata?.tags;
 
             results.set(filename, {
                 id: workflowId || '',
@@ -824,6 +846,7 @@ export class WorkflowStateTracker extends EventEmitter {
                 filename: filename,
                 status: status,
                 active,
+                tags,
                 projectId: undefined, // Not available in lightweight mode
                 projectName: undefined, // Not available in lightweight mode
                 homeProject: undefined, // Not available in lightweight mode
@@ -855,6 +878,7 @@ export class WorkflowStateTracker extends EventEmitter {
                     filename: filename,
                     status: WorkflowSyncStatus.EXIST_ONLY_REMOTELY, // Remote only
                     active,
+                    tags: this.remoteTags.get(workflowId),
                     projectId: undefined, // Not available in lightweight mode
                     projectName: undefined, // Not available in lightweight mode
                     homeProject: undefined, // Not available in lightweight mode
@@ -1095,11 +1119,16 @@ export class WorkflowStateTracker extends EventEmitter {
             this.remoteTimestamps.set(newId, timestamp);
         }
 
-        // Migrate name entry
+        // Migrate display metadata
         const name = this.remoteNames.get(oldId);
         if (name) {
             this.remoteNames.delete(oldId);
             this.remoteNames.set(newId, name);
+        }
+        const tags = this.remoteTags.get(oldId);
+        if (tags) {
+            this.remoteTags.delete(oldId);
+            this.remoteTags.set(newId, tags);
         }
 
         // Migrate remote ID set
@@ -1135,6 +1164,7 @@ export class WorkflowStateTracker extends EventEmitter {
             this.remoteIds.add(remoteWf.id);
             // Store active and archived flags
             this.remoteActive.set(remoteWf.id, remoteWf.active === true);
+            this.remoteTags.set(remoteWf.id, remoteWf.tags || []);
             this.remoteArchived.set(remoteWf.id, remoteWf.isArchived === true);
 
             // Establish mapping if it doesn't exist yet (allows 'pull' after single 'fetch')

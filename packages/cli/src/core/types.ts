@@ -49,6 +49,7 @@ export interface IWorkflowStatus {
     filename: string;
     active: boolean;
     status: WorkflowSyncStatus;
+    tags?: ITag[];
     projectId?: string;
     projectName?: string;
     homeProject?: IProject;

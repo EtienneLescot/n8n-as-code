@@ -277,6 +277,52 @@ describe('N8nApiClient test workflow support', () => {
         });
     });
 
+    it('paginates tags from the public API', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        mockAxiosGet
+            .mockResolvedValueOnce({
+                data: {
+                    data: [{ id: 'tag-1', name: 'Tag 1' }],
+                    nextCursor: 'cursor-2',
+                },
+            })
+            .mockResolvedValueOnce({
+                data: {
+                    data: [{ id: 'tag-2', name: 'Tag 2' }],
+                },
+            });
+
+        await expect(client.getTags()).resolves.toEqual([
+            { id: 'tag-1', name: 'Tag 1' },
+            { id: 'tag-2', name: 'Tag 2' },
+        ]);
+        expect(mockAxiosGet).toHaveBeenNthCalledWith(1, '/api/v1/tags', { params: undefined });
+        expect(mockAxiosGet).toHaveBeenNthCalledWith(2, '/api/v1/tags', { params: { cursor: 'cursor-2' } });
+    });
+
+    it('updates workflow tags through the dedicated tags endpoint', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        mockAxiosPut.mockResolvedValueOnce({
+            data: [
+                { id: 'tag-1', name: 'Tag 1' },
+                { id: 'tag-2', name: 'Tag 2' },
+            ],
+        });
+
+        await expect(client.updateWorkflowTags('wf-1', [
+            { id: 'tag-1' },
+            { id: 'tag-2' },
+        ])).resolves.toEqual([
+            { id: 'tag-1', name: 'Tag 1' },
+            { id: 'tag-2', name: 'Tag 2' },
+        ]);
+
+        expect(mockAxiosPut).toHaveBeenCalledWith('/api/v1/workflows/wf-1/tags', [
+            { id: 'tag-1' },
+            { id: 'tag-2' },
+        ]);
+    });
+
     it('still returns the created workflow when the follow-up description update fails', async () => {
         const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);

@@ -11,6 +11,7 @@ import { TestPlanCommand } from './commands/test-plan.js';
 import { CredentialCommand } from './commands/credential.js';
 import { WorkflowCommand } from './commands/workflow.js';
 import { ExecutionCommand } from './commands/execution.js';
+import { TagCommand } from './commands/tag.js';
 import chalk from 'chalk';
 
 import { readFileSync, existsSync } from 'fs';
@@ -196,6 +197,8 @@ program.hook('postAction', restoreGlobalInstanceOption);
 const initCommand = new InitCommand();
 const switchCommand = new SwitchCommand(program);
 
+const collectOptionValue = (value: string, previous: string[] = []): string[] => [...previous, value];
+
 const registerInstanceOptions = (command: Command, options: { includeNewInstance?: boolean } = {}) => {
     command
         .option('--host <url>', 'n8n instance URL')
@@ -317,6 +320,9 @@ program.command('list')
     .option('--remote', 'Show only remote workflows')
     .option('--distant', 'Alias for --remote')
     .option('--search <query>', 'Filter by workflow name, ID, or local filename (case-insensitive partial match)')
+    .option('--tag <name>', 'Filter by exact workflow tag name. Repeat to require multiple tags.', collectOptionValue, [])
+    .option('--tag-contains <query>', 'Filter by workflow tags containing text (case-insensitive)')
+    .option('--tag-starts-with <prefix>', 'Filter by workflow tags starting with text (case-insensitive)')
     .option('--sort <mode>', 'Sort by "status" (default) or "name"', 'status')
     .option('--limit <number>', 'Limit the number of returned workflows', (value) => parsePositiveIntegerOption(value, '--limit'))
     .option('--include-archived', 'Include archived workflows in the output')
@@ -335,6 +341,9 @@ program.command('list')
             remote,
             raw: options.json || options.raw,
             search: options.search,
+            tags: options.tag,
+            tagContains: options.tagContains,
+            tagStartsWith: options.tagStartsWith,
             sort: options.sort,
             limit: options.limit,
             includeArchived: options.includeArchived,
@@ -349,6 +358,9 @@ program.command('find')
     .option('--remote', 'Show only remote workflows')
     .option('--distant', 'Alias for --remote')
     .option('--sort <mode>', 'Sort by "status" or "name"', 'name')
+    .option('--tag <name>', 'Filter by exact workflow tag name. Repeat to require multiple tags.', collectOptionValue, [])
+    .option('--tag-contains <query>', 'Filter by workflow tags containing text (case-insensitive)')
+    .option('--tag-starts-with <prefix>', 'Filter by workflow tags starting with text (case-insensitive)')
     .option('--limit <number>', 'Limit the number of returned workflows', (value) => parsePositiveIntegerOption(value, '--limit'))
     .option('--include-archived', 'Include archived workflows in the search')
     .option('--only-archived', 'Search only archived workflows')
@@ -365,6 +377,9 @@ program.command('find')
             remote,
             raw: options.json || options.raw,
             search: query,
+            tags: options.tag,
+            tagContains: options.tagContains,
+            tagStartsWith: options.tagStartsWith,
             sort: options.sort,
             limit: options.limit,
             includeArchived: options.includeArchived,
@@ -680,6 +695,50 @@ credentialCmd
     .description('Permanently delete a credential')
     .action(async (id) => {
         await new CredentialCommand().delete(id);
+    });
+
+// tag - Manage remote n8n workflow tag metadata
+const tagCmd = program
+    .command('tag')
+    .description('Manage remote n8n workflow tags');
+
+tagCmd
+    .command('list')
+    .description('List remote n8n tags')
+    .option('--json', 'Output JSON for agents and scripts')
+    .action(async (options) => {
+        await new TagCommand().list({ json: options.json });
+    });
+
+tagCmd
+    .command('workflows')
+    .argument('<tagName>', 'Exact tag name')
+    .description('List remote workflows with an exact tag name')
+    .option('--json', 'Output JSON for agents and scripts')
+    .action(async (tagName, options) => {
+        await new TagCommand().workflows(tagName, { json: options.json });
+    });
+
+tagCmd
+    .command('attach')
+    .alias('add')
+    .argument('<workflowId>', 'Remote workflow ID')
+    .argument('<tagName>', 'Tag name to attach')
+    .description('Attach a tag to a remote n8n workflow')
+    .option('--json', 'Output JSON for agents and scripts')
+    .action(async (workflowId, tagName, options) => {
+        await new TagCommand().attach(workflowId, tagName, { json: options.json });
+    });
+
+tagCmd
+    .command('detach')
+    .alias('remove')
+    .argument('<workflowId>', 'Remote workflow ID')
+    .argument('<tagName>', 'Tag name to detach')
+    .description('Detach a tag from a remote n8n workflow')
+    .option('--json', 'Output JSON for agents and scripts')
+    .action(async (workflowId, tagName, options) => {
+        await new TagCommand().detach(workflowId, tagName, { json: options.json });
     });
 
 // skills - AI knowledge tools subcommand group

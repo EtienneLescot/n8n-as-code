@@ -11,6 +11,9 @@ export interface ListCommandOptions {
     remote?: boolean;
     raw?: boolean;
     search?: string;
+    tags?: string[];
+    tagContains?: string;
+    tagStartsWith?: string;
     sort?: WorkflowListSortMode;
     limit?: number;
     includeArchived?: boolean;
@@ -26,6 +29,37 @@ export function matchesWorkflowSearch(workflow: IWorkflowStatus, query?: string)
     return [workflow.name, workflow.id, workflow.filename]
         .filter((value): value is string => Boolean(value))
         .some(value => value.toLowerCase().includes(normalizedQuery));
+}
+
+const normalizeTagFilter = (value: string): string => value.trim().toLowerCase();
+
+function getWorkflowTagNames(workflow: IWorkflowStatus): string[] {
+    return (workflow.tags || [])
+        .map(tag => tag.name)
+        .filter((value): value is string => Boolean(value));
+}
+
+export function matchesWorkflowTags(workflow: IWorkflowStatus, options?: ListCommandOptions): boolean {
+    const tagNames = getWorkflowTagNames(workflow).map(normalizeTagFilter);
+    const exactTags = (options?.tags || [])
+        .map(normalizeTagFilter)
+        .filter(Boolean);
+
+    if (exactTags.length > 0 && !exactTags.every(tag => tagNames.includes(tag))) {
+        return false;
+    }
+
+    const contains = options?.tagContains ? normalizeTagFilter(options.tagContains) : '';
+    if (contains && !tagNames.some(tag => tag.includes(contains))) {
+        return false;
+    }
+
+    const startsWith = options?.tagStartsWith ? normalizeTagFilter(options.tagStartsWith) : '';
+    if (startsWith && !tagNames.some(tag => tag.startsWith(startsWith))) {
+        return false;
+    }
+
+    return true;
 }
 
 export function sortWorkflows(workflows: IWorkflowStatus[], sortMode: WorkflowListSortMode = 'status'): IWorkflowStatus[] {
@@ -64,7 +98,10 @@ function filterWorkflowsByScopeAndSearch(workflows: IWorkflowStatus[], options?:
         );
     }
 
-    return filtered.filter(workflow => matchesWorkflowSearch(workflow, options?.search));
+    return filtered.filter(workflow =>
+        matchesWorkflowSearch(workflow, options?.search) &&
+        matchesWorkflowTags(workflow, options)
+    );
 }
 
 export function applyListCommandOptions(workflows: IWorkflowStatus[], options?: ListCommandOptions): IWorkflowStatus[] {
