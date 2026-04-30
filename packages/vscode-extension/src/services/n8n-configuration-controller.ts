@@ -121,7 +121,7 @@ export class N8nConfigurationController implements vscode.Disposable {
         global = await facade.getGlobalConfig();
       }
       const effective = prepared?.context;
-      const hasValidConnection = Boolean(effective?.host && effective.apiKey && !prepared?.runtime.blocked);
+      const hasValidConnection = Boolean((effective?.apiBaseUrl ?? effective?.host) && effective?.apiKey && !prepared?.runtime.blocked);
       return this.buildSnapshot({
         workspaceRoot,
         global,
@@ -166,7 +166,8 @@ export class N8nConfigurationController implements vscode.Disposable {
     const runtimeSignature = JSON.stringify({
       workspaceRoot: input.workspaceRoot || '',
       activeInstanceId: input.effective?.activeInstanceId || '',
-      host: input.effective?.host || '',
+      apiBaseUrl: input.effective?.apiBaseUrl ?? input.effective?.host ?? '',
+      publicBaseUrl: input.effective?.publicBaseUrl || '',
       hasApiKey: Boolean(input.effective?.apiKey),
       syncFolder: input.effective?.syncFolder || '',
       projectId: input.effective?.projectId || '',

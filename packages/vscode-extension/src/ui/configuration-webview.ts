@@ -364,6 +364,8 @@ export class ConfigurationWebview {
         activeInstanceId: effectiveContext.activeInstanceId,
         activeInstanceName: effectiveContext.activeInstanceName,
         host: effectiveContext.host,
+        apiBaseUrl: effectiveContext.apiBaseUrl ?? effectiveContext.host,
+        publicBaseUrl: effectiveContext.publicBaseUrl || '',
         syncFolder: effectiveContext.syncFolder,
         projectId: effectiveContext.projectId || '',
         projectName: effectiveContext.projectName || '',

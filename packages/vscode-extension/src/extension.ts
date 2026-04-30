@@ -613,7 +613,7 @@ async function openWorkflowBoard(workflow: IWorkflowStatus, viewColumn?: vscode.
             throw new Error(prepared.runtime.blocked.message);
         }
         const effective = prepared.context;
-        const proxyUrl = await proxyService.start(effective.host);
+        const proxyUrl = await proxyService.start(effective.apiBaseUrl ?? effective.host);
         const openTarget = await facade.resolveWorkflowWebviewOpen({
             workflowId: workflow.id,
             proxyBaseUrl: proxyUrl,
@@ -1277,7 +1277,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     const resolvedConfig = {
         ...getResolvedN8nConfig(workspaceRoot),
         activeInstanceId: effective.activeInstanceId,
-        host: effective.host,
+            host: effective.apiBaseUrl ?? effective.host,
         apiKey: effective.apiKey,
         syncFolder: effective.syncFolder,
         projectId: effective.projectId,
