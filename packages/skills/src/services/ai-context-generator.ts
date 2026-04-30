@@ -31,7 +31,7 @@ export class AiContextGenerator {
     projectRoot?: string,
   ): string {
     const { cliCmd, skillsCmd } = this.getCommandRefs(distTag, options.cliCommandOverride, projectRoot);
-    const managerCmd = options.managerCommandOverride || (projectRoot ? process.env.N8N_MANAGER_COMMAND : undefined) || 'n8n-manager';
+    const managerCmd = resolveN8nManagerCommand(distTag, options.managerCommandOverride, projectRoot ? process.env : {});
     const contextRootHint = projectRoot
       ? `Generated context root hint: \`${path.resolve(projectRoot)}\`. If this path exists, run workspace commands from there.`
       : 'Generated context root hint: not embedded. Use the shell launch directory or the workspace path explicitly given by the user.';
@@ -127,7 +127,7 @@ export class AiContextGenerator {
     projectRoot?: string,
   ): string {
     const { cliCmd, skillsCmd } = this.getCommandRefs(distTag, options.cliCommandOverride, projectRoot);
-    const managerCmd = options.managerCommandOverride || process.env.N8N_MANAGER_COMMAND || 'n8n-manager';
+    const managerCmd = resolveN8nManagerCommand(distTag, options.managerCommandOverride, process.env);
     const versionStamp = options.cliVersion ? [`<!-- n8nac-version: ${options.cliVersion} -->`, ``] : [];
     const contextRoot = projectRoot ? path.resolve(projectRoot) : process.cwd();
     return [
@@ -196,4 +196,18 @@ export class AiContextGenerator {
     return this.getAgentSkillContent('n8n-architect');
   }
 
+}
+
+function resolveN8nManagerCommand(
+  distTag?: string,
+  override?: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const explicit = override?.trim() || env.N8N_MANAGER_COMMAND?.trim();
+  if (explicit) {
+    return explicit;
+  }
+  return distTag
+    ? `npx --yes @n8n-as-code/n8n-manager@${distTag}`
+    : 'npx --yes @n8n-as-code/n8n-manager';
 }

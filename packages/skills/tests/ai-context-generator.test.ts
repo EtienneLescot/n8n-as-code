@@ -41,8 +41,22 @@ describe('AiContextGenerator', () => {
             expect(agentsContent).toContain('.agents/skills/n8n-architect/SKILL.md');
             expect(agentsContent).toContain('n8n-manager plus n8nac backend resolution remains the only source');
             expect(agentsContent).toContain('workspace status --json');
+            expect(agentsContent).toContain('npx --yes @n8n-as-code/n8n-manager');
             expect(agentsContent).toContain('Use the returned `workflowDir` exactly as provided.');
             expect(agentsContent).toContain('<!-- n8n-as-code-end -->');
+        });
+
+        test('uses matching published dist tags for portable n8nac and n8n-manager commands', async () => {
+            await generator.generate(tempDir, '1.0.0', 'next');
+
+            const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
+            const managerSkill = fs.readFileSync(path.join(tempDir, '.agents/skills/n8n-manager/SKILL.md'), 'utf-8');
+            const architectSkill = fs.readFileSync(path.join(tempDir, '.agents/skills/n8n-architect/SKILL.md'), 'utf-8');
+
+            expect(agentsContent).toContain('npx --yes n8nac@next workspace status --json');
+            expect(agentsContent).toContain('npx --yes @n8n-as-code/n8n-manager@next ...');
+            expect(managerSkill).toContain('npx --yes @n8n-as-code/n8n-manager@next instances list');
+            expect(architectSkill).toContain('npx --yes @n8n-as-code/n8n-manager@next instances list');
         });
 
         test('updates existing n8n block without duplication', async () => {

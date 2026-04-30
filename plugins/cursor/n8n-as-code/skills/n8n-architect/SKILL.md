@@ -30,7 +30,7 @@ npx --yes n8nac workspace status --json
 1. `cd` to the context root.
 2. Run `npx --yes n8nac update-ai`, then read `AGENTS.md`.
 3. Run `npx --yes n8nac workspace status --json`.
-4. If the context root is not ready, inspect instances with `n8n-manager instances list`.
+4. If the context root is not ready, inspect instances with `npx --yes @n8n-as-code/n8n-manager instances list`.
 5. Reuse an existing instance when suitable.
 6. If no suitable instance exists, stop and ask the user whether they want to reuse/configure an existing instance, create a managed local n8n instance, or connect an existing/remote n8n instance. Do not create infrastructure by default. If the user chooses a managed local instance, ask separately whether they want a public tunnel.
 7. Ask for host/API key only for an explicitly remote or existing n8n instance.
@@ -285,7 +285,7 @@ Run it whenever one of these is true:
 - the user asks to show, open, present, display, or give the URL/link for a workflow.
 
 ```bash
-n8n-manager presentWorkflowResult --workflow-id <workflowId> --workspace-root <contextRoot>
+npx --yes @n8n-as-code/n8n-manager presentWorkflowResult --workflow-id <workflowId> --workspace-root <contextRoot>
 ```
 
 Rules:
