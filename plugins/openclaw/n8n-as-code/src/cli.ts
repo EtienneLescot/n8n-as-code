@@ -20,11 +20,16 @@ type RunResult = {
   timedOut: boolean;
 };
 
-type ProjectListPayload = { projects?: Array<{ id: string; name?: string }> };
+type Project = { id: string; name?: string };
+type ProjectListPayload = { projects?: Project[] };
 
-function parseProjects(stdout: string): Array<{ id: string; name?: string }> {
-  const payload = JSON.parse(stdout || "{}") as ProjectListPayload;
-  return payload.projects ?? [];
+export function parseProjects(stdout: string): Project[] | null {
+  try {
+    const payload = JSON.parse(stdout || "{}") as ProjectListPayload;
+    return payload.projects ?? [];
+  } catch {
+    return null;
+  }
 }
 
 function splitCommand(input: string): string[] | null {
@@ -68,7 +73,7 @@ function splitCommand(input: string): string[] | null {
   return args;
 }
 
-function getN8nManagerCommand(): { command: string; args: string[] } {
+export function getN8nManagerCommand(): { command: string; args: string[] } {
   const override = process.env.N8N_MANAGER_COMMAND?.trim();
   if (override) {
     const parsed = splitCommand(override);
@@ -76,7 +81,7 @@ function getN8nManagerCommand(): { command: string; args: string[] } {
       return { command: parsed[0], args: parsed.slice(1) };
     }
   }
-  return { command: "npx", args: ["--yes", "n8n-manager"] };
+  return { command: "npx", args: ["--yes", "@n8n-as-code/n8n-manager"] };
 }
 
 function getN8nacCommand(): { command: string; args: string[] } {
@@ -299,7 +304,14 @@ export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
           p.outro("Setup failed.");
           process.exit(1);
         }
-        const project = parseProjects(listResult.stdout)[projectIdx - 1];
+        const projects = parseProjects(listResult.stdout);
+        if (!projects) {
+          projectSpinner.stop("Failed to load projects.");
+          p.log.error("n8n-manager projects list returned invalid JSON.");
+          p.outro("Setup failed.");
+          process.exit(1);
+        }
+        const project = projects[projectIdx - 1];
         if (!project?.id) {
           projectSpinner.stop("Invalid project index.");
           p.log.error(`No project found at index ${projectIdx}.`);
@@ -320,6 +332,12 @@ export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
           process.exit(1);
         }
         const projects = parseProjects(listResult.stdout);
+        if (!projects) {
+          projectSpinner.stop("Failed to load projects.");
+          p.log.error("n8n-manager projects list returned invalid JSON.");
+          p.outro("Setup failed.");
+          process.exit(1);
+        }
         if (!projects.length) {
           projectSpinner.stop("No projects found.");
           p.outro("Setup failed.");
