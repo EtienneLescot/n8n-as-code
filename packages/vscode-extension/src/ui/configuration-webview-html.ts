@@ -78,6 +78,16 @@ export function getConfigurationHtml(nonce: string): string {
     .instance-meta { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
     .instance-url { color: var(--vscode-textLink-foreground); text-decoration: none; overflow-wrap: anywhere; }
     .instance-url:hover { text-decoration: underline; }
+    .inline-action {
+      min-height: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--vscode-textLink-foreground);
+      font: inherit;
+      font-weight: 600;
+    }
+    .inline-action:hover { text-decoration: underline; }
     .badges { display: flex; flex-wrap: wrap; gap: 6px; }
     .badge {
       border: 1px solid var(--border);
@@ -427,7 +437,8 @@ export function getConfigurationHtml(nonce: string): string {
           separator.textContent = '·';
           const pending = document.createElement('span');
           pending.textContent = 'Public URL pending';
-          meta.append(separator, pending);
+          const refresh = button('Refresh', 'inline-action', () => post('refreshPublicUrl', { instanceId: instance.id }));
+          meta.append(separator, pending, refresh);
         }
         const badges = document.createElement('div');
         badges.className = 'badges';
