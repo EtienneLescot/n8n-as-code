@@ -21,23 +21,13 @@ openclaw plugins uninstall n8nac
 openclaw plugins install @n8n-as-code/n8nac
 ```
 
-Restart the gateway, then run the setup wizard:
-
-```bash
-openclaw n8nac:setup
-```
-
-The wizard asks for your n8n host URL and API key once, saves the instance in the global
-`n8n-manager` SSOT via `n8n-manager auth set`, selects the n8n project through
-`n8n-manager projects select`, configures the context-root sync folder with
-`n8nac workspace`, and generates the local agent bootstrap files in
-`~/.openclaw/n8nac/`.
-
-After setup, global n8n-manager instances are listed, selected, and deleted through `n8n-manager`.
+Restart the gateway. Runtime access, project selection, workspace sync, and
+workflow guidance are handled by the bundled `n8n-manager` and `n8n-architect`
+skills through their documented shell commands.
 
 ## Usage
 
-Once setup is done, just talk to OpenClaw:
+Once the runtime and workspace are configured through the skills, talk to OpenClaw:
 
 > "Create an n8n workflow that sends a Slack message when a GitHub issue is opened"
 
@@ -54,16 +44,7 @@ agents: `n8n-manager ...` and `n8nac ...`.
 
 | Command | Description |
 |---|---|
-| `openclaw n8nac:setup` | Interactive setup wizard |
 | `openclaw n8nac:status` | Show workspace status |
-
-Options for `n8nac:setup`:
-
-```
---host <url>          n8n host URL (skip prompt)
---api-key <key>       n8n API key (skip prompt)
---project-index <n>   Project to select non-interactively
-```
 
 ## Workspace
 
@@ -124,20 +105,23 @@ What this does:
 openclaw plugins info n8nac
 ```
 
-You should see status `loaded`, the bundled skills, and the `n8nac:setup` /
-`n8nac:status` CLI commands. The plugin intentionally does not register a
+You should see status `loaded`, the bundled skills, and the `n8nac:status` CLI
+command. The plugin intentionally does not register a
 facade-specific agent tool.
 
-### 3. Run the setup wizard
+### 3. Configure runtime access through skills
 
 ```bash
-openclaw n8nac:setup
+n8n-manager auth set --url <url> --api-key-stdin
+n8n-manager projects list
+n8n-manager projects select <project-id-or-name>
+n8nac workspace set-sync-folder workflows
+n8nac update-ai
 ```
 
-Enter your n8n host and API key when prompted. The wizard writes the global
-instance and secret through n8n-manager, writes only workspace project/sync
-context in `~/.openclaw/n8nac/n8nac-config.json`, then generates `AGENTS.md`
-and `.agents/skills`.
+The OpenClaw plugin does not own setup orchestration. It exposes lightweight
+context and lets the portable skills manage global instances, secrets, projects,
+workspace overrides, `AGENTS.md`, and `.agents/skills`.
 
 ### 4. Iterate on the code
 
@@ -168,7 +152,9 @@ The plugin prefixes all `api.logger` calls with `[n8nac]`.
 To reset and redo setup from scratch:
 
 ```bash
-rm -rf ~/.openclaw/n8nac && openclaw n8nac:setup
+rm -rf ~/.openclaw/n8nac
+n8nac workspace set-sync-folder workflows
+n8nac update-ai
 ```
 
 ### 7. Unlink when done

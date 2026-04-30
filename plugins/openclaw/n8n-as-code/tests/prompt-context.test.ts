@@ -66,6 +66,8 @@ describe("buildPromptContext", () => {
 
       expect(context).toContain("update-ai");
       expect(context).toContain("AGENTS.md");
+      expect(context).toContain("n8n-manager");
+      expect(context).not.toContain("n8nac:setup");
     } finally {
       fs.rmSync(workspaceDir, { recursive: true, force: true });
     }

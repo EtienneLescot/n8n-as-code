@@ -55,7 +55,7 @@ describe("OpenClaw plugin metadata", () => {
       plugin.register(api as never);
 
       expect(api.registerTool).not.toHaveBeenCalled();
-      expect(api.registerCli).toHaveBeenCalled();
+      expect(api.registerCli).toHaveBeenCalledWith(expect.any(Function), { commands: ["n8nac:status"] });
       expect(api.registerService).toHaveBeenCalled();
     } finally {
       if (previousHome === undefined) {
