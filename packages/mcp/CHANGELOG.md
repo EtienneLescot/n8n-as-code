@@ -1,5 +1,7 @@
 # @n8n-as-code/mcp
 
+## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/mcp@v1.4.0...@n8n-as-code/mcp@v2.0.0) (2026-04-30)
+
 ## [1.4.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/mcp@v1.3.0...@n8n-as-code/mcp@v1.4.0) (2026-04-24)
 
 ### Features

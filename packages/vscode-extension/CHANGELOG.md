@@ -1,5 +1,33 @@
 # n8n-as-code
 
+## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.46.0...n8n-as-code@v2.0.0) (2026-04-30)
+
+### ⚠ BREAKING CHANGES
+
+* migrate runtime ownership to n8n-manager ([65bd613](https://github.com/EtienneLescot/n8n-as-code/commit/65bd6133b2107bf87596a5951caf050891b31155))
+
+### Features
+
+* **manager:** add credential retrieval and enhance webview UI ([cf80358](https://github.com/EtienneLescot/n8n-as-code/commit/cf803580b7263b0d23b7b9e5ffcc1e046f1652ca))
+* **ui:** add manual public URL refresh in configuration webview ([793346f](https://github.com/EtienneLescot/n8n-as-code/commit/793346f12c3866bd2601a799164230b830905395))
+* **ui:** display runtime warnings and refine tunnel URL logic ([d7af075](https://github.com/EtienneLescot/n8n-as-code/commit/d7af075b0b031e2e323b4c3342776fa3e33cdc07))
+* **ui:** add instance lifecycle management and status indicators ([1721d45](https://github.com/EtienneLescot/n8n-as-code/commit/1721d4551d93d5624381edcfd90f3d484500fff7))
+* **ai:** automatically infer local CLI command for context generation ([9ff291e](https://github.com/EtienneLescot/n8n-as-code/commit/9ff291e4a080123f7b180aa82f50963ddbced22e))
+* use n8n-manager global configuration ([e87bd30](https://github.com/EtienneLescot/n8n-as-code/commit/e87bd304741f2978fbb4f304ded592c97147cbb1))
+
+### Bug Fixes
+
+* **api:** prioritize apiBaseUrl over host for connection logic ([e049bef](https://github.com/EtienneLescot/n8n-as-code/commit/e049bef01308c4c4982fe8727e702f6749058a68))
+* preserve workspace context in agent tooling ([54b592d](https://github.com/EtienneLescot/n8n-as-code/commit/54b592d4354c662d8bc396da2fd859c77a1a4743))
+* inject n8n-manager agent tools across facades ([cc00356](https://github.com/EtienneLescot/n8n-as-code/commit/cc00356f605e742ea0e3c6553d156c9bbaa355aa))
+* **cli:** decouple runtime management from workspace management ([8ec3e89](https://github.com/EtienneLescot/n8n-as-code/commit/8ec3e89168a78596ecbdf0dd897e2cdca0650905))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.10.0 to 2.0.0
+    * n8nac bumped from 1.8.1 to 2.0.0
+
 ## [1.46.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.44.0...n8n-as-code@v1.46.0) (2026-04-24)
 
 ### Dependencies

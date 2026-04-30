@@ -1,5 +1,25 @@
 # @n8n-as-code/skills
 
+## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.10.0...@n8n-as-code/skills@v2.0.0) (2026-04-30)
+
+### ⚠ BREAKING CHANGES
+
+* migrate runtime ownership to n8n-manager ([65bd613](https://github.com/EtienneLescot/n8n-as-code/commit/65bd6133b2107bf87596a5951caf050891b31155))
+
+### Bug Fixes
+
+* pass env to child process and only use N8N_MANAGER_COMMAND env var when in project context ([8a317dc](https://github.com/EtienneLescot/n8n-as-code/commit/8a317dce0423766587a4c0e6b2bebb553307444d))
+* inject n8n-manager agent tools across facades ([cc00356](https://github.com/EtienneLescot/n8n-as-code/commit/cc00356f605e742ea0e3c6553d156c9bbaa355aa))
+* **cli:** decouple runtime management from workspace management ([8ec3e89](https://github.com/EtienneLescot/n8n-as-code/commit/8ec3e89168a78596ecbdf0dd897e2cdca0650905))
+* **skills:** rebuild knowledge base for n8n@2.18.5 ([e486cf5](https://github.com/EtienneLescot/n8n-as-code/commit/e486cf5bdda96030bd85f61cdfbb133eb4596a5d))
+* **skills:** rebuild knowledge base for n8n@2.18.4 ([f436839](https://github.com/EtienneLescot/n8n-as-code/commit/f436839ddaf97fd5b8e693072b3d3a0a14499b6a))
+* **skills:** rebuild knowledge base for n8n@2.17.8 ([a81c923](https://github.com/EtienneLescot/n8n-as-code/commit/a81c9239afffd0659c3d5152fd362349ba751692))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/transformer bumped from 1.2.1 to 2.0.0
+
 ## [1.10.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.9.0...@n8n-as-code/skills@v1.10.0) (2026-04-24)
 
 ### Features

@@ -1,5 +1,32 @@
 # @n8n-as-code/cli
 
+## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.8.1...n8nac@v2.0.0) (2026-04-30)
+
+### ⚠ BREAKING CHANGES
+
+* migrate runtime ownership to n8n-manager ([65bd613](https://github.com/EtienneLescot/n8n-as-code/commit/65bd6133b2107bf87596a5951caf050891b31155))
+
+### Features
+
+* **ai:** automatically infer local CLI command for context generation ([9ff291e](https://github.com/EtienneLescot/n8n-as-code/commit/9ff291e4a080123f7b180aa82f50963ddbced22e))
+* use n8n-manager global configuration ([e87bd30](https://github.com/EtienneLescot/n8n-as-code/commit/e87bd304741f2978fbb4f304ded592c97147cbb1))
+
+### Bug Fixes
+
+* **deps:** upgrade n8n-manager-core and credentials-manager ([242ddcc](https://github.com/EtienneLescot/n8n-as-code/commit/242ddcc8e7645386f452bdcdc23b5f52c2de88ae))
+* **deps:** switch to semver for internal package dependencies ([15876bb](https://github.com/EtienneLescot/n8n-as-code/commit/15876bb45c762ea9ec04dc0271e494b7e7ffe788))
+* preserve workspace context in agent tooling ([54b592d](https://github.com/EtienneLescot/n8n-as-code/commit/54b592d4354c662d8bc396da2fd859c77a1a4743))
+* inject n8n-manager agent tools across facades ([cc00356](https://github.com/EtienneLescot/n8n-as-code/commit/cc00356f605e742ea0e3c6553d156c9bbaa355aa))
+* **cli:** decouple runtime management from workspace management ([8ec3e89](https://github.com/EtienneLescot/n8n-as-code/commit/8ec3e89168a78596ecbdf0dd897e2cdca0650905))
+* **cli:** resolve macOS /tmp symlink in sync-manager tests (#357) ([63764b9](https://github.com/EtienneLescot/n8n-as-code/commit/63764b90a7d2b6684d56a26d9dbd36f31fcc84a7))
+* **cli:** implement stable instance identifiers ([eddc29d](https://github.com/EtienneLescot/n8n-as-code/commit/eddc29d36af5c6ce514cbff7423f8c2b615a7b85))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 1.10.0 to 2.0.0
+    * @n8n-as-code/transformer bumped from 1.2.1 to 2.0.0
+
 ## [1.8.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.8.0...n8nac@v1.8.1) (2026-04-24)
 
 ### Bug Fixes

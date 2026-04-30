@@ -1,5 +1,16 @@
 # @n8n-as-code/n8nac
 
+## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2026.5.0...@n8n-as-code/n8nac@v2.0.0) (2026-04-30)
+
+### ⚠ BREAKING CHANGES
+
+* migrate runtime ownership to n8n-manager ([65bd613](https://github.com/EtienneLescot/n8n-as-code/commit/65bd6133b2107bf87596a5951caf050891b31155))
+
+### Bug Fixes
+
+* **n8n-as-code:** improve cli robustness and update package scope ([e518d4e](https://github.com/EtienneLescot/n8n-as-code/commit/e518d4e2dbb6fa4fdb30c1f56c756c348e81d334))
+* **cli:** decouple runtime management from workspace management ([8ec3e89](https://github.com/EtienneLescot/n8n-as-code/commit/8ec3e89168a78596ecbdf0dd897e2cdca0650905))
+
 ## [2026.5.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2026.4.1...@n8n-as-code/n8nac@v2026.5.0) (2026-03-31)
 
 ### Features
