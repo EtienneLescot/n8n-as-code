@@ -3,6 +3,36 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
+const managerCoreAgentToolingPath = path.resolve(
+    __dirname,
+    '..',
+    '..',
+    'node_modules',
+    '@n8n-as-code',
+    'n8n-manager-core',
+    'dist',
+    'agent-tooling.js'
+);
+
+const preserveManagerCoreEntrypointResolution = {
+    name: 'preserve-manager-core-entrypoint-resolution',
+    setup(build) {
+        build.onLoad({ filter: /agent-tooling\.js$/ }, async (args) => {
+            if (path.resolve(args.path) !== managerCoreAgentToolingPath) {
+                return undefined;
+            }
+            const source = await fs.promises.readFile(args.path, 'utf8');
+            return {
+                contents: source.replace(
+                    /import\.meta\.url/g,
+                    'require("node:url").pathToFileURL(__filename).href'
+                ),
+                loader: 'js',
+            };
+        });
+    }
+};
+
 // Detect whether this is a pre-release (next) build.
 // Stable builds → AGENTS.md will use `npx --yes n8nac <cmd>`
 // Pre-release builds → AGENTS.md will use `npx --yes n8nac@next <cmd>`
@@ -139,7 +169,16 @@ const extensionBuild = esbuild.build({
         // Installed n8nac CLI semver — stamped into AGENTS.md for stale-detection
         '__N8NAC_CLI_SEMVER__': JSON.stringify(n8nacCliSemver),
     },
-    plugins: [copySkillsAssets]
+    plugins: [preserveManagerCoreEntrypointResolution, copySkillsAssets]
 });
 
-Promise.all([extensionBuild]).catch(() => process.exit(1));
+const localOpenBridgeBuild = esbuild.build({
+    entryPoints: ['./src/local-open-bridge-entrypoint.ts'],
+    bundle: true,
+    outfile: 'out/local-open-bridge-entrypoint.js',
+    format: 'cjs',
+    platform: 'node',
+    plugins: [preserveManagerCoreEntrypointResolution]
+});
+
+Promise.all([extensionBuild, localOpenBridgeBuild]).catch(() => process.exit(1));
