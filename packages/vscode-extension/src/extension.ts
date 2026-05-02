@@ -14,14 +14,18 @@ import { AiContextGenerator, getN8nacDevConfigFilenames } from '@n8n-as-code/ski
 import { StatusBar } from './ui/status-bar.js';
 import { EnhancedWorkflowTreeProvider } from './ui/enhanced-workflow-tree-provider.js';
 import { WorkflowWebview } from './ui/workflow-webview.js';
+import { AgentWorkbenchWebview } from './ui/agent-workbench-webview.js';
+import { AgentManagerWebview } from './ui/agent-manager-webview.js';
 import { ConfigurationWebview } from './ui/configuration-webview.js';
 import { WorkflowDecorationProvider } from './ui/workflow-decoration-provider.js';
 
 import { ProxyService } from './services/proxy-service.js';
+import { AgentRuntimeController, getAgentProviderSecretKey } from './services/agent-runtime-controller.js';
 import {
     N8nConfigurationController,
     type N8nConfigurationChangeEvent,
 } from './services/n8n-configuration-controller.js';
+import { workflowWebviewRegistry } from './services/workflow-webview-registry.js';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
 import { createTelemetryClient, type TelemetryClient } from '@n8n-as-code/telemetry';
 import { ExtensionState } from './types.js';
@@ -75,6 +79,7 @@ let cli: CliApi | undefined;
 let initializingPromise: Promise<void> | undefined;
 let runtimeDisposables: vscode.Disposable[] = [];
 let configurationController: N8nConfigurationController | undefined;
+let agentRuntimeController: AgentRuntimeController | undefined;
 let suppressNextConfigurationReaction = false;
 let failedAutoInitRuntimeSignature: string | undefined;
 let failedAutoInitConnectionKey: string | undefined;
@@ -183,6 +188,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
     proxyService.setOutputChannel(outputChannel);
     proxyService.setSecrets(context.secrets);
+    agentRuntimeController = new AgentRuntimeController(context, outputChannel);
+    context.subscriptions.push(agentRuntimeController);
     configurationController = new N8nConfigurationController(outputChannel);
     context.subscriptions.push(
         configurationController,
@@ -284,6 +291,17 @@ export async function activate(context: vscode.ExtensionContext) {
             await openWorkflowBoard(wf, vscode.ViewColumn.Two);
         }),
 
+        registerTelemetryCommand('n8n.openAgentWorkbench', async (arg: any) => {
+            const wf = await resolveWorkflowForAgentWorkbench(arg);
+            if (!wf) return;
+            telemetryClient?.track('vscode_workflow_view_opened', { mode: 'agent-workbench', workflow_state: 'unknown' });
+            await openAgentWorkbench(context, wf);
+        }),
+
+        registerTelemetryCommand('n8n.openAgentManager', async () => {
+            AgentManagerWebview.createOrShow(context);
+        }),
+
         // n8nac push <path>
         registerTelemetryCommand('n8n.pushWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
@@ -312,7 +330,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 const workflowId = updatedWorkflow?.id ?? pushedId ?? wf.id;
 
                 if (workflowId) {
-                    WorkflowWebview.reloadIfMatching(workflowId, outputChannel);
+                    workflowWebviewRegistry.reloadIfMatching(workflowId);
                 }
 
                 outputChannel.appendLine(`[n8n] Push successful: ${wf.name} (${workflowId ?? 'unknown id'})`);
@@ -512,6 +530,10 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
+        registerTelemetryCommand('n8n.agent.setApiKey', async () => {
+            await setAgentProviderApiKey(context);
+        }),
+
         registerTelemetryCommand('n8n.openSettings', () => {
             vscode.commands.executeCommand('workbench.action.openSettings', 'n8n');
         }),
@@ -556,7 +578,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 await new Promise(r => setTimeout(r, 500));
                 store.dispatch(setWorkflows(await cli.list()));
                 store.dispatch(removeConflict(id));
-                WorkflowWebview.reloadIfMatching(id, outputChannel);
+                workflowWebviewRegistry.reloadIfMatching(id);
                 vscode.window.showInformationMessage('✅ Pushed — remote overwritten with your local version.');
                 enhancedTreeProvider.refresh();
             } else if (choice === 'Keep Incoming (remote)') {
@@ -665,44 +687,107 @@ async function openWorkflowFromFinder(workflow: IWorkflowStatus): Promise<void> 
     vscode.window.showWarningMessage(`Cannot open workflow "${workflow.name}": no local file or remote ID is available.`);
 }
 
+async function resolveWorkflowForAgentWorkbench(arg: any): Promise<IWorkflowStatus | undefined> {
+    const workflow = findWorkflowByCommandArg(arg);
+    if (workflow) {
+        return workflow;
+    }
+
+    if (!cli) {
+        vscode.window.showWarningMessage('n8n as code is not initialized. Configure and initialize n8n before opening the Agent Workbench.');
+        return undefined;
+    }
+
+    const workflows = await cli.list({ fetchRemote: true, includeArchived: true });
+    if (!workflows.length) {
+        vscode.window.showInformationMessage('No workflows available for the Agent Workbench.');
+        return undefined;
+    }
+
+    store.dispatch(setWorkflows(workflows));
+    enhancedTreeProvider.refresh();
+
+    const picked = await vscode.window.showQuickPick(
+        buildWorkflowQuickPickItems(workflows),
+        {
+            title: `Open Agent Workbench (${workflows.length})`,
+            placeHolder: 'Select the workflow to inspect with the n8n agent',
+            ignoreFocusOut: true,
+            matchOnDescription: true,
+            matchOnDetail: true,
+        },
+    );
+
+    return picked?.workflow;
+}
+
 async function openWorkflowBoard(workflow: IWorkflowStatus, viewColumn?: vscode.ViewColumn): Promise<void> {
     if (!workflow.id) {
         vscode.window.showWarningMessage(`Cannot open workflow "${workflow.name}": no remote ID is available.`);
         return;
     }
 
-    const workspaceRoot = getWorkspaceRoot();
-    const facade = createN8nManagerFacade({ workspaceRoot });
     try {
-        const prepared = await facade.prepareEffectiveContext({
-            workspaceRoot,
-            syncFolderDefault: workspaceRoot ? 'workspace' : 'global',
-            consumer: 'vscode',
-            autoStart: true,
-        });
-        if (prepared.runtime.blocked) {
-            throw new Error(prepared.runtime.blocked.message);
-        }
-        const effective = prepared.context;
-        const proxyUrl = await proxyService.start(effective.apiBaseUrl ?? effective.host);
-        const openTarget = await facade.resolveWorkflowWebviewOpen({
-            workflowId: workflow.id,
-            proxyBaseUrl: proxyUrl,
-            workspaceRoot,
-        });
-
-        if (openTarget.routePath && openTarget.autoLoginPageHtml) {
-            proxyService.registerHtmlRoute(openTarget.routePath, openTarget.autoLoginPageHtml);
-            outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} through managed auto-login webview route.`);
-        } else {
-            outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} through direct webview route.`);
-        }
-
+        const openTarget = await resolveWorkflowWebviewTarget(workflow);
         WorkflowWebview.createOrShow(workflow, openTarget.url, viewColumn);
         registerClipboardHandler();
     } catch (e: any) {
         vscode.window.showErrorMessage(`Failed to open n8n workflow: ${e.message}`);
     }
+}
+
+async function openAgentWorkbench(context: vscode.ExtensionContext, workflow: IWorkflowStatus): Promise<void> {
+    if (!workflow.id) {
+        vscode.window.showWarningMessage(`Cannot open Agent Workbench for "${workflow.name}": no remote workflow ID is available.`);
+        return;
+    }
+
+    try {
+        const openTarget = await resolveWorkflowWebviewTarget(workflow);
+        AgentWorkbenchWebview.createOrShow(
+            context,
+            workflow,
+            openTarget.url,
+            requireAgentRuntimeController(),
+            vscode.ViewColumn.One,
+        );
+    } catch (e: any) {
+        vscode.window.showErrorMessage(`Failed to open n8n Agent Workbench: ${e.message}`);
+    }
+}
+
+async function resolveWorkflowWebviewTarget(workflow: IWorkflowStatus): Promise<{ url: string }> {
+    if (!workflow.id) {
+        throw new Error(`Workflow "${workflow.name}" does not have a remote ID.`);
+    }
+
+    const workspaceRoot = getWorkspaceRoot();
+    const facade = createN8nManagerFacade({ workspaceRoot });
+    const prepared = await facade.prepareEffectiveContext({
+        workspaceRoot,
+        syncFolderDefault: workspaceRoot ? 'workspace' : 'global',
+        consumer: 'vscode',
+        autoStart: true,
+    });
+    if (prepared.runtime.blocked) {
+        throw new Error(prepared.runtime.blocked.message);
+    }
+    const effective = prepared.context;
+    const proxyUrl = await proxyService.start(effective.apiBaseUrl ?? effective.host);
+    const openTarget = await facade.resolveWorkflowWebviewOpen({
+        workflowId: workflow.id,
+        proxyBaseUrl: proxyUrl,
+        workspaceRoot,
+    });
+
+    if (openTarget.routePath && openTarget.autoLoginPageHtml) {
+        proxyService.registerHtmlRoute(openTarget.routePath, openTarget.autoLoginPageHtml);
+        outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} through managed auto-login webview route.`);
+    } else {
+        outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} through direct webview route.`);
+    }
+
+    return { url: openTarget.url };
 }
 
 function updateContextKeys() {
@@ -716,6 +801,66 @@ function requireConfigurationController(): N8nConfigurationController {
         throw new Error('n8n configuration controller is not initialized.');
     }
     return configurationController;
+}
+
+function requireAgentRuntimeController(): AgentRuntimeController {
+    if (!agentRuntimeController) {
+        throw new Error('n8n agent runtime controller is not initialized.');
+    }
+    return agentRuntimeController;
+}
+
+type AgentProviderId = 'anthropic' | 'openai' | 'google' | 'mistral' | 'openrouter' | 'openai-compatible';
+
+const AGENT_PROVIDER_ITEMS: Array<vscode.QuickPickItem & { provider: AgentProviderId }> = [
+    { provider: 'anthropic', label: 'Anthropic', description: 'ANTHROPIC_API_KEY' },
+    { provider: 'openai', label: 'OpenAI', description: 'OPENAI_API_KEY' },
+    { provider: 'google', label: 'Google Gemini', description: 'GOOGLE_GENERATIVE_AI_API_KEY' },
+    { provider: 'mistral', label: 'Mistral', description: 'MISTRAL_API_KEY' },
+    { provider: 'openrouter', label: 'OpenRouter', description: 'OPENROUTER_API_KEY' },
+    { provider: 'openai-compatible', label: 'OpenAI Compatible', description: 'OPENAI_COMPATIBLE_API_KEY' },
+];
+
+async function setAgentProviderApiKey(context: vscode.ExtensionContext): Promise<void> {
+    const config = vscode.workspace.getConfiguration('n8n.agent');
+    const currentProvider = String(config.get<string>('provider') || 'openai');
+    const picked = await vscode.window.showQuickPick(
+        AGENT_PROVIDER_ITEMS.map((item) => ({
+            ...item,
+            picked: item.provider === currentProvider,
+        })),
+        {
+            title: 'Select n8n Agent provider',
+            placeHolder: 'Provider API keys are stored in VS Code Secret Storage',
+            ignoreFocusOut: true,
+        },
+    );
+
+    if (!picked) {
+        return;
+    }
+
+    const apiKey = await vscode.window.showInputBox({
+        title: `Set ${picked.label} API key for n8n Agent`,
+        prompt: 'The key is stored in VS Code Secret Storage and is never sent to the webview.',
+        password: true,
+        ignoreFocusOut: true,
+    });
+
+    if (apiKey === undefined) {
+        return;
+    }
+
+    const trimmed = apiKey.trim();
+    if (!trimmed) {
+        await context.secrets.delete(getAgentProviderSecretKey(picked.provider));
+        vscode.window.showInformationMessage(`Cleared n8n Agent API key for ${picked.label}.`);
+        return;
+    }
+
+    await context.secrets.store(getAgentProviderSecretKey(picked.provider), trimmed);
+    await config.update('provider', picked.provider, vscode.ConfigurationTarget.Global);
+    vscode.window.showInformationMessage(`Stored n8n Agent API key for ${picked.label}.`);
 }
 
 function getAutoInitConnectionKey(workspaceRoot?: string): string {
@@ -1461,7 +1606,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     });
 
     syncManager.on('remote-updated', (data: { workflowId: string; filename: string }) => {
-        WorkflowWebview.reloadIfMatching(data.workflowId, outputChannel);
+        workflowWebviewRegistry.reloadIfMatching(data.workflowId);
     });
 
     // ── Lightweight UI watchers ──────────────────────────────────────────────
@@ -1521,7 +1666,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
                 for (const [id, entry] of Object.entries(state.workflows ?? {})) {
                     if (entry.lastSyncedAt && entry.lastSyncedAt !== stateSnapshot.get(id)) {
                         stateSnapshot.set(id, entry.lastSyncedAt);
-                        WorkflowWebview.reloadIfMatching(id, outputChannel);
+                        workflowWebviewRegistry.reloadIfMatching(id);
                     }
                 }
             } catch (err) {
@@ -1597,6 +1742,8 @@ async function reinitializeSyncManager(
 
 export async function deactivate(): Promise<void> {
     await telemetryClient?.flush(1000);
+    agentRuntimeController?.dispose();
+    agentRuntimeController = undefined;
     disposeRuntimeDisposables();
     proxyService.stop();
 }
