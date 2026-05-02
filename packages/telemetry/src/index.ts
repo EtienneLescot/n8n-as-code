@@ -371,6 +371,7 @@ export function createTelemetryClient(context: TelemetryContext): TelemetryClien
             properties: sanitizeProperties({ ...baseProperties(), ...properties }),
         };
         debugEvent(queued);
+        if (!posthogKey) return;
         queue.push(queued);
     };
 
@@ -409,7 +410,11 @@ export function createTelemetryClient(context: TelemetryContext): TelemetryClien
         },
 
         async flush(timeoutMs = 500) {
-            if (!status.enabled || !posthogKey || queue.length === 0) return;
+            if (!status.enabled || queue.length === 0) return;
+            if (!posthogKey) {
+                queue.splice(0, queue.length);
+                return;
+            }
 
             const pending = queue.splice(0, queue.length);
             await withTimeout(Promise.all(pending.map((event) => sendPostHogEvent(posthogHost, posthogKey, config.anonymousId!, event))).then(() => undefined), timeoutMs);
