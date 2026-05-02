@@ -123,7 +123,6 @@ const n8nAcPlugin = {
       start: async () => {
         const initialized = isWorkspaceInitialized(workspaceDir);
         telemetry.track("openclaw_service_started", { workspace_initialized: initialized });
-        telemetry.trackActive({ activation_source_event: "openclaw_service_started" });
         if (initialized) {
           if (hasAgentsContext(workspaceDir)) {
             api.logger.info("[n8nac] Workspace ready — lightweight prompt context enabled; n8n skill available.");

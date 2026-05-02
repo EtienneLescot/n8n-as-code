@@ -29,6 +29,8 @@ import {
     getTelemetryStatus,
     setTelemetryEnabled,
     classifyTelemetryError,
+    shouldShowTelemetryNotice,
+    markTelemetryNoticeShown,
     type TelemetryProperties,
 } from '@n8n-as-code/telemetry';
 
@@ -196,6 +198,11 @@ const program = new Command();
 const telemetry = createTelemetryClient({ facade: 'cli', version: getVersion() });
 const commandStartTimes = new WeakMap<Command, number>();
 
+const exitWithTelemetry = async (code: number): Promise<never> => {
+    await telemetry.flush();
+    process.exit(code);
+};
+
 const getCommandPath = (command: Command): string => {
     const names: string[] = [];
     let current: Command | null = command;
@@ -243,6 +250,21 @@ const normalizeSetupMode = (mode: string): 'managed_local' | 'existing_n8n' | 'g
     if (mode === 'generation-only') return 'generation_only';
     return 'unknown';
 };
+
+const maybeShowTelemetryNotice = (): void => {
+    const topLevelCommand = getTopLevelCommand(process.argv);
+    if (!topLevelCommand || topLevelCommand === 'help' || topLevelCommand === 'telemetry') return;
+    if (!shouldShowTelemetryNotice()) return;
+
+    process.stderr.write([
+        'n8n-as-code collects anonymous, privacy-first telemetry to understand product usage.',
+        'Disable it with `n8nac telemetry disable` or `N8NAC_TELEMETRY_DISABLED=1`.',
+        '',
+    ].join('\n'));
+    markTelemetryNoticeShown();
+};
+
+maybeShowTelemetryNotice();
 
 process.on('beforeExit', () => {
     void telemetry.flush();
@@ -455,7 +477,7 @@ program.command('setup')
                 duration_ms: Date.now() - setupStartedAt,
             });
             console.error(chalk.red(`❌ Invalid setup mode. Use one of: ${N8N_FACADE_SETUP_MODES.map((item) => item.id).join(', ')}`));
-            process.exit(1);
+            await exitWithTelemetry(1);
         }
 
         const facade = createManagerFacadeFromOptions(options);
@@ -641,7 +663,7 @@ program.command('list')
         const remote = options.remote || options.distant;
         if (options.sort !== 'status' && options.sort !== 'name') {
             console.error(chalk.red('❌ Invalid sort mode. Use "status" or "name".'));
-            process.exit(1);
+            await exitWithTelemetry(1);
         }
         await new ListCommand().run({
             local: options.local,
@@ -671,7 +693,7 @@ program.command('find')
         const remote = options.remote || options.distant;
         if (options.sort !== 'status' && options.sort !== 'name') {
             console.error(chalk.red('❌ Invalid sort mode. Use "status" or "name".'));
-            process.exit(1);
+            await exitWithTelemetry(1);
         }
         await new ListCommand().run({
             local: options.local,
@@ -704,7 +726,7 @@ program.command('push')
         if (options.verify && workflowId) {
             console.log(chalk.dim('\n── Post-push verification ──────────────────────────────'));
             const ok = await cmd.verifyRemote(workflowId);
-            if (!ok) process.exit(1);
+            if (!ok) await exitWithTelemetry(1);
         }
     });
 
@@ -714,7 +736,7 @@ program.command('verify')
     .argument('<workflowId>', 'Workflow ID to verify')
     .action(async (workflowId) => {
         const ok = await new SyncCommand().verifyRemote(workflowId);
-        if (!ok) process.exit(1);
+        if (!ok) await exitWithTelemetry(1);
     });
 
 // test - Trigger a workflow in test mode and report the result
@@ -744,7 +766,7 @@ Notes:
   - For classic Webhook/Form test URLs, you may need to manually arm the workflow in the n8n editor before the test URL will accept a request.
 `)
     .action(async (workflowId, options) => {
-        process.exit(await new TestCommand().run(workflowId, options));
+        await exitWithTelemetry(await new TestCommand().run(workflowId, options));
     });
 
 program.command('test-plan')
@@ -752,7 +774,7 @@ program.command('test-plan')
     .argument('<workflowId>', 'Workflow ID to inspect')
     .option('--json', 'Output the test plan as JSON for agents and scripts')
     .action(async (workflowId, options) => {
-        process.exit(await new TestPlanCommand().run(workflowId, options));
+        await exitWithTelemetry(await new TestPlanCommand().run(workflowId, options));
     });
 
 // fetch - Update remote state cache for a specific workflow
@@ -772,7 +794,7 @@ program.command('resolve')
     .action(async (workflowId, options) => {
         if (options.mode !== 'keep-current' && options.mode !== 'keep-incoming') {
             console.error(chalk.red('❌ Invalid mode. Use "keep-current" or "keep-incoming"'));
-            process.exit(1);
+            await exitWithTelemetry(1);
         }
         await new SyncCommand().resolveOne(workflowId, options.mode);
     });
@@ -797,7 +819,7 @@ program.command('convert-batch')
     .action(async (directory, options) => {
         if (options.format !== 'json' && options.format !== 'typescript') {
             console.error(chalk.red('❌ Invalid format. Use "json" or "typescript"'));
-            process.exit(1);
+            await exitWithTelemetry(1);
         }
         await new ConvertCommand().batch(directory, options);
     });
@@ -834,8 +856,7 @@ program.command('mcp')
                 outcome: 'failure',
                 error_category: classifyTelemetryError(error),
             });
-            await telemetry.flush();
-            process.exit(1);
+            await exitWithTelemetry(1);
         });
     });
 

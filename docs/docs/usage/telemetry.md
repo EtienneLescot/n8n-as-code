@@ -45,6 +45,8 @@ CI=true
 
 The VS Code extension also respects VS Code's telemetry setting.
 
+On the documentation site, use the telemetry control in the bottom-right corner to disable or re-enable anonymous docs telemetry in your browser.
+
 ## What Is Collected
 
 Telemetry events contain only coarse product usage metadata:
