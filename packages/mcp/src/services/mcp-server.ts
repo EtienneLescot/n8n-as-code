@@ -457,5 +457,35 @@ export async function startN8nAsCodeMcpServer(options: StartServerOptions = {}):
 async function startStdioServer(service: N8nAsCodeMcpService, telemetry: TelemetryClient): Promise<void> {
     const server = buildMcpServer(service, telemetry);
     const transport = new StdioServerTransport();
+    let flushPromise: Promise<void> | undefined;
+    let resolveClosed: () => void;
+    const closed = new Promise<void>((resolve) => {
+        resolveClosed = resolve;
+    });
+
+    const flushOnce = (): Promise<void> => {
+        flushPromise ??= telemetry.flush(1000);
+        return flushPromise;
+    };
+
+    const flushAndResolve = async (): Promise<void> => {
+        await flushOnce();
+        resolveClosed();
+    };
+
+    transport.onclose = () => {
+        void flushAndResolve();
+    };
+
+    const shutdown = async () => {
+        await transport.close();
+        await flushAndResolve();
+        process.exit(0);
+    };
+
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
+
     await server.connect(transport);
+    await closed;
 }

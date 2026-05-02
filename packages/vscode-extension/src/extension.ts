@@ -1564,8 +1564,8 @@ async function reinitializeSyncManager(
     }
 }
 
-export function deactivate() {
-    void telemetryClient?.flush(1000);
+export async function deactivate(): Promise<void> {
+    await telemetryClient?.flush(1000);
     disposeRuntimeDisposables();
     proxyService.stop();
 }
