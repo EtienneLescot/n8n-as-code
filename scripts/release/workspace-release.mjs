@@ -321,6 +321,42 @@ function buildVscodePrereleaseVersion(stableVersion, sequence) {
   });
 }
 
+function assertVscodeStableLine(version, context) {
+  const parsed = parseVersion(version);
+  if (!parsed) {
+    throw new Error(`Unsupported VS Code stable version in ${context}: ${version}`);
+  }
+  if (parsed.minor % 2 !== 0) {
+    throw new Error(`VS Code stable releases must use even minor versions in ${context}: ${version}`);
+  }
+}
+
+function assertVscodePrereleaseLine(version, context) {
+  const parsed = parseVersion(version);
+  if (!parsed) {
+    throw new Error(`Unsupported VS Code prerelease version in ${context}: ${version}`);
+  }
+  if (parsed.minor % 2 === 0) {
+    throw new Error(`VS Code prereleases must use odd minor versions in ${context}: ${version}`);
+  }
+}
+
+function assertVscodeVersionLines(plan) {
+  const extensionPlan = plan.packages.find(pkg => pkg.publishTarget === 'vscode');
+  if (!extensionPlan) {
+    return plan;
+  }
+
+  if (extensionPlan.targetVersion) {
+    assertVscodeStableLine(extensionPlan.targetVersion, `${plan.mode} targetVersion`);
+  }
+  if (extensionPlan.prereleaseVersion) {
+    assertVscodePrereleaseLine(extensionPlan.prereleaseVersion, `${plan.mode} prereleaseVersion`);
+  }
+
+  return plan;
+}
+
 function parseTagVersion(tag, prefix) {
   if (!tag.startsWith(prefix)) {
     return null;
@@ -741,11 +777,11 @@ function computeStablePlan() {
     };
   });
 
-  return {
+  return assertVscodeVersionLines({
     mode: 'stable',
     changed: packages.some(pkg => pkg.changed),
     packages,
-  };
+  });
 }
 
 function getPrereleaseSequence() {
@@ -777,12 +813,12 @@ function computePrereleasePlan() {
     };
   });
 
-  return {
+  return assertVscodeVersionLines({
     mode: 'prerelease',
     changed: packages.some(pkg => pkg.changed),
     sequence,
     packages,
-  };
+  });
 }
 
 function computePendingStablePlan() {
@@ -808,11 +844,11 @@ function computePendingStablePlan() {
     };
   });
 
-  return {
+  return assertVscodeVersionLines({
     mode: 'pending-stable',
     changed: packages.some(pkg => pkg.changed),
     packages,
-  };
+  });
 }
 
 function applyPlan(plan, versionKey) {
