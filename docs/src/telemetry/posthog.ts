@@ -4,12 +4,21 @@ const customFields = siteConfig.customFields as { posthogKey?: string; posthogHo
 const POSTHOG_KEY = customFields.posthogKey;
 const POSTHOG_HOST = (customFields.posthogHost || 'https://eu.i.posthog.com').replace(/\/$/, '');
 const STORAGE_KEY = 'n8n-as-code:docs-telemetry-id';
+const DISABLED_KEY = 'n8n-as-code:telemetry-disabled';
 
 function isTelemetryDisabled(): boolean {
   if (!POSTHOG_KEY) return true;
   if (navigator.doNotTrack === '1') return true;
-  if (localStorage.getItem('n8n-as-code:telemetry-disabled') === '1') return true;
+  if (localStorage.getItem(DISABLED_KEY) === '1') return true;
   return false;
+}
+
+function setTelemetryDisabled(disabled: boolean): void {
+  if (disabled) {
+    localStorage.setItem(DISABLED_KEY, '1');
+  } else {
+    localStorage.removeItem(DISABLED_KEY);
+  }
 }
 
 function getAnonymousId(): string {
@@ -68,7 +77,64 @@ function installRouteTracking(): void {
   window.addEventListener('popstate', notifyIfChanged);
 }
 
+function installTelemetryControl(): void {
+  if (document.getElementById('n8n-as-code-telemetry-control')) return;
+
+  const root = document.createElement('div');
+  root.id = 'n8n-as-code-telemetry-control';
+  root.style.position = 'fixed';
+  root.style.right = '1rem';
+  root.style.bottom = '1rem';
+  root.style.zIndex = '9999';
+  root.style.maxWidth = '18rem';
+  root.style.padding = '0.75rem';
+  root.style.border = '1px solid var(--ifm-color-emphasis-300)';
+  root.style.borderRadius = '0.5rem';
+  root.style.background = 'var(--ifm-background-surface-color)';
+  root.style.boxShadow = 'var(--ifm-global-shadow-md)';
+  root.style.fontSize = '0.8rem';
+
+  const text = document.createElement('div');
+  text.style.marginBottom = '0.5rem';
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.style.cursor = 'pointer';
+  button.style.border = '1px solid var(--ifm-color-primary)';
+  button.style.borderRadius = '0.35rem';
+  button.style.background = 'var(--ifm-color-primary)';
+  button.style.color = 'var(--ifm-color-primary-contrast-foreground)';
+  button.style.padding = '0.35rem 0.5rem';
+
+  const render = () => {
+    const disabled = localStorage.getItem(DISABLED_KEY) === '1' || navigator.doNotTrack === '1' || !POSTHOG_KEY;
+    text.textContent = disabled
+      ? 'Anonymous docs telemetry is disabled.'
+      : 'Anonymous docs telemetry is enabled.';
+    button.textContent = disabled ? 'Enable telemetry' : 'Disable telemetry';
+    button.disabled = navigator.doNotTrack === '1' || !POSTHOG_KEY;
+  };
+
+  button.addEventListener('click', () => {
+    setTelemetryDisabled(localStorage.getItem(DISABLED_KEY) !== '1');
+    render();
+  });
+
+  root.append(text, button);
+  document.body.append(root);
+  render();
+}
+
+function initializeTelemetry(): void {
+    trackDocsPageView();
+    installRouteTracking();
+    installTelemetryControl();
+}
+
 if (typeof window !== 'undefined') {
-  trackDocsPageView();
-  installRouteTracking();
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', initializeTelemetry, { once: true });
+  } else {
+    initializeTelemetry();
+  }
 }

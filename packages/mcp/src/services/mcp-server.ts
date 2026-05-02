@@ -437,7 +437,6 @@ export async function startN8nAsCodeMcpServer(options: StartServerOptions = {}):
             host_type: LOOPBACK_HOSTS.has(httpOptions.host ?? '127.0.0.1') ? 'loopback' : 'non_loopback',
             port_configured: httpOptions.port !== undefined,
         });
-        telemetry.trackActive({ activation_source_event: 'mcp_server_started' });
         return startHttpServer(service, httpOptions, telemetry);
     }
     if (sseOptions) {
@@ -446,11 +445,9 @@ export async function startN8nAsCodeMcpServer(options: StartServerOptions = {}):
             host_type: LOOPBACK_HOSTS.has(sseOptions.host ?? '127.0.0.1') ? 'loopback' : 'non_loopback',
             port_configured: sseOptions.port !== undefined,
         });
-        telemetry.trackActive({ activation_source_event: 'mcp_server_started' });
         return startSseServer(service, sseOptions, telemetry);
     }
     telemetry.track('mcp_server_started', { transport: 'stdio' });
-    telemetry.trackActive({ activation_source_event: 'mcp_server_started' });
     return startStdioServer(service, telemetry);
 }
 

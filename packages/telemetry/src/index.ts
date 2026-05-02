@@ -70,6 +70,7 @@ export interface TelemetryStatus {
     configPath: string;
     anonymousId?: string;
     posthogHost: string;
+    noticeShownAt?: string;
 }
 
 export interface TelemetryClient {
@@ -87,6 +88,7 @@ interface TelemetryConfigFile {
     telemetryVersion?: number;
     enabled?: boolean;
     activeByFacade?: Record<string, string>;
+    noticeShownAt?: string;
 }
 
 interface QueuedEvent {
@@ -315,7 +317,22 @@ export function getTelemetryStatus(context?: Pick<TelemetryContext, 'forceDisabl
         configPath: path,
         anonymousId: config.anonymousId,
         posthogHost: getPostHogHost(),
+        noticeShownAt: config.noticeShownAt,
     };
+}
+
+export function shouldShowTelemetryNotice(context?: Pick<TelemetryContext, 'forceDisabled'>): boolean {
+    const { config } = ensureConfig();
+    const status = getTelemetryStatus(context);
+    return status.enabled && !config.noticeShownAt;
+}
+
+export function markTelemetryNoticeShown(): void {
+    const { config, path } = ensureConfig();
+    if (config.noticeShownAt) return;
+    config.noticeShownAt = new Date().toISOString();
+    config.telemetryVersion = TELEMETRY_SCHEMA_VERSION;
+    writeConfig(config, path);
 }
 
 export function setTelemetryEnabled(enabled: boolean): TelemetryStatus {
