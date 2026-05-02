@@ -101,6 +101,9 @@ Dependency alignment is automated and enforced locally and in CI. This is requir
 # Rewrite package manifests so dependency specs are aligned
 npm run sync:deps
 
+# Update published n8n-manager runtime packages to their latest npm versions
+npm run update:n8n-manager
+
 # Verify package manifests without modifying files
 npm run check:deps
 
@@ -111,6 +114,7 @@ npm run check-versions
 ### What Gets Synchronized
 
 - Workspace package dependencies are pinned to the exact current local package version.
+- `npm run update:n8n-manager` upgrades published `@n8n-as-code/n8n-manager*` packages and `@n8n-as-code/n8n-credentials-manager` to the latest npm version while preserving each manifest's `^` or `~` prefix.
 - The `@n8n-as-code/n8n-manager*` dependency family is kept consistent wherever the same package appears.
 - `@n8n-as-code/n8n-credentials-manager` is grouped with the n8n-manager runtime dependencies.
 - Dependency sync updates only package manifest dependency specs. Release versions and changelogs remain owned by `scripts/release/workspace-release.mjs`.
@@ -121,7 +125,7 @@ npm run check-versions
 - CI runs `npm run check:deps` after installation and before build/test.
 - Dependabot groups n8n-manager runtime package updates so one external update can be propagated consistently across all manifests.
 
-If dependency alignment fails, run `npm run sync:deps`, review the manifest diff, and commit the updated package files with the original change.
+If dependency alignment fails, run `npm run sync:deps`, review the manifest diff, and commit the updated package files with the original change. If new `n8n-manager` releases are available, use `npm run update:n8n-manager` first.
 
 ### Release Workflow
 

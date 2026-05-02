@@ -17,6 +17,15 @@ npm install
 npm run build
 ```
 
+## Dependency maintenance
+
+```bash
+# Update all published n8n-manager runtime dependencies to their latest versions
+npm run update:n8n-manager
+```
+
+This command rewrites matching workspace `package.json` files and refreshes the root workspace install.
+
 ## Guidelines
 
 - Keep PRs focused — one thing at a time
