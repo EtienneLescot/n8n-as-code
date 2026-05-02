@@ -93,3 +93,4 @@ workflows/
 .aider*
 test-results/
 .kilo/*
+.turbo/
