@@ -28,7 +28,7 @@ import { getN8nConfig, getResolvedN8nConfig, validateN8nConfig, getWorkspaceRoot
 import { NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION } from './constants/workspace.js';
 import { buildWorkflowQuickPickItems } from './utils/workflow-finder.js';
 import { isClipboardBridgeRequired } from './utils/clipboard-utils.js';
-import { getProjectDetail, getProjectDisplayLabel } from './utils/project-display.js';
+import { getCanonicalProjectName, getProjectDetail, getProjectDisplayLabel } from './utils/project-display.js';
 import { IWorkflowStatus } from 'n8nac';
 
 import {
@@ -1354,8 +1354,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
         if (!selectedProject) throw new Error('No project selected.');
         projectId = selectedProject.id;
-        projectName = getProjectDisplayLabel(selectedProject);
-        outputChannel.appendLine(`[n8n] Selected project: ${projectName} (${projectId})`);
+        projectName = getCanonicalProjectName(selectedProject);
+        outputChannel.appendLine(`[n8n] Selected project: ${getProjectDisplayLabel(selectedProject)} (${projectId})`);
     }
 
     const absDirectory = path.isAbsolute(folder) ? folder : path.resolve(workspaceRoot, folder);
