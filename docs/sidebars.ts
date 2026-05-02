@@ -63,6 +63,11 @@ const sidebars: SidebarsConfig = {
           id: 'usage/claude-plugin-privacy',
           label: 'Claude Plugin Privacy',
         },
+        {
+          type: 'doc',
+          id: 'usage/telemetry',
+          label: 'Telemetry',
+        },
       ],
     },
     {

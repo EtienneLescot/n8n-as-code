@@ -24,6 +24,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@n8n-as-code/telemetry": "0.1.0",
     "@n8n-as-code/workflow-core": "0.1.0"
   },
   "devDependencies": {

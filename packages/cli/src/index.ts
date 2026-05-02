@@ -24,6 +24,13 @@ import {
     isN8nFacadeSetupMode,
     type N8nFacadeSetupMode,
 } from '@n8n-as-code/workflow-core';
+import {
+    createTelemetryClient,
+    getTelemetryStatus,
+    setTelemetryEnabled,
+    classifyTelemetryError,
+    type TelemetryProperties,
+} from '@n8n-as-code/telemetry';
 
 async function readSecretFromStdin(): Promise<string> {
     const chunks: Buffer[] = [];
@@ -186,6 +193,60 @@ const getMcpEntry = (): string => {
 };
 
 const program = new Command();
+const telemetry = createTelemetryClient({ facade: 'cli', version: getVersion() });
+const commandStartTimes = new WeakMap<Command, number>();
+
+const getCommandPath = (command: Command): string => {
+    const names: string[] = [];
+    let current: Command | null = command;
+
+    while (current && current.parent) {
+        names.unshift(current.name());
+        current = current.parent;
+    }
+
+    return names.join(' ');
+};
+
+const isActiveCliCommand = (commandPath: string): boolean => {
+    if (!commandPath || commandPath.startsWith('telemetry')) return false;
+    return commandPath !== 'setup-modes' && commandPath !== 'workspace status';
+};
+
+const telemetryCommandProperties = (command: Command): TelemetryProperties => {
+    const commandPath = getCommandPath(command);
+    const [commandName, ...rest] = commandPath.split(' ');
+    let hasWorkspace = false;
+    let hasApiKey = false;
+
+    try {
+        const configService = new ConfigService();
+        const workspaceConfig = configService.getWorkspaceConfig();
+        hasWorkspace = Boolean(workspaceConfig.syncFolder || workspaceConfig.workflowDir || workspaceConfig.projectId);
+        const localConfig = configService.getLocalConfig();
+        hasApiKey = Boolean(localConfig.host && configService.getApiKey(localConfig.host, configService.getActiveInstanceId()));
+    } catch {
+        // Best-effort context only; never let telemetry affect command execution.
+    }
+
+    return {
+        command: commandName || 'unknown',
+        subcommand: rest.length > 0 ? rest.join(' ') : undefined,
+        has_workspace: hasWorkspace,
+        has_api_key: hasApiKey,
+    };
+};
+
+const normalizeSetupMode = (mode: string): 'managed_local' | 'existing_n8n' | 'generation_only' | 'unknown' => {
+    if (mode === 'managed-local') return 'managed_local';
+    if (mode === 'connect-existing') return 'existing_n8n';
+    if (mode === 'generation-only') return 'generation_only';
+    return 'unknown';
+};
+
+process.on('beforeExit', () => {
+    void telemetry.flush();
+});
 program.showSuggestionAfterError(true);
 program.showHelpAfterError('(run with --help for usage details)');
 
@@ -225,6 +286,59 @@ const restoreGlobalInstanceOption = () => {
 
 program.hook('preAction', applyGlobalInstanceOption);
 program.hook('postAction', restoreGlobalInstanceOption);
+program.hook('preAction', (_thisCommand, actionCommand) => {
+    commandStartTimes.set(actionCommand, Date.now());
+});
+program.hook('postAction', (_thisCommand, actionCommand) => {
+    const commandPath = getCommandPath(actionCommand);
+    const startedAt = commandStartTimes.get(actionCommand) ?? Date.now();
+    telemetry.track('cli_command_completed', {
+        ...telemetryCommandProperties(actionCommand),
+        outcome: 'success',
+        duration_ms: Date.now() - startedAt,
+    });
+
+    if (isActiveCliCommand(commandPath)) {
+        telemetry.trackActive({ activation_source_event: 'cli_command_completed' });
+    }
+});
+
+const telemetryProgram = program.command('telemetry')
+    .description('Manage anonymous n8n-as-code telemetry');
+
+telemetryProgram.command('status')
+    .description('Show anonymous telemetry status')
+    .option('--json', 'Output status as JSON')
+    .action((options) => {
+        const status = getTelemetryStatus();
+        printJsonOrText(
+            options,
+            status,
+            [
+                `Telemetry: ${status.enabled ? chalk.green('enabled') : chalk.yellow('disabled')}`,
+                `Configured: ${status.configured ? chalk.green('yes') : chalk.yellow('no PostHog key configured')}`,
+                status.disabledReason ? `Disabled reason: ${status.disabledReason}` : undefined,
+                `Config: ${status.configPath}`,
+                `Host: ${status.posthogHost}`,
+            ].filter(Boolean).join('\n'),
+        );
+    });
+
+telemetryProgram.command('enable')
+    .description('Enable anonymous telemetry')
+    .option('--json', 'Output status as JSON')
+    .action((options) => {
+        const status = setTelemetryEnabled(true);
+        printJsonOrText(options, status, chalk.green('Anonymous telemetry enabled.'));
+    });
+
+telemetryProgram.command('disable')
+    .description('Disable anonymous telemetry')
+    .option('--json', 'Output status as JSON')
+    .action((options) => {
+        const status = setTelemetryEnabled(false);
+        printJsonOrText(options, status, chalk.green('Anonymous telemetry disabled.'));
+    });
 
 const workspaceProgram = program.command('workspace')
     .description('Manage n8n workspace overrides');
@@ -329,19 +443,44 @@ program.command('setup')
     .option('--project-id <id>', 'n8n project ID for credential operations')
     .option('--json', 'Output setup result as JSON')
     .action(async (options) => {
+        const setupStartedAt = Date.now();
         await hydrateApiKeyFromStdin(options);
         const mode = String(options.mode);
+        telemetry.track('setup_started', { entrypoint: 'cli_setup', setup_mode: normalizeSetupMode(mode) });
+        telemetry.track('setup_mode_selected', { setup_mode: normalizeSetupMode(mode) });
         if (!isN8nFacadeSetupMode(mode)) {
+            telemetry.track('setup_failed', {
+                setup_mode: normalizeSetupMode(mode),
+                error_category: 'configuration_error',
+                duration_ms: Date.now() - setupStartedAt,
+            });
             console.error(chalk.red(`❌ Invalid setup mode. Use one of: ${N8N_FACADE_SETUP_MODES.map((item) => item.id).join(', ')}`));
             process.exit(1);
         }
 
         const facade = createManagerFacadeFromOptions(options);
-        const instance = await facade.setup({
-            mode: mode as N8nFacadeSetupMode,
-            n8nHost: options.host,
-            n8nApiKeyRef: options.apiKey ? 'n8nac:provided-api-key' : undefined,
-        });
+        let instance: Awaited<ReturnType<ReturnType<typeof createManagerFacadeFromOptions>['setup']>>;
+        try {
+            instance = await facade.setup({
+                mode: mode as N8nFacadeSetupMode,
+                n8nHost: options.host,
+                n8nApiKeyRef: options.apiKey ? 'n8nac:provided-api-key' : undefined,
+            });
+            telemetry.track('setup_completed', {
+                setup_mode: normalizeSetupMode(mode),
+                has_project: Boolean(options.projectId),
+                has_sync_folder: false,
+                duration_ms: Date.now() - setupStartedAt,
+            });
+            telemetry.trackActive({ activation_source_event: 'setup_completed' });
+        } catch (error) {
+            telemetry.track('setup_failed', {
+                setup_mode: normalizeSetupMode(mode),
+                error_category: classifyTelemetryError(error),
+                duration_ms: Date.now() - setupStartedAt,
+            });
+            throw error;
+        }
 
         printJsonOrText(
             options,
@@ -679,7 +818,8 @@ program.command('mcp')
             stdio: 'inherit',
         });
 
-        child.on('exit', (code, signal) => {
+        child.on('exit', async (code, signal) => {
+            await telemetry.flush();
             if (signal) {
                 process.kill(process.pid, signal);
                 return;
@@ -687,8 +827,14 @@ program.command('mcp')
             process.exit(code ?? 1);
         });
 
-        child.on('error', (error) => {
+        child.on('error', async (error) => {
             console.error(chalk.red(`❌ Failed to start MCP server: ${error.message}`));
+            telemetry.track('cli_command_completed', {
+                command: 'mcp',
+                outcome: 'failure',
+                error_category: classifyTelemetryError(error),
+            });
+            await telemetry.flush();
             process.exit(1);
         });
     });
@@ -866,4 +1012,15 @@ if (shouldLoadSkillsCommands(process.argv)) {
     registerSkillsCommands(skillsCmd, getSkillsAssetsDir());
 }
 
-program.parse();
+try {
+    await program.parseAsync();
+    await telemetry.flush();
+} catch (error) {
+    telemetry.track('cli_command_completed', {
+        command: getTopLevelCommand(process.argv) || 'unknown',
+        outcome: 'failure',
+        error_category: classifyTelemetryError(error),
+    });
+    await telemetry.flush();
+    throw error;
+}

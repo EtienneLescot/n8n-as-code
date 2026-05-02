@@ -1,0 +1,29 @@
+{
+  "name": "@n8n-as-code/telemetry",
+  "version": "0.1.0",
+  "description": "Privacy-first telemetry primitives for n8n-as-code facades",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

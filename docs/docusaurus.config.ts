@@ -8,6 +8,10 @@ const config: Config = {
   title: 'n8n-as-code',
   tagline: 'Manage n8n workflows as code with version control and AI assistance',
   favicon: 'img/favicon.ico',
+  customFields: {
+    posthogKey: process.env.N8NAC_POSTHOG_KEY || process.env.POSTHOG_KEY || '',
+    posthogHost: process.env.N8NAC_POSTHOG_HOST || process.env.POSTHOG_HOST || 'https://eu.i.posthog.com',
+  },
 
 
   // Set the production url of your site here
@@ -90,6 +94,8 @@ const config: Config = {
     //   },
     // ],
   ],
+
+  clientModules: [require.resolve('./src/telemetry/posthog.ts')],
 
   themeConfig: {
     // Replace with your project's social card

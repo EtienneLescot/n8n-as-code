@@ -9,6 +9,9 @@
     ],
     "references": [
         {
+            "path": "../telemetry"
+        },
+        {
             "path": "../workflow-core"
         },
         {
