@@ -10,7 +10,7 @@ const DEPENDENCY_SECTIONS = ['dependencies', 'devDependencies', 'peerDependencie
 const INTERNAL_DEPENDENCY_SECTIONS = ['dependencies', 'peerDependencies', 'optionalDependencies'];
 const MANAGER_FAMILY_PATTERN = /^@n8n-as-code\/n8n-manager(?:-.+)?$/;
 const MANAGER_RELATED_PACKAGES = new Set(['@n8n-as-code/n8n-credentials-manager']);
-const SEMVER_SPEC_PATTERN = /^(?<prefix>[~^]?)(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?<suffix>(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/;
+const SEMVER_SPEC_PATTERN = /^(?<prefix>[~^]?)(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:-(?<prerelease>[0-9A-Za-z.-]+))?(?:\+(?<build>[0-9A-Za-z.-]+))?$/;
 
 function normalizePath(filePath) {
   return filePath.split(path.sep).join('/');
@@ -112,8 +112,56 @@ function parseSemverSpec(spec) {
     major: Number(match.groups.major),
     minor: Number(match.groups.minor),
     patch: Number(match.groups.patch),
-    suffix: match.groups.suffix || '',
+    prerelease: match.groups.prerelease || '',
+    build: match.groups.build || '',
   };
+}
+
+function comparePrereleaseIdentifier(left, right) {
+  const leftIsNumeric = /^\d+$/.test(left);
+  const rightIsNumeric = /^\d+$/.test(right);
+
+  if (leftIsNumeric && rightIsNumeric) {
+    return Number(left) - Number(right);
+  }
+  if (leftIsNumeric !== rightIsNumeric) {
+    return leftIsNumeric ? -1 : 1;
+  }
+  return left.localeCompare(right);
+}
+
+function comparePrerelease(left, right) {
+  if (left === right) {
+    return 0;
+  }
+  if (!left) {
+    return 1;
+  }
+  if (!right) {
+    return -1;
+  }
+
+  const leftIdentifiers = left.split('.');
+  const rightIdentifiers = right.split('.');
+  const maxLength = Math.max(leftIdentifiers.length, rightIdentifiers.length);
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const leftIdentifier = leftIdentifiers[index];
+    const rightIdentifier = rightIdentifiers[index];
+    if (leftIdentifier === undefined) {
+      return -1;
+    }
+    if (rightIdentifier === undefined) {
+      return 1;
+    }
+
+    const result = comparePrereleaseIdentifier(leftIdentifier, rightIdentifier);
+    if (result !== 0) {
+      return result;
+    }
+  }
+
+  return 0;
 }
 
 function compareParsedSemver(left, right) {
@@ -122,16 +170,7 @@ function compareParsedSemver(left, right) {
       return left[key] - right[key];
     }
   }
-  if (left.suffix === right.suffix) {
-    return 0;
-  }
-  if (!left.suffix) {
-    return 1;
-  }
-  if (!right.suffix) {
-    return -1;
-  }
-  return left.suffix.localeCompare(right.suffix);
+  return comparePrerelease(left.prerelease, right.prerelease);
 }
 
 function getDependencyEntries(manifests) {
@@ -413,7 +452,7 @@ export function runCli(argv = process.argv.slice(2)) {
   return result;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     runCli();
   } catch (error) {
