@@ -250,6 +250,11 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const vscode = acquireVsCodeApi();
         let workflowId = ${workflowIdJs};
         let workflowUrl = ${workflowUrlJs};
+        let iframeOrigin = ${JSON.stringify(iframePermissionOrigin)};
+        const PASTE_RATE_LIMIT_MS = 1000;
+        const GRANT_TTL_MS = 5000;
+        let lastPasteMs = 0;
+        const pendingGrants = new Map();
         let isRunning = false;
         let activeAssistantMessage = null;
 
@@ -299,6 +304,20 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             frame.src = currentSrc;
         }
 
+        function issuePasteGrant() {
+            const token = crypto.randomUUID();
+            pendingGrants.set(token, Date.now() + GRANT_TTL_MS);
+            setTimeout(() => pendingGrants.delete(token), GRANT_TTL_MS);
+            return token;
+        }
+
+        function consumeGrant(token) {
+            const expiry = pendingGrants.get(token);
+            if (!expiry || Date.now() > expiry) return false;
+            pendingGrants.delete(token);
+            return true;
+        }
+
         form.addEventListener('submit', (event) => {
             event.preventDefault();
             const text = promptInput.value.trim();
@@ -331,7 +350,39 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             if (message.type === 'workflow.update' && typeof message.url === 'string') {
                 workflowId = String(message.workflowId || workflowId);
                 workflowUrl = message.url;
+                try { iframeOrigin = new URL(workflowUrl).origin; } catch (e) { iframeOrigin = 'src'; }
                 frame.src = workflowUrl;
+                return;
+            }
+
+            if (message.type === 'n8n-paste-request') {
+                if (event.origin !== iframeOrigin) return;
+                const now = Date.now();
+                if (now - lastPasteMs < PASTE_RATE_LIMIT_MS) return;
+                lastPasteMs = now;
+                vscode.postMessage({ type: 'clipboard-paste-request', grantToken: issuePasteGrant() });
+                return;
+            }
+
+            if (message.type === 'n8n-clipboard-write' && typeof message.text === 'string') {
+                if (event.origin !== iframeOrigin) return;
+                vscode.postMessage({ type: 'clipboard-write', text: message.text });
+                return;
+            }
+
+            if (message.type === 'clipboard-error' && typeof message.grantToken === 'string') {
+                consumeGrant(message.grantToken);
+                return;
+            }
+
+            if (message.type === 'clipboard-paste' && typeof message.text === 'string' && typeof message.grantToken === 'string') {
+                if (event.origin !== window.origin) return;
+                if (!consumeGrant(message.grantToken)) return;
+                try {
+                    if (frame.contentWindow) {
+                        frame.contentWindow.postMessage({ type: 'n8n-clipboard-paste', text: message.text }, iframeOrigin);
+                    }
+                } catch (e) {}
                 return;
             }
 
