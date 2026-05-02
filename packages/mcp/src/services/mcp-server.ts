@@ -462,7 +462,7 @@ async function startStdioServer(service: N8nAsCodeMcpService, telemetry: Telemet
 
     const flushOnce = (): Promise<void> => {
         flushPromise ??= telemetry.flush(1000);
-        return flushPromise;
+        return flushPromise!;
     };
 
     const flushAndResolve = async (): Promise<void> => {
