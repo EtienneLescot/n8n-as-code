@@ -108,13 +108,13 @@ export class ActionItem extends BaseTreeItem {
         return {
           command: 'n8n.pullWorkflow',
           title: 'Pull',
-          arguments: [workflow.id]
+          arguments: [workflow]
         };
       case ActionItemType.PUSH:
         return {
           command: 'n8n.pushWorkflow',
           title: 'Push',
-          arguments: [workflow.filename]
+          arguments: [workflow]
         };
       case ActionItemType.OPEN:
         return {

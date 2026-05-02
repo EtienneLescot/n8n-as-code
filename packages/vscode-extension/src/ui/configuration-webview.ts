@@ -3,11 +3,13 @@ import { N8nApiClient, ConfigService, type IN8nCredentials } from 'n8nac';
 import { getResolvedN8nConfig, getWorkspaceRoot, isFolderPreviouslyInitialized } from '../utils/state-detection.js';
 import { writeUnifiedWorkspaceConfig } from '../utils/unified-config.js';
 import { buildConfigurationInitState } from './configuration-state.js';
+import { getProjectDetail, getProjectDisplayLabel } from '../utils/project-display.js';
 
 type UiProject = {
   id: string;
   name: string;
   type?: string;
+  detail?: string;
 };
 
 function normalizeHost(host: string): string {
@@ -88,8 +90,9 @@ export class ConfigurationWebview {
 
             const uiProjects: UiProject[] = projects.map((project) => ({
               id: project.id,
-              name: project.name,
+              name: getProjectDisplayLabel(project),
               type: project.type,
+              detail: getProjectDetail(project),
             }));
 
             this._panel.webview.postMessage({
@@ -121,11 +124,10 @@ export class ConfigurationWebview {
             if (host && apiKey && (!projectId || !projectName)) {
               const client = new N8nApiClient({ host, apiKey } as IN8nCredentials);
               const projects = (await client.getProjects()) as any[];
-              const personal = projects.find((project) => project.type === 'personal');
-              const fallback = personal || (projects.length === 1 ? projects[0] : undefined);
+              const fallback = projects.length === 1 ? projects[0] : undefined;
               if (fallback) {
                 projectId = fallback.id;
-                projectName = fallback.type === 'personal' ? 'Personal' : fallback.name;
+                projectName = getProjectDisplayLabel(fallback);
               }
             }
 
@@ -290,8 +292,9 @@ export class ConfigurationWebview {
 
         const uiProjects: UiProject[] = projects.map((project) => ({
           id: project.id,
-          name: project.name,
+          name: getProjectDisplayLabel(project),
           type: project.type,
+          detail: getProjectDetail(project),
         }));
 
         this._panel.webview.postMessage({
@@ -903,8 +906,9 @@ export class ConfigurationWebview {
       for (const project of projects) {
         const opt = document.createElement('option');
         opt.value = project.id;
-        opt.textContent = project.type === 'personal' ? 'Personal' : project.name;
-        opt.dataset.projectName = project.type === 'personal' ? 'Personal' : project.name;
+        opt.textContent = project.name;
+        opt.title = project.detail || project.name;
+        opt.dataset.projectName = project.name;
         projectEl.appendChild(opt);
       }
 
@@ -913,7 +917,7 @@ export class ConfigurationWebview {
       const selected = projects.find((project) => project.id === defaultId);
       if (selected) {
         currentConfig.projectId = selected.id;
-        currentConfig.projectName = selected.type === 'personal' ? 'Personal' : selected.name;
+        currentConfig.projectName = selected.name;
       }
     }
 
