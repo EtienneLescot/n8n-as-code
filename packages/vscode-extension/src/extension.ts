@@ -28,6 +28,7 @@ import { getN8nConfig, getResolvedN8nConfig, validateN8nConfig, getWorkspaceRoot
 import { NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION } from './constants/workspace.js';
 import { buildWorkflowQuickPickItems } from './utils/workflow-finder.js';
 import { isClipboardBridgeRequired } from './utils/clipboard-utils.js';
+import { getProjectDetail, getProjectDisplayLabel } from './utils/project-display.js';
 import { IWorkflowStatus } from 'n8nac';
 
 import {
@@ -101,6 +102,25 @@ type DeleteInstanceCommandArgs = {
 type InstanceQuickPickItem = vscode.QuickPickItem & {
     instanceId: string;
 };
+
+function findWorkflowByCommandArg(arg: any): IWorkflowStatus | undefined {
+    const candidate = arg?.workflow ? arg.workflow : arg;
+    if (!candidate) return undefined;
+    if (typeof candidate === 'string') {
+        return selectAllWorkflows(store.getState()).find((workflow) => (
+            workflow.id === candidate || workflow.filename === candidate
+        ));
+    }
+    return candidate;
+}
+
+async function refreshWorkflowList(): Promise<IWorkflowStatus[]> {
+    if (!cli) return [];
+    const workflows = await cli.list();
+    store.dispatch(setWorkflows(workflows));
+    enhancedTreeProvider.refresh();
+    return workflows;
+}
 
 export async function activate(context: vscode.ExtensionContext) {
     outputChannel.show(true);
@@ -231,15 +251,24 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
                 return;
             }
-            const wf = arg?.workflow ? arg.workflow : arg;
-            if (!wf || !cli || !syncManager) return;
+            const wf = findWorkflowByCommandArg(arg);
+            if (!cli || !syncManager) {
+                vscode.window.showWarningMessage('n8n is not initialized yet.');
+                outputChannel.appendLine('[n8n] Push skipped: CLI or sync manager is not initialized.');
+                return;
+            }
+            if (!wf?.filename) {
+                vscode.window.showWarningMessage('Cannot push: no local workflow file is available.');
+                outputChannel.appendLine(`[n8n] Push skipped: invalid workflow argument ${JSON.stringify(arg)}`);
+                return;
+            }
 
             const workflowPath = path.join(syncManager.getInstanceDirectory(), wf.filename);
 
             statusBar.showSyncing();
             try {
                 const pushedId = await cli.push(workflowPath);
-                const workflows = await cli.list();
+                const workflows = await refreshWorkflowList();
                 const updatedWorkflow = workflows.find(candidate => candidate.filename === wf.filename);
                 const workflowId = updatedWorkflow?.id ?? pushedId ?? wf.id;
 
@@ -248,8 +277,6 @@ export async function activate(context: vscode.ExtensionContext) {
                 }
 
                 outputChannel.appendLine(`[n8n] Push successful: ${wf.name} (${workflowId ?? 'unknown id'})`);
-                store.dispatch(setWorkflows(workflows));
-                enhancedTreeProvider.refresh();
                 statusBar.showSynced();
                 vscode.window.showInformationMessage(`✅ Pushed "${wf.name}"`);
             } catch (e: any) {
@@ -257,9 +284,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 if (isOcc) {
                     statusBar.showError('Conflict');
                     await vscode.commands.executeCommand('n8n.resolveConflict', { workflow: wf, choice: undefined });
-                    const workflows = await cli.list();
-                    store.dispatch(setWorkflows(workflows));
-                    enhancedTreeProvider.refresh();
+                    await refreshWorkflowList();
                     statusBar.showSynced();
                 } else {
                     statusBar.showError(e.message);
@@ -274,8 +299,17 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
                 return;
             }
-            const wf = arg?.workflow ? arg.workflow : arg;
-            if (!wf || !cli || !syncManager || !wf.id) return;
+            const wf = findWorkflowByCommandArg(arg);
+            if (!cli || !syncManager) {
+                vscode.window.showWarningMessage('n8n is not initialized yet.');
+                outputChannel.appendLine('[n8n] Pull skipped: CLI or sync manager is not initialized.');
+                return;
+            }
+            if (!wf?.id) {
+                vscode.window.showWarningMessage('Cannot pull: no remote workflow ID is available.');
+                outputChannel.appendLine(`[n8n] Pull skipped: invalid workflow argument ${JSON.stringify(arg)}`);
+                return;
+            }
 
             if (wf.filename) {
                 const workflowStatus = await cli.getSingleWorkflowDetailedStatus(wf.id, wf.filename);
@@ -286,9 +320,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 if (hasConflict || hasLocalChanges) {
                     statusBar.showError('Conflict');
                     await vscode.commands.executeCommand('n8n.resolveConflict', { workflow: wf, choice: undefined });
-                    const workflows = await cli.list();
-                    store.dispatch(setWorkflows(workflows));
-                    enhancedTreeProvider.refresh();
+                    await refreshWorkflowList();
                     statusBar.showSynced();
                     return; // Conflict resolution handles the pull/push
                 }
@@ -296,11 +328,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
             statusBar.showSyncing();
             try {
+                outputChannel.appendLine(`[n8n] Pulling workflow: ${wf.name} (${wf.id})`);
                 await cli.pull(wf.id);
-                const workflows = await cli.list();
-                store.dispatch(setWorkflows(workflows));
-                enhancedTreeProvider.refresh();
+                await refreshWorkflowList();
                 statusBar.showSynced();
+                outputChannel.appendLine(`[n8n] Pull successful: ${wf.name} (${wf.id})`);
                 vscode.window.showInformationMessage(`✅ Pulled "${wf.name}"`);
             } catch (e: any) {
                 statusBar.showError(e.message);
@@ -1304,15 +1336,14 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         });
         if (!projects.length) throw new Error('No projects found. Cannot initialize sync.');
 
-        let selectedProject = projects.find((p: any) => p.type === 'personal');
-        if (!selectedProject && projects.length === 1) selectedProject = projects[0];
+        let selectedProject = projects.length === 1 ? projects[0] : undefined;
 
         if (!selectedProject) {
             const picked = await vscode.window.showQuickPick(
                 projects.map((p: any) => ({
-                    label: p.type === 'personal' ? 'Personal' : p.name,
+                    label: getProjectDisplayLabel(p),
                     description: p.type,
-                    detail: p.id,
+                    detail: getProjectDetail(p),
                     project: p
                 })),
                 { title: 'Select the n8n project to sync', ignoreFocusOut: true }
@@ -1323,7 +1354,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
 
         if (!selectedProject) throw new Error('No project selected.');
         projectId = selectedProject.id;
-        projectName = selectedProject.type === 'personal' ? 'Personal' : selectedProject.name;
+        projectName = getProjectDisplayLabel(selectedProject);
         outputChannel.appendLine(`[n8n] Selected project: ${projectName} (${projectId})`);
     }
 
