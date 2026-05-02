@@ -18,149 +18,35 @@
 // =========================================================================
 interface Object {
     /** Regular output connector (index = output slot, default 0) */
-    out(index?: number): OutputConnection;
+    out(index?: number): {
+        readonly _from: { node: string; output: number; isError?: boolean };
+        to(input: { readonly _to: { node: string; input: number } }): void;
+    };
     /** Regular input connector (index = input slot, default 0) */
-    in(index?: number): InputConnection;
+    in(index?: number): { readonly _to: { node: string; input: number } };
     /** Error output connector */
-    error(): OutputConnection;
+    error(): {
+        readonly _from: { node: string; output: number; isError?: boolean };
+        to(input: { readonly _to: { node: string; input: number } }): void;
+    };
     /** Declare AI/LangChain sub-node dependencies */
-    uses(dependencies: AIDependencyMap): void;
+    uses(dependencies: {
+        ai_languageModel?: any;
+        ai_memory?: any;
+        ai_outputParser?: any;
+        ai_tool?: any[];
+        ai_agent?: any;
+        ai_chain?: any;
+        ai_document?: any[];
+        ai_textSplitter?: any;
+        ai_embedding?: any;
+        ai_retriever?: any;
+        ai_reranker?: any;
+        ai_vectorStore?: any;
+    }): void;
     /** Output reference used as target of .uses() values */
     readonly output: any;
 }
-
-// =========================================================================
-// WORKFLOW SETTINGS
-// =========================================================================
-
-interface WorkflowSettings {
-    executionOrder?: 'v0' | 'v1' | 'v2';
-    timeSavedMode?: 'fixed' | 'calculated';
-    errorWorkflow?: string;
-    timezone?: string;
-    saveManualExecutions?: boolean;
-    saveDataErrorExecution?: 'all' | 'none';
-    saveExecutionProgress?: boolean;
-    callerPolicy?: 'workflowsFromSameOwner' | 'any' | 'none';
-    availableInMCP?: boolean;
-    [key: string]: any;
-}
-
-// =========================================================================
-// DECORATOR METADATA
-// =========================================================================
-
-interface WorkflowDecoratorOptions {
-    /** Workflow ID (assigned by n8n) */
-    id: string;
-    /** Human-readable name */
-    name: string;
-    /** Whether the workflow is active */
-    active: boolean;
-    /** Workflow description */
-    description?: string;
-    /** Workflow execution settings */
-    settings?: WorkflowSettings;
-    /** Project ID for organization */
-    projectId?: string;
-    /** Project name */
-    projectName?: string;
-    /** Whether the workflow is archived */
-    isArchived?: boolean;
-}
-
-interface NodeDecoratorOptions {
-    /** Unique identifier of the node (matches workflow JSON) */
-    id?: string;
-    /** Stable webhook ID assigned by n8n to webhook nodes */
-    webhookId?: string;
-    /** Display name shown in n8n UI */
-    name: string;
-    /** Node type identifier (e.g. "n8n-nodes-base.httpRequest") */
-    type: string;
-    /** Node version */
-    version: number;
-    /** Position [x, y] on the canvas */
-    position?: [number, number];
-    /** Credential references */
-    credentials?: Record<string, { id: string; name: string }>;
-    /** Error handling mode */
-    onError?: 'continueErrorOutput' | 'continueRegularOutput' | 'stopWorkflow';
-}
-
-// =========================================================================
-// AI / LANGCHAIN DEPENDENCY MAP (.uses())
-// =========================================================================
-
-interface AIDependencyMap {
-    ai_languageModel?: any;
-    ai_memory?: any;
-    ai_outputParser?: any;
-    ai_tool?: any[];
-    ai_agent?: any;
-    ai_chain?: any;
-    ai_document?: any[];
-    ai_textSplitter?: any;
-    ai_embedding?: any;
-    ai_retriever?: any;
-    ai_reranker?: any;
-    ai_vectorStore?: any;
-}
-
-// =========================================================================
-// FLUENT CONNECTION API
-// =========================================================================
-
-interface InputConnection {
-    readonly _to: { node: string; input: number };
-}
-
-interface OutputConnection {
-    readonly _from: { node: string; output: number; isError?: boolean };
-    to(input: InputConnection): void;
-}
-
-// =========================================================================
-// DECORATORS
-// =========================================================================
-
-/**
- * Marks a class as an n8n workflow.
- *
- * @example
- * ```ts
- * @workflow({ id: 'abc123', name: 'My Workflow', active: false })
- * export class MyWorkflow { ... }
- * ```
- */
-declare function workflow(options: WorkflowDecoratorOptions): ClassDecorator;
-
-/**
- * Marks a class property as an n8n node.
- * The property value is used as node parameters.
- *
- * @example
- * ```ts
- * @node({ name: 'HTTP Request', type: 'n8n-nodes-base.httpRequest', version: 4.2, position: [300, 200] })
- * MyHttp = { url: 'https://api.example.com' };
- * ```
- */
-declare function node(options: NodeDecoratorOptions): PropertyDecorator;
-
-/**
- * Marks a method as the routing/connections definition.
- *
- * @example
- * ```ts
- * @links()
- * defineRouting() {
- *     this.Trigger.out(0).to(this.Agent.in(0));
- *     this.Agent.uses({ ai_languageModel: this.Model.output });
- * }
- * ```
- */
-declare function links(): MethodDecorator;
-
 
 declare module '@n8n-as-code/transformer' {
     // =========================================================================

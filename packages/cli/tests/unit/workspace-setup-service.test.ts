@@ -53,6 +53,19 @@ describe('WorkspaceSetupService', () => {
 
         WorkspaceSetupService.ensureWorkspaceFiles(workflowDir);
         fs.writeFileSync(
+            path.join(workflowDir, 'colliding-globals.d.ts'),
+            [
+                'interface WorkflowSettings { requiredGlobalOnly: string; }',
+                'interface WorkflowDecoratorOptions { requiredGlobalOnly: string; }',
+                'interface NodeDecoratorOptions { requiredGlobalOnly: string; }',
+                'interface AIDependencyMap { requiredGlobalOnly: string; }',
+                'interface InputConnection { requiredGlobalOnly: string; }',
+                'interface OutputConnection { requiredGlobalOnly: string; }',
+                '',
+            ].join('\n'),
+            'utf-8'
+        );
+        fs.writeFileSync(
             path.join(workflowDir, 'sample.workflow.ts'),
             [
                 "import { workflow, node, links } from '@n8n-as-code/transformer';",
