@@ -19,11 +19,19 @@ export function getPersonalProjectOwner(project: DisplayableProject): string | u
 
 export function getProjectDisplayLabel(project: DisplayableProject): string {
     if (project.type !== 'personal') {
-        return project.name?.trim() || project.id || 'Unnamed project';
+        return getCanonicalProjectName(project);
     }
 
     const owner = getPersonalProjectOwner(project);
     return owner ? `Personal - ${owner}` : 'Personal';
+}
+
+export function getCanonicalProjectName(project: DisplayableProject): string {
+    if (project.type === 'personal') {
+        return 'Personal';
+    }
+
+    return project.name?.trim() || project.id || 'Unnamed project';
 }
 
 export function getProjectDetail(project: DisplayableProject): string {

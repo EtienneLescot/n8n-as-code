@@ -590,8 +590,8 @@ export function getConfigurationHtml(nonce: string): string {
         const opt = document.createElement('option');
         opt.value = project.id;
         opt.dataset.projectName = project.name;
-        opt.textContent = opt.dataset.projectName;
-        opt.title = project.detail || project.name;
+        opt.textContent = project.displayName || project.name;
+        opt.title = project.detail || opt.textContent;
         els.workspaceProject.appendChild(opt);
       }
       if (selectedId && !availableProjects.some((project) => project.id === selectedId)) {

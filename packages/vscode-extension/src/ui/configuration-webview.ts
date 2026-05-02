@@ -3,13 +3,14 @@ import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
 import { getWorkspaceRoot } from '../utils/state-detection.js';
 import type { N8nConfigurationController, N8nConfigurationSnapshot } from '../services/n8n-configuration-controller.js';
 import { getConfigurationHtml } from './configuration-webview-html.js';
-import { getProjectDetail, getProjectDisplayLabel } from '../utils/project-display.js';
+import { getCanonicalProjectName, getProjectDetail, getProjectDisplayLabel } from '../utils/project-display.js';
 
 type UiProject = {
   id: string;
   name: string;
   type?: string;
   detail?: string;
+  displayName?: string;
 };
 
 const PERSONAL_PROJECT: UiProject = {
@@ -17,6 +18,7 @@ const PERSONAL_PROJECT: UiProject = {
   name: 'Personal',
   type: 'personal',
   detail: 'Type: personal | ID: personal',
+  displayName: 'Personal',
 };
 
 function normalizeHost(host: string): string {
@@ -141,9 +143,10 @@ export class ConfigurationWebview {
             autoStart: true,
           })).map((project) => ({
             id: project.id,
-            name: getProjectDisplayLabel(project),
+            name: getCanonicalProjectName(project),
             type: project.type,
             detail: getProjectDetail(project),
+            displayName: getProjectDisplayLabel(project),
           }));
           this._panel.webview.postMessage({
             type: 'projectsLoaded',
