@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { IWorkflowStatus } from 'n8nac';
 import { buildWebviewHtml } from './webview-html.js';
+import { workflowWebviewRegistry } from '../services/workflow-webview-registry.js';
 export { buildWebviewHtml } from './webview-html.js';
 
 export class WorkflowWebview {
@@ -8,12 +9,17 @@ export class WorkflowWebview {
     private readonly _panel: vscode.WebviewPanel;
     private _workflowId: string;
     private _disposables: vscode.Disposable[] = [];
+    private _registryDisposable: { dispose(): void } | undefined;
 
     private _onClipboardPasteRequest: ((panel: vscode.WebviewPanel, grantToken: string) => Promise<void>) | undefined;
 
     private constructor(panel: vscode.WebviewPanel, workflowId: string, url: string) {
         this._panel = panel;
         this._workflowId = workflowId;
+        this._registryDisposable = workflowWebviewRegistry.register({
+            getWorkflowId: () => this._workflowId,
+            reloadWorkflow: () => this._panel.webview.postMessage({ type: 'reload' }),
+        });
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
         this._panel.webview.html = this.getHtmlForWebview(workflowId, url);
 
@@ -77,15 +83,7 @@ export class WorkflowWebview {
      * Trigger a reload of the webview if the workflowId matches the one currently displayed.
      */
     public static reloadIfMatching(workflowId: string, _outputChannel?: vscode.OutputChannel) {
-        if (WorkflowWebview.currentPanel) {
-            const panelId = WorkflowWebview.currentPanel._workflowId;
-            if (panelId === workflowId) {
-                // outputChannel?.appendLine(`[Webview] Reloading matching workflow: ${workflowId}`);
-                WorkflowWebview.currentPanel._panel.webview.postMessage({ type: 'reload' });
-                return true;
-            }
-        }
-        return false;
+        return workflowWebviewRegistry.reloadIfMatching(workflowId);
     }
 
     public update(workflowId: string, url: string) {
@@ -95,7 +93,11 @@ export class WorkflowWebview {
     }
 
     public dispose() {
-        WorkflowWebview.currentPanel = undefined;
+        if (WorkflowWebview.currentPanel === this) {
+            WorkflowWebview.currentPanel = undefined;
+        }
+        this._registryDisposable?.dispose();
+        this._registryDisposable = undefined;
         this._panel.dispose();
         while (this._disposables.length) {
             const x = this._disposables.pop();

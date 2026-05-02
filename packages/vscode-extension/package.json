@@ -106,6 +106,16 @@
         "icon": "$(split-horizontal)"
       },
       {
+        "command": "n8n.openAgentWorkbench",
+        "title": "Open Agent Workbench",
+        "icon": "$(hubot)"
+      },
+      {
+        "command": "n8n.openAgentManager",
+        "title": "n8n: Open Agent Manager",
+        "icon": "$(account)"
+      },
+      {
         "command": "n8n.pushWorkflow",
         "title": "Push",
         "icon": "$(cloud-upload)"
@@ -134,6 +144,11 @@
         "command": "n8n.initializeAI",
         "title": "Initialize AI Context",
         "icon": "$(sparkle)"
+      },
+      {
+        "command": "n8n.agent.setApiKey",
+        "title": "n8n Agent: Set Provider API Key",
+        "icon": "$(key)"
       },
       {
         "command": "n8n.applySettings",
@@ -241,6 +256,11 @@
           "when": "viewItem =~ /^workflow-(tracked|local-only)$/"
         },
         {
+          "command": "n8n.openAgentWorkbench",
+          "group": "1_open@4",
+          "when": "viewItem =~ /^workflow-(tracked|tracked-archived|cloud-only)$/"
+        },
+        {
           "command": "n8n.pushWorkflow",
           "group": "2_sync@1",
           "when": "viewItem =~ /^workflow-(tracked|local-only)$/"
@@ -275,6 +295,29 @@
         "n8n.projectName": {
           "type": "string",
           "description": "Project name to display (managed by the extension; use the Configure command to select)"
+        },
+        "n8n.agent.provider": {
+          "type": "string",
+          "enum": [
+            "anthropic",
+            "openai",
+            "google",
+            "mistral",
+            "openrouter",
+            "openai-compatible"
+          ],
+          "default": "openai",
+          "description": "Provider used by the embedded n8n Agent Workbench. API keys are stored in VS Code Secret Storage, not settings."
+        },
+        "n8n.agent.model": {
+          "type": "string",
+          "default": "",
+          "description": "Optional model override for the embedded n8n Agent Workbench. Leave empty to use the provider default."
+        },
+        "n8n.agent.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Optional OpenAI-compatible base URL for the embedded n8n Agent Workbench."
         }
       }
     }
@@ -304,6 +347,7 @@
     "@n8n-as-code/skills": "1.10.0",
     "@n8n-as-code/telemetry": "0.1.0",
     "@n8n-as-code/workflow-core": "0.1.0",
+    "@yagr/runtime": "0.1.1-next.226.1",
     "@reduxjs/toolkit": "^2.11.2",
     "http-proxy": "^1.18.1",
     "n8nac": "1.8.1",
