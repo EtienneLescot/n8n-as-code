@@ -16,28 +16,24 @@
 // properties (typed from their literal values) get full IntelliSense
 // inside defineRouting() without explicit type casts.
 // =========================================================================
-export {};
-
-declare global {
-    interface Object {
-        /** Regular output connector (index = output slot, default 0) */
-        out(index?: number): OutputConnection;
-        /** Regular input connector (index = input slot, default 0) */
-        in(index?: number): InputConnection;
-        /** Error output connector */
-        error(): OutputConnection;
-        /** Declare AI/LangChain sub-node dependencies */
-        uses(dependencies: AIDependencyMap): void;
-        /** Output reference used as target of .uses() values */
-        readonly output: any;
-    }
+interface Object {
+    /** Regular output connector (index = output slot, default 0) */
+    out(index?: number): OutputConnection;
+    /** Regular input connector (index = input slot, default 0) */
+    in(index?: number): InputConnection;
+    /** Error output connector */
+    error(): OutputConnection;
+    /** Declare AI/LangChain sub-node dependencies */
+    uses(dependencies: AIDependencyMap): void;
+    /** Output reference used as target of .uses() values */
+    readonly output: any;
 }
 
 // =========================================================================
 // WORKFLOW SETTINGS
 // =========================================================================
 
-export interface WorkflowSettings {
+interface WorkflowSettings {
     executionOrder?: 'v0' | 'v1' | 'v2';
     timeSavedMode?: 'fixed' | 'calculated';
     errorWorkflow?: string;
@@ -54,7 +50,7 @@ export interface WorkflowSettings {
 // DECORATOR METADATA
 // =========================================================================
 
-export interface WorkflowDecoratorOptions {
+interface WorkflowDecoratorOptions {
     /** Workflow ID (assigned by n8n) */
     id: string;
     /** Human-readable name */
@@ -73,7 +69,7 @@ export interface WorkflowDecoratorOptions {
     isArchived?: boolean;
 }
 
-export interface NodeDecoratorOptions {
+interface NodeDecoratorOptions {
     /** Unique identifier of the node (matches workflow JSON) */
     id?: string;
     /** Stable webhook ID assigned by n8n to webhook nodes */
@@ -96,7 +92,7 @@ export interface NodeDecoratorOptions {
 // AI / LANGCHAIN DEPENDENCY MAP (.uses())
 // =========================================================================
 
-export interface AIDependencyMap {
+interface AIDependencyMap {
     ai_languageModel?: any;
     ai_memory?: any;
     ai_outputParser?: any;
@@ -115,11 +111,11 @@ export interface AIDependencyMap {
 // FLUENT CONNECTION API
 // =========================================================================
 
-export interface InputConnection {
+interface InputConnection {
     readonly _to: { node: string; input: number };
 }
 
-export interface OutputConnection {
+interface OutputConnection {
     readonly _from: { node: string; output: number; isError?: boolean };
     to(input: InputConnection): void;
 }
@@ -137,7 +133,7 @@ export interface OutputConnection {
  * export class MyWorkflow { ... }
  * ```
  */
-export declare function workflow(options: WorkflowDecoratorOptions): ClassDecorator;
+declare function workflow(options: WorkflowDecoratorOptions): ClassDecorator;
 
 /**
  * Marks a class property as an n8n node.
@@ -149,7 +145,7 @@ export declare function workflow(options: WorkflowDecoratorOptions): ClassDecora
  * MyHttp = { url: 'https://api.example.com' };
  * ```
  */
-export declare function node(options: NodeDecoratorOptions): PropertyDecorator;
+declare function node(options: NodeDecoratorOptions): PropertyDecorator;
 
 /**
  * Marks a method as the routing/connections definition.
@@ -163,7 +159,7 @@ export declare function node(options: NodeDecoratorOptions): PropertyDecorator;
  * }
  * ```
  */
-export declare function links(): MethodDecorator;
+declare function links(): MethodDecorator;
 
 
 declare module '@n8n-as-code/transformer' {
