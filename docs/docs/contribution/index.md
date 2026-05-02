@@ -39,6 +39,11 @@ For end-to-end work across `n8n-as-code` and `n8n-manager`, the optional helper 
 | **n8nac** (CLI) | npm | CLI + embedded sync engine |
 | **@n8n-as-code/skills** | npm | Internal AI tooling library exposed through `n8nac skills` |
 | **@n8n-as-code/transformer** | npm | TypeScript workflow decorators and conversion |
+| **@n8n-as-code/telemetry** | npm | Privacy-first telemetry primitives shared across facades |
+| **@n8n-as-code/workflow-core** | npm | Workflow intelligence contracts and public authoring API |
+| **@n8n-as-code/manager-adapter** | npm | Adapter from n8n-as-code surfaces to n8n-manager runtime packages |
+| **@n8n-as-code/mcp** | npm | Dedicated MCP server for n8n-as-code tools |
+| **@n8n-as-code/n8nac** | npm | OpenClaw plugin package |
 | **n8n-as-code** (VS Code Extension) | VS Code Marketplace / Open VSX | Editor integration |
 | **Claude adapter** | GitHub / plugin distribution | Built from `packages/skills` |
 
@@ -86,12 +91,44 @@ openclaw n8nac:status
 
 The project uses a custom commit-driven release flow with independent package versioning. Each package evolves independently while the release automation keeps internal dependencies aligned. See the [release scripts](https://github.com/EtienneLescot/n8n-as-code/tree/main/scripts/release) for details.
 
+## Dependency Alignment
+
+Dependency alignment is automated and enforced locally and in CI. This is required because the repo publishes independent packages that depend on each other and also consumes external `n8n-manager` runtime packages.
+
+### Local Commands
+
+```bash
+# Rewrite package manifests so dependency specs are aligned
+npm run sync:deps
+
+# Verify package manifests without modifying files
+npm run check:deps
+
+# Backward-compatible alias for dependency alignment checks
+npm run check-versions
+```
+
+### What Gets Synchronized
+
+- Workspace package dependencies are pinned to the exact current local package version.
+- The `@n8n-as-code/n8n-manager*` dependency family is kept consistent wherever the same package appears.
+- `@n8n-as-code/n8n-credentials-manager` is grouped with the n8n-manager runtime dependencies.
+- Dependency sync updates only package manifest dependency specs. Release versions and changelogs remain owned by `scripts/release/workspace-release.mjs`.
+
+### Enforcement Points
+
+- `lefthook` runs `node scripts/sync-dependencies.mjs --write --stage` during pre-commit when package manifests or release dependency automation change.
+- CI runs `npm run check:deps` after installation and before build/test.
+- Dependabot groups n8n-manager runtime package updates so one external update can be propagated consistently across all manifests.
+
+If dependency alignment fails, run `npm run sync:deps`, review the manifest diff, and commit the updated package files with the original change.
+
 ### Release Workflow
 
 #### Push to `next`
 
 - Every push to `next` computes prerelease bumps from commit messages.
-- Internal dependency versions are re-pinned automatically.
+- Internal dependency versions are re-pinned automatically from the workspace package graph.
 - Changed public packages are published to npm with the `next` dist-tag.
 - The VS Code extension follows the official Marketplace recommendation: stable releases use even minor lines and prereleases use odd minor lines.
 - The prerelease line is intentionally kept above the stable version that the same changes will later publish from `main`, so preview users are not forced back to stable.
@@ -102,7 +139,7 @@ The project uses a custom commit-driven release flow with independent package ve
 
 - If any package version in `package.json` is already ahead of its latest stable tag, `main` publishes that version directly instead of opening a new release PR.
 - A push to `main` creates or updates a single release PR only when no package is already ahead of its latest stable tag and commit history requires version bumps.
-- The release PR updates package versions and internal dependency versions together.
+- The release PR updates package versions, internal dependency versions, and changelogs together.
 - For the VS Code extension, stable releases always land on patch `0` of the next even minor line.
 - Example: after prereleases on `0.23.x`, the next stable extension release becomes `0.22.0`, and the following cycle starts with prereleases on `0.25.x`.
 
@@ -128,7 +165,7 @@ git commit -m "fix(cli): handle sync edge case"
 
 **Result:**
 - `n8nac`: `0.11.4` → `0.11.5` ✅
-- `@n8n-as-code/skills`: (unchanged, no dependency on n8nac) ✅
+- `@n8n-as-code/mcp`: patch release if it depends on the changed `n8nac` version ✅
 - `VS Code Extension`: `0.21.0` → `0.22.0` on `main`, while `next` prereleases are published on `0.23.x` ✅
 
 All packages that depend on `n8nac` will have their `package.json` updated to reference the newly released stable version.
@@ -160,9 +197,9 @@ CI automatically:
 - **The VS Code extension uses even minor lines for stable releases and odd minor lines for prereleases**
 - **The prerelease line must stay numerically above the stable release that will be published next**
 - **The VS Code extension version line is driven from `packages/vscode-extension/package.json`**
-- **Internal dependencies are automatically re-pinned** whenever an upstream package is bumped
-- **Private packages remain safe** - they can participate in version orchestration without npm publication
-- **Use `npm run check-versions`** to verify all internal dependencies are up-to-date
+- **Internal dependencies are automatically discovered from package manifests and re-pinned** whenever an upstream package is bumped
+- **Use `npm run sync:deps`** before committing package manifest changes when the hook cannot run
+- **Use `npm run check:deps` or `npm run check-versions`** to verify all internal and n8n-manager dependency specs are up to date
 - **Git tags are created automatically** for each published NPM package
 - **Each package has independent releases** - No global monorepo release
 

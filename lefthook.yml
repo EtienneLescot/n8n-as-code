@@ -6,6 +6,16 @@
 
 pre-commit:
   commands:
+    sync-dependencies:
+      glob:
+        - "package.json"
+        - "packages/*/package.json"
+        - "plugins/openclaw/n8n-as-code/package.json"
+        - "scripts/sync-dependencies.mjs"
+        - "scripts/check-version-consistency.js"
+        - "scripts/release/workspace-release.mjs"
+      run: node scripts/sync-dependencies.mjs --write --stage
+
     # Regenerate plugin SKILL.md files whenever ai-context-generator or the
     # build script itself is part of the commit. This prevents the CI check
     # "Verify committed skill not modified by build" from failing on every push

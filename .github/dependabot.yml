@@ -10,6 +10,7 @@ updates:
       n8n-manager:
         patterns:
           - "@n8n-as-code/n8n-manager*"
+          - "@n8n-as-code/n8n-credentials-manager"
     commit-message:
       prefix: "fix"
       include: "scope"

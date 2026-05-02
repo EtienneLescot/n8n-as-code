@@ -21,9 +21,12 @@
   "dependencies": {
     "@n8n-as-code/n8n-credentials-manager": "^0.1.2",
     "@n8n-as-code/n8n-manager-core": "^0.5.0",
-    "@n8n-as-code/workflow-core": "^0.1.0"
+    "@n8n-as-code/workflow-core": "0.1.0"
   },
   "devDependencies": {
     "typescript": "^5.3.3"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
