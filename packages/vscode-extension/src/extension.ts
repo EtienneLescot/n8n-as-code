@@ -52,7 +52,7 @@ import {
 
 // ------- Clipboard bridge for macOS -------
 /**
- * Register the clipboard paste handler on the current WorkflowWebview panel.
+ * Register the clipboard paste handler on n8n iframe host panels.
  * Only active on macOS where Electron intercepts Cmd+V at the native menu level.
  * When the n8n iframe intercepts Cmd+V, it sends a postMessage chain up to the
  * extension host. This handler reads the system clipboard and sends the text
@@ -61,6 +61,15 @@ import {
 function registerClipboardHandler(): void {
     if (!isClipboardBridgeRequired()) return;
     WorkflowWebview.onClipboardPasteRequest(async (panel, grantToken) => {
+        try {
+            const text = await vscode.env.clipboard.readText();
+            panel.webview.postMessage({ type: 'clipboard-paste', text, grantToken });
+        } catch (error) {
+            console.error('[Clipboard] Failed to read clipboard for paste request', error);
+            panel.webview.postMessage({ type: 'clipboard-error', grantToken });
+        }
+    });
+    AgentWorkbenchWebview.onClipboardPasteRequest(async (panel, grantToken) => {
         try {
             const text = await vscode.env.clipboard.readText();
             panel.webview.postMessage({ type: 'clipboard-paste', text, grantToken });
@@ -751,6 +760,7 @@ async function openAgentWorkbench(context: vscode.ExtensionContext, workflow: IW
             requireAgentRuntimeController(),
             vscode.ViewColumn.One,
         );
+        registerClipboardHandler();
     } catch (e: any) {
         vscode.window.showErrorMessage(`Failed to open n8n Agent Workbench: ${e.message}`);
     }
@@ -852,6 +862,7 @@ async function setAgentProviderApiKey(context: vscode.ExtensionContext): Promise
     }
 
     const trimmed = apiKey.trim();
+    await config.update('provider', picked.provider, vscode.ConfigurationTarget.Global);
     if (!trimmed) {
         await context.secrets.delete(getAgentProviderSecretKey(picked.provider));
         vscode.window.showInformationMessage(`Cleared n8n Agent API key for ${picked.label}.`);
@@ -859,7 +870,6 @@ async function setAgentProviderApiKey(context: vscode.ExtensionContext): Promise
     }
 
     await context.secrets.store(getAgentProviderSecretKey(picked.provider), trimmed);
-    await config.update('provider', picked.provider, vscode.ConfigurationTarget.Global);
     vscode.window.showInformationMessage(`Stored n8n Agent API key for ${picked.label}.`);
 }
 

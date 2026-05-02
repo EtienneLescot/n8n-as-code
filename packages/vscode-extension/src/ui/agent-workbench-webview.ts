@@ -14,6 +14,7 @@ export class AgentWorkbenchWebview {
     private _registryDisposable: { dispose(): void } | undefined;
     private _workflow: IWorkflowStatus;
     private _workflowUrl: string;
+    private _onClipboardPasteRequest: ((panel: vscode.WebviewPanel, grantToken: string) => Promise<void>) | undefined;
 
     private constructor(
         panel: vscode.WebviewPanel,
@@ -68,6 +69,12 @@ export class AgentWorkbenchWebview {
         AgentWorkbenchWebview.currentPanel = new AgentWorkbenchWebview(panel, context, workflow, workflowUrl, agentRuntime);
     }
 
+    public static onClipboardPasteRequest(handler: (panel: vscode.WebviewPanel, grantToken: string) => Promise<void>): void {
+        if (AgentWorkbenchWebview.currentPanel) {
+            AgentWorkbenchWebview.currentPanel._onClipboardPasteRequest = handler;
+        }
+    }
+
     public update(workflow: IWorkflowStatus, workflowUrl: string): void {
         this._workflow = workflow;
         this._workflowUrl = workflowUrl;
@@ -98,6 +105,21 @@ export class AgentWorkbenchWebview {
             return;
         }
         const payload = message as Record<string, unknown>;
+
+        if (payload.type === 'clipboard-write' && typeof payload.text === 'string') {
+            try {
+                await vscode.env.clipboard.writeText(payload.text);
+            } catch (error) {
+                console.error('[AgentWorkbench] Clipboard write error', error);
+            }
+            return;
+        }
+
+        if (payload.type === 'clipboard-paste-request' && typeof payload.grantToken === 'string') {
+            void this._onClipboardPasteRequest?.(this._panel, payload.grantToken)
+                ?.catch(error => console.error('[AgentWorkbench] Clipboard paste handler error', error));
+            return;
+        }
 
         if (payload.type === 'agent.send') {
             await this._agentRuntime.sendPrompt({
