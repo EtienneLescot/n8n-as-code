@@ -1,6 +1,7 @@
 import { accessSync, constants, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { N8N_FACADE_SETUP_MODES } from "@n8n-as-code/workflow-core";
+import { createTelemetryClient } from "@n8n-as-code/telemetry";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { registerN8nAcCli } from "./src/cli.js";
 import { getWorkspaceDir, isWorkspaceInitialized, readWorkspaceBinding } from "./src/workspace.js";
@@ -98,6 +99,7 @@ const n8nAcPlugin = {
 
   register(api: OpenClawPluginApi) {
     const workspaceDir = getWorkspaceDir();
+    const telemetry = createTelemetryClient({ facade: "openclaw" });
 
     // Ensure the plugin workspace directory always exists.
     mkdirSync(workspaceDir, { recursive: true });
@@ -111,7 +113,7 @@ const n8nAcPlugin = {
 
     // -- CLI status ----------------------------------------------------------
     api.registerCli(
-      ({ program }) => registerN8nAcCli({ program, workspaceDir }),
+      ({ program }) => registerN8nAcCli({ program, workspaceDir, telemetry }),
       { commands: ["n8nac:status"] },
     );
 
@@ -119,7 +121,10 @@ const n8nAcPlugin = {
     api.registerService({
       id: "n8nac-context",
       start: async () => {
-        if (isWorkspaceInitialized(workspaceDir)) {
+        const initialized = isWorkspaceInitialized(workspaceDir);
+        telemetry.track("openclaw_service_started", { workspace_initialized: initialized });
+        telemetry.trackActive({ activation_source_event: "openclaw_service_started" });
+        if (initialized) {
           if (hasAgentsContext(workspaceDir)) {
             api.logger.info("[n8nac] Workspace ready — lightweight prompt context enabled; n8n skill available.");
           } else {
@@ -129,7 +134,9 @@ const n8nAcPlugin = {
           api.logger.info("[n8nac] Workspace not initialized. Use the n8n-manager and n8n-architect skills to configure it.");
         }
       },
-      stop: async () => {},
+      stop: async () => {
+        await telemetry.flush(1000);
+      },
     });
   },
 };

@@ -7,6 +7,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { isInitializeRequest, type ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { N8nAsCodeMcpService, type N8nAsCodeMcpServiceOptions } from './mcp-service.js';
+import { createTelemetryClient, classifyTelemetryError, type TelemetryClient } from '@n8n-as-code/telemetry';
 
 export interface HttpServerOptions {
     port?: number;
@@ -76,7 +77,7 @@ const searchDocsSchema = {
     limit: z.number().int().min(1).max(10).optional().describe('Maximum number of pages to return.'),
 };
 
-function buildMcpServer(service: N8nAsCodeMcpService): McpServer {
+function buildMcpServer(service: N8nAsCodeMcpService, telemetry: TelemetryClient): McpServer {
     const server = new McpServer({
         name: 'n8n-as-code',
         version: '1.0.0',
@@ -87,6 +88,35 @@ function buildMcpServer(service: N8nAsCodeMcpService): McpServer {
     // types are explicitly annotated below for full type safety at the call site.
     const s = server as unknown as {
         tool(name: string, description: string, schema: object, annotations: ToolAnnotations, handler: (args: any) => any): void;
+    };
+
+    const trackTool = (toolName: string, handler: (args: any) => any) => async (args: any) => {
+        const startedAt = Date.now();
+        try {
+            const result = await handler(args);
+            const isError = Boolean((result as any)?.isError);
+            telemetry.track('mcp_tool_called', {
+                tool_name: toolName,
+                outcome: isError ? 'failure' : 'success',
+                duration_ms: Date.now() - startedAt,
+                limit: typeof args?.limit === 'number' ? args.limit : undefined,
+                format: typeof args?.format === 'string' ? args.format : undefined,
+                error_category: isError ? 'unknown_error' : undefined,
+            });
+            telemetry.trackActive({ activation_source_event: 'mcp_tool_called' });
+            return result;
+        } catch (error) {
+            telemetry.track('mcp_tool_called', {
+                tool_name: toolName,
+                outcome: 'failure',
+                duration_ms: Date.now() - startedAt,
+                limit: typeof args?.limit === 'number' ? args.limit : undefined,
+                format: typeof args?.format === 'string' ? args.format : undefined,
+                error_category: classifyTelemetryError(error),
+            });
+            telemetry.trackActive({ activation_source_event: 'mcp_tool_called' });
+            throw error;
+        }
     };
 
     // All tools operate exclusively on local/bundled data and produce no lasting side effects.
@@ -102,9 +132,9 @@ function buildMcpServer(service: N8nAsCodeMcpService): McpServer {
         'Search the local n8n-as-code knowledge base for nodes, documentation, and examples.',
         searchKnowledgeSchema,
         localReadOnlyHints,
-        async ({ query, category, type, limit }: { query: string; category?: string; type?: 'node' | 'documentation'; limit?: number }) => ({
+        trackTool('search_n8n_knowledge', async ({ query, category, type, limit }: { query: string; category?: string; type?: 'node' | 'documentation'; limit?: number }) => ({
             content: [{ type: 'text' as const, text: asJsonText(await service.searchKnowledge(query, { category, type, limit })) }],
-        }),
+        })),
     );
 
     s.tool(
@@ -112,7 +142,7 @@ function buildMcpServer(service: N8nAsCodeMcpService): McpServer {
         'Get the full offline schema and metadata for a specific n8n node.',
         getNodeInfoSchema,
         localReadOnlyHints,
-        async ({ name }: { name: string }) => {
+        trackTool('get_n8n_node_info', async ({ name }: { name: string }) => {
             try {
                 return {
                     content: [{ type: 'text' as const, text: asJsonText(await service.getNodeInfo(name)) }],
@@ -123,7 +153,7 @@ function buildMcpServer(service: N8nAsCodeMcpService): McpServer {
                     content: [{ type: 'text' as const, text: error.message }],
                 };
             }
-        },
+        }),
     );
 
     s.tool(
@@ -131,9 +161,9 @@ function buildMcpServer(service: N8nAsCodeMcpService): McpServer {
         'Search the bundled n8n community workflow index for reusable example workflows.',
         searchExamplesSchema,
         localReadOnlyHints,
-        async ({ query, limit }: { query: string; limit?: number }) => ({
+        trackTool('search_n8n_workflow_examples', async ({ query, limit }: { query: string; limit?: number }) => ({
             content: [{ type: 'text' as const, text: asJsonText(await service.searchExamples(query, limit)) }],
-        }),
+        })),
     );
 
     s.tool(
@@ -141,7 +171,7 @@ function buildMcpServer(service: N8nAsCodeMcpService): McpServer {
         'Get metadata and the raw download URL for a specific community workflow example.',
         getExampleInfoSchema,
         localReadOnlyHints,
-        async ({ id }: { id: string }) => {
+        trackTool('get_n8n_workflow_example', async ({ id }: { id: string }) => {
             try {
                 return {
                     content: [{ type: 'text' as const, text: asJsonText(await service.getExampleInfo(id)) }],
@@ -152,7 +182,7 @@ function buildMcpServer(service: N8nAsCodeMcpService): McpServer {
                     content: [{ type: 'text' as const, text: error.message }],
                 };
             }
-        },
+        }),
     );
 
     s.tool(
@@ -160,9 +190,16 @@ function buildMcpServer(service: N8nAsCodeMcpService): McpServer {
         'Validate an n8n workflow from JSON or TypeScript content against the bundled schema.',
         validateWorkflowSchema,
         localReadOnlyHints,
-        async ({ workflowContent, format }: { workflowContent: string; format?: 'auto' | 'json' | 'typescript' }) => {
+        trackTool('validate_n8n_workflow', async ({ workflowContent, format }: { workflowContent: string; format?: 'auto' | 'json' | 'typescript' }) => {
             try {
                 const result = await service.validateWorkflow({ workflowContent, format });
+                telemetry.track('workflow_validated', {
+                    source: 'mcp',
+                    format: format ?? 'auto',
+                    valid: Boolean((result as any)?.valid),
+                    error_count: Array.isArray((result as any)?.errors) ? (result as any).errors.length : undefined,
+                    warning_count: Array.isArray((result as any)?.warnings) ? (result as any).warnings.length : undefined,
+                });
                 return {
                     content: [{ type: 'text' as const, text: asJsonText(result) }],
                 };
@@ -172,7 +209,7 @@ function buildMcpServer(service: N8nAsCodeMcpService): McpServer {
                     content: [{ type: 'text' as const, text: error.message }],
                 };
             }
-        },
+        }),
     );
 
     s.tool(
@@ -180,15 +217,15 @@ function buildMcpServer(service: N8nAsCodeMcpService): McpServer {
         'Search bundled n8n documentation pages and return matching excerpts.',
         searchDocsSchema,
         localReadOnlyHints,
-        async ({ query, category, type, limit }: { query: string; category?: string; type?: 'node' | 'documentation'; limit?: number }) => ({
+        trackTool('search_n8n_docs', async ({ query, category, type, limit }: { query: string; category?: string; type?: 'node' | 'documentation'; limit?: number }) => ({
             content: [{ type: 'text' as const, text: asJsonText(await service.searchDocs(query, { category, type, limit })) }],
-        }),
+        })),
     );
 
     return server;
 }
 
-async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpServerOptions): Promise<void> {
+async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpServerOptions, telemetry: TelemetryClient): Promise<void> {
     const port = httpOptions.port ?? 3000;
     const host = httpOptions.host ?? '127.0.0.1';
 
@@ -264,7 +301,7 @@ async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpSe
                     }
                 };
 
-                const server = buildMcpServer(service);
+                const server = buildMcpServer(service, telemetry);
                 await server.connect(transport);
             } else {
                 const status = sessionId ? 404 : 400;
@@ -304,6 +341,7 @@ async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpSe
             await transport.close();
         }
         transports.clear();
+        await telemetry.flush();
         process.exit(0);
     };
 
@@ -314,7 +352,7 @@ async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpSe
     await new Promise<void>(() => {});
 }
 
-async function startSseServer(service: N8nAsCodeMcpService, sseOptions: SseServerOptions): Promise<void> {
+async function startSseServer(service: N8nAsCodeMcpService, sseOptions: SseServerOptions, telemetry: TelemetryClient): Promise<void> {
     const port = sseOptions.port ?? 3000;
     const host = sseOptions.host ?? '127.0.0.1';
 
@@ -332,7 +370,7 @@ async function startSseServer(service: N8nAsCodeMcpService, sseOptions: SseServe
                 transports.delete(transport.sessionId);
             };
 
-            const server = buildMcpServer(service);
+            const server = buildMcpServer(service, telemetry);
             await server.connect(transport);
             await transport.start();
         } else if (req.url?.startsWith('/message') && req.method === 'POST') {
@@ -377,6 +415,7 @@ async function startSseServer(service: N8nAsCodeMcpService, sseOptions: SseServe
             await transport.close();
         }
         transports.clear();
+        await telemetry.flush();
         process.exit(0);
     };
 
@@ -390,18 +429,33 @@ async function startSseServer(service: N8nAsCodeMcpService, sseOptions: SseServe
 export async function startN8nAsCodeMcpServer(options: StartServerOptions = {}): Promise<void> {
     const { http: httpOptions, sse: sseOptions, ...serviceOptions } = options;
     const service = new N8nAsCodeMcpService(serviceOptions);
+    const telemetry = createTelemetryClient({ facade: 'mcp' });
 
     if (httpOptions) {
-        return startHttpServer(service, httpOptions);
+        telemetry.track('mcp_server_started', {
+            transport: 'http',
+            host_type: LOOPBACK_HOSTS.has(httpOptions.host ?? '127.0.0.1') ? 'loopback' : 'non_loopback',
+            port_configured: httpOptions.port !== undefined,
+        });
+        telemetry.trackActive({ activation_source_event: 'mcp_server_started' });
+        return startHttpServer(service, httpOptions, telemetry);
     }
     if (sseOptions) {
-        return startSseServer(service, sseOptions);
+        telemetry.track('mcp_server_started', {
+            transport: 'sse',
+            host_type: LOOPBACK_HOSTS.has(sseOptions.host ?? '127.0.0.1') ? 'loopback' : 'non_loopback',
+            port_configured: sseOptions.port !== undefined,
+        });
+        telemetry.trackActive({ activation_source_event: 'mcp_server_started' });
+        return startSseServer(service, sseOptions, telemetry);
     }
-    return startStdioServer(service);
+    telemetry.track('mcp_server_started', { transport: 'stdio' });
+    telemetry.trackActive({ activation_source_event: 'mcp_server_started' });
+    return startStdioServer(service, telemetry);
 }
 
-async function startStdioServer(service: N8nAsCodeMcpService): Promise<void> {
-    const server = buildMcpServer(service);
+async function startStdioServer(service: N8nAsCodeMcpService, telemetry: TelemetryClient): Promise<void> {
+    const server = buildMcpServer(service, telemetry);
     const transport = new StdioServerTransport();
     await server.connect(transport);
 }

@@ -23,6 +23,7 @@ import {
     type N8nConfigurationChangeEvent,
 } from './services/n8n-configuration-controller.js';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
+import { createTelemetryClient, type TelemetryClient } from '@n8n-as-code/telemetry';
 import { ExtensionState } from './types.js';
 import { getN8nConfig, getResolvedN8nConfig, validateN8nConfig, getWorkspaceRoot } from './utils/state-detection.js';
 import { NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION } from './constants/workspace.js';
@@ -85,6 +86,7 @@ const enhancedTreeProvider = new EnhancedWorkflowTreeProvider();
 const decorationProvider = new WorkflowDecorationProvider();
 const outputChannel = vscode.window.createOutputChannel("n8n-as-code");
 let workflowsTreeView: vscode.TreeView<any> | undefined;
+let telemetryClient: TelemetryClient | undefined;
 
 const conflictStore = new Map<string, string>();
 
@@ -125,6 +127,40 @@ async function refreshWorkflowList(): Promise<IWorkflowStatus[]> {
 export async function activate(context: vscode.ExtensionContext) {
     outputChannel.show(true);
     outputChannel.appendLine('🔌 Activation of "n8n-as-code"...');
+    telemetryClient = createTelemetryClient({
+        facade: 'vscode',
+        version: String(context.extension.packageJSON?.version ?? __N8NAC_CLI_SEMVER__ ?? ''),
+        forceDisabled: !vscode.env.isTelemetryEnabled,
+    });
+    telemetryClient.track('vscode_extension_activated', {
+        vscode_version: vscode.version,
+        extension_version: String(context.extension.packageJSON?.version ?? ''),
+        has_workspace: Boolean(vscode.workspace.workspaceFolders?.length),
+    });
+    context.subscriptions.push(vscode.env.onDidChangeTelemetryEnabled((enabled) => {
+        telemetryClient = createTelemetryClient({
+            facade: 'vscode',
+            version: String(context.extension.packageJSON?.version ?? __N8NAC_CLI_SEMVER__ ?? ''),
+            forceDisabled: !enabled,
+        });
+    }));
+
+    const registerTelemetryCommand = (command: string, callback: (...args: any[]) => any): vscode.Disposable => (
+        vscode.commands.registerCommand(command, async (...args: any[]) => {
+            const telemetry = telemetryClient;
+            if (!telemetry) {
+                return callback(...args);
+            }
+
+            const result = await telemetry.withTelemetry('vscode_command_completed', {
+                command,
+                has_workspace: Boolean(vscode.workspace.workspaceFolders?.length),
+                extension_state: String(enhancedTreeProvider.getExtensionState?.() ?? 'unknown'),
+            }, async () => callback(...args));
+            telemetry.trackActive({ activation_source_event: 'vscode_command_completed' });
+            return result;
+        })
+    );
 
     // Register Remote Content Provider for Diffs
     context.subscriptions.push(
@@ -160,63 +196,65 @@ export async function activate(context: vscode.ExtensionContext) {
     // Handlers that need `cli` guard against it being undefined.
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('n8n.init', async () => {
+        registerTelemetryCommand('n8n.init', async () => {
             await handleInitializeCommand(context);
         }),
 
-        vscode.commands.registerCommand('n8n.configure', async () => {
+        registerTelemetryCommand('n8n.configure', async () => {
             ConfigurationWebview.createOrShow(context, requireConfigurationController());
         }),
 
-        vscode.commands.registerCommand('n8n.switchInstance', async (args?: SwitchInstanceCommandArgs) => {
+        registerTelemetryCommand('n8n.switchInstance', async (args?: SwitchInstanceCommandArgs) => {
             await switchWorkspaceInstance(context, args);
         }),
 
-        vscode.commands.registerCommand('n8n.pinWorkspaceInstance', async (args?: SwitchInstanceCommandArgs) => {
+        registerTelemetryCommand('n8n.pinWorkspaceInstance', async (args?: SwitchInstanceCommandArgs) => {
             await pinWorkspaceInstance(context, args);
         }),
 
-        vscode.commands.registerCommand('n8n.clearWorkspaceInstance', async () => {
+        registerTelemetryCommand('n8n.clearWorkspaceInstance', async () => {
             await clearWorkspaceInstancePin(context);
         }),
 
-        vscode.commands.registerCommand('n8n.deleteInstance', async (args?: DeleteInstanceCommandArgs) => {
+        registerTelemetryCommand('n8n.deleteInstance', async (args?: DeleteInstanceCommandArgs) => {
             await deleteWorkspaceInstance(context, args);
         }),
 
-        vscode.commands.registerCommand('n8n.applySettings', async () => {
+        registerTelemetryCommand('n8n.applySettings', async () => {
             outputChannel.appendLine('[n8n] Applying new settings...');
             await reinitializeSyncManager(context);
             updateContextKeys();
         }),
 
-        vscode.commands.registerCommand('n8n.showActive', async () => {
+        registerTelemetryCommand('n8n.showActive', async () => {
             store.dispatch(setArchiveFilter('workflows'));
             if (workflowsTreeView) workflowsTreeView.title = 'Workflows';
             await store.dispatch(loadWorkflows());
         }),
 
-        vscode.commands.registerCommand('n8n.showArchived', async () => {
+        registerTelemetryCommand('n8n.showArchived', async () => {
             store.dispatch(setArchiveFilter('archived'));
             if (workflowsTreeView) workflowsTreeView.title = 'Archived Workflows';
             await store.dispatch(loadWorkflows());
         }),
 
-        vscode.commands.registerCommand('n8n.showAll', async () => {
+        registerTelemetryCommand('n8n.showAll', async () => {
             store.dispatch(setArchiveFilter('all'));
             if (workflowsTreeView) workflowsTreeView.title = 'All Workflows';
             await store.dispatch(loadWorkflows());
         }),
 
-        vscode.commands.registerCommand('n8n.openBoard', async (arg: any) => {
+        registerTelemetryCommand('n8n.openBoard', async (arg: any) => {
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf) return;
+            telemetryClient?.track('vscode_workflow_view_opened', { mode: 'board', workflow_state: 'unknown' });
             await openWorkflowBoard(wf);
         }),
 
-        vscode.commands.registerCommand('n8n.openJson', async (arg: any) => {
+        registerTelemetryCommand('n8n.openJson', async (arg: any) => {
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf || !syncManager) return;
+            telemetryClient?.track('vscode_workflow_view_opened', { mode: 'json', workflow_state: 'unknown' });
             const uri = getExistingWorkflowFileUri(wf);
             if (uri) {
                 try {
@@ -230,9 +268,10 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
-        vscode.commands.registerCommand('n8n.openSplit', async (arg: any) => {
+        registerTelemetryCommand('n8n.openSplit', async (arg: any) => {
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf || !syncManager) return;
+            telemetryClient?.track('vscode_workflow_view_opened', { mode: 'split', workflow_state: 'unknown' });
             const uri = getExistingWorkflowFileUri(wf);
             if (uri) {
                 try {
@@ -246,7 +285,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         // n8nac push <path>
-        vscode.commands.registerCommand('n8n.pushWorkflow', async (arg: any) => {
+        registerTelemetryCommand('n8n.pushWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
                 vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
                 return;
@@ -294,7 +333,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         // n8nac pull <id>
-        vscode.commands.registerCommand('n8n.pullWorkflow', async (arg: any) => {
+        registerTelemetryCommand('n8n.pullWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
                 vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
                 return;
@@ -341,7 +380,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         // n8nac fetch <id>
-        vscode.commands.registerCommand('n8n.fetchWorkflow', async (arg: any) => {
+        registerTelemetryCommand('n8n.fetchWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
                 vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
                 return;
@@ -370,7 +409,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         // n8nac list (global refresh — calls list with fresh remote fetch)
-        vscode.commands.registerCommand('n8n.refresh', async () => {
+        registerTelemetryCommand('n8n.refresh', async () => {
             outputChannel.appendLine('[n8n] Manual refresh — running list...');
             if (!cli) {
                 vscode.window.showErrorMessage('n8n as code is not initialized. Please configure and initialize first.');
@@ -391,7 +430,7 @@ export async function activate(context: vscode.ExtensionContext) {
             enhancedTreeProvider.refresh();
         }),
 
-        vscode.commands.registerCommand('n8n.findWorkflow', async () => {
+        registerTelemetryCommand('n8n.findWorkflow', async () => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
                 vscode.window.showWarningMessage('n8n: Settings changed. Click "Apply Changes" to resume syncing.');
                 return;
@@ -432,7 +471,7 @@ export async function activate(context: vscode.ExtensionContext) {
             await openWorkflowFromFinder(picked.workflow);
         }),
 
-        vscode.commands.registerCommand('n8n.initializeAI', async (options?: { silent?: boolean }) => {
+        registerTelemetryCommand('n8n.initializeAI', async (options?: { silent?: boolean }) => {
             if (!vscode.workspace.workspaceFolders?.length) {
                 if (!options?.silent) await showNoWorkspaceError();
                 return;
@@ -473,11 +512,11 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }),
 
-        vscode.commands.registerCommand('n8n.openSettings', () => {
+        registerTelemetryCommand('n8n.openSettings', () => {
             vscode.commands.executeCommand('workbench.action.openSettings', 'n8n');
         }),
 
-        vscode.commands.registerCommand('n8n.resolveConflict', async (arg: any) => {
+        registerTelemetryCommand('n8n.resolveConflict', async (arg: any) => {
             const wf = arg?.workflow ? arg.workflow : arg;
             if (!wf || !cli || !syncManager) return;
 
@@ -1557,6 +1596,7 @@ async function reinitializeSyncManager(
 }
 
 export function deactivate() {
+    void telemetryClient?.flush(1000);
     disposeRuntimeDisposables();
     proxyService.stop();
 }

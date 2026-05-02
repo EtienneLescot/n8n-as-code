@@ -19,6 +19,25 @@ import type { DocsProvider } from '../services/docs-provider.js';
 import type { KnowledgeSearch } from '../services/knowledge-search.js';
 import type { WorkflowRegistry } from '../services/workflow-registry.js';
 import type { CustomNodesResolution } from '../services/custom-nodes-config.js';
+import { createTelemetryClient, type TelemetryProperties } from '@n8n-as-code/telemetry';
+
+let telemetryFlushRegistered = false;
+
+function getSkillsCommandPath(command: Command): string {
+    const names: string[] = [];
+    let current: Command | null = command;
+
+    while (current && current.parent) {
+        names.unshift(current.name());
+        current = current.parent;
+    }
+
+    if (names[0] === 'skills') {
+        names.shift();
+    }
+
+    return names.join(' ');
+}
 
 function getUnifiedCliEntryPath(): string {
     if (process.env.N8NAC_CLI_ENTRY) {
@@ -74,6 +93,34 @@ function printSearchCustomNodesNote(customNodesConfig: CustomNodesResolution, qu
 }
 
 export function registerSkillsCommands(program: Command, assetsDir: string): void {
+    const telemetry = createTelemetryClient({ facade: 'skills' });
+    const commandStartTimes = new WeakMap<Command, number>();
+
+    if (!telemetryFlushRegistered) {
+        telemetryFlushRegistered = true;
+        process.on('beforeExit', () => {
+            void telemetry.flush();
+        });
+    }
+
+    program.hook('preAction', (_thisCommand, actionCommand) => {
+        commandStartTimes.set(actionCommand, Date.now());
+    });
+
+    program.hook('postAction', (_thisCommand, actionCommand) => {
+        const commandPath = getSkillsCommandPath(actionCommand);
+        const [commandName, ...rest] = commandPath.split(' ');
+        const properties: TelemetryProperties = {
+            command: commandName || 'unknown',
+            subcommand: rest.length > 0 ? rest.join(' ') : undefined,
+            outcome: 'success',
+            duration_ms: Date.now() - (commandStartTimes.get(actionCommand) ?? Date.now()),
+        };
+
+        telemetry.track('skills_command_completed', properties);
+        telemetry.trackActive({ activation_source_event: 'skills_command_completed' });
+    });
+
     let customNodesConfigPromise: Promise<CustomNodesResolution> | undefined;
     let providerPromise: Promise<NodeSchemaProvider> | undefined;
     let docsProviderPromise: Promise<DocsProvider> | undefined;

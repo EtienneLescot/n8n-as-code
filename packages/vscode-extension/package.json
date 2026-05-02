@@ -301,8 +301,9 @@
   "dependencies": {
     "@n8n-as-code/manager-adapter": "0.1.0",
     "@n8n-as-code/n8n-manager-core": "^0.5.0",
-    "@n8n-as-code/workflow-core": "0.1.0",
     "@n8n-as-code/skills": "1.10.0",
+    "@n8n-as-code/telemetry": "0.1.0",
+    "@n8n-as-code/workflow-core": "0.1.0",
     "@reduxjs/toolkit": "^2.11.2",
     "http-proxy": "^1.18.1",
     "n8nac": "1.8.1",
