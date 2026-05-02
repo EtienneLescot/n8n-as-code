@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import { ConfigService } from '../../src/services/config-service.js';
@@ -144,6 +144,33 @@ describe('ConfigService', () => {
         configService.clearWorkspaceProjectOverride();
         expect(configService.getWorkspaceConfig().projectId).toBeUndefined();
         expect(configService.getWorkspaceConfig().projectName).toBeUndefined();
+    });
+
+    it('clears stale workspace project overrides when saving bootstrap state', () => {
+        const configService = new ConfigService(workspaceRoot);
+        configService.saveLocalConfig({
+            host: 'https://old.example.test',
+            syncFolder: 'flows',
+            projectId: 'old-project',
+            projectName: 'Old Project',
+        }, {
+            instanceId: 'prod',
+            instanceName: 'Production',
+        });
+
+        configService.saveBootstrapState('https://new.example.test', 'flows', {
+            instanceId: 'prod',
+            instanceName: 'Production',
+        });
+
+        const workspaceConfig = configService.getWorkspaceConfig();
+        expect(workspaceConfig.host).toBe('https://new.example.test');
+        expect(workspaceConfig.projectId).toBeUndefined();
+        expect(workspaceConfig.projectName).toBeUndefined();
+
+        const persisted = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-config.json'), 'utf-8'));
+        expect(persisted.projectId).toBeUndefined();
+        expect(persisted.projectName).toBeUndefined();
     });
 
     it('rejects legacy workspace configs with embedded instances', () => {

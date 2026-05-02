@@ -338,7 +338,12 @@ export class ConfigService {
     }
 
     saveBootstrapState(host: string, syncFolder = 'workflows', options: { instanceId?: string; instanceName?: string; createNew?: boolean } = {}): IInstanceProfile {
-        return this.saveLocalConfig({ host, syncFolder }, {
+        return this.saveLocalConfig({
+            host,
+            syncFolder,
+            projectId: undefined,
+            projectName: undefined,
+        }, {
             instanceId: options.instanceId,
             instanceName: options.instanceName,
             createNew: options.createNew,
@@ -449,14 +454,15 @@ export class ConfigService {
 
     private writeWorkspaceFields(instanceId: string, config: Partial<ILocalConfig>, setActive: boolean): void {
         const current = tryResolve(() => this.manager.readWorkspaceOverrides(this.workspaceRoot)) || { version: 3 as const };
+        const hasConfigField = (key: keyof ILocalConfig): boolean => Object.prototype.hasOwnProperty.call(config, key);
         this.manager.writeWorkspaceOverrides(this.workspaceRoot, {
             ...current,
             activeInstanceId: setActive ? instanceId : current.activeInstanceId,
-            syncFolder: config.syncFolder || current.syncFolder,
-            projectId: config.projectId || current.projectId,
-            projectName: config.projectName || current.projectName,
+            syncFolder: hasConfigField('syncFolder') ? config.syncFolder : current.syncFolder,
+            projectId: hasConfigField('projectId') ? config.projectId : current.projectId,
+            projectName: hasConfigField('projectName') ? config.projectName : current.projectName,
             folderSync: config.folderSync ?? current.folderSync,
-            customNodesPath: config.customNodesPath || current.customNodesPath,
+            customNodesPath: hasConfigField('customNodesPath') ? config.customNodesPath : current.customNodesPath,
         });
     }
 
