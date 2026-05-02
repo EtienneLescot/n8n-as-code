@@ -4,10 +4,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { syncDependencyManifests } from '../sync-dependencies.mjs';
 
 const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-const PACKAGES = [
+const PACKAGE_CONFIGS = [
   {
     name: '@n8n-as-code/transformer',
     path: 'packages/transformer',
@@ -15,7 +16,30 @@ const PACKAGES = [
     changelogPath: 'packages/transformer/CHANGELOG.md',
     publishTarget: 'npm',
     tagPrefix: '@n8n-as-code/transformer@',
-    internalDependencies: [],
+  },
+  {
+    name: '@n8n-as-code/telemetry',
+    path: 'packages/telemetry',
+    packageJsonPath: 'packages/telemetry/package.json',
+    changelogPath: 'packages/telemetry/CHANGELOG.md',
+    publishTarget: 'npm',
+    tagPrefix: '@n8n-as-code/telemetry@',
+  },
+  {
+    name: '@n8n-as-code/workflow-core',
+    path: 'packages/workflow-core',
+    packageJsonPath: 'packages/workflow-core/package.json',
+    changelogPath: 'packages/workflow-core/CHANGELOG.md',
+    publishTarget: 'npm',
+    tagPrefix: '@n8n-as-code/workflow-core@',
+  },
+  {
+    name: '@n8n-as-code/manager-adapter',
+    path: 'packages/manager-adapter',
+    packageJsonPath: 'packages/manager-adapter/package.json',
+    changelogPath: 'packages/manager-adapter/CHANGELOG.md',
+    publishTarget: 'npm',
+    tagPrefix: '@n8n-as-code/manager-adapter@',
   },
   {
     name: '@n8n-as-code/skills',
@@ -24,7 +48,6 @@ const PACKAGES = [
     changelogPath: 'packages/skills/CHANGELOG.md',
     publishTarget: 'npm',
     tagPrefix: '@n8n-as-code/skills@',
-    internalDependencies: ['@n8n-as-code/transformer'],
   },
   {
     name: 'n8nac',
@@ -33,7 +56,6 @@ const PACKAGES = [
     changelogPath: 'packages/cli/CHANGELOG.md',
     publishTarget: 'npm',
     tagPrefix: 'n8nac@',
-    internalDependencies: ['@n8n-as-code/skills', '@n8n-as-code/transformer'],
   },
   {
     name: '@n8n-as-code/mcp',
@@ -42,7 +64,6 @@ const PACKAGES = [
     changelogPath: 'packages/mcp/CHANGELOG.md',
     publishTarget: 'npm',
     tagPrefix: '@n8n-as-code/mcp@',
-    internalDependencies: [],
   },
   {
     name: 'n8n-as-code',
@@ -51,7 +72,6 @@ const PACKAGES = [
     changelogPath: 'packages/vscode-extension/CHANGELOG.md',
     publishTarget: 'vscode',
     tagPrefix: 'n8n-as-code@',
-    internalDependencies: ['@n8n-as-code/skills', 'n8nac'],
   },
   {
     name: '@n8n-as-code/n8nac',
@@ -60,13 +80,12 @@ const PACKAGES = [
     changelogPath: 'plugins/openclaw/n8n-as-code/CHANGELOG.md',
     publishTarget: 'npm',
     tagPrefix: '@n8n-as-code/n8nac@',
-    internalDependencies: [],
   },
 ];
 
 const PATCH_TYPES = new Set(['fix', 'perf', 'refactor', 'revert', 'deps', 'build', 'docs']);
 const BUMP_PRIORITY = { none: 0, patch: 1, minor: 2, major: 3 };
-const extensionPackage = PACKAGES.find(pkg => pkg.name === 'n8n-as-code');
+let packagesCache = null;
 
 const CROSS_PACKAGE_RULES = [
   {
@@ -223,6 +242,35 @@ function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(workspaceRoot, relativePath), 'utf8'));
 }
 
+function getRuntimeInternalDependencies(packageJson, packageNames) {
+  const dependencyNames = [];
+  for (const dependencySection of ['dependencies', 'peerDependencies', 'optionalDependencies']) {
+    for (const dependencyName of Object.keys(packageJson[dependencySection] || {})) {
+      if (packageNames.has(dependencyName) && !dependencyNames.includes(dependencyName)) {
+        dependencyNames.push(dependencyName);
+      }
+    }
+  }
+  return dependencyNames;
+}
+
+function getPackages() {
+  if (packagesCache) {
+    return packagesCache;
+  }
+
+  const packageNames = new Set(PACKAGE_CONFIGS.map(pkg => pkg.name));
+  packagesCache = PACKAGE_CONFIGS.map(pkg => ({
+    ...pkg,
+    internalDependencies: getRuntimeInternalDependencies(readJson(pkg.packageJsonPath), packageNames),
+  }));
+  return packagesCache;
+}
+
+function getExtensionPackage() {
+  return getPackages().find(pkg => pkg.name === 'n8n-as-code');
+}
+
 function getJsonIndent(content) {
   const match = content.match(/^([ \t]+)"/m);
   return match ? match[1] : '  ';
@@ -323,7 +371,7 @@ function getAffectedPackageNames(files) {
   const affected = new Set();
 
   for (const file of files) {
-    for (const pkg of PACKAGES) {
+    for (const pkg of getPackages()) {
       if (file === pkg.packageJsonPath || file.startsWith(`${pkg.path}/`)) {
         affected.add(pkg.name);
       }
@@ -389,7 +437,7 @@ function parseReleaseTrainVersion(message) {
 }
 
 function getReleaseTrainOverride() {
-  const latestTag = getLatestStableTag(extensionPackage);
+  const latestTag = getLatestStableTag(getExtensionPackage());
   const commits = latestTag ? getCommitsSinceTag(latestTag.tag) : gitLines(['log', '--format=%H']);
 
   for (const sha of commits) {
@@ -556,7 +604,7 @@ function getCommitsSinceTag(tag) {
 function buildDirectBumps() {
   const bumps = new Map();
 
-  for (const pkg of PACKAGES) {
+  for (const pkg of getPackages()) {
     const latestTag = getLatestStableTag(pkg);
     const directBump = { bump: null, commits: [] };
 
@@ -591,7 +639,7 @@ function buildDirectBumps() {
 function propagateDependencyBumps(directBumps) {
   const resolved = new Map();
 
-  for (const pkg of PACKAGES) {
+  for (const pkg of getPackages()) {
     const direct = directBumps.get(pkg.name) || { bump: null, commits: [] };
     resolved.set(pkg.name, {
       bump: direct.bump,
@@ -604,7 +652,7 @@ function propagateDependencyBumps(directBumps) {
   while (changed) {
     changed = false;
 
-    for (const pkg of PACKAGES) {
+    for (const pkg of getPackages()) {
       const current = resolved.get(pkg.name);
       for (const dependencyName of pkg.internalDependencies) {
         const dependency = resolved.get(dependencyName);
@@ -632,7 +680,7 @@ function computeStablePlan() {
   const resolvedBumps = propagateDependencyBumps(directBumps);
   const releaseTrain = getReleaseTrainOverride();
 
-  const packages = PACKAGES.map(pkg => {
+  const packages = getPackages().map(pkg => {
     const packageJson = readJson(pkg.packageJsonPath);
     const currentVersion = packageJson.version;
     const currentStableVersion = parseVersion(currentVersion);
@@ -701,7 +749,7 @@ function computeStablePlan() {
 }
 
 function getPrereleaseSequence() {
-  const latestTag = getLatestStableTag(extensionPackage);
+  const latestTag = getLatestStableTag(getExtensionPackage());
   if (!latestTag) {
     return 1;
   }
@@ -738,7 +786,7 @@ function computePrereleasePlan() {
 }
 
 function computePendingStablePlan() {
-  const packages = PACKAGES.map(pkg => {
+  const packages = getPackages().map(pkg => {
     const packageJson = readJson(pkg.packageJsonPath);
     const currentVersion = packageJson.version;
     const currentStableVersion = parseVersion(currentVersion);
@@ -780,7 +828,7 @@ function applyPlan(plan, versionKey) {
     return plan;
   }
 
-  for (const pkg of PACKAGES) {
+  for (const pkg of getPackages()) {
     const packageJson = readJson(pkg.packageJsonPath);
     const originalJson = JSON.stringify(packageJson);
 
@@ -807,8 +855,13 @@ function applyPlan(plan, versionKey) {
     }
   }
 
+  const syncResult = syncDependencyManifests({ workspaceRoot, mode: 'write', silent: true });
+  if (!syncResult.ok) {
+    throw new Error(`Dependency sync failed after applying release plan:\n${syncResult.errors.join('\n')}`);
+  }
+
   if (versionKey === 'targetVersion') {
-    for (const pkg of PACKAGES) {
+    for (const pkg of getPackages()) {
       const pkgPlan = plan.packages.find(item => item.name === pkg.name);
       if (!pkgPlan?.changed) {
         continue;

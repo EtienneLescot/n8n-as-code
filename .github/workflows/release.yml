@@ -104,6 +104,15 @@ jobs:
           if should_publish '@n8n-as-code/transformer'; then
             publish_npm '@n8n-as-code/transformer' 'packages/transformer'
           fi
+          if should_publish '@n8n-as-code/telemetry'; then
+            publish_npm '@n8n-as-code/telemetry' 'packages/telemetry'
+          fi
+          if should_publish '@n8n-as-code/workflow-core'; then
+            publish_npm '@n8n-as-code/workflow-core' 'packages/workflow-core'
+          fi
+          if should_publish '@n8n-as-code/manager-adapter'; then
+            publish_npm '@n8n-as-code/manager-adapter' 'packages/manager-adapter'
+          fi
           if should_publish '@n8n-as-code/skills'; then
             publish_npm '@n8n-as-code/skills' 'packages/skills'
           fi
@@ -177,6 +186,9 @@ jobs:
           const plan = JSON.parse(fs.readFileSync('release-plan.json', 'utf8'));
           const prefixByName = {
             '@n8n-as-code/transformer': '@n8n-as-code/transformer@v',
+            '@n8n-as-code/telemetry': '@n8n-as-code/telemetry@v',
+            '@n8n-as-code/workflow-core': '@n8n-as-code/workflow-core@v',
+            '@n8n-as-code/manager-adapter': '@n8n-as-code/manager-adapter@v',
             '@n8n-as-code/skills': '@n8n-as-code/skills@v',
             '@n8n-as-code/mcp': '@n8n-as-code/mcp@v',
             '@n8n-as-code/n8nac': '@n8n-as-code/n8nac@v',
@@ -240,6 +252,18 @@ jobs:
             ['@n8n-as-code/transformer', {
               label: 'TypeScript Transformer',
               summary: 'Decorator-based round-trip conversion between n8n JSON and TypeScript workflows.',
+            }],
+            ['@n8n-as-code/telemetry', {
+              label: 'Telemetry Primitives',
+              summary: 'Privacy-first telemetry primitives shared across n8n-as-code facades.',
+            }],
+            ['@n8n-as-code/workflow-core', {
+              label: 'Workflow Core',
+              summary: 'Shared workflow intelligence contracts and public workflow authoring API.',
+            }],
+            ['@n8n-as-code/manager-adapter', {
+              label: 'Manager Adapter',
+              summary: 'Facade adapter from n8n-as-code surfaces to the independent n8n-manager runtime engine.',
             }],
             ['@n8n-as-code/mcp', {
               label: 'MCP Server',
@@ -423,14 +447,20 @@ jobs:
             package-lock.json
             packages/cli/CHANGELOG.md
             packages/cli/package.json
+            packages/manager-adapter/CHANGELOG.md
+            packages/manager-adapter/package.json
             packages/mcp/CHANGELOG.md
             packages/mcp/package.json
             packages/skills/CHANGELOG.md
             packages/skills/package.json
+            packages/telemetry/CHANGELOG.md
+            packages/telemetry/package.json
             packages/transformer/CHANGELOG.md
             packages/transformer/package.json
             packages/vscode-extension/CHANGELOG.md
             packages/vscode-extension/package.json
+            packages/workflow-core/CHANGELOG.md
+            packages/workflow-core/package.json
             plugins/openclaw/n8n-as-code/CHANGELOG.md
             plugins/openclaw/n8n-as-code/package.json
 
@@ -521,6 +551,15 @@ jobs:
 
           if should_publish '@n8n-as-code/transformer'; then
             publish_npm '@n8n-as-code/transformer' 'packages/transformer'
+          fi
+          if should_publish '@n8n-as-code/telemetry'; then
+            publish_npm '@n8n-as-code/telemetry' 'packages/telemetry'
+          fi
+          if should_publish '@n8n-as-code/workflow-core'; then
+            publish_npm '@n8n-as-code/workflow-core' 'packages/workflow-core'
+          fi
+          if should_publish '@n8n-as-code/manager-adapter'; then
+            publish_npm '@n8n-as-code/manager-adapter' 'packages/manager-adapter'
           fi
           if should_publish '@n8n-as-code/skills'; then
             publish_npm '@n8n-as-code/skills' 'packages/skills'

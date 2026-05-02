@@ -32,6 +32,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Check dependency alignment
+        run: npm run check:deps
+
       - name: Resolve n8n stable tag
         id: n8n-tag
         run: echo "tag=$(node scripts/ensure-n8n-cache.cjs --print-tag)" >> "$GITHUB_OUTPUT"
