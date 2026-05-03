@@ -527,6 +527,18 @@ describe('N8nApiClient test workflow support', () => {
             expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/users/user-123');
         });
 
+        it('returns the JWT sub claim when user detail lookup has a connection error', async () => {
+            const mockJwt = 'header.eyJzdWIiOiJ1c2VyLTEyMyJ9.signature';
+            const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: mockJwt });
+
+            mockAxiosGet.mockRejectedValueOnce({ code: 'ECONNREFUSED' });
+
+            const user = await client.getCurrentUser();
+
+            expect(user).toEqual({ id: 'user-123' });
+            expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/users/user-123');
+        });
+
         it('falls back to /api/v1/users/me when API key is not a JWT', async () => {
             const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'not-a-jwt' });
 

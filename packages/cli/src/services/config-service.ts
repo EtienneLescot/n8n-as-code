@@ -8,7 +8,7 @@ import {
     type N8nInstanceVerification,
     type N8nInstanceVerificationStatus,
 } from '@n8n-as-code/n8n-manager-core';
-import { N8nApiClient, createProjectSlug, isLegacyLocalInstanceIdentifier } from '../core/index.js';
+import { N8nApiClient, createInstanceIdentifier, createProjectSlug, isCanonicalUserInstanceIdentifier, isReusableInstanceIdentifier, resolveInstanceIdentifier } from '../core/index.js';
 
 export interface ILocalConfig {
     host?: string;
@@ -141,7 +141,10 @@ export class ConfigService {
         if (prepared.runtime.blocked) {
             throw new Error(prepared.runtime.blocked.message);
         }
-        return prepared.context;
+        return {
+            ...prepared.context,
+            instanceIdentifier: this.reusableInstanceIdentifier(prepared.context.instanceIdentifier),
+        };
     }
 
     getCurrentInstanceConfigId(): string | undefined {
@@ -275,9 +278,12 @@ export class ConfigService {
         const verification = input.host && input.apiKey
             ? await this.verifyConnection(input.host, input.apiKey, options.client)
             : undefined;
+        const instanceIdentifier = input.host && input.apiKey
+            ? await this.resolveInstanceIdentifier(input.host, input.apiKey, options.client)
+            : this.reusableInstanceIdentifier(input.instanceIdentifier);
         const profile = this.saveLocalConfig({
             ...input,
-            instanceIdentifier: input.instanceIdentifier,
+            instanceIdentifier,
         }, {
             instanceId: options.createNew ? undefined : options.instanceId,
             instanceName: options.instanceName,
@@ -317,7 +323,7 @@ export class ConfigService {
             mode: current?.mode || 'existing',
             baseUrl: host,
             apiKey: options.apiKey,
-            instanceIdentifier: config.instanceIdentifier || current?.instanceIdentifier,
+            instanceIdentifier: this.reusableInstanceIdentifier(config.instanceIdentifier || current?.instanceIdentifier),
             verification: options.verification || current?.verification,
             defaultProject: current?.defaultProject,
         }, {
@@ -364,10 +370,12 @@ export class ConfigService {
         if (!apiKey) return { status: 'skipped', instance, reason: 'Missing API key' };
 
         const verification = await this.verifyConnection(instance.host, apiKey);
+        const instanceIdentifier = await this.resolveInstanceIdentifier(instance.host, apiKey);
         const updated = this.manager.upsertInstance({
             id: instance.id,
             name: instance.name,
             baseUrl: instance.host,
+            instanceIdentifier,
             verification,
         }, { setActive: instance.id === this.getActiveInstanceId() });
         const profile = this.toInstanceProfile(updated);
@@ -404,7 +412,8 @@ export class ConfigService {
             this.manager.saveApiKey(target.id, apiKey);
             return;
         }
-        const saved = this.manager.upsertInstance({ baseUrl: host, apiKey }, { setActive: true });
+        const instanceIdentifier = this.resolveInstanceIdentifierFromApiKey(apiKey) || undefined;
+        const saved = this.manager.upsertInstance({ baseUrl: host, apiKey, instanceIdentifier }, { setActive: true });
         this.manager.saveApiKey(saved.id, apiKey);
     }
 
@@ -420,19 +429,18 @@ export class ConfigService {
 
     async getOrCreateInstanceIdentifier(host: string, instanceId?: string): Promise<string> {
         const active = instanceId ? this.manager.getInstance(instanceId) : this.manager.getGlobalActiveInstance();
-        if (active?.instanceIdentifier && !isLegacyLocalInstanceIdentifier(active.instanceIdentifier)) {
-            return active.instanceIdentifier;
+        if (isCanonicalUserInstanceIdentifier(active?.instanceIdentifier)) {
+            return active!.instanceIdentifier!;
         }
         const apiKey = active ? this.manager.getApiKey(active.id) : this.getApiKey(host, instanceId);
         if (!apiKey) {
             throw new Error('API key not found');
         }
-        const { resolveInstanceIdentifier } = await import('../core/index.js');
-        const { identifier } = await resolveInstanceIdentifier({ host, apiKey });
+        const identifier = await this.resolveInstanceIdentifier(host, apiKey);
         const saved = this.manager.upsertInstance({
             id: active?.id || instanceId,
             name: active?.name || host,
-            baseUrl: host,
+            baseUrl: active?.baseUrl || host,
             instanceIdentifier: identifier,
         }, { setActive: true });
         return saved.instanceIdentifier || identifier;
@@ -452,6 +460,30 @@ export class ConfigService {
             : path.resolve(this.workspaceRoot, targetPath);
     }
 
+    private reusableInstanceIdentifier(identifier?: string): string | undefined {
+        return isReusableInstanceIdentifier(identifier) ? identifier : undefined;
+    }
+
+    private resolveInstanceIdentifierFromApiKey(apiKey: string): string | undefined {
+        try {
+            const parts = apiKey.split('.');
+            if (parts.length !== 3) return undefined;
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64url' as BufferEncoding).toString('utf8'));
+            return typeof payload.sub === 'string' && payload.sub
+                ? createInstanceIdentifier('', { id: payload.sub })
+                : undefined;
+        } catch {
+            return undefined;
+        }
+    }
+
+    private async resolveInstanceIdentifier(host: string, apiKey: string, client?: IInstanceVerificationClient): Promise<string> {
+        const { identifier } = await resolveInstanceIdentifier({ host, apiKey }, {
+            client: client as any,
+        });
+        return identifier;
+    }
+
     private writeWorkspaceFields(instanceId: string, config: Partial<ILocalConfig>, setActive: boolean): void {
         const current = tryResolve(() => this.manager.readWorkspaceOverrides(this.workspaceRoot)) || { version: 3 as const };
         const hasConfigField = (key: keyof ILocalConfig): boolean => Object.prototype.hasOwnProperty.call(config, key);
@@ -467,11 +499,15 @@ export class ConfigService {
     }
 
     private resolveWorkspaceContext(instanceId?: string): EffectiveN8nContext {
-        return this.manager.resolveEffectiveContext({
+        const context = this.manager.resolveEffectiveContext({
             workspaceRoot: this.workspaceRoot,
             instanceId,
             syncFolderDefault: 'workspace',
         });
+        return {
+            ...context,
+            instanceIdentifier: this.reusableInstanceIdentifier(context.instanceIdentifier),
+        };
     }
 
     private toInstanceProfile(instance: GlobalN8nInstance, overrides?: Partial<ILocalConfig>): IInstanceProfile {
@@ -482,7 +518,7 @@ export class ConfigService {
             syncFolder: overrides?.syncFolder,
             projectId: overrides?.projectId || instance.defaultProject?.id,
             projectName: overrides?.projectName || instance.defaultProject?.name,
-            instanceIdentifier: instance.instanceIdentifier,
+            instanceIdentifier: this.reusableInstanceIdentifier(instance.instanceIdentifier),
             customNodesPath: overrides?.customNodesPath,
             folderSync: overrides?.folderSync,
             verification: instance.verification,
@@ -490,14 +526,15 @@ export class ConfigService {
     }
 
     private contextToInstanceProfile(context: EffectiveN8nContext): IInstanceProfile {
+        const instanceIdentifier = this.reusableInstanceIdentifier(context.instanceIdentifier);
         return {
             ...this.toInstanceProfile(context.instance),
             host: context.host,
             syncFolder: context.syncFolder,
             projectId: context.projectId,
             projectName: context.projectName,
-            instanceIdentifier: context.instanceIdentifier,
-            workflowDir: this.buildWorkflowDir(context.syncFolder, context.instanceIdentifier, context.projectName),
+            instanceIdentifier,
+            workflowDir: this.buildWorkflowDir(context.syncFolder, instanceIdentifier, context.projectName),
             customNodesPath: context.customNodesPath,
             folderSync: context.folderSync,
         };

@@ -74,10 +74,10 @@ test('buildUnifiedWorkspaceConfig regenerates stale instanceIdentifier from curr
         }
     }));
 
-    assert.strictEqual(unified.instanceIdentifier, 'n8n_c6c289e49e_etienne_l');
+    assert.strictEqual(unified.instanceIdentifier, 'n8n_c6c289e49e');
     assert.strictEqual(unified.activeInstanceId, unified.instances[0].id);
     assert.strictEqual(unified.instances[0].name, 'Cloud');
-    assert.strictEqual(unified.instances[0].instanceIdentifier, 'n8n_c6c289e49e_etienne_l');
+    assert.strictEqual(unified.instances[0].instanceIdentifier, 'n8n_c6c289e49e');
 });
 
 test('buildUnifiedWorkspaceConfig clears instanceIdentifier when credentials are incomplete', async () => {

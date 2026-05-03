@@ -488,6 +488,9 @@ program.command('setup')
                 n8nHost: options.host,
                 n8nApiKeyRef: options.apiKey ? 'n8nac:provided-api-key' : undefined,
             });
+            if (instance.id && instance.baseUrl) {
+                await new ConfigService().getOrCreateInstanceIdentifier(instance.baseUrl, instance.id).catch(() => undefined);
+            }
             telemetry.track('setup_completed', {
                 setup_mode: normalizeSetupMode(mode),
                 has_project: Boolean(options.projectId),

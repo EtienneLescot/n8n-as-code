@@ -97,8 +97,12 @@ export class N8nApiClient {
             } catch (error: any) {
                 if (process.env.DEBUG) console.debug(`[N8nApiClient] getCurrentUser: Fetching specific user ${jwtUserId} failed:`, error.message);
                 
-                // If it's a connection error, throw immediately
-                if (!error.response) throw error;
+                // The API key `sub` claim is the SSOT for sync folder identity.
+                // Network/API lookup only enriches display metadata and must not
+                // force a less stable API-key-hash fallback when `sub` is present.
+                if (!error.response) {
+                    return { id: jwtUserId };
+                }
 
                 // If it's a 403 or 404, we have the ID from JWT but can't get details.
                 // Return the ID at least to ensure correct instance identification.

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
+import { ConfigService, resolveInstanceIdentifier } from 'n8nac';
 import { getWorkspaceRoot } from '../utils/state-detection.js';
 import type { N8nConfigurationController, N8nConfigurationSnapshot } from '../services/n8n-configuration-controller.js';
 import { YagrProviderService, normalizeYagrProviderId, type YagrModelProvider } from '../services/yagr-provider-service.js';
@@ -368,6 +369,10 @@ export class ConfigurationWebview {
         tunnel: Boolean(payload.tunnel),
       }));
 
+      if (workspaceRoot && instance.baseUrl) {
+        await new ConfigService(workspaceRoot).getOrCreateInstanceIdentifier(instance.baseUrl, instance.id).catch(() => undefined);
+      }
+
       if (instanceName) {
         await facade.upsertInstance({ id: instance.id, name: instanceName, publicUrlEnabled: Boolean(payload.tunnel) }, { setActive });
       }
@@ -381,12 +386,17 @@ export class ConfigurationWebview {
       throw new Error('Host and API key are required for a new existing n8n instance.');
     }
 
+    const identifierResolution = host && apiKey
+      ? await resolveInstanceIdentifier({ host, apiKey })
+      : undefined;
+
     await facade.upsertInstance({
       id: instanceId,
       name: instanceName,
       mode: mode === 'generation-only' ? 'generation-only' : 'existing',
       baseUrl: host || undefined,
       apiKey: apiKey || undefined,
+      instanceIdentifier: identifierResolution?.identifier,
     }, { setActive });
     return [];
   }

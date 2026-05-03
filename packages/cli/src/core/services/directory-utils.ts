@@ -86,20 +86,14 @@ function createStableUserIdentitySlug(user: { id?: string; email?: string; first
     }
 
     const identityHash = crypto.createHash('sha256').update(user.id).digest('hex').substring(0, 10);
-    const displaySlug = createUserSlug({
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-    });
-
-    return `n8n_${identityHash}_${displaySlug}`;
+    return `n8n_${identityHash}`;
 }
 
 /**
  * Creates an instance identifier for directory naming
  * @param host The host URL. Kept for API compatibility; it is not used for identity.
  * @param user User information (optional)
- * @returns Instance identifier (e.g., "n8n_c6c289e49e_etienne_l")
+ * @returns Instance identifier (e.g., "n8n_c6c289e49e")
  */
 export function createInstanceIdentifier(_host: string, user?: { id?: string; email?: string; firstName?: string; lastName?: string }): string {
     const stableUserIdentitySlug = user ? createStableUserIdentitySlug(user) : undefined;
@@ -112,6 +106,18 @@ export function createInstanceIdentifier(_host: string, user?: { id?: string; em
 
 export function isLegacyLocalInstanceIdentifier(identifier?: string): boolean {
     return Boolean(identifier && /^local(?:_|$)/.test(identifier));
+}
+
+export function isCanonicalUserInstanceIdentifier(identifier?: string): boolean {
+    return Boolean(identifier && /^n8n_[a-f0-9]{10}$/.test(identifier));
+}
+
+export function isApiKeyFallbackInstanceIdentifier(identifier?: string): boolean {
+    return Boolean(identifier && /^key_[a-f0-9]{10}$/.test(identifier));
+}
+
+export function isReusableInstanceIdentifier(identifier?: string): boolean {
+    return isCanonicalUserInstanceIdentifier(identifier) || isApiKeyFallbackInstanceIdentifier(identifier);
 }
 
 export function createApiKeyInstanceIdentifier(apiKey: string): string {

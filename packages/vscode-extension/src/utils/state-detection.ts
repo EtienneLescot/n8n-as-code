@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ConfigService } from 'n8nac';
+import { ConfigService, isReusableInstanceIdentifier } from 'n8nac';
 import { ConfigValidationResult } from '../types.js';
 import { readUnifiedWorkspaceConfig } from './unified-config.js';
 
@@ -104,7 +104,7 @@ export function isFolderPreviouslyInitialized(workspaceRoot: string): boolean {
     return false;
   }
 
-  return !!readUnifiedWorkspaceConfig(workspaceRoot).instanceIdentifier;
+  return isReusableInstanceIdentifier(readUnifiedWorkspaceConfig(workspaceRoot).instanceIdentifier);
 }
 
 /**
@@ -198,5 +198,6 @@ export function doesSyncDirectoryExist(): boolean {
  * Checks for both n8nac-instance.json (new) and n8n-as-code-instance.json (legacy)
  */
 export function getExistingInstanceIdentifier(workspaceRoot: string): string | undefined {
-  return readUnifiedWorkspaceConfig(workspaceRoot).instanceIdentifier;
+  const identifier = readUnifiedWorkspaceConfig(workspaceRoot).instanceIdentifier;
+  return isReusableInstanceIdentifier(identifier) ? identifier : undefined;
 }

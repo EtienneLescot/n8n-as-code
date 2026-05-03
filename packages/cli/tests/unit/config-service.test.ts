@@ -83,7 +83,7 @@ describe('ConfigService', () => {
             host: 'https://prod.example.test',
             projectId: 'personal',
             projectName: 'Personal',
-            instanceIdentifier: 'prod_instance',
+            instanceIdentifier: 'n8n_1234567890',
         }, {
             instanceId: 'prod',
             instanceName: 'Production',
@@ -92,11 +92,55 @@ describe('ConfigService', () => {
         const effective = configService.getEffectiveInstanceConfig('prod');
 
         expect(effective?.syncFolder).toBe(path.join(workspaceRoot, 'workflows'));
-        expect(effective?.workflowDir).toBe(path.join(workspaceRoot, 'workflows', 'prod_instance', 'personal'));
+        expect(effective?.workflowDir).toBe(path.join(workspaceRoot, 'workflows', 'n8n_1234567890', 'personal'));
         expect(configService.getLocalConfig()).toMatchObject({
             syncFolder: path.join(workspaceRoot, 'workflows'),
-            workflowDir: path.join(workspaceRoot, 'workflows', 'prod_instance', 'personal'),
+            workflowDir: path.join(workspaceRoot, 'workflows', 'n8n_1234567890', 'personal'),
         });
+    });
+
+    it('does not expose non-canonical stored instance identifiers', () => {
+        const configService = new ConfigService(workspaceRoot);
+        configService.saveLocalConfig({
+            host: 'https://prod.example.test',
+            projectId: 'personal',
+            projectName: 'Personal',
+            instanceIdentifier: 'local_1234_etienne_test',
+        }, {
+            instanceId: 'prod',
+            instanceName: 'Production',
+        });
+
+        expect(configService.getEffectiveInstanceConfig('prod')?.instanceIdentifier).toBeUndefined();
+        expect(configService.getEffectiveInstanceConfig('prod')?.workflowDir).toBeUndefined();
+    });
+
+    it('resolves canonical identifiers from API key user identity during verified upsert', async () => {
+        const configService = new ConfigService(workspaceRoot);
+
+        const result = await configService.upsertInstanceConfigWithVerification({
+            host: 'https://prod.example.test',
+            apiKey: 'test-key',
+            projectId: 'personal',
+            projectName: 'Personal',
+            instanceIdentifier: 'local_1234_etienne_test',
+        }, {
+            instanceId: 'prod',
+            instanceName: 'Production',
+            client: {
+                async getCurrentUser() {
+                    return {
+                        id: 'user-1',
+                        email: 'etienne@example.com',
+                        firstName: 'Etienne',
+                        lastName: 'Lescot',
+                    };
+                },
+            },
+        });
+
+        expect(result.profile.instanceIdentifier).toBe('n8n_c6c289e49e');
+        expect(configService.getEffectiveInstanceConfig('prod')?.instanceIdentifier).toBe('n8n_c6c289e49e');
     });
 
     it('prepares effective workspace context through n8n-manager runtime service', async () => {

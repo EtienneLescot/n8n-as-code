@@ -5,6 +5,7 @@ import {
   createN8nManagerFacade,
   resolveN8nManagerConfigurationPaths,
 } from '@n8n-as-code/manager-adapter';
+import { isCanonicalUserInstanceIdentifier, resolveInstanceIdentifier } from 'n8nac';
 
 type N8nManagerFacade = ReturnType<typeof createN8nManagerFacade>;
 type N8nGlobalConfig = Awaited<ReturnType<N8nManagerFacade['getGlobalConfig']>>;
@@ -111,13 +112,35 @@ export class N8nConfigurationController implements vscode.Disposable {
     try {
       let global = await facade.getGlobalConfig();
       const workspace = workspaceRoot ? await facade.readWorkspaceOverrides(workspaceRoot) : { version: 3 as const };
-      const prepared = await facade.prepareEffectiveContext({
+      let prepared = await facade.prepareEffectiveContext({
         workspaceRoot,
         syncFolderDefault: 'workspace',
         consumer: 'vscode',
         autoStart: true,
       }).catch(() => undefined);
       if (prepared) {
+        const effectiveHost = prepared.context.apiBaseUrl ?? prepared.context.host;
+        if (effectiveHost && prepared.context.apiKey && !isCanonicalUserInstanceIdentifier(prepared.context.instanceIdentifier)) {
+          const { identifier } = await resolveInstanceIdentifier({
+            host: effectiveHost,
+            apiKey: prepared.context.apiKey,
+          });
+          await facade.upsertInstance({
+            id: prepared.context.activeInstanceId,
+            instanceIdentifier: identifier,
+          }, { setActive: false });
+          prepared = {
+            ...prepared,
+            context: {
+              ...prepared.context,
+              instanceIdentifier: identifier,
+              instance: {
+                ...prepared.context.instance,
+                instanceIdentifier: identifier,
+              },
+            },
+          };
+        }
         global = await facade.getGlobalConfig();
       }
       const effective = prepared?.context;
