@@ -414,8 +414,14 @@ export class ConfigurationWebview {
     const instances = await Promise.all(globalConfig.instances.map(async (instance) => {
       try {
         const runtime = await facade.status({ instanceId: instance.id });
-        const access = await facade.resolveInstanceAccess({ instanceId: instance.id, workspaceRoot, mode: 'observe' });
-        const displayUrl = access.authUrl || (access.publicUrlEnabled ? '' : access.apiBaseUrl || '');
+        const access = await facade.resolveInstanceAccess({
+          instanceId: instance.id,
+          workspaceRoot,
+          syncFolderDefault: 'workspace',
+          consumer: 'vscode',
+          mode: instance.publicUrlEnabled ? 'reconcile' : 'observe',
+        });
+        const displayUrl = access.authUrl || access.publicN8nUrl || (access.publicUrlEnabled ? '' : access.apiBaseUrl || '');
         return {
           ...instance,
           host: displayUrl,
