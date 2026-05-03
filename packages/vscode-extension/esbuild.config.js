@@ -157,7 +157,7 @@ const extensionBuild = esbuild.build({
     entryPoints: ['./src/extension.ts'],
     bundle: true,
     outfile: 'out/extension.js',
-    external: ['vscode', 'prettier', '@yagr/runtime'],
+    external: ['vscode', 'prettier', '@yagr/agent'],
     format: 'cjs',
     platform: 'node',
     logOverride: {

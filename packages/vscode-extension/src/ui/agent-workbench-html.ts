@@ -1,7 +1,7 @@
 export interface AgentWorkbenchHtmlInput {
     workflowId: string;
     workflowName: string;
-    workflowUrl: string;
+    workflowUrl?: string;
 }
 
 function escapeHtml(value: string): string {
@@ -25,13 +25,14 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
     const nonce = getNonce();
     const safeWorkflowName = escapeHtml(input.workflowName);
     const safeWorkflowId = escapeHtml(input.workflowId);
-    const safeWorkflowUrl = escapeHtml(input.workflowUrl);
+    const safeWorkflowUrl = escapeHtml(input.workflowUrl || '');
     const workflowIdJs = JSON.stringify(input.workflowId);
-    const workflowUrlJs = JSON.stringify(input.workflowUrl);
+    const workflowUrlJs = JSON.stringify(input.workflowUrl || '');
+    const hasWorkflow = Boolean(input.workflowUrl);
 
     let iframePermissionOrigin = 'src';
     try {
-        iframePermissionOrigin = new URL(input.workflowUrl).origin;
+        iframePermissionOrigin = input.workflowUrl ? new URL(input.workflowUrl).origin : 'src';
     } catch {
         // Fallback to iframe's own source origin behavior if URL parsing fails.
     }
@@ -67,7 +68,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         }
         .workbench {
             display: grid;
-            grid-template-columns: minmax(320px, 36%) minmax(420px, 1fr);
+            grid-template-columns: ${hasWorkflow ? 'minmax(320px, 36%) minmax(420px, 1fr)' : 'minmax(320px, 760px)'};
+            justify-content: ${hasWorkflow ? 'stretch' : 'center'};
             height: 100vh;
             width: 100vw;
         }
@@ -75,6 +77,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             display: grid;
             grid-template-rows: auto 1fr auto;
             min-width: 0;
+            min-height: 0;
             border-right: 1px solid var(--border);
             background: var(--panel);
         }
@@ -107,6 +110,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         }
         .feed {
             overflow: auto;
+            min-height: 0;
             padding: 14px;
         }
         .message, .operation {
@@ -183,6 +187,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         .workflow {
             position: relative;
             min-width: 0;
+            min-height: 0;
             background: var(--bg);
         }
         iframe {
@@ -191,6 +196,15 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             width: 100%;
             height: 100%;
             border: 0;
+        }
+        .empty-workflow {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            text-align: center;
+            color: var(--muted);
         }
         .refresh-pill {
             position: absolute;
@@ -223,7 +237,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             <header class="header">
                 <div class="kicker">n8n Agent Workbench</div>
                 <div class="title">Workflow Architect</div>
-                <div class="subtitle" title="${safeWorkflowName}">${safeWorkflowName} · ${safeWorkflowId}</div>
+                <div class="subtitle" title="${safeWorkflowName}">${safeWorkflowName}${safeWorkflowId ? ` · ${safeWorkflowId}` : ' · new workflow chat'}</div>
                 <div class="header-actions"><button id="select-model" class="secondary" type="button">Provider / Model</button></div>
             </header>
             <div id="feed" class="feed">
@@ -240,7 +254,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 </div>
             </form>
         </section>
-        <section class="workflow" aria-label="n8n workflow">
+        ${hasWorkflow ? `<section class="workflow" aria-label="n8n workflow">
             <div id="refresh-pill" class="refresh-pill">Refreshing n8n...</div>
             <iframe
                 id="workflow-frame"
@@ -248,7 +262,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation allow-top-navigation-by-user-activation"
                 allow="${iframeAllowPolicy}">
             </iframe>
-        </section>
+        </section>` : ''}
     </main>
     <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
@@ -300,13 +314,20 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         }
 
         function reloadWorkflowFrame() {
+            if (!frame || !refreshPill) return;
             refreshPill.style.display = 'block';
-            const currentSrc = frame.src;
+            const currentSrc = workflowUrl || frame.src;
             frame.onload = () => {
                 refreshPill.style.display = 'none';
                 frame.onload = null;
             };
-            frame.src = currentSrc;
+            try {
+                const reloadUrl = new URL(currentSrc);
+                reloadUrl.searchParams.set('_n8nacRefresh', String(Date.now()));
+                frame.src = reloadUrl.toString();
+            } catch (e) {
+                frame.src = currentSrc;
+            }
         }
 
         function issuePasteGrant() {
@@ -360,7 +381,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 workflowId = String(message.workflowId || workflowId);
                 workflowUrl = message.url;
                 try { iframeOrigin = new URL(workflowUrl).origin; } catch (e) { iframeOrigin = 'src'; }
-                frame.src = workflowUrl;
+                if (frame) frame.src = workflowUrl;
                 return;
             }
 

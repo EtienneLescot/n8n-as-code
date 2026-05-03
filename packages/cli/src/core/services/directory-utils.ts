@@ -97,7 +97,7 @@ function createStableUserIdentitySlug(user: { id?: string; email?: string; first
 
 /**
  * Creates an instance identifier for directory naming
- * @param host The host URL
+ * @param host The host URL. Kept for API compatibility; it is not used for identity.
  * @param user User information (optional)
  * @returns Instance identifier (e.g., "n8n_c6c289e49e_etienne_l")
  */
@@ -108,6 +108,10 @@ export function createInstanceIdentifier(_host: string, user?: { id?: string; em
     }
 
     throw new Error('Unable to create a stable instance identifier: n8n user ID is missing.');
+}
+
+export function isLegacyLocalInstanceIdentifier(identifier?: string): boolean {
+    return Boolean(identifier && /^local(?:_|$)/.test(identifier));
 }
 
 export function createApiKeyInstanceIdentifier(apiKey: string): string {

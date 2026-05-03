@@ -95,6 +95,7 @@ export async function buildUnifiedWorkspaceConfig(
     const current = input.createNew ? undefined : getCurrentInstance(existing, input.instanceId);
     const storedSyncFolder = toStoredSyncFolder(input.workspaceRoot, input.syncFolder || 'workflows');
 
+    const instanceId = current?.id || input.instanceId || createDraftInstanceId();
     let resolvedInstanceIdentifier: string | undefined = input.instanceIdentifier;
     if (input.host && input.apiKey) {
         const credentials: IN8nCredentials = {
@@ -102,14 +103,13 @@ export async function buildUnifiedWorkspaceConfig(
             apiKey: input.apiKey
         };
         const { identifier } = await resolveInstanceIdentifier(credentials, {
-            client: input.client
+            client: input.client,
         });
         resolvedInstanceIdentifier = identifier;
     } else if (input.apiKey !== '' || input.host !== '') {
         resolvedInstanceIdentifier = undefined;
     }
 
-    const instanceId = current?.id || input.instanceId || createDraftInstanceId();
     const instanceName = input.instanceName?.trim() || current?.name || input.host || 'Default instance';
     const profile: IInstanceProfile = {
         id: instanceId,

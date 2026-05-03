@@ -112,7 +112,7 @@
       },
       {
         "command": "n8n.openAgentManager",
-        "title": "n8n: Open Agent Manager",
+        "title": "n8n: Agent Providers",
         "icon": "$(account)"
       },
       {
@@ -229,23 +229,8 @@
           "when": "view == n8n-explorer.workflows && n8n.state == initialized"
         },
         {
-          "command": "n8n.openAgentManager",
-          "group": "navigation@7",
-          "when": "view == n8n-explorer.workflows"
-        },
-        {
-          "command": "n8n.agent.setupProvider",
-          "group": "navigation@8",
-          "when": "view == n8n-explorer.workflows"
-        },
-        {
-          "command": "n8n.agent.selectModel",
-          "group": "navigation@9",
-          "when": "view == n8n-explorer.workflows"
-        },
-        {
           "command": "n8n.configure",
-          "group": "navigation@10",
+          "group": "navigation@7",
           "when": "view == n8n-explorer.workflows"
         }
       ],
@@ -261,13 +246,18 @@
           "when": "viewItem =~ /^workflow-(tracked|tracked-archived|cloud-only)$/"
         },
         {
-          "command": "n8n.pushWorkflow",
+          "command": "n8n.openAgentWorkbench",
           "group": "inline@3",
+          "when": "viewItem =~ /^workflow-(tracked|tracked-archived|cloud-only)$/"
+        },
+        {
+          "command": "n8n.pushWorkflow",
+          "group": "inline@4",
           "when": "viewItem =~ /^workflow-(tracked|local-only)$/"
         },
         {
           "command": "n8n.pullWorkflow",
-          "group": "inline@4",
+          "group": "inline@5",
           "when": "viewItem =~ /^workflow-(tracked|tracked-archived|cloud-only)$/"
         },
         {
@@ -382,8 +372,8 @@
     "@n8n-as-code/skills": "1.10.0",
     "@n8n-as-code/telemetry": "0.1.0",
     "@n8n-as-code/workflow-core": "0.1.0",
-    "@yagr/runtime": "0.1.1-next.226.1",
     "@reduxjs/toolkit": "^2.11.2",
+    "@yagr/agent": "file:../../../yagr",
     "http-proxy": "^1.18.1",
     "n8nac": "1.8.1",
     "ws": "^8.19.0"

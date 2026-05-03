@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createApiKeyInstanceIdentifier, createHostSlug, createInstanceIdentifier } from '../../src/core/services/directory-utils.js';
+import { createApiKeyInstanceIdentifier, createHostSlug, createInstanceIdentifier, isLegacyLocalInstanceIdentifier } from '../../src/core/services/directory-utils.js';
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -63,6 +63,12 @@ describe('directory-utils', () => {
                 firstName: 'Etienne',
                 lastName: 'Lescot',
             })).toBe('n8n_c6c289e49e_etienne_l');
+        });
+
+        it('detects legacy local instance identifiers', () => {
+            expect(isLegacyLocalInstanceIdentifier('local_1234_etienne_test')).toBe(true);
+            expect(isLegacyLocalInstanceIdentifier('n8n_c6c289e49e_etienne_l')).toBe(false);
+            expect(isLegacyLocalInstanceIdentifier('key_62af870476')).toBe(false);
         });
 
         it('fails when the stable n8n user ID is unavailable', () => {

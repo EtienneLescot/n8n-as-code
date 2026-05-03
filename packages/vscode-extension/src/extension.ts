@@ -7,7 +7,7 @@ declare const __N8NAC_VERSION__: string;
 declare const __N8NAC_CLI_SEMVER__: string;
 import {
     SyncManager, CliApi, N8nApiClient, IN8nCredentials, WorkflowSyncStatus, ConfigService,
-    resolveInstanceIdentifier
+    resolveInstanceIdentifier, isLegacyLocalInstanceIdentifier
 } from 'n8nac';
 import { AiContextGenerator, getN8nacDevConfigFilenames } from '@n8n-as-code/skills';
 
@@ -15,7 +15,6 @@ import { StatusBar } from './ui/status-bar.js';
 import { EnhancedWorkflowTreeProvider } from './ui/enhanced-workflow-tree-provider.js';
 import { WorkflowWebview } from './ui/workflow-webview.js';
 import { AgentWorkbenchWebview } from './ui/agent-workbench-webview.js';
-import { AgentManagerWebview } from './ui/agent-manager-webview.js';
 import { ConfigurationWebview } from './ui/configuration-webview.js';
 import { WorkflowDecorationProvider } from './ui/workflow-decoration-provider.js';
 
@@ -312,12 +311,12 @@ export async function activate(context: vscode.ExtensionContext) {
         registerTelemetryCommand('n8n.openAgentWorkbench', async (arg: any) => {
             const wf = await resolveWorkflowForAgentWorkbench(arg);
             if (!wf) return;
-            telemetryClient?.track('vscode_workflow_view_opened', { mode: 'agent-workbench', workflow_state: 'unknown' });
-            await openAgentWorkbench(context, wf);
+            telemetryClient?.track('vscode_workflow_view_opened', { mode: 'agent-workbench', workflow_state: wf === 'new' ? 'new' : 'unknown' });
+            await openAgentWorkbench(context, wf === 'new' ? undefined : wf);
         }),
 
         registerTelemetryCommand('n8n.openAgentManager', async () => {
-            AgentManagerWebview.createOrShow(context);
+            ConfigurationWebview.createOrShow(context, requireConfigurationController(), 'agent-providers');
         }),
 
         registerTelemetryCommand('n8n.agent.setupProvider', async () => {
@@ -713,7 +712,9 @@ async function openWorkflowFromFinder(workflow: IWorkflowStatus): Promise<void> 
     vscode.window.showWarningMessage(`Cannot open workflow "${workflow.name}": no local file or remote ID is available.`);
 }
 
-async function resolveWorkflowForAgentWorkbench(arg: any): Promise<IWorkflowStatus | undefined> {
+type AgentWorkbenchTarget = IWorkflowStatus | 'new';
+
+async function resolveWorkflowForAgentWorkbench(arg: any): Promise<AgentWorkbenchTarget | undefined> {
     const workflow = findWorkflowByCommandArg(arg);
     if (workflow) {
         return workflow;
@@ -725,19 +726,24 @@ async function resolveWorkflowForAgentWorkbench(arg: any): Promise<IWorkflowStat
     }
 
     const workflows = await cli.list({ fetchRemote: true, includeArchived: true });
-    if (!workflows.length) {
-        vscode.window.showInformationMessage('No workflows available for the Agent Workbench.');
-        return undefined;
+    if (workflows.length) {
+        store.dispatch(setWorkflows(workflows));
+        enhancedTreeProvider.refresh();
     }
 
-    store.dispatch(setWorkflows(workflows));
-    enhancedTreeProvider.refresh();
-
     const picked = await vscode.window.showQuickPick(
-        buildWorkflowQuickPickItems(workflows),
+        [
+            {
+                label: 'New workflow chat',
+                description: 'Start without an attached workflow',
+                detail: 'Use this to design and create a new n8n workflow with the agent.',
+                workflow: 'new' as const,
+            },
+            ...buildWorkflowQuickPickItems(workflows),
+        ],
         {
-            title: `Open Agent Workbench (${workflows.length})`,
-            placeHolder: 'Select the workflow to inspect with the n8n agent',
+            title: `Open Agent Workbench${workflows.length ? ` (${workflows.length})` : ''}`,
+            placeHolder: 'Start new workflow chat or select an existing workflow',
             ignoreFocusOut: true,
             matchOnDescription: true,
             matchOnDetail: true,
@@ -796,22 +802,19 @@ async function resolveWorkflowForSplitView(arg: any): Promise<IWorkflowStatus | 
     return picked?.workflow;
 }
 
-async function openAgentWorkbench(context: vscode.ExtensionContext, workflow: IWorkflowStatus): Promise<void> {
-    if (!workflow.id) {
-        vscode.window.showWarningMessage(`Cannot open Agent Workbench for "${workflow.name}": no remote workflow ID is available.`);
-        return;
-    }
-
+async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: IWorkflowStatus): Promise<void> {
     try {
-        const openTarget = await resolveWorkflowWebviewTarget(workflow);
+        const openTarget = workflow?.id ? await resolveWorkflowWebviewTarget(workflow) : undefined;
         AgentWorkbenchWebview.createOrShow(
             context,
             workflow,
-            openTarget.url,
+            openTarget?.url,
             requireAgentRuntimeController(),
             vscode.ViewColumn.One,
         );
-        registerClipboardHandler();
+        if (openTarget?.url) {
+            registerClipboardHandler();
+        }
     } catch (e: any) {
         vscode.window.showErrorMessage(`Failed to open n8n Agent Workbench: ${e.message}`);
     }
@@ -1639,6 +1642,13 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
                 ? `[n8n] Instance identifier (fallback): ${instanceIdentifier}`
                 : `[n8n] Instance identifier: ${instanceIdentifier}`
         );
+        const currentIdentifier = effective.instance.instanceIdentifier;
+        if (!currentIdentifier || isLegacyLocalInstanceIdentifier(currentIdentifier)) {
+            await facade.upsertInstance({
+                id: effective.activeInstanceId,
+                instanceIdentifier,
+            }, { setActive: false });
+        }
     } catch (error: any) {
         throw new Error(`Cannot connect to n8n instance at "${host}". Please check if n8n is running.`);
     }

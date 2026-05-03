@@ -139,6 +139,7 @@ export class BaseCommand {
      */
     protected async getSyncConfig(): Promise<any> {
         await this.prepareRuntimeContext();
+        const instanceIdentifier = await this.ensureInstanceIdentifier();
         const localConfig = this.activeInstanceId
             ? (this.configService.getEffectiveInstanceConfig(this.activeInstanceId) ?? this.configService.getLocalConfig())
             : this.configService.getLocalConfig();
@@ -153,8 +154,6 @@ export class BaseCommand {
             console.error(chalk.yellow('Set workspace context with `n8nac workspace set-sync-folder workflows`. For self-hosted n8n where the projects API is unavailable, use `n8nac workspace set-project --project-id personal --project-name Personal`; otherwise select a project with `n8n-manager projects select`.'));
             process.exit(1);
         }
-
-        const instanceIdentifier = await this.ensureInstanceIdentifier();
 
         return {
             directory: this.config.directory,

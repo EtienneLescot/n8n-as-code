@@ -28,6 +28,21 @@ export interface YagrProviderDefinition {
     canDiscoverModels: boolean;
 }
 
+export interface YagrProviderConnectionState {
+    id: YagrModelProvider;
+    label: string;
+    description: string;
+    authKind: ProviderAuthKind;
+    defaultModel: string;
+    defaultBaseUrl?: string;
+    requiresApiKey: boolean;
+    connected: boolean;
+    credentialSource?: 'secret' | 'environment';
+    selected: boolean;
+    model?: string;
+    baseUrl?: string;
+}
+
 type DeviceChallenge = {
     verificationUri: string;
     userCode: string;
@@ -36,6 +51,10 @@ type DeviceChallenge = {
     intervalMs: number;
     expiresAt: number;
 };
+
+const OPENAI_CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
+const OPENAI_CODEX_DEVICE_REDIRECT_URI = 'https://auth.openai.com/deviceauth/callback';
+const DISABLED_PROVIDERS_STATE_KEY = 'n8n.agent.disabledProviders';
 
 const MODEL_LIST_MAPPER = (payload: Record<string, unknown>): string[] => {
     const data = Array.isArray(payload.data) ? payload.data : [];
@@ -191,6 +210,48 @@ export class YagrProviderService {
         return this.context.secrets.get(getAgentProviderSecretKey(provider));
     }
 
+    async listProviderConnectionStates(): Promise<YagrProviderConnectionState[]> {
+        const config = vscode.workspace.getConfiguration('n8n.agent');
+        const selectedProvider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
+        const selectedModel = String(config.get<string>('model') || '').trim() || undefined;
+        const configuredBaseUrl = String(config.get<string>('baseUrl') || '').trim() || undefined;
+        const disabledProviders = this.getDisabledProviders();
+        const states = await Promise.all(YAGR_SELECTABLE_PROVIDERS.map(async (provider) => {
+            const definition = YAGR_PROVIDER_DEFINITIONS[provider];
+            const hasStoredCredential = Boolean(await this.getStoredCredential(provider));
+            const providerDisabled = disabledProviders.has(provider);
+            const hasEnvironmentCredential = !providerDisabled && this.hasEnvironmentCredential(provider);
+            const connected = !providerDisabled && (hasStoredCredential || hasEnvironmentCredential || provider === selectedProvider);
+            return {
+                id: provider,
+                label: definition.label,
+                description: definition.description,
+                authKind: definition.authKind,
+                defaultModel: definition.defaultModel,
+                defaultBaseUrl: definition.defaultBaseUrl,
+                requiresApiKey: definition.requiresApiKey,
+                connected,
+                credentialSource: hasStoredCredential ? 'secret' as const : hasEnvironmentCredential ? 'environment' as const : undefined,
+                selected: provider === selectedProvider,
+                model: provider === selectedProvider ? selectedModel : undefined,
+                baseUrl: provider === 'openai-compatible' ? configuredBaseUrl : definition.defaultBaseUrl,
+            };
+        }));
+        return states;
+    }
+
+    async disconnectProvider(provider: YagrModelProvider): Promise<void> {
+        await this.context.secrets.delete(getAgentProviderSecretKey(provider));
+        await this.setProviderDisabled(provider, true);
+        const config = vscode.workspace.getConfiguration('n8n.agent');
+        const selectedProvider = normalizeYagrProviderId(String(config.get<string>('provider') || ''));
+        if (selectedProvider === provider) {
+            await config.update('provider', 'openai', vscode.ConfigurationTarget.Global);
+            await config.update('model', YAGR_PROVIDER_DEFINITIONS.openai.defaultModel, vscode.ConfigurationTarget.Global);
+            await config.update('baseUrl', '', vscode.ConfigurationTarget.Global);
+        }
+    }
+
     hasEnvironmentCredential(provider: YagrModelProvider): boolean {
         return YAGR_PROVIDER_DEFINITIONS[provider].envKeys.some((key) => Boolean(process.env[key]?.trim()));
     }
@@ -198,6 +259,8 @@ export class YagrProviderService {
     async setupProvider(provider: YagrModelProvider): Promise<boolean> {
         const definition = YAGR_PROVIDER_DEFINITIONS[provider];
         const config = vscode.workspace.getConfiguration('n8n.agent');
+        const previousProvider = normalizeYagrProviderId(String(config.get<string>('provider') || ''));
+        await this.setProviderDisabled(provider, false);
 
         if (providerNeedsBaseUrlInput(provider)) {
             const baseUrl = await vscode.window.showInputBox({
@@ -245,7 +308,7 @@ export class YagrProviderService {
 
         await config.update('provider', provider, vscode.ConfigurationTarget.Global);
         const currentModel = String(config.get<string>('model') || '').trim();
-        if (!currentModel) {
+        if (!currentModel || previousProvider !== provider) {
             await config.update('model', definition.defaultModel, vscode.ConfigurationTarget.Global);
         }
         return true;
@@ -290,7 +353,7 @@ export class YagrProviderService {
                 .filter((model) => /^gemini-/i.test(model));
         }
         if (provider === 'openai-oauth') {
-            return this.fetchJsonModels('https://chatgpt.com/backend-api/codex/models', { Authorization: `Bearer ${apiKey}` });
+            return this.fetchOpenAiOauthModels(apiKey || '');
         }
         if (provider === 'copilot-proxy') {
             return this.fetchJsonModels(`${definition.defaultBaseUrl}/models`, {
@@ -309,11 +372,27 @@ export class YagrProviderService {
     }
 
     private readEnvironmentCredential(provider: YagrModelProvider): string | undefined {
+        if (this.getDisabledProviders().has(provider)) return undefined;
         for (const key of YAGR_PROVIDER_DEFINITIONS[provider].envKeys) {
             const value = process.env[key]?.trim();
             if (value) return value;
         }
         return undefined;
+    }
+
+    private getDisabledProviders(): Set<YagrModelProvider> {
+        const disabled = this.context.globalState.get<string[]>(DISABLED_PROVIDERS_STATE_KEY, []);
+        return new Set(disabled.map((provider) => normalizeYagrProviderId(provider)).filter((provider): provider is YagrModelProvider => Boolean(provider)));
+    }
+
+    private async setProviderDisabled(provider: YagrModelProvider, disabled: boolean): Promise<void> {
+        const providers = this.getDisabledProviders();
+        if (disabled) {
+            providers.add(provider);
+        } else {
+            providers.delete(provider);
+        }
+        await this.context.globalState.update(DISABLED_PROVIDERS_STATE_KEY, [...providers]);
     }
 
     private async fetchJsonModels(url: string, headers: Record<string, string>): Promise<string[]> {
@@ -323,29 +402,206 @@ export class YagrProviderService {
         return [...new Set(MODEL_LIST_MAPPER(payload))];
     }
 
+    private async fetchOpenAiOauthModels(accessToken: string): Promise<string[]> {
+        const accountRuntime = await import('@yagr/agent/dist/llm/openai-account.js').catch(() => undefined);
+        if (accountRuntime) {
+            const session = await accountRuntime.ensureOpenAiAccountSession().catch(() => undefined);
+            const token = session?.accessToken || accessToken;
+            return token ? accountRuntime.fetchOpenAiAccountModels(token) : [];
+        }
+        if (!accessToken) return [];
+        const headers: Record<string, string> = {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+        };
+        const accountId = this.extractChatGptAccountId(accessToken);
+        if (accountId) {
+            headers['chatgpt-account-id'] = accountId;
+        }
+        const response = await fetch('https://chatgpt.com/backend-api/codex/models?client_version=1.0.0', { headers });
+        if (!response.ok) return [];
+        const payload = await response.json() as { models?: Array<{ slug?: string; visibility?: string; priority?: number }> };
+        return [...new Set((payload.models ?? [])
+            .filter((model) => typeof model.slug === 'string' && model.slug.trim().length > 0)
+            .filter((model) => (model.visibility ?? 'list') === 'list')
+            .sort((left, right) => (left.priority ?? Number.MAX_SAFE_INTEGER) - (right.priority ?? Number.MAX_SAFE_INTEGER))
+            .map((model) => model.slug!.trim()))];
+    }
+
+    private extractChatGptAccountId(accessToken: string): string | undefined {
+        try {
+            const parts = accessToken.split('.');
+            if (parts.length !== 3) return undefined;
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8')) as Record<string, unknown>;
+            const claim = payload['https://api.openai.com/auth'] as Record<string, unknown> | undefined;
+            return typeof claim?.chatgpt_account_id === 'string' ? claim.chatgpt_account_id : undefined;
+        } catch {
+            return undefined;
+        }
+    }
+
     private async runDeviceFlow(provider: YagrModelProvider): Promise<void> {
         const challenge = provider === 'openai-oauth'
             ? await this.beginOpenAiDeviceAuth()
             : await this.beginGitHubDeviceAuth();
-        await vscode.env.openExternal(vscode.Uri.parse(challenge.verificationUri));
-        const submitted = await vscode.window.showInputBox({
-            title: provider === 'openai-oauth' ? 'Complete OpenAI device login' : 'Complete GitHub Copilot device login',
-            prompt: `Browser opened. Enter code ${challenge.userCode}, authorize, then press Enter here to continue.`,
-            value: challenge.userCode,
-            ignoreFocusOut: true,
+
+        const cancellationSource = new vscode.CancellationTokenSource();
+        const authPanel = this.showDeviceFlowModal(provider, challenge, cancellationSource);
+
+        try {
+            const token = await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: provider === 'openai-oauth' ? 'Waiting for OpenAI authorization' : 'Waiting for GitHub authorization',
+                cancellable: true,
+            }, async (progress, cancellationToken) => {
+                const disposable = cancellationToken.onCancellationRequested(() => cancellationSource.cancel());
+                try {
+                    progress.report({ message: `Code ${challenge.userCode}` });
+                    return provider === 'openai-oauth'
+                        ? this.completeOpenAiDeviceAuth(challenge, cancellationSource.token)
+                        : this.completeGitHubDeviceAuth(challenge, cancellationSource.token);
+                } finally {
+                    disposable.dispose();
+                }
+            });
+
+            await this.context.secrets.store(getAgentProviderSecretKey(provider), token);
+            vscode.window.showInformationMessage(`${YAGR_PROVIDER_DEFINITIONS[provider].label} connected.`);
+        } finally {
+            authPanel.dispose();
+            cancellationSource.dispose();
+        }
+    }
+
+    private showDeviceFlowModal(provider: YagrModelProvider, challenge: DeviceChallenge, cancellationSource: vscode.CancellationTokenSource): vscode.WebviewPanel {
+        const title = provider === 'openai-oauth' ? 'Connect OpenAI account' : 'Connect GitHub Copilot';
+        void vscode.env.clipboard.writeText(challenge.userCode).then(undefined, () => undefined);
+        void vscode.env.openExternal(vscode.Uri.parse(challenge.verificationUri));
+        return this.showDeviceFlowWebview(title, provider, challenge, cancellationSource);
+    }
+
+    private showDeviceFlowWebview(title: string, provider: YagrModelProvider, challenge: DeviceChallenge, cancellationSource: vscode.CancellationTokenSource): vscode.WebviewPanel {
+        const panel = vscode.window.createWebviewPanel(
+            'n8nAgentDeviceAuth',
+            title,
+            vscode.ViewColumn.Active,
+            { enableScripts: true, retainContextWhenHidden: false, localResourceRoots: [] },
+        );
+
+        panel.webview.html = this.buildDeviceFlowHtml(title, provider, challenge);
+        const disposable = panel.webview.onDidReceiveMessage(async (message: unknown) => {
+            if (!message || typeof message !== 'object') return;
+            const payload = message as Record<string, unknown>;
+            if (payload.type === 'copyCode') {
+                await vscode.env.clipboard.writeText(challenge.userCode);
+                await panel.webview.postMessage({ type: 'copied' });
+                return;
+            }
+            if (payload.type === 'openBrowser') {
+                await vscode.env.openExternal(vscode.Uri.parse(challenge.verificationUri));
+                return;
+            }
+            if (payload.type === 'cancel') {
+                cancellationSource.cancel();
+                panel.dispose();
+            }
         });
-        if (submitted === undefined) return;
-        const token = provider === 'openai-oauth'
-            ? await this.completeOpenAiDeviceAuth(challenge)
-            : await this.completeGitHubDeviceAuth(challenge);
-        await this.context.secrets.store(getAgentProviderSecretKey(provider), token);
+        panel.onDidDispose(() => disposable.dispose());
+        return panel;
+    }
+
+    private buildDeviceFlowHtml(title: string, provider: YagrModelProvider, challenge: DeviceChallenge): string {
+        const nonce = this.getNonce();
+        const providerLabel = this.escapeHtml(YAGR_PROVIDER_DEFINITIONS[provider].label);
+        const safeTitle = this.escapeHtml(title);
+        const code = this.escapeHtml(challenge.userCode);
+        const verificationUri = this.escapeHtml(challenge.verificationUri);
+        const expiresInMinutes = Math.max(1, Math.ceil((challenge.expiresAt - Date.now()) / 60000));
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${safeTitle}</title>
+  <style>
+    :root {
+      --bg: var(--vscode-editor-background);
+      --panel: var(--vscode-sideBar-background, var(--vscode-editor-background));
+      --text: var(--vscode-editor-foreground);
+      --muted: var(--vscode-descriptionForeground);
+      --border: var(--vscode-panel-border, var(--vscode-input-border));
+      --accent: var(--vscode-button-background);
+      --accentText: var(--vscode-button-foreground);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--bg); color: var(--text); font-family: var(--vscode-font-family); }
+    main { width: min(560px, 100%); border: 1px solid var(--border); border-radius: 14px; background: var(--panel); padding: 22px; display: grid; gap: 16px; box-shadow: 0 18px 60px rgba(0,0,0,.28); }
+    h1, p { margin: 0; }
+    h1 { font-size: 22px; }
+    .muted { color: var(--muted); line-height: 1.45; }
+    .code { border: 1px solid var(--border); border-radius: 12px; padding: 18px; text-align: center; font-size: 34px; font-weight: 800; letter-spacing: .16em; background: var(--vscode-input-background); user-select: all; }
+    .url { color: var(--vscode-textLink-foreground); overflow-wrap: anywhere; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+    button { min-height: 34px; border: 1px solid transparent; border-radius: 7px; padding: 0 13px; color: var(--accentText); background: var(--accent); font-weight: 650; cursor: pointer; }
+    button.secondary { color: var(--text); background: transparent; border-color: var(--border); }
+    .copied { display: none; color: var(--vscode-testing-iconPassed, var(--text)); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div>
+      <h1>${safeTitle}</h1>
+      <p class="muted">Authorize ${providerLabel} in your browser. n8n-as-code detects completion automatically.</p>
+    </div>
+    <div class="code" aria-label="Device code">${code}</div>
+    <p class="muted">Open <span class="url">${verificationUri}</span> and enter this code. It expires in about ${expiresInMinutes} minutes.</p>
+    <div id="copied" class="copied">Code copied to clipboard.</div>
+    <div class="actions">
+      <button id="copy" class="secondary" type="button">Copy Code</button>
+      <button id="open" class="secondary" type="button">Open Browser</button>
+      <button id="cancel" class="secondary" type="button">Cancel</button>
+    </div>
+  </main>
+  <script nonce="${nonce}">
+    const vscode = acquireVsCodeApi();
+    document.getElementById('copy').addEventListener('click', () => vscode.postMessage({ type: 'copyCode' }));
+    document.getElementById('open').addEventListener('click', () => vscode.postMessage({ type: 'openBrowser' }));
+    document.getElementById('cancel').addEventListener('click', () => vscode.postMessage({ type: 'cancel' }));
+    window.addEventListener('message', (event) => {
+      if (event.data?.type === 'copied') {
+        const copied = document.getElementById('copied');
+        copied.style.display = 'block';
+        setTimeout(() => copied.style.display = 'none', 1400);
+      }
+    });
+  </script>
+</body>
+</html>`;
+    }
+
+    private escapeHtml(value: string): string {
+        return value
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    private getNonce(): string {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let nonce = '';
+        for (let i = 0; i < 32; i++) {
+            nonce += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return nonce;
     }
 
     private async beginOpenAiDeviceAuth(): Promise<DeviceChallenge> {
         const response = await fetch('https://auth.openai.com/api/accounts/deviceauth/usercode', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ client_id: 'app_EMoamEEZ73f0CkXaXp7hrann' }),
+            body: JSON.stringify({ client_id: OPENAI_CODEX_CLIENT_ID }),
         });
         if (!response.ok) throw new Error(`OpenAI device login failed: HTTP ${response.status}`);
         const payload = await response.json() as Record<string, unknown>;
@@ -362,27 +618,80 @@ export class YagrProviderService {
         };
     }
 
-    private async completeOpenAiDeviceAuth(challenge: DeviceChallenge): Promise<string> {
+    private async completeOpenAiDeviceAuth(challenge: DeviceChallenge, cancellationToken?: vscode.CancellationToken): Promise<string> {
+        const accountRuntime = await import('@yagr/agent/dist/llm/openai-account.js');
+        const wait = accountRuntime.completeCodexDeviceAuth({
+            deviceAuthId: challenge.deviceAuthId || '',
+            userCode: challenge.userCode,
+            intervalMs: challenge.intervalMs,
+            expiresAt: challenge.expiresAt,
+        });
+        if (!cancellationToken) {
+            return (await wait).accessToken;
+        }
+        const session = await Promise.race([
+            wait,
+            new Promise<never>((_, reject) => {
+                const disposable = cancellationToken.onCancellationRequested(() => {
+                    disposable.dispose();
+                    reject(new Error('OpenAI device login cancelled.'));
+                });
+            }),
+        ]);
+        return session.accessToken;
+    }
+
+    private async completeOpenAiDeviceAuthLegacy(challenge: DeviceChallenge, cancellationToken?: vscode.CancellationToken): Promise<string> {
         while (Date.now() < challenge.expiresAt - 3000) {
+            if (cancellationToken?.isCancellationRequested) throw new Error('OpenAI device login cancelled.');
             const response = await fetch('https://auth.openai.com/api/accounts/deviceauth/token', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    client_id: 'app_EMoamEEZ73f0CkXaXp7hrann',
                     device_auth_id: challenge.deviceAuthId,
                     user_code: challenge.userCode,
                 }),
             });
-            const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
-            const accessToken = String(payload.access_token || '');
-            if (response.ok && accessToken) return accessToken;
-            const error = String(payload.error || '');
-            if (error && error !== 'authorization_pending' && error !== 'slow_down') {
-                throw new Error(String(payload.error_description || error));
+
+            if (response.ok) {
+                const deviceToken = await response.json() as Record<string, unknown>;
+                const authorizationCode = String(deviceToken.authorization_code || '');
+                const codeVerifier = String(deviceToken.code_verifier || '');
+                if (!authorizationCode || !codeVerifier) {
+                    throw new Error('OpenAI device login returned an incomplete authorization result.');
+                }
+                return this.exchangeOpenAiDeviceCode(authorizationCode, codeVerifier);
             }
-            await new Promise((resolve) => setTimeout(resolve, challenge.intervalMs));
+
+            if (response.status !== 403 && response.status !== 404) {
+                const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+                throw new Error(String(payload.error_description || payload.message || payload.error || `OpenAI device flow failed: HTTP ${response.status}`));
+            }
+            await this.sleep(challenge.intervalMs + 3000, cancellationToken);
         }
         throw new Error('OpenAI device login expired.');
+    }
+
+    private async exchangeOpenAiDeviceCode(authorizationCode: string, codeVerifier: string): Promise<string> {
+        const body = new URLSearchParams();
+        body.set('grant_type', 'authorization_code');
+        body.set('code', authorizationCode);
+        body.set('redirect_uri', OPENAI_CODEX_DEVICE_REDIRECT_URI);
+        body.set('client_id', OPENAI_CODEX_CLIENT_ID);
+        body.set('code_verifier', codeVerifier);
+
+        const response = await fetch('https://auth.openai.com/oauth/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString(),
+        });
+        if (!response.ok) {
+            throw new Error(`OpenAI token exchange failed: HTTP ${response.status}`);
+        }
+        const tokens = await response.json() as Record<string, unknown>;
+        const accessToken = String(tokens.access_token || '');
+        if (!accessToken) throw new Error('OpenAI device login returned no access token.');
+        return accessToken;
     }
 
     private async beginGitHubDeviceAuth(): Promise<DeviceChallenge> {
@@ -402,8 +711,31 @@ export class YagrProviderService {
         };
     }
 
-    private async completeGitHubDeviceAuth(challenge: DeviceChallenge): Promise<string> {
+    private async completeGitHubDeviceAuth(challenge: DeviceChallenge, cancellationToken?: vscode.CancellationToken): Promise<string> {
+        const accountRuntime = await import('@yagr/agent/dist/llm/copilot-account.js');
+        const wait = accountRuntime.completeGitHubCopilotAuth({
+            deviceCode: challenge.deviceCode || '',
+            intervalMs: challenge.intervalMs,
+            expiresAt: challenge.expiresAt,
+        });
+        if (!cancellationToken) {
+            return (await wait).githubToken;
+        }
+        const session = await Promise.race([
+            wait,
+            new Promise<never>((_, reject) => {
+                const disposable = cancellationToken.onCancellationRequested(() => {
+                    disposable.dispose();
+                    reject(new Error('GitHub Copilot device login cancelled.'));
+                });
+            }),
+        ]);
+        return session.githubToken;
+    }
+
+    private async completeGitHubDeviceAuthLegacy(challenge: DeviceChallenge, cancellationToken?: vscode.CancellationToken): Promise<string> {
         while (Date.now() < challenge.expiresAt) {
+            if (cancellationToken?.isCancellationRequested) throw new Error('GitHub Copilot device login cancelled.');
             const response = await fetch('https://github.com/login/oauth/access_token', {
                 method: 'POST',
                 headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -420,8 +752,26 @@ export class YagrProviderService {
             if (error && error !== 'authorization_pending' && error !== 'slow_down') {
                 throw new Error(String(payload.error_description || error));
             }
-            await new Promise((resolve) => setTimeout(resolve, challenge.intervalMs));
+            await this.sleep(challenge.intervalMs, cancellationToken);
         }
         throw new Error('GitHub Copilot device login expired.');
+    }
+
+    private async sleep(ms: number, cancellationToken?: vscode.CancellationToken): Promise<void> {
+        if (!cancellationToken) {
+            await new Promise((resolve) => setTimeout(resolve, ms));
+            return;
+        }
+        await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                disposable.dispose();
+                resolve();
+            }, ms);
+            const disposable = cancellationToken.onCancellationRequested(() => {
+                clearTimeout(timeout);
+                disposable.dispose();
+                reject(new Error('Device login cancelled.'));
+            });
+        });
     }
 }
