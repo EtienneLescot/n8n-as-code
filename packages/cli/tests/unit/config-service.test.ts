@@ -105,7 +105,7 @@ describe('ConfigService', () => {
             host: 'https://prod.example.test',
             projectId: 'personal',
             projectName: 'Personal',
-            instanceIdentifier: 'local_1234_etienne_test',
+            instanceIdentifier: 'invalid_identifier',
         }, {
             instanceId: 'prod',
             instanceName: 'Production',
@@ -123,7 +123,7 @@ describe('ConfigService', () => {
             apiKey: 'test-key',
             projectId: 'personal',
             projectName: 'Personal',
-            instanceIdentifier: 'local_1234_etienne_test',
+            instanceIdentifier: 'invalid_identifier',
         }, {
             instanceId: 'prod',
             instanceName: 'Production',

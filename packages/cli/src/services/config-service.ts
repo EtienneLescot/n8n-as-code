@@ -8,7 +8,7 @@ import {
     type N8nInstanceVerification,
     type N8nInstanceVerificationStatus,
 } from '@n8n-as-code/n8n-manager-core';
-import { N8nApiClient, createInstanceIdentifier, createProjectSlug, isCanonicalUserInstanceIdentifier, isReusableInstanceIdentifier, resolveInstanceIdentifier } from '../core/index.js';
+import { N8nApiClient, createInstanceIdentifier, createProjectSlug, isCanonicalUserInstanceIdentifier, resolveInstanceIdentifier } from '../core/index.js';
 
 export interface ILocalConfig {
     host?: string;
@@ -143,7 +143,7 @@ export class ConfigService {
         }
         return {
             ...prepared.context,
-            instanceIdentifier: this.reusableInstanceIdentifier(prepared.context.instanceIdentifier),
+            instanceIdentifier: this.canonicalInstanceIdentifier(prepared.context.instanceIdentifier),
         };
     }
 
@@ -280,7 +280,7 @@ export class ConfigService {
             : undefined;
         const instanceIdentifier = input.host && input.apiKey
             ? await this.resolveInstanceIdentifier(input.host, input.apiKey, options.client)
-            : this.reusableInstanceIdentifier(input.instanceIdentifier);
+            : this.canonicalInstanceIdentifier(input.instanceIdentifier);
         const profile = this.saveLocalConfig({
             ...input,
             instanceIdentifier,
@@ -323,7 +323,7 @@ export class ConfigService {
             mode: current?.mode || 'existing',
             baseUrl: host,
             apiKey: options.apiKey,
-            instanceIdentifier: this.reusableInstanceIdentifier(config.instanceIdentifier || current?.instanceIdentifier),
+            instanceIdentifier: this.canonicalInstanceIdentifier(config.instanceIdentifier || current?.instanceIdentifier),
             verification: options.verification || current?.verification,
             defaultProject: current?.defaultProject,
         }, {
@@ -408,11 +408,18 @@ export class ConfigService {
         const target = instanceId
             ? this.manager.getInstance(instanceId)
             : this.manager.listInstances().find((candidate) => this.normalizeHost(candidate.baseUrl || '') === this.normalizeHost(host));
+        const instanceIdentifier = this.resolveInstanceIdentifierFromApiKey(apiKey);
+        if (!instanceIdentifier) {
+            throw new Error('Unable to resolve the n8n user ID from the API key.');
+        }
         if (target) {
             this.manager.saveApiKey(target.id, apiKey);
+            this.manager.upsertInstance({
+                id: target.id,
+                instanceIdentifier,
+            }, { setActive: false });
             return;
         }
-        const instanceIdentifier = this.resolveInstanceIdentifierFromApiKey(apiKey) || undefined;
         const saved = this.manager.upsertInstance({ baseUrl: host, apiKey, instanceIdentifier }, { setActive: true });
         this.manager.saveApiKey(saved.id, apiKey);
     }
@@ -460,8 +467,8 @@ export class ConfigService {
             : path.resolve(this.workspaceRoot, targetPath);
     }
 
-    private reusableInstanceIdentifier(identifier?: string): string | undefined {
-        return isReusableInstanceIdentifier(identifier) ? identifier : undefined;
+    private canonicalInstanceIdentifier(identifier?: string): string | undefined {
+        return isCanonicalUserInstanceIdentifier(identifier) ? identifier : undefined;
     }
 
     private resolveInstanceIdentifierFromApiKey(apiKey: string): string | undefined {
@@ -470,7 +477,7 @@ export class ConfigService {
             if (parts.length !== 3) return undefined;
             const payload = JSON.parse(Buffer.from(parts[1], 'base64url' as BufferEncoding).toString('utf8'));
             return typeof payload.sub === 'string' && payload.sub
-                ? createInstanceIdentifier('', { id: payload.sub })
+                ? createInstanceIdentifier({ id: payload.sub })
                 : undefined;
         } catch {
             return undefined;
@@ -506,7 +513,7 @@ export class ConfigService {
         });
         return {
             ...context,
-            instanceIdentifier: this.reusableInstanceIdentifier(context.instanceIdentifier),
+            instanceIdentifier: this.canonicalInstanceIdentifier(context.instanceIdentifier),
         };
     }
 
@@ -518,7 +525,7 @@ export class ConfigService {
             syncFolder: overrides?.syncFolder,
             projectId: overrides?.projectId || instance.defaultProject?.id,
             projectName: overrides?.projectName || instance.defaultProject?.name,
-            instanceIdentifier: this.reusableInstanceIdentifier(instance.instanceIdentifier),
+            instanceIdentifier: this.canonicalInstanceIdentifier(instance.instanceIdentifier),
             customNodesPath: overrides?.customNodesPath,
             folderSync: overrides?.folderSync,
             verification: instance.verification,
@@ -526,7 +533,7 @@ export class ConfigService {
     }
 
     private contextToInstanceProfile(context: EffectiveN8nContext): IInstanceProfile {
-        const instanceIdentifier = this.reusableInstanceIdentifier(context.instanceIdentifier);
+        const instanceIdentifier = this.canonicalInstanceIdentifier(context.instanceIdentifier);
         return {
             ...this.toInstanceProfile(context.instance),
             host: context.host,

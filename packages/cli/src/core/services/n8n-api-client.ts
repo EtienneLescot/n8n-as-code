@@ -78,45 +78,17 @@ export class N8nApiClient {
     }
 
     async getCurrentUser(): Promise<{ id: string; email?: string; firstName?: string; lastName?: string; } | null> {
-        // 1. Try to extract userId from API key (JWT sub claim)
         const jwtUserId = this.extractUserIdFromApiKey();
-        if (jwtUserId) {
-            if (process.env.DEBUG) console.debug(`[N8nApiClient] getCurrentUser: Extracted userId ${jwtUserId} from API key`);
-            try {
-                const encodedJwtUserId = encodeURIComponent(jwtUserId);
-                const res = await this.client.get(`/api/v1/users/${encodedJwtUserId}`);
-                if (res.data && res.data.id) {
-                    if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Successfully retrieved specific user details');
-                    return {
-                        id: res.data.id,
-                        email: res.data.email,
-                        firstName: res.data.firstName,
-                        lastName: res.data.lastName
-                    };
-                }
-            } catch (error: any) {
-                if (process.env.DEBUG) console.debug(`[N8nApiClient] getCurrentUser: Fetching specific user ${jwtUserId} failed:`, error.message);
-                
-                // The API key `sub` claim is the SSOT for sync folder identity.
-                // Network/API lookup only enriches display metadata and must not
-                // force a less stable API-key-hash fallback when `sub` is present.
-                if (!error.response) {
-                    return { id: jwtUserId };
-                }
-
-                // If it's a 403 or 404, we have the ID from JWT but can't get details.
-                // Return the ID at least to ensure correct instance identification.
-                if (error.response.status === 403 || error.response.status === 404) {
-                    return { id: jwtUserId };
-                }
-            }
+        if (!jwtUserId) {
+            return null;
         }
 
-        // 2. Fallback: Try /me (not in official public API spec but kept for compatibility)
+        if (process.env.DEBUG) console.debug(`[N8nApiClient] getCurrentUser: Extracted userId ${jwtUserId} from API key`);
         try {
-            const res = await this.client.get('/api/v1/users/me');
-            if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Successfully retrieved user from /me endpoint');
+            const encodedJwtUserId = encodeURIComponent(jwtUserId);
+            const res = await this.client.get(`/api/v1/users/${encodedJwtUserId}`);
             if (res.data && res.data.id) {
+                if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Successfully retrieved specific user details');
                 return {
                     id: res.data.id,
                     email: res.data.email,
@@ -125,34 +97,11 @@ export class N8nApiClient {
                 };
             }
         } catch (error: any) {
-            if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: /me endpoint failed:', error.message);
-            // If it's a connection error, throw immediately
-            if (!error.response) throw error;
+            if (process.env.DEBUG) console.debug(`[N8nApiClient] getCurrentUser: Fetching specific user ${jwtUserId} failed:`, error.message);
+            return { id: jwtUserId };
         }
 
-        // 3. Last resort: get all users and take the first one
-        // Note: This is unreliable on multi-user instances and only reached if JWT extraction failed.
-        if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Trying /api/v1/users endpoint as last resort');
-        try {
-            const res = await this.client.get('/api/v1/users');
-            if (res.data && res.data.data && res.data.data.length > 0) {
-                if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Found', res.data.data.length, 'users, taking first');
-                const user = res.data.data[0];
-                return {
-                    id: user.id,
-                    email: user.email,
-                    firstName: user.firstName,
-                    lastName: user.lastName
-                };
-            }
-        } catch (error: any) {
-            if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: /api/v1/users endpoint failed:', error.message);
-            // If it's a connection error, throw immediately
-            if (!error.response) throw error;
-        }
-        
-        if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: All attempts failed, returning null');
-        return null;
+        return { id: jwtUserId };
     }
 
     private shouldUsePersonalProjectFallback(error: any): boolean {

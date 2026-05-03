@@ -355,6 +355,7 @@ export class ConfigurationWebview {
     const instanceId = String(payload.instanceId || '').trim() || undefined;
     const instanceName = String(payload.instanceName || '').trim() || undefined;
     const setActive = Boolean(payload.setActive);
+    const workspaceRoot = getWorkspaceRoot();
 
     if (mode === 'managed-local-docker') {
       const previousActive = await facade.getGlobalActiveInstance();

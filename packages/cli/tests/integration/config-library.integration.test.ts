@@ -36,6 +36,10 @@ function createService(workspaceDir: string): ConfigService {
     return new ConfigService(workspaceDir);
 }
 
+function apiKeyForUser(userId: string): string {
+    return `header.${Buffer.from(JSON.stringify({ sub: userId })).toString('base64url')}.signature`;
+}
+
 describe('ConfigService filesystem integration', () => {
     it('persists global instances and rehydrates the effective workspace context from disk', () => {
         const workspaceDir = createWorkspaceDir();
@@ -47,23 +51,25 @@ describe('ConfigService filesystem integration', () => {
             syncFolder: 'workflows-test',
             projectId: 'project-test',
             projectName: 'Test',
-            instanceIdentifier: 'test_instance'
+            instanceIdentifier: 'n8n_f85ac825d1'
         }, {
             instanceName: 'Test'
         });
-        configService.saveApiKey('https://shared.example.com', 'test-key', testProfile.id);
+        const testApiKey = apiKeyForUser('test-user');
+        const prodApiKey = apiKeyForUser('prod-user');
+        configService.saveApiKey('https://shared.example.com', testApiKey, testProfile.id);
 
         const prodProfile = configService.saveLocalConfig({
             host: 'https://shared.example.com',
             syncFolder: 'workflows-prod',
             projectId: 'project-prod',
             projectName: 'Production',
-            instanceIdentifier: 'prod_instance'
+            instanceIdentifier: 'n8n_1bfdd27c80'
         }, {
             instanceName: 'Production',
             createNew: true,
         });
-        configService.saveApiKey('https://shared.example.com', 'prod-key', prodProfile.id);
+        configService.saveApiKey('https://shared.example.com', prodApiKey, prodProfile.id);
 
         const reloaded = createService(workspaceDir);
         expect(reloaded.listInstances().map((instance) => instance.name).sort()).toEqual(['Production', 'Test']);
@@ -73,10 +79,10 @@ describe('ConfigService filesystem integration', () => {
             syncFolder: path.join(workspaceDir, 'workflows-prod'),
             projectId: 'project-prod',
             projectName: 'Production',
-            workflowDir: path.join(workspaceDir, 'workflows-prod', 'prod_instance', 'production')
+            workflowDir: path.join(workspaceDir, 'workflows-prod', 'n8n_1bfdd27c80', 'production')
         });
-        expect(reloaded.getApiKey('https://shared.example.com', testProfile.id)).toBe('test-key');
-        expect(reloaded.getApiKey('https://shared.example.com', prodProfile.id)).toBe('prod-key');
+        expect(reloaded.getApiKey('https://shared.example.com', testProfile.id)).toBe(testApiKey);
+        expect(reloaded.getApiKey('https://shared.example.com', prodProfile.id)).toBe(prodApiKey);
 
         reloaded.pinWorkspaceInstance(testProfile.id);
 
@@ -86,7 +92,7 @@ describe('ConfigService filesystem integration', () => {
             syncFolder: path.join(workspaceDir, 'workflows-prod'),
             projectId: 'project-prod',
             projectName: 'Production',
-            workflowDir: path.join(workspaceDir, 'workflows-prod', 'test_instance', 'production')
+            workflowDir: path.join(workspaceDir, 'workflows-prod', 'n8n_f85ac825d1', 'production')
         });
 
         const rawConfig = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'n8nac-config.json'), 'utf-8'));
@@ -114,7 +120,9 @@ describe('ConfigService filesystem integration', () => {
         }, {
             instanceName: 'Test'
         });
-        configService.saveApiKey('https://shared.example.com', 'test-key', testProfile.id);
+        const testApiKey = apiKeyForUser('test-user');
+        const prodApiKey = apiKeyForUser('prod-user');
+        configService.saveApiKey('https://shared.example.com', testApiKey, testProfile.id);
 
         const prodProfile = configService.saveLocalConfig({
             host: 'https://prod.example.com',
@@ -125,13 +133,13 @@ describe('ConfigService filesystem integration', () => {
             instanceName: 'Production',
             createNew: true,
         });
-        configService.saveApiKey('https://prod.example.com', 'prod-key', prodProfile.id);
+        configService.saveApiKey('https://prod.example.com', prodApiKey, prodProfile.id);
 
         const deletion = configService.deleteInstance(prodProfile.id);
 
         expect(deletion.deletedInstance.id).toBe(prodProfile.id);
         expect(deletion.activeInstance?.id).toBe(testProfile.id);
-        expect(configService.getApiKey('https://shared.example.com', testProfile.id)).toBe('test-key');
+        expect(configService.getApiKey('https://shared.example.com', testProfile.id)).toBe(testApiKey);
         expect(configService.getApiKey('https://prod.example.com', prodProfile.id)).toBeUndefined();
 
         const reloaded = createService(workspaceDir);

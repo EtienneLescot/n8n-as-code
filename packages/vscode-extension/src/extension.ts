@@ -1634,14 +1634,9 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     try {
         const resolution = await resolveInstanceIdentifier(credentials, {
             client,
-            throwOnConnectionError: true
         });
         instanceIdentifier = resolution.identifier;
-        outputChannel.appendLine(
-            resolution.usedFallback
-                ? `[n8n] Instance identifier (fallback): ${instanceIdentifier}`
-                : `[n8n] Instance identifier: ${instanceIdentifier}`
-        );
+        outputChannel.appendLine(`[n8n] Instance identifier: ${instanceIdentifier}`);
         const currentIdentifier = effective.instance.instanceIdentifier;
         if (!isCanonicalUserInstanceIdentifier(currentIdentifier)) {
             await facade.upsertInstance({

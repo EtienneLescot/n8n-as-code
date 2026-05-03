@@ -47,6 +47,7 @@ class MockN8nApiClientForArchive extends EventEmitter {
 // ---------------------------------------------------------------------------
 
 const tempDirs: string[] = [];
+const previousManagerHome = process.env.N8N_MANAGER_HOME;
 
 function createTempDir(prefix: string): string {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -55,15 +56,16 @@ function createTempDir(prefix: string): string {
 }
 
 function createSyncManagerWithMockClient(workspaceDir: string): SyncManager {
+    process.env.N8N_MANAGER_HOME = createTempDir('n8nac-it-archive-manager-');
     const configService = new ConfigService(workspaceDir);
     configService.saveLocalConfig({
         host: 'http://localhost:5678',
         syncFolder: workspaceDir,
         projectId: 'personal-project',
         projectName: 'Personal',
-        instanceIdentifier: 'local_1234_etienne_test',
+        instanceIdentifier: 'n8n_c6c289e49e',
     }, { instanceName: 'Test' });
-    configService.saveApiKey('http://localhost:5678', 'test-api-key');
+    configService.saveApiKey('http://localhost:5678', `header.${Buffer.from(JSON.stringify({ sub: 'user-1' })).toString('base64url')}.signature`);
 
     const mockClient = new MockN8nApiClientForArchive();
     return new SyncManager(mockClient as any, {
@@ -72,7 +74,7 @@ function createSyncManagerWithMockClient(workspaceDir: string): SyncManager {
         ignoredTags: [],
         projectId: 'personal-project',
         projectName: 'Personal',
-        instanceIdentifier: 'test_instance',
+        instanceIdentifier: 'n8n_c6c289e49e',
     });
 }
 
@@ -89,6 +91,11 @@ afterEach(() => {
         fs.rmSync(dir, { recursive: true, force: true });
     }
     tempDirs.length = 0;
+    if (previousManagerHome === undefined) {
+        delete process.env.N8N_MANAGER_HOME;
+    } else {
+        process.env.N8N_MANAGER_HOME = previousManagerHome;
+    }
 });
 
 // ---------------------------------------------------------------------------
