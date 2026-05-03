@@ -12,15 +12,15 @@ export class AgentWorkbenchWebview {
     private readonly _agentRuntime: AgentRuntimeController;
     private readonly _disposables: vscode.Disposable[] = [];
     private _registryDisposable: { dispose(): void } | undefined;
-    private _workflow: IWorkflowStatus;
-    private _workflowUrl: string;
+    private _workflow: IWorkflowStatus | undefined;
+    private _workflowUrl: string | undefined;
     private _onClipboardPasteRequest: ((panel: vscode.WebviewPanel, grantToken: string) => Promise<void>) | undefined;
 
     private constructor(
         panel: vscode.WebviewPanel,
         context: vscode.ExtensionContext,
-        workflow: IWorkflowStatus,
-        workflowUrl: string,
+        workflow: IWorkflowStatus | undefined,
+        workflowUrl: string | undefined,
         agentRuntime: AgentRuntimeController,
     ) {
         this._panel = panel;
@@ -28,10 +28,7 @@ export class AgentWorkbenchWebview {
         this._workflow = workflow;
         this._workflowUrl = workflowUrl;
         this._agentRuntime = agentRuntime;
-        this._registryDisposable = workflowWebviewRegistry.register({
-            getWorkflowId: () => this._workflow.id,
-            reloadWorkflow: () => this._panel.webview.postMessage({ type: 'workflow.reload' }),
-        });
+        this.updateRegistryRegistration();
 
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
         this._panel.webview.onDidReceiveMessage((message) => {
@@ -42,8 +39,8 @@ export class AgentWorkbenchWebview {
 
     public static createOrShow(
         context: vscode.ExtensionContext,
-        workflow: IWorkflowStatus,
-        workflowUrl: string,
+        workflow: IWorkflowStatus | undefined,
+        workflowUrl: string | undefined,
         agentRuntime: AgentRuntimeController,
         viewColumn?: vscode.ViewColumn,
     ): void {
@@ -57,7 +54,7 @@ export class AgentWorkbenchWebview {
 
         const panel = vscode.window.createWebviewPanel(
             'n8nAgentWorkbench',
-            `n8n Agent: ${workflow.name}`,
+            `n8n Agent: ${workflow?.name || 'New workflow'}`,
             column,
             {
                 enableScripts: true,
@@ -75,14 +72,23 @@ export class AgentWorkbenchWebview {
         }
     }
 
-    public update(workflow: IWorkflowStatus, workflowUrl: string): void {
+    public update(workflow: IWorkflowStatus | undefined, workflowUrl: string | undefined): void {
+        const hadWorkflowFrame = Boolean(this._workflowUrl);
+        const hasWorkflowFrame = Boolean(workflowUrl);
         this._workflow = workflow;
         this._workflowUrl = workflowUrl;
-        this._panel.title = `n8n Agent: ${workflow.name}`;
+        this.updateRegistryRegistration();
+        this._panel.title = `n8n Agent: ${workflow?.name || 'New workflow'}`;
+
+        if (hadWorkflowFrame !== hasWorkflowFrame) {
+            this._panel.webview.html = this.getHtmlForWebview();
+            return;
+        }
+
         this._panel.webview.postMessage({
             type: 'workflow.update',
-            workflowId: workflow.id,
-            workflowName: workflow.name,
+            workflowId: workflow?.id || '',
+            workflowName: workflow?.name || 'New workflow',
             url: workflowUrl,
         });
     }
@@ -124,8 +130,9 @@ export class AgentWorkbenchWebview {
         if (payload.type === 'agent.send') {
             await this._agentRuntime.sendPrompt({
                 prompt: String(payload.text || ''),
-                workflowId: this._workflow.id,
-                workflowName: this._workflow.name,
+                workflowId: this._workflow?.id,
+                workflowName: this._workflow?.name,
+                workflowFilename: this._workflow?.filename,
                 workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
             }, (event) => this._panel.webview.postMessage(event));
             return;
@@ -142,10 +149,28 @@ export class AgentWorkbenchWebview {
         }
     }
 
+    private updateRegistryRegistration(): void {
+        const workflowId = this._workflow?.id;
+        if (!workflowId) {
+            this._registryDisposable?.dispose();
+            this._registryDisposable = undefined;
+            return;
+        }
+
+        if (this._registryDisposable) {
+            return;
+        }
+
+        this._registryDisposable = workflowWebviewRegistry.register({
+            getWorkflowId: () => this._workflow?.id,
+            reloadWorkflow: () => this._panel.webview.postMessage({ type: 'workflow.reload' }),
+        });
+    }
+
     private getHtmlForWebview(): string {
         return buildAgentWorkbenchHtml({
-            workflowId: this._workflow.id,
-            workflowName: this._workflow.name,
+            workflowId: this._workflow?.id || '',
+            workflowName: this._workflow?.name || 'New workflow',
             workflowUrl: this._workflowUrl,
         });
     }

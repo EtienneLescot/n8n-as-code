@@ -8,7 +8,7 @@ import {
     type N8nInstanceVerification,
     type N8nInstanceVerificationStatus,
 } from '@n8n-as-code/n8n-manager-core';
-import { N8nApiClient, createProjectSlug } from '../core/index.js';
+import { N8nApiClient, createProjectSlug, isLegacyLocalInstanceIdentifier } from '../core/index.js';
 
 export interface ILocalConfig {
     host?: string;
@@ -420,7 +420,7 @@ export class ConfigService {
 
     async getOrCreateInstanceIdentifier(host: string, instanceId?: string): Promise<string> {
         const active = instanceId ? this.manager.getInstance(instanceId) : this.manager.getGlobalActiveInstance();
-        if (active?.instanceIdentifier) {
+        if (active?.instanceIdentifier && !isLegacyLocalInstanceIdentifier(active.instanceIdentifier)) {
             return active.instanceIdentifier;
         }
         const apiKey = active ? this.manager.getApiKey(active.id) : this.getApiKey(host, instanceId);

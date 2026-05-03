@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
 import { getWorkspaceRoot } from '../utils/state-detection.js';
 import type { N8nConfigurationController, N8nConfigurationSnapshot } from '../services/n8n-configuration-controller.js';
+import { YagrProviderService, normalizeYagrProviderId, type YagrModelProvider } from '../services/yagr-provider-service.js';
 import { getConfigurationHtml } from './configuration-webview-html.js';
 import { getCanonicalProjectName, getProjectDetail, getProjectDisplayLabel } from '../utils/project-display.js';
 
@@ -62,17 +63,22 @@ export class ConfigurationWebview {
   private readonly _panel: vscode.WebviewPanel;
   private readonly _context: vscode.ExtensionContext;
   private readonly _configurationController: N8nConfigurationController;
+  private readonly _providerService: YagrProviderService;
   private readonly _disposables: vscode.Disposable[] = [];
   private _stateVersion = 0;
+  private _initialTab: string | undefined;
 
   private constructor(
     panel: vscode.WebviewPanel,
     context: vscode.ExtensionContext,
     configurationController: N8nConfigurationController,
+    initialTab?: string,
   ) {
     this._panel = panel;
     this._context = context;
     this._configurationController = configurationController;
+    this._providerService = new YagrProviderService(context);
+    this._initialTab = initialTab;
 
     this._panel.onDidDispose(() => {
       for (const disposable of this._disposables) {
@@ -103,11 +109,15 @@ export class ConfigurationWebview {
   public static createOrShow(
     context: vscode.ExtensionContext,
     configurationController: N8nConfigurationController,
+    initialTab?: string,
   ): void {
     const column = vscode.ViewColumn.One;
 
     if (ConfigurationWebview.currentPanel) {
       ConfigurationWebview.currentPanel._panel.reveal(column);
+      if (initialTab) {
+        ConfigurationWebview.currentPanel._panel.webview.postMessage({ type: 'activeTab', tab: initialTab });
+      }
       return;
     }
 
@@ -118,7 +128,7 @@ export class ConfigurationWebview {
       { enableScripts: true },
     );
 
-    ConfigurationWebview.currentPanel = new ConfigurationWebview(panel, context, configurationController);
+    ConfigurationWebview.currentPanel = new ConfigurationWebview(panel, context, configurationController, initialTab);
   }
 
   private async handleMessage(message: unknown): Promise<void> {
@@ -289,6 +299,41 @@ export class ConfigurationWebview {
         case 'openSettings':
           await vscode.commands.executeCommand('n8n.openSettings');
           return;
+
+        case 'connectProvider': {
+          const provider = normalizeYagrProviderId(String(payload.provider || ''));
+          if (!provider) throw new Error('Unsupported provider.');
+          const configured = await this._providerService.setupProvider(provider);
+          if (configured) {
+            await this._providerService.selectModel(provider);
+          }
+          await this.postInitialState();
+          this._panel.webview.postMessage({ type: 'activeTab', tab: 'agent-providers' });
+          this._panel.webview.postMessage({ type: 'saved' });
+          return;
+        }
+
+        case 'disconnectProvider': {
+          const provider = normalizeYagrProviderId(String(payload.provider || ''));
+          if (!provider) throw new Error('Unsupported provider.');
+          await this._providerService.disconnectProvider(provider);
+          await this.postInitialState();
+          this._panel.webview.postMessage({ type: 'activeTab', tab: 'agent-providers' });
+          this._panel.webview.postMessage({ type: 'saved' });
+          return;
+        }
+
+        case 'selectProviderModel': {
+          const provider = normalizeYagrProviderId(String(payload.provider || ''));
+          if (!provider) throw new Error('Unsupported provider.');
+          const config = vscode.workspace.getConfiguration('n8n.agent');
+          await config.update('provider', provider, vscode.ConfigurationTarget.Global);
+          await this._providerService.selectModel(provider as YagrModelProvider);
+          await this.postInitialState();
+          this._panel.webview.postMessage({ type: 'activeTab', tab: 'agent-providers' });
+          this._panel.webview.postMessage({ type: 'saved' });
+          return;
+        }
       }
     } catch (error: any) {
       await this._configurationController.refresh('webview-error-refresh', { force: true }).catch(() => undefined);
@@ -418,7 +463,16 @@ export class ConfigurationWebview {
         projectName: effectiveContext.projectName || '',
         sources: effectiveContext.sources,
       } : undefined,
+      providers: await this._providerService.listProviderConnectionStates(),
+      about: {
+        extensionVersion: String(this._context.extension.packageJSON?.version || ''),
+        cliVersion: String(this._context.extension.packageJSON?.dependencies?.n8nac || ''),
+      },
     });
+    if (this._initialTab) {
+      this._panel.webview.postMessage({ type: 'activeTab', tab: this._initialTab });
+      this._initialTab = undefined;
+    }
   }
 
   private getHtmlForWebview(): string {

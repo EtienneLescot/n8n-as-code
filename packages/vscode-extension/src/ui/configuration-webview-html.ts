@@ -21,13 +21,48 @@ export function getConfigurationHtml(nonce: string): string {
       color: var(--vscode-foreground);
       font-family: var(--vscode-font-family);
     }
+    .settings-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 180px minmax(0, 1fr);
+    }
+    .sidebar {
+      border-right: 1px solid var(--border);
+      background: color-mix(in srgb, var(--vscode-sideBar-background, var(--surface)) 88%, var(--surface));
+      padding: 14px 8px;
+      display: grid;
+      align-content: start;
+      gap: 6px;
+    }
+    .sidebar-title {
+      padding: 0 8px 10px;
+      font-weight: 700;
+    }
+    .tab-button {
+      width: 100%;
+      justify-content: flex-start;
+      text-align: left;
+      color: var(--vscode-foreground);
+      background: transparent;
+      border-color: transparent;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-weight: 600;
+    }
+    .tab-button.active {
+      background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+      color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+    }
     .page {
-      max-width: 1040px;
-      margin: 0 auto;
+      max-width: 1240px;
+      width: 100%;
       padding: 18px;
       display: grid;
       gap: 14px;
     }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: grid; gap: 14px; }
     header {
       display: flex;
       justify-content: space-between;
@@ -63,6 +98,20 @@ export function getConfigurationHtml(nonce: string): string {
     }
     .toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
     .instances { display: grid; gap: 10px; }
+    .providers { display: grid; gap: 10px; }
+    .provider-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      border-top: 1px solid var(--border);
+      padding: 13px 0;
+    }
+    .provider-row:first-child { border-top: 0; }
+    .provider-main { display: grid; gap: 4px; min-width: 0; }
+    .provider-title { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-weight: 700; }
+    .provider-detail { color: var(--muted); font-size: 12px; }
+    .provider-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
     .instance-row {
       display: grid;
       grid-template-columns: 1fr;
@@ -225,60 +274,107 @@ export function getConfigurationHtml(nonce: string): string {
     }
     .message.error { color: var(--vscode-errorForeground); }
     .message.ok { color: var(--vscode-testing-iconPassed, var(--vscode-foreground)); }
+    .about-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+    .about-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px; background: var(--soft); display: grid; gap: 8px; }
     @media (max-width: 860px) {
-      header, .grid, .form-grid, .field-row, .credential-row { grid-template-columns: 1fr; }
+      .settings-shell, header, .grid, .form-grid, .field-row, .credential-row { grid-template-columns: 1fr; }
+      .sidebar { border-right: 0; border-bottom: 1px solid var(--border); grid-template-columns: repeat(3, 1fr); }
+      .sidebar-title { grid-column: 1 / -1; }
       .instance-top, .instance-foot { display: grid; grid-template-columns: 1fr; }
       .instance-status { justify-content: flex-start; }
+      .provider-row { grid-template-columns: 1fr; }
+      .provider-actions { justify-content: flex-start; }
     }
   </style>
 </head>
 <body>
-  <div class="page">
-    <header>
-      <div>
-        <h1>n8n configuration</h1>
-        <p class="muted">Manage n8n instances and click a card to choose what this workspace uses.</p>
-      </div>
-      <button id="refresh" class="secondary">Refresh</button>
-    </header>
+  <div class="settings-shell">
+    <nav class="sidebar" aria-label="n8n settings sections">
+      <div class="sidebar-title">Settings</div>
+      <button class="tab-button active" data-tab="n8n-instances" type="button">n8n Instances</button>
+      <button class="tab-button" data-tab="agent-providers" type="button">Agent Providers</button>
+      <button class="tab-button" data-tab="about" type="button">About</button>
+    </nav>
 
-    <div class="grid">
-      <section class="panel">
-        <div class="panel-head">
-          <div>
-            <h2>n8n instances</h2>
-            <p class="muted">Click a card to connect this workspace to that instance. The active workspace instance is highlighted.</p>
-          </div>
-          <button id="addInstance">Add instance</button>
-        </div>
-        <div id="instanceList" class="instances"></div>
-      </section>
-
-      <section class="panel">
+    <div class="page">
+      <header>
         <div>
-          <h2>Workspace settings</h2>
-          <p class="muted">Folder and project stay scoped to this workspace.</p>
+          <h1>n8n-as-code settings</h1>
+          <p class="muted">Manage n8n instances, agent providers, and extension information from one place.</p>
         </div>
-        <label>
-          Sync folder
-          <input id="workspaceSync" type="text" placeholder="Use workspace default: workflows" />
-        </label>
-        <div class="field-row">
-          <label>
-            Project
-            <select id="workspaceProject" disabled><option value="">Load projects from effective instance</option></select>
-          </label>
-          <button id="loadProjects" class="secondary">Load projects</button>
-        </div>
-        <div class="toolbar">
-          <button id="saveWorkspace">Save settings</button>
-          <button id="clearWorkspaceSettings" class="secondary">Clear folder/project</button>
+        <button id="refresh" class="secondary">Refresh</button>
+      </header>
+
+      <section id="tab-n8n-instances" class="tab-panel active">
+        <div class="grid">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>n8n instances</h2>
+                <p class="muted">Click a card to connect this workspace to that instance. The active workspace instance is highlighted.</p>
+              </div>
+              <button id="addInstance">Add instance</button>
+            </div>
+            <div id="instanceList" class="instances"></div>
+          </section>
+
+          <section class="panel">
+            <div>
+              <h2>Workspace settings</h2>
+              <p class="muted">Folder and project stay scoped to this workspace.</p>
+            </div>
+            <label>
+              Sync folder
+              <input id="workspaceSync" type="text" placeholder="Use workspace default: workflows" />
+            </label>
+            <div class="field-row">
+              <label>
+                Project
+                <select id="workspaceProject" disabled><option value="">Load projects from effective instance</option></select>
+              </label>
+              <button id="loadProjects" class="secondary">Load projects</button>
+            </div>
+            <div class="toolbar">
+              <button id="saveWorkspace">Save settings</button>
+              <button id="clearWorkspaceSettings" class="secondary">Clear folder/project</button>
+            </div>
+          </section>
         </div>
       </section>
-    </div>
 
-    <div id="error" class="message error"></div>
-    <div id="saved" class="message ok">Saved.</div>
+      <section id="tab-agent-providers" class="tab-panel">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Agent providers</h2>
+              <p class="muted">Connect API and OAuth providers, then select provider/model for chat sessions.</p>
+            </div>
+            <button id="providerSelectModel" class="secondary">Select Provider / Model</button>
+          </div>
+          <div>
+            <h3>Connected providers</h3>
+            <div id="connectedProviders" class="providers"></div>
+          </div>
+          <div>
+            <h3>Available providers</h3>
+            <div id="availableProviders" class="providers"></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="tab-about" class="tab-panel">
+        <section class="panel">
+          <div>
+            <h2>About n8n-as-code</h2>
+            <p class="muted">Edit and sync n8n workflows from VS Code with embedded agent assistance.</p>
+          </div>
+          <div id="aboutGrid" class="about-grid"></div>
+        </section>
+      </section>
+
+      <div id="error" class="message error"></div>
+      <div id="saved" class="message ok">Saved.</div>
+    </div>
   </div>
 
   <div id="instanceModal" class="modal-backdrop hidden">
@@ -414,9 +510,15 @@ export function getConfigurationHtml(nonce: string): string {
       copyCredentialUsername: document.getElementById('copyCredentialUsername'),
       copyCredentialPassword: document.getElementById('copyCredentialPassword'),
       closeCredentialsModal: document.getElementById('closeCredentialsModal'),
+      tabButtons: Array.from(document.querySelectorAll('.tab-button')),
+      tabPanels: Array.from(document.querySelectorAll('.tab-panel')),
+      connectedProviders: document.getElementById('connectedProviders'),
+      availableProviders: document.getElementById('availableProviders'),
+      providerSelectModel: document.getElementById('providerSelectModel'),
+      aboutGrid: document.getElementById('aboutGrid'),
     };
 
-    let state = { global: { instances: [] }, workspace: {}, effective: undefined };
+    let state = { global: { instances: [] }, workspace: {}, effective: undefined, providers: [], about: {} };
     const PERSONAL_PROJECT = { id: 'personal', name: 'Personal', type: 'personal' };
     let projects = [PERSONAL_PROJECT];
     let editingInstanceId = '';
@@ -438,6 +540,9 @@ export function getConfigurationHtml(nonce: string): string {
     }
     function instances() {
       return state.global?.instances || [];
+    }
+    function providers() {
+      return state.providers || [];
     }
     function instanceById(id) {
       return instances().find((instance) => instance.id === id);
@@ -465,6 +570,16 @@ export function getConfigurationHtml(nonce: string): string {
       els.workspaceSync.value = workspace.syncFolder || '';
       renderInstanceList();
       renderProjects(workspace.projectId || effective?.projectId || 'personal');
+      renderProviders();
+      renderAbout();
+    }
+    function setActiveTab(tab) {
+      for (const button of els.tabButtons) {
+        button.classList.toggle('active', button.dataset.tab === tab);
+      }
+      for (const panel of els.tabPanels) {
+        panel.classList.toggle('active', panel.id === 'tab-' + tab);
+      }
     }
     function renderInstanceList() {
       els.instanceList.innerHTML = '';
@@ -567,6 +682,74 @@ export function getConfigurationHtml(nonce: string): string {
       el.className = 'badge ' + cls;
       el.textContent = text;
       return el;
+    }
+    function providerBadge(provider) {
+      if (provider.selected) return badge('Selected', 'active');
+      if (provider.credentialSource === 'environment') return badge('Environment', 'ready');
+      if (provider.credentialSource === 'secret') return badge(provider.authKind === 'oauth-device' ? 'OAuth' : 'Stored', 'ready');
+      return badge(provider.authKind, 'stopped');
+    }
+    function renderProviders() {
+      const connected = providers().filter((provider) => provider.connected);
+      const available = providers().filter((provider) => !provider.connected);
+      renderProviderList(els.connectedProviders, connected, true);
+      renderProviderList(els.availableProviders, available, false);
+    }
+    function renderProviderList(container, list, connected) {
+      container.innerHTML = '';
+      if (!list.length) {
+        const empty = document.createElement('p');
+        empty.className = 'muted';
+        empty.textContent = connected ? 'No connected providers yet.' : 'All available providers are connected.';
+        container.appendChild(empty);
+        return;
+      }
+      for (const provider of list) {
+        const row = document.createElement('div');
+        row.className = 'provider-row';
+        const main = document.createElement('div');
+        main.className = 'provider-main';
+        const title = document.createElement('div');
+        title.className = 'provider-title';
+        const name = document.createElement('span');
+        name.textContent = provider.label;
+        title.append(name, providerBadge(provider));
+        const detail = document.createElement('div');
+        detail.className = 'provider-detail';
+        const model = provider.selected && provider.model ? ' · Model: ' + provider.model : provider.defaultModel ? ' · Default: ' + provider.defaultModel : '';
+        const baseUrl = provider.id === 'openai-compatible' && provider.baseUrl ? ' · ' + provider.baseUrl : '';
+        detail.textContent = provider.description + model + baseUrl;
+        main.append(title, detail);
+        const actions = document.createElement('div');
+        actions.className = 'provider-actions';
+        if (connected) {
+          actions.append(button('Use / Model', 'secondary compact', () => post('selectProviderModel', { provider: provider.id })));
+          actions.append(button('Disconnect', 'danger compact', () => post('disconnectProvider', { provider: provider.id })));
+        } else {
+          actions.append(button('Connect', 'compact', () => post('connectProvider', { provider: provider.id })));
+        }
+        row.append(main, actions);
+        container.appendChild(row);
+      }
+    }
+    function renderAbout() {
+      els.aboutGrid.innerHTML = '';
+      const cards = [
+        ['Extension', state.about?.extensionVersion || 'unknown'],
+        ['n8nac dependency', state.about?.cliVersion || 'unknown'],
+        ['Workspace', state.effective?.activeInstanceName || state.effective?.activeInstanceId || 'No active n8n instance'],
+      ];
+      for (const [title, value] of cards) {
+        const card = document.createElement('div');
+        card.className = 'about-card';
+        const h = document.createElement('h2');
+        h.textContent = title;
+        const p = document.createElement('p');
+        p.className = 'muted';
+        p.textContent = value;
+        card.append(h, p);
+        els.aboutGrid.appendChild(card);
+      }
     }
     function button(text, cls, onClick) {
       const el = document.createElement('button');
@@ -701,6 +884,8 @@ export function getConfigurationHtml(nonce: string): string {
       vscode.postMessage({ type, ...payload });
     }
     els.refresh.addEventListener('click', () => post('refreshState'));
+    els.tabButtons.forEach((tabButton) => tabButton.addEventListener('click', () => setActiveTab(tabButton.dataset.tab)));
+    els.providerSelectModel.addEventListener('click', () => post('selectProviderModel', { provider: providers().find((provider) => provider.selected)?.id || 'openai' }));
     els.addInstance.addEventListener('click', () => openModal(undefined));
     els.closeModal.addEventListener('click', closeModal);
     els.cancelModal.addEventListener('click', closeModal);
@@ -749,6 +934,8 @@ export function getConfigurationHtml(nonce: string): string {
           global: message.global || { instances: [] },
           workspace: message.workspace || {},
           effective: message.effective,
+          providers: message.providers || [],
+          about: message.about || {},
         };
         projects = state.effective?.projectId
           ? [{ id: state.effective.projectId, name: state.effective.projectName || state.effective.projectId, type: state.effective.projectId === 'personal' ? 'personal' : 'unknown' }]
@@ -767,6 +954,8 @@ export function getConfigurationHtml(nonce: string): string {
         showError(message.message || 'Unexpected error');
       } else if (message.type === 'instanceDeleted') {
         showSaved();
+      } else if (message.type === 'activeTab') {
+        setActiveTab(message.tab || 'n8n-instances');
       }
     });
   </script>
