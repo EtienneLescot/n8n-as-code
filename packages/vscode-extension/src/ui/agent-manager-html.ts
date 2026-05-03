@@ -1,8 +1,10 @@
 export interface AgentManagerHtmlInput {
     provider: string;
+    providerLabel: string;
     model?: string;
     baseUrl?: string;
     hasStoredApiKey: boolean;
+    authKind: string;
 }
 
 function escapeHtml(value: string): string {
@@ -25,9 +27,11 @@ function getNonce(): string {
 export function buildAgentManagerHtml(input: AgentManagerHtmlInput): string {
     const nonce = getNonce();
     const provider = escapeHtml(input.provider);
+    const providerLabel = escapeHtml(input.providerLabel);
     const model = escapeHtml(input.model || 'provider default');
-    const baseUrl = escapeHtml(input.baseUrl || 'provider default');
-    const keyStatus = input.hasStoredApiKey ? 'Stored in VS Code Secret Storage' : 'Not stored yet';
+    const baseUrl = escapeHtml(input.baseUrl || (input.provider === 'openai-compatible' ? 'not set' : 'provider default'));
+    const keyStatus = input.hasStoredApiKey ? 'Stored in VS Code Secret Storage' : 'Not stored yet / environment fallback';
+    const authKind = escapeHtml(input.authKind);
     const profiles = [
         ['Workflow Architect', 'Design, generate, validate, and refactor workflows.'],
         ['Workflow Operator', 'Push, activate, execute, and inspect workflows after approval.'],
@@ -137,13 +141,15 @@ export function buildAgentManagerHtml(input: AgentManagerHtmlInput): string {
             <h1>Embedded workflow agents</h1>
             <p>Manage the first-party agents that power the n8n Agent Workbench. Built-in profiles are read-only for now; custom profile editing will build on this surface.</p>
             <div class="meta">
-                <div>Provider: <code>${provider}</code></div>
+                <div>Provider: <code>${providerLabel}</code> <code>${provider}</code></div>
                 <div>Model: <code>${model}</code></div>
                 <div>Base URL: <code>${baseUrl}</code></div>
-                <div>API key: <code>${keyStatus}</code></div>
+                <div>Auth: <code>${authKind}</code></div>
+                <div>Credential: <code>${keyStatus}</code></div>
             </div>
             <div class="actions">
-                <button id="set-key" type="button">Set Provider API Key</button>
+                <button id="set-key" type="button">Set Up Provider</button>
+                <button id="select-model" class="secondary" type="button">Select Model</button>
                 <button id="open-settings" class="secondary" type="button">Open Agent Settings</button>
             </div>
         </section>
@@ -158,6 +164,7 @@ export function buildAgentManagerHtml(input: AgentManagerHtmlInput): string {
     <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
         document.getElementById('set-key').addEventListener('click', () => vscode.postMessage({ type: 'setApiKey' }));
+        document.getElementById('select-model').addEventListener('click', () => vscode.postMessage({ type: 'selectModel' }));
         document.getElementById('open-settings').addEventListener('click', () => vscode.postMessage({ type: 'openSettings' }));
     </script>
 </body>

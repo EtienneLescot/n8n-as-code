@@ -170,7 +170,16 @@ export class AgentRuntimeController implements vscode.Disposable {
     }> {
         const config = vscode.workspace.getConfiguration('n8n.agent');
         const provider = String(config.get<string>('provider') || 'openai');
-        const normalizedProvider = runtime.normalizeProviderId(provider) || 'openai';
+        const normalizedProvider = runtime.normalizeProviderId(provider);
+        if (!normalizedProvider) {
+            return {
+                ready: false,
+                reason: `Provider ${provider} can be configured in the VS Code UI, but the bundled @yagr/runtime package does not expose execution support for it yet. Select an API provider supported by the embedded runtime or update @yagr/runtime.`,
+                provider,
+                model: String(config.get<string>('model') || '').trim() || undefined,
+                temperature: 0,
+            };
+        }
         const model = String(config.get<string>('model') || '').trim() || undefined;
         const baseUrl = String(config.get<string>('baseUrl') || '').trim() || undefined;
         const apiKey = await this._context.secrets.get(getAgentProviderSecretKey(normalizedProvider));

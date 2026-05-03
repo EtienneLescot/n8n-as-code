@@ -102,6 +102,9 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+        .header-actions {
+            margin-top: 10px;
+        }
         .feed {
             overflow: auto;
             padding: 14px;
@@ -221,6 +224,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 <div class="kicker">n8n Agent Workbench</div>
                 <div class="title">Workflow Architect</div>
                 <div class="subtitle" title="${safeWorkflowName}">${safeWorkflowName} · ${safeWorkflowId}</div>
+                <div class="header-actions"><button id="select-model" class="secondary" type="button">Provider / Model</button></div>
             </header>
             <div id="feed" class="feed">
                 <div class="message system">
@@ -263,6 +267,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const promptInput = document.getElementById('prompt');
         const sendButton = document.getElementById('send');
         const stopButton = document.getElementById('stop');
+        const selectModelButton = document.getElementById('select-model');
         const frame = document.getElementById('workflow-frame');
         const refreshPill = document.getElementById('refresh-pill');
 
@@ -336,6 +341,10 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
 
         stopButton.addEventListener('click', () => {
             vscode.postMessage({ type: 'agent.stop' });
+        });
+
+        selectModelButton.addEventListener('click', () => {
+            vscode.postMessage({ type: 'agent.selectModel' });
         });
 
         window.addEventListener('message', (event) => {

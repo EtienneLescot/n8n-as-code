@@ -20,7 +20,14 @@ import { ConfigurationWebview } from './ui/configuration-webview.js';
 import { WorkflowDecorationProvider } from './ui/workflow-decoration-provider.js';
 
 import { ProxyService } from './services/proxy-service.js';
-import { AgentRuntimeController, getAgentProviderSecretKey } from './services/agent-runtime-controller.js';
+import { AgentRuntimeController } from './services/agent-runtime-controller.js';
+import {
+    YagrProviderService,
+    YAGR_PROVIDER_DEFINITIONS,
+    YAGR_SELECTABLE_PROVIDERS,
+    normalizeYagrProviderId,
+    type YagrModelProvider,
+} from './services/yagr-provider-service.js';
 import {
     N8nConfigurationController,
     type N8nConfigurationChangeEvent,
@@ -89,6 +96,7 @@ let initializingPromise: Promise<void> | undefined;
 let runtimeDisposables: vscode.Disposable[] = [];
 let configurationController: N8nConfigurationController | undefined;
 let agentRuntimeController: AgentRuntimeController | undefined;
+let yagrProviderService: YagrProviderService | undefined;
 let suppressNextConfigurationReaction = false;
 let failedAutoInitRuntimeSignature: string | undefined;
 let failedAutoInitConnectionKey: string | undefined;
@@ -198,6 +206,7 @@ export async function activate(context: vscode.ExtensionContext) {
     proxyService.setOutputChannel(outputChannel);
     proxyService.setSecrets(context.secrets);
     agentRuntimeController = new AgentRuntimeController(context, outputChannel);
+    yagrProviderService = new YagrProviderService(context);
     context.subscriptions.push(agentRuntimeController);
     configurationController = new N8nConfigurationController(outputChannel);
     context.subscriptions.push(
@@ -285,7 +294,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         registerTelemetryCommand('n8n.openSplit', async (arg: any) => {
-            const wf = arg?.workflow ? arg.workflow : arg;
+            const wf = await resolveWorkflowForSplitView(arg);
             if (!wf || !syncManager) return;
             telemetryClient?.track('vscode_workflow_view_opened', { mode: 'split', workflow_state: 'unknown' });
             const uri = getExistingWorkflowFileUri(wf);
@@ -309,6 +318,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
         registerTelemetryCommand('n8n.openAgentManager', async () => {
             AgentManagerWebview.createOrShow(context);
+        }),
+
+        registerTelemetryCommand('n8n.agent.setupProvider', async () => {
+            await setupAgentProvider(context);
+        }),
+
+        registerTelemetryCommand('n8n.agent.selectModel', async () => {
+            await selectAgentModel();
         }),
 
         // n8nac push <path>
@@ -745,6 +762,40 @@ async function openWorkflowBoard(workflow: IWorkflowStatus, viewColumn?: vscode.
     }
 }
 
+async function resolveWorkflowForSplitView(arg: any): Promise<IWorkflowStatus | undefined> {
+    const workflow = findWorkflowByCommandArg(arg);
+    if (workflow) {
+        return workflow;
+    }
+
+    if (!cli) {
+        vscode.window.showWarningMessage('n8n as code is not initialized. Configure and initialize n8n before opening Split View.');
+        return undefined;
+    }
+
+    const workflows = await cli.list({ fetchRemote: true, includeArchived: true });
+    if (!workflows.length) {
+        vscode.window.showInformationMessage('No workflows available for Split View.');
+        return undefined;
+    }
+
+    store.dispatch(setWorkflows(workflows));
+    enhancedTreeProvider.refresh();
+
+    const picked = await vscode.window.showQuickPick(
+        buildWorkflowQuickPickItems(workflows),
+        {
+            title: `Open Split View (${workflows.length})`,
+            placeHolder: 'Select the workflow to open as JSON plus n8n board',
+            ignoreFocusOut: true,
+            matchOnDescription: true,
+            matchOnDetail: true,
+        },
+    );
+
+    return picked?.workflow;
+}
+
 async function openAgentWorkbench(context: vscode.ExtensionContext, workflow: IWorkflowStatus): Promise<void> {
     if (!workflow.id) {
         vscode.window.showWarningMessage(`Cannot open Agent Workbench for "${workflow.name}": no remote workflow ID is available.`);
@@ -820,28 +871,36 @@ function requireAgentRuntimeController(): AgentRuntimeController {
     return agentRuntimeController;
 }
 
-type AgentProviderId = 'anthropic' | 'openai' | 'google' | 'mistral' | 'openrouter' | 'openai-compatible';
-
-const AGENT_PROVIDER_ITEMS: Array<vscode.QuickPickItem & { provider: AgentProviderId }> = [
-    { provider: 'anthropic', label: 'Anthropic', description: 'ANTHROPIC_API_KEY' },
-    { provider: 'openai', label: 'OpenAI', description: 'OPENAI_API_KEY' },
-    { provider: 'google', label: 'Google Gemini', description: 'GOOGLE_GENERATIVE_AI_API_KEY' },
-    { provider: 'mistral', label: 'Mistral', description: 'MISTRAL_API_KEY' },
-    { provider: 'openrouter', label: 'OpenRouter', description: 'OPENROUTER_API_KEY' },
-    { provider: 'openai-compatible', label: 'OpenAI Compatible', description: 'OPENAI_COMPATIBLE_API_KEY' },
-];
+function requireYagrProviderService(): YagrProviderService {
+    if (!yagrProviderService) {
+        throw new Error('n8n Yagr provider service is not initialized.');
+    }
+    return yagrProviderService;
+}
 
 async function setAgentProviderApiKey(context: vscode.ExtensionContext): Promise<void> {
+    await setupAgentProvider(context);
+}
+
+async function setupAgentProvider(context: vscode.ExtensionContext): Promise<void> {
+    const service = requireYagrProviderService();
     const config = vscode.workspace.getConfiguration('n8n.agent');
-    const currentProvider = String(config.get<string>('provider') || 'openai');
+    const currentProvider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
     const picked = await vscode.window.showQuickPick(
-        AGENT_PROVIDER_ITEMS.map((item) => ({
-            ...item,
-            picked: item.provider === currentProvider,
+        YAGR_SELECTABLE_PROVIDERS.map((provider) => ({
+            provider,
+            label: YAGR_PROVIDER_DEFINITIONS[provider].label,
+            description: YAGR_PROVIDER_DEFINITIONS[provider].description,
+            detail: YAGR_PROVIDER_DEFINITIONS[provider].authKind === 'oauth-device'
+                ? 'OAuth device flow'
+                : YAGR_PROVIDER_DEFINITIONS[provider].requiresApiKey
+                    ? 'API key'
+                    : 'Account credential',
+            picked: provider === currentProvider,
         })),
         {
-            title: 'Select n8n Agent provider',
-            placeHolder: 'Provider API keys are stored in VS Code Secret Storage',
+            title: 'Set up n8n Agent provider',
+            placeHolder: 'Providers and credentials are stored separately; model selection is fetched live.',
             ignoreFocusOut: true,
         },
     );
@@ -850,27 +909,41 @@ async function setAgentProviderApiKey(context: vscode.ExtensionContext): Promise
         return;
     }
 
-    const apiKey = await vscode.window.showInputBox({
-        title: `Set ${picked.label} API key for n8n Agent`,
-        prompt: 'The key is stored in VS Code Secret Storage and is never sent to the webview.',
-        password: true,
-        ignoreFocusOut: true,
-    });
-
-    if (apiKey === undefined) {
-        return;
+    try {
+        const configured = await service.setupProvider(picked.provider as YagrModelProvider);
+        if (!configured) return;
+        await service.selectModel(picked.provider as YagrModelProvider);
+        vscode.window.showInformationMessage(`Configured n8n Agent provider: ${picked.label}.`);
+    } catch (error: any) {
+        vscode.window.showErrorMessage(`Provider setup failed: ${error?.message || String(error)}`);
     }
+}
 
-    const trimmed = apiKey.trim();
-    await config.update('provider', picked.provider, vscode.ConfigurationTarget.Global);
-    if (!trimmed) {
-        await context.secrets.delete(getAgentProviderSecretKey(picked.provider));
-        vscode.window.showInformationMessage(`Cleared n8n Agent API key for ${picked.label}.`);
-        return;
+async function selectAgentModel(): Promise<void> {
+    const service = requireYagrProviderService();
+    const config = vscode.workspace.getConfiguration('n8n.agent');
+    const currentProvider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
+    const pickedProvider = await vscode.window.showQuickPick(
+        YAGR_SELECTABLE_PROVIDERS.map((provider) => ({
+            provider,
+            label: YAGR_PROVIDER_DEFINITIONS[provider].label,
+            description: YAGR_PROVIDER_DEFINITIONS[provider].description,
+            picked: provider === currentProvider,
+        })),
+        {
+            title: 'Select provider for this n8n Agent session',
+            placeHolder: 'Choose a configured provider, then choose a live model.',
+            ignoreFocusOut: true,
+        },
+    );
+    if (!pickedProvider) return;
+    const provider = pickedProvider.provider as YagrModelProvider;
+    try {
+        await config.update('provider', provider, vscode.ConfigurationTarget.Global);
+        await service.selectModel(provider);
+    } catch (error: any) {
+        vscode.window.showErrorMessage(`Model selection failed: ${error?.message || String(error)}`);
     }
-
-    await context.secrets.store(getAgentProviderSecretKey(picked.provider), trimmed);
-    vscode.window.showInformationMessage(`Stored n8n Agent API key for ${picked.label}.`);
 }
 
 function getAutoInitConnectionKey(workspaceRoot?: string): string {

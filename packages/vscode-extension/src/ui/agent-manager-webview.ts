@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { getAgentProviderSecretKey } from '../services/agent-runtime-controller.js';
+import { YAGR_PROVIDER_DEFINITIONS, normalizeYagrProviderId } from '../services/yagr-provider-service.js';
 import { buildAgentManagerHtml } from './agent-manager-html.js';
 
 export class AgentManagerWebview {
@@ -48,12 +49,15 @@ export class AgentManagerWebview {
 
     private async render(): Promise<void> {
         const config = vscode.workspace.getConfiguration('n8n.agent');
-        const provider = String(config.get<string>('provider') || 'openai');
+        const provider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
+        const definition = YAGR_PROVIDER_DEFINITIONS[provider];
         this._panel.webview.html = buildAgentManagerHtml({
             provider,
+            providerLabel: definition.label,
             model: String(config.get<string>('model') || '').trim() || undefined,
             baseUrl: String(config.get<string>('baseUrl') || '').trim() || undefined,
             hasStoredApiKey: Boolean(await this._context.secrets.get(getAgentProviderSecretKey(provider))),
+            authKind: definition.authKind,
         });
     }
 
@@ -63,7 +67,12 @@ export class AgentManagerWebview {
         }
         const payload = message as Record<string, unknown>;
         if (payload.type === 'setApiKey') {
-            await vscode.commands.executeCommand('n8n.agent.setApiKey');
+            await vscode.commands.executeCommand('n8n.agent.setupProvider');
+            await this.render();
+            return;
+        }
+        if (payload.type === 'selectModel') {
+            await vscode.commands.executeCommand('n8n.agent.selectModel');
             await this.render();
             return;
         }
