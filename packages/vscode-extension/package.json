@@ -151,6 +151,16 @@
         "icon": "$(key)"
       },
       {
+        "command": "n8n.agent.setupProvider",
+        "title": "n8n Agent: Set Up Provider",
+        "icon": "$(key)"
+      },
+      {
+        "command": "n8n.agent.selectModel",
+        "title": "n8n Agent: Select Provider Model",
+        "icon": "$(symbol-enum)"
+      },
+      {
         "command": "n8n.applySettings",
         "title": "Apply n8n Settings",
         "icon": "$(check)"
@@ -214,8 +224,28 @@
           "when": "view == n8n-explorer.workflows && n8n.state == initialized"
         },
         {
-          "command": "n8n.configure",
+          "command": "n8n.openAgentWorkbench",
+          "group": "navigation@6",
+          "when": "view == n8n-explorer.workflows && n8n.state == initialized"
+        },
+        {
+          "command": "n8n.openAgentManager",
           "group": "navigation@7",
+          "when": "view == n8n-explorer.workflows"
+        },
+        {
+          "command": "n8n.agent.setupProvider",
+          "group": "navigation@8",
+          "when": "view == n8n-explorer.workflows"
+        },
+        {
+          "command": "n8n.agent.selectModel",
+          "group": "navigation@9",
+          "when": "view == n8n-explorer.workflows"
+        },
+        {
+          "command": "n8n.configure",
+          "group": "navigation@10",
           "when": "view == n8n-explorer.workflows"
         }
       ],
@@ -304,6 +334,11 @@
             "google",
             "mistral",
             "openrouter",
+            "openai-oauth",
+            "anthropic-proxy",
+            "copilot-proxy",
+            "minimax",
+            "minimax-token-plan",
             "openai-compatible"
           ],
           "default": "openai",

@@ -131,6 +131,11 @@ export class AgentWorkbenchWebview {
             return;
         }
 
+        if (payload.type === 'agent.selectModel') {
+            await vscode.commands.executeCommand('n8n.agent.selectModel');
+            return;
+        }
+
         if (payload.type === 'agent.stop') {
             await this._agentRuntime.stop((event) => this._panel.webview.postMessage(event));
             return;

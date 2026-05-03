@@ -244,12 +244,41 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     if (this.syncManager) {
       const aiAction = new AIActionItem(this.aiLastVersion, this.aiNeedsUpdate);
       items.push(aiAction);
+      items.push(...this.getAgentShortcutItems());
     }
 
     this.cachedTreeItems = items;
     this.cacheInvalidationTime = Date.now();
 
     return items;
+  }
+
+  private getAgentShortcutItems(): BaseTreeItem[] {
+    const workbenchItem = new InfoItem('Open Agent Workbench', 'Chat + n8n split view', new vscode.ThemeIcon('hubot'));
+    workbenchItem.command = {
+      command: 'n8n.openAgentWorkbench',
+      title: 'Open Agent Workbench'
+    };
+
+    const managerItem = new InfoItem('Open Agent Manager', 'Providers and agent profiles', new vscode.ThemeIcon('account'));
+    managerItem.command = {
+      command: 'n8n.openAgentManager',
+      title: 'Open Agent Manager'
+    };
+
+    const providerItem = new InfoItem('Set Up Agent Provider', 'API key or OAuth', new vscode.ThemeIcon('key'));
+    providerItem.command = {
+      command: 'n8n.agent.setupProvider',
+      title: 'Set Up Agent Provider'
+    };
+
+    const modelItem = new InfoItem('Select Agent Model', 'Provider + dynamic model list', new vscode.ThemeIcon('symbol-enum'));
+    modelItem.command = {
+      command: 'n8n.agent.selectModel',
+      title: 'Select Agent Model'
+    };
+
+    return [workbenchItem, managerItem, providerItem, modelItem];
   }
 
   private getErrorItems(): BaseTreeItem[] {
