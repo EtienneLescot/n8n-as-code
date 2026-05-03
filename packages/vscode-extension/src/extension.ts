@@ -7,7 +7,7 @@ declare const __N8NAC_VERSION__: string;
 declare const __N8NAC_CLI_SEMVER__: string;
 import {
     SyncManager, CliApi, N8nApiClient, IN8nCredentials, WorkflowSyncStatus, ConfigService,
-    resolveInstanceIdentifier, isLegacyLocalInstanceIdentifier
+    resolveInstanceIdentifier, isCanonicalUserInstanceIdentifier
 } from 'n8nac';
 import { AiContextGenerator, getN8nacDevConfigFilenames } from '@n8n-as-code/skills';
 
@@ -1643,7 +1643,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
                 : `[n8n] Instance identifier: ${instanceIdentifier}`
         );
         const currentIdentifier = effective.instance.instanceIdentifier;
-        if (!currentIdentifier || isLegacyLocalInstanceIdentifier(currentIdentifier)) {
+        if (!isCanonicalUserInstanceIdentifier(currentIdentifier)) {
             await facade.upsertInstance({
                 id: effective.activeInstanceId,
                 instanceIdentifier,

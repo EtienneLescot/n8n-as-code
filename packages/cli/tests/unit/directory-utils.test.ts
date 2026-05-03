@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createApiKeyInstanceIdentifier, createHostSlug, createInstanceIdentifier, isLegacyLocalInstanceIdentifier } from '../../src/core/services/directory-utils.js';
+import { createApiKeyInstanceIdentifier, createHostSlug, createInstanceIdentifier, isLegacyLocalInstanceIdentifier, isReusableInstanceIdentifier } from '../../src/core/services/directory-utils.js';
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -55,20 +55,27 @@ describe('directory-utils', () => {
                 email: 'etienne@example.com',
                 firstName: 'Etienne',
                 lastName: 'Lescot',
-            })).toBe('n8n_c6c289e49e_etienne_l');
+            })).toBe('n8n_c6c289e49e');
 
             expect(createInstanceIdentifier('https://changed.example.com', {
                 id: 'user-1',
                 email: 'etienne@example.com',
                 firstName: 'Etienne',
                 lastName: 'Lescot',
-            })).toBe('n8n_c6c289e49e_etienne_l');
+            })).toBe('n8n_c6c289e49e');
         });
 
         it('detects legacy local instance identifiers', () => {
             expect(isLegacyLocalInstanceIdentifier('local_1234_etienne_test')).toBe(true);
-            expect(isLegacyLocalInstanceIdentifier('n8n_c6c289e49e_etienne_l')).toBe(false);
+            expect(isLegacyLocalInstanceIdentifier('n8n_c6c289e49e')).toBe(false);
             expect(isLegacyLocalInstanceIdentifier('key_62af870476')).toBe(false);
+        });
+
+        it('only reuses canonical identifiers', () => {
+            expect(isReusableInstanceIdentifier('n8n_c6c289e49e')).toBe(true);
+            expect(isReusableInstanceIdentifier('key_62af870476')).toBe(true);
+            expect(isReusableInstanceIdentifier('local_1234_etienne_test')).toBe(false);
+            expect(isReusableInstanceIdentifier('n8n_c6c289e49e_etienne_l')).toBe(false);
         });
 
         it('fails when the stable n8n user ID is unavailable', () => {

@@ -126,7 +126,7 @@ describe('CLI update-ai integration', () => {
     it('refreshes n8n-workflows.d.ts for all configured instance directories', () => {
         const workspaceDir = createTempDir('n8nac-update-ai-dts-');
 
-        const instanceIdentifier = 'local_5678_testuser';
+        const instanceIdentifier = 'n8n_c6c289e49e';
         const syncFolder = 'workflows';
         const projectName = 'My Project';
         const projectSlug = 'my_project';
