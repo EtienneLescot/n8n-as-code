@@ -141,34 +141,6 @@ export class N8nConfigurationController implements vscode.Disposable {
             },
           };
         }
-        if (prepared.context.instance.publicUrlEnabled) {
-          try {
-            const access = await facade.resolveInstanceAccess({
-              workspaceRoot,
-              instanceId: prepared.context.activeInstanceId,
-              syncFolderDefault: 'workspace',
-              consumer: 'vscode',
-              mode: 'reconcile',
-            });
-            prepared = {
-              ...prepared,
-              context: {
-                ...prepared.context,
-                publicBaseUrl: access.publicN8nUrl || prepared.context.publicBaseUrl,
-                instance: {
-                  ...prepared.context.instance,
-                  tunnelPublicUrl: access.publicN8nUrl || prepared.context.instance.tunnelPublicUrl,
-                },
-              },
-              runtime: {
-                ...prepared.runtime,
-                tunnel: access.tunnel || prepared.runtime.tunnel,
-              },
-            };
-          } catch (error: any) {
-            this.outputChannel?.appendLine(`[n8n] Public URL reconcile skipped: ${error?.message || error}`);
-          }
-        }
         global = await facade.getGlobalConfig();
       }
       const effective = prepared?.context;

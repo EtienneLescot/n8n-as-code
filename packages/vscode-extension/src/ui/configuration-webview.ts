@@ -417,9 +417,7 @@ export class ConfigurationWebview {
         const access = await facade.resolveInstanceAccess({
           instanceId: instance.id,
           workspaceRoot,
-          syncFolderDefault: 'workspace',
-          consumer: 'vscode',
-          mode: instance.publicUrlEnabled ? 'reconcile' : 'observe',
+          mode: 'observe',
         });
         const displayUrl = access.authUrl || access.publicN8nUrl || (access.publicUrlEnabled ? '' : access.apiBaseUrl || '');
         return {
