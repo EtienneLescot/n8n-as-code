@@ -17,7 +17,7 @@ describe('SyncManager push filename contract', () => {
             ignoredTags: [],
             projectId: 'project-1',
             projectName: 'Personal',
-            instanceIdentifier: 'local_5678_test',
+            instanceIdentifier: 'n8n_c6c289e49e',
         });
     }
 

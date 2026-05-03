@@ -31,7 +31,7 @@ async function withManagerHome<T>(managerHome: string, callback: () => Promise<T
     }
 }
 
-test('buildUnifiedWorkspaceConfig regenerates stale instanceIdentifier from current instance settings', async () => {
+test('buildUnifiedWorkspaceConfig resolves instanceIdentifier from API key user identity', async () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-unified-config-'));
     const unifiedPath = path.join(workspaceRoot, 'n8nac-config.json');
     const managerHome = writeManagerConfig([{
@@ -39,7 +39,7 @@ test('buildUnifiedWorkspaceConfig regenerates stale instanceIdentifier from curr
         name: 'Local',
         mode: 'existing',
         baseUrl: 'http://localhost:5678',
-        instanceIdentifier: 'local_5678_old_user',
+        instanceIdentifier: 'invalid_identifier',
         defaultProject: {
             id: 'project-1',
             name: 'Personal',

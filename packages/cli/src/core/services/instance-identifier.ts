@@ -1,6 +1,6 @@
 import { IN8nCredentials } from '../types.js';
 import { N8nApiClient } from './n8n-api-client.js';
-import { createApiKeyInstanceIdentifier, createInstanceIdentifier } from './directory-utils.js';
+import { createInstanceIdentifier } from './directory-utils.js';
 
 type IUserLike = {
     id: string;
@@ -15,20 +15,10 @@ export interface IInstanceIdentifierClient {
 
 export interface IResolvedInstanceIdentifier {
     identifier: string;
-    source: 'user' | 'apiKey';
-    usedFallback: boolean;
 }
 
 export interface IResolveInstanceIdentifierOptions {
     client?: IInstanceIdentifierClient;
-    throwOnConnectionError?: boolean;
-}
-
-function isConnectionError(error: any): boolean {
-    return !error?.response ||
-        error?.code === 'ECONNREFUSED' ||
-        error?.code === 'ENOTFOUND' ||
-        error?.code === 'ETIMEDOUT';
 }
 
 export async function resolveInstanceIdentifier(
@@ -37,31 +27,13 @@ export async function resolveInstanceIdentifier(
 ): Promise<IResolvedInstanceIdentifier> {
     const client = options.client ?? new N8nApiClient(credentials);
 
-    let user: IUserLike | null;
-    try {
-        user = await client.getCurrentUser();
-    } catch (error) {
-        if (options.throwOnConnectionError && isConnectionError(error)) {
-            throw error;
-        }
-        return {
-            identifier: createApiKeyInstanceIdentifier(credentials.apiKey),
-            source: 'apiKey',
-            usedFallback: true,
-        };
-    }
+    const user = await client.getCurrentUser();
 
     if (!user?.id) {
-        return {
-            identifier: createApiKeyInstanceIdentifier(credentials.apiKey),
-            source: 'apiKey',
-            usedFallback: true,
-        };
+        throw new Error('Unable to resolve the authenticated n8n user ID from the API key.');
     }
 
     return {
-        identifier: createInstanceIdentifier(credentials.host, user),
-        source: 'user',
-        usedFallback: false,
+        identifier: createInstanceIdentifier(user),
     };
 }

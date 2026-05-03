@@ -539,46 +539,13 @@ describe('N8nApiClient test workflow support', () => {
             expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/users/user-123');
         });
 
-        it('falls back to /api/v1/users/me when API key is not a JWT', async () => {
+        it('returns null when API key has no JWT sub claim', async () => {
             const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'not-a-jwt' });
-
-            mockAxiosGet.mockResolvedValueOnce({
-                data: {
-                    id: 'me-id',
-                    email: 'me@example.com'
-                }
-            });
 
             const user = await client.getCurrentUser();
 
-            expect(user).toEqual({
-                id: 'me-id',
-                email: 'me@example.com'
-            });
-            expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/users/me');
-        });
-
-        it('falls back to listing all users when /me and JWT both fail', async () => {
-            const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'not-a-jwt' });
-
-            mockAxiosGet
-                .mockRejectedValueOnce({ response: { status: 404 } }) // /me fails
-                .mockResolvedValueOnce({ // /users succeeds
-                    data: {
-                        data: [
-                            { id: 'first-user', email: 'first@example.com' }
-                        ]
-                    }
-                });
-
-            const user = await client.getCurrentUser();
-
-            expect(user).toEqual({
-                id: 'first-user',
-                email: 'first@example.com'
-            });
-            expect(mockAxiosGet).toHaveBeenNthCalledWith(1, '/api/v1/users/me');
-            expect(mockAxiosGet).toHaveBeenNthCalledWith(2, '/api/v1/users');
+            expect(user).toBeNull();
+            expect(mockAxiosGet).not.toHaveBeenCalled();
         });
     });
 

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ConfigService, isReusableInstanceIdentifier } from 'n8nac';
+import { ConfigService, isCanonicalUserInstanceIdentifier } from 'n8nac';
 import { ConfigValidationResult } from '../types.js';
 import { readUnifiedWorkspaceConfig } from './unified-config.js';
 
@@ -96,15 +96,14 @@ export function validateN8nConfig(): ConfigValidationResult {
 }
 
 /**
- * Check if a workspace folder was previously initialized with n8n-as-code
- * Checks for both n8nac-instance.json (new) and n8n-as-code-instance.json (legacy)
+ * Check if a workspace folder was initialized with a canonical n8n sync identity.
  */
 export function isFolderPreviouslyInitialized(workspaceRoot: string): boolean {
   if (!workspaceRoot) {
     return false;
   }
 
-  return isReusableInstanceIdentifier(readUnifiedWorkspaceConfig(workspaceRoot).instanceIdentifier);
+  return isCanonicalUserInstanceIdentifier(readUnifiedWorkspaceConfig(workspaceRoot).instanceIdentifier);
 }
 
 /**
@@ -194,10 +193,9 @@ export function doesSyncDirectoryExist(): boolean {
 }
 
 /**
- * Get instance identifier from existing configuration
- * Checks for both n8nac-instance.json (new) and n8n-as-code-instance.json (legacy)
+ * Get the canonical instance identifier from existing configuration.
  */
 export function getExistingInstanceIdentifier(workspaceRoot: string): string | undefined {
   const identifier = readUnifiedWorkspaceConfig(workspaceRoot).instanceIdentifier;
-  return isReusableInstanceIdentifier(identifier) ? identifier : undefined;
+  return isCanonicalUserInstanceIdentifier(identifier) ? identifier : undefined;
 }
