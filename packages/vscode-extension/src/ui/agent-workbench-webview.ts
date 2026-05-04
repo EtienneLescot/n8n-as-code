@@ -158,7 +158,7 @@ export class AgentWorkbenchWebview {
 
         if (payload.type === 'agent.send') {
             const nodeContext = this.sanitizeNodeContext(payload.nodeContext) ?? this._nodeContext;
-            await this._agentRuntime.sendPrompt({
+            const workflowChanged = await this._agentRuntime.sendPrompt({
                 prompt: String(payload.text || ''),
                 workflowId: this._workflow?.id,
                 workflowName: this._workflow?.name,
@@ -168,7 +168,7 @@ export class AgentWorkbenchWebview {
                 nodeContext,
                 sessionId: typeof payload.sessionId === 'string' ? payload.sessionId : undefined,
             }, (event) => this._panel.webview.postMessage(event));
-            if (this._workflow?.id) {
+            if (workflowChanged && this._workflow?.id) {
                 await this._panel.webview.postMessage({ type: 'workflow.reload' });
             }
             return;
