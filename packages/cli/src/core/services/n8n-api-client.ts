@@ -77,32 +77,77 @@ export class N8nApiClient {
         await this.client.get('/api/v1/workflows');
     }
 
+    private mapUser(data: any): { id: string; email?: string; firstName?: string; lastName?: string; } | null {
+        if (!data?.id) return null;
+
+        return {
+            id: data.id,
+            email: data.email,
+            firstName: data.firstName,
+            lastName: data.lastName,
+        };
+    }
+
     async getCurrentUser(): Promise<{ id: string; email?: string; firstName?: string; lastName?: string; } | null> {
         const jwtUserId = this.extractUserIdFromApiKey();
-        if (!jwtUserId) {
-            return null;
-        }
+        if (jwtUserId) {
+            if (process.env.DEBUG) console.debug(`[N8nApiClient] getCurrentUser: Extracted userId ${jwtUserId} from API key`);
+            try {
+                const encodedJwtUserId = encodeURIComponent(jwtUserId);
+                const res = await this.client.get(`/api/v1/users/${encodedJwtUserId}`);
+                const user = this.mapUser(res.data);
+                if (user) {
+                    if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Successfully retrieved specific user details');
+                    return user;
+                }
+            } catch (error: any) {
+                if (process.env.DEBUG) console.debug(`[N8nApiClient] getCurrentUser: Fetching specific user ${jwtUserId} failed:`, error.message);
+                if (!error.response) throw error;
 
-        if (process.env.DEBUG) console.debug(`[N8nApiClient] getCurrentUser: Extracted userId ${jwtUserId} from API key`);
-        try {
-            const encodedJwtUserId = encodeURIComponent(jwtUserId);
-            const res = await this.client.get(`/api/v1/users/${encodedJwtUserId}`);
-            if (res.data && res.data.id) {
-                if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Successfully retrieved specific user details');
-                return {
-                    id: res.data.id,
-                    email: res.data.email,
-                    firstName: res.data.firstName,
-                    lastName: res.data.lastName
-                };
+                if (error.response.status === 403 || error.response.status === 404) {
+                    await this.assertApiAccess();
+                    return { id: jwtUserId };
+                }
+
+                throw error;
             }
-        } catch (error: any) {
-            if (process.env.DEBUG) console.debug(`[N8nApiClient] getCurrentUser: Fetching specific user ${jwtUserId} failed:`, error.message);
-            if (!error.response) throw error;
+
             return { id: jwtUserId };
         }
 
-        return { id: jwtUserId };
+        let fallbackAuthError: any = null;
+
+        try {
+            const res = await this.client.get('/api/v1/users/me');
+            const user = this.mapUser(res.data);
+            if (user) {
+                if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Successfully retrieved user from /me endpoint');
+                return user;
+            }
+        } catch (error: any) {
+            if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: /me endpoint failed:', error.message);
+            if (!error.response) throw error;
+            if (error.response.status === 401 || error.response.status === 403) fallbackAuthError = error;
+        }
+
+        if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Trying /api/v1/users endpoint as last resort');
+        try {
+            const res = await this.client.get('/api/v1/users');
+            const user = this.mapUser(res.data?.data?.[0]);
+            if (user) {
+                if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: Found user from /api/v1/users');
+                return user;
+            }
+        } catch (error: any) {
+            if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: /api/v1/users endpoint failed:', error.message);
+            if (!error.response) throw error;
+            if (error.response.status === 401 || error.response.status === 403) throw error;
+        }
+
+        if (fallbackAuthError) throw fallbackAuthError;
+
+        if (process.env.DEBUG) console.debug('[N8nApiClient] getCurrentUser: All attempts failed, returning null');
+        return null;
     }
 
     private shouldUsePersonalProjectFallback(error: any): boolean {

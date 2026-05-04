@@ -512,19 +512,55 @@ describe('N8nApiClient test workflow support', () => {
             expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/users/user-123');
         });
 
-        it('returns only the ID from JWT when the users endpoint returns 403', async () => {
+        it('returns only the ID from JWT when user details are restricted but API access is valid', async () => {
             // Mock JWT payload: {"sub":"user-123"}
             const mockJwt = 'header.eyJzdWIiOiJ1c2VyLTEyMyJ9.signature';
             const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: mockJwt });
 
-            mockAxiosGet.mockRejectedValueOnce({
-                response: { status: 403 }
-            });
+            mockAxiosGet
+                .mockRejectedValueOnce({
+                    response: { status: 403 }
+                })
+                .mockResolvedValueOnce({ data: { data: [] } });
 
             const user = await client.getCurrentUser();
 
             expect(user).toEqual({ id: 'user-123' });
+            expect(mockAxiosGet).toHaveBeenNthCalledWith(1, '/api/v1/users/user-123');
+            expect(mockAxiosGet).toHaveBeenNthCalledWith(2, '/api/v1/workflows');
+        });
+
+        it('propagates authentication failures when resolving JWT user details', async () => {
+            const mockJwt = 'header.eyJzdWIiOiJ1c2VyLTEyMyJ9.signature';
+            const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: mockJwt });
+            const unauthorized = Object.assign(new Error('Request failed with status code 401'), {
+                response: { status: 401 },
+            });
+
+            mockAxiosGet.mockRejectedValueOnce(unauthorized);
+
+            await expect(client.getCurrentUser()).rejects.toMatchObject({
+                response: { status: 401 },
+            });
             expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/users/user-123');
+        });
+
+        it('does not use the JWT fallback when API access verification fails', async () => {
+            const mockJwt = 'header.eyJzdWIiOiJ1c2VyLTEyMyJ9.signature';
+            const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: mockJwt });
+            const unauthorized = Object.assign(new Error('Request failed with status code 401'), {
+                response: { status: 401 },
+            });
+
+            mockAxiosGet
+                .mockRejectedValueOnce({ response: { status: 403 } })
+                .mockRejectedValueOnce(unauthorized);
+
+            await expect(client.getCurrentUser()).rejects.toMatchObject({
+                response: { status: 401 },
+            });
+            expect(mockAxiosGet).toHaveBeenNthCalledWith(1, '/api/v1/users/user-123');
+            expect(mockAxiosGet).toHaveBeenNthCalledWith(2, '/api/v1/workflows');
         });
 
         it('propagates connection errors when resolving JWT user details', async () => {
@@ -538,13 +574,80 @@ describe('N8nApiClient test workflow support', () => {
             expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/users/user-123');
         });
 
-        it('returns null when API key has no JWT sub claim', async () => {
+        it('falls back to /api/v1/users/me when API key has no JWT sub claim', async () => {
             const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'not-a-jwt' });
+
+            mockAxiosGet.mockResolvedValueOnce({
+                data: {
+                    id: 'me-id',
+                    email: 'me@example.com'
+                }
+            });
 
             const user = await client.getCurrentUser();
 
-            expect(user).toBeNull();
-            expect(mockAxiosGet).not.toHaveBeenCalled();
+            expect(user).toEqual({
+                id: 'me-id',
+                email: 'me@example.com'
+            });
+            expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/users/me');
+        });
+
+        it('falls back to listing all users when /me and JWT both fail', async () => {
+            const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'not-a-jwt' });
+
+            mockAxiosGet
+                .mockRejectedValueOnce({ response: { status: 404 } })
+                .mockResolvedValueOnce({
+                    data: {
+                        data: [
+                            { id: 'first-user', email: 'first@example.com' }
+                        ]
+                    }
+                });
+
+            const user = await client.getCurrentUser();
+
+            expect(user).toEqual({
+                id: 'first-user',
+                email: 'first@example.com'
+            });
+            expect(mockAxiosGet).toHaveBeenNthCalledWith(1, '/api/v1/users/me');
+            expect(mockAxiosGet).toHaveBeenNthCalledWith(2, '/api/v1/users');
+        });
+
+        it('propagates authentication failures from fallback user lookup', async () => {
+            const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'not-a-jwt' });
+            const unauthorized = Object.assign(new Error('Request failed with status code 401'), {
+                response: { status: 401 },
+            });
+
+            mockAxiosGet
+                .mockRejectedValueOnce({ response: { status: 404 } })
+                .mockRejectedValueOnce(unauthorized);
+
+            await expect(client.getCurrentUser()).rejects.toMatchObject({
+                response: { status: 401 },
+            });
+            expect(mockAxiosGet).toHaveBeenNthCalledWith(1, '/api/v1/users/me');
+            expect(mockAxiosGet).toHaveBeenNthCalledWith(2, '/api/v1/users');
+        });
+
+        it('surfaces fallback authentication failures when no user lookup succeeds', async () => {
+            const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'not-a-jwt' });
+            const forbidden = Object.assign(new Error('Request failed with status code 403'), {
+                response: { status: 403 },
+            });
+
+            mockAxiosGet
+                .mockRejectedValueOnce(forbidden)
+                .mockRejectedValueOnce({ response: { status: 404 } });
+
+            await expect(client.getCurrentUser()).rejects.toMatchObject({
+                response: { status: 403 },
+            });
+            expect(mockAxiosGet).toHaveBeenNthCalledWith(1, '/api/v1/users/me');
+            expect(mockAxiosGet).toHaveBeenNthCalledWith(2, '/api/v1/users');
         });
     });
 
