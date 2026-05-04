@@ -137,8 +137,8 @@ export class ProxyService {
             target: this.target,
             changeOrigin: true,
             secure: false,
-            // Only intercept responses on macOS where we need to inject the clipboard bridge
-            selfHandleResponse: isMacOS,
+            // Intercept HTML responses so we can inject the n8n UI bridge.
+            selfHandleResponse: true,
             cookieDomainRewrite: "", // Rewrite all domains to match localhost
             preserveHeaderKeyCase: true, // Preserve header casing
             autoRewrite: true, // Automatically rewrite redirects
@@ -195,10 +195,6 @@ export class ProxyService {
             proxyRes.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH';
             proxyRes.headers['access-control-allow-headers'] = '*';
 
-            // On non-macOS, selfHandleResponse is false so http-proxy pipes automatically.
-            // On macOS, we handle responses ourselves to inject the clipboard bridge.
-            if (!isMacOS) return;
-
             const rawCT = proxyRes.headers['content-type'];
             const contentType = Array.isArray(rawCT) ? rawCT[0] || '' : rawCT || '';
             const isHtml = contentType.includes('text/html');
@@ -215,7 +211,7 @@ export class ProxyService {
                         const charsetMatch = contentType.match(/charset=([^\s;]+)/i);
                         const charset = (charsetMatch?.[1] || 'utf-8') as BufferEncoding;
                         let html = raw.toString(charset);
-                        html = this.injectClipboardBridge(html);
+                        html = this.injectClipboardBridge(html, isMacOS);
                         const encoded = Buffer.from(html, charset);
                         delete proxyRes.headers['content-length'];
                         delete proxyRes.headers['content-encoding'];
@@ -253,7 +249,7 @@ export class ProxyService {
                     'content-type': 'text/html; charset=utf-8',
                     'cache-control': 'no-store',
                 });
-                res.end(routeHtml);
+                res.end(this.injectClipboardBridge(routeHtml, isMacOS, false, 'auth-route'));
                 return;
             }
 
@@ -270,10 +266,8 @@ export class ProxyService {
             }
 
             if (this.proxy) {
-                // On macOS, request uncompressed responses so we can inject the clipboard bridge
-                if (isMacOS) {
-                    delete req.headers['accept-encoding'];
-                }
+                // Request uncompressed responses so HTML bridge injection can safely mutate the body.
+                delete req.headers['accept-encoding'];
 
                 const mergedCookies = this.buildMergedCookieHeader(req.headers.cookie);
                 if (mergedCookies) {
@@ -460,10 +454,411 @@ export class ProxyService {
      *   are all enforced in the parent webview (workflow-webview.ts), which is
      *   extension-controlled and not accessible to iframe scripts.
      */
-    static buildBridgeScript(): string {
+    static buildBridgeScript(clipboardBridgeEnabled = true, nodeBridgeEnabled = true, pageKind = 'n8n'): string {
         return `<script>
 (function(){
+  var CLIPBOARD_BRIDGE_ENABLED = ${JSON.stringify(clipboardBridgeEnabled)};
+  var NODE_BRIDGE_ENABLED = ${JSON.stringify(nodeBridgeEnabled)};
+  var N8NAC_BRIDGE_PAGE_KIND = ${JSON.stringify(pageKind)};
+  var N8NAC_BRIDGE_BUILD = "2026.05.04.8";
   var _pasteInProgress = false;
+  var _lastNodeDetailSignature = "";
+  var _lastCanvasNode = null;
+  var _uiMutationTimer = null;
+  var _uiMutationCount = 0;
+
+  function postBridgeReady() {
+    window.parent.postMessage({ type: "n8n-bridge-ready", build: N8NAC_BRIDGE_BUILD, pageKind: N8NAC_BRIDGE_PAGE_KIND, href: window.location.href }, "*");
+  }
+
+  function asRecord(value) {
+    return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+  }
+
+  function cleanText(value) {
+    if (typeof value !== "string") return "";
+    return value.replace(/\\s+/g, " ").trim();
+  }
+
+  function coerceNode(value) {
+    var record = asRecord(value);
+    if (!record) return null;
+    var name = cleanText(record.name || record.displayName || record.label || record.title || "");
+    if (!name) return null;
+    return {
+      name: name,
+      type: cleanText(record.type || record.nodeType || record.typeVersion || ""),
+      id: cleanText(record.id || record.nodeId || "")
+    };
+  }
+
+  function describeElement(element) {
+    if (!element || element.nodeType !== 1) return "unknown";
+    var tag = cleanText(element.tagName || "element").toLowerCase();
+    var testId = element.getAttribute && cleanText(element.getAttribute("data-test-id") || "");
+    var label = element.getAttribute && cleanText(element.getAttribute("aria-label") || element.getAttribute("title") || "");
+    var text = cleanText(element.textContent || "");
+    if (text.length > 60) text = text.slice(0, 57) + "...";
+    return [tag, testId || label || text].filter(Boolean).join(": ");
+  }
+
+  function postUiClick(event) {
+    var target = event.target;
+    var nodeRoot = findCanvasNodeElement(target);
+    var canvasSurface = isCanvasSurfaceElement(target);
+    var node = null;
+    if (nodeRoot) {
+      try { node = readNodeFromElement(target); } catch (e) {}
+      window.setTimeout(function() {
+        publishNodeDetail(node || readNodeFromStore());
+      }, 50);
+    } else if (canvasSurface) {
+      clearNodeContext();
+    }
+    window.parent.postMessage({
+      type: "n8n-ui-click",
+      build: N8NAC_BRIDGE_BUILD,
+      target: describeElement(event.target),
+      nodeName: node && node.name
+    }, "*");
+  }
+
+  function postUiChangedSoon() {
+    _uiMutationCount += 1;
+    if (_uiMutationTimer) return;
+    _uiMutationTimer = window.setTimeout(function() {
+      _uiMutationTimer = null;
+      window.parent.postMessage({
+        type: "n8n-ui-change",
+        build: N8NAC_BRIDGE_BUILD,
+        count: _uiMutationCount
+      }, "*");
+    }, 250);
+  }
+
+  function firstUsefulText(root) {
+    if (!root) return "";
+    var selectors = ["[data-test-id='node-title']", "[data-test-id*='node-name']", "[data-test-id*='nodeName']", "[class*='node-name']", "[class*='nodeName']", "[class*='node-title']", "[class*='nodeTitle']", "[class*='modal-title']", "[class*='ModalTitle']", ".el-dialog__title", "header [class*='title']", "header [class*='Title']", "[title]", "[aria-label]", "[role='heading']", "h1", "h2", "h3"];
+    for (var i = 0; i < selectors.length; i++) {
+      try {
+        var candidate = root.matches && root.matches(selectors[i]) ? root : root.querySelector && root.querySelector(selectors[i]);
+        var text = cleanText((candidate && (candidate.getAttribute("title") || candidate.getAttribute("aria-label") || candidate.textContent)) || "");
+        if (text && text.length <= 120 && text !== "Parameters" && text !== "Settings") return text;
+      } catch (e) {}
+    }
+    var fallback = cleanText(root.textContent || "");
+    if (!fallback || fallback.length > 160) return "";
+    return fallback;
+  }
+
+  function looksLikeNodeDetailPanel(root) {
+    if (!root || !isVisible(root)) return false;
+    var text = cleanText(root.textContent || "");
+    if (!text) return false;
+    if (/\\b(Parameters|Settings)\\b/.test(text) && /\\b(Execute step|INPUT|OUTPUT|Source for Prompt|Options)\\b/.test(text)) return true;
+    if (/\\b(Node|Credential|Parameter|Execute step)\\b/.test(text) && /\\b(INPUT|OUTPUT|Parameters|Settings)\\b/.test(text)) return true;
+    return false;
+  }
+
+  function isLikelyNodeTitleText(text) {
+    text = cleanText(text);
+    if (!text || text.length < 2 || text.length > 120) return false;
+      if (/^(Parameters|Settings|INPUT|OUTPUT|Docs|Execute step|Execute previous nodes|No input data|No output data|Options|Add Option|Tool|Memory|Chat Model|Logs)$/i.test(text)) return false;
+      if (/^(Tip:|Source for Prompt|Prompt \\(|Require Specific|Enable Fallback|Connected Chat Trigger Node)/i.test(text)) return false;
+    if (/^[+×x\-–—|•·]+$/.test(text)) return false;
+    return true;
+  }
+
+  function readNodeTitleFromPanelTopBand(root) {
+    if (!root || !isVisible(root)) return null;
+    var rootRect = root.getBoundingClientRect();
+    var selectors = "div,span,h1,h2,h3,[role='heading'],[title],[aria-label]";
+    var candidates = [];
+    try { candidates = Array.prototype.slice.call(root.querySelectorAll(selectors)); } catch (e) { candidates = []; }
+    if (root.matches && root.matches(selectors)) candidates.unshift(root);
+
+    var best = null;
+    for (var i = 0; i < candidates.length; i++) {
+      var el = candidates[i];
+      if (!isVisible(el)) continue;
+      var rect = el.getBoundingClientRect();
+      if (rect.top < rootRect.top - 2 || rect.top > rootRect.top + 80) continue;
+      if (rect.left < rootRect.left - 2 || rect.left > rootRect.left + Math.max(220, rootRect.width * 0.45)) continue;
+      var text = cleanText(el.getAttribute && (el.getAttribute("title") || el.getAttribute("aria-label")) || el.textContent || "");
+      if (!isLikelyNodeTitleText(text)) continue;
+      var score = (rect.top - rootRect.top) * 1000 + (rect.left - rootRect.left) + Math.max(0, text.length - 60) * 10;
+      if (!best || score < best.score) best = { score: score, text: text };
+    }
+    return best ? { name: best.text, type: "", id: "" } : null;
+  }
+
+  function findNodeDetailRootByTextScan() {
+    var candidates = [];
+    try { candidates = Array.prototype.slice.call(document.querySelectorAll("[role='dialog'],[aria-modal='true'],section,aside,main,div")); } catch (e) { candidates = []; }
+    var best = null;
+    for (var i = 0; i < candidates.length; i++) {
+      var el = candidates[i];
+      if (!isVisible(el)) continue;
+      var rect = el.getBoundingClientRect();
+      if (rect.width < 300 || rect.height < 180) continue;
+      var text = cleanText(el.textContent || "");
+      if (!/\\bParameters\\b/.test(text) || !/\\bSettings\\b/.test(text) || !/\\bExecute step\\b/.test(text)) continue;
+      var title = readNodeTitleFromPanelTopBand(el);
+      if (!title) continue;
+      var area = rect.width * rect.height;
+      if (!best || area < best.area) best = { area: area, element: el };
+    }
+    return best ? best.element : null;
+  }
+
+  function findNodeDetailTitleByPanelText() {
+    var titleSelectors = ["[data-test-id='node-title']", "[data-test-id*='node-name']", "[data-test-id*='nodeName']", "[class*='node-name']", "[class*='nodeName']", "[class*='modal-title']", "[class*='ModalTitle']", ".el-dialog__title", "header [class*='title']", "header [class*='Title']", "h1", "h2", "h3", "[role='heading']"];
+    for (var i = 0; i < titleSelectors.length; i++) {
+      var titles = [];
+      try { titles = Array.prototype.slice.call(document.querySelectorAll(titleSelectors[i])); } catch (e) { titles = []; }
+      for (var j = 0; j < titles.length; j++) {
+        var title = titles[j];
+        if (!isVisible(title)) continue;
+        var name = cleanText(title.textContent || title.getAttribute("title") || title.getAttribute("aria-label") || "");
+        if (!isLikelyNodeTitleText(name)) continue;
+
+        var cursor = title;
+        for (var depth = 0; cursor && depth < 8; depth++) {
+          var text = cleanText(cursor.textContent || "");
+          if (/\\bParameters\\b/.test(text) && /\\bSettings\\b/.test(text) && /\\bExecute step\\b/.test(text)) {
+            return { name: name, type: "", id: "" };
+          }
+          cursor = cursor.parentElement;
+        }
+      }
+    }
+    return null;
+  }
+
+  function readNodeFromElement(element) {
+    if (!element || !element.closest) return null;
+    var root = findCanvasNodeElement(element);
+    if (!root) return null;
+    var attrHost = root.matches && (root.matches("[data-node-name]") || root.matches("[data-name]"))
+      ? root
+      : root.querySelector && root.querySelector("[data-node-name], [data-name]");
+    var attrName = attrHost && cleanText(attrHost.getAttribute("data-node-name") || attrHost.getAttribute("data-name") || "");
+    var name = attrName || firstUsefulText(root);
+    if (!name) return null;
+    return {
+      name: name,
+      type: cleanText((attrHost && (attrHost.getAttribute("data-node-type") || attrHost.getAttribute("data-type"))) || root.getAttribute && (root.getAttribute("data-node-type") || root.getAttribute("data-type")) || ""),
+      id: cleanText((attrHost && (attrHost.getAttribute("data-node-id") || attrHost.getAttribute("data-id"))) || root.getAttribute && (root.getAttribute("data-node-id") || root.getAttribute("data-id")) || "")
+    };
+  }
+
+  function findCanvasNodeElement(element) {
+    if (!element || !element.closest) return null;
+    var selectors = [
+      "[data-test-id='canvas-node']",
+      "[data-test-id*='canvas-node']",
+      "[data-test-id*='workflow-node']",
+      "[data-test-id*='node-view-node']",
+      "[data-node-name]",
+      "[data-name]",
+      "[class*='canvas-node']",
+      "[class*='CanvasNode']",
+      "[class*='workflow-node']",
+      "[class*='node-box']"
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      try {
+        var match = element.closest(selectors[i]);
+        if (match && isVisible(match)) return match;
+      } catch (e) {}
+    }
+    return null;
+  }
+
+  function isCanvasSurfaceElement(element) {
+    if (!element || !element.closest) return false;
+    if (findCanvasNodeElement(element)) return false;
+    if (findNodeDetailRoot() && element.closest && element.closest("[role='dialog'],[aria-modal='true'],[class*='node-parameters'],[class*='NodeParameters'],[class*='modal'],[class*='Modal'],[class*='drawer'],[class*='Drawer']")) return false;
+    var selectors = [
+      "[data-test-id='canvas']",
+      "[data-test-id*='canvas']",
+      "[data-test-id*='node-view']",
+      "[data-test-id*='workflow']",
+      "[class*='canvas']",
+      "[class*='Canvas']",
+      "[class*='node-view']",
+      "[class*='NodeView']",
+      ".vue-flow",
+      ".react-flow"
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      try {
+        var match = element.closest(selectors[i]);
+        if (match && isVisible(match)) return true;
+      } catch (e) {}
+    }
+    return false;
+  }
+
+  function readNodeFromStore() {
+    try {
+      var app = document.querySelector("#app");
+      var vue = app && app.__vue__;
+      var store = vue && vue.$store;
+      if (!store) return null;
+      var getters = store.getters || {};
+      var getterKeys = ["ndv/activeNode", "nodeView/selectedNode", "workflows/getSelectedNode", "workflows/selectedNode"];
+      for (var i = 0; i < getterKeys.length; i++) {
+        var fromGetter = coerceNode(getters[getterKeys[i]]);
+        if (fromGetter) return fromGetter;
+      }
+      var state = store.state || {};
+      var candidates = [
+        state.ndv && state.ndv.activeNode,
+        state.ndv && state.ndv.node,
+        state.nodeView && state.nodeView.selectedNode,
+        state.workflows && state.workflows.selectedNode,
+        state.workflows && state.workflows.activeNode
+      ];
+      for (var j = 0; j < candidates.length; j++) {
+        var fromState = coerceNode(candidates[j]);
+        if (fromState) return fromState;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function isVisible(el) {
+    if (!el) return false;
+    var rect = el.getBoundingClientRect && el.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return false;
+    var style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+    return !style || (style.visibility !== "hidden" && style.display !== "none");
+  }
+
+  function findNodeDetailRoot() {
+    var selectors = [
+      "[data-test-id='ndv']",
+      "[data-test-id='node-parameters']",
+      "[data-test-id*='node-parameters']",
+      "[data-test-id*='node-creator']",
+      "[data-test-id*='node-detail']",
+      "[data-test-id*='nodeDetail']",
+      "[role='dialog']",
+      "[aria-modal='true']",
+      "[class*='node-parameters']",
+      "[class*='NodeParameters']",
+      "[class*='node-detail']",
+      "[class*='NodeDetail']",
+      "[class*='node-settings']",
+      "[class*='NodeSettings']",
+      "[class*='modal']",
+      "[class*='Modal']",
+      "[class*='dialog']",
+      "[class*='Dialog']",
+      "[class*='drawer']",
+      "[class*='Drawer']",
+      "[class*='ndv']",
+      "[class*='NDV']"
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      try {
+        var nodes = document.querySelectorAll(selectors[i]);
+        for (var j = 0; j < nodes.length; j++) {
+          if (looksLikeNodeDetailPanel(nodes[j])) return nodes[j];
+        }
+      } catch (e) {}
+    }
+    return null;
+  }
+
+  function readNodeFromDom(root) {
+    if (!root) return null;
+    var attrHost = root.matches && root.matches("[data-node-name]") ? root : root.querySelector && root.querySelector("[data-node-name]");
+    var attrName = attrHost && cleanText(attrHost.getAttribute("data-node-name") || "");
+    if (attrName) {
+      return {
+        name: attrName,
+        type: cleanText((attrHost && attrHost.getAttribute("data-node-type")) || ""),
+        id: cleanText((attrHost && attrHost.getAttribute("data-node-id")) || "")
+      };
+    }
+    var titleSelectors = ["[data-test-id='node-title']", "[data-test-id*='node-name']", "[data-test-id*='nodeName']", "[class*='node-name']", "[class*='nodeName']", "[class*='modal-title']", "[class*='ModalTitle']", ".el-dialog__title", "header [class*='title']", "header [class*='Title']", "h1", "h2", "h3", "[role='heading']"];
+    for (var i = 0; i < titleSelectors.length; i++) {
+      try {
+        var title = root.querySelector(titleSelectors[i]);
+        var text = cleanText(title && title.textContent || "");
+        if (text && text !== "Parameters" && text !== "Settings" && text !== "INPUT" && text !== "OUTPUT" && text.length <= 120) {
+          return { name: text, type: "", id: "" };
+        }
+      } catch (e) {}
+    }
+    return null;
+  }
+
+  function readNodeFromUrl() {
+    try {
+      var url = new URL(window.location.href);
+      var name = cleanText(url.searchParams.get("node") || url.searchParams.get("nodeName") || "");
+      var id = cleanText(url.searchParams.get("nodeId") || url.searchParams.get("selectedNode") || "");
+      return name ? { name: name, type: "", id: id } : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function publishNodeDetailIfOpen() {
+    if (!NODE_BRIDGE_ENABLED) return;
+    var root = findNodeDetailRoot();
+    var node = readNodeFromStore() || (root ? readNodeFromDom(root) : null) || (root ? readNodeTitleFromPanelTopBand(root) : null) || findNodeDetailTitleByPanelText() || readNodeFromUrl() || (root ? _lastCanvasNode : null);
+    publishNodeDetail(node);
+  }
+
+  function publishNodeDetail(node) {
+    if (!NODE_BRIDGE_ENABLED) return;
+    if (!node || !node.name) return;
+    var signature = [node.name, node.type || "", node.id || ""].join("|");
+    if (signature === _lastNodeDetailSignature) return;
+    _lastNodeDetailSignature = signature;
+    window.parent.postMessage({ type: "n8n-node-detail-opened", build: N8NAC_BRIDGE_BUILD, node: node }, "*");
+  }
+
+  function clearNodeContext() {
+    _lastNodeDetailSignature = "";
+    _lastCanvasNode = null;
+    window.parent.postMessage({ type: "n8n-node-context-cleared", build: N8NAC_BRIDGE_BUILD }, "*");
+  }
+
+  function installNodeDetailObserver() {
+    postBridgeReady();
+    if (!NODE_BRIDGE_ENABLED) return;
+    document.addEventListener("pointerdown", function(e) {
+      var node = readNodeFromElement(e.target);
+      if (node) _lastCanvasNode = node;
+    }, true);
+    document.addEventListener("click", function(e) {
+      postUiClick(e);
+    }, true);
+    document.addEventListener("dblclick", function(e) {
+      var node = readNodeFromElement(e.target) || _lastCanvasNode;
+      if (!node) return;
+      _lastCanvasNode = node;
+      window.setTimeout(function() {
+        publishNodeDetail(node || readNodeFromStore());
+      }, 200);
+    }, true);
+    try {
+      var observer = new MutationObserver(function() { postUiChangedSoon(); });
+      observer.observe(document.body || document.documentElement, { childList: true, subtree: true, attributes: true });
+    } catch (e) {}
+    window.setInterval(postBridgeReady, 5000);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", installNodeDetailObserver, { once: true });
+  } else {
+    installNodeDetailObserver();
+  }
 
   function handlePaste(text) {
     var el = document.activeElement;
@@ -526,6 +921,7 @@ export class ProxyService {
   // Intercept Cmd+V only (macOS-specific bridge — no static secret here;
   // origin validation and one-time grant tokens are enforced in the parent webview)
   document.addEventListener("keydown", function(e) {
+    if (!CLIPBOARD_BRIDGE_ENABLED) return;
     if (e.metaKey && e.key === "v") {
       if (_pasteInProgress) return;
       e.preventDefault();
@@ -550,7 +946,7 @@ export class ProxyService {
   window.addEventListener("message", function(e) {
     var msg = e.data;
     if (!msg || typeof msg !== "object") return;
-    if (msg.type === "n8n-clipboard-paste" && typeof msg.text === "string") {
+    if (CLIPBOARD_BRIDGE_ENABLED && msg.type === "n8n-clipboard-paste" && typeof msg.text === "string") {
       handlePaste(msg.text);
     }
   });
@@ -571,8 +967,8 @@ export class ProxyService {
      * 3. Monkey-patches navigator.clipboard.readText so n8n reads our data
      * 4. Dispatches synthetic keyboard and clipboard events to trigger n8n's paste handler
      */
-    private injectClipboardBridge(html: string): string {
-        const bridgeScript = ProxyService.buildBridgeScript();
+    private injectClipboardBridge(html: string, clipboardBridgeEnabled = true, nodeBridgeEnabled = true, pageKind = 'n8n'): string {
+        const bridgeScript = ProxyService.buildBridgeScript(clipboardBridgeEnabled, nodeBridgeEnabled, pageKind);
 
         if (html.includes('</head>')) {
             return html.replace('</head>', bridgeScript + '</head>');

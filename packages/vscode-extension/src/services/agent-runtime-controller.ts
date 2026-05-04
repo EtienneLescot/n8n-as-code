@@ -8,6 +8,13 @@ export interface AgentPromptInput {
     workflowName?: string;
     workflowFilename?: string;
     workspaceRoot?: string;
+    nodeContext?: AgentNodeContext;
+}
+
+export interface AgentNodeContext {
+    name: string;
+    type?: string;
+    id?: string;
 }
 
 export type AgentWorkbenchMessage =
@@ -259,6 +266,9 @@ export class AgentRuntimeController implements vscode.Disposable {
             baseUrl: providerConfig.baseUrl,
             workflowId: input.workflowId || '',
             workflowFilename: input.workflowFilename || '',
+            nodeContextName: input.nodeContext?.name || '',
+            nodeContextType: input.nodeContext?.type || '',
+            nodeContextId: input.nodeContext?.id || '',
             memorySources,
             skillSourcePaths,
         });
@@ -306,7 +316,21 @@ export class AgentRuntimeController implements vscode.Disposable {
             input.workspaceRoot ? `Workspace root: ${input.workspaceRoot}` : undefined,
             input.workflowId ? `Current workflow: ${input.workflowName || input.workflowId} (${input.workflowId})` : undefined,
             input.workflowFilename ? `Current workflow file: ${input.workflowFilename}` : undefined,
+            this.formatNodeContext(input.nodeContext),
             workflowContext,
+        ].filter(Boolean).join('\n');
+    }
+
+    private formatNodeContext(nodeContext: AgentNodeContext | undefined): string | undefined {
+        if (!nodeContext?.name) {
+            return undefined;
+        }
+        return [
+            'Current n8n node detail panel context:',
+            `Node name: ${nodeContext.name}`,
+            nodeContext.type ? `Node type: ${nodeContext.type}` : undefined,
+            nodeContext.id ? `Node ID: ${nodeContext.id}` : undefined,
+            'When the user makes an ambiguous node-specific request, assume it refers to this node unless they name another node.',
         ].filter(Boolean).join('\n');
     }
 

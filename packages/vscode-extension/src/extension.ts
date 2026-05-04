@@ -838,11 +838,15 @@ async function resolveWorkflowWebviewTarget(workflow: IWorkflowStatus): Promise<
         throw new Error(prepared.runtime.blocked.message);
     }
     const effective = prepared.context;
-    const proxyUrl = await proxyService.start(effective.apiBaseUrl ?? effective.host);
+    const n8nBaseUrl = effective.apiBaseUrl ?? effective.host;
+    const proxyUrl = await proxyService.start(n8nBaseUrl);
+    const workflowUrl = new URL(`/workflow/${encodeURIComponent(workflow.id)}`, n8nBaseUrl.endsWith('/') ? n8nBaseUrl : `${n8nBaseUrl}/`);
+    workflowUrl.searchParams.set('_n8nacBridge', String(Date.now()));
     const openTarget = await facade.resolveWorkflowWebviewOpen({
         workflowId: workflow.id,
         proxyBaseUrl: proxyUrl,
         workspaceRoot,
+        workflowUrl: workflowUrl.toString(),
     });
 
     if (openTarget.routePath && openTarget.autoLoginPageHtml) {
