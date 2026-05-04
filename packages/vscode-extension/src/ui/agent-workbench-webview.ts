@@ -21,6 +21,7 @@ export class AgentWorkbenchWebview {
     private _workflow: IWorkflowStatus | undefined;
     private _workflowUrl: string | undefined;
     private _workflowReloadUrl: string | undefined;
+    private _providerModelLabel: string;
     private _nodeContext: AgentWorkbenchNodeContext | undefined;
     private _onClipboardPasteRequest: ((panel: vscode.WebviewPanel, grantToken: string) => Promise<void>) | undefined;
 
@@ -30,6 +31,7 @@ export class AgentWorkbenchWebview {
         workflow: IWorkflowStatus | undefined,
         workflowUrl: string | undefined,
         workflowReloadUrl: string | undefined,
+        providerModelLabel: string,
         agentRuntime: AgentRuntimeController,
     ) {
         this._panel = panel;
@@ -37,6 +39,7 @@ export class AgentWorkbenchWebview {
         this._workflow = workflow;
         this._workflowUrl = workflowUrl;
         this._workflowReloadUrl = workflowReloadUrl;
+        this._providerModelLabel = providerModelLabel;
         this._agentRuntime = agentRuntime;
         this.updateRegistryRegistration();
 
@@ -52,6 +55,7 @@ export class AgentWorkbenchWebview {
         workflow: IWorkflowStatus | undefined,
         workflowUrl: string | undefined,
         workflowReloadUrl: string | undefined,
+        providerModelLabel: string,
         agentRuntime: AgentRuntimeController,
         viewColumn?: vscode.ViewColumn,
     ): void {
@@ -59,7 +63,7 @@ export class AgentWorkbenchWebview {
 
         if (AgentWorkbenchWebview.currentPanel) {
             AgentWorkbenchWebview.currentPanel._panel.reveal(column);
-            AgentWorkbenchWebview.currentPanel.update(workflow, workflowUrl, workflowReloadUrl);
+            AgentWorkbenchWebview.currentPanel.update(workflow, workflowUrl, workflowReloadUrl, providerModelLabel);
             return;
         }
 
@@ -74,7 +78,7 @@ export class AgentWorkbenchWebview {
             },
         );
 
-        AgentWorkbenchWebview.currentPanel = new AgentWorkbenchWebview(panel, context, workflow, workflowUrl, workflowReloadUrl, agentRuntime);
+        AgentWorkbenchWebview.currentPanel = new AgentWorkbenchWebview(panel, context, workflow, workflowUrl, workflowReloadUrl, providerModelLabel, agentRuntime);
     }
 
     public static onClipboardPasteRequest(handler: (panel: vscode.WebviewPanel, grantToken: string) => Promise<void>): void {
@@ -83,12 +87,13 @@ export class AgentWorkbenchWebview {
         }
     }
 
-    public update(workflow: IWorkflowStatus | undefined, workflowUrl: string | undefined, workflowReloadUrl: string | undefined): void {
+    public update(workflow: IWorkflowStatus | undefined, workflowUrl: string | undefined, workflowReloadUrl: string | undefined, providerModelLabel: string): void {
         const hadWorkflowFrame = Boolean(this._workflowUrl);
         const hasWorkflowFrame = Boolean(workflowUrl);
         this._workflow = workflow;
         this._workflowUrl = workflowUrl;
         this._workflowReloadUrl = workflowReloadUrl;
+        this._providerModelLabel = providerModelLabel;
         this.updateRegistryRegistration();
         this._panel.title = `n8n Agent: ${workflow?.name || 'New workflow'}`;
 
@@ -158,6 +163,8 @@ export class AgentWorkbenchWebview {
 
         if (payload.type === 'agent.selectModel') {
             await vscode.commands.executeCommand('n8n.agent.selectModel');
+            this._providerModelLabel = this.getProviderModelLabel();
+            this._panel.webview.html = this.getHtmlForWebview();
             return;
         }
 
@@ -188,6 +195,13 @@ export class AgentWorkbenchWebview {
         };
     }
 
+    private getProviderModelLabel(): string {
+        const config = vscode.workspace.getConfiguration('n8n.agent');
+        const provider = String(config.get<string>('provider') || 'openai').trim() || 'openai';
+        const model = String(config.get<string>('model') || '').trim();
+        return model ? `${provider} / ${model}` : provider;
+    }
+
     private updateRegistryRegistration(): void {
         const workflowId = this._workflow?.id;
         if (!workflowId) {
@@ -212,6 +226,7 @@ export class AgentWorkbenchWebview {
             workflowName: this._workflow?.name || 'New workflow',
             workflowUrl: this._workflowUrl,
             workflowReloadUrl: this._workflowReloadUrl,
+            providerModelLabel: this._providerModelLabel,
         });
     }
 }

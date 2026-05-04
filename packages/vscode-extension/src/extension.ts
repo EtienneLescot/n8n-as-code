@@ -805,11 +805,13 @@ async function resolveWorkflowForSplitView(arg: any): Promise<IWorkflowStatus | 
 async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: IWorkflowStatus): Promise<void> {
     try {
         const openTarget = workflow?.id ? await resolveWorkflowWebviewTarget(workflow) : undefined;
+        const providerModelLabel = getSelectedAgentProviderModelLabel();
         AgentWorkbenchWebview.createOrShow(
             context,
             workflow,
             openTarget?.url,
             openTarget?.targetUrl,
+            providerModelLabel,
             requireAgentRuntimeController(),
             vscode.ViewColumn.One,
         );
@@ -819,6 +821,13 @@ async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: I
     } catch (e: any) {
         vscode.window.showErrorMessage(`Failed to open n8n Agent Workbench: ${e.message}`);
     }
+}
+
+function getSelectedAgentProviderModelLabel(): string {
+    const config = vscode.workspace.getConfiguration('n8n.agent');
+    const provider = String(config.get<string>('provider') || 'openai').trim() || 'openai';
+    const model = String(config.get<string>('model') || '').trim();
+    return model ? `${provider} / ${model}` : provider;
 }
 
 async function resolveWorkflowWebviewTarget(workflow: IWorkflowStatus): Promise<{ url: string; targetUrl: string }> {
