@@ -4,6 +4,12 @@ import { AgentRuntimeController } from '../services/agent-runtime-controller.js'
 import { workflowWebviewRegistry } from '../services/workflow-webview-registry.js';
 import { buildAgentWorkbenchHtml } from './agent-workbench-html.js';
 
+interface AgentWorkbenchNodeContext {
+    name: string;
+    type?: string;
+    id?: string;
+}
+
 export class AgentWorkbenchWebview {
     public static currentPanel: AgentWorkbenchWebview | undefined;
 
@@ -15,6 +21,7 @@ export class AgentWorkbenchWebview {
     private _workflow: IWorkflowStatus | undefined;
     private _workflowUrl: string | undefined;
     private _workflowReloadUrl: string | undefined;
+    private _nodeContext: AgentWorkbenchNodeContext | undefined;
     private _onClipboardPasteRequest: ((panel: vscode.WebviewPanel, grantToken: string) => Promise<void>) | undefined;
 
     private constructor(
@@ -134,12 +141,14 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'agent.send') {
+            const nodeContext = this.sanitizeNodeContext(payload.nodeContext) ?? this._nodeContext;
             await this._agentRuntime.sendPrompt({
                 prompt: String(payload.text || ''),
                 workflowId: this._workflow?.id,
                 workflowName: this._workflow?.name,
                 workflowFilename: this._workflow?.filename,
                 workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+                nodeContext,
             }, (event) => this._panel.webview.postMessage(event));
             if (this._workflow?.id) {
                 await this._panel.webview.postMessage({ type: 'workflow.reload' });
@@ -152,10 +161,31 @@ export class AgentWorkbenchWebview {
             return;
         }
 
+        if (payload.type === 'agent.nodeDetailChanged') {
+            this._nodeContext = this.sanitizeNodeContext(payload.nodeContext);
+            return;
+        }
+
         if (payload.type === 'agent.stop') {
             await this._agentRuntime.stop((event) => this._panel.webview.postMessage(event));
             return;
         }
+    }
+
+    private sanitizeNodeContext(value: unknown): AgentWorkbenchNodeContext | undefined {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            return undefined;
+        }
+        const record = value as Record<string, unknown>;
+        const name = typeof record.name === 'string' ? record.name.trim() : '';
+        if (!name) {
+            return undefined;
+        }
+        return {
+            name,
+            type: typeof record.type === 'string' ? record.type.trim() || undefined : undefined,
+            id: typeof record.id === 'string' ? record.id.trim() || undefined : undefined,
+        };
     }
 
     private updateRegistryRegistration(): void {
