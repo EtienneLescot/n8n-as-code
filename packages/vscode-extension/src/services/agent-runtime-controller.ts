@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 
 export interface AgentPromptInput {
     prompt: string;
@@ -365,18 +365,18 @@ export class AgentRuntimeController implements vscode.Disposable {
         return this.getWorkbenchState(input);
     }
 
-    async sendPrompt(input: AgentPromptInput, postMessage: AgentWorkbenchPostMessage): Promise<void> {
+    async sendPrompt(input: AgentPromptInput, postMessage: AgentWorkbenchPostMessage): Promise<boolean> {
         if (this.activeRun) {
             await postMessage({
                 type: 'agent.error',
                 message: 'An agent run is already in progress. Stop it before sending another prompt.',
             });
-            return;
+            return false;
         }
 
         const prompt = input.prompt.trim();
         if (!prompt) {
-            return;
+            return false;
         }
 
         const sessions = await this.getSessionRuntime();
@@ -389,6 +389,8 @@ export class AgentRuntimeController implements vscode.Disposable {
 
         const abortController = new AbortController();
         this.activeRun = { abortController, sessionId: activeRecord.id };
+        const workflowSnapshot = await this.captureWorkflowSnapshot(input.workflowFilePath);
+        let workflowChanged = false;
 
         const derivedTitle = activeRecord.title === 'New conversation'
             ? sessions.deriveSessionTitle(prompt, this.getDefaultSessionTitle(input.workflowName))
@@ -416,11 +418,14 @@ export class AgentRuntimeController implements vscode.Disposable {
             await postMessage({ type: 'agent.error', message });
             await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: activeRecord.id }) });
         } finally {
+            workflowChanged = await this.hasWorkflowSnapshotChanged(input.workflowFilePath, workflowSnapshot);
             if (this.activeRun?.abortController === abortController) {
                 this.activeRun = undefined;
             }
             await postMessage({ type: 'agent.status', status: 'idle' });
         }
+
+        return workflowChanged;
     }
 
     async stop(postMessage: AgentWorkbenchPostMessage): Promise<void> {
@@ -436,6 +441,36 @@ export class AgentRuntimeController implements vscode.Disposable {
     dispose(): void {
         this.activeRun?.abortController.abort();
         this.activeRun = undefined;
+    }
+
+    private async captureWorkflowSnapshot(workflowFilePath: string | undefined): Promise<string | undefined> {
+        if (!workflowFilePath) {
+            return undefined;
+        }
+
+        try {
+            const [stats, content] = await Promise.all([
+                fs.promises.stat(workflowFilePath),
+                fs.promises.readFile(workflowFilePath),
+            ]);
+            const digest = createHash('sha1').update(content).digest('hex');
+            return `${stats.size}:${stats.mtimeMs}:${digest}`;
+        } catch (error: any) {
+            if (error?.code === 'ENOENT') {
+                return 'missing';
+            }
+            this.outputChannel.appendLine(`[n8n-agent] Workflow snapshot failed for ${workflowFilePath}: ${error?.message || String(error)}`);
+            return undefined;
+        }
+    }
+
+    private async hasWorkflowSnapshotChanged(workflowFilePath: string | undefined, previousSnapshot: string | undefined): Promise<boolean> {
+        if (!workflowFilePath || previousSnapshot === undefined) {
+            return false;
+        }
+
+        const nextSnapshot = await this.captureWorkflowSnapshot(workflowFilePath);
+        return nextSnapshot !== previousSnapshot;
     }
 
     private async runInitialAgentTurn(
