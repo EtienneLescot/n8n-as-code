@@ -19,6 +19,7 @@ export class AgentWorkbenchWebview {
     private readonly _disposables: vscode.Disposable[] = [];
     private _registryDisposable: { dispose(): void } | undefined;
     private _workflow: IWorkflowStatus | undefined;
+    private _workflowFilePath: string | undefined;
     private _workflowUrl: string | undefined;
     private _workflowReloadUrl: string | undefined;
     private _providerModelLabel: string;
@@ -29,6 +30,7 @@ export class AgentWorkbenchWebview {
         panel: vscode.WebviewPanel,
         context: vscode.ExtensionContext,
         workflow: IWorkflowStatus | undefined,
+        workflowFilePath: string | undefined,
         workflowUrl: string | undefined,
         workflowReloadUrl: string | undefined,
         providerModelLabel: string,
@@ -37,6 +39,7 @@ export class AgentWorkbenchWebview {
         this._panel = panel;
         this._context = context;
         this._workflow = workflow;
+        this._workflowFilePath = workflowFilePath;
         this._workflowUrl = workflowUrl;
         this._workflowReloadUrl = workflowReloadUrl;
         this._providerModelLabel = providerModelLabel;
@@ -53,6 +56,7 @@ export class AgentWorkbenchWebview {
     public static createOrShow(
         context: vscode.ExtensionContext,
         workflow: IWorkflowStatus | undefined,
+        workflowFilePath: string | undefined,
         workflowUrl: string | undefined,
         workflowReloadUrl: string | undefined,
         providerModelLabel: string,
@@ -63,7 +67,7 @@ export class AgentWorkbenchWebview {
 
         if (AgentWorkbenchWebview.currentPanel) {
             AgentWorkbenchWebview.currentPanel._panel.reveal(column);
-            AgentWorkbenchWebview.currentPanel.update(workflow, workflowUrl, workflowReloadUrl, providerModelLabel);
+            AgentWorkbenchWebview.currentPanel.update(workflow, workflowFilePath, workflowUrl, workflowReloadUrl, providerModelLabel);
             return;
         }
 
@@ -78,7 +82,7 @@ export class AgentWorkbenchWebview {
             },
         );
 
-        AgentWorkbenchWebview.currentPanel = new AgentWorkbenchWebview(panel, context, workflow, workflowUrl, workflowReloadUrl, providerModelLabel, agentRuntime);
+        AgentWorkbenchWebview.currentPanel = new AgentWorkbenchWebview(panel, context, workflow, workflowFilePath, workflowUrl, workflowReloadUrl, providerModelLabel, agentRuntime);
     }
 
     public static onClipboardPasteRequest(handler: (panel: vscode.WebviewPanel, grantToken: string) => Promise<void>): void {
@@ -87,10 +91,11 @@ export class AgentWorkbenchWebview {
         }
     }
 
-    public update(workflow: IWorkflowStatus | undefined, workflowUrl: string | undefined, workflowReloadUrl: string | undefined, providerModelLabel: string): void {
+    public update(workflow: IWorkflowStatus | undefined, workflowFilePath: string | undefined, workflowUrl: string | undefined, workflowReloadUrl: string | undefined, providerModelLabel: string): void {
         const hadWorkflowFrame = Boolean(this._workflowUrl);
         const hasWorkflowFrame = Boolean(workflowUrl);
         this._workflow = workflow;
+        this._workflowFilePath = workflowFilePath;
         this._workflowUrl = workflowUrl;
         this._workflowReloadUrl = workflowReloadUrl;
         this._providerModelLabel = providerModelLabel;
@@ -109,6 +114,7 @@ export class AgentWorkbenchWebview {
             url: workflowUrl,
             reloadUrl: workflowReloadUrl,
         });
+        void this.postWorkbenchState();
     }
 
     public dispose(): void {
@@ -129,6 +135,11 @@ export class AgentWorkbenchWebview {
             return;
         }
         const payload = message as Record<string, unknown>;
+
+        if (payload.type === 'agent.ready') {
+            await this.postWorkbenchState();
+            return;
+        }
 
         if (payload.type === 'clipboard-write' && typeof payload.text === 'string') {
             try {
@@ -152,8 +163,10 @@ export class AgentWorkbenchWebview {
                 workflowId: this._workflow?.id,
                 workflowName: this._workflow?.name,
                 workflowFilename: this._workflow?.filename,
+                workflowFilePath: this._workflowFilePath,
                 workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
                 nodeContext,
+                sessionId: typeof payload.sessionId === 'string' ? payload.sessionId : undefined,
             }, (event) => this._panel.webview.postMessage(event));
             if (this._workflow?.id) {
                 await this._panel.webview.postMessage({ type: 'workflow.reload' });
@@ -164,7 +177,13 @@ export class AgentWorkbenchWebview {
         if (payload.type === 'agent.selectModel') {
             await vscode.commands.executeCommand('n8n.agent.selectModel');
             this._providerModelLabel = this.getProviderModelLabel();
-            this._panel.webview.html = this.getHtmlForWebview();
+            await this.postWorkbenchState();
+            return;
+        }
+
+        if (payload.type === 'agent.selectReasoningEffort') {
+            await vscode.commands.executeCommand('n8n.agent.selectReasoningEffort');
+            await this.postWorkbenchState();
             return;
         }
 
@@ -175,6 +194,51 @@ export class AgentWorkbenchWebview {
 
         if (payload.type === 'agent.stop') {
             await this._agentRuntime.stop((event) => this._panel.webview.postMessage(event));
+            return;
+        }
+
+        if (payload.type === 'agent.session.new') {
+            await this.postWorkbenchState(await this._agentRuntime.createSession(this.buildWorkbenchInput()));
+            return;
+        }
+
+        if (payload.type === 'agent.session.select' && typeof payload.sessionId === 'string') {
+            await this.postWorkbenchState(await this._agentRuntime.selectSession(payload.sessionId, this.buildWorkbenchInput()));
+            return;
+        }
+
+        if (payload.type === 'agent.session.rename' && typeof payload.sessionId === 'string' && typeof payload.title === 'string') {
+            await this.postWorkbenchState(await this._agentRuntime.renameSession(payload.sessionId, payload.title, this.buildWorkbenchInput()));
+            return;
+        }
+
+        if (payload.type === 'agent.session.delete' && typeof payload.sessionId === 'string') {
+            await this.postWorkbenchState(await this._agentRuntime.deleteSession(payload.sessionId, this.buildWorkbenchInput()));
+            return;
+        }
+
+        if (payload.type === 'agent.session.attach' && typeof payload.sessionId === 'string') {
+            await this.postWorkbenchState(await this._agentRuntime.attachSessionToCurrentWorkflow(payload.sessionId, this.buildWorkbenchInput()));
+            return;
+        }
+
+        if (payload.type === 'agent.session.detach' && typeof payload.sessionId === 'string') {
+            await this.postWorkbenchState(await this._agentRuntime.detachSession(payload.sessionId, this.buildWorkbenchInput()));
+            return;
+        }
+
+        if (payload.type === 'agent.checkpoint.save' && typeof payload.sessionId === 'string') {
+            await this.postWorkbenchState(await this._agentRuntime.saveCheckpoint(payload.sessionId, this.buildWorkbenchInput()));
+            return;
+        }
+
+        if (payload.type === 'agent.checkpoint.restore' && typeof payload.sessionId === 'string' && typeof payload.checkpointId === 'string') {
+            await this.postWorkbenchState(await this._agentRuntime.restoreCheckpoint(payload.sessionId, payload.checkpointId, this.buildWorkbenchInput()));
+            return;
+        }
+
+        if (payload.type === 'agent.checkpoint.delete' && typeof payload.sessionId === 'string' && typeof payload.checkpointId === 'string') {
+            await this.postWorkbenchState(await this._agentRuntime.deleteCheckpoint(payload.sessionId, payload.checkpointId, this.buildWorkbenchInput()));
             return;
         }
     }
@@ -199,7 +263,30 @@ export class AgentWorkbenchWebview {
         const config = vscode.workspace.getConfiguration('n8n.agent');
         const provider = String(config.get<string>('provider') || 'openai').trim() || 'openai';
         const model = String(config.get<string>('model') || '').trim();
-        return model ? `${provider} / ${model}` : provider;
+        const reasoningEffort = String(config.get<string>('reasoningEffort') || '').trim();
+        const label = model ? `${provider} / ${model}` : provider;
+        return reasoningEffort ? `${label} / ${reasoningEffort}` : label;
+    }
+
+    private buildWorkbenchInput(): {
+        workflowId?: string;
+        workflowName?: string;
+        workflowFilename?: string;
+        workspaceRoot?: string;
+        nodeContext?: AgentWorkbenchNodeContext;
+    } {
+        return {
+            workflowId: this._workflow?.id,
+            workflowName: this._workflow?.name,
+            workflowFilename: this._workflow?.filename,
+            workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+            nodeContext: this._nodeContext,
+        };
+    }
+
+    private async postWorkbenchState(state?: Awaited<ReturnType<AgentRuntimeController['getWorkbenchState']>>): Promise<void> {
+        const nextState = state ?? await this._agentRuntime.getWorkbenchState(this.buildWorkbenchInput());
+        await this._panel.webview.postMessage({ type: 'agent.state', state: nextState });
     }
 
     private updateRegistryRegistration(): void {

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { getAgentProviderSecretKey } from '../services/agent-runtime-controller.js';
-import { YAGR_PROVIDER_DEFINITIONS, normalizeYagrProviderId } from '../services/yagr-provider-service.js';
+import { YAGR_PROVIDER_DEFINITIONS, normalizeYagrProviderId, providerSupportsReasoningEffort } from '../services/yagr-provider-service.js';
 import { buildAgentManagerHtml } from './agent-manager-html.js';
 
 export class AgentManagerWebview {
@@ -56,6 +56,8 @@ export class AgentManagerWebview {
             providerLabel: definition.label,
             model: String(config.get<string>('model') || '').trim() || undefined,
             baseUrl: String(config.get<string>('baseUrl') || '').trim() || undefined,
+            reasoningEffort: String(config.get<string>('reasoningEffort') || '').trim() || undefined,
+            supportsReasoningEffort: providerSupportsReasoningEffort(provider, String(config.get<string>('model') || '').trim() || undefined),
             hasStoredApiKey: Boolean(await this._context.secrets.get(getAgentProviderSecretKey(provider))),
             authKind: definition.authKind,
         });
@@ -73,6 +75,11 @@ export class AgentManagerWebview {
         }
         if (payload.type === 'selectModel') {
             await vscode.commands.executeCommand('n8n.agent.selectModel');
+            await this.render();
+            return;
+        }
+        if (payload.type === 'selectReasoningEffort') {
+            await vscode.commands.executeCommand('n8n.agent.selectReasoningEffort');
             await this.render();
             return;
         }
