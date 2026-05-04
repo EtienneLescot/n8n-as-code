@@ -368,7 +368,7 @@
   ],
   "dependencies": {
     "@n8n-as-code/manager-adapter": "0.1.0",
-    "@n8n-as-code/n8n-manager-core": "^0.5.2",
+    "@n8n-as-code/n8n-manager-core": "^0.5.3",
     "@n8n-as-code/skills": "1.10.0",
     "@n8n-as-code/telemetry": "0.1.0",
     "@n8n-as-code/workflow-core": "0.1.0",

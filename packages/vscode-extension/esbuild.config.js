@@ -13,12 +13,16 @@ const managerCoreAgentToolingPath = path.resolve(
     'dist',
     'agent-tooling.js'
 );
+const managerCoreAgentToolingPaths = new Set([
+    managerCoreAgentToolingPath,
+    fs.existsSync(managerCoreAgentToolingPath) ? fs.realpathSync(managerCoreAgentToolingPath) : managerCoreAgentToolingPath,
+]);
 
 const preserveManagerCoreEntrypointResolution = {
     name: 'preserve-manager-core-entrypoint-resolution',
     setup(build) {
         build.onLoad({ filter: /agent-tooling\.js$/ }, async (args) => {
-            if (path.resolve(args.path) !== managerCoreAgentToolingPath) {
+            if (!managerCoreAgentToolingPaths.has(path.resolve(args.path))) {
                 return undefined;
             }
             const source = await fs.promises.readFile(args.path, 'utf8');
