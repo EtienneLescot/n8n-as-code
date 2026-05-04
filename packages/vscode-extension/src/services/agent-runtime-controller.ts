@@ -1,17 +1,22 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 
 export interface AgentPromptInput {
     prompt: string;
     workflowId?: string;
     workflowName?: string;
     workflowFilename?: string;
+    workflowFilePath?: string;
     workspaceRoot?: string;
     nodeContext?: AgentNodeContext;
+    sessionId?: string;
 }
 
 const ENVIRONMENT_DETAILS_BLOCK_PATTERN = /<environment_details>[\s\S]*?<\/environment_details>/gi;
+const UNATTACHED_WORKFLOW_SCOPE_KEY = '__unattached__';
+const DEFAULT_CONTEXT_WINDOW_TOKENS = 200_000;
 
 export interface AgentNodeContext {
     name: string;
@@ -19,11 +24,124 @@ export interface AgentNodeContext {
     id?: string;
 }
 
+export type AgentReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+
+export interface AgentContextUsage {
+    promptTokens: number;
+    completionTokens: number;
+    contextWindowTokens: number;
+    fillPercent: number;
+    source: 'api' | 'estimated';
+}
+
+export interface AgentCheckpointSummary {
+    id: string;
+    sessionId: string;
+    createdAt: string;
+    messageCount: number;
+    summary?: string;
+}
+
+export interface AgentCompactionSummary {
+    summary: string;
+    source: 'llm' | 'fallback';
+    messagesCompacted: number;
+    preservedRecentMessages: number;
+    estimatedTokens?: number;
+    thresholdTokens?: number;
+    fallbackReason?: string;
+}
+
+export interface AgentSessionSummary {
+    id: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    messageCount: number;
+    isActive: boolean;
+    isClosed: boolean;
+    checkpointCount: number;
+    workflowId?: string;
+    workflowLabel: string;
+    totalCompactions: number;
+}
+
+export type AgentTimelineEntry =
+    | { kind: 'user-message'; id: string; text: string; timestamp: number }
+    | { kind: 'system-notice'; id: string; text: string; timestamp: number }
+    | { kind: 'assistant-body'; id: string; text: string; streaming: boolean; finalState?: string }
+    | {
+        kind: 'operation';
+        id: string;
+        tone: 'info' | 'success' | 'error';
+        title: string;
+        detail?: string;
+        category?: string;
+        status?: 'running' | 'done' | 'error';
+        body?: string;
+        summary?: string;
+        startedAt?: number;
+        endedAt?: number;
+    }
+    | { kind: 'compaction'; id: string; timestamp: number; event: AgentCompactionSummary }
+    | { kind: 'context-usage'; id: string; timestamp: number; usage: AgentContextUsage };
+
+export interface AgentSessionState {
+    sessionId: string;
+    title: string;
+    entries: AgentTimelineEntry[];
+    checkpoints: AgentCheckpointSummary[];
+    contextUsage?: AgentContextUsage;
+    lastCompaction?: AgentCompactionSummary;
+    totalCompactions: number;
+    workflowId?: string;
+    workflowLabel: string;
+}
+
+export interface AgentWorkbenchState {
+    workflow: {
+        id?: string;
+        name?: string;
+        filename?: string;
+    };
+    provider: string;
+    model?: string;
+    baseUrl?: string;
+    reasoningEffort?: AgentReasoningEffort;
+    supportsReasoningEffort: boolean;
+    currentNodeContext?: AgentNodeContext;
+    activeSessionId: string;
+    sessions: AgentSessionSummary[];
+    session: AgentSessionState;
+    isRunning: boolean;
+}
+
+export type AgentStreamEvent =
+    | { type: 'start'; sessionId: string; message: string }
+    | { type: 'progress'; tone: 'info' | 'success' | 'error'; title: string; detail?: string; phase?: string }
+    | {
+        type: 'operation';
+        operationId: string;
+        label: string;
+        category: string;
+        status: 'running' | 'done' | 'error';
+        body?: string;
+        summary?: string;
+        startedAt: number;
+        endedAt?: number;
+    }
+    | { type: 'text-delta'; delta: string }
+    | { type: 'compaction'; summary: string; source: 'llm' | 'fallback'; messagesCompacted: number; preservedRecentMessages: number; estimatedTokens?: number; thresholdTokens?: number; fallbackReason?: string }
+    | AgentContextUsageEvent
+    | { type: 'final'; sessionId: string; response: string; finalState: string }
+    | { type: 'error'; error: string };
+
+type AgentContextUsageEvent = { type: 'context-usage'; promptTokens: number; completionTokens: number; contextWindowTokens: number; fillPercent: number; source: 'api' | 'estimated' };
+
 export type AgentWorkbenchMessage =
     | { type: 'agent.status'; status: 'idle' | 'running' | 'stopping'; detail?: string }
-    | { type: 'agent.message'; role: 'assistant' | 'system' | 'user'; content: string }
-    | { type: 'agent.delta'; content: string }
-    | { type: 'agent.operation'; label: string; status: 'running' | 'done' | 'error'; detail?: string }
+    | { type: 'agent.state'; state: AgentWorkbenchState }
+    | { type: 'agent.streamEvent'; event: AgentStreamEvent }
     | { type: 'agent.error'; message: string }
     | { type: 'agent.done' };
 
@@ -35,17 +153,220 @@ export function getAgentProviderSecretKey(provider: string): string {
     return `${N8N_AGENT_PROVIDER_SECRET_PREFIX}${provider}`;
 }
 
+type DeepAgentSessionScope = {
+    kind: string;
+    key: string;
+};
+
+type DeepAgentSessionRecord = {
+    id: string;
+    createdAt: string;
+    updatedAt: string;
+    title: string;
+    closedAt?: string;
+    scope?: DeepAgentSessionScope;
+};
+
+type SessionSummary = {
+    id: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    messageCount: number;
+};
+
+type SessionCheckpointMetadata = {
+    id: string;
+    sessionId: string;
+    createdAt: string;
+    messageCount: number;
+    summary?: string;
+};
+
+type WebUiSession = {
+    id: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    displayThread?: unknown[];
+};
+
+type SessionServiceHandle = {
+    list(): SessionSummary[];
+    get(id: string): DeepAgentSessionRecord | undefined;
+    getOrCreateForScope(scope: DeepAgentSessionScope, options?: { title?: string }): DeepAgentSessionRecord;
+    rotateForScope(scope: DeepAgentSessionScope, options?: { title?: string }): DeepAgentSessionRecord;
+    getActiveForScope(scope: DeepAgentSessionScope): DeepAgentSessionRecord | undefined;
+    listForScope(scope: DeepAgentSessionScope): DeepAgentSessionRecord[];
+    ensure(sessionId: string, options?: { title?: string; scope?: DeepAgentSessionScope }): DeepAgentSessionRecord;
+    touch(sessionId: string, options?: { title?: string; closed?: boolean }): DeepAgentSessionRecord | undefined;
+    delete(id: string): Promise<void>;
+    setCheckpointer(checkpointer: unknown): void;
+    buildSessionConfig(sessionId: string): Record<string, unknown>;
+    listCheckpoints(sessionId: string): Promise<SessionCheckpointMetadata[]>;
+    saveCheckpoint(sessionId: string, options?: { payloadState?: unknown | null }): Promise<SessionCheckpointMetadata>;
+    restoreCheckpoint(sessionId: string, checkpointId: string): Promise<{ payloadState: unknown | null }>;
+    deleteCheckpoint(sessionId: string, checkpointId: string): Promise<void>;
+    syncDisplayThread(sessionId: string, displayThread: unknown[]): void;
+    clearDisplayThread(sessionId: string): void;
+    setTitle(sessionId: string, title: string): void;
+    readDisplaySession(sessionId: string): WebUiSession | undefined;
+};
+
+type SessionRuntime = {
+    service: SessionServiceHandle;
+    deriveSessionTitle: (text: string, fallback?: string) => string;
+};
+
+type ProviderRuntimeConfig = {
+    ready: boolean;
+    reason?: string;
+    provider: string;
+    model?: string;
+    apiKey?: string;
+    baseUrl?: string;
+    reasoningEffort?: AgentReasoningEffort;
+    temperature: number;
+};
+
+type CompactionState = {
+    lastCompaction: AgentCompactionSummary | null;
+    compactionHistory: AgentCompactionSummary[];
+    totalCompactions: number;
+};
+
 export class AgentRuntimeController implements vscode.Disposable {
-    private activeAbortController: AbortController | undefined;
+    private activeRun: { abortController: AbortController; sessionId: string } | undefined;
     private cachedAgentHandle: { key: string; handle: any } | undefined;
+    private sessionRuntimePromise: Promise<SessionRuntime> | undefined;
 
     constructor(
         private readonly _context: vscode.ExtensionContext,
         private readonly outputChannel: vscode.OutputChannel,
     ) {}
 
+    async getWorkbenchState(input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        const scope = this.getSessionScope(input);
+        const sessions = await this.getSessionRuntime();
+        const activeRecord = sessions.service.getActiveForScope(scope) || sessions.service.getOrCreateForScope(scope, {
+            title: this.getDefaultSessionTitle(input.workflowName),
+        });
+        const session = await this.buildSessionState(activeRecord.id, input);
+        const providerConfig = await this.describeProviderRuntimeConfig();
+        return {
+            workflow: {
+                id: input.workflowId,
+                name: input.workflowName,
+                filename: input.workflowFilename,
+            },
+            provider: providerConfig.provider,
+            model: providerConfig.model,
+            baseUrl: providerConfig.baseUrl,
+            reasoningEffort: providerConfig.reasoningEffort,
+            supportsReasoningEffort: providerConfig.provider === 'openai-oauth',
+            currentNodeContext: input.nodeContext,
+            activeSessionId: activeRecord.id,
+            sessions: await this.listSessionSummaries(scope, activeRecord.id),
+            session,
+            isRunning: this.activeRun?.sessionId === activeRecord.id,
+        };
+    }
+
+    async createSession(input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        const scope = this.getSessionScope(input);
+        const sessions = await this.getSessionRuntime();
+        sessions.service.rotateForScope(scope, {
+            title: this.getDefaultSessionTitle(input.workflowName),
+        });
+        return this.getWorkbenchState(input);
+    }
+
+    async selectSession(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        const sessions = await this.getSessionRuntime();
+        sessions.service.ensure(sessionId, { scope: this.getSessionScope(input) });
+        return this.getWorkbenchState(input);
+    }
+
+    async renameSession(sessionId: string, title: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        const trimmed = title.trim();
+        if (!trimmed) {
+            throw new Error('Session title is required.');
+        }
+        const sessions = await this.getSessionRuntime();
+        sessions.service.touch(sessionId, { title: trimmed });
+        sessions.service.setTitle(sessionId, trimmed);
+        return this.getWorkbenchState(input);
+    }
+
+    async deleteSession(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        const scope = this.getSessionScope(input);
+        const sessions = await this.getSessionRuntime();
+        const active = sessions.service.getActiveForScope(scope)?.id;
+        await sessions.service.delete(sessionId);
+        if (active === sessionId) {
+            sessions.service.getOrCreateForScope(scope, { title: this.getDefaultSessionTitle(input.workflowName) });
+        }
+        return this.getWorkbenchState(input);
+    }
+
+    async attachSessionToCurrentWorkflow(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        const scope = this.getSessionScope(input);
+        if (!input.workflowId) {
+            throw new Error('Open a workflow before attaching a session.');
+        }
+        const sessions = await this.getSessionRuntime();
+        sessions.service.ensure(sessionId, { scope });
+        return this.getWorkbenchState(input);
+    }
+
+    async detachSession(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        const currentScope = this.getSessionScope(input);
+        const sessions = await this.getSessionRuntime();
+        sessions.service.ensure(sessionId, { scope: this.getUnattachedSessionScope() });
+        if (sessions.service.getActiveForScope(currentScope)?.id === sessionId) {
+            sessions.service.getOrCreateForScope(currentScope, { title: this.getDefaultSessionTitle(input.workflowName) });
+        }
+        return this.getWorkbenchState(input);
+    }
+
+    async saveCheckpoint(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        const sessions = await this.getSessionRuntime();
+        const handle = await this.ensureAgentHandleWithCheckpoint(input);
+        await sessions.service.saveCheckpoint(sessionId, {
+            payloadState: handle.compactionService.getState(sessionId),
+        });
+        const entries = this.readSessionEntries(sessions.service, sessionId);
+        this.writeSessionEntries(sessions.service, sessionId, [
+            ...entries,
+            this.createSystemNotice('Checkpoint saved.'),
+        ]);
+        return this.getWorkbenchState(input);
+    }
+
+    async restoreCheckpoint(sessionId: string, checkpointId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        const sessions = await this.getSessionRuntime();
+        const handle = await this.ensureAgentHandleWithCheckpoint(input);
+        const result = await sessions.service.restoreCheckpoint(sessionId, checkpointId);
+        sessions.service.clearDisplayThread(sessionId);
+        if (this.isCompactionState(result.payloadState)) {
+            handle.compactionService.setState(sessionId, result.payloadState);
+        } else {
+            handle.compactionService.reset(sessionId);
+        }
+        this.writeSessionEntries(sessions.service, sessionId, [
+            this.createSystemNotice(`Restored checkpoint ${checkpointId}.`),
+        ]);
+        return this.getWorkbenchState(input);
+    }
+
+    async deleteCheckpoint(sessionId: string, checkpointId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        const sessions = await this.getSessionRuntime();
+        await sessions.service.deleteCheckpoint(sessionId, checkpointId);
+        return this.getWorkbenchState(input);
+    }
+
     async sendPrompt(input: AgentPromptInput, postMessage: AgentWorkbenchPostMessage): Promise<void> {
-        if (this.activeAbortController) {
+        if (this.activeRun) {
             await postMessage({
                 type: 'agent.error',
                 message: 'An agent run is already in progress. Stop it before sending another prompt.',
@@ -58,123 +379,219 @@ export class AgentRuntimeController implements vscode.Disposable {
             return;
         }
 
+        const sessions = await this.getSessionRuntime();
+        const scope = this.getSessionScope(input);
+        const activeRecord = input.sessionId
+            ? sessions.service.ensure(input.sessionId, { scope, title: this.getDefaultSessionTitle(input.workflowName) })
+            : (sessions.service.getActiveForScope(scope) || sessions.service.getOrCreateForScope(scope, {
+                title: this.getDefaultSessionTitle(input.workflowName),
+            }));
+
         const abortController = new AbortController();
-        this.activeAbortController = abortController;
+        this.activeRun = { abortController, sessionId: activeRecord.id };
+
+        const derivedTitle = activeRecord.title === 'New conversation'
+            ? sessions.deriveSessionTitle(prompt, this.getDefaultSessionTitle(input.workflowName))
+            : activeRecord.title;
+        sessions.service.touch(activeRecord.id, { title: derivedTitle });
+        sessions.service.setTitle(activeRecord.id, derivedTitle);
+
+        let entries = this.readSessionEntries(sessions.service, activeRecord.id);
+        entries = [...entries, { kind: 'user-message', id: randomUUID(), text: prompt, timestamp: Date.now() }];
 
         await postMessage({ type: 'agent.status', status: 'running', detail: 'Preparing n8n agent runtime...' });
-        await postMessage({ type: 'agent.operation', label: 'Agent runtime', status: 'running', detail: 'Loading embedded Yagr runtime' });
+        await postMessage({ type: 'agent.streamEvent', event: { type: 'start', sessionId: activeRecord.id, message: prompt } });
 
         try {
-            await this.runInitialAgentTurn(input, postMessage, abortController.signal);
-            await postMessage({ type: 'agent.operation', label: 'Agent runtime', status: 'done', detail: 'Run completed' });
+            entries = await this.runInitialAgentTurn({ ...input, sessionId: activeRecord.id }, entries, postMessage, abortController.signal);
+            this.writeSessionEntries(sessions.service, activeRecord.id, entries);
+            await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: activeRecord.id }) });
             await postMessage({ type: 'agent.done' });
         } catch (error: any) {
             const message = error?.message || String(error);
             this.outputChannel.appendLine(`[n8n-agent] Run failed: ${message}`);
-            await postMessage({ type: 'agent.operation', label: 'Agent runtime', status: 'error', detail: message });
+            const failedEntries = [...entries, this.createSystemNotice(`Run failed: ${message}`)];
+            this.writeSessionEntries(sessions.service, activeRecord.id, failedEntries);
+            await postMessage({ type: 'agent.streamEvent', event: { type: 'error', error: message } });
             await postMessage({ type: 'agent.error', message });
+            await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: activeRecord.id }) });
         } finally {
-            if (this.activeAbortController === abortController) {
-                this.activeAbortController = undefined;
+            if (this.activeRun?.abortController === abortController) {
+                this.activeRun = undefined;
             }
             await postMessage({ type: 'agent.status', status: 'idle' });
         }
     }
 
     async stop(postMessage: AgentWorkbenchPostMessage): Promise<void> {
-        const controller = this.activeAbortController;
-        if (!controller) {
+        const activeRun = this.activeRun;
+        if (!activeRun) {
             await postMessage({ type: 'agent.status', status: 'idle' });
             return;
         }
         await postMessage({ type: 'agent.status', status: 'stopping', detail: 'Stopping current run...' });
-        controller.abort();
+        activeRun.abortController.abort();
     }
 
     dispose(): void {
-        this.activeAbortController?.abort();
-        this.activeAbortController = undefined;
+        this.activeRun?.abortController.abort();
+        this.activeRun = undefined;
     }
 
     private async runInitialAgentTurn(
         input: AgentPromptInput,
+        initialEntries: AgentTimelineEntry[],
         postMessage: AgentWorkbenchPostMessage,
         signal: AbortSignal,
-    ): Promise<void> {
+    ): Promise<AgentTimelineEntry[]> {
         await this.throwIfAborted(signal);
 
         const providerRegistry = await this.loadYagrProviderRegistry().catch((error: any) => ({ error: error?.message || String(error) }));
         if ('error' in providerRegistry) {
-            await postMessage({
-                type: 'agent.message',
-                role: 'assistant',
-                content: await this.buildScaffoldResponse(input, providerRegistry.error),
-            });
-            return;
+            return [
+                ...initialEntries,
+                this.createSystemNotice(await this.buildScaffoldResponse(input, providerRegistry.error)),
+            ];
         }
 
         const providerConfig = await this.getProviderRuntimeConfig(providerRegistry);
         if (!providerConfig.ready) {
-            await postMessage({
-                type: 'agent.message',
-                role: 'assistant',
-                content: await this.buildScaffoldResponse(input, providerConfig.reason),
-            });
-            return;
+            return [
+                ...initialEntries,
+                this.createSystemNotice(await this.buildScaffoldResponse(input, providerConfig.reason)),
+            ];
         }
 
-        await postMessage({ type: 'agent.operation', label: 'Provider', status: 'done', detail: `${providerConfig.provider}${providerConfig.model ? ` / ${providerConfig.model}` : ''}` });
-        await postMessage({ type: 'agent.operation', label: 'DeepAgents runtime', status: 'running', detail: `Workspace root: ${input.workspaceRoot || process.cwd()}` });
-
         const handle = await this.getYagrAgentHandle(providerConfig, input);
+        const sessions = await this.getSessionRuntime();
+        sessions.service.setCheckpointer(handle.checkpointer);
         const agent = handle.agent;
-
-        const messages = [{ role: 'user', content: input.prompt }];
+        const messages = [{ role: 'user', content: await this.buildInvocationPrompt(input) }];
         const config = {
-            version: 'v2',
+            ...sessions.service.buildSessionConfig(input.sessionId || ''),
             signal,
-            configurable: {
-                thread_id: input.workflowId ? `workflow:${input.workflowId}` : 'workflow:new',
-            },
         } as Record<string, unknown>;
+
+        let entries = [...initialEntries];
+        const contextWindow = await this.resolveContextWindow(providerConfig.provider, providerConfig.model, providerConfig.apiKey, providerConfig.baseUrl);
+        const estimatedPromptTokens = Math.ceil(messages[0].content.length / 4);
+        const initialUsage: AgentContextUsageEvent = {
+            type: 'context-usage',
+            promptTokens: estimatedPromptTokens,
+            completionTokens: 0,
+            contextWindowTokens: contextWindow,
+            fillPercent: Math.round((estimatedPromptTokens / contextWindow) * 100),
+            source: 'estimated',
+        };
+        entries = this.applyStreamEvent(entries, initialUsage);
+        await postMessage({ type: 'agent.streamEvent', event: initialUsage });
 
         if (typeof (agent as any).streamEvents === 'function') {
             const stream = (agent as any).streamEvents({ messages }, config);
             const eventRuntime = await import('@yagr/agent/dist/gateway/langgraph-events.js');
             const accumulator = eventRuntime.createRunAccumulator();
+            const lastProgressKeys = new Set<string>();
+
             for await (const event of stream) {
                 await this.throwIfAborted(signal);
                 await eventRuntime.processStreamEvent(event, accumulator, {
                     onTextDelta: async (delta: string) => {
-                        await this.throwIfAborted(signal);
-                        await postMessage({ type: 'agent.delta', content: delta });
+                        entries = this.applyStreamEvent(entries, { type: 'text-delta', delta });
+                        await postMessage({ type: 'agent.streamEvent', event: { type: 'text-delta', delta } });
                     },
-                    onOperation: async (event: any) => {
-                        await postMessage({
-                            type: 'agent.operation',
-                            label: String(event.label || event.operationId || 'Operation'),
-                            status: event.status === 'error' ? 'error' : event.status === 'done' ? 'done' : 'running',
-                            detail: this.truncateOperationDetail(event.summary || event.body),
-                        });
+                    onOperation: async (operation: any) => {
+                        const streamEvent: AgentStreamEvent = {
+                            type: 'operation',
+                            operationId: String(operation.operationId || randomUUID()),
+                            label: String(operation.label || 'Operation'),
+                            category: String(operation.category || 'tool'),
+                            status: operation.status === 'error' ? 'error' : operation.status === 'done' ? 'done' : 'running',
+                            body: typeof operation.body === 'string' ? operation.body : undefined,
+                            summary: typeof operation.summary === 'string' ? operation.summary : undefined,
+                            startedAt: Number(operation.startedAt || Date.now()),
+                            endedAt: typeof operation.endedAt === 'number' ? operation.endedAt : undefined,
+                        };
+                        entries = this.applyStreamEvent(entries, streamEvent);
+                        await postMessage({ type: 'agent.streamEvent', event: streamEvent });
                     },
                     onUserVisibleUpdate: async (update: any) => {
-                        await postMessage({
-                            type: 'agent.operation',
-                            label: String(update.title || update.phase || 'Progress'),
-                            status: update.tone === 'error' ? 'error' : 'running',
+                        const dedupeKey = String(update.dedupeKey || `${update.title || 'progress'}:${update.detail || ''}`);
+                        if (lastProgressKeys.has(dedupeKey)) {
+                            return;
+                        }
+                        lastProgressKeys.add(dedupeKey);
+                        const streamEvent: AgentStreamEvent = {
+                            type: 'progress',
+                            tone: update.tone === 'error' ? 'error' : update.tone === 'success' ? 'success' : 'info',
+                            title: String(update.title || update.phase || 'Progress'),
                             detail: this.truncateOperationDetail(update.detail),
-                        });
+                            phase: typeof update.phase === 'string' ? update.phase : undefined,
+                        };
+                        entries = this.applyStreamEvent(entries, streamEvent);
+                        await postMessage({ type: 'agent.streamEvent', event: streamEvent });
+                    },
+                    onCompaction: async (compaction: any) => {
+                        const streamEvent: AgentStreamEvent = {
+                            type: 'compaction',
+                            summary: String(compaction.summary || 'Context compacted'),
+                            source: compaction.source === 'fallback' ? 'fallback' : 'llm',
+                            messagesCompacted: Number(compaction.messagesCompacted || 0),
+                            preservedRecentMessages: Number(compaction.preservedRecentMessages || 0),
+                            estimatedTokens: typeof compaction.estimatedTokens === 'number' ? compaction.estimatedTokens : undefined,
+                            thresholdTokens: typeof compaction.thresholdTokens === 'number' ? compaction.thresholdTokens : undefined,
+                            fallbackReason: typeof compaction.fallbackReason === 'string' ? compaction.fallbackReason : undefined,
+                        };
+                        await handle.compactionService.notifyCompaction(input.sessionId || '', streamEvent);
+                        entries = this.applyStreamEvent(entries, streamEvent);
+                        await postMessage({ type: 'agent.streamEvent', event: streamEvent });
                     },
                 });
             }
-            if (!accumulator.responseText) {
-                await postMessage({ type: 'agent.message', role: 'assistant', content: 'The agent completed without producing text.' });
+
+            if (accumulator.fileModificationDetected) {
+                try {
+                    await sessions.service.saveCheckpoint(input.sessionId || '', {
+                        payloadState: handle.compactionService.getState(input.sessionId || ''),
+                    });
+                } catch (error: any) {
+                    this.outputChannel.appendLine(`[n8n-agent] Auto-checkpoint failed: ${error?.message || String(error)}`);
+                }
             }
-            return;
+
+            const estimatedCompletionTokens = Math.ceil(accumulator.responseText.length / 4);
+            const finalUsage: AgentContextUsageEvent = {
+                type: 'context-usage',
+                promptTokens: estimatedPromptTokens,
+                completionTokens: estimatedCompletionTokens,
+                contextWindowTokens: contextWindow,
+                fillPercent: Math.min(100, Math.round(((estimatedPromptTokens + estimatedCompletionTokens) / contextWindow) * 100)),
+                source: 'estimated',
+            };
+            entries = this.applyStreamEvent(entries, finalUsage);
+            await postMessage({ type: 'agent.streamEvent', event: finalUsage });
+
+            const finalEvent: AgentStreamEvent = {
+                type: 'final',
+                sessionId: input.sessionId || '',
+                response: accumulator.responseText,
+                finalState: 'done',
+            };
+            entries = this.applyStreamEvent(entries, finalEvent);
+            await postMessage({ type: 'agent.streamEvent', event: finalEvent });
+            return entries;
         }
 
         const result = await (agent as any).invoke({ messages }, config);
-        await postMessage({ type: 'agent.message', role: 'assistant', content: this.extractAgentText(result) });
+        const response = this.extractAgentText(result);
+        const finalEvent: AgentStreamEvent = {
+            type: 'final',
+            sessionId: input.sessionId || '',
+            response,
+            finalState: 'done',
+        };
+        entries = this.applyStreamEvent(entries, finalEvent);
+        await postMessage({ type: 'agent.streamEvent', event: finalEvent });
+        return entries;
     }
 
     private truncateOperationDetail(value: unknown): string | undefined {
@@ -188,24 +605,35 @@ export class AgentRuntimeController implements vscode.Disposable {
         return import('@yagr/agent/dist/llm/provider-registry.js');
     }
 
-    private async getProviderRuntimeConfig(providerRegistry: typeof import('@yagr/agent/dist/llm/provider-registry.js')): Promise<{
-        ready: boolean;
-        reason?: string;
-        provider: string;
-        model?: string;
-        apiKey?: string;
-        baseUrl?: string;
-        temperature: number;
-    }> {
+    private async describeProviderRuntimeConfig(): Promise<ProviderRuntimeConfig> {
+        const providerRegistry = await this.loadYagrProviderRegistry().catch(() => undefined);
+        if (!providerRegistry) {
+            const config = vscode.workspace.getConfiguration('n8n.agent');
+            return {
+                ready: false,
+                provider: String(config.get<string>('provider') || 'openai'),
+                model: String(config.get<string>('model') || '').trim() || undefined,
+                baseUrl: String(config.get<string>('baseUrl') || '').trim() || undefined,
+                reasoningEffort: this.readReasoningEffort(),
+                temperature: 0,
+            };
+        }
+        return this.getProviderRuntimeConfig(providerRegistry);
+    }
+
+    private async getProviderRuntimeConfig(providerRegistry: typeof import('@yagr/agent/dist/llm/provider-registry.js')): Promise<ProviderRuntimeConfig> {
         const config = vscode.workspace.getConfiguration('n8n.agent');
         const provider = String(config.get<string>('provider') || 'openai');
         const normalizedProvider = providerRegistry.normalizeProviderId(provider);
+        const reasoningEffort = this.readReasoningEffort();
         if (!normalizedProvider) {
             return {
                 ready: false,
                 reason: `Provider ${provider} is not supported by the installed Yagr runtime.`,
                 provider,
                 model: String(config.get<string>('model') || '').trim() || undefined,
+                baseUrl: String(config.get<string>('baseUrl') || '').trim() || undefined,
+                reasoningEffort,
                 temperature: 0,
             };
         }
@@ -223,6 +651,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                     model,
                     baseUrl,
                     apiKey,
+                    reasoningEffort,
                     temperature: 0,
                 };
             }
@@ -235,6 +664,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                 model,
                 baseUrl,
                 apiKey,
+                reasoningEffort,
                 temperature: 0,
             };
         }
@@ -244,16 +674,12 @@ export class AgentRuntimeController implements vscode.Disposable {
             model,
             baseUrl,
             apiKey,
+            reasoningEffort: normalizedProvider === 'openai-oauth' ? reasoningEffort : undefined,
             temperature: 0,
         };
     }
 
-    private async getYagrAgentHandle(providerConfig: {
-        provider: string;
-        model?: string;
-        apiKey?: string;
-        baseUrl?: string;
-    }, input: AgentPromptInput): Promise<any> {
+    private async getYagrAgentHandle(providerConfig: ProviderRuntimeConfig, input: AgentPromptInput): Promise<any> {
         const rootDir = input.workspaceRoot || process.cwd();
         const [agentFactory, providerRegistry] = await Promise.all([
             import('@yagr/agent/dist/agent-factory.js'),
@@ -266,11 +692,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             provider: providerConfig.provider,
             model: providerConfig.model,
             baseUrl: providerConfig.baseUrl,
-            workflowId: input.workflowId || '',
-            workflowFilename: input.workflowFilename || '',
-            nodeContextName: input.nodeContext?.name || '',
-            nodeContextType: input.nodeContext?.type || '',
-            nodeContextId: input.nodeContext?.id || '',
+            reasoningEffort: providerConfig.reasoningEffort || '',
             memorySources,
             skillSourcePaths,
         });
@@ -287,6 +709,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             provider: providerConfig.provider,
             model: providerConfig.model,
             baseUrl: providerConfig.baseUrl,
+            reasoningEffort: providerConfig.reasoningEffort,
         } as any;
         const configStore = {
             getLocalConfig: () => localConfig,
@@ -301,26 +724,34 @@ export class AgentRuntimeController implements vscode.Disposable {
             rootDir,
             memorySources,
             skillSourcePaths,
-            systemPrompt: await this.buildSystemPrompt(input),
+            systemPrompt: this.buildStaticSystemPrompt(input.workspaceRoot),
         });
         this.cachedAgentHandle = { key, handle };
         return handle;
     }
 
-    private async buildSystemPrompt(input: AgentPromptInput): Promise<string> {
-        const workflowContext = await this.loadWorkflowContext(input);
+    private buildStaticSystemPrompt(workspaceRoot?: string): string {
         return [
             'You are the embedded n8n-as-code VS Code agent.',
             'You help users design, inspect, validate, and operate n8n workflows from the current workspace.',
             'Your DeepAgents backend working directory is the VS Code workspace root. Treat all relative filesystem tool paths as relative to that home directory.',
-            'Use tools only when useful. For questions about the currently selected workflow, first use the provided workflow context below as authoritative.',
+            'Use tools only when useful. For workflow-specific questions, use the inline workflow and node context supplied with each user turn as authoritative.',
             'Do not claim to push workflows, provision credentials, or change n8n runtime state unless a tool explicitly performs that action successfully.',
-            input.workspaceRoot ? `Workspace root: ${input.workspaceRoot}` : undefined,
-            input.workflowId ? `Current workflow: ${input.workflowName || input.workflowId} (${input.workflowId})` : undefined,
+            workspaceRoot ? `Workspace root: ${workspaceRoot}` : undefined,
+        ].filter(Boolean).join('\n');
+    }
+
+    private async buildInvocationPrompt(input: AgentPromptInput): Promise<string> {
+        const workflowContext = await this.loadWorkflowContext(input);
+        const blocks = [
+            input.workflowId ? `Current workflow: ${input.workflowName || input.workflowId} (${input.workflowId})` : 'No workflow is attached. The user may be designing a new workflow.',
             input.workflowFilename ? `Current workflow file: ${input.workflowFilename}` : undefined,
             this.formatNodeContext(input.nodeContext),
             workflowContext,
-        ].filter(Boolean).join('\n');
+            'User request:',
+            input.prompt.trim(),
+        ].filter(Boolean);
+        return blocks.join('\n\n');
     }
 
     private formatNodeContext(nodeContext: AgentNodeContext | undefined): string | undefined {
@@ -395,7 +826,7 @@ export class AgentRuntimeController implements vscode.Disposable {
 
     private async loadWorkflowContext(input: AgentPromptInput): Promise<string | undefined> {
         if (!input.workflowId && !input.workflowFilename) {
-            return 'No workflow is attached. The user may be designing a new workflow.';
+            return undefined;
         }
         const candidates: string[] = [];
         if (input.workspaceRoot && input.workflowFilename) {
@@ -460,6 +891,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         const provider = String(config.get<string>('provider') || 'openai');
         const model = String(config.get<string>('model') || '').trim();
         const baseUrl = String(config.get<string>('baseUrl') || '').trim();
+        const reasoningEffort = this.readReasoningEffort();
         const storedSecret = await this._context.secrets.get(getAgentProviderSecretKey(provider));
         const hasEnvSecret = this.hasProviderEnvironmentSecret(provider);
         const secretState = storedSecret
@@ -467,7 +899,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             : hasEnvSecret
                 ? 'API key available from environment'
                 : 'API key not configured yet';
-        return `Agent provider: ${provider}${model ? ` / ${model}` : ''}${baseUrl ? ` / ${baseUrl}` : ''}. ${secretState}.`;
+        return `Agent provider: ${provider}${model ? ` / ${model}` : ''}${reasoningEffort ? ` / reasoning ${reasoningEffort}` : ''}${baseUrl ? ` / ${baseUrl}` : ''}. ${secretState}.`;
     }
 
     private hasProviderEnvironmentSecret(provider: string): boolean {
@@ -500,13 +932,285 @@ export class AgentRuntimeController implements vscode.Disposable {
             await this.buildProviderStatusLine(),
             runtimeLine,
             '',
-            'This first run intentionally stays read-only: no workflow files, credentials, runtime state, or shell commands were changed.',
+            'No workflow files, credentials, runtime state, or shell commands were changed unless the runtime explicitly reported success.',
         ].join('\n');
     }
 
     private async throwIfAborted(signal: AbortSignal): Promise<void> {
         if (signal.aborted) {
-            throw new Error('Agent run cancelled.');
+            const error = new Error('Agent run cancelled.');
+            error.name = 'AbortError';
+            throw error;
         }
+    }
+
+    private async getSessionRuntime(): Promise<SessionRuntime> {
+        if (!this.sessionRuntimePromise) {
+            this.sessionRuntimePromise = (async () => {
+                const module = await import('@yagr/agent/packages/session-service/dist/index.js');
+                const sessionsRoot = path.join(this._context.globalStorageUri.fsPath, 'agent-sessions');
+                const webUiSessionsDir = path.join(sessionsRoot, 'display');
+                await fs.promises.mkdir(webUiSessionsDir, { recursive: true });
+                const service = new module.SessionService({
+                    sessionsDir: path.join(sessionsRoot, 'records'),
+                    webUiSessionsDir,
+                }) as SessionServiceHandle;
+                return {
+                    service,
+                    deriveSessionTitle: module.deriveSessionTitle as SessionRuntime['deriveSessionTitle'],
+                };
+            })();
+        }
+        return this.sessionRuntimePromise;
+    }
+
+    private getSessionScope(input: Omit<AgentPromptInput, 'prompt'>): DeepAgentSessionScope {
+        if (input.workflowId) {
+            return { kind: 'vscode-workflow', key: input.workflowId };
+        }
+        return this.getUnattachedSessionScope();
+    }
+
+    private getUnattachedSessionScope(): DeepAgentSessionScope {
+        return { kind: 'vscode-workflow', key: UNATTACHED_WORKFLOW_SCOPE_KEY };
+    }
+
+    private getDefaultSessionTitle(workflowName?: string): string {
+        return workflowName ? `${workflowName} conversation` : 'New conversation';
+    }
+
+    private async listSessionSummaries(scope: DeepAgentSessionScope, activeSessionId: string): Promise<AgentSessionSummary[]> {
+        const sessions = await this.getSessionRuntime();
+        const handle = this.cachedAgentHandle?.handle;
+        const summaries = await Promise.all(sessions.service.list().map(async (summary) => {
+            const record = sessions.service.get(summary.id);
+            const recordScope = record?.scope;
+            const workflowId = recordScope?.kind === 'vscode-workflow' && recordScope.key !== UNATTACHED_WORKFLOW_SCOPE_KEY
+                ? recordScope.key
+                : undefined;
+            const compactionState = handle?.compactionService?.getState
+                ? handle.compactionService.getState(summary.id) as CompactionState
+                : { lastCompaction: null, compactionHistory: [], totalCompactions: 0 };
+            const checkpoints = await sessions.service.listCheckpoints(summary.id).catch(() => []);
+            return {
+                id: summary.id,
+                title: summary.title,
+                createdAt: summary.createdAt,
+                updatedAt: summary.updatedAt,
+                messageCount: summary.messageCount,
+                isActive: summary.id === activeSessionId,
+                isClosed: Boolean(record?.closedAt),
+                checkpointCount: checkpoints.length,
+                workflowId,
+                workflowLabel: workflowId ? workflowId : 'Unattached',
+                totalCompactions: compactionState.totalCompactions,
+            };
+        }));
+        return summaries.sort((left, right) => {
+            if (left.isActive !== right.isActive) {
+                return left.isActive ? -1 : 1;
+            }
+            const leftMatchesScope = left.workflowId === scope.key || (!left.workflowId && scope.key === UNATTACHED_WORKFLOW_SCOPE_KEY);
+            const rightMatchesScope = right.workflowId === scope.key || (!right.workflowId && scope.key === UNATTACHED_WORKFLOW_SCOPE_KEY);
+            if (leftMatchesScope !== rightMatchesScope) {
+                return leftMatchesScope ? -1 : 1;
+            }
+            return right.updatedAt.localeCompare(left.updatedAt);
+        });
+    }
+
+    private async buildSessionState(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentSessionState> {
+        const sessions = await this.getSessionRuntime();
+        const displaySession = sessions.service.readDisplaySession(sessionId);
+        const entries = this.normalizeEntries(displaySession?.displayThread);
+        const checkpoints = await sessions.service.listCheckpoints(sessionId).catch(() => []);
+        const handle = this.cachedAgentHandle?.handle;
+        const compactionState: CompactionState = handle?.compactionService?.getState
+            ? handle.compactionService.getState(sessionId)
+            : { lastCompaction: null, compactionHistory: [], totalCompactions: 0 };
+        const record = sessions.service.get(sessionId);
+        const workflowId = record?.scope?.kind === 'vscode-workflow' && record.scope.key !== UNATTACHED_WORKFLOW_SCOPE_KEY
+            ? record.scope.key
+            : undefined;
+        const latestUsageEntry = [...entries].reverse().find((entry): entry is Extract<AgentTimelineEntry, { kind: 'context-usage' }> => entry.kind === 'context-usage');
+        return {
+            sessionId,
+            title: displaySession?.title || record?.title || this.getDefaultSessionTitle(input.workflowName),
+            entries,
+            checkpoints: checkpoints.map((checkpoint) => ({
+                id: checkpoint.id,
+                sessionId: checkpoint.sessionId,
+                createdAt: checkpoint.createdAt,
+                messageCount: checkpoint.messageCount,
+                summary: checkpoint.summary,
+            })),
+            contextUsage: latestUsageEntry?.usage,
+            lastCompaction: compactionState.lastCompaction || undefined,
+            totalCompactions: compactionState.totalCompactions,
+            workflowId,
+            workflowLabel: workflowId || 'Unattached',
+        };
+    }
+
+    private readSessionEntries(service: SessionServiceHandle, sessionId: string): AgentTimelineEntry[] {
+        return this.normalizeEntries(service.readDisplaySession(sessionId)?.displayThread);
+    }
+
+    private writeSessionEntries(service: SessionServiceHandle, sessionId: string, entries: AgentTimelineEntry[]): void {
+        service.syncDisplayThread(sessionId, entries);
+    }
+
+    private normalizeEntries(value: unknown[] | undefined): AgentTimelineEntry[] {
+        return Array.isArray(value) ? value as AgentTimelineEntry[] : [];
+    }
+
+    private applyStreamEvent(entries: AgentTimelineEntry[], event: AgentStreamEvent): AgentTimelineEntry[] {
+        if (event.type === 'start') {
+            return entries;
+        }
+        if (event.type === 'text-delta') {
+            const next = [...entries];
+            const last = next[next.length - 1];
+            if (last?.kind === 'assistant-body' && last.streaming) {
+                last.text += event.delta;
+                return next;
+            }
+            next.push({ kind: 'assistant-body', id: randomUUID(), text: event.delta, streaming: true });
+            return next;
+        }
+        if (event.type === 'final') {
+            const next = [...entries];
+            const last = next[next.length - 1];
+            if (last?.kind === 'assistant-body') {
+                last.streaming = false;
+                if (!last.text) {
+                    last.text = event.response;
+                }
+                last.finalState = event.finalState;
+                return next;
+            }
+            next.push({ kind: 'assistant-body', id: randomUUID(), text: event.response, streaming: false, finalState: event.finalState });
+            return next;
+        }
+        if (event.type === 'operation') {
+            const next = [...entries];
+            const existingIndex = next.findIndex((entry) => entry.kind === 'operation' && entry.id === event.operationId);
+            const operationEntry: AgentTimelineEntry = {
+                kind: 'operation',
+                id: event.operationId,
+                tone: event.status === 'error' ? 'error' : event.status === 'done' ? 'success' : 'info',
+                title: event.label,
+                category: event.category,
+                status: event.status,
+                body: event.body,
+                summary: event.summary,
+                startedAt: event.startedAt,
+                endedAt: event.endedAt,
+                detail: event.summary,
+            };
+            if (existingIndex >= 0) {
+                next[existingIndex] = operationEntry;
+                return next;
+            }
+            next.push(operationEntry);
+            return next;
+        }
+        if (event.type === 'progress') {
+            return [
+                ...entries,
+                {
+                    kind: 'operation',
+                    id: randomUUID(),
+                    tone: event.tone,
+                    title: event.title,
+                    detail: event.detail,
+                    category: event.phase || 'phase',
+                    status: event.tone === 'error' ? 'error' : 'running',
+                },
+            ];
+        }
+        if (event.type === 'compaction') {
+            return [
+                ...entries,
+                {
+                    kind: 'compaction',
+                    id: randomUUID(),
+                    timestamp: Date.now(),
+                    event: {
+                        summary: event.summary,
+                        source: event.source,
+                        messagesCompacted: event.messagesCompacted,
+                        preservedRecentMessages: event.preservedRecentMessages,
+                        estimatedTokens: event.estimatedTokens,
+                        thresholdTokens: event.thresholdTokens,
+                        fallbackReason: event.fallbackReason,
+                    },
+                },
+            ];
+        }
+        if (event.type === 'context-usage') {
+            const usageEntry: AgentTimelineEntry = {
+                kind: 'context-usage',
+                id: randomUUID(),
+                timestamp: Date.now(),
+                usage: {
+                    promptTokens: event.promptTokens,
+                    completionTokens: event.completionTokens,
+                    contextWindowTokens: event.contextWindowTokens,
+                    fillPercent: event.fillPercent,
+                    source: event.source,
+                },
+            };
+            const withoutPrevious = entries.filter((entry) => entry.kind !== 'context-usage');
+            return [...withoutPrevious, usageEntry];
+        }
+        if (event.type === 'error') {
+            return [...entries, this.createSystemNotice(`Error: ${event.error}`)];
+        }
+        return entries;
+    }
+
+    private createSystemNotice(text: string): AgentTimelineEntry {
+        return { kind: 'system-notice', id: randomUUID(), text, timestamp: Date.now() };
+    }
+
+    private async ensureAgentHandleWithCheckpoint(input: Omit<AgentPromptInput, 'prompt'>): Promise<any> {
+        const providerRegistry = await this.loadYagrProviderRegistry();
+        const providerConfig = await this.getProviderRuntimeConfig(providerRegistry);
+        if (!providerConfig.ready) {
+            throw new Error(providerConfig.reason || 'Agent provider is not ready.');
+        }
+        const handle = await this.getYagrAgentHandle(providerConfig, { ...input, prompt: '' });
+        const sessions = await this.getSessionRuntime();
+        sessions.service.setCheckpointer(handle.checkpointer);
+        return handle;
+    }
+
+    private async resolveContextWindow(provider: string, model?: string, apiKey?: string, baseUrl?: string): Promise<number> {
+        if (!model) {
+            return DEFAULT_CONTEXT_WINDOW_TOKENS;
+        }
+        try {
+            const metadata = await import('@yagr/agent/dist/llm/provider-metadata.js');
+            const entry = await metadata.primeProviderModelMetadata(provider as any, model, apiKey, baseUrl);
+            return Number(entry?.contextWindow || metadata.getSnapshotContextWindow(provider as any, model) || DEFAULT_CONTEXT_WINDOW_TOKENS);
+        } catch {
+            return DEFAULT_CONTEXT_WINDOW_TOKENS;
+        }
+    }
+
+    private readReasoningEffort(): AgentReasoningEffort | undefined {
+        const config = vscode.workspace.getConfiguration('n8n.agent');
+        const value = String(config.get<string>('reasoningEffort') || '').trim();
+        return value ? value as AgentReasoningEffort : undefined;
+    }
+
+    private isCompactionState(value: unknown): value is CompactionState {
+        return Boolean(
+            value
+            && typeof value === 'object'
+            && Array.isArray((value as { compactionHistory?: unknown[] }).compactionHistory)
+            && typeof (value as { totalCompactions?: unknown }).totalCompactions === 'number',
+        );
     }
 }

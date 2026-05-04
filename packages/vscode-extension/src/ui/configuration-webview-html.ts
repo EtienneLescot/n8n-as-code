@@ -717,8 +717,9 @@ export function getConfigurationHtml(nonce: string): string {
         const detail = document.createElement('div');
         detail.className = 'provider-detail';
         const model = provider.selected && provider.model ? ' · Model: ' + provider.model : provider.defaultModel ? ' · Default: ' + provider.defaultModel : '';
+        const reasoning = provider.selected && provider.reasoningEffort ? ' · Reasoning: ' + provider.reasoningEffort : '';
         const baseUrl = provider.id === 'openai-compatible' && provider.baseUrl ? ' · ' + provider.baseUrl : '';
-        detail.textContent = provider.description + model + baseUrl;
+        detail.textContent = provider.description + model + reasoning + baseUrl;
         main.append(title, detail);
         const actions = document.createElement('div');
         actions.className = 'provider-actions';

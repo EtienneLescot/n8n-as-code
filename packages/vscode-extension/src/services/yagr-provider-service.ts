@@ -16,6 +16,10 @@ export type YagrModelProvider =
 
 export type ProviderAuthKind = 'api-key' | 'oauth-device' | 'setup-token' | 'none';
 
+export type YagrReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+
+export const YAGR_REASONING_EFFORTS: readonly YagrReasoningEffort[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
+
 export interface YagrProviderDefinition {
     id: YagrModelProvider;
     label: string;
@@ -41,6 +45,8 @@ export interface YagrProviderConnectionState {
     selected: boolean;
     model?: string;
     baseUrl?: string;
+    supportsReasoningEffort?: boolean;
+    reasoningEffort?: YagrReasoningEffort;
 }
 
 type DeviceChallenge = {
@@ -199,6 +205,10 @@ export function providerNeedsBaseUrlInput(provider: YagrModelProvider): boolean 
     return provider === 'openai-compatible';
 }
 
+export function providerSupportsReasoningEffort(provider: YagrModelProvider, _model?: string): boolean {
+    return provider === 'openai-oauth';
+}
+
 export class YagrProviderService {
     constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -215,6 +225,7 @@ export class YagrProviderService {
         const selectedProvider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
         const selectedModel = String(config.get<string>('model') || '').trim() || undefined;
         const configuredBaseUrl = String(config.get<string>('baseUrl') || '').trim() || undefined;
+        const selectedReasoningEffort = this.readReasoningEffort();
         const disabledProviders = this.getDisabledProviders();
         const states = await Promise.all(YAGR_SELECTABLE_PROVIDERS.map(async (provider) => {
             const definition = YAGR_PROVIDER_DEFINITIONS[provider];
@@ -235,6 +246,8 @@ export class YagrProviderService {
                 selected: provider === selectedProvider,
                 model: provider === selectedProvider ? selectedModel : undefined,
                 baseUrl: provider === 'openai-compatible' ? configuredBaseUrl : definition.defaultBaseUrl,
+                supportsReasoningEffort: providerSupportsReasoningEffort(provider, provider === selectedProvider ? selectedModel : definition.defaultModel),
+                reasoningEffort: provider === selectedProvider && providerSupportsReasoningEffort(provider, selectedModel) ? selectedReasoningEffort : undefined,
             };
         }));
         return states;
@@ -249,6 +262,7 @@ export class YagrProviderService {
             await config.update('provider', 'openai', vscode.ConfigurationTarget.Global);
             await config.update('model', YAGR_PROVIDER_DEFINITIONS.openai.defaultModel, vscode.ConfigurationTarget.Global);
             await config.update('baseUrl', '', vscode.ConfigurationTarget.Global);
+            await config.update('reasoningEffort', undefined, vscode.ConfigurationTarget.Global);
         }
     }
 
@@ -329,7 +343,50 @@ export class YagrProviderService {
         });
         if (!picked) return undefined;
         await config.update('model', picked.label, vscode.ConfigurationTarget.Global);
+        await this.syncReasoningEffortConfiguration(provider, picked.label);
         return picked.label;
+    }
+
+    async selectReasoningEffort(provider: YagrModelProvider, model?: string): Promise<YagrReasoningEffort | undefined> {
+        if (!providerSupportsReasoningEffort(provider, model)) {
+            const config = vscode.workspace.getConfiguration('n8n.agent');
+            await config.update('reasoningEffort', undefined, vscode.ConfigurationTarget.Global);
+            return undefined;
+        }
+
+        const config = vscode.workspace.getConfiguration('n8n.agent');
+        const defaultReasoningEffort = await this.getDefaultReasoningEffort(model || String(config.get<string>('model') || '').trim());
+        const current = this.readReasoningEffort() || defaultReasoningEffort;
+        const picked = await vscode.window.showQuickPick(
+            YAGR_REASONING_EFFORTS.map((effort) => ({
+                label: effort,
+                picked: effort === current,
+                description: effort === defaultReasoningEffort ? 'Yagr default' : undefined,
+            })),
+            {
+                title: 'Select reasoning effort',
+                placeHolder: 'Controls how much reasoning budget eligible OpenAI account models can use.',
+                ignoreFocusOut: true,
+            },
+        );
+        if (!picked) return current;
+        await config.update('reasoningEffort', picked.label as YagrReasoningEffort, vscode.ConfigurationTarget.Global);
+        return picked.label as YagrReasoningEffort;
+    }
+
+    async syncReasoningEffortConfiguration(provider: YagrModelProvider, model?: string): Promise<YagrReasoningEffort | undefined> {
+        if (!providerSupportsReasoningEffort(provider, model)) {
+            const config = vscode.workspace.getConfiguration('n8n.agent');
+            await config.update('reasoningEffort', undefined, vscode.ConfigurationTarget.Global);
+            return undefined;
+        }
+
+        const config = vscode.workspace.getConfiguration('n8n.agent');
+        const current = this.readReasoningEffort();
+        const defaultReasoningEffort = await this.getDefaultReasoningEffort(model || String(config.get<string>('model') || '').trim());
+        const next = current || defaultReasoningEffort;
+        await config.update('reasoningEffort', next, vscode.ConfigurationTarget.Global);
+        return next;
     }
 
     async fetchAvailableModels(provider: YagrModelProvider): Promise<string[]> {
@@ -400,6 +457,21 @@ export class YagrProviderService {
         if (!response.ok) return [];
         const payload = await response.json() as Record<string, unknown>;
         return [...new Set(MODEL_LIST_MAPPER(payload))];
+    }
+
+    private readReasoningEffort(): YagrReasoningEffort | undefined {
+        const config = vscode.workspace.getConfiguration('n8n.agent');
+        const value = String(config.get<string>('reasoningEffort') || '').trim();
+        return YAGR_REASONING_EFFORTS.includes(value as YagrReasoningEffort) ? value as YagrReasoningEffort : undefined;
+    }
+
+    private async getDefaultReasoningEffort(model: string): Promise<YagrReasoningEffort> {
+        try {
+            const openAiAccount = await import('@yagr/agent/dist/llm/openai-account.js');
+            return openAiAccount.getDefaultCodexReasoningEffort(model || YAGR_PROVIDER_DEFINITIONS['openai-oauth'].defaultModel) as YagrReasoningEffort;
+        } catch {
+            return 'medium';
+        }
     }
 
     private async fetchOpenAiOauthModels(accessToken: string): Promise<string[]> {

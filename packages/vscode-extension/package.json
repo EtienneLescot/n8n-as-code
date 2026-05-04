@@ -161,6 +161,11 @@
         "icon": "$(symbol-enum)"
       },
       {
+        "command": "n8n.agent.selectReasoningEffort",
+        "title": "n8n Agent: Select Reasoning Effort",
+        "icon": "$(settings-gear)"
+      },
+      {
         "command": "n8n.applySettings",
         "title": "Apply n8n Settings",
         "icon": "$(check)"
@@ -343,6 +348,19 @@
           "type": "string",
           "default": "",
           "description": "Optional OpenAI-compatible base URL for the embedded n8n Agent Workbench."
+        },
+        "n8n.agent.reasoningEffort": {
+          "type": "string",
+          "enum": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ],
+          "default": "",
+          "description": "Optional reasoning effort override for eligible OpenAI account models used by the embedded n8n Agent Workbench. Leave empty to use the Yagr default."
         }
       }
     }

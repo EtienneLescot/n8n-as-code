@@ -327,6 +327,10 @@ export async function activate(context: vscode.ExtensionContext) {
             await selectAgentModel();
         }),
 
+        registerTelemetryCommand('n8n.agent.selectReasoningEffort', async () => {
+            await selectAgentReasoningEffort();
+        }),
+
         // n8nac push <path>
         registerTelemetryCommand('n8n.pushWorkflow', async (arg: any) => {
             if (enhancedTreeProvider.getExtensionState() === ExtensionState.SETTINGS_CHANGED) {
@@ -805,10 +809,12 @@ async function resolveWorkflowForSplitView(arg: any): Promise<IWorkflowStatus | 
 async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: IWorkflowStatus): Promise<void> {
     try {
         const openTarget = workflow?.id ? await resolveWorkflowWebviewTarget(workflow) : undefined;
+        const workflowFilePath = workflow ? getExistingWorkflowFileUri(workflow)?.fsPath : undefined;
         const providerModelLabel = getSelectedAgentProviderModelLabel();
         AgentWorkbenchWebview.createOrShow(
             context,
             workflow,
+            workflowFilePath,
             openTarget?.url,
             openTarget?.targetUrl,
             providerModelLabel,
@@ -960,6 +966,18 @@ async function selectAgentModel(): Promise<void> {
         await service.selectModel(provider);
     } catch (error: any) {
         vscode.window.showErrorMessage(`Model selection failed: ${error?.message || String(error)}`);
+    }
+}
+
+async function selectAgentReasoningEffort(): Promise<void> {
+    const service = requireYagrProviderService();
+    const config = vscode.workspace.getConfiguration('n8n.agent');
+    const provider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
+    const model = String(config.get<string>('model') || '').trim() || undefined;
+    try {
+        await service.selectReasoningEffort(provider, model);
+    } catch (error: any) {
+        vscode.window.showErrorMessage(`Reasoning effort selection failed: ${error?.message || String(error)}`);
     }
 }
 

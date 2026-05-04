@@ -3,6 +3,8 @@ export interface AgentManagerHtmlInput {
     providerLabel: string;
     model?: string;
     baseUrl?: string;
+    reasoningEffort?: string;
+    supportsReasoningEffort?: boolean;
     hasStoredApiKey: boolean;
     authKind: string;
 }
@@ -30,6 +32,7 @@ export function buildAgentManagerHtml(input: AgentManagerHtmlInput): string {
     const providerLabel = escapeHtml(input.providerLabel);
     const model = escapeHtml(input.model || 'provider default');
     const baseUrl = escapeHtml(input.baseUrl || (input.provider === 'openai-compatible' ? 'not set' : 'provider default'));
+    const reasoningEffort = escapeHtml(input.reasoningEffort || 'Yagr default');
     const keyStatus = input.hasStoredApiKey ? 'Stored in VS Code Secret Storage' : 'Not stored yet / environment fallback';
     const authKind = escapeHtml(input.authKind);
     const profiles = [
@@ -144,12 +147,14 @@ export function buildAgentManagerHtml(input: AgentManagerHtmlInput): string {
                 <div>Provider: <code>${providerLabel}</code> <code>${provider}</code></div>
                 <div>Model: <code>${model}</code></div>
                 <div>Base URL: <code>${baseUrl}</code></div>
+                <div>Reasoning: <code>${input.supportsReasoningEffort ? reasoningEffort : 'not available for this provider'}</code></div>
                 <div>Auth: <code>${authKind}</code></div>
                 <div>Credential: <code>${keyStatus}</code></div>
             </div>
             <div class="actions">
                 <button id="set-key" type="button">Set Up Provider</button>
                 <button id="select-model" class="secondary" type="button">Select Model</button>
+                <button id="select-reasoning" class="secondary" type="button" ${input.supportsReasoningEffort ? '' : 'disabled'}>Reasoning Effort</button>
                 <button id="open-settings" class="secondary" type="button">Open Agent Settings</button>
             </div>
         </section>
@@ -165,6 +170,7 @@ export function buildAgentManagerHtml(input: AgentManagerHtmlInput): string {
         const vscode = acquireVsCodeApi();
         document.getElementById('set-key').addEventListener('click', () => vscode.postMessage({ type: 'setApiKey' }));
         document.getElementById('select-model').addEventListener('click', () => vscode.postMessage({ type: 'selectModel' }));
+        document.getElementById('select-reasoning').addEventListener('click', () => vscode.postMessage({ type: 'selectReasoningEffort' }));
         document.getElementById('open-settings').addEventListener('click', () => vscode.postMessage({ type: 'openSettings' }));
     </script>
 </body>
