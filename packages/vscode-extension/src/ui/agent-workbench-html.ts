@@ -5,6 +5,8 @@ export interface AgentWorkbenchHtmlInput {
     workflowReloadUrl?: string;
 }
 
+const AGENT_WORKBENCH_CHAT_BUILD = '2026.05.04.8';
+
 function escapeHtml(value: string): string {
     return value
         .replace(/&/g, '&amp;')
@@ -99,6 +101,21 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             font-weight: 650;
             line-height: 1.35;
         }
+        .build-marker {
+            margin-top: 4px;
+            color: var(--muted);
+            font-size: 11px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        }
+        .bridge-status {
+            margin-top: 3px;
+            color: var(--muted);
+            font-size: 11px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        }
+        .bridge-status.connected {
+            color: var(--vscode-testing-iconPassed, #73c991);
+        }
         .subtitle {
             margin-top: 6px;
             color: var(--muted);
@@ -149,6 +166,26 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             padding: 12px;
             border-top: 1px solid var(--border);
             background: var(--panel);
+        }
+        .composer-input {
+            display: grid;
+            gap: 6px;
+            min-width: 0;
+        }
+        .node-context-badge {
+            display: none;
+            width: fit-content;
+            max-width: 100%;
+            padding: 3px 8px;
+            border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+            border-radius: 999px;
+            color: var(--accent-text);
+            background: color-mix(in srgb, var(--accent) 60%, transparent);
+            font-size: 12px;
+            line-height: 1.25;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         textarea {
             resize: none;
@@ -239,6 +276,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             <header class="header">
                 <div class="kicker">n8n Agent Workbench</div>
                 <div class="title">Workflow Architect</div>
+                <div class="build-marker">Chat build ${AGENT_WORKBENCH_CHAT_BUILD}</div>
+                <div id="bridge-status" class="bridge-status">n8n bridge pending</div>
                 <div class="subtitle" title="${safeWorkflowName}">${safeWorkflowName}${safeWorkflowId ? ` · ${safeWorkflowId}` : ' · new workflow chat'}</div>
                 <div class="header-actions"><button id="select-model" class="secondary" type="button">Provider / Model</button></div>
             </header>
@@ -249,7 +288,10 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 </div>
             </div>
             <form id="composer" class="composer">
-                <textarea id="prompt" placeholder="Ask the n8n agent what to do with this workflow..." rows="2"></textarea>
+                <div class="composer-input">
+                    <div id="node-context-badge" class="node-context-badge" title=""></div>
+                    <textarea id="prompt" placeholder="Ask the n8n agent what to do with this workflow..." rows="2"></textarea>
+                </div>
                 <div class="actions">
                     <button id="send" type="submit">Send</button>
                     <button id="stop" class="secondary" type="button" disabled>Stop</button>
@@ -278,6 +320,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const pendingGrants = new Map();
         let isRunning = false;
         let activeAssistantMessage = null;
+        let currentNodeContext = null;
 
         const feed = document.getElementById('feed');
         const form = document.getElementById('composer');
@@ -287,6 +330,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const selectModelButton = document.getElementById('select-model');
         const frame = document.getElementById('workflow-frame');
         const refreshPill = document.getElementById('refresh-pill');
+        const nodeContextBadge = document.getElementById('node-context-badge');
+        const bridgeStatus = document.getElementById('bridge-status');
 
         function appendMessage(role, content) {
             const el = document.createElement('div');
@@ -314,6 +359,44 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             isRunning = running;
             sendButton.disabled = running;
             stopButton.disabled = !running;
+        }
+
+        function sanitizeNodeContext(value) {
+            if (!value || typeof value !== 'object') return null;
+            const name = typeof value.name === 'string' ? value.name.trim() : '';
+            if (!name) return null;
+            return {
+                name,
+                type: typeof value.type === 'string' ? value.type.trim() : '',
+                id: typeof value.id === 'string' ? value.id.trim() : '',
+            };
+        }
+
+        function updateNodeContextBadge(node) {
+            currentNodeContext = sanitizeNodeContext(node);
+            if (!nodeContextBadge) return;
+            if (!currentNodeContext) {
+                nodeContextBadge.style.display = 'none';
+                nodeContextBadge.textContent = '';
+                nodeContextBadge.title = '';
+                return;
+            }
+            nodeContextBadge.textContent = '@' + currentNodeContext.name;
+            nodeContextBadge.title = currentNodeContext.type
+                ? currentNodeContext.name + ' · ' + currentNodeContext.type
+                : currentNodeContext.name;
+            nodeContextBadge.style.display = 'block';
+        }
+
+        function updateBridgeStatus(text, connected) {
+            if (!bridgeStatus) return;
+            bridgeStatus.textContent = text;
+            bridgeStatus.classList.toggle('connected', Boolean(connected));
+        }
+
+        function isWorkflowFrameEvent(event) {
+            if (!frame || event.source !== frame.contentWindow) return false;
+            return event.origin === iframeOrigin || event.origin === 'null';
         }
 
         function reloadWorkflowFrame() {
@@ -354,7 +437,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             promptInput.value = '';
             activeAssistantMessage = null;
             appendMessage('user', text);
-            vscode.postMessage({ type: 'agent.send', text, workflowId });
+            vscode.postMessage({ type: 'agent.send', text, workflowId, nodeContext: currentNodeContext });
         });
 
         promptInput.addEventListener('keydown', (event) => {
@@ -385,12 +468,31 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 workflowUrl = message.url;
                 workflowReloadUrl = typeof message.reloadUrl === 'string' && message.reloadUrl ? message.reloadUrl : workflowUrl;
                 try { iframeOrigin = new URL(workflowUrl).origin; } catch (e) { iframeOrigin = 'src'; }
+                updateBridgeStatus('n8n bridge pending', false);
                 if (frame) frame.src = workflowUrl;
                 return;
             }
 
+            if (message.type === 'n8n-bridge-ready') {
+                if (!isWorkflowFrameEvent(event)) return;
+                updateBridgeStatus('n8n bridge ' + (message.build || 'connected') + (message.pageKind ? ' · ' + message.pageKind : '') + (message.nodeName ? ' · saw ' + message.nodeName : ''), true);
+                return;
+            }
+
+            if (message.type === 'n8n-ui-click') {
+                if (!isWorkflowFrameEvent(event)) return;
+                updateBridgeStatus('n8n bridge ' + (message.build || 'connected') + ' · click ' + (message.nodeName || message.target || 'ui'), true);
+                return;
+            }
+
+            if (message.type === 'n8n-ui-change') {
+                if (!isWorkflowFrameEvent(event)) return;
+                updateBridgeStatus('n8n bridge ' + (message.build || 'connected') + ' · ui changed ' + (message.nodeName || message.count || ''), true);
+                return;
+            }
+
             if (message.type === 'n8n-paste-request') {
-                if (event.origin !== iframeOrigin) return;
+                if (!isWorkflowFrameEvent(event)) return;
                 const now = Date.now();
                 if (now - lastPasteMs < PASTE_RATE_LIMIT_MS) return;
                 lastPasteMs = now;
@@ -398,8 +500,24 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 return;
             }
 
+            if (message.type === 'n8n-node-detail-opened') {
+                if (!isWorkflowFrameEvent(event)) return;
+                updateNodeContextBadge(message.node);
+                if (currentNodeContext) {
+                    vscode.postMessage({ type: 'agent.nodeDetailChanged', workflowId, nodeContext: currentNodeContext });
+                }
+                return;
+            }
+
+            if (message.type === 'n8n-node-context-cleared') {
+                if (!isWorkflowFrameEvent(event)) return;
+                updateNodeContextBadge(null);
+                vscode.postMessage({ type: 'agent.nodeDetailChanged', workflowId, nodeContext: null });
+                return;
+            }
+
             if (message.type === 'n8n-clipboard-write' && typeof message.text === 'string') {
-                if (event.origin !== iframeOrigin) return;
+                if (!isWorkflowFrameEvent(event)) return;
                 vscode.postMessage({ type: 'clipboard-write', text: message.text });
                 return;
             }

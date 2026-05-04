@@ -54,6 +54,27 @@ test('Bridge script: sends n8n-clipboard-write message type for copy', () => {
     assert.ok(script.includes('"n8n-clipboard-write"'), 'Must use correct clipboard-write message type');
 });
 
+test('Bridge script: sends node detail opened messages', () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const script: string = ProxyService.buildBridgeScript(false);
+
+    assert.ok(script.includes('CLIPBOARD_BRIDGE_ENABLED = false'), 'Clipboard bridge can be disabled for non-macOS injection');
+    assert.ok(script.includes('"n8n-bridge-ready"'), 'Must publish bridge ready events');
+    assert.ok(script.includes('2026.05.04.8'), 'Must expose the bridge build marker');
+    assert.ok(script.includes('NODE_BRIDGE_ENABLED'), 'Must support disabling node detection on auth routes');
+    assert.ok(script.includes('pageKind'), 'Must publish bridge page kind diagnostics');
+    assert.ok(script.includes('"n8n-ui-click"'), 'Must publish iframe click diagnostics');
+    assert.ok(script.includes('"n8n-ui-change"'), 'Must publish iframe mutation diagnostics');
+    assert.ok(script.includes('"n8n-node-context-cleared"'), 'Must publish node context clear events');
+    assert.ok(script.includes('isCanvasSurfaceElement'), 'Must detect canvas background clicks');
+    assert.ok(script.includes('findNodeDetailTitleByPanelText'), 'Must scan visible panel titles for node context');
+    assert.ok(script.includes('readNodeTitleFromPanelTopBand'), 'Must scan the top band of visible n8n panels');
+    assert.ok(script.includes('"n8n-node-detail-opened"'), 'Must publish node detail open events');
+    assert.ok(script.includes('MutationObserver'), 'Must observe n8n UI changes');
+    assert.ok(script.includes('"dblclick"'), 'Must detect node detail opening from canvas double-clicks');
+    assert.ok(script.includes('readNodeFromElement'), 'Must extract node context from canvas elements');
+});
+
 test('Bridge script: does not validate nonce on incoming paste message', () => {
     // The n8n-clipboard-paste handler in the iframe should accept the message
     // without a nonce check — security is enforced in the parent webview layer.
@@ -79,6 +100,18 @@ test('injectClipboardBridge: injects before </head>', () => {
     const scriptIdx = result.indexOf('<script>');
     const headIdx = result.indexOf('</head>');
     assert.ok(scriptIdx < headIdx, 'Script must be injected before </head>');
+});
+
+test('injectClipboardBridge: can inject UI bridge with clipboard disabled', () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const service = new ProxyService();
+    const html = '<html><head><title>n8n login route</title></head><body></body></html>';
+    const result: string = (service as any).injectClipboardBridge(html, false, false, 'auth-route');
+
+    assert.ok(result.includes('"n8n-bridge-ready"'), 'Injected route HTML must publish bridge readiness');
+    assert.ok(result.includes('CLIPBOARD_BRIDGE_ENABLED = false'), 'Clipboard bridge must be disabled when requested');
+    assert.ok(result.includes('NODE_BRIDGE_ENABLED = false'), 'Node bridge must be disabled on auth routes');
+    assert.ok(result.includes('auth-route'), 'Auth routes must identify their bridge page kind');
 });
 
 test('injectClipboardBridge: falls back to </body> when no </head>', () => {
