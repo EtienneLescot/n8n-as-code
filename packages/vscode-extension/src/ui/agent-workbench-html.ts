@@ -434,7 +434,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         });
 
         promptInput.addEventListener('keydown', (event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
                 form.requestSubmit();
             }
         });
