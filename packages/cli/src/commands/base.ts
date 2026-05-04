@@ -20,7 +20,7 @@ export class BaseCommand {
         let apiKey: string;
         let directory: string;
         let folderSync: boolean;
-        let envCredentialsProvided = false;
+        let envOverridesProvided = false;
 
         // If --instance <name> was passed as a global option, resolve that instance;
         // otherwise fall back to the locally active instance / env vars.
@@ -75,7 +75,7 @@ export class BaseCommand {
             const envApiKey = rawEnvApiKey
                 ? rawEnvApiKey.trim().replace(/^['"]|['"]$/g, '')
                 : '';
-            envCredentialsProvided = Boolean(envHost && envApiKey);
+            envOverridesProvided = Boolean(envHost || envApiKey);
             apiKey = envApiKey
                 || (host ? this.configService.getApiKey(host, this.activeInstanceId) : undefined)
                 || '';
@@ -103,7 +103,7 @@ export class BaseCommand {
             apiKeyConfigured: Boolean(apiKey),
             folderSync,
         };
-        this.runtimePrepared = envCredentialsProvided;
+        this.runtimePrepared = envOverridesProvided && Boolean(host && apiKey);
 
         // Silently refresh AGENTS.md in the background if the installed n8nac version changed.
         // Spawned as a fully-detached child process so it never blocks the command, never

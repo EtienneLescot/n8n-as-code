@@ -98,6 +98,7 @@ export class N8nApiClient {
             }
         } catch (error: any) {
             if (process.env.DEBUG) console.debug(`[N8nApiClient] getCurrentUser: Fetching specific user ${jwtUserId} failed:`, error.message);
+            if (!error.response) throw error;
             return { id: jwtUserId };
         }
 
