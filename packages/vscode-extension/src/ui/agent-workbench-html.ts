@@ -3,9 +3,8 @@ export interface AgentWorkbenchHtmlInput {
     workflowName: string;
     workflowUrl?: string;
     workflowReloadUrl?: string;
+    providerModelLabel: string;
 }
-
-const AGENT_WORKBENCH_CHAT_BUILD = '2026.05.04.8';
 
 function escapeHtml(value: string): string {
     return value
@@ -29,6 +28,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
     const safeWorkflowName = escapeHtml(input.workflowName);
     const safeWorkflowId = escapeHtml(input.workflowId);
     const safeWorkflowUrl = escapeHtml(input.workflowUrl || '');
+    const safeProviderModelLabel = escapeHtml(input.providerModelLabel);
     const workflowIdJs = JSON.stringify(input.workflowId);
     const workflowUrlJs = JSON.stringify(input.workflowUrl || '');
     const workflowReloadUrlJs = JSON.stringify(input.workflowReloadUrl || input.workflowUrl || '');
@@ -101,21 +101,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             font-weight: 650;
             line-height: 1.35;
         }
-        .build-marker {
-            margin-top: 4px;
-            color: var(--muted);
-            font-size: 11px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-        }
-        .bridge-status {
-            margin-top: 3px;
-            color: var(--muted);
-            font-size: 11px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-        }
-        .bridge-status.connected {
-            color: var(--vscode-testing-iconPassed, #73c991);
-        }
         .subtitle {
             margin-top: 6px;
             color: var(--muted);
@@ -172,6 +157,13 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             gap: 6px;
             min-width: 0;
         }
+        .composer-meta {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            min-width: 0;
+        }
         .node-context-badge {
             display: none;
             width: fit-content;
@@ -183,6 +175,20 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             background: color-mix(in srgb, var(--accent) 60%, transparent);
             font-size: 12px;
             line-height: 1.25;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .provider-model-button {
+            border: 1px solid var(--vscode-button-secondaryBackground, #3a3d41);
+            border-radius: 999px;
+            padding: 4px 9px;
+            color: var(--vscode-button-secondaryForeground, var(--text));
+            background: var(--vscode-button-secondaryBackground, #3a3d41);
+            font: inherit;
+            font-size: 12px;
+            cursor: pointer;
+            max-width: 100%;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -274,22 +280,16 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
     <main class="workbench">
         <section class="chat" aria-label="Agent chat">
             <header class="header">
-                <div class="kicker">n8n Agent Workbench</div>
                 <div class="title">Workflow Architect</div>
-                <div class="build-marker">Chat build ${AGENT_WORKBENCH_CHAT_BUILD}</div>
-                <div id="bridge-status" class="bridge-status">n8n bridge pending</div>
                 <div class="subtitle" title="${safeWorkflowName}">${safeWorkflowName}${safeWorkflowId ? ` · ${safeWorkflowId}` : ' · new workflow chat'}</div>
-                <div class="header-actions"><button id="select-model" class="secondary" type="button">Provider / Model</button></div>
             </header>
-            <div id="feed" class="feed">
-                <div class="message system">
-                    <div class="role">System</div>
-                    Agent workbench is ready. Ask for a workflow inspection, generation plan, validation pass, or deployment step.
-                </div>
-            </div>
+            <div id="feed" class="feed"></div>
             <form id="composer" class="composer">
                 <div class="composer-input">
-                    <div id="node-context-badge" class="node-context-badge" title=""></div>
+                    <div class="composer-meta">
+                        <div id="node-context-badge" class="node-context-badge" title=""></div>
+                        <button id="select-model" class="provider-model-button" type="button" title="${safeProviderModelLabel}">${safeProviderModelLabel}</button>
+                    </div>
                     <textarea id="prompt" placeholder="Ask the n8n agent what to do with this workflow..." rows="2"></textarea>
                 </div>
                 <div class="actions">
@@ -331,7 +331,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const frame = document.getElementById('workflow-frame');
         const refreshPill = document.getElementById('refresh-pill');
         const nodeContextBadge = document.getElementById('node-context-badge');
-        const bridgeStatus = document.getElementById('bridge-status');
 
         function appendMessage(role, content) {
             const el = document.createElement('div');
@@ -386,12 +385,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 ? currentNodeContext.name + ' · ' + currentNodeContext.type
                 : currentNodeContext.name;
             nodeContextBadge.style.display = 'block';
-        }
-
-        function updateBridgeStatus(text, connected) {
-            if (!bridgeStatus) return;
-            bridgeStatus.textContent = text;
-            bridgeStatus.classList.toggle('connected', Boolean(connected));
         }
 
         function isWorkflowFrameEvent(event) {
@@ -468,26 +461,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 workflowUrl = message.url;
                 workflowReloadUrl = typeof message.reloadUrl === 'string' && message.reloadUrl ? message.reloadUrl : workflowUrl;
                 try { iframeOrigin = new URL(workflowUrl).origin; } catch (e) { iframeOrigin = 'src'; }
-                updateBridgeStatus('n8n bridge pending', false);
                 if (frame) frame.src = workflowUrl;
-                return;
-            }
-
-            if (message.type === 'n8n-bridge-ready') {
-                if (!isWorkflowFrameEvent(event)) return;
-                updateBridgeStatus('n8n bridge ' + (message.build || 'connected') + (message.pageKind ? ' · ' + message.pageKind : '') + (message.nodeName ? ' · saw ' + message.nodeName : ''), true);
-                return;
-            }
-
-            if (message.type === 'n8n-ui-click') {
-                if (!isWorkflowFrameEvent(event)) return;
-                updateBridgeStatus('n8n bridge ' + (message.build || 'connected') + ' · click ' + (message.nodeName || message.target || 'ui'), true);
-                return;
-            }
-
-            if (message.type === 'n8n-ui-change') {
-                if (!isWorkflowFrameEvent(event)) return;
-                updateBridgeStatus('n8n bridge ' + (message.build || 'connected') + ' · ui changed ' + (message.nodeName || message.count || ''), true);
                 return;
             }
 

@@ -11,6 +11,8 @@ export interface AgentPromptInput {
     nodeContext?: AgentNodeContext;
 }
 
+const ENVIRONMENT_DETAILS_BLOCK_PATTERN = /<environment_details>[\s\S]*?<\/environment_details>/gi;
+
 export interface AgentNodeContext {
     name: string;
     type?: string;
@@ -435,18 +437,22 @@ export class AgentRuntimeController implements vscode.Disposable {
         const last = messages[messages.length - 1] as Record<string, unknown> | undefined;
         const content = last?.content ?? record.content ?? record.output;
         if (typeof content === 'string') {
-            return content;
+            return this.sanitizeAssistantText(content);
         }
         if (Array.isArray(content)) {
-            return content.map((part) => {
+            return this.sanitizeAssistantText(content.map((part) => {
                 if (typeof part === 'string') return part;
                 if (part && typeof part === 'object' && typeof (part as Record<string, unknown>).text === 'string') {
                     return (part as Record<string, string>).text;
                 }
                 return '';
-            }).join('');
+            }).join(''));
         }
         return 'The agent completed without producing text.';
+    }
+
+    private sanitizeAssistantText(value: string): string {
+        return value.replace(ENVIRONMENT_DETAILS_BLOCK_PATTERN, '').trim();
     }
 
     private async buildProviderStatusLine(): Promise<string> {
