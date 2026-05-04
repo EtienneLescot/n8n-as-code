@@ -2,6 +2,7 @@ export interface AgentWorkbenchHtmlInput {
     workflowId: string;
     workflowName: string;
     workflowUrl?: string;
+    workflowReloadUrl?: string;
 }
 
 function escapeHtml(value: string): string {
@@ -28,6 +29,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
     const safeWorkflowUrl = escapeHtml(input.workflowUrl || '');
     const workflowIdJs = JSON.stringify(input.workflowId);
     const workflowUrlJs = JSON.stringify(input.workflowUrl || '');
+    const workflowReloadUrlJs = JSON.stringify(input.workflowReloadUrl || input.workflowUrl || '');
     const hasWorkflow = Boolean(input.workflowUrl);
 
     let iframePermissionOrigin = 'src';
@@ -268,6 +270,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const vscode = acquireVsCodeApi();
         let workflowId = ${workflowIdJs};
         let workflowUrl = ${workflowUrlJs};
+        let workflowReloadUrl = ${workflowReloadUrlJs};
         let iframeOrigin = ${JSON.stringify(iframePermissionOrigin)};
         const PASTE_RATE_LIMIT_MS = 1000;
         const GRANT_TTL_MS = 5000;
@@ -316,7 +319,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         function reloadWorkflowFrame() {
             if (!frame || !refreshPill) return;
             refreshPill.style.display = 'block';
-            const currentSrc = workflowUrl || frame.src;
+            const currentSrc = workflowReloadUrl || frame.src || workflowUrl;
             frame.onload = () => {
                 refreshPill.style.display = 'none';
                 frame.onload = null;
@@ -380,6 +383,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             if (message.type === 'workflow.update' && typeof message.url === 'string') {
                 workflowId = String(message.workflowId || workflowId);
                 workflowUrl = message.url;
+                workflowReloadUrl = typeof message.reloadUrl === 'string' && message.reloadUrl ? message.reloadUrl : workflowUrl;
                 try { iframeOrigin = new URL(workflowUrl).origin; } catch (e) { iframeOrigin = 'src'; }
                 if (frame) frame.src = workflowUrl;
                 return;

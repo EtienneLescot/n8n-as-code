@@ -173,7 +173,13 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
                     };
 
                     // Trigger load in pending frame
-                    pendingFrame.src = activeFrame.src;
+                    try {
+                        const reloadUrl = new URL(activeFrame.src);
+                        reloadUrl.searchParams.set('_n8nacRefresh', String(Date.now()));
+                        pendingFrame.src = reloadUrl.toString();
+                    } catch (e) {
+                        pendingFrame.src = activeFrame.src;
+                    }
                 }
 
                 // Handle messages from the extension and iframe
