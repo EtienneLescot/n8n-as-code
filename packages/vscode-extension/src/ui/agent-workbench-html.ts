@@ -330,36 +330,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        .agent-run-indicator {
-            display: none;
-            align-items: center;
-            gap: 8px;
-            color: var(--muted);
-            font-size: 12px;
-        }
-        .agent-run-indicator.active {
-            display: inline-flex;
-        }
-        .pixel-spinner {
-            display: grid;
-            grid-template-columns: repeat(2, 5px);
-            grid-template-rows: repeat(2, 5px);
-            gap: 2px;
-        }
-        .pixel-spinner span {
-            width: 5px;
-            height: 5px;
-            border-radius: 1px;
-            background: color-mix(in srgb, var(--accent) 75%, transparent);
-            animation: pixel-spinner-blink 0.85s steps(1) infinite;
-        }
-        .pixel-spinner span:nth-child(2) { animation-delay: 0.18s; }
-        .pixel-spinner span:nth-child(3) { animation-delay: 0.36s; }
-        .pixel-spinner span:nth-child(4) { animation-delay: 0.54s; }
-        @keyframes pixel-spinner-blink {
-            0%, 100% { opacity: 0.28; transform: scale(0.92); }
-            50% { opacity: 1; transform: scale(1); }
-        }
         .composer-actions {
             display: grid;
             gap: 8px;
@@ -529,15 +499,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 <div class="composer-input">
                     <div class="composer-meta">
                         <div id="node-context-badge" class="node-context-badge" title=""></div>
-                        <div id="agent-run-indicator" class="agent-run-indicator" aria-live="polite">
-                            <div class="pixel-spinner" aria-hidden="true">
-                                <span></span>
-                                <span></span>
-                                <span></span>
-                                <span></span>
-                            </div>
-                            <span>Agent running</span>
-                        </div>
                     </div>
                     <textarea id="prompt" placeholder="Ask the n8n agent what to do with this workflow..." rows="2"></textarea>
                 </div>
@@ -593,7 +554,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const frame = document.getElementById('workflow-frame');
         const refreshPill = document.getElementById('refresh-pill');
         const nodeContextBadge = document.getElementById('node-context-badge');
-        const agentRunIndicator = document.getElementById('agent-run-indicator');
         const sessionList = document.getElementById('session-list');
         const sessionFilter = document.getElementById('session-filter');
         const sessionMeta = document.getElementById('session-meta');
@@ -611,9 +571,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             isRunning = running;
             sendButton.disabled = running;
             stopButton.disabled = !running;
-            if (agentRunIndicator) {
-                agentRunIndicator.classList.toggle('active', running);
-            }
             newSessionButton.disabled = running;
             renameSessionButton.disabled = running;
             attachSessionButton.disabled = running;
