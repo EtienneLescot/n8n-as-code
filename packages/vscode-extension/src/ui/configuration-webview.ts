@@ -28,27 +28,6 @@ function normalizeHost(host: string): string {
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
 }
 
-async function clearLegacyWorkspaceSettings(): Promise<void> {
-  const config = vscode.workspace.getConfiguration('n8n');
-  const keys: Array<'host' | 'apiKey' | 'syncFolder' | 'projectId' | 'projectName'> = [
-    'host',
-    'apiKey',
-    'syncFolder',
-    'projectId',
-    'projectName',
-  ];
-
-  for (const key of keys) {
-    const inspected = config.inspect<string>(key);
-    if (inspected?.workspaceValue !== undefined) {
-      await config.update(key, undefined, vscode.ConfigurationTarget.Workspace);
-    }
-    if (inspected?.workspaceFolderValue !== undefined) {
-      await config.update(key, undefined, vscode.ConfigurationTarget.WorkspaceFolder);
-    }
-  }
-}
-
 function getNonce(): string {
   let text = '';
   const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -264,8 +243,6 @@ export class ConfigurationWebview {
             projectName: String(payload.projectName || '').trim() || undefined,
             folderSync: Boolean(payload.folderSync),
           }, workspaceRoot);
-          await clearLegacyWorkspaceSettings();
-          await this._context.workspaceState.update('n8n.suppressSettingsChangedOnce', true);
           await this._configurationController.refresh('webview-save-workspace-context', { force: true });
           this._panel.webview.postMessage({ type: 'saved' });
           return;

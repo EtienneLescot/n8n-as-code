@@ -5,7 +5,15 @@ import { N8nApiClient } from './n8n-api-client.js';
 import { WorkflowTransformerAdapter } from './workflow-transformer-adapter.js';
 import { HashUtils } from './hash-utils.js';
 import { WorkflowSyncStatus, IWorkflowStatus, IWorkflow } from '../types.js';
-import { IWorkflowState, IInstanceState } from './state-manager.js';
+
+interface IWorkflowState {
+    lastSyncedHash: string;
+    lastSyncedAt: string;
+}
+
+interface IInstanceState {
+    workflows: Record<string, IWorkflowState>;
+}
 
 const WINDOWS_RESERVED_FILENAMES = new Set([
     'CON',
@@ -89,8 +97,6 @@ export class WorkflowStateTracker extends EventEmitter {
         this.projectId = options.projectId;
         this.stateFilePath = path.join(this.directory, '.n8n-state.json');
 
-        // Restore persisted mappings immediately so 'pull' and other commands can find workflows
-        this.restoreMappingsFromState();
     }
 
     public getDirectory(): string {
@@ -192,32 +198,6 @@ export class WorkflowStateTracker extends EventEmitter {
             }
             this.fileToIdMap.set(winner, id);
             this.idToFileMap.set(id, winner);
-        }
-
-        // Recovery path: if a tracked file lost its decorator ID after a manual rewrite,
-        // reconnect it using the last known filename hint from state.
-        const claimedIds = new Set(idClaims.keys());
-        const state = this.loadState();
-        for (const { filename, content } of fileContents) {
-            if (content?.id) continue;
-            if (this.fileToIdMap.has(filename)) continue;
-
-            const matchingIds = Object.entries(state.workflows)
-                .filter(([workflowId, workflowState]) =>
-                    workflowState?.filename === filename &&
-                    !claimedIds.has(workflowId))
-                .map(([workflowId]) => workflowId);
-
-            if (matchingIds.length !== 1) continue;
-
-            const recoveredId = matchingIds[0];
-            const existingFilename = this.idToFileMap.get(recoveredId);
-            if (existingFilename && existingFilename !== filename && currentFiles.has(existingFilename)) {
-                continue;
-            }
-
-            this.idToFileMap.set(recoveredId, filename);
-            this.fileToIdMap.set(filename, recoveredId);
         }
 
         // Clean up fileToIdMap entries for files that no longer exist on disk.
@@ -421,7 +401,7 @@ export class WorkflowStateTracker extends EventEmitter {
         this.remoteHashes.set(workflowId, remoteHash);
 
         // Update base state
-        await this.updateWorkflowState(workflowId, localHash, remoteUpdatedAt, filename);
+        await this.updateWorkflowState(workflowId, localHash, remoteUpdatedAt);
 
         // Broadcast new TRACKED status
         this.broadcastStatus(filename, workflowId);
@@ -431,12 +411,11 @@ export class WorkflowStateTracker extends EventEmitter {
      * Update workflow state in .n8n-state.json
      * Only this component writes to the state file
      */
-    private async updateWorkflowState(id: string, hash: string, remoteUpdatedAt?: string, filename?: string) {
+    private async updateWorkflowState(id: string, hash: string, remoteUpdatedAt?: string) {
         const state = this.loadState();
         state.workflows[id] = {
             lastSyncedHash: hash,
             lastSyncedAt: remoteUpdatedAt || new Date().toISOString(),
-            filename: filename || state.workflows[id]?.filename,
         };
         this.saveState(state);
     }
@@ -465,8 +444,7 @@ export class WorkflowStateTracker extends EventEmitter {
     }
 
     /**
-     * Load state from .n8n-state.json
-     * Does NOT restore mappings - use restoreMappingsFromState() for that
+     * Load state from .n8n-state.json.
      */
     private loadState(): IInstanceState {
         if (fs.existsSync(this.stateFilePath)) {
@@ -481,26 +459,6 @@ export class WorkflowStateTracker extends EventEmitter {
             }
         }
         return { workflows: {} };
-    }
-
-    private restoreMappingsFromState() {
-        const state = this.loadState();
-
-        for (const [workflowId, workflowState] of Object.entries(state.workflows)) {
-            const filename = workflowState?.filename;
-            if (!filename) continue;
-
-            const filePath = path.join(this.directory, filename);
-            if (!fs.existsSync(filePath)) continue;
-
-            if (!this.idToFileMap.has(workflowId)) {
-                this.idToFileMap.set(workflowId, filename);
-            }
-
-            if (!this.fileToIdMap.has(filename)) {
-                this.fileToIdMap.set(filename, workflowId);
-            }
-        }
     }
 
     /**
@@ -714,21 +672,9 @@ export class WorkflowStateTracker extends EventEmitter {
                     return Object.keys(result).length > 0 ? result : {};
                 }
 
-                // Fallback: If file contains JSON (for tests/transition), parse it
-                try {
-                    const jsonData = JSON.parse(content);
-                    // Return workflow data even if it doesn't have an ID
-                    // (workflows without ID should be detected as EXIST_ONLY_LOCALLY)
-                    return jsonData;
-                } catch {
-                    // Not JSON, and no decorator match - but still valid .workflow.ts file
-                    // Return empty object to allow detection
-                }
                 return {};
-            } else {
-                // Legacy JSON files
-                return JSON.parse(content);
             }
+            return {};
         } catch {
             return null;
         }
@@ -739,10 +685,8 @@ export class WorkflowStateTracker extends EventEmitter {
             const content = fs.readFileSync(filePath, 'utf8');
             if (filePath.endsWith('.workflow.ts')) {
                 return await WorkflowTransformerAdapter.compileToJson(content);
-            } else {
-                // Legacy JSON files
-                return JSON.parse(content);
             }
+            return null;
         } catch {
             return null;
         }
@@ -782,8 +726,6 @@ export class WorkflowStateTracker extends EventEmitter {
         onlyArchived?: boolean;
     }): Promise<IWorkflowStatus[]> {
         const results: Map<string, IWorkflowStatus> = new Map();
-        const state = this.loadState();
-
         // 1. Process all local files (just check existence, no hash computation)
         for (const filename of this.getLocalWorkflowFilenames()) {
             const workflowId = this.fileToIdMap.get(filename);
@@ -833,10 +775,7 @@ export class WorkflowStateTracker extends EventEmitter {
 
         // 2. Process all remote workflows not yet in results
         for (const workflowId of this.remoteIds) {
-            // Scan-wins: idToFileMap (rebuilt from @workflow decorator) is authoritative.
-            // Fall back to deprecated persisted filename for old state files during transition.
             const filename = this.idToFileMap.get(workflowId)
-                || (state.workflows[workflowId] as IWorkflowState)?.filename
                 || `${workflowId}.workflow.ts`;
 
             if (!results.has(filename)) {
@@ -937,10 +876,7 @@ export class WorkflowStateTracker extends EventEmitter {
 
         // 2. Process all remote workflows not yet in results
         for (const [workflowId, remoteHash] of this.remoteHashes.entries()) {
-            // Scan-wins: idToFileMap (rebuilt from @workflow decorator) is authoritative.
-            // Fall back to deprecated persisted filename for old state files during transition.
             const filename = this.idToFileMap.get(workflowId)
-                || (state.workflows[workflowId] as IWorkflowState)?.filename
                 || `${workflowId}.workflow.ts`;
 
             if (!results.has(filename)) {
@@ -963,10 +899,7 @@ export class WorkflowStateTracker extends EventEmitter {
 
         // 3. Process tracked but deleted workflows
         for (const id of Object.keys(state.workflows)) {
-            // Scan-wins: idToFileMap (rebuilt from @workflow decorator) is authoritative.
-            // Fall back to deprecated persisted filename for old state files during transition.
             const filename = this.idToFileMap.get(id)
-                || (state.workflows[id] as IWorkflowState)?.filename
                 || `${id}.workflow.ts`;
 
             if (!results.has(filename)) {

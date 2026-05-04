@@ -30,6 +30,5 @@ node scripts/pagination/delete-auto-workflows.cjs --env .env.test --confirm --pr
 Notes:
 - The default prefix is "Auto Workflow ".
 - Workflow names stay prefix-searchable, but now include varied business-friendly descriptors for search testing.
-- Set `NAME_STYLE=legacy` in the env file to get the previous numeric-only naming back.
 - The scripts read `N8N_HOST` and `N8N_API_KEY` (or equivalents) from the provided env file.
 - Self-signed certificates are allowed via the HTTPS agent.

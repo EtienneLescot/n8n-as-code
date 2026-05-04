@@ -33,11 +33,11 @@ test('buildConfigurationInitState prefers the active instance config and config-
         resolved: {
             activeInstanceId: 'prod',
             activeInstanceName: 'Production',
-            host: 'https://legacy.example.com',
-            apiKey: 'legacy-key',
-            projectId: 'legacy-project',
-            projectName: 'Legacy',
-            syncFolder: 'legacy-workflows',
+            host: 'https://fallback.example.com',
+            apiKey: 'fallback-key',
+            projectId: 'fallback-project',
+            projectName: 'Fallback',
+            syncFolder: 'fallback-workflows',
         },
         getApiKey: (host, instanceId) => {
             assert.strictEqual(host, 'https://prod.example.com/');

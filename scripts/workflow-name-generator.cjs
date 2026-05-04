@@ -131,14 +131,9 @@ function buildWorkflowName(options = {}) {
   const {
     prefix = '',
     index = 1,
-    style = 'descriptive',
     padLength = 3,
     includeSerial = true,
   } = options;
-
-  if (style === 'legacy') {
-    return joinPrefix(prefix, String(index).padStart(padLength, '0'));
-  }
 
   const descriptor = buildDescriptor(index);
 

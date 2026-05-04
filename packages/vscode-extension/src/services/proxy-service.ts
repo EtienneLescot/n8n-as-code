@@ -152,7 +152,7 @@ export class ProxyService {
             delete proxyRes.headers['content-security-policy'];
             delete proxyRes.headers['content-security-policy-report-only'];
 
-            // CRITICAL for SSE: Ensure no buffering
+            // Keep event streams responsive by disabling proxy buffering.
             proxyRes.headers['x-accel-buffering'] = 'no';
             proxyRes.headers['cache-control'] = 'no-cache, no-transform';
             proxyRes.headers['connection'] = 'keep-alive';
@@ -306,7 +306,7 @@ export class ProxyService {
                 res.setHeader('access-control-allow-methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
                 res.setHeader('access-control-allow-headers', '*');
 
-                // CRITICAL for SSE: Disable buffering
+                // Keep event streams responsive by disabling proxy buffering.
                 this.proxy.web(req, res, { buffer: undefined, changeOrigin: true, secure: false });
             }
         });

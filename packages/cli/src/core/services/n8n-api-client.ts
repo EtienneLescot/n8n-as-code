@@ -1129,7 +1129,7 @@ export class N8nApiClient {
                 method,
                 url,
                 data: ['GET', 'HEAD'].includes(method) ? undefined : body,
-                params: query ?? (['GET', 'HEAD'].includes(method) ? (body as any) : undefined),
+                params: query,
                 validateStatus: () => true, // Don't throw on non-2xx
                 timeout: 30_000,             // Prevent indefinite hangs (e.g. chat trigger awaiting first message)
                 // Reuse the shared httpsAgent (same TLS policy as API calls).

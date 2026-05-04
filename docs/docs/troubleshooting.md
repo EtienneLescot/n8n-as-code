@@ -129,7 +129,7 @@ This usually means `AGENTS.md` is missing or outdated:
 ### MCP server not connecting (Claude Desktop)
 
 1. Check `claude_desktop_config.json` syntax — must be valid JSON
-2. Verify `npx --yes n8nac skills mcp` runs without errors in your terminal
+2. Verify `npx --yes @n8n-as-code/mcp` runs without errors in your terminal
 3. Set `N8N_AS_CODE_PROJECT_DIR` to the **absolute** path of your project
 4. Restart Claude Desktop after config changes
 
@@ -141,7 +141,6 @@ This usually means `AGENTS.md` is missing or outdated:
    ```bash
    openclaw plugins install @n8n-as-code/n8nac
    ```
-   If you migrated from `@n8n-as-code/openclaw-plugin`, run `openclaw plugins uninstall n8nac` first and then reinstall the package.
 2. Check that `n8nac` (or `npx n8nac`) is available in your PATH
 3. Verify your n8n instance URL and API key
 
@@ -244,33 +243,6 @@ n8nac pull <workflowId>
 ```bash
 git checkout HEAD -- workflows/my-workflow.workflow.ts
 ```
-
-## CLI Package Conflicts
-
-### Commands missing after update / `@n8n-as-code/cli` conflict
-
-If `n8nac --help` shows an old, shorter command list after updating, you may have both the legacy `@n8n-as-code/cli` package and the current `n8nac` package installed at the same time. The legacy package can shadow the new one.
-
-**Fix:** uninstall the old package.
-
-```bash
-# Global installation
-npm uninstall -g @n8n-as-code/cli
-
-# Project dependency
-npm uninstall @n8n-as-code/cli
-# or with bun:
-bun remove @n8n-as-code/cli
-```
-
-After removing it, verify the correct version is active:
-
-```bash
-n8nac --version
-n8nac --help   # should show the full command list
-```
-
-The current package is **`n8nac`** (on npm). `@n8n-as-code/cli` is no longer maintained.
 
 ## Still Stuck?
 

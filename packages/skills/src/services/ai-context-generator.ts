@@ -188,14 +188,6 @@ export class AiContextGenerator {
     ].join('\n');
   }
 
-  getSkillContent(): string {
-    return this.getAgentSkillContent('n8n-architect');
-  }
-
-  getOpenClawSkillContent(): string {
-    return this.getAgentSkillContent('n8n-architect');
-  }
-
 }
 
 function resolveN8nManagerCommand(

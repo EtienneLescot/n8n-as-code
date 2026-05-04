@@ -181,40 +181,7 @@ syncManager.on('error', (error: Error) => {...});
 syncManager.on('connection-lost', (error: Error) => {...});
 ```
 
-### 5. **StateManager** (`src/services/state-manager.ts`)
-Manages `.n8n-state.json` file that tracks the "base" state for 3-way merge.
-
-**Key Responsibilities:**
-- Load and save `.n8n-state.json`
-- Track `lastSyncedHash` and `lastSyncedAt` for each workflow
-- Provide the "base" state for 3-way comparison
-- Enable deterministic conflict detection
-
-**State File Structure:**
-```typescript
-interface IInstanceState {
-  workflows: {
-    [workflowId: string]: IWorkflowState;
-  };
-}
-
-interface IWorkflowState {
-  lastSyncedHash: string;  // SHA-256 hash of last synced content
-  lastSyncedAt: string;    // ISO timestamp
-}
-```
-
-**Sync Methods:**
-```typescript
-class StateManager {
-  async loadState(): Promise<IInstanceState>;
-  async saveState(state: IInstanceState): Promise<void>;
-  async updateWorkflowState(workflowId: string, hash: string): Promise<void>;
-  getWorkflowState(workflowId: string): IWorkflowState | undefined;
-}
-```
-
-### 6. **N8nApiClient** (`src/services/n8n-api-client.ts`)
+### 5. **N8nApiClient** (`src/services/n8n-api-client.ts`)
 Communicates with the n8n REST API.
 
 **Key Responsibilities:**
@@ -242,26 +209,7 @@ interface N8nApiClient {
 }
 ```
 
-### 7. **WorkflowSanitizer** (`src/services/workflow-sanitizer.ts`)
-Validates and sanitizes workflow JSON.
-
-**Key Responsibilities:**
-- Validate workflow structure against n8n schema
-- Remove sensitive data (credentials, API keys)
-- Normalize workflow format
-- Fix common issues and inconsistencies
-
-**Sanitization Process:**
-```typescript
-interface WorkflowSanitizer {
-  sanitize(workflow: any): SanitizedWorkflow;
-  validate(workflow: any): ValidationResult;
-  normalize(workflow: any): NormalizedWorkflow;
-  removeCredentials(workflow: any): CredentialFreeWorkflow;
-}
-```
-
-### 8. **DirectoryUtils** (`src/services/directory-utils.ts`)
+### 6. **DirectoryUtils** (`src/services/directory-utils.ts`)
 Manages file system operations for workflows.
 
 **Key Responsibilities:**
@@ -381,8 +329,8 @@ sequenceDiagram
 ```
 packages/cli/tests/
 ├── unit/
-│   ├── state-manager.test.ts
-│   └── workflow-sanitizer.test.ts
+│   ├── sync-manager.test.ts
+│   └── workflow-state-tracker.test.ts
 └── integration/
     └── sync-scenarios.test.ts
 ```

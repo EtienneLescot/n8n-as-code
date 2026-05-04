@@ -11,6 +11,17 @@ const REPO_URL = 'https://github.com/nusquama/n8nworkflows.xyz.git';
 const OUTPUT_FILE = path.resolve(ROOT_DIR, 'packages/skills/src/assets/workflows-index.json');
 const DEFAULT_REF = process.env.N8N_COMMUNITY_WORKFLOWS_REF || 'main';
 
+function getIsolatedGitEnv() {
+    const env = { ...process.env };
+    delete env.GIT_DIR;
+    delete env.GIT_WORK_TREE;
+    delete env.GIT_INDEX_FILE;
+    delete env.GIT_PREFIX;
+    delete env.GIT_OBJECT_DIRECTORY;
+    delete env.GIT_ALTERNATE_OBJECT_DIRECTORIES;
+    return env;
+}
+
 // Argument parsing
 const args = process.argv.slice(2);
 const shallowFlag = args.includes('--shallow');
@@ -45,6 +56,7 @@ function ensureRepository() {
 
     const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
         cwd: TEMP_DIR,
+        env: getIsolatedGitEnv(),
         encoding: 'utf-8',
     }).trim();
 
@@ -67,7 +79,7 @@ function cloneRepository() {
     }
 
     cloneArgs.push('--branch', sourceRef, REPO_URL, TEMP_DIR);
-    execFileSync('git', cloneArgs, { stdio: 'inherit' });
+    execFileSync('git', cloneArgs, { env: getIsolatedGitEnv(), stdio: 'inherit' });
     console.log('   ✓ Clone complete');
 }
 

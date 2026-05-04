@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Command, Option } from 'commander';
+import { Command } from 'commander';
 import { ListCommand } from './commands/list.js';
 import { SyncCommand } from './commands/sync.js';
 import { UpdateAiCommand } from './commands/update-ai.js';
@@ -366,7 +366,6 @@ const workspaceProgram = program.command('workspace')
     .description('Manage n8n workspace overrides');
 
 workspaceProgram.command('status')
-    .alias('get')
     .description('Show the effective n8n workspace context resolved by the backend')
     .option('--json', 'Output effective workspace context as JSON')
     .action((options) => {
@@ -653,25 +652,21 @@ program.command('list')
     .description('Display a table of all workflows and their current status (local, remote, or both). By default, only non-archived workflows are shown.')
     .option('--local', 'Show only local workflows')
     .option('--remote', 'Show only remote workflows')
-    .option('--distant', 'Alias for --remote')
     .option('--search <query>', 'Filter by workflow name, ID, or local filename (case-insensitive partial match)')
     .option('--sort <mode>', 'Sort by "status" (default) or "name"', 'status')
     .option('--limit <number>', 'Limit the number of returned workflows', (value) => parsePositiveIntegerOption(value, '--limit'))
     .option('--include-archived', 'Include archived workflows in the output')
     .option('--only-archived', 'Show only archived workflows')
     .option('--json', 'Output full JSON instead of a table')
-    .addOption(new Option('--raw').hideHelp())
     .action(async (options) => {
-        // Combine remote and distant flags
-        const remote = options.remote || options.distant;
         if (options.sort !== 'status' && options.sort !== 'name') {
             console.error(chalk.red('❌ Invalid sort mode. Use "status" or "name".'));
             await exitWithTelemetry(1);
         }
         await new ListCommand().run({
             local: options.local,
-            remote,
-            raw: options.json || options.raw,
+            remote: options.remote,
+            raw: options.json,
             search: options.search,
             sort: options.sort,
             limit: options.limit,
@@ -685,23 +680,20 @@ program.command('find')
     .argument('<query>', 'Search query')
     .option('--local', 'Show only local workflows')
     .option('--remote', 'Show only remote workflows')
-    .option('--distant', 'Alias for --remote')
     .option('--sort <mode>', 'Sort by "status" or "name"', 'name')
     .option('--limit <number>', 'Limit the number of returned workflows', (value) => parsePositiveIntegerOption(value, '--limit'))
     .option('--include-archived', 'Include archived workflows in the search')
     .option('--only-archived', 'Search only archived workflows')
     .option('--json', 'Output full JSON instead of a table')
-    .addOption(new Option('--raw').hideHelp())
     .action(async (query, options) => {
-        const remote = options.remote || options.distant;
         if (options.sort !== 'status' && options.sort !== 'name') {
             console.error(chalk.red('❌ Invalid sort mode. Use "status" or "name".'));
             await exitWithTelemetry(1);
         }
         await new ListCommand().run({
             local: options.local,
-            remote,
-            raw: options.json || options.raw,
+            remote: options.remote,
+            raw: options.json,
             search: query,
             sort: options.sort,
             limit: options.limit,
@@ -764,8 +756,7 @@ Examples:
   $ n8nac test <workflowId> --prod --query '{"chatInput":"hello"}'
 
 Notes:
-  - For GET/HEAD webhooks, \`--data\` is sent as query parameters for backward compatibility.
-  - Prefer \`--query\` when the workflow reads from \`$json.query\` to make the intent explicit.
+  - For GET/HEAD webhooks, use \`--query\` when the workflow reads from \`$json.query\`.
   - For classic Webhook/Form test URLs, you may need to manually arm the workflow in the n8n editor before the test URL will accept a request.
 `)
     .action(async (workflowId, options) => {
@@ -933,7 +924,7 @@ executionCmd
     .argument('<id>', 'Execution ID')
     .description('Get a single execution by ID')
     .option('--include-data', 'Include execution run data and workflow details')
-    .option('--json', 'Output JSON (default behavior; accepted for script compatibility)')
+    .option('--json', 'Output JSON')
     .addHelpText('after', `
 Examples:
   $ n8nac execution get <executionId>
@@ -955,7 +946,7 @@ credentialCmd
     .command('schema')
     .argument('<type>', 'Credential type name (e.g. notionApi, slackOAuth2Api, googleApi)')
     .description('Show the JSON schema for a credential type — lists required fields and their types')
-    .option('--json', 'Output JSON (default behavior; accepted for script compatibility)')
+    .option('--json', 'Output JSON')
     .addHelpText('after', `
 Examples:
   $ n8nac credential schema openAiApi
@@ -982,7 +973,7 @@ credentialCmd
     .command('get')
     .argument('<id>', 'Credential ID')
     .description('Get credential metadata by ID (no secrets returned)')
-    .option('--json', 'Output JSON (default behavior; accepted for script compatibility)')
+    .option('--json', 'Output JSON')
     .action(async (id, options) => {
         await new CredentialCommand().get(id, { json: options.json });
     });

@@ -7,13 +7,13 @@
 #                             Defaults to /data. Mount your workflows here.
 #                             Example: -v /host/workflows:/data
 #
-#   MCP_TRANSPORT             Transport protocol: stdio | http | sse
+#   MCP_TRANSPORT             Transport protocol: stdio | http
 #                             Defaults to "stdio".
 #
-#   MCP_HOST                  Bind host for http/sse transport.
+#   MCP_HOST                  Bind host for http transport.
 #                             Defaults to "0.0.0.0" (required for Docker networking).
 #
-#   MCP_PORT                  Bind port for http/sse transport.
+#   MCP_PORT                  Bind port for http transport.
 #                             Defaults to 3000.
 
 set -e
@@ -22,14 +22,11 @@ case "${MCP_TRANSPORT:-stdio}" in
   stdio)
     exec bun /app/node_modules/@n8n-as-code/mcp/dist/cli.js "$@"
     ;;
-  http|sse)
-    echo "Error: MCP_TRANSPORT='${MCP_TRANSPORT}' is not supported by the Bun image." >&2
-    echo "The current MCP CLI only supports stdio transport here, so no HTTP/SSE listener can be started on MCP_HOST/MCP_PORT." >&2
-    echo "Use MCP_TRANSPORT=stdio, or switch to an image/entrypoint with real HTTP/SSE transport support." >&2
-    exit 1
+  http)
+    exec bun /app/node_modules/@n8n-as-code/mcp/dist/cli.js --http --host "${MCP_HOST:-0.0.0.0}" --port "${MCP_PORT:-3000}" "$@"
     ;;
   *)
-    echo "Error: Unknown MCP_TRANSPORT='${MCP_TRANSPORT}'. Valid values: stdio, http, sse." >&2
+    echo "Error: Unknown MCP_TRANSPORT='${MCP_TRANSPORT}'. Valid values: stdio, http." >&2
     exit 1
     ;;
 esac

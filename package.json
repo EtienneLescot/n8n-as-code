@@ -4,9 +4,6 @@
   "private": true,
   "description": "n8n workflow ecosystem",
   "type": "module",
-  "bin": {
-    "n8n-as-code": "./packages/cli/dist/index.js"
-  },
   "workspaces": [
     "packages/*",
     "plugins/openclaw/n8n-as-code"

@@ -24,13 +24,6 @@ npx --yes @n8n-as-code/n8n-manager@next instances list
 
 Do not mix an OpenClaw plugin installed from `@next` with `n8nac@latest`; bundled prerelease skills may reference CLI commands that are not in the stable release yet.
 
-If you previously installed `@n8n-as-code/openclaw-plugin`, remove the old install first so OpenClaw re-registers the plugin cleanly under `n8nac`:
-
-```bash
-openclaw plugins uninstall n8nac
-openclaw plugins install @n8n-as-code/n8nac
-```
-
 Restart the gateway. Runtime access, project selection, workspace sync, and
 workflow guidance are handled by the bundled `n8n-manager` and `n8n-architect`
 skills through their documented shell commands.

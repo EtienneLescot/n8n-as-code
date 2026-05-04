@@ -2,18 +2,16 @@ import fs from 'fs';
 import path from 'path';
 import EventEmitter from 'events';
 import { N8nApiClient } from './n8n-api-client.js';
-import { StateManager } from './state-manager.js';
 import { WorkflowStateTracker } from './workflow-state-tracker.js';
 import { SyncEngine } from './sync-engine.js';
 import { ResolutionManager } from './resolution-manager.js';
-import { ISyncConfig, IWorkflow, WorkflowSyncStatus, IWorkflowStatus } from '../types.js';
+import { ISyncConfig, WorkflowSyncStatus, IWorkflowStatus } from '../types.js';
 import { createProjectSlug } from './directory-utils.js';
 import { WorkspaceSetupService } from './workspace-setup-service.js';
 
 export class SyncManager extends EventEmitter {
     private client: N8nApiClient;
     private config: ISyncConfig;
-    private stateManager: StateManager | null = null;
     private watcher: WorkflowStateTracker | null = null;
     private syncEngine: SyncEngine | null = null;
     private resolutionManager: ResolutionManager | null = null;
@@ -51,7 +49,6 @@ export class SyncManager extends EventEmitter {
             console.warn('[SyncManager] Could not write workspace TypeScript stubs:', err.message);
         }
 
-        this.stateManager = new StateManager(instanceDir);
         this.watcher = new WorkflowStateTracker(this.client, {
             directory: instanceDir,
             syncInactive: true,
@@ -60,7 +57,7 @@ export class SyncManager extends EventEmitter {
         });
 
         this.syncEngine = new SyncEngine(this.client, this.watcher, instanceDir, this.config.projectId);
-        this.resolutionManager = new ResolutionManager(this.syncEngine, this.watcher, this.client);
+        this.resolutionManager = new ResolutionManager(this.syncEngine, this.watcher);
 
         this.watcher.on('statusChange', (data) => {
             this.emit('change', data);

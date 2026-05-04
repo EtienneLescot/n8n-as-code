@@ -44,17 +44,12 @@ The Docker images bundle both `n8nac` and `@n8n-as-code/mcp` — no separate ins
 
 ## Transport modes
 
-The server supports three transport protocols:
+The server supports two transport protocols:
 
 | Mode | Flag | Use case |
 | --- | --- | --- |
 | `stdio` | _(default)_ | Local clients (Claude Desktop, Cursor, VS Code) that launch the process directly |
 | `http` | `--http` | Persistent container or remote server, accessed via Streamable HTTP |
-| `sse` | `--sse` | Legacy clients that require SSE — prefer `http` for new setups |
-
-:::warning SSE is deprecated
-The SSE transport is [officially deprecated in the MCP specification](https://modelcontextprotocol.io/docs/concepts/transports#server-sent-events-sse-deprecated). **Always prefer HTTP** for new setups. SSE is supported only for backwards compatibility with older clients.
-:::
 
 ### Starting with HTTP transport
 

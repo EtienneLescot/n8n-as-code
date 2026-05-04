@@ -7,7 +7,7 @@ describe('resolveCustomNodesConfig', () => {
     let tempDir: string;
 
     beforeEach(() => {
-        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-skills-'));
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-custom-nodes-'));
     });
 
     afterEach(() => {

@@ -24,34 +24,45 @@ function normalizeHost(host: string): string {
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
 }
 
-function getSettingsValue(key: 'host' | 'apiKey' | 'syncFolder' | 'projectId' | 'projectName'): string {
-  return readString(vscode.workspace.getConfiguration('n8n').get<string>(key));
-}
-
-function getEnvValue(key: 'N8N_HOST' | 'N8N_API_KEY'): string {
-  return readString(process.env[key]).replace(/^['"]|['"]$/g, '');
-}
-
 export function getResolvedN8nConfig(workspaceRoot = getWorkspaceRoot()): ResolvedN8nWorkspaceConfig {
-  const unified = workspaceRoot ? readUnifiedWorkspaceConfig(workspaceRoot) : undefined;
-  const configService = workspaceRoot ? new ConfigService(workspaceRoot) : undefined;
-  const activeInstance = workspaceRoot && configService ? configService.getActiveInstance() : undefined;
-  const host = normalizeHost(
-    readString(unified?.host) || getSettingsValue('host') || getEnvValue('N8N_HOST')
-  );
-  const apiKey = (host && configService ? configService.getApiKey(host, activeInstance?.id) : undefined)
-    || getSettingsValue('apiKey')
-    || getEnvValue('N8N_API_KEY');
+  if (!workspaceRoot) {
+    return {
+      host: '',
+      apiKey: '',
+      syncFolder: 'workflows',
+      projectId: '',
+      projectName: '',
+      activeInstanceId: '',
+      activeInstanceName: '',
+    };
+  }
 
-  return {
-    host,
-    apiKey,
-    syncFolder: readString(unified?.syncFolder) || getSettingsValue('syncFolder') || 'workflows',
-    projectId: readString(unified?.projectId) || getSettingsValue('projectId'),
-    projectName: readString(unified?.projectName) || getSettingsValue('projectName'),
-    activeInstanceId: readString(unified?.activeInstanceId) || activeInstance?.id || '',
-    activeInstanceName: activeInstance?.name || '',
-  };
+  try {
+    const configService = new ConfigService(workspaceRoot);
+    const effective = configService.getEffectiveContext();
+    const host = normalizeHost(readString(effective?.apiBaseUrl ?? effective?.host));
+
+    return {
+      host,
+      apiKey: readString(effective?.apiKey),
+      syncFolder: readString(effective?.syncFolder) || 'workflows',
+      projectId: readString(effective?.projectId),
+      projectName: readString(effective?.projectName),
+      activeInstanceId: readString(effective?.activeInstanceId),
+      activeInstanceName: readString(effective?.activeInstanceName),
+    };
+  } catch {
+    const unified = readUnifiedWorkspaceConfig(workspaceRoot);
+    return {
+      host: normalizeHost(readString(unified.host)),
+      apiKey: '',
+      syncFolder: readString(unified.syncFolder) || 'workflows',
+      projectId: readString(unified.projectId),
+      projectName: readString(unified.projectName),
+      activeInstanceId: readString(unified.activeInstanceId),
+      activeInstanceName: '',
+    };
+  }
 }
 
 /**
@@ -81,11 +92,11 @@ export function validateN8nConfig(): ConfigValidationResult {
   const missing: string[] = [];
 
   if (!host || host.trim() === '') {
-    missing.push('n8n.host');
+    missing.push('host');
   }
 
   if (!apiKey || apiKey.trim() === '') {
-    missing.push('n8n.apiKey');
+    missing.push('apiKey');
   }
 
   return {

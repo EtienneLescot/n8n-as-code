@@ -2,8 +2,7 @@
  * skills-commander.ts
  *
  * Registers all `n8nac skills` subcommands on a given Commander program.
- * Called directly by the standalone `n8nac-skills` binary (cli.ts) **and** by
- * the unified `n8nac` CLI via `packages/cli/src/index.ts`.
+ * Called by the unified `n8nac` CLI via `packages/cli/src/index.ts`.
  */
 
 import { Command } from 'commander';
@@ -57,7 +56,7 @@ function getUnifiedCliEntryPath(): string {
         const currentDir = dirname(fileURLToPath(import.meta.url));
         return resolve(currentDir, '../../../cli/dist/index.js');
     } catch {
-        throw new Error('Unable to resolve the unified n8nac CLI for `skills mcp` redirection.');
+        throw new Error('Unable to resolve the unified n8nac CLI.');
     }
 }
 
@@ -620,45 +619,6 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                 });
 
                 console.error(chalk.green('✅ AI Context updated successfully!'));
-            } catch (error: any) {
-                console.error(chalk.red(error.message));
-                process.exit(1);
-            }
-        });
-
-    program
-        .command('mcp')
-        .description('Compatibility redirect to `n8nac mcp`')
-        .option('--cwd <path>', 'Project directory used to resolve n8nac-config.json and n8nac-custom-nodes.json', process.env.N8N_AS_CODE_PROJECT_DIR)
-        .action(async (options: { cwd?: string }) => {
-            try {
-                console.error(chalk.yellow('Warning: `n8nac skills mcp` is deprecated. Redirecting to `n8nac mcp`.\n'));
-                const cliEntry = getUnifiedCliEntryPath();
-                const args = [cliEntry, 'mcp'];
-                if (options.cwd) {
-                    args.push('--cwd', options.cwd);
-                }
-
-                const child = spawn(process.execPath, args, {
-                    cwd: process.cwd(),
-                    env: process.env,
-                    stdio: 'inherit',
-                });
-
-                await new Promise<void>((resolvePromise, reject) => {
-                    child.on('error', reject);
-                    child.on('exit', (code, signal) => {
-                        if (signal) {
-                            process.kill(process.pid, signal);
-                            return;
-                        }
-                        if ((code ?? 1) !== 0) {
-                            reject(new Error(`Redirected MCP process exited with code ${code ?? 1}.`));
-                            return;
-                        }
-                        resolvePromise();
-                    });
-                });
             } catch (error: any) {
                 console.error(chalk.red(error.message));
                 process.exit(1);

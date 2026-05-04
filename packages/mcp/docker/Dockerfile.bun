@@ -36,10 +36,10 @@ LABEL org.opencontainers.image.title="n8n-as-code MCP Server (Bun)" \
 #                            docker run -v /host/workflows:/data ...
 ENV N8N_AS_CODE_PROJECT_DIR=/data
 
-# MCP_TRANSPORT  Transport protocol: stdio | http | sse  (default: stdio)
+# MCP_TRANSPORT  Transport protocol: stdio | http  (default: stdio)
 ENV MCP_TRANSPORT=stdio
 
-# MCP_HOST / MCP_PORT  Bind address for http/sse transport.
+# MCP_HOST / MCP_PORT  Bind address for http transport.
 # Note: 0.0.0.0 is required in Docker so the port is reachable from outside the container.
 # The server defaults to 127.0.0.1 (loopback) which would not be accessible.
 ENV MCP_HOST=0.0.0.0
@@ -79,7 +79,7 @@ VOLUME ["/data"]
 # ─── Health check ─────────────────────────────────────────────────────────────
 # For stdio transport there is no port to probe — the process health is
 # monitored by the container runtime directly.
-# For http/sse transport a TCP connection to MCP_PORT is checked.
+# For http transport a TCP connection to MCP_PORT is checked.
 # nc (netcat) is provided by BusyBox on Alpine.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD sh -c 'case "${MCP_TRANSPORT:-stdio}" in stdio) exit 0 ;; *) nc -z localhost "${MCP_PORT:-3000}" ;; esac'

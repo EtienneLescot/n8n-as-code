@@ -41,10 +41,6 @@ npm install -g n8nac
 
 ## Commands
 
-### v2 migration note
-
-Version 2 moves runtime ownership out of workspace-local `n8nac-config.json` instance libraries and into the global `n8n-manager` store. The legacy `init`, `switch`, and `instance` command flows are replaced by `n8n-manager` for instance/auth/project state and `n8nac workspace` for explicit workspace overrides.
-
 ### Runtime setup
 `n8nac` does not manage n8n instances or API keys. Use `n8n-manager` for global n8n runtime state, then use `n8nac workspace` for local workspace overrides.
 
@@ -83,7 +79,7 @@ Display workflow status in a git-like model. By default shows combined local and
 ```bash
 n8nac list                    # Combined view (default)
 n8nac list --local            # Show only local workflows
-n8nac list --remote           # Show only remote workflows (alias: --distant)
+n8nac list --remote           # Show only remote workflows
 n8nac list --search billing   # Filter by partial name, ID, or filename
 n8nac list --sort name        # Strict alphabetical sorting
 n8nac find billing --limit 5  # Search-oriented shortcut
@@ -96,7 +92,7 @@ Search and filter options:
 - `--search <query>`: case-insensitive partial match against workflow name, ID, or local filename
 - `--sort <status|name>`: keep the default sync-oriented status ordering, or switch to alphabetical name sorting
 - `--limit <n>`: cap the number of results returned
-- `--raw`: output the filtered result set as JSON for scripts and pipes
+- `--json`: output the filtered result set as JSON for scripts and pipes
 
 Status values:
 

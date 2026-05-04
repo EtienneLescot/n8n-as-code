@@ -210,7 +210,7 @@ export class UpdateAiCommand {
                 console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/skills)\n'));
             } else if (updatedCount > 0 || existsSync(join(projectRoot, 'AGENTS.md'))) {
                 // Single dim notice so the user knows a refresh happened — written to stderr
-                // to avoid corrupting machine-readable stdout output (e.g. `n8nac list --raw`)
+                // to avoid corrupting machine-readable stdout output (e.g. `n8nac list --json`)
                 console.error(chalk.dim(`ℹ  n8nac: AGENTS.md refreshed (${getCliVersion() ?? 'updated'})`));
             }
 

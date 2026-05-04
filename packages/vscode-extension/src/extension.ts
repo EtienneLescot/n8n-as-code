@@ -619,43 +619,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // ── Backend configuration snapshot initialization ────────────────────────
     configurationController.start();
-
-    // ── Settings change listener ───────────────────────────────────────────
-    context.subscriptions.push(
-        vscode.workspace.onDidChangeConfiguration(async e => {
-            const suppressOnce = context.workspaceState.get<boolean>('n8n.suppressSettingsChangedOnce');
-            if (suppressOnce) {
-                await context.workspaceState.update('n8n.suppressSettingsChangedOnce', false);
-                return;
-            }
-            if (
-                e.affectsConfiguration('n8n.host') ||
-                e.affectsConfiguration('n8n.apiKey') ||
-                e.affectsConfiguration('n8n.syncFolder') ||
-                e.affectsConfiguration('n8n.projectId') ||
-                e.affectsConfiguration('n8n.projectName')
-            ) {
-                outputChannel.appendLine('[n8n] Critical settings changed. Pausing until applied.');
-                if (syncManager) {
-                    enhancedTreeProvider.setExtensionState(ExtensionState.SETTINGS_CHANGED);
-                    statusBar.showSettingsChanged();
-                } else {
-                    const root = getWorkspaceRoot();
-                    const hasUnifiedConfig = root ? fs.existsSync(path.join(root, 'n8nac-config.json')) : false;
-                    const valid = validateN8nConfig().isValid;
-                    if (!hasUnifiedConfig || !valid) {
-                        resetExtensionRuntimeState();
-                        enhancedTreeProvider.setExtensionState(ExtensionState.CONFIGURING);
-                        statusBar.showConfiguring();
-                    } else {
-                        enhancedTreeProvider.setExtensionState(ExtensionState.UNINITIALIZED);
-                        statusBar.showNotInitialized();
-                    }
-                }
-                updateContextKeys();
-            }
-        })
-    );
 }
 
 function getExistingWorkflowFileUri(workflow: IWorkflowStatus): vscode.Uri | undefined {

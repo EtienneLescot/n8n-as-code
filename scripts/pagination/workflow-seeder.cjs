@@ -65,19 +65,17 @@ async function createWorkflows(options) {
     envPath = '.env',
     count = 150,
     prefix = DEFAULT_PREFIX,
-    nameStyle,
     includeSerial,
     delayMs = 120
   } = options || {};
 
   const cfg = loadEnv(envPath);
   const { client, host } = createClient(cfg);
-  const resolvedNameStyle = nameStyle || cfg.NAME_STYLE || 'descriptive';
   const resolvedIncludeSerial = includeSerial ?? cfg.NAME_INCLUDE_SERIAL !== 'false';
 
   const created = [];
   for (let i = 1; i <= count; i++) {
-    const name = buildWorkflowName({ prefix, index: i, style: resolvedNameStyle, includeSerial: resolvedIncludeSerial });
+    const name = buildWorkflowName({ prefix, index: i, includeSerial: resolvedIncludeSerial });
     const payload = {
       name,
       nodes: [

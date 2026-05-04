@@ -1,8 +1,6 @@
 /**
  * WorkflowTransformerAdapter
  * 
- * Replaces WorkflowSanitizer with bidirectional TypeScript transformation
- * 
  * Flow:
  * - Pull: n8n JSON → TypeScript file (.workflow.ts)
  * - Push: TypeScript file → n8n JSON
@@ -127,17 +125,7 @@ export class WorkflowTransformerAdapter {
      * This ensures consistent hashing across transformations
      */
     static async hashWorkflow(tsContent: string): Promise<string> {
-        // Auto-detect format: if it starts with '{', it's JSON (for tests/compatibility)
-        const trimmed = tsContent.trim();
-        let workflow;
-        
-        if (trimmed.startsWith('{')) {
-            // JSON format (for tests/legacy)
-            workflow = JSON.parse(tsContent);
-        } else {
-            // TypeScript format - compile to JSON
-            workflow = await this.compileToJson(tsContent);
-        }
+        const workflow = await this.compileToJson(tsContent);
         
         // Normalize for hashing
         const normalized = this.normalizeForHash(workflow);
@@ -299,18 +287,5 @@ export class WorkflowTransformerAdapter {
         }
         
         return converted as IWorkflow;
-    }
-    
-    /**
-     * Backwards compatibility: cleanForStorage equivalent
-     * 
-     * This is used by legacy code that expects JSON normalization
-     * In the new TypeScript workflow, we convert to TS instead
-     */
-    static async convertToStorage(workflow: IWorkflow): Promise<string> {
-        return this.convertToTypeScript(workflow, {
-            format: true,
-            commentStyle: 'verbose'
-        });
     }
 }

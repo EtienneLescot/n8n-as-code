@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest, type ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
@@ -14,14 +13,8 @@ export interface HttpServerOptions {
     host?: string;
 }
 
-export interface SseServerOptions {
-    port?: number;
-    host?: string;
-}
-
 export interface StartServerOptions extends N8nAsCodeMcpServiceOptions {
     http?: HttpServerOptions;
-    sse?: SseServerOptions;
 }
 
 function asJsonText(data: unknown): string {
@@ -352,82 +345,8 @@ async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpSe
     await new Promise<void>(() => {});
 }
 
-async function startSseServer(service: N8nAsCodeMcpService, sseOptions: SseServerOptions, telemetry: TelemetryClient): Promise<void> {
-    const port = sseOptions.port ?? 3000;
-    const host = sseOptions.host ?? '127.0.0.1';
-
-    warnIfNonLoopback(host);
-
-    // Map of sessionId -> transport for routing POST messages to the right session
-    const transports = new Map<string, SSEServerTransport>();
-
-    const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-        if (req.url === '/sse' && req.method === 'GET') {
-            const transport = new SSEServerTransport('/message', res);
-            transports.set(transport.sessionId, transport);
-
-            transport.onclose = () => {
-                transports.delete(transport.sessionId);
-            };
-
-            const server = buildMcpServer(service, telemetry);
-            await server.connect(transport);
-            await transport.start();
-        } else if (req.url?.startsWith('/message') && req.method === 'POST') {
-            const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
-            const sessionId = url.searchParams.get('sessionId') ?? undefined;
-            const transport = sessionId ? transports.get(sessionId) : undefined;
-
-            if (!transport) {
-                res.writeHead(sessionId ? 404 : 400).end(sessionId ? 'Session not found' : 'Missing sessionId');
-                return;
-            }
-
-            const chunks: Buffer[] = [];
-            for await (const chunk of req) {
-                chunks.push(chunk as Buffer);
-            }
-            const raw = Buffer.concat(chunks).toString('utf8');
-            let body: unknown;
-            try {
-                body = raw ? JSON.parse(raw) : undefined;
-            } catch {
-                res.writeHead(400).end('Invalid JSON body');
-                return;
-            }
-
-            await transport.handlePostMessage(req, res, body);
-        } else {
-            res.writeHead(404).end('Not Found');
-        }
-    });
-
-    await new Promise<void>((resolve, reject) => {
-        httpServer.listen(port, host, () => resolve());
-        httpServer.once('error', reject);
-    });
-
-    process.stderr.write(`n8n-as-code MCP SSE server listening on http://${host}:${port}/sse\n`);
-
-    const shutdown = async () => {
-        httpServer.close();
-        for (const [, transport] of transports) {
-            await transport.close();
-        }
-        transports.clear();
-        await telemetry.flush();
-        process.exit(0);
-    };
-
-    process.once('SIGINT', shutdown);
-    process.once('SIGTERM', shutdown);
-
-    // Keep the process alive
-    await new Promise<void>(() => {});
-}
-
 export async function startN8nAsCodeMcpServer(options: StartServerOptions = {}): Promise<void> {
-    const { http: httpOptions, sse: sseOptions, ...serviceOptions } = options;
+    const { http: httpOptions, ...serviceOptions } = options;
     const service = new N8nAsCodeMcpService(serviceOptions);
     const telemetry = createTelemetryClient({ facade: 'mcp' });
 
@@ -438,14 +357,6 @@ export async function startN8nAsCodeMcpServer(options: StartServerOptions = {}):
             port_configured: httpOptions.port !== undefined,
         });
         return startHttpServer(service, httpOptions, telemetry);
-    }
-    if (sseOptions) {
-        telemetry.track('mcp_server_started', {
-            transport: 'sse',
-            host_type: LOOPBACK_HOSTS.has(sseOptions.host ?? '127.0.0.1') ? 'loopback' : 'non_loopback',
-            port_configured: sseOptions.port !== undefined,
-        });
-        return startSseServer(service, sseOptions, telemetry);
     }
     telemetry.track('mcp_server_started', { transport: 'stdio' });
     return startStdioServer(service, telemetry);

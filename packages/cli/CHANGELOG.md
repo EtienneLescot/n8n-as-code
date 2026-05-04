@@ -86,7 +86,6 @@
 * **cli:** address PR review feedback on workflowDir and push path handling ([c1af346](https://github.com/EtienneLescot/n8n-as-code/commit/c1af34625342bd6710943c6d488c0c4a64d14585))
 * **cli:** detect ambiguous instance name matches in --instance resolution ([ff56113](https://github.com/EtienneLescot/n8n-as-code/commit/ff56113206566744a1a377435a0322ac490c6e75))
 * **cli:** address Copilot review comments on global --instance option ([573a617](https://github.com/EtienneLescot/n8n-as-code/commit/573a617ddb9141320bc154dc20affbbd785a6431))
-* **cli:** hide --raw from help output using Commander hideHelp() ([a49f507](https://github.com/EtienneLescot/n8n-as-code/commit/a49f507e89a42ccfec2b975b1c76c0a321896f67))
 * **cli:** unify --json flag on list and find commands ([def2918](https://github.com/EtienneLescot/n8n-as-code/commit/def2918cb6a10d5999a6b7cd0f345b601444c3d9))
 
 ### Dependencies

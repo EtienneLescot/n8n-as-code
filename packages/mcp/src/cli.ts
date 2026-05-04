@@ -15,24 +15,12 @@ function hasFlag(flag: string): boolean {
 const cwd = getArgValue('--cwd') ?? process.env.N8N_AS_CODE_PROJECT_DIR;
 
 const useHttp = hasFlag('--http');
-const useSse = hasFlag('--sse');
 const port = getArgValue('--port');
 const host = getArgValue('--host');
-
-if (useHttp && useSse) {
-    process.stderr.write('Error: --http and --sse are mutually exclusive. Please specify only one transport flag.\n');
-    process.exit(1);
-}
 
 await startN8nAsCodeMcpServer({
     cwd,
     http: useHttp
-        ? {
-              port: port !== undefined ? Number.parseInt(port, 10) : undefined,
-              host,
-          }
-        : undefined,
-    sse: useSse
         ? {
               port: port !== undefined ? Number.parseInt(port, 10) : undefined,
               host,

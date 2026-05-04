@@ -39,20 +39,6 @@ To confirm the new version is active:
 n8nac --version
 ```
 
-:::note Migrating from `@n8n-as-code/cli`
-The CLI was previously published as `@n8n-as-code/cli`. That package is no longer maintained. The current package is **`n8nac`** (published on npm as `n8nac`).
-
-If you have both installed at the same time, the old package can shadow the new one and hide commands added in recent releases. Remove it with:
-
-```bash
-npm uninstall -g @n8n-as-code/cli
-# or, if installed as a project dependency
-npm uninstall @n8n-as-code/cli
-```
-
-After removing it, `n8nac --help` should show the full, up-to-date command list.
-:::
-
 ## 🚀 Quick Start
 
 ### Configure Runtime and Workspace
@@ -172,13 +158,13 @@ Shows a color-coded table of all workflows with their sync status, helping you u
 
 **Options:**
 - `--local`: Show only workflows that exist locally (including `EXIST_ONLY_LOCALLY`, `TRACKED`, `CONFLICT`)
-- `--remote` / `--distant`: Show only workflows that exist remotely (including `EXIST_ONLY_REMOTELY`, `TRACKED`, `CONFLICT`)
+- `--remote`: Show only workflows that exist remotely (including `EXIST_ONLY_REMOTELY`, `TRACKED`, `CONFLICT`)
 - `--search <query>`: Case-insensitive partial match on workflow name, workflow ID, or local filename
 - `--sort <status|name>`: Keep the default sync-oriented ordering or force alphabetical sorting
 - `--limit <n>`: Return only the first `n` matching workflows after filtering/sorting
 - `--include-archived`: Include archived workflows in the output (by default only non-archived workflows are shown)
 - `--only-archived`: Show only archived workflows
-- `--raw`: Output raw JSON for scripting/automation
+- `--json`: Output JSON for scripting/automation
 
 **Example:**
 ```bash
@@ -189,7 +175,7 @@ n8nac list --local              # Show only local workflows
 n8nac list --remote            # Show only remote workflows
 n8nac list --search billing     # Find workflows by partial name, ID, or filename
 n8nac list --sort name         # Sort alphabetically
-n8nac list --raw               # Output raw JSON
+n8nac list --json              # Output JSON
 ```
 
 **Output:**
@@ -206,17 +192,17 @@ Optimized for large installations where you already know part of the workflow na
 **Options:**
 - `<query>` (**required**): Search text
 - `--local`: Limit results to workflows with a local file
-- `--remote` / `--distant`: Limit results to workflows known remotely
+- `--remote`: Limit results to workflows known remotely
 - `--sort <status|name>`: Sort search results by sync status or alphabetically (defaults to `name`)
 - `--limit <n>`: Return only the first `n` matching workflows
 - `--include-archived`: Include archived workflows in search results
 - `--only-archived`: Show only archived workflows
-- `--raw`: Output the filtered result set as JSON
+- `--json`: Output the filtered result set as JSON
 
 **Example:**
 ```bash
 n8nac find billing
-n8nac find wf-123 --raw
+n8nac find wf-123 --json
 n8nac find importer --limit 10
 n8nac find archived-workflow --only-archived
 ```
@@ -447,8 +433,8 @@ n8nac test <workflowId> --prod --query '{"chatInput":"hello"}'
 ```
 
 Notes:
-- For `GET` and `HEAD` webhooks, prefer `--query <json>`.
-- `--data` still maps to query parameters for `GET` and `HEAD` requests for backward compatibility.
+- For `GET` and `HEAD` webhooks, use `--query <json>`.
+- `--data` sends a JSON request body for methods that support request bodies.
 - `test` distinguishes setup/config gaps from fixable wiring errors.
 
 ### `execution`

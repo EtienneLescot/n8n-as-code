@@ -46,7 +46,7 @@ export function registerWorkflowsCommand(program: Command) {
                 console.log('');
             });
 
-            console.log(chalk.dim(`Run 'n8nac-skills workflows info <id>' for more details.`));
+            console.log(chalk.dim(`Run 'n8nac skills workflows info <id>' for more details.`));
         });
 
     // Info command

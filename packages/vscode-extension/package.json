@@ -295,27 +295,6 @@
     "configuration": {
       "title": "n8n as Code",
       "properties": {
-        "n8n.host": {
-          "type": "string",
-          "description": "Base URL of n8n instance"
-        },
-        "n8n.apiKey": {
-          "type": "string",
-          "description": "n8n API Key"
-        },
-        "n8n.syncFolder": {
-          "type": "string",
-          "default": "workflows",
-          "description": "Local folder to sync workflows"
-        },
-        "n8n.projectId": {
-          "type": "string",
-          "description": "Project ID to sync (managed by the extension; use the Configure command to select)"
-        },
-        "n8n.projectName": {
-          "type": "string",
-          "description": "Project name to display (managed by the extension; use the Configure command to select)"
-        },
         "n8n.agent.provider": {
           "type": "string",
           "enum": [

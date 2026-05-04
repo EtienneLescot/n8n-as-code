@@ -19,8 +19,7 @@
 ### Added
 
 - **HTTP transport** (Streamable HTTP): new `--http` CLI flag starts a stateful Streamable HTTP server (`POST /mcp`, `GET /mcp`, `DELETE /mcp`) with per-session transport management. Exposes `HttpServerOptions` interface and `http` option on `StartServerOptions`.
-- **SSE transport**: new `--sse` CLI flag starts a legacy Server-Sent Events server (`GET /sse`, `POST /message?sessionId=…`) for clients that do not yet support Streamable HTTP. Exposes `SseServerOptions` interface and `sse` option on `StartServerOptions`.
-- Both `--http` and `--sse` accept `--port` (default `3000`) and `--host` (default `127.0.0.1`). When neither flag is given the server falls back to stdio.
+- `--http` accepts `--port` (default `3000`) and `--host` (default `127.0.0.1`). When no transport flag is given the server uses stdio.
 - **Tool annotations**: all six MCP tools now declare `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, and `openWorldHint: false`, making their behaviour explicit to MCP clients such as MCP Inspector.
 
 ### Fixed

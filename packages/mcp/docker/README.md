@@ -44,29 +44,14 @@ docker run -p 3000:3000 \
 
 The server listens on `http://localhost:3000/mcp`.
 
-### SSE (Server-Sent Events transport)
-
-> **⚠️ Deprecated:** The SSE transport is officially deprecated in the Model Context Protocol specification and will be removed in a future version of the MCP standard. **Prefer `MCP_TRANSPORT=http` (Streamable HTTP) in all new setups.** SSE is supported here only for backwards compatibility with older MCP clients that do not yet support the HTTP transport.
-
-```bash
-docker run -p 3000:3000 \
-  -v /path/to/your/workflows:/data \
-  -e MCP_TRANSPORT=sse \
-  ghcr.io/etiennelescot/n8nac-mcp:latest
-```
-
-The server listens on `http://localhost:3000/sse`.
-
----
-
 ## Environment variables
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `N8N_AS_CODE_PROJECT_DIR` | `/data` | Working directory for n8n workflow files. Mount your project here. |
-| `MCP_TRANSPORT` | `stdio` | Transport protocol: `stdio`, `http`, or `sse`. |
-| `MCP_HOST` | `0.0.0.0` | Bind host for `http`/`sse` transport. |
-| `MCP_PORT` | `3000` | Bind port for `http`/`sse` transport. |
+| `MCP_TRANSPORT` | `stdio` | Transport protocol: `stdio` or `http`. |
+| `MCP_HOST` | `0.0.0.0` | Bind host for `http` transport. |
+| `MCP_PORT` | `3000` | Bind port for `http` transport. |
 
 ### Custom port example
 

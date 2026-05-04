@@ -91,19 +91,6 @@ Use either:
 
 The backend resolves the effective context from explicit command overrides, workspace overrides, then global n8n-manager defaults.
 
-### Apply Changes (safety)
-When you change critical settings (host / API key / sync folder / project), synchronization is paused and an **Apply Changes** action appears (status bar and n8n panel). This prevents partial or accidental settings edits from triggering unexpected sync behavior.
-
-### Settings Reference
-
-| Parameter | Description | Default |
-| :--- | :--- | :--- |
-| `n8n.host` | URL of your n8n instance | - |
-| `n8n.apiKey` | Your n8n API Key | - |
-| `n8n.syncFolder` | Local storage folder | `workflows` |
-| `n8n.projectId` | Project ID to sync (selected via Configure) | - |
-| `n8n.projectName` | Project name (selected via Configure) | - |
-
 ## 📖 Usage
 
 ### Connecting to n8n

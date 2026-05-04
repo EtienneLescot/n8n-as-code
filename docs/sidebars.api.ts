@@ -26,10 +26,8 @@ const sidebars: SidebarsConfig = {
             'sync/services/directory-utils',
             'sync/services/n8n-api-client',
             'sync/services/schema-generator',
-            'sync/services/state-manager',
             'sync/services/sync-manager',
             'sync/services/trash-service',
-            'sync/services/workflow-sanitizer',
           ],
         },
         {

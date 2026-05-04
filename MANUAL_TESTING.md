@@ -231,7 +231,7 @@ Vérifier que toutes les fonctionnalités TypeScript workflows fonctionnent corr
 
 ## ✅ Test 5: Skills Validate - TypeScript Workflow
 
-**Objectif:** Valider un workflow TypeScript avec n8nac-skills
+**Objectif:** Valider un workflow TypeScript avec `n8nac skills`
 
 ### Étapes
 

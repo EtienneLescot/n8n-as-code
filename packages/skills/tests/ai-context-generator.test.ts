@@ -158,11 +158,9 @@ describe('AiContextGenerator', () => {
             }
         });
 
-        test('does not create legacy shim files', async () => {
+        test('does not create command shim files', async () => {
             await generator.generate(tempDir, '1.0.0');
 
-            expect(fs.existsSync(path.join(tempDir, 'n8nac-skills'))).toBe(false);
-            expect(fs.existsSync(path.join(tempDir, 'n8nac-skills.cmd'))).toBe(false);
             expect(fs.existsSync(path.join(tempDir, 'n8nac'))).toBe(false);
             expect(fs.existsSync(path.join(tempDir, 'n8nac.cmd'))).toBe(false);
         });
@@ -195,11 +193,6 @@ describe('AiContextGenerator', () => {
             expect(content).toContain('Do not manually construct n8n workflow URLs');
             expect(content).toContain('presentWorkflowResult');
             expect(content).not.toContain('{{N8NAC_CMD}}');
-        });
-
-        test('legacy OpenClaw-specific skill generator returns the canonical architect skill', () => {
-            expect(generator.getOpenClawSkillContent()).toBe(generator.getSkillContent());
-            expect(generator.getOpenClawSkillContent()).not.toContain('action: "skills"');
         });
 
         test('packaged plugin skills do not diverge from canonical generated skills', () => {
