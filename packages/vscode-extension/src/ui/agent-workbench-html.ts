@@ -25,14 +25,15 @@ function getNonce(): string {
 
 export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string {
     const nonce = getNonce();
+    const hasWorkflow = Boolean(input.workflowUrl);
     const safeWorkflowName = escapeHtml(input.workflowName);
     const safeWorkflowId = escapeHtml(input.workflowId);
+    const initialWorkflowLabel = hasWorkflow ? safeWorkflowName : 'New workflow chat';
     const safeWorkflowUrl = escapeHtml(input.workflowUrl || '');
     const safeProviderModelLabel = escapeHtml(input.providerModelLabel);
     const workflowIdJs = JSON.stringify(input.workflowId);
     const workflowUrlJs = JSON.stringify(input.workflowUrl || '');
     const workflowReloadUrlJs = JSON.stringify(input.workflowReloadUrl || input.workflowUrl || '');
-    const hasWorkflow = Boolean(input.workflowUrl);
 
     let iframePermissionOrigin = 'src';
     try {
@@ -78,25 +79,20 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         button, input, select, textarea { font: inherit; }
         .workbench {
             display: grid;
-            grid-template-columns: 290px ${hasWorkflow ? 'minmax(360px, .95fr) minmax(420px, 1.05fr)' : 'minmax(420px, 1fr)'};
+            grid-template-columns: ${hasWorkflow ? 'minmax(360px, .95fr) minmax(420px, 1.05fr)' : 'minmax(420px, 1fr)'};
             height: 100vh;
             width: 100vw;
             min-width: 0;
             min-height: 0;
         }
-        .sidebar, .chat {
+        .chat {
             min-width: 0;
             min-height: 0;
             background: var(--panel);
         }
-        .sidebar {
-            display: grid;
-            grid-template-rows: auto auto 1fr auto;
-            border-right: 1px solid var(--border);
-        }
         .chat {
             display: grid;
-            grid-template-rows: auto auto 1fr auto;
+            grid-template-rows: auto 1fr auto;
             border-right: ${hasWorkflow ? '1px solid var(--border)' : '0'};
         }
         .workflow {
@@ -105,17 +101,17 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             min-height: 0;
             background: var(--bg);
         }
-        .section-head, .chat-head, .composer {
+        .chat-head {
             padding: 12px 14px;
         }
-        .section-head, .chat-head {
+        .chat-head {
             border-bottom: 1px solid var(--border);
         }
-        .sidebar-title, .chat-title {
+        .chat-title {
             font-size: 14px;
             font-weight: 700;
         }
-        .sidebar-subtitle, .chat-subtitle, .meta-text {
+        .chat-subtitle, .meta-text {
             color: var(--muted);
             font-size: 12px;
             line-height: 1.4;
@@ -128,14 +124,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         }
         .toolbar.compact {
             margin-top: 0;
-        }
-        .session-filters, .session-actions, .session-meta, .checkpoint-panel {
-            padding: 12px 14px;
-            border-bottom: 1px solid var(--border);
-        }
-        .session-meta, .checkpoint-panel {
-            display: grid;
-            gap: 8px;
         }
         .meta-grid {
             display: grid;
@@ -154,7 +142,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         .sessions {
             overflow: auto;
             min-height: 0;
-            padding: 10px;
+            padding: 8px 0 0;
             display: grid;
             gap: 8px;
         }
@@ -216,6 +204,56 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             color: var(--muted);
             font-size: 11px;
         }
+        .history-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            display: none;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 42px;
+            background: rgba(0, 0, 0, .28);
+        }
+        .history-overlay.open { display: flex; }
+        .history-modal {
+            width: min(560px, calc(100vw - 28px));
+            max-height: min(640px, calc(100vh - 84px));
+            display: grid;
+            grid-template-rows: auto auto 1fr auto;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--panel) 96%, black 8%);
+            box-shadow: 0 18px 48px rgba(0, 0, 0, .45);
+            overflow: hidden;
+        }
+        .history-head,
+        .history-controls,
+        .history-foot {
+            padding: 12px;
+            border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+        }
+        .history-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .history-title {
+            font-size: 14px;
+            font-weight: 650;
+        }
+        .history-list {
+            overflow: auto;
+            min-height: 0;
+            padding: 10px 12px;
+        }
+        .history-foot {
+            border-bottom: 0;
+            border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
         .chat-head {
             display: grid;
             gap: 10px;
@@ -224,7 +262,68 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             display: flex;
             justify-content: space-between;
             gap: 12px;
-            align-items: flex-start;
+            align-items: center;
+        }
+        .chat-head-main {
+            min-width: 0;
+            display: grid;
+            gap: 4px;
+        }
+        .workflow-selector {
+            width: fit-content;
+            max-width: 100%;
+            min-height: 0;
+            padding: 0;
+            color: var(--muted);
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            text-align: left;
+            font-size: 12px;
+            line-height: 1.4;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .workflow-selector:hover {
+            color: var(--text);
+            text-decoration: underline;
+        }
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: flex-end;
+            min-width: 0;
+        }
+        .run-indicator {
+            display: none;
+            width: 15px;
+            height: 15px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            align-items: center;
+            margin-top: 2px;
+        }
+        .run-indicator.active { display: grid; }
+        .run-indicator span {
+            width: 3px;
+            height: 3px;
+            background: var(--muted);
+            opacity: .35;
+            animation: pixelPulse 900ms infinite ease-in-out;
+        }
+        .run-indicator span:nth-child(2) { animation-delay: 90ms; }
+        .run-indicator span:nth-child(3) { animation-delay: 180ms; }
+        .run-indicator span:nth-child(4) { animation-delay: 270ms; }
+        .run-indicator span:nth-child(5) { animation-delay: 360ms; background: var(--accent); }
+        .run-indicator span:nth-child(6) { animation-delay: 450ms; }
+        .run-indicator span:nth-child(7) { animation-delay: 540ms; }
+        .run-indicator span:nth-child(8) { animation-delay: 630ms; }
+        .run-indicator span:nth-child(9) { animation-delay: 720ms; }
+        @keyframes pixelPulse {
+            0%, 100% { opacity: .25; transform: scale(.8); }
+            50% { opacity: 1; transform: scale(1.15); }
         }
         .chat-meta {
             display: flex;
@@ -232,10 +331,37 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             flex-wrap: wrap;
             align-items: center;
         }
+        .context-pill {
+            display: none;
+            gap: 7px;
+            align-items: center;
+            max-width: 230px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 4px 8px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+        .context-pill.active { display: inline-flex; }
+        .context-meter {
+            width: 42px;
+            height: 4px;
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--border) 70%, transparent);
+            overflow: hidden;
+        }
+        .context-meter-fill {
+            display: block;
+            width: 0;
+            height: 100%;
+            background: var(--accent);
+        }
         .feed {
             overflow: auto;
             min-height: 0;
-            padding: 14px;
+            padding: 14px 14px 8px;
             display: grid;
             gap: 10px;
             align-content: start;
@@ -299,14 +425,17 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         }
         .composer {
             display: grid;
-            grid-template-columns: 1fr auto;
-            gap: 8px;
-            border-top: 1px solid var(--border);
-            background: var(--panel);
+            gap: 6px;
+            margin: 8px 12px 12px;
+            padding: 8px;
+            border: 1px solid var(--vscode-input-border, var(--border));
+            border-radius: 8px;
+            background: var(--input);
+            box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 45%, transparent);
         }
         .composer-input {
             display: grid;
-            gap: 8px;
+            gap: 4px;
             min-width: 0;
         }
         .composer-meta {
@@ -314,6 +443,21 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             gap: 8px;
             align-items: center;
             flex-wrap: wrap;
+        }
+        .composer-toolbar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            min-height: 30px;
+        }
+        .composer-provider {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            min-width: 0;
         }
         .node-context-badge {
             display: none;
@@ -331,9 +475,10 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             white-space: nowrap;
         }
         .composer-actions {
-            display: grid;
+            display: flex;
             gap: 8px;
-            align-content: end;
+            align-items: center;
+            margin-left: auto;
         }
         textarea, input[type="text"], select {
             width: 100%;
@@ -347,9 +492,13 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         }
         textarea {
             resize: none;
-            min-height: 46px;
+            min-height: 72px;
             max-height: 160px;
             line-height: 1.4;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            padding: 4px 2px;
         }
         button {
             border: none;
@@ -372,6 +521,24 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             padding: 5px 8px;
             font-size: 12px;
             min-height: 30px;
+        }
+        .composer button.small,
+        .composer .send-button,
+        .composer .stop-button {
+            min-height: 28px;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+        .send-button {
+            min-width: 30px;
+            font-size: 13px;
+            line-height: 1;
+        }
+        .stop-button {
+            display: none;
+        }
+        .stop-button.active {
+            display: inline-block;
         }
         button:disabled {
             cursor: not-allowed;
@@ -420,7 +587,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         }
         @media (max-width: 1200px) {
             .workbench {
-                grid-template-columns: 280px 1fr;
+                grid-template-columns: 1fr;
                 grid-template-rows: ${hasWorkflow ? 'minmax(360px, 48%) 1fr' : '1fr'};
             }
             .chat {
@@ -434,65 +601,37 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         @media (max-width: 900px) {
             .workbench {
                 grid-template-columns: 1fr;
-                grid-template-rows: auto auto ${hasWorkflow ? 'minmax(280px, 42%)' : ''};
+                grid-template-rows: auto ${hasWorkflow ? 'minmax(280px, 42%)' : ''};
             }
-            .sidebar, .chat {
+            .chat {
                 border-right: 0;
                 border-bottom: 1px solid var(--border);
             }
-            .composer {
-                grid-template-columns: 1fr;
-            }
+            .composer { margin: 8px; }
         }
     </style>
 </head>
 <body>
-    <main class="workbench">
-        <aside class="sidebar" aria-label="Agent sessions">
-            <div class="section-head">
-                <div class="sidebar-title">Sessions</div>
-                <div class="sidebar-subtitle">Persisted Yagr-backed conversations, checkpoints, and workflow attachment.</div>
-                <div class="toolbar compact">
-                    <button id="new-session" class="small">New session</button>
-                </div>
-            </div>
-            <div class="session-filters">
-                <div class="meta-text">Filter</div>
-                <select id="session-filter">
-                    <option value="current">Current workflow</option>
-                    <option value="all">All sessions</option>
-                    <option value="unattached">Unattached</option>
-                </select>
-            </div>
-            <div id="session-list" class="sessions"></div>
-            <div class="checkpoint-panel">
-                <div class="meta-grid" id="session-meta"></div>
-                <div class="toolbar compact">
-                    <button id="rename-session" class="secondary small" type="button">Rename</button>
-                    <button id="attach-session" class="secondary small" type="button">Attach</button>
-                    <button id="detach-session" class="secondary small" type="button">Detach</button>
-                    <button id="delete-session" class="ghost small" type="button">Delete</button>
-                </div>
-                <div class="meta-text">Checkpoints</div>
-                <div class="toolbar compact">
-                    <button id="save-checkpoint" class="secondary small" type="button">Save checkpoint</button>
-                </div>
-                <div id="checkpoint-list" class="meta-grid"></div>
-            </div>
-        </aside>
+    <main id="workbench" class="workbench">
         <section class="chat" aria-label="Agent chat">
             <header class="chat-head">
                 <div class="chat-head-row">
-                    <div>
+                    <div class="chat-head-main">
                         <div class="chat-title">Workflow Architect</div>
-                        <div id="chat-subtitle" class="chat-subtitle" title="${safeWorkflowName}">${safeWorkflowName}${safeWorkflowId ? ` · ${safeWorkflowId}` : ' · new workflow chat'}</div>
+                        <button id="workflow-selector" class="workflow-selector" type="button" title="${initialWorkflowLabel}">${initialWorkflowLabel}${safeWorkflowId ? ` · ${safeWorkflowId}` : ''}</button>
                     </div>
-                    <div class="toolbar compact">
-                        <button id="select-model" class="secondary small" type="button" title="${safeProviderModelLabel}">${safeProviderModelLabel}</button>
-                        <button id="select-reasoning" class="secondary small" type="button">Reasoning</button>
+                    <div class="header-actions">
+                        <button id="history-open" class="ghost small" type="button" title="Conversation history">History</button>
+                        <div id="context-pill" class="context-pill" title="Context usage">
+                            <span id="context-label">Context</span>
+                            <span class="context-meter" aria-hidden="true"><span id="context-meter-fill" class="context-meter-fill"></span></span>
+                        </div>
+                        <button id="compact-context" class="ghost small" type="button" title="Compact context" aria-label="Compact context">Compact</button>
+                        <div id="run-indicator" class="run-indicator" aria-label="Agent running" title="Agent running">
+                            <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                        </div>
                     </div>
                 </div>
-                <div id="chat-meta" class="chat-meta"></div>
             </header>
             <div id="feed" class="feed"></div>
             <form id="composer" class="composer">
@@ -501,10 +640,16 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                         <div id="node-context-badge" class="node-context-badge" title=""></div>
                     </div>
                     <textarea id="prompt" placeholder="Ask the n8n agent what to do with this workflow..." rows="2"></textarea>
-                </div>
-                <div class="composer-actions">
-                    <button id="send" type="submit">Send</button>
-                    <button id="stop" class="secondary" type="button" disabled>Stop</button>
+                    <div class="composer-toolbar">
+                        <div class="composer-provider">
+                            <button id="select-model" class="secondary small" type="button" title="${safeProviderModelLabel}">${safeProviderModelLabel}</button>
+                            <button id="select-reasoning" class="secondary small" type="button">Reasoning</button>
+                        </div>
+                        <div class="composer-actions">
+                            <button id="stop" class="ghost stop-button" type="button" disabled>Stop</button>
+                            <button id="send" class="send-button" type="submit" title="Send" aria-label="Send">▶</button>
+                        </div>
+                    </div>
                 </div>
             </form>
         </section>
@@ -517,6 +662,28 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 allow="${iframeAllowPolicy}">
             </iframe>
         </section>` : ''}
+        <div id="history-overlay" class="history-overlay" role="dialog" aria-modal="true" aria-label="Conversation history">
+            <div class="history-modal">
+                <div class="history-head">
+                    <div>
+                        <div class="history-title">Conversation History</div>
+                        <div class="meta-text">Open a previous chat or start a new one.</div>
+                    </div>
+                    <button id="history-close" class="ghost small" type="button" aria-label="Close history">Close</button>
+                </div>
+                <div class="history-controls">
+                    <select id="session-filter" aria-label="Filter conversations">
+                        <option value="current">Current workflow</option>
+                        <option value="all">All conversations</option>
+                        <option value="unattached">New workflow chats</option>
+                    </select>
+                </div>
+                <div id="session-list" class="sessions history-list"></div>
+                <div class="history-foot">
+                    <button id="new-session" class="secondary small" type="button">New chat</button>
+                </div>
+            </div>
+        </div>
     </main>
     <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
@@ -556,27 +723,25 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const nodeContextBadge = document.getElementById('node-context-badge');
         const sessionList = document.getElementById('session-list');
         const sessionFilter = document.getElementById('session-filter');
-        const sessionMeta = document.getElementById('session-meta');
-        const checkpointList = document.getElementById('checkpoint-list');
-        const chatSubtitle = document.getElementById('chat-subtitle');
-        const chatMeta = document.getElementById('chat-meta');
+        const workflowSelector = document.getElementById('workflow-selector');
+        const contextPill = document.getElementById('context-pill');
+        const contextLabel = document.getElementById('context-label');
+        const contextMeterFill = document.getElementById('context-meter-fill');
         const newSessionButton = document.getElementById('new-session');
-        const renameSessionButton = document.getElementById('rename-session');
-        const attachSessionButton = document.getElementById('attach-session');
-        const detachSessionButton = document.getElementById('detach-session');
-        const deleteSessionButton = document.getElementById('delete-session');
-        const saveCheckpointButton = document.getElementById('save-checkpoint');
+        const historyOpenButton = document.getElementById('history-open');
+        const historyCloseButton = document.getElementById('history-close');
+        const historyOverlay = document.getElementById('history-overlay');
+        const runIndicator = document.getElementById('run-indicator');
+        const compactContextButton = document.getElementById('compact-context');
 
         function setRunning(running) {
             isRunning = running;
             sendButton.disabled = running;
             stopButton.disabled = !running;
+            stopButton.classList.toggle('active', running);
             newSessionButton.disabled = running;
-            renameSessionButton.disabled = running;
-            attachSessionButton.disabled = running;
-            detachSessionButton.disabled = running;
-            deleteSessionButton.disabled = running;
-            saveCheckpointButton.disabled = running;
+            compactContextButton.disabled = running;
+            if (runIndicator) runIndicator.classList.toggle('active', running);
         }
 
         function escapeText(value) {
@@ -681,7 +846,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 empty.textContent = activeFilter === 'all'
                     ? 'No sessions yet.'
                     : activeFilter === 'unattached'
-                        ? 'No unattached sessions.'
+                        ? 'No new workflow chats.'
                         : 'No sessions for this workflow yet.';
                 sessionList.appendChild(empty);
                 return;
@@ -691,7 +856,10 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 const item = document.createElement('button');
                 item.type = 'button';
                 item.className = 'session-item' + (session.isActive ? ' active' : '');
-                item.addEventListener('click', () => vscode.postMessage({ type: 'agent.session.select', sessionId: session.id }));
+                item.addEventListener('click', () => {
+                    closeHistory();
+                    vscode.postMessage({ type: 'agent.session.select', sessionId: session.id });
+                });
 
                 const head = document.createElement('div');
                 head.className = 'session-item-head';
@@ -726,104 +894,45 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             return el;
         }
 
-        function renderMeta() {
-            sessionMeta.innerHTML = '';
-            checkpointList.innerHTML = '';
-            if (!state || !state.session) {
-                sessionMeta.textContent = '';
-                return;
-            }
+        function openHistory() {
+            renderSessions();
+            historyOverlay.classList.add('open');
+        }
 
-            const session = state.session;
-            const rows = [
-                ['Session', session.title],
-                ['Attached', session.workflowLabel],
-                ['Checkpoints', String(session.checkpoints.length)],
-                ['Compactions', String(session.totalCompactions)],
-                ['Context', session.contextUsage ? session.contextUsage.fillPercent + '% of ' + session.contextUsage.contextWindowTokens + ' tokens' : 'No estimate yet'],
-            ];
-            for (const [label, value] of rows) {
-                const row = document.createElement('div');
-                row.className = 'meta-row';
-                const left = document.createElement('span');
-                left.className = 'meta-text';
-                left.textContent = label;
-                const right = document.createElement('code');
-                right.textContent = value;
-                row.append(left, right);
-                sessionMeta.appendChild(row);
-            }
-
-            if (!session.checkpoints.length) {
-                const empty = document.createElement('div');
-                empty.className = 'meta-text';
-                empty.textContent = 'No checkpoints saved for this session.';
-                checkpointList.appendChild(empty);
-            } else {
-                for (const checkpoint of session.checkpoints) {
-                    const row = document.createElement('div');
-                    row.className = 'session-item';
-                    const head = document.createElement('div');
-                    head.className = 'session-item-head';
-                    const title = document.createElement('div');
-                    title.className = 'session-item-title';
-                    title.textContent = checkpoint.id;
-                    const summary = document.createElement('div');
-                    summary.className = 'session-item-foot';
-                    const left = document.createElement('span');
-                    left.textContent = checkpoint.messageCount + ' msgs';
-                    const right = document.createElement('span');
-                    right.textContent = formatDate(checkpoint.createdAt);
-                    summary.append(left, right);
-                    head.append(title);
-                    row.append(head, summary);
-
-                    const actions = document.createElement('div');
-                    actions.className = 'toolbar compact';
-                    const restore = document.createElement('button');
-                    restore.className = 'secondary small';
-                    restore.type = 'button';
-                    restore.textContent = 'Restore';
-                    restore.disabled = isRunning;
-                    restore.addEventListener('click', () => vscode.postMessage({ type: 'agent.checkpoint.restore', sessionId: session.sessionId, checkpointId: checkpoint.id }));
-                    const del = document.createElement('button');
-                    del.className = 'ghost small';
-                    del.type = 'button';
-                    del.textContent = 'Delete';
-                    del.disabled = isRunning;
-                    del.addEventListener('click', () => vscode.postMessage({ type: 'agent.checkpoint.delete', sessionId: session.sessionId, checkpointId: checkpoint.id }));
-                    actions.append(restore, del);
-                    row.append(actions);
-                    checkpointList.appendChild(row);
-                }
-            }
-
-            attachSessionButton.disabled = isRunning || !workflowId || session.workflowId === workflowId;
-            detachSessionButton.disabled = isRunning || !session.workflowId;
+        function closeHistory() {
+            historyOverlay.classList.remove('open');
         }
 
         function renderChatMeta() {
-            chatMeta.innerHTML = '';
             if (!state) return;
-            const bits = [];
-            bits.push(badge((state.provider || 'provider') + (state.model ? ' / ' + state.model : ''), ''));
-            if (state.reasoningEffort) bits.push(badge('Reasoning ' + state.reasoningEffort, ''));
-            if (state.session && state.session.workflowLabel) bits.push(badge(state.session.workflowLabel, ''));
-            if (state.session && state.session.lastCompaction) bits.push(badge('Compacted', 'success'));
-            bits.forEach((el) => chatMeta.appendChild(el));
+            const providerLabel = (state.provider || 'provider') + (state.model ? ' / ' + state.model : '');
+            selectModelButton.textContent = providerLabel;
+            selectModelButton.title = providerLabel;
+            selectReasoningButton.textContent = state.reasoningEffort ? 'Reasoning ' + state.reasoningEffort : 'Reasoning';
             selectReasoningButton.style.display = state.supportsReasoningEffort ? 'inline-block' : 'none';
+            const usage = state.session && state.session.contextUsage;
+            if (!usage) {
+                contextPill.classList.remove('active');
+                contextLabel.textContent = 'Context';
+                contextMeterFill.style.width = '0%';
+                return;
+            }
+            const percent = Math.max(0, Math.min(100, Number(usage.fillPercent) || 0));
+            contextPill.classList.add('active');
+            contextLabel.textContent = percent + '% context';
+            contextPill.title = percent + '% of ' + usage.contextWindowTokens + ' tokens · prompt ' + usage.promptTokens + ' · completion ' + usage.completionTokens + ' · ' + usage.source;
+            contextMeterFill.style.width = percent + '%';
         }
 
         function renderFeed() {
             feed.innerHTML = '';
-            if (!state || !state.session || !state.session.entries.length) {
-                const empty = document.createElement('div');
-                empty.className = 'entry system';
-                empty.textContent = 'Ask for a workflow inspection, create a new session, or attach a saved conversation to this workflow.';
-                feed.appendChild(empty);
+            const visibleEntries = state && state.session && Array.isArray(state.session.entries)
+                ? state.session.entries.filter((entry) => entry.kind !== 'context-usage')
+                : [];
+            if (!visibleEntries.length) {
                 return;
             }
-            for (const entry of state.session.entries) {
+            for (const entry of visibleEntries) {
                 feed.appendChild(renderEntry(entry));
             }
             feed.scrollTop = feed.scrollHeight;
@@ -839,13 +948,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             if (entry.kind === 'assistant-body') {
                 return textEntry('assistant' + (entry.streaming ? ' streaming' : ''), entry.text || '');
             }
-            if (entry.kind === 'context-usage') {
-                const el = document.createElement('div');
-                el.className = 'entry context';
-                el.innerHTML = '<div class="entry-head"><div class="entry-title">Context usage</div><div class="entry-subtle">' + escapeHtml(entry.usage.source) + '</div></div>' +
-                    '<div>' + escapeHtml(entry.usage.fillPercent + '% of ' + entry.usage.contextWindowTokens + ' tokens · prompt ' + entry.usage.promptTokens + ' · completion ' + entry.usage.completionTokens) + '</div>';
-                return el;
-            }
+            if (entry.kind === 'context-usage') return document.createComment('context usage');
             if (entry.kind === 'compaction') {
                 const el = document.createElement('div');
                 el.className = 'entry compaction';
@@ -853,12 +956,12 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 details.className = 'details';
                 details.innerHTML = '<summary>Show compaction details</summary>' +
                     '<div class="details-body">' +
-                    'Source: ' + escapeHtml(entry.event.source) + '\n' +
-                    'Messages compacted: ' + escapeHtml(entry.event.messagesCompacted) + '\n' +
+                    'Source: ' + escapeHtml(entry.event.source) + '\\n' +
+                    'Messages compacted: ' + escapeHtml(entry.event.messagesCompacted) + '\\n' +
                     'Preserved recent messages: ' + escapeHtml(entry.event.preservedRecentMessages) +
-                    (entry.event.estimatedTokens ? '\nEstimated tokens: ' + escapeHtml(entry.event.estimatedTokens) : '') +
-                    (entry.event.thresholdTokens ? '\nThreshold tokens: ' + escapeHtml(entry.event.thresholdTokens) : '') +
-                    (entry.event.fallbackReason ? '\nFallback reason: ' + escapeHtml(entry.event.fallbackReason) : '') +
+                    (entry.event.estimatedTokens ? '\\nEstimated tokens: ' + escapeHtml(entry.event.estimatedTokens) : '') +
+                    (entry.event.thresholdTokens ? '\\nThreshold tokens: ' + escapeHtml(entry.event.thresholdTokens) : '') +
+                    (entry.event.fallbackReason ? '\\nFallback reason: ' + escapeHtml(entry.event.fallbackReason) : '') +
                     '</div>';
                 el.innerHTML = '<div class="entry-head"><div class="entry-title">Context compacted</div><div class="entry-subtle">' + escapeHtml(new Date(entry.timestamp).toLocaleTimeString()) + '</div></div><div>' + escapeHtml(entry.event.summary) + '</div>';
                 el.appendChild(details);
@@ -894,13 +997,13 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
 
         function renderAll() {
             renderSessions();
-            renderMeta();
             renderChatMeta();
             renderFeed();
             if (state && state.workflow) {
-                chatSubtitle.textContent = state.workflow.name
+                workflowSelector.textContent = state.workflow.name
                     ? state.workflow.name + (state.workflow.id ? ' · ' + state.workflow.id : '')
                     : 'New workflow chat';
+                workflowSelector.title = workflowSelector.textContent;
             }
         }
 
@@ -957,9 +1060,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                     fillPercent: event.fillPercent,
                     source: event.source,
                 };
-                const filtered = entries.filter((entry) => entry.kind !== 'context-usage');
-                filtered.push({ kind: 'context-usage', id: crypto.randomUUID(), timestamp: Date.now(), usage: state.session.contextUsage });
-                state.session.entries = filtered;
                 renderAll();
                 return;
             } else if (event.type === 'error') {
@@ -985,26 +1085,19 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         });
 
         stopButton.addEventListener('click', () => vscode.postMessage({ type: 'agent.stop' }));
+        workflowSelector.addEventListener('click', () => vscode.postMessage({ type: 'agent.workflow.select' }));
+        historyOpenButton.addEventListener('click', openHistory);
+        historyCloseButton.addEventListener('click', closeHistory);
+        historyOverlay.addEventListener('click', (event) => {
+            if (event.target === historyOverlay) closeHistory();
+        });
         selectModelButton.addEventListener('click', () => vscode.postMessage({ type: 'agent.selectModel' }));
         selectReasoningButton.addEventListener('click', () => vscode.postMessage({ type: 'agent.selectReasoningEffort' }));
-        newSessionButton.addEventListener('click', () => vscode.postMessage({ type: 'agent.session.new' }));
-        saveCheckpointButton.addEventListener('click', () => state && vscode.postMessage({ type: 'agent.checkpoint.save', sessionId: state.activeSessionId }));
-        renameSessionButton.addEventListener('click', () => {
-            if (!state || !state.session) return;
-            const title = window.prompt('Rename session', state.session.title);
-            if (typeof title === 'string' && title.trim()) {
-                vscode.postMessage({ type: 'agent.session.rename', sessionId: state.activeSessionId, title: title.trim() });
-            }
+        newSessionButton.addEventListener('click', () => {
+            closeHistory();
+            vscode.postMessage({ type: 'agent.session.new' });
         });
-        attachSessionButton.addEventListener('click', () => state && vscode.postMessage({ type: 'agent.session.attach', sessionId: state.activeSessionId }));
-        detachSessionButton.addEventListener('click', () => state && vscode.postMessage({ type: 'agent.session.detach', sessionId: state.activeSessionId }));
-        deleteSessionButton.addEventListener('click', () => {
-            if (!state || !state.session) return;
-            const confirmed = window.confirm('Delete session "' + state.session.title + '"?');
-            if (confirmed) {
-                vscode.postMessage({ type: 'agent.session.delete', sessionId: state.activeSessionId });
-            }
-        });
+        compactContextButton.addEventListener('click', () => state && vscode.postMessage({ type: 'agent.context.compact', sessionId: state.activeSessionId }));
         sessionFilter.addEventListener('change', () => {
             activeFilter = sessionFilter.value || 'current';
             renderSessions();

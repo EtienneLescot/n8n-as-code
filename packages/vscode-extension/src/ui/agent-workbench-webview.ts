@@ -158,7 +158,7 @@ export class AgentWorkbenchWebview {
 
         if (payload.type === 'agent.send') {
             const nodeContext = this.sanitizeNodeContext(payload.nodeContext) ?? this._nodeContext;
-            await this._agentRuntime.sendPrompt({
+            const result = await this._agentRuntime.sendPrompt({
                 prompt: String(payload.text || ''),
                 workflowId: this._workflow?.id,
                 workflowName: this._workflow?.name,
@@ -168,7 +168,7 @@ export class AgentWorkbenchWebview {
                 nodeContext,
                 sessionId: typeof payload.sessionId === 'string' ? payload.sessionId : undefined,
             }, (event) => this._panel.webview.postMessage(event));
-            if (this._workflow?.id) {
+            if (result.workflowChanged && this._workflow?.id) {
                 await this._panel.webview.postMessage({ type: 'workflow.reload' });
             }
             return;
@@ -178,6 +178,11 @@ export class AgentWorkbenchWebview {
             await vscode.commands.executeCommand('n8n.agent.selectModel');
             this._providerModelLabel = this.getProviderModelLabel();
             await this.postWorkbenchState();
+            return;
+        }
+
+        if (payload.type === 'agent.workflow.select') {
+            await vscode.commands.executeCommand('n8n.openAgentWorkbench');
             return;
         }
 
@@ -241,6 +246,11 @@ export class AgentWorkbenchWebview {
             await this.postWorkbenchState(await this._agentRuntime.deleteCheckpoint(payload.sessionId, payload.checkpointId, this.buildWorkbenchInput()));
             return;
         }
+
+        if (payload.type === 'agent.context.compact' && typeof payload.sessionId === 'string') {
+            await this.postWorkbenchState(await this._agentRuntime.compactSession(payload.sessionId, this.buildWorkbenchInput()));
+            return;
+        }
     }
 
     private sanitizeNodeContext(value: unknown): AgentWorkbenchNodeContext | undefined {
@@ -263,9 +273,7 @@ export class AgentWorkbenchWebview {
         const config = vscode.workspace.getConfiguration('n8n.agent');
         const provider = String(config.get<string>('provider') || 'openai').trim() || 'openai';
         const model = String(config.get<string>('model') || '').trim();
-        const reasoningEffort = String(config.get<string>('reasoningEffort') || '').trim();
-        const label = model ? `${provider} / ${model}` : provider;
-        return reasoningEffort ? `${label} / ${reasoningEffort}` : label;
+        return model ? `${provider} / ${model}` : provider;
     }
 
     private buildWorkbenchInput(): {

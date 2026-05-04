@@ -45,9 +45,10 @@ test('Agent Workbench HTML: renders provider/session controls', () => {
 
     assert.ok(html.includes('id="select-model"'), 'Must render provider/model button in the chat header');
     assert.ok(html.includes('id="select-reasoning"'), 'Must render reasoning effort button');
-    assert.ok(html.includes('id="session-list"'), 'Must render the persisted session sidebar');
+    assert.ok(html.includes('id="history-open"'), 'Must render the conversation history button');
+    assert.ok(html.includes('id="session-list"'), 'Must render the persisted session list in history modal');
     assert.ok(html.includes("type: 'agent.session.new'"), 'Must allow creating new persisted sessions');
-    assert.ok(html.includes("type: 'agent.checkpoint.save'"), 'Must expose checkpoint save actions');
+    assert.ok(html.includes('history-overlay'), 'Must render conversation history as a modal overlay');
     assert.ok(html.includes("type: 'agent.ready'"), 'Must request initial state from the extension host');
     assert.ok(html.includes('openai / gpt-5.4'), 'Must render selected provider/model label');
     assert.ok(!html.includes('Agent workbench is ready. Ask for a workflow inspection'), 'Must remove initial system message');

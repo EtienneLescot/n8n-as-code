@@ -116,6 +116,10 @@ export interface AgentWorkbenchState {
     isRunning: boolean;
 }
 
+export interface AgentRunResult {
+    workflowChanged: boolean;
+}
+
 export type AgentStreamEvent =
     | { type: 'start'; sessionId: string; message: string }
     | { type: 'progress'; tone: 'info' | 'success' | 'error'; title: string; detail?: string; phase?: string }
@@ -365,18 +369,54 @@ export class AgentRuntimeController implements vscode.Disposable {
         return this.getWorkbenchState(input);
     }
 
-    async sendPrompt(input: AgentPromptInput, postMessage: AgentWorkbenchPostMessage): Promise<void> {
+    async compactSession(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        const sessions = await this.getSessionRuntime();
+        const handle = await this.ensureAgentHandleWithCheckpoint(input);
+        const entries = this.readSessionEntries(sessions.service, sessionId);
+        const compactableEntries = entries.filter((entry) => entry.kind !== 'context-usage' && entry.kind !== 'compaction');
+        if (compactableEntries.length <= 8) {
+            return this.getWorkbenchState(input);
+        }
+
+        const preservedRecentMessages = 8;
+        const retained = compactableEntries.slice(-preservedRecentMessages);
+        const compacted = compactableEntries.slice(0, -preservedRecentMessages);
+        const summary = this.buildFallbackCompactionSummary(compacted);
+        const event: AgentCompactionSummary = {
+            summary,
+            source: 'fallback',
+            messagesCompacted: compacted.length,
+            preservedRecentMessages: retained.length,
+            estimatedTokens: Math.ceil(compacted.map((entry) => this.getEntryText(entry)).join('\n').length / 4),
+        };
+
+        await handle.compactionService.notifyCompaction(sessionId, event);
+        const latestUsage = [...entries].reverse().find((entry): entry is Extract<AgentTimelineEntry, { kind: 'context-usage' }> => entry.kind === 'context-usage');
+        this.writeSessionEntries(sessions.service, sessionId, [
+            ...(latestUsage ? [latestUsage] : []),
+            { kind: 'compaction', id: randomUUID(), timestamp: Date.now(), event },
+            ...retained,
+        ]);
+        await sessions.service.saveCheckpoint(sessionId, {
+            payloadState: handle.compactionService.getState(sessionId),
+        }).catch((error: any) => {
+            this.outputChannel.appendLine(`[n8n-agent] Manual compaction checkpoint failed: ${error?.message || String(error)}`);
+        });
+        return this.getWorkbenchState(input);
+    }
+
+    async sendPrompt(input: AgentPromptInput, postMessage: AgentWorkbenchPostMessage): Promise<AgentRunResult> {
         if (this.activeRun) {
             await postMessage({
                 type: 'agent.error',
                 message: 'An agent run is already in progress. Stop it before sending another prompt.',
             });
-            return;
+            return { workflowChanged: false };
         }
 
         const prompt = input.prompt.trim();
         if (!prompt) {
-            return;
+            return { workflowChanged: false };
         }
 
         const sessions = await this.getSessionRuntime();
@@ -403,10 +443,12 @@ export class AgentRuntimeController implements vscode.Disposable {
         await postMessage({ type: 'agent.streamEvent', event: { type: 'start', sessionId: activeRecord.id, message: prompt } });
 
         try {
-            entries = await this.runInitialAgentTurn({ ...input, sessionId: activeRecord.id }, entries, postMessage, abortController.signal);
+            const runResult = await this.runInitialAgentTurn({ ...input, sessionId: activeRecord.id }, entries, postMessage, abortController.signal);
+            entries = runResult.entries;
             this.writeSessionEntries(sessions.service, activeRecord.id, entries);
             await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: activeRecord.id }) });
             await postMessage({ type: 'agent.done' });
+            return { workflowChanged: runResult.workflowChanged };
         } catch (error: any) {
             const message = error?.message || String(error);
             this.outputChannel.appendLine(`[n8n-agent] Run failed: ${message}`);
@@ -415,6 +457,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             await postMessage({ type: 'agent.streamEvent', event: { type: 'error', error: message } });
             await postMessage({ type: 'agent.error', message });
             await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: activeRecord.id }) });
+            return { workflowChanged: false };
         } finally {
             if (this.activeRun?.abortController === abortController) {
                 this.activeRun = undefined;
@@ -443,23 +486,29 @@ export class AgentRuntimeController implements vscode.Disposable {
         initialEntries: AgentTimelineEntry[],
         postMessage: AgentWorkbenchPostMessage,
         signal: AbortSignal,
-    ): Promise<AgentTimelineEntry[]> {
+    ): Promise<{ entries: AgentTimelineEntry[]; workflowChanged: boolean }> {
         await this.throwIfAborted(signal);
 
         const providerRegistry = await this.loadYagrProviderRegistry().catch((error: any) => ({ error: error?.message || String(error) }));
         if ('error' in providerRegistry) {
-            return [
-                ...initialEntries,
-                this.createSystemNotice(await this.buildScaffoldResponse(input, providerRegistry.error)),
-            ];
+            return {
+                entries: [
+                    ...initialEntries,
+                    this.createSystemNotice(await this.buildScaffoldResponse(input, providerRegistry.error)),
+                ],
+                workflowChanged: false,
+            };
         }
 
         const providerConfig = await this.getProviderRuntimeConfig(providerRegistry);
         if (!providerConfig.ready) {
-            return [
-                ...initialEntries,
-                this.createSystemNotice(await this.buildScaffoldResponse(input, providerConfig.reason)),
-            ];
+            return {
+                entries: [
+                    ...initialEntries,
+                    this.createSystemNotice(await this.buildScaffoldResponse(input, providerConfig.reason)),
+                ],
+                workflowChanged: false,
+            };
         }
 
         const handle = await this.getYagrAgentHandle(providerConfig, input);
@@ -578,7 +627,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             };
             entries = this.applyStreamEvent(entries, finalEvent);
             await postMessage({ type: 'agent.streamEvent', event: finalEvent });
-            return entries;
+            return { entries, workflowChanged: Boolean(accumulator.fileModificationDetected) };
         }
 
         const result = await (agent as any).invoke({ messages }, config);
@@ -591,7 +640,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         };
         entries = this.applyStreamEvent(entries, finalEvent);
         await postMessage({ type: 'agent.streamEvent', event: finalEvent });
-        return entries;
+        return { entries, workflowChanged: false };
     }
 
     private truncateOperationDetail(value: unknown): string | undefined {
@@ -1002,7 +1051,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                 isClosed: Boolean(record?.closedAt),
                 checkpointCount: checkpoints.length,
                 workflowId,
-                workflowLabel: workflowId ? workflowId : 'Unattached',
+                workflowLabel: workflowId ? workflowId : 'New workflow chat',
                 totalCompactions: compactionState.totalCompactions,
             };
         }));
@@ -1048,8 +1097,35 @@ export class AgentRuntimeController implements vscode.Disposable {
             lastCompaction: compactionState.lastCompaction || undefined,
             totalCompactions: compactionState.totalCompactions,
             workflowId,
-            workflowLabel: workflowId || 'Unattached',
+            workflowLabel: workflowId || 'New workflow chat',
         };
+    }
+
+    private buildFallbackCompactionSummary(entries: AgentTimelineEntry[]): string {
+        const snippets = entries
+            .map((entry) => this.getEntryText(entry).trim())
+            .filter(Boolean)
+            .slice(-6)
+            .map((text) => text.length > 140 ? `${text.slice(0, 140)}...` : text);
+        return snippets.length
+            ? `Manual context compaction preserved recent conversation and summarized prior context: ${snippets.join(' | ')}`
+            : 'Manual context compaction preserved recent conversation and removed older low-signal context.';
+    }
+
+    private getEntryText(entry: AgentTimelineEntry): string {
+        if (entry.kind === 'user-message' || entry.kind === 'system-notice' || entry.kind === 'assistant-body') {
+            return entry.text;
+        }
+        if (entry.kind === 'operation') {
+            return [entry.title, entry.detail, entry.summary, entry.body].filter(Boolean).join(' ');
+        }
+        if (entry.kind === 'compaction') {
+            return entry.event.summary;
+        }
+        if (entry.kind === 'context-usage') {
+            return `${entry.usage.fillPercent}% context usage`;
+        }
+        return '';
     }
 
     private readSessionEntries(service: SessionServiceHandle, sessionId: string): AgentTimelineEntry[] {
@@ -1061,7 +1137,16 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     private normalizeEntries(value: unknown[] | undefined): AgentTimelineEntry[] {
-        return Array.isArray(value) ? value as AgentTimelineEntry[] : [];
+        return Array.isArray(value)
+            ? (value as AgentTimelineEntry[]).filter((entry) => !this.isNoiseOperation(entry))
+            : [];
+    }
+
+    private isNoiseOperation(entry: AgentTimelineEntry): boolean {
+        if (entry.kind !== 'operation') return false;
+        const title = entry.title.toLowerCase();
+        const detail = (entry.detail || entry.summary || '').toLowerCase();
+        return title === 'agent runtime' || detail === 'run completed' || title.includes('run completed');
     }
 
     private applyStreamEvent(entries: AgentTimelineEntry[], event: AgentStreamEvent): AgentTimelineEntry[] {
