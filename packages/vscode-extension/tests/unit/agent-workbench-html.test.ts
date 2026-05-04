@@ -48,3 +48,17 @@ test('Agent Workbench HTML: renders provider model button in composer', () => {
     assert.ok(!html.includes('class="kicker"'), 'Must remove workbench kicker from header');
     assert.ok(!html.includes('Agent workbench is ready. Ask for a workflow inspection'), 'Must remove initial system message');
 });
+
+test('Agent Workbench HTML: Enter submits and Shift+Enter keeps multiline input', () => {
+    const { buildAgentWorkbenchHtml } = require('../../src/ui/agent-workbench-html.js');
+    const html: string = buildAgentWorkbenchHtml({
+        workflowId: 'wf-1',
+        workflowName: 'Workflow 1',
+        workflowUrl: 'http://localhost:5678/workflow/wf-1',
+        providerModelLabel: 'openai / gpt-5.4',
+    });
+
+    assert.ok(html.includes("event.key === 'Enter' && !event.shiftKey"), 'Must submit on Enter unless Shift is held');
+    assert.ok(html.includes('event.preventDefault()'), 'Must prevent textarea newline insertion on submit');
+    assert.ok(html.includes('form.requestSubmit()'), 'Must submit the composer form from the Enter key handler');
+});
