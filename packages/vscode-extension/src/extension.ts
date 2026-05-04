@@ -772,6 +772,7 @@ async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: I
             context,
             workflow,
             openTarget?.url,
+            openTarget?.targetUrl,
             requireAgentRuntimeController(),
             vscode.ViewColumn.One,
         );
@@ -783,7 +784,7 @@ async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: I
     }
 }
 
-async function resolveWorkflowWebviewTarget(workflow: IWorkflowStatus): Promise<{ url: string }> {
+async function resolveWorkflowWebviewTarget(workflow: IWorkflowStatus): Promise<{ url: string; targetUrl: string }> {
     if (!workflow.id) {
         throw new Error(`Workflow "${workflow.name}" does not have a remote ID.`);
     }
@@ -814,7 +815,7 @@ async function resolveWorkflowWebviewTarget(workflow: IWorkflowStatus): Promise<
         outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} through direct webview route.`);
     }
 
-    return { url: openTarget.url };
+    return { url: openTarget.url, targetUrl: openTarget.targetUrl };
 }
 
 function updateContextKeys() {

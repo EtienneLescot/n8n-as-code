@@ -168,6 +168,14 @@ test('Parent webview HTML: iframeOrigin reflects the supplied URL (panel reuse)'
     assert.ok(!html2.includes('http://localhost:5000'), 'Second HTML must not contain stale origin from first URL');
 });
 
+test('Parent webview HTML: seamless reload forces iframe navigation', () => {
+    const { buildWebviewHtml } = require('../../src/ui/webview-html.js');
+    const html: string = buildWebviewHtml('wf-1', 'http://localhost:5678/workflow/wf-1');
+
+    assert.ok(html.includes('_n8nacRefresh'), 'Reload must add a cache-busting query param');
+    assert.ok(html.includes('pendingFrame.src = reloadUrl.toString()'), 'Reload must assign a fresh iframe URL');
+});
+
 // ── 4 : macOS-only activation ───────────────────────────────────────────────
 
 test('registerClipboardHandler: guard skips registration on non-darwin platforms', () => {
