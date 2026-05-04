@@ -14,6 +14,7 @@ export class AgentWorkbenchWebview {
     private _registryDisposable: { dispose(): void } | undefined;
     private _workflow: IWorkflowStatus | undefined;
     private _workflowUrl: string | undefined;
+    private _workflowReloadUrl: string | undefined;
     private _onClipboardPasteRequest: ((panel: vscode.WebviewPanel, grantToken: string) => Promise<void>) | undefined;
 
     private constructor(
@@ -21,12 +22,14 @@ export class AgentWorkbenchWebview {
         context: vscode.ExtensionContext,
         workflow: IWorkflowStatus | undefined,
         workflowUrl: string | undefined,
+        workflowReloadUrl: string | undefined,
         agentRuntime: AgentRuntimeController,
     ) {
         this._panel = panel;
         this._context = context;
         this._workflow = workflow;
         this._workflowUrl = workflowUrl;
+        this._workflowReloadUrl = workflowReloadUrl;
         this._agentRuntime = agentRuntime;
         this.updateRegistryRegistration();
 
@@ -41,6 +44,7 @@ export class AgentWorkbenchWebview {
         context: vscode.ExtensionContext,
         workflow: IWorkflowStatus | undefined,
         workflowUrl: string | undefined,
+        workflowReloadUrl: string | undefined,
         agentRuntime: AgentRuntimeController,
         viewColumn?: vscode.ViewColumn,
     ): void {
@@ -48,7 +52,7 @@ export class AgentWorkbenchWebview {
 
         if (AgentWorkbenchWebview.currentPanel) {
             AgentWorkbenchWebview.currentPanel._panel.reveal(column);
-            AgentWorkbenchWebview.currentPanel.update(workflow, workflowUrl);
+            AgentWorkbenchWebview.currentPanel.update(workflow, workflowUrl, workflowReloadUrl);
             return;
         }
 
@@ -63,7 +67,7 @@ export class AgentWorkbenchWebview {
             },
         );
 
-        AgentWorkbenchWebview.currentPanel = new AgentWorkbenchWebview(panel, context, workflow, workflowUrl, agentRuntime);
+        AgentWorkbenchWebview.currentPanel = new AgentWorkbenchWebview(panel, context, workflow, workflowUrl, workflowReloadUrl, agentRuntime);
     }
 
     public static onClipboardPasteRequest(handler: (panel: vscode.WebviewPanel, grantToken: string) => Promise<void>): void {
@@ -72,11 +76,12 @@ export class AgentWorkbenchWebview {
         }
     }
 
-    public update(workflow: IWorkflowStatus | undefined, workflowUrl: string | undefined): void {
+    public update(workflow: IWorkflowStatus | undefined, workflowUrl: string | undefined, workflowReloadUrl: string | undefined): void {
         const hadWorkflowFrame = Boolean(this._workflowUrl);
         const hasWorkflowFrame = Boolean(workflowUrl);
         this._workflow = workflow;
         this._workflowUrl = workflowUrl;
+        this._workflowReloadUrl = workflowReloadUrl;
         this.updateRegistryRegistration();
         this._panel.title = `n8n Agent: ${workflow?.name || 'New workflow'}`;
 
@@ -90,6 +95,7 @@ export class AgentWorkbenchWebview {
             workflowId: workflow?.id || '',
             workflowName: workflow?.name || 'New workflow',
             url: workflowUrl,
+            reloadUrl: workflowReloadUrl,
         });
     }
 
@@ -135,6 +141,9 @@ export class AgentWorkbenchWebview {
                 workflowFilename: this._workflow?.filename,
                 workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
             }, (event) => this._panel.webview.postMessage(event));
+            if (this._workflow?.id) {
+                await this._panel.webview.postMessage({ type: 'workflow.reload' });
+            }
             return;
         }
 
@@ -172,6 +181,7 @@ export class AgentWorkbenchWebview {
             workflowId: this._workflow?.id || '',
             workflowName: this._workflow?.name || 'New workflow',
             workflowUrl: this._workflowUrl,
+            workflowReloadUrl: this._workflowReloadUrl,
         });
     }
 }
