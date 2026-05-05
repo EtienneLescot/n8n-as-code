@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { IWorkflowStatus } from 'n8nac';
-import { AgentRuntimeController } from '../services/agent-runtime-controller.js';
+import { AgentRuntimeController, type AgentWorkflowContext } from '../services/agent-runtime-controller.js';
 import { workflowWebviewRegistry } from '../services/workflow-webview-registry.js';
 import { buildAgentWorkbenchHtml } from './agent-workbench-html.js';
 
@@ -8,6 +9,19 @@ interface AgentWorkbenchNodeContext {
     name: string;
     type?: string;
     id?: string;
+}
+
+interface AgentWorkflowTarget {
+    workflow?: IWorkflowStatus;
+    workflowFilePath?: string;
+    workflowUrl?: string;
+    workflowReloadUrl?: string;
+}
+
+interface AgentWorkbenchWorkflowProviders {
+    listWorkflows(): Promise<IWorkflowStatus[]>;
+    resolveWorkflow(workflow: AgentWorkflowContext): Promise<AgentWorkflowTarget>;
+    listWorkflowNodes(workflow: AgentWorkflowContext): Promise<AgentWorkbenchNodeContext[]>;
 }
 
 export class AgentWorkbenchWebview {
@@ -24,7 +38,9 @@ export class AgentWorkbenchWebview {
     private _workflowUrl: string | undefined;
     private _workflowReloadUrl: string | undefined;
     private _providerModelLabel: string;
-    private _nodeContext: AgentWorkbenchNodeContext | undefined;
+    private _nodeContexts: AgentWorkbenchNodeContext[] = [];
+    private _workflowProviders: AgentWorkbenchWorkflowProviders;
+    private _activeSessionId: string | undefined;
     private _onClipboardPasteRequest: ((panel: vscode.WebviewPanel, grantToken: string) => Promise<void>) | undefined;
 
     private constructor(
@@ -37,6 +53,8 @@ export class AgentWorkbenchWebview {
         providerModelLabel: string,
         agentRuntime: AgentRuntimeController,
         outputChannel: vscode.OutputChannel,
+        workflowProviders: AgentWorkbenchWorkflowProviders,
+        initialSessionId: string | undefined,
     ) {
         this._panel = panel;
         this._context = context;
@@ -47,6 +65,8 @@ export class AgentWorkbenchWebview {
         this._providerModelLabel = providerModelLabel;
         this._agentRuntime = agentRuntime;
         this._outputChannel = outputChannel;
+        this._workflowProviders = workflowProviders;
+        this._activeSessionId = initialSessionId;
         this.updateRegistryRegistration();
 
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
@@ -69,12 +89,16 @@ export class AgentWorkbenchWebview {
         providerModelLabel: string,
         agentRuntime: AgentRuntimeController,
         outputChannel: vscode.OutputChannel,
+        workflowProviders: AgentWorkbenchWorkflowProviders,
+        initialSessionId?: string,
         viewColumn?: vscode.ViewColumn,
     ): void {
         const column = viewColumn || vscode.ViewColumn.One;
 
         if (AgentWorkbenchWebview.currentPanel) {
             AgentWorkbenchWebview.currentPanel._panel.reveal(column);
+            AgentWorkbenchWebview.currentPanel._workflowProviders = workflowProviders;
+            AgentWorkbenchWebview.currentPanel._activeSessionId = initialSessionId || AgentWorkbenchWebview.currentPanel._activeSessionId;
             AgentWorkbenchWebview.currentPanel.update(workflow, workflowFilePath, workflowUrl, workflowReloadUrl, providerModelLabel);
             return;
         }
@@ -90,7 +114,7 @@ export class AgentWorkbenchWebview {
             },
         );
 
-        AgentWorkbenchWebview.currentPanel = new AgentWorkbenchWebview(panel, context, workflow, workflowFilePath, workflowUrl, workflowReloadUrl, providerModelLabel, agentRuntime, outputChannel);
+        AgentWorkbenchWebview.currentPanel = new AgentWorkbenchWebview(panel, context, workflow, workflowFilePath, workflowUrl, workflowReloadUrl, providerModelLabel, agentRuntime, outputChannel, workflowProviders, initialSessionId);
     }
 
     public static onClipboardPasteRequest(handler: (panel: vscode.WebviewPanel, grantToken: string) => Promise<void>): void {
@@ -99,9 +123,11 @@ export class AgentWorkbenchWebview {
         }
     }
 
-    public update(workflow: IWorkflowStatus | undefined, workflowFilePath: string | undefined, workflowUrl: string | undefined, workflowReloadUrl: string | undefined, providerModelLabel: string): void {
-        const hadWorkflowFrame = Boolean(this._workflowUrl);
-        const hasWorkflowFrame = Boolean(workflowUrl);
+    public update(workflow: IWorkflowStatus | undefined, workflowFilePath: string | undefined, workflowUrl: string | undefined, workflowReloadUrl: string | undefined, providerModelLabel: string, postState = true): void {
+        const hadWorkflowFrame = Boolean(this._workflow);
+        const hasWorkflowFrame = Boolean(workflow);
+        const hadWorkflowUi = Boolean(this._workflowUrl);
+        const hasWorkflowUi = Boolean(workflowUrl);
         this._workflow = workflow;
         this._workflowFilePath = workflowFilePath;
         this._workflowUrl = workflowUrl;
@@ -110,7 +136,7 @@ export class AgentWorkbenchWebview {
         this.updateRegistryRegistration();
         this._panel.title = `n8n Agent: ${workflow?.name || 'New workflow'}`;
 
-        if (hadWorkflowFrame !== hasWorkflowFrame) {
+        if (hadWorkflowFrame !== hasWorkflowFrame || hadWorkflowUi !== hasWorkflowUi) {
             this._panel.webview.html = this.getHtmlForWebview();
             return;
         }
@@ -122,7 +148,7 @@ export class AgentWorkbenchWebview {
             url: workflowUrl,
             reloadUrl: workflowReloadUrl,
         });
-        void this.postWorkbenchState();
+        if (postState) void this.postWorkbenchState();
     }
 
     public dispose(): void {
@@ -171,7 +197,7 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'agent.send') {
-            const nodeContext = this.sanitizeNodeContext(payload.nodeContext) ?? this._nodeContext;
+            const nodeContexts = this.sanitizeNodeContexts(payload.nodeContexts) || this.sanitizeNodeContexts(payload.nodeContext) || this._nodeContexts;
             this._outputChannel.appendLine(`[n8n-agent-debug] agent.send workflowId=${this._workflow?.id || 'none'} workflowFilePath=${this._workflowFilePath || 'none'} sessionId=${typeof payload.sessionId === 'string' ? payload.sessionId : 'none'}`);
             const result = await this._agentRuntime.sendPrompt({
                 prompt: String(payload.text || ''),
@@ -180,7 +206,8 @@ export class AgentWorkbenchWebview {
                 workflowFilename: this._workflow?.filename,
                 workflowFilePath: this._workflowFilePath,
                 workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-                nodeContext,
+                nodeContext: nodeContexts[0],
+                nodeContexts,
                 sessionId: typeof payload.sessionId === 'string' ? payload.sessionId : undefined,
             }, (event) => this._panel.webview.postMessage(event));
             this._outputChannel.appendLine(`[n8n-agent-debug] agent.send completed workflowId=${this._workflow?.id || 'none'} workflowChanged=${String(result.workflowChanged)}`);
@@ -210,7 +237,24 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'agent.nodeDetailChanged') {
-            this._nodeContext = this.sanitizeNodeContext(payload.nodeContext);
+            this._nodeContexts = this.sanitizeNodeContexts(payload.nodeContexts) || this.sanitizeNodeContexts(payload.nodeContext) || [];
+            if (typeof payload.sessionId === 'string') {
+                await this.postWorkbenchState(await this._agentRuntime.setNodeContexts(payload.sessionId, this._nodeContexts, this.buildWorkbenchInput()));
+            }
+            return;
+        }
+
+        if (payload.type === 'agent.context.workflow.set' && typeof payload.sessionId === 'string') {
+            const workflow = this.sanitizeWorkflowContext(payload.workflow);
+            if (!workflow) return;
+            await this.postWorkbenchState(await this._agentRuntime.setWorkflowContext(payload.sessionId, workflow, this.buildWorkbenchInput()));
+            return;
+        }
+
+        if (payload.type === 'agent.context.workflow.clear' && typeof payload.sessionId === 'string') {
+            this._activeSessionId = payload.sessionId;
+            this._nodeContexts = [];
+            await this.postWorkbenchState(await this._agentRuntime.clearWorkflowContext(payload.sessionId, this.buildWorkbenchInput()));
             return;
         }
 
@@ -225,6 +269,7 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'agent.session.select' && typeof payload.sessionId === 'string') {
+            this._activeSessionId = payload.sessionId;
             await this.postWorkbenchState(await this._agentRuntime.selectSession(payload.sessionId, this.buildWorkbenchInput()));
             return;
         }
@@ -286,6 +331,37 @@ export class AgentWorkbenchWebview {
         };
     }
 
+    private sanitizeNodeContexts(value: unknown): AgentWorkbenchNodeContext[] | undefined {
+        const values = Array.isArray(value) ? value : value ? [value] : [];
+        const contexts = values
+            .map((item) => this.sanitizeNodeContext(item))
+            .filter((item): item is AgentWorkbenchNodeContext => Boolean(item));
+        if (!contexts.length) return undefined;
+        const seen = new Set<string>();
+        return contexts.filter((node) => {
+            const key = [node.name, node.type || '', node.id || ''].join('|');
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    }
+
+    private sanitizeWorkflowContext(value: unknown): AgentWorkflowContext | undefined {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+        const record = value as Record<string, unknown>;
+        const id = typeof record.id === 'string' ? record.id.trim() : '';
+        const name = typeof record.name === 'string' ? record.name.trim() : '';
+        const filename = typeof record.filename === 'string' ? record.filename.trim() : '';
+        const filePath = typeof record.filePath === 'string' ? record.filePath.trim() : '';
+        if (!id && !name && !filename) return undefined;
+        return {
+            id: id || undefined,
+            name: name || id || filename,
+            filename: filename || undefined,
+            filePath: filePath || undefined,
+        };
+    }
+
     private getProviderModelLabel(): string {
         const config = vscode.workspace.getConfiguration('n8n.agent');
         const provider = String(config.get<string>('provider') || 'openai').trim() || 'openai';
@@ -299,19 +375,102 @@ export class AgentWorkbenchWebview {
         workflowFilename?: string;
         workspaceRoot?: string;
         nodeContext?: AgentWorkbenchNodeContext;
+        nodeContexts?: AgentWorkbenchNodeContext[];
+        sessionId?: string;
     } {
         return {
             workflowId: this._workflow?.id,
             workflowName: this._workflow?.name,
             workflowFilename: this._workflow?.filename,
             workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-            nodeContext: this._nodeContext,
+            nodeContext: this._nodeContexts[0],
+            nodeContexts: this._nodeContexts,
+            sessionId: this._activeSessionId,
         };
     }
 
     private async postWorkbenchState(state?: Awaited<ReturnType<AgentRuntimeController['getWorkbenchState']>>): Promise<void> {
         const nextState = state ?? await this._agentRuntime.getWorkbenchState(this.buildWorkbenchInput());
-        await this._panel.webview.postMessage({ type: 'agent.state', state: nextState });
+        this._activeSessionId = nextState.activeSessionId;
+        await this.reconcileWorkflowContext(nextState.workflowContext);
+        this._nodeContexts = Array.isArray(nextState.currentNodeContexts) ? nextState.currentNodeContexts : [];
+        const enrichedState = {
+            ...nextState,
+            availableWorkflows: await this.getWorkflowOptions(),
+            availableNodes: await this.getWorkflowNodeOptions(),
+        };
+        await this._panel.webview.postMessage({ type: 'agent.state', state: enrichedState });
+    }
+
+    private async reconcileWorkflowContext(workflowContext: AgentWorkflowContext | undefined): Promise<void> {
+        if (!workflowContext) {
+            if (this._workflow || this._workflowUrl || this._workflowFilePath) {
+                this.update(undefined, undefined, undefined, undefined, this._providerModelLabel, false);
+            }
+            return;
+        }
+        const currentKey = this._workflow?.id || this._workflow?.filename || this._workflow?.name || '';
+        const nextKey = workflowContext.id || workflowContext.filename || workflowContext.name || '';
+        if (currentKey === nextKey && this._workflowFilePath === workflowContext.filePath) {
+            return;
+        }
+        const target = await this._workflowProviders.resolveWorkflow(workflowContext);
+        const workflow = target.workflow || ({
+            id: workflowContext.id || '',
+            name: workflowContext.name,
+            filename: workflowContext.filename || '',
+        } as IWorkflowStatus);
+        this.update(workflow, target.workflowFilePath || workflowContext.filePath, target.workflowUrl, target.workflowReloadUrl, this._providerModelLabel, false);
+    }
+
+    private async getWorkflowOptions(): Promise<AgentWorkflowContext[]> {
+        const workflows = await this._workflowProviders.listWorkflows().catch(() => []);
+        return workflows.map((workflow) => ({
+            id: workflow.id || undefined,
+            name: workflow.name || workflow.id || workflow.filename || 'Workflow',
+            filename: workflow.filename || undefined,
+        }));
+    }
+
+    private async getWorkflowNodeOptions(): Promise<AgentWorkbenchNodeContext[]> {
+        if (this._workflowFilePath) {
+            try {
+                const raw = await fs.promises.readFile(this._workflowFilePath, 'utf8');
+                return this.extractNodeContextsFromTypeScript(raw)
+                    .filter((node): node is AgentWorkbenchNodeContext => Boolean(node));
+            } catch {
+                // Fall through to remote lookup when the local path is stale or unavailable.
+            }
+        }
+        if (!this._workflow?.id) return [];
+        return this._workflowProviders.listWorkflowNodes({
+            id: this._workflow.id,
+            name: this._workflow.name || this._workflow.id,
+            filename: this._workflow.filename || undefined,
+            filePath: this._workflowFilePath,
+        }).catch(() => []);
+    }
+
+    private extractNodeContextsFromTypeScript(source: string): AgentWorkbenchNodeContext[] {
+        const nodes: AgentWorkbenchNodeContext[] = [];
+        const nodeDecoratorPattern = /@node\s*\(\s*\{([\s\S]*?)\}\s*\)/g;
+        let match: RegExpExecArray | null;
+        while ((match = nodeDecoratorPattern.exec(source))) {
+            const decoratorContent = match[1] || '';
+            const name = this.extractStringProperty(decoratorContent, 'name');
+            if (!name) continue;
+            nodes.push({
+                name,
+                type: this.extractStringProperty(decoratorContent, 'type'),
+                id: this.extractStringProperty(decoratorContent, 'id'),
+            });
+        }
+        return nodes;
+    }
+
+    private extractStringProperty(source: string, property: string): string | undefined {
+        const match = source.match(new RegExp(`${property}\\s*:\\s*(["'])((?:\\\\.|(?!\\1)[\\s\\S])*?)\\1`));
+        return match?.[2]?.trim() || undefined;
     }
 
     private updateRegistryRegistration(): void {
@@ -341,6 +500,7 @@ export class AgentWorkbenchWebview {
         return buildAgentWorkbenchHtml({
             workflowId: this._workflow?.id || '',
             workflowName: this._workflow?.name || 'New workflow',
+            workflowAttached: Boolean(this._workflow),
             workflowUrl: this._workflowUrl,
             workflowReloadUrl: this._workflowReloadUrl,
             providerModelLabel: this._providerModelLabel,

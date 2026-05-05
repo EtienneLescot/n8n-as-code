@@ -1,6 +1,7 @@
 export interface AgentWorkbenchHtmlInput {
     workflowId: string;
     workflowName: string;
+    workflowAttached?: boolean;
     workflowUrl?: string;
     workflowReloadUrl?: string;
     providerModelLabel: string;
@@ -25,10 +26,11 @@ function getNonce(): string {
 
 export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string {
     const nonce = getNonce();
-    const hasWorkflow = Boolean(input.workflowUrl);
+    const hasWorkflow = Boolean(input.workflowAttached || input.workflowUrl);
+    const hasWorkflowUi = Boolean(input.workflowUrl);
     const safeWorkflowName = escapeHtml(input.workflowName);
     const safeWorkflowId = escapeHtml(input.workflowId);
-    const initialWorkflowLabel = hasWorkflow ? safeWorkflowName : 'New workflow chat';
+    const initialWorkflowLabel = hasWorkflow ? safeWorkflowName : 'No workflow context';
     const safeWorkflowUrl = escapeHtml(input.workflowUrl || '');
     const safeProviderModelLabel = escapeHtml(input.providerModelLabel);
     const workflowIdJs = JSON.stringify(input.workflowId);
@@ -459,8 +461,17 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             flex-wrap: wrap;
             min-width: 0;
         }
-        .node-context-badge {
-            display: none;
+        .context-badges {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+            min-width: 0;
+        }
+        .context-badge {
+            display: inline-flex;
+            gap: 6px;
+            align-items: center;
             width: fit-content;
             max-width: 100%;
             padding: 3px 8px;
@@ -474,6 +485,42 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+        .context-badge.workflow {
+            border-color: color-mix(in srgb, var(--warning) 60%, var(--border));
+            color: var(--text);
+            background: color-mix(in srgb, var(--warning) 30%, transparent);
+        }
+        .context-badge button {
+            border: 0;
+            background: transparent;
+            color: inherit;
+            cursor: pointer;
+            padding: 0 1px;
+            line-height: 1;
+        }
+        .mention-menu {
+            display: none;
+            max-height: 220px;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--panel) 96%, black 4%);
+            box-shadow: 0 10px 28px rgba(0, 0, 0, .32);
+        }
+        .mention-menu.open { display: grid; }
+        .mention-option {
+            display: grid;
+            gap: 2px;
+            padding: 8px 10px;
+            border: 0;
+            border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+            background: transparent;
+            color: var(--text);
+            text-align: left;
+            cursor: pointer;
+        }
+        .mention-option:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+        .mention-option small { color: var(--muted); }
         .composer-actions {
             display: flex;
             gap: 8px;
@@ -521,6 +568,23 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             padding: 5px 8px;
             font-size: 12px;
             min-height: 30px;
+        }
+        button.icon-button {
+            display: inline-grid;
+            place-items: center;
+            width: 30px;
+            min-width: 30px;
+            height: 30px;
+            padding: 0;
+        }
+        button.icon-button svg {
+            width: 15px;
+            height: 15px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
         .composer button.small,
         .composer .send-button,
@@ -618,10 +682,11 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 <div class="chat-head-row">
                     <div class="chat-head-main">
                         <div class="chat-title">Workflow Architect</div>
-                        <button id="workflow-selector" class="workflow-selector" type="button" title="${initialWorkflowLabel}">${initialWorkflowLabel}${safeWorkflowId ? ` · ${safeWorkflowId}` : ''}</button>
+                        <div id="workflow-subtitle" class="workflow-selector" title="${initialWorkflowLabel}">${initialWorkflowLabel}${safeWorkflowId ? ` · ${safeWorkflowId}` : ''}</div>
                     </div>
                     <div class="header-actions">
-                        <button id="history-open" class="ghost small" type="button" title="Conversation history">History</button>
+                        <button id="new-session-header" class="ghost small icon-button" type="button" title="New conversation" aria-label="New conversation"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/><path d="M2.5 2.5h3M10.5 2.5h3v3M13.5 10.5v3h-3M5.5 13.5h-3v-3"/></svg></button>
+                        <button id="history-open" class="ghost small icon-button" type="button" title="Conversation history" aria-label="Conversation history"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h7"/><path d="M2 2.5h12v11H2z"/></svg></button>
                         <div id="context-pill" class="context-pill" title="Context usage">
                             <span id="context-label">Context</span>
                             <span class="context-meter" aria-hidden="true"><span id="context-meter-fill" class="context-meter-fill"></span></span>
@@ -636,9 +701,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             <div id="feed" class="feed"></div>
             <form id="composer" class="composer">
                 <div class="composer-input">
-                    <div class="composer-meta">
-                        <div id="node-context-badge" class="node-context-badge" title=""></div>
-                    </div>
+                    <div id="context-badges" class="context-badges"></div>
+                    <div id="mention-menu" class="mention-menu"></div>
                     <textarea id="prompt" placeholder="Ask the n8n agent what to do with this workflow..." rows="2"></textarea>
                     <div class="composer-toolbar">
                         <div class="composer-provider">
@@ -655,12 +719,12 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         </section>
         ${hasWorkflow ? `<section class="workflow" aria-label="n8n workflow">
             <div id="refresh-pill" class="refresh-pill">Refreshing n8n...</div>
-            <iframe
+            ${hasWorkflowUi ? `<iframe
                 id="workflow-frame"
                 src="${safeWorkflowUrl}"
                 sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation allow-top-navigation-by-user-activation"
                 allow="${iframeAllowPolicy}">
-            </iframe>
+            </iframe>` : `<div class="empty-workflow"><div><strong>Workflow UI unavailable</strong><br>Push this workflow to n8n to preview and interact with its UI here.</div></div>`}
         </section>` : ''}
         <div id="history-overlay" class="history-overlay" role="dialog" aria-modal="true" aria-label="Conversation history">
             <div class="history-modal">
@@ -696,7 +760,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         let lastPasteMs = 0;
         const pendingGrants = new Map();
         let isRunning = false;
-        let currentNodeContext = null;
+        let currentWorkflowContext = null;
+        let currentNodeContexts = [];
         let activeFilter = 'current';
         let state = null;
 
@@ -720,14 +785,16 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const selectReasoningButton = document.getElementById('select-reasoning');
         const frame = document.getElementById('workflow-frame');
         const refreshPill = document.getElementById('refresh-pill');
-        const nodeContextBadge = document.getElementById('node-context-badge');
+        const contextBadges = document.getElementById('context-badges');
+        const mentionMenu = document.getElementById('mention-menu');
         const sessionList = document.getElementById('session-list');
         const sessionFilter = document.getElementById('session-filter');
-        const workflowSelector = document.getElementById('workflow-selector');
+        const workflowSubtitle = document.getElementById('workflow-subtitle');
         const contextPill = document.getElementById('context-pill');
         const contextLabel = document.getElementById('context-label');
         const contextMeterFill = document.getElementById('context-meter-fill');
         const newSessionButton = document.getElementById('new-session');
+        const newSessionHeaderButton = document.getElementById('new-session-header');
         const historyOpenButton = document.getElementById('history-open');
         const historyCloseButton = document.getElementById('history-close');
         const historyOverlay = document.getElementById('history-overlay');
@@ -744,6 +811,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             stopButton.disabled = !running;
             stopButton.classList.toggle('active', running);
             newSessionButton.disabled = running;
+            newSessionHeaderButton.disabled = running;
             compactContextButton.disabled = running;
             if (runIndicator) runIndicator.classList.toggle('active', running);
         }
@@ -775,20 +843,62 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             };
         }
 
-        function updateNodeContextBadge(node) {
-            currentNodeContext = sanitizeNodeContext(node);
-            if (!nodeContextBadge) return;
-            if (!currentNodeContext) {
-                nodeContextBadge.style.display = 'none';
-                nodeContextBadge.textContent = '';
-                nodeContextBadge.title = '';
-                return;
+        function sameNode(a, b) {
+            return a && b && a.name === b.name && (a.type || '') === (b.type || '') && (a.id || '') === (b.id || '');
+        }
+
+        function setNodeContexts(nodes, notify) {
+            const next = [];
+            for (const value of Array.isArray(nodes) ? nodes : (nodes ? [nodes] : [])) {
+                const node = sanitizeNodeContext(value);
+                if (!node || next.some((existing) => sameNode(existing, node))) continue;
+                next.push(node);
             }
-            nodeContextBadge.textContent = '@' + currentNodeContext.name;
-            nodeContextBadge.title = currentNodeContext.type
-                ? currentNodeContext.name + ' · ' + currentNodeContext.type
-                : currentNodeContext.name;
-            nodeContextBadge.style.display = 'block';
+            currentNodeContexts = currentWorkflowContext ? next : [];
+            renderContextBadges();
+            if (notify && state) {
+                vscode.postMessage({ type: 'agent.nodeDetailChanged', workflowId, nodeContexts: currentNodeContexts, sessionId: state.activeSessionId });
+            }
+        }
+
+        function addNodeContext(node, notify) {
+            if (!currentWorkflowContext) return;
+            const normalized = sanitizeNodeContext(node);
+            if (!normalized || currentNodeContexts.some((existing) => sameNode(existing, normalized))) return;
+            setNodeContexts([...currentNodeContexts, normalized], notify);
+        }
+
+        function renderContextBadges() {
+            if (!contextBadges) return;
+            contextBadges.innerHTML = '';
+            if (currentWorkflowContext) {
+                contextBadges.appendChild(contextBadge('@workflow ' + currentWorkflowContext.name, 'workflow', 'Detach workflow context', () => {
+                    currentWorkflowContext = null;
+                    currentNodeContexts = [];
+                    renderContextBadges();
+                    if (state) vscode.postMessage({ type: 'agent.context.workflow.clear', sessionId: state.activeSessionId });
+                }));
+            }
+            for (const node of currentNodeContexts) {
+                contextBadges.appendChild(contextBadge('@node ' + node.name, 'node', 'Remove node context', () => {
+                    setNodeContexts(currentNodeContexts.filter((candidate) => !sameNode(candidate, node)), true);
+                }));
+            }
+        }
+
+        function contextBadge(text, type, label, onClose) {
+            const badge = document.createElement('span');
+            badge.className = 'context-badge ' + type;
+            const title = document.createElement('span');
+            title.textContent = text;
+            const close = document.createElement('button');
+            close.type = 'button';
+            close.setAttribute('aria-label', label);
+            close.title = label;
+            close.textContent = '×';
+            close.addEventListener('click', onClose);
+            badge.append(title, close);
+            return badge;
         }
 
         function isWorkflowFrameEvent(event) {
@@ -832,8 +942,10 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             if (activeFilter === 'all') return sessions;
             if (activeFilter === 'unattached') return sessions.filter((session) => !session.workflowId);
             return sessions.filter((session) => {
-                if (!workflowId) return !session.workflowId;
-                return session.workflowId === workflowId;
+                const activeWorkflowKey = currentWorkflowContext && (currentWorkflowContext.id || currentWorkflowContext.filename || currentWorkflowContext.name);
+                if (!activeWorkflowKey) return !session.workflowContext;
+                const sessionWorkflow = session.workflowContext || {};
+                return sessionWorkflow.id === activeWorkflowKey || sessionWorkflow.filename === activeWorkflowKey || sessionWorkflow.name === activeWorkflowKey;
             });
         }
 
@@ -931,7 +1043,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         function renderFeed() {
             feed.innerHTML = '';
             const visibleEntries = state && state.session && Array.isArray(state.session.entries)
-                ? state.session.entries.filter((entry) => entry.kind !== 'context-usage')
+                ? state.session.entries.filter((entry) => entry.kind !== 'context-usage' && entry.kind !== 'workflow-context' && entry.kind !== 'node-context')
                 : [];
             if (!visibleEntries.length) {
                 return;
@@ -953,6 +1065,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 return textEntry('assistant' + (entry.streaming ? ' streaming' : ''), entry.text || '');
             }
             if (entry.kind === 'context-usage') return document.createComment('context usage');
+            if (entry.kind === 'workflow-context' || entry.kind === 'node-context') return document.createComment('context marker');
             if (entry.kind === 'compaction') {
                 const el = document.createElement('div');
                 el.className = 'entry compaction';
@@ -1000,15 +1113,97 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         }
 
         function renderAll() {
+            currentWorkflowContext = state && state.session ? state.session.workflowContext || null : null;
+            setNodeContexts(state && state.session ? state.session.nodeContexts || [] : [], false);
             renderSessions();
             renderChatMeta();
             renderFeed();
-            if (state && state.workflow) {
-                workflowSelector.textContent = state.workflow.name
+            if (state && state.workflow && workflowSubtitle) {
+                workflowSubtitle.textContent = state.workflow.name
                     ? state.workflow.name + (state.workflow.id ? ' · ' + state.workflow.id : '')
                     : 'New workflow chat';
-                workflowSelector.title = workflowSelector.textContent;
+                workflowSubtitle.title = workflowSubtitle.textContent;
             }
+            renderMentionMenu();
+        }
+
+        function getMentionQuery() {
+            if (!promptInput) return null;
+            const cursor = promptInput.selectionStart || 0;
+            const before = promptInput.value.slice(0, cursor);
+            const lower = before.toLowerCase();
+            const workflowIndex = lower.lastIndexOf('@workflow');
+            const nodeIndex = lower.lastIndexOf('@node');
+            const start = Math.max(workflowIndex, nodeIndex);
+            if (start < 0) return null;
+            if (start > 0 && !' \t'.includes(before[start - 1])) return null;
+            const kind = start === workflowIndex ? 'workflow' : 'node';
+            const tokenLength = kind === 'workflow' ? '@workflow'.length : '@node'.length;
+            const queryText = before.slice(start + tokenLength);
+            if (queryText.includes(String.fromCharCode(10))) return null;
+            return {
+                kind,
+                query: queryText.trim().toLowerCase(),
+                start,
+                end: cursor,
+            };
+        }
+
+        function renderMentionMenu() {
+            if (!mentionMenu) return;
+            const mention = getMentionQuery();
+            if (!mention || !state) {
+                mentionMenu.classList.remove('open');
+                mentionMenu.innerHTML = '';
+                return;
+            }
+            if (mention.kind === 'node' && !currentWorkflowContext) {
+                mentionMenu.classList.remove('open');
+                mentionMenu.innerHTML = '';
+                return;
+            }
+            const source = mention.kind === 'workflow' ? state.availableWorkflows || [] : state.availableNodes || [];
+            const options = source.filter((item) => {
+                const label = String(item.name || item.id || item.filename || '').toLowerCase();
+                return !mention.query || label.includes(mention.query);
+            }).slice(0, 12);
+            mentionMenu.innerHTML = '';
+            if (!options.length) {
+                mentionMenu.classList.remove('open');
+                return;
+            }
+            for (const option of options) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'mention-option';
+                const label = document.createElement('span');
+                label.textContent = option.name || option.id || option.filename || 'Workflow';
+                const detail = document.createElement('small');
+                detail.textContent = mention.kind === 'workflow'
+                    ? [option.filename, option.id].filter(Boolean).join(' · ') || 'Workflow'
+                    : [option.type, option.id].filter(Boolean).join(' · ') || 'Node';
+                button.append(label, detail);
+                button.addEventListener('click', () => applyMentionSelection(mention, option));
+                mentionMenu.appendChild(button);
+            }
+            mentionMenu.classList.add('open');
+        }
+
+        function applyMentionSelection(mention, option) {
+            const before = promptInput.value.slice(0, mention.start);
+            const after = promptInput.value.slice(mention.end);
+            promptInput.value = (before + after).replace(/ {2,}/g, ' ');
+            promptInput.focus();
+            promptInput.selectionStart = promptInput.selectionEnd = before.length;
+            mentionMenu.classList.remove('open');
+            if (mention.kind === 'workflow') {
+                currentWorkflowContext = option;
+                currentNodeContexts = [];
+                renderContextBadges();
+                if (state) vscode.postMessage({ type: 'agent.context.workflow.set', sessionId: state.activeSessionId, workflow: option });
+                return;
+            }
+            addNodeContext(option, true);
         }
 
         function normalizeOperationKind(category, title) {
@@ -1194,7 +1389,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             const text = promptInput.value.trim();
             if (!text || isRunning || !state) return;
             promptInput.value = '';
-            vscode.postMessage({ type: 'agent.send', text, workflowId, nodeContext: currentNodeContext, sessionId: state.activeSessionId });
+            vscode.postMessage({ type: 'agent.send', text, workflowId, nodeContexts: currentNodeContexts, sessionId: state.activeSessionId });
         }
 
         on(form, 'submit', (event) => {
@@ -1208,9 +1403,10 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 sendPrompt();
             }
         });
+        on(promptInput, 'input', renderMentionMenu);
+        on(promptInput, 'keyup', renderMentionMenu);
 
         on(stopButton, 'click', () => vscode.postMessage({ type: 'agent.stop' }));
-        on(workflowSelector, 'click', () => vscode.postMessage({ type: 'agent.workflow.select' }));
         on(historyOpenButton, 'click', openHistory);
         on(historyCloseButton, 'click', closeHistory);
         on(historyOverlay, 'click', (event) => {
@@ -1218,10 +1414,13 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         });
         on(selectModelButton, 'click', () => vscode.postMessage({ type: 'agent.selectModel' }));
         on(selectReasoningButton, 'click', () => vscode.postMessage({ type: 'agent.selectReasoningEffort' }));
-        on(newSessionButton, 'click', () => {
+        function startNewSession() {
             closeHistory();
             vscode.postMessage({ type: 'agent.session.new' });
-        });
+        }
+
+        on(newSessionButton, 'click', startNewSession);
+        on(newSessionHeaderButton, 'click', startNewSession);
         on(compactContextButton, 'click', () => state && vscode.postMessage({ type: 'agent.context.compact', sessionId: state.activeSessionId }));
         on(sessionFilter, 'change', () => {
             activeFilter = sessionFilter.value || 'current';
@@ -1258,17 +1457,13 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
 
             if (message.type === 'n8n-node-detail-opened') {
                 if (!isWorkflowFrameEvent(event)) return;
-                updateNodeContextBadge(message.node);
-                if (currentNodeContext) {
-                    vscode.postMessage({ type: 'agent.nodeDetailChanged', workflowId, nodeContext: currentNodeContext });
-                }
+                addNodeContext(message.node, true);
                 return;
             }
 
             if (message.type === 'n8n-node-context-cleared') {
                 if (!isWorkflowFrameEvent(event)) return;
-                updateNodeContextBadge(null);
-                vscode.postMessage({ type: 'agent.nodeDetailChanged', workflowId, nodeContext: null });
+                setNodeContexts([], true);
                 return;
             }
 
@@ -1301,9 +1496,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
 
             if (message.type === 'agent.state') {
                 state = message.state || null;
-                if (state && state.currentNodeContext) {
-                    updateNodeContextBadge(state.currentNodeContext);
-                }
                 renderAll();
                 return;
             }

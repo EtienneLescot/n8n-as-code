@@ -20,6 +20,7 @@ import { WorkflowDecorationProvider } from './ui/workflow-decoration-provider.js
 
 import { ProxyService } from './services/proxy-service.js';
 import { AgentRuntimeController } from './services/agent-runtime-controller.js';
+import type { AgentWorkflowContext } from './services/agent-runtime-controller.js';
 import {
     YagrProviderService,
     YAGR_PROVIDER_DEFINITIONS,
@@ -309,10 +310,22 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         registerTelemetryCommand('n8n.openAgentWorkbench', async (arg: any) => {
-            const wf = await resolveWorkflowForAgentWorkbench(arg);
-            if (!wf) return;
-            telemetryClient?.track('vscode_workflow_view_opened', { mode: 'agent-workbench', workflow_state: wf === 'new' ? 'new' : 'unknown' });
-            await openAgentWorkbench(context, wf === 'new' ? undefined : wf);
+            const runtime = requireAgentRuntimeController();
+            const wf = findWorkflowByCommandArg(arg);
+            if (wf) {
+                const sessionId = await getOrCreateAgentSessionForWorkflow(wf);
+                telemetryClient?.track('vscode_workflow_view_opened', { mode: 'agent-workbench', workflow_state: 'workflow-context' });
+                await openAgentWorkbench(context, wf, sessionId);
+                return;
+            }
+            if (arg === 'new') {
+                const state = await runtime.createSession({ workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath });
+                telemetryClient?.track('vscode_workflow_view_opened', { mode: 'agent-workbench', workflow_state: 'new' });
+                await openAgentWorkbench(context, undefined, state.activeSessionId);
+                return;
+            }
+            telemetryClient?.track('vscode_workflow_view_opened', { mode: 'agent-workbench', workflow_state: 'latest' });
+            await openAgentWorkbench(context, undefined, await runtime.getLatestSessionId());
         }),
 
         registerTelemetryCommand('n8n.openAgentManager', async () => {
@@ -807,7 +820,7 @@ async function resolveWorkflowForSplitView(arg: any): Promise<IWorkflowStatus | 
     return picked?.workflow;
 }
 
-async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: IWorkflowStatus): Promise<void> {
+async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: IWorkflowStatus, initialSessionId?: string): Promise<void> {
     try {
         const openTarget = workflow?.id ? await resolveWorkflowWebviewTarget(workflow) : undefined;
         const workflowFilePath = workflow ? getExistingWorkflowFileUri(workflow)?.fsPath : undefined;
@@ -821,6 +834,12 @@ async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: I
             providerModelLabel,
             requireAgentRuntimeController(),
             outputChannel,
+            {
+                listWorkflows: listAgentWorkflowOptions,
+                resolveWorkflow: resolveAgentWorkflowTarget,
+                listWorkflowNodes: listAgentWorkflowNodes,
+            },
+            initialSessionId,
             vscode.ViewColumn.One,
         );
         if (openTarget?.url) {
@@ -829,6 +848,83 @@ async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: I
     } catch (e: any) {
         vscode.window.showErrorMessage(`Failed to open n8n Agent Workbench: ${e.message}`);
     }
+}
+
+async function getOrCreateAgentSessionForWorkflow(workflow: IWorkflowStatus): Promise<string> {
+    const workflowFilePath = getExistingWorkflowFileUri(workflow)?.fsPath;
+    const workflowContext: AgentWorkflowContext = {
+        id: workflow.id || undefined,
+        name: workflow.name || workflow.id || workflow.filename || 'Workflow',
+        filename: workflow.filename || undefined,
+        filePath: workflowFilePath,
+    };
+    const runtime = requireAgentRuntimeController();
+    const existingSessionId = await runtime.getLatestSessionIdForWorkflow(workflowContext);
+    if (existingSessionId) return existingSessionId;
+    return runtime.createSessionForWorkflow(workflowContext, {
+        workflowId: workflow.id || undefined,
+        workflowName: workflow.name,
+        workflowFilename: workflow.filename,
+        workflowFilePath,
+        workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+    });
+}
+
+async function listAgentWorkflowOptions(): Promise<IWorkflowStatus[]> {
+    if (cli) {
+        const workflows = await cli.list({ fetchRemote: true, includeArchived: true });
+        store.dispatch(setWorkflows(workflows));
+        enhancedTreeProvider.refresh();
+        return workflows;
+    }
+    return selectAllWorkflows(store.getState());
+}
+
+async function resolveAgentWorkflowTarget(workflowContext: AgentWorkflowContext): Promise<{ workflow?: IWorkflowStatus; workflowFilePath?: string; workflowUrl?: string; workflowReloadUrl?: string }> {
+    const workflows = await listAgentWorkflowOptions();
+    const workflow = workflows.find((candidate) => (
+        Boolean(workflowContext.id && candidate.id === workflowContext.id)
+        || Boolean(workflowContext.filename && candidate.filename === workflowContext.filename)
+        || candidate.name === workflowContext.name
+    ));
+    const effectiveWorkflow = workflow || ({
+        id: workflowContext.id || '',
+        name: workflowContext.name,
+        filename: workflowContext.filename || '',
+    } as IWorkflowStatus);
+    const workflowFilePath = getExistingWorkflowFileUri(effectiveWorkflow)?.fsPath || workflowContext.filePath;
+    if (!effectiveWorkflow.id) {
+        return { workflow: effectiveWorkflow, workflowFilePath };
+    }
+    try {
+        const openTarget = await resolveWorkflowWebviewTarget(effectiveWorkflow);
+        return {
+            workflow: effectiveWorkflow,
+            workflowFilePath,
+            workflowUrl: openTarget.url,
+            workflowReloadUrl: openTarget.targetUrl,
+        };
+    } catch {
+        return { workflow: effectiveWorkflow, workflowFilePath };
+    }
+}
+
+async function listAgentWorkflowNodes(workflowContext: AgentWorkflowContext): Promise<Array<{ name: string; type?: string; id?: string }>> {
+    if (!workflowContext.id) return [];
+    const config = getN8nConfig();
+    if (!config.host || !config.apiKey) return [];
+    const client = new N8nApiClient(config);
+    const workflow = await client.getWorkflow(workflowContext.id);
+    const nodes = Array.isArray(workflow?.nodes) ? workflow.nodes : [];
+    const result: Array<{ name: string; type?: string; id?: string }> = [];
+    for (const node of nodes) {
+        const name = typeof node?.name === 'string' ? node.name.trim() : '';
+        if (!name) continue;
+        const type = typeof node.type === 'string' ? node.type.trim() : '';
+        const id = typeof node.id === 'string' ? node.id.trim() : '';
+        result.push({ name, type: type || undefined, id: id || undefined });
+    }
+    return result;
 }
 
 function getSelectedAgentProviderModelLabel(): string {
