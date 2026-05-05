@@ -340,6 +340,7 @@ telemetryProgram.command('status')
                 `Telemetry: ${status.enabled ? chalk.green('enabled') : chalk.yellow('disabled')}`,
                 `Configured: ${status.configured ? chalk.green('yes') : chalk.yellow('no PostHog key configured')}`,
                 status.disabledReason ? `Disabled reason: ${status.disabledReason}` : undefined,
+                `Environment: ${status.telemetryEnvironment}`,
                 `Config: ${status.configPath}`,
                 `Host: ${status.posthogHost}`,
             ].filter(Boolean).join('\n'),
