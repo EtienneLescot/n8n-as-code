@@ -164,6 +164,7 @@ test('buildUnifiedWorkspaceConfig preserves global instances while updating the 
         client: {
             async getCurrentUser() {
                 return {
+                    id: 'user-prod',
                     email: 'etienne@example.com'
                 };
             }
