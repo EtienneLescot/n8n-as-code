@@ -22,6 +22,10 @@ interface AgentWorkbenchWorkflowProviders {
     listWorkflows(): Promise<IWorkflowStatus[]>;
     resolveWorkflow(workflow: AgentWorkflowContext): Promise<AgentWorkflowTarget>;
     listWorkflowNodes(workflow: AgentWorkflowContext): Promise<AgentWorkbenchNodeContext[]>;
+    listProviderOptions(): Promise<Array<Record<string, unknown>>>;
+    listModelOptions(provider: string): Promise<Array<Record<string, unknown>>>;
+    selectProviderModel(provider: string, model: string): Promise<void>;
+    selectReasoningEffort(effort: string): Promise<void>;
 }
 
 export class AgentWorkbenchWebview {
@@ -70,6 +74,11 @@ export class AgentWorkbenchWebview {
         this.updateRegistryRegistration();
 
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+        this._panel.onDidChangeViewState((event) => {
+            if (event.webviewPanel.visible) {
+                void this.postWorkbenchState();
+            }
+        }, null, this._disposables);
         this._panel.webview.onDidReceiveMessage((message) => {
             void this.handleMessage(message).catch((error: any) => {
                 const detail = error?.message || String(error);
@@ -219,8 +228,21 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'agent.selectModel') {
-            await vscode.commands.executeCommand('n8n.agent.selectModel');
-            this._providerModelLabel = this.getProviderModelLabel();
+            const provider = typeof payload.provider === 'string' ? payload.provider : this.readSelectedProvider();
+            await this._panel.webview.postMessage({
+                type: 'agent.providerModels',
+                provider,
+                models: await this._workflowProviders.listModelOptions(provider),
+            });
+            return;
+        }
+
+        if (payload.type === 'agent.providers.configure') {
+            await vscode.commands.executeCommand('n8n.openAgentManager');
+            return;
+        }
+
+        if (payload.type === 'agent.providers.refresh') {
             await this.postWorkbenchState();
             return;
         }
@@ -231,7 +253,16 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'agent.selectReasoningEffort') {
-            await vscode.commands.executeCommand('n8n.agent.selectReasoningEffort');
+            if (typeof payload.effort === 'string') {
+                await this._workflowProviders.selectReasoningEffort(payload.effort);
+                await this.postWorkbenchState();
+            }
+            return;
+        }
+
+        if (payload.type === 'agent.providerModel.select' && typeof payload.provider === 'string' && typeof payload.model === 'string') {
+            await this._workflowProviders.selectProviderModel(payload.provider, payload.model);
+            this._providerModelLabel = this.getProviderModelLabel();
             await this.postWorkbenchState();
             return;
         }
@@ -310,7 +341,35 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'agent.context.compact' && typeof payload.sessionId === 'string') {
-            await this.postWorkbenchState(await this._agentRuntime.compactSession(payload.sessionId, this.buildWorkbenchInput()));
+            await this._panel.webview.postMessage({ type: 'agent.status', status: 'running', detail: 'Compacting context...' });
+            await this._panel.webview.postMessage({
+                type: 'agent.streamEvent',
+                event: {
+                    type: 'progress',
+                    tone: 'info',
+                    title: 'Compacting context',
+                    detail: 'Requesting runtime context compaction from Yagr.',
+                    phase: 'compaction',
+                },
+            });
+            try {
+                await this.postWorkbenchState(await this._agentRuntime.compactSession(payload.sessionId, this.buildWorkbenchInput()));
+            } catch (error: any) {
+                const message = error?.message || String(error);
+                await this._panel.webview.postMessage({
+                    type: 'agent.streamEvent',
+                    event: {
+                        type: 'progress',
+                        tone: 'error',
+                        title: 'Context compaction failed',
+                        detail: message,
+                        phase: 'compaction',
+                    },
+                });
+                throw error;
+            } finally {
+                await this._panel.webview.postMessage({ type: 'agent.status', status: 'idle' });
+            }
             return;
         }
     }
@@ -364,9 +423,14 @@ export class AgentWorkbenchWebview {
 
     private getProviderModelLabel(): string {
         const config = vscode.workspace.getConfiguration('n8n.agent');
-        const provider = String(config.get<string>('provider') || 'openai').trim() || 'openai';
+        const provider = this.readSelectedProvider();
         const model = String(config.get<string>('model') || '').trim();
         return model ? `${provider} / ${model}` : provider;
+    }
+
+    private readSelectedProvider(): string {
+        const config = vscode.workspace.getConfiguration('n8n.agent');
+        return String(config.get<string>('provider') || 'openai').trim() || 'openai';
     }
 
     private buildWorkbenchInput(): {
@@ -398,6 +462,13 @@ export class AgentWorkbenchWebview {
             ...nextState,
             availableWorkflows: await this.getWorkflowOptions(),
             availableNodes: await this.getWorkflowNodeOptions(),
+            providerOptions: await this._workflowProviders.listProviderOptions().catch(() => []),
+            modelOptions: await this._workflowProviders.listModelOptions(String(nextState.provider || '')).catch(() => []),
+            reasoningOptions: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'].map((effort) => ({
+                id: effort,
+                label: effort,
+                selected: effort === nextState.reasoningEffort,
+            })),
         };
         await this._panel.webview.postMessage({ type: 'agent.state', state: enrichedState });
     }
