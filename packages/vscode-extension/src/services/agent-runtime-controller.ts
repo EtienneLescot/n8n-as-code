@@ -48,6 +48,9 @@ export interface AgentCheckpointSummary {
     createdAt: string;
     messageCount: number;
     summary?: string;
+    reason?: CheckpointReason;
+    label?: string;
+    restoredAt?: string;
 }
 
 export interface AgentCompactionSummary {
@@ -201,6 +204,42 @@ type SessionCheckpointMetadata = {
     createdAt: string;
     messageCount: number;
     summary?: string;
+    reason?: CheckpointReason;
+    label?: string;
+    restoredAt?: string;
+};
+
+type CheckpointReason = 'manual' | 'auto' | 'before-tool' | 'after-tool' | 'before-compaction' | 'after-compaction';
+
+type SaveCheckpointOptions = {
+    reason?: CheckpointReason;
+    label?: string;
+    summary?: string;
+    payloads?: Record<string, unknown>;
+    payloadState?: unknown | null;
+};
+
+type RestoreCheckpointResult = {
+    sessionId: string;
+    checkpointId: string;
+    restoredAt: string;
+    langGraphRestored?: boolean;
+    pendingWritesRestored?: boolean;
+    payloads?: Record<string, unknown>;
+    payloadsRestored?: string[];
+    displayThreadRestored?: boolean;
+    warnings?: string[];
+    payloadState?: unknown | null;
+};
+
+type AgentWorkbenchCheckpointSurfacePayload = {
+    version: 1;
+    displayThread: AgentTimelineEntry[];
+    contextMarkers: AgentTimelineEntry[];
+    selectedWorkflow?: AgentWorkflowContext;
+    selectedNodes: AgentNodeContext[];
+    title: string;
+    scope?: DeepAgentSessionScope;
 };
 
 type WebUiSession = {
@@ -224,8 +263,9 @@ type SessionServiceHandle = {
     setCheckpointer(checkpointer: unknown): void;
     buildSessionConfig(sessionId: string): Record<string, unknown>;
     listCheckpoints(sessionId: string): Promise<SessionCheckpointMetadata[]>;
-    saveCheckpoint(sessionId: string, options?: { payloadState?: unknown | null }): Promise<SessionCheckpointMetadata>;
-    restoreCheckpoint(sessionId: string, checkpointId: string): Promise<{ payloadState: unknown | null }>;
+    saveCheckpoint(sessionId: string, options?: SaveCheckpointOptions): Promise<SessionCheckpointMetadata>;
+    maybeSaveCheckpoint?(sessionId: string, reason: CheckpointReason, options?: Omit<SaveCheckpointOptions, 'reason'>): Promise<SessionCheckpointMetadata | undefined>;
+    restoreCheckpoint(sessionId: string, checkpointId: string): Promise<RestoreCheckpointResult>;
     deleteCheckpoint(sessionId: string, checkpointId: string): Promise<void>;
     syncDisplayThread(sessionId: string, displayThread: unknown[]): void;
     clearDisplayThread(sessionId: string): void;
@@ -423,37 +463,72 @@ export class AgentRuntimeController implements vscode.Disposable {
     async saveCheckpoint(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
         const sessions = await this.getSessionRuntime();
         const handle = await this.ensureAgentHandleWithCheckpoint(input);
-        await sessions.service.saveCheckpoint(sessionId, {
-            payloadState: handle.compactionService.getState(sessionId),
+        const surface = this.buildCheckpointSurfacePayload(sessions.service, sessionId);
+        const compaction = handle.compactionService?.getState?.(sessionId);
+        const label = surface.selectedWorkflow ? 'Before workflow edit' : 'Manual checkpoint';
+        await this.saveYagrCheckpoint(sessions.service, sessionId, {
+            reason: 'manual',
+            label,
+            summary: this.buildCheckpointSummary(surface),
+            payloads: {
+                surface,
+                ...(compaction ? { compaction } : {}),
+            },
         });
         const entries = this.readSessionEntries(sessions.service, sessionId);
         this.writeSessionEntries(sessions.service, sessionId, [
             ...entries,
-            this.createSystemNotice('Checkpoint saved.'),
+            this.createSystemNotice(`Checkpoint saved: ${label}.`),
         ]);
-        return this.getWorkbenchState(input);
+        return this.getWorkbenchState({ ...input, sessionId });
     }
 
     async restoreCheckpoint(sessionId: string, checkpointId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
         const sessions = await this.getSessionRuntime();
         const handle = await this.ensureAgentHandleWithCheckpoint(input);
         const result = await sessions.service.restoreCheckpoint(sessionId, checkpointId);
-        sessions.service.clearDisplayThread(sessionId);
-        if (this.isCompactionState(result.payloadState)) {
-            handle.compactionService.setState(sessionId, result.payloadState);
+        const payloads = this.extractCheckpointPayloads(result);
+        const notices: AgentTimelineEntry[] = [];
+        const surface = payloads.surface;
+        if (this.isWorkbenchSurfacePayload(surface)) {
+            const entries = this.normalizeEntries(surface.displayThread);
+            const title = surface.title.trim() || sessions.service.get(sessionId)?.title || this.getDefaultSessionTitle(input.workflowName);
+            sessions.service.touch(sessionId, { title });
+            sessions.service.setTitle(sessionId, title);
+            this.writeSessionEntries(sessions.service, sessionId, [
+                ...entries,
+                this.createSystemNotice(`Restored checkpoint ${checkpointId}.`),
+            ]);
         } else {
-            handle.compactionService.reset(sessionId);
+            notices.push(this.createSystemNotice(`Restored checkpoint ${checkpointId}. Runtime state was restored, but this checkpoint does not include Workbench surface state, so the visible conversation was kept.`));
         }
-        this.writeSessionEntries(sessions.service, sessionId, [
-            this.createSystemNotice(`Restored checkpoint ${checkpointId}.`),
-        ]);
-        return this.getWorkbenchState(input);
+        if (this.isCompactionState(payloads.compaction) && typeof handle.compactionService?.setState === 'function') {
+            handle.compactionService.setState(sessionId, payloads.compaction);
+        }
+        for (const warning of result.warnings || []) {
+            const message = typeof warning === 'string' ? warning : String(warning);
+            this.outputChannel.appendLine(`[n8n-agent] Checkpoint restore warning: ${message}`);
+            notices.push(this.createSystemNotice(`Checkpoint warning: ${message}`));
+        }
+        if (notices.length) {
+            this.writeSessionEntries(sessions.service, sessionId, [
+                ...this.readSessionEntries(sessions.service, sessionId),
+                ...notices,
+            ]);
+        }
+        return this.getWorkbenchState({ ...input, sessionId });
     }
 
     async deleteCheckpoint(sessionId: string, checkpointId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
         const sessions = await this.getSessionRuntime();
         await sessions.service.deleteCheckpoint(sessionId, checkpointId);
-        return this.getWorkbenchState(input);
+        if ((input.sessionId || sessionId) === sessionId) {
+            this.writeSessionEntries(sessions.service, sessionId, [
+                ...this.readSessionEntries(sessions.service, sessionId),
+                this.createSystemNotice('Checkpoint deleted.'),
+            ]);
+        }
+        return this.getWorkbenchState({ ...input, sessionId });
     }
 
     async compactSession(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
@@ -495,8 +570,15 @@ export class AgentRuntimeController implements vscode.Disposable {
                     ];
                 }
                 this.writeSessionEntries(sessions.service, sessionId, entries);
-                await sessions.service.saveCheckpoint(sessionId, {
-                    payloadState: handle.compactionService.getState(sessionId),
+                const surface = this.buildCheckpointSurfacePayload(sessions.service, sessionId, entries);
+                await this.saveYagrCheckpoint(sessions.service, sessionId, {
+                    reason: 'after-compaction',
+                    label: 'After context compaction',
+                    summary: 'Workbench checkpoint after context compaction',
+                    payloads: {
+                        surface,
+                        compaction: handle.compactionService.getState(sessionId),
+                    },
                 }).catch((error: any) => {
                     this.outputChannel.appendLine(`[n8n-agent] Manual compaction checkpoint failed: ${error?.message || String(error)}`);
                 });
@@ -739,17 +821,6 @@ export class AgentRuntimeController implements vscode.Disposable {
                 });
             }
 
-            if (accumulator.fileModificationDetected) {
-                this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime detected local workflow modification sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'} workflowFilePath=${input.workflowFilePath || 'none'}`);
-                try {
-                    await sessions.service.saveCheckpoint(input.sessionId || '', {
-                        payloadState: handle.compactionService.getState(input.sessionId || ''),
-                    });
-                } catch (error: any) {
-                    this.outputChannel.appendLine(`[n8n-agent] Auto-checkpoint failed: ${error?.message || String(error)}`);
-                }
-            }
-
             const finalEvent: AgentStreamEvent = {
                 type: 'final',
                 sessionId: input.sessionId || '',
@@ -758,6 +829,21 @@ export class AgentRuntimeController implements vscode.Disposable {
             };
             entries = this.applyStreamEvent(entries, finalEvent);
             await postMessage({ type: 'agent.streamEvent', event: finalEvent });
+            if (accumulator.fileModificationDetected) {
+                this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime detected local workflow modification sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'} workflowFilePath=${input.workflowFilePath || 'none'}`);
+                try {
+                    await this.maybeSaveYagrCheckpoint(sessions.service, input.sessionId || '', 'after-tool', {
+                        label: 'After file modifications',
+                        summary: 'Saved after file modifications',
+                        payloads: {
+                            surface: this.buildCheckpointSurfacePayload(sessions.service, input.sessionId || '', entries),
+                            compaction: handle.compactionService?.getState?.(input.sessionId || ''),
+                        },
+                    });
+                } catch (error: any) {
+                    this.outputChannel.appendLine(`[n8n-agent] Auto-checkpoint failed: ${error?.message || String(error)}`);
+                }
+            }
             this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime completed sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'} workflowChanged=${String(Boolean(accumulator.fileModificationDetected))}`);
             return { entries, workflowChanged: Boolean(accumulator.fileModificationDetected) };
         }
@@ -1138,7 +1224,15 @@ export class AgentRuntimeController implements vscode.Disposable {
                 const service = new module.SessionService({
                     sessionsDir: path.join(sessionsRoot, 'records'),
                     webUiSessionsDir,
-                }) as SessionServiceHandle;
+                    checkpointPolicy: {
+                        enabled: true,
+                        afterFileModifications: true,
+                        beforeToolCalls: false,
+                        beforeCompaction: false,
+                        afterCompaction: false,
+                        maxCheckpointsPerSession: 20,
+                    },
+                } as any) as SessionServiceHandle;
                 return {
                     service,
                     deriveSessionTitle: module.deriveSessionTitle as SessionRuntime['deriveSessionTitle'],
@@ -1225,6 +1319,9 @@ export class AgentRuntimeController implements vscode.Disposable {
                 createdAt: checkpoint.createdAt,
                 messageCount: checkpoint.messageCount,
                 summary: checkpoint.summary,
+                reason: checkpoint.reason,
+                label: checkpoint.label,
+                restoredAt: checkpoint.restoredAt,
             })),
             contextUsage: latestUsageEntry?.usage,
             lastCompaction: compactionState.lastCompaction || undefined,
@@ -1634,6 +1731,98 @@ export class AgentRuntimeController implements vscode.Disposable {
 
     private withoutContextUsage(entries: AgentTimelineEntry[]): AgentTimelineEntry[] {
         return entries.filter((entry) => entry.kind !== 'context-usage');
+    }
+
+    private buildCheckpointSurfacePayload(
+        service: SessionServiceHandle,
+        sessionId: string,
+        entriesOverride?: AgentTimelineEntry[],
+    ): AgentWorkbenchCheckpointSurfacePayload {
+        const displaySession = service.readDisplaySession(sessionId);
+        const record = service.get(sessionId);
+        const displayThread = this.normalizeEntries(entriesOverride || displaySession?.displayThread);
+        const selectedWorkflow = this.getLatestWorkflowContext(displayThread, record);
+        const selectedNodes = selectedWorkflow ? this.getLatestNodeContexts(displayThread) : [];
+        return {
+            version: 1,
+            displayThread,
+            contextMarkers: displayThread.filter((entry) => entry.kind === 'workflow-context' || entry.kind === 'node-context'),
+            selectedWorkflow,
+            selectedNodes,
+            title: displaySession?.title || record?.title || this.getDefaultSessionTitle(),
+            scope: record?.scope,
+        };
+    }
+
+    private buildCheckpointSummary(surface: AgentWorkbenchCheckpointSurfacePayload): string {
+        if (surface.selectedWorkflow && surface.selectedNodes.length) {
+            return `Workbench checkpoint for ${surface.selectedWorkflow.name} with ${surface.selectedNodes.length} selected node${surface.selectedNodes.length === 1 ? '' : 's'}`;
+        }
+        if (surface.selectedWorkflow) {
+            return `Workbench checkpoint for ${surface.selectedWorkflow.name}`;
+        }
+        return 'Workbench checkpoint';
+    }
+
+    private async saveYagrCheckpoint(
+        service: SessionServiceHandle,
+        sessionId: string,
+        options: SaveCheckpointOptions,
+    ): Promise<SessionCheckpointMetadata> {
+        return service.saveCheckpoint(sessionId, this.withLegacyCheckpointPayload(options));
+    }
+
+    private async maybeSaveYagrCheckpoint(
+        service: SessionServiceHandle,
+        sessionId: string,
+        reason: CheckpointReason,
+        options: Omit<SaveCheckpointOptions, 'reason'>,
+    ): Promise<SessionCheckpointMetadata | undefined> {
+        if (typeof service.maybeSaveCheckpoint !== 'function') {
+            return undefined;
+        }
+        return service.maybeSaveCheckpoint(sessionId, reason, this.withLegacyCheckpointPayload(options));
+    }
+
+    private withLegacyCheckpointPayload<T extends SaveCheckpointOptions>(options: T): T {
+        if (!options.payloads || options.payloadState !== undefined) {
+            return options;
+        }
+        return {
+            ...options,
+            payloadState: { payloads: options.payloads },
+        };
+    }
+
+    private extractCheckpointPayloads(result: RestoreCheckpointResult): Record<string, unknown> {
+        if (this.isRecord(result.payloads)) {
+            return result.payloads;
+        }
+        const payloadState = result.payloadState;
+        if (this.isRecord(payloadState)) {
+            if (this.isRecord(payloadState.payloads)) {
+                return payloadState.payloads;
+            }
+            if (this.isRecord(payloadState.surface) || this.isRecord(payloadState.compaction)) {
+                return payloadState;
+            }
+        }
+        if (this.isCompactionState(payloadState)) {
+            return { compaction: payloadState };
+        }
+        return {};
+    }
+
+    private isWorkbenchSurfacePayload(value: unknown): value is AgentWorkbenchCheckpointSurfacePayload {
+        if (!this.isRecord(value)) return false;
+        if (value.version !== 1) return false;
+        if (!Array.isArray(value.displayThread)) return false;
+        if (typeof value.title !== 'string') return false;
+        return true;
+    }
+
+    private isRecord(value: unknown): value is Record<string, unknown> {
+        return Boolean(value && typeof value === 'object' && !Array.isArray(value));
     }
 
     private toCompactionSummary(value: unknown): AgentCompactionSummary | undefined {

@@ -48,6 +48,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
     const newConversationIcon = lucideIcon('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>');
     const historyIcon = lucideIcon('<path d="M3 12a9 9 0 1 0 9-9 9.8 9.8 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>');
     const compactIcon = lucideIcon('<path d="M6 12h12"/><path d="m8 4 4 4 4-4"/><path d="m8 20 4-4 4 4"/>');
+    const checkpointIcon = lucideIcon('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>');
     const sendIcon = lucideIcon('<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>');
 
     return `<!DOCTYPE html>
@@ -211,7 +212,40 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             color: var(--muted);
             font-size: 11px;
         }
-        .history-overlay {
+        .checkpoint-item {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--bg) 82%, transparent);
+            padding: 10px;
+            display: grid;
+            gap: 8px;
+        }
+        .checkpoint-item-head,
+        .checkpoint-item-foot {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: flex-start;
+        }
+        .checkpoint-item-title {
+            font-size: 13px;
+            font-weight: 650;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+        }
+        .checkpoint-item-meta {
+            color: var(--muted);
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        .checkpoint-actions {
+            display: flex;
+            gap: 7px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+        .history-overlay,
+        .checkpoint-overlay {
             position: fixed;
             inset: 0;
             z-index: 10;
@@ -221,8 +255,10 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             padding-top: 42px;
             background: rgba(0, 0, 0, .28);
         }
-        .history-overlay.open { display: flex; }
-        .history-modal {
+        .history-overlay.open,
+        .checkpoint-overlay.open { display: flex; }
+        .history-modal,
+        .checkpoint-modal {
             width: min(560px, calc(100vw - 28px));
             max-height: min(640px, calc(100vh - 84px));
             display: grid;
@@ -233,28 +269,35 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             box-shadow: 0 18px 48px rgba(0, 0, 0, .45);
             overflow: hidden;
         }
+        .checkpoint-modal { grid-template-rows: auto 1fr auto; }
         .history-head,
         .history-controls,
-        .history-foot {
+        .history-foot,
+        .checkpoint-head,
+        .checkpoint-foot {
             padding: 12px;
             border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
         }
-        .history-head {
+        .history-head,
+        .checkpoint-head {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 12px;
         }
-        .history-title {
+        .history-title,
+        .checkpoint-title {
             font-size: 14px;
             font-weight: 650;
         }
-        .history-list {
+        .history-list,
+        .checkpoint-list {
             overflow: auto;
             min-height: 0;
             padding: 10px 12px;
         }
-        .history-foot {
+        .history-foot,
+        .checkpoint-foot {
             border-bottom: 0;
             border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
             display: flex;
@@ -853,6 +896,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                         </div>
                     </div>
                     <div class="header-actions">
+                        <button id="checkpoint-open" class="ghost small icon-button" type="button" title="Checkpoints" aria-label="Checkpoints">${checkpointIcon}</button>
                         <button id="history-open" class="ghost small icon-button" type="button" title="Conversation history" aria-label="Conversation history">${historyIcon}</button>
                         <button id="new-session-header" class="ghost small icon-button" type="button" title="New conversation" aria-label="New conversation">${newConversationIcon}</button>
                         <div id="run-indicator" class="run-indicator" aria-label="Agent running" title="Agent running">
@@ -912,6 +956,21 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 </div>
             </div>
         </div>
+        <div id="checkpoint-overlay" class="checkpoint-overlay" role="dialog" aria-modal="true" aria-label="Checkpoints">
+            <div class="checkpoint-modal">
+                <div class="checkpoint-head">
+                    <div>
+                        <div class="checkpoint-title">Checkpoints</div>
+                        <div class="meta-text">Save, restore, or delete checkpoints for this conversation.</div>
+                    </div>
+                    <button id="checkpoint-close" class="ghost small" type="button" aria-label="Close checkpoints">Close</button>
+                </div>
+                <div id="checkpoint-list" class="checkpoint-list sessions"></div>
+                <div class="checkpoint-foot">
+                    <button id="checkpoint-save" class="secondary small" type="button">Save checkpoint</button>
+                </div>
+            </div>
+        </div>
     </main>
     <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
@@ -968,6 +1027,11 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const contextMeterFill = document.getElementById('context-meter-fill');
         const newSessionButton = document.getElementById('new-session');
         const newSessionHeaderButton = document.getElementById('new-session-header');
+        const checkpointOpenButton = document.getElementById('checkpoint-open');
+        const checkpointCloseButton = document.getElementById('checkpoint-close');
+        const checkpointOverlay = document.getElementById('checkpoint-overlay');
+        const checkpointList = document.getElementById('checkpoint-list');
+        const checkpointSaveButton = document.getElementById('checkpoint-save');
         const historyOpenButton = document.getElementById('history-open');
         const historyCloseButton = document.getElementById('history-close');
         const historyOverlay = document.getElementById('history-overlay');
@@ -990,8 +1054,11 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             stopButton.classList.toggle('active', running);
             newSessionButton.disabled = running;
             newSessionHeaderButton.disabled = running;
+            checkpointOpenButton.disabled = running;
+            checkpointSaveButton.disabled = running;
             compactContextButton.disabled = running;
             if (runIndicator) runIndicator.classList.toggle('active', running);
+            renderCheckpoints();
         }
 
         function escapeText(value) {
@@ -1194,6 +1261,82 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
 
         function closeHistory() {
             historyOverlay.classList.remove('open');
+        }
+
+        function renderCheckpoints() {
+            if (!checkpointList) return;
+            checkpointList.innerHTML = '';
+            const session = getActiveSession();
+            const checkpoints = session && Array.isArray(session.checkpoints) ? session.checkpoints : [];
+            if (!checkpoints.length) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-note';
+                empty.textContent = 'No checkpoints for this conversation yet.';
+                checkpointList.appendChild(empty);
+                return;
+            }
+            for (const checkpoint of checkpoints) {
+                const item = document.createElement('div');
+                item.className = 'checkpoint-item';
+
+                const head = document.createElement('div');
+                head.className = 'checkpoint-item-head';
+                const titleWrap = document.createElement('div');
+                const title = document.createElement('div');
+                title.className = 'checkpoint-item-title';
+                title.textContent = checkpoint.label || checkpoint.summary || 'Checkpoint';
+                const meta = document.createElement('div');
+                meta.className = 'checkpoint-item-meta';
+                const metaParts = [formatDate(checkpoint.createdAt), (checkpoint.messageCount || 0) + ' messages'];
+                if (checkpoint.restoredAt) metaParts.push('Restored ' + formatDate(checkpoint.restoredAt));
+                meta.textContent = metaParts.join(' · ');
+                titleWrap.append(title, meta);
+                head.appendChild(titleWrap);
+                if (checkpoint.reason) head.appendChild(badge(checkpoint.reason, 'success'));
+
+                const foot = document.createElement('div');
+                foot.className = 'checkpoint-item-foot';
+                const summary = document.createElement('div');
+                summary.className = 'checkpoint-item-meta';
+                summary.textContent = checkpoint.summary || '';
+                const actions = document.createElement('div');
+                actions.className = 'checkpoint-actions';
+                const restore = document.createElement('button');
+                restore.type = 'button';
+                restore.className = 'secondary small';
+                restore.textContent = 'Restore';
+                restore.disabled = isRunning;
+                restore.addEventListener('click', () => {
+                    if (!state || !state.activeSessionId) return;
+                    if (!window.confirm('Restore this checkpoint? The agent runtime and saved Workbench surface state will be restored.')) return;
+                    closeCheckpointPanel();
+                    vscode.postMessage({ type: 'agent.checkpoint.restore', sessionId: state.activeSessionId, checkpointId: checkpoint.id });
+                });
+                const del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'ghost small';
+                del.textContent = 'Delete';
+                del.disabled = isRunning;
+                del.addEventListener('click', () => {
+                    if (!state || !state.activeSessionId) return;
+                    if (!window.confirm('Delete this checkpoint? This cannot be undone.')) return;
+                    vscode.postMessage({ type: 'agent.checkpoint.delete', sessionId: state.activeSessionId, checkpointId: checkpoint.id });
+                });
+                actions.append(restore, del);
+                foot.append(summary, actions);
+                item.append(head, foot);
+                checkpointList.appendChild(item);
+            }
+        }
+
+        function openCheckpointPanel() {
+            closeHistory();
+            renderCheckpoints();
+            checkpointOverlay.classList.add('open');
+        }
+
+        function closeCheckpointPanel() {
+            checkpointOverlay.classList.remove('open');
         }
 
         function closeInlineMenus() {
@@ -1502,6 +1645,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             renderChatMeta();
             renderFeed();
             renderMentionMenu();
+            if (checkpointOverlay && checkpointOverlay.classList.contains('open')) renderCheckpoints();
         }
 
         function getMentionQuery() {
@@ -1792,6 +1936,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 closeInlineMenus();
                 if (mentionMenu) mentionMenu.classList.remove('open');
                 if (historyOverlay && historyOverlay.classList.contains('open')) closeHistory();
+                if (checkpointOverlay && checkpointOverlay.classList.contains('open')) closeCheckpointPanel();
             }
         });
         window.addEventListener('pointerdown', (event) => {
@@ -1813,6 +1958,11 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         on(historyOverlay, 'click', (event) => {
             if (event.target === historyOverlay) closeHistory();
         });
+        on(checkpointOpenButton, 'click', openCheckpointPanel);
+        on(checkpointCloseButton, 'click', closeCheckpointPanel);
+        on(checkpointOverlay, 'click', (event) => {
+            if (event.target === checkpointOverlay) closeCheckpointPanel();
+        });
         on(selectModelButton, 'click', () => {
             providerMenuOpen = !providerMenuOpen;
             reasoningMenuOpen = false;
@@ -1831,11 +1981,16 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         });
         function startNewSession() {
             closeHistory();
+            closeCheckpointPanel();
             vscode.postMessage({ type: 'agent.session.new' });
         }
 
         on(newSessionButton, 'click', startNewSession);
         on(newSessionHeaderButton, 'click', startNewSession);
+        on(checkpointSaveButton, 'click', () => {
+            if (!state || !state.activeSessionId || isRunning) return;
+            vscode.postMessage({ type: 'agent.checkpoint.save', sessionId: state.activeSessionId });
+        });
         on(compactContextButton, 'click', () => state && vscode.postMessage({ type: 'agent.context.compact', sessionId: state.activeSessionId }));
         on(sessionFilter, 'change', () => {
             activeFilter = sessionFilter.value || 'current';
