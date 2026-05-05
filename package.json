@@ -17,6 +17,7 @@
     "sync:deps": "node scripts/sync-dependencies.mjs --write",
     "check:deps": "node scripts/sync-dependencies.mjs --check",
     "update:n8n-manager": "node scripts/update-n8n-manager-versions.mjs",
+    "update:yagr": "node scripts/update-yagr-versions.mjs",
     "build": "npm run sync:brand-assets && npm run generate:nodes && tsc -b --force && npm run build --workspace=packages/telemetry && npm run build --workspace=packages/skills --workspace=packages/cli --workspace=packages/mcp --workspace=packages/vscode-extension --workspace=plugins/openclaw/n8n-as-code",
     "build:cli": "cd packages/cli && npm run build",
     "build:mcp": "cd packages/mcp && npm run build",
