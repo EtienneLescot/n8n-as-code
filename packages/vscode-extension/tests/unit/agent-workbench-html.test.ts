@@ -26,12 +26,12 @@ test('Agent Workbench HTML: forwards node detail context to the agent', () => {
         providerModelLabel: 'openai / gpt-5.4',
     });
 
-    assert.ok(html.includes('node-context-badge'), 'Must render the node context badge container');
+    assert.ok(html.includes('id="context-badges"'), 'Must render the context badge container');
     assert.ok(html.includes("message.type === 'n8n-node-context-cleared'"), 'Must clear node context from iframe events');
     assert.ok(html.includes('isWorkflowFrameEvent'), 'Must validate iframe-originated node context messages');
     assert.ok(html.includes("message.type === 'n8n-node-detail-opened'"), 'Must handle node detail messages from iframe');
     assert.ok(html.includes("type: 'agent.nodeDetailChanged'"), 'Must forward node context to extension host');
-    assert.ok(html.includes("nodeContext: currentNodeContext"), 'Must include node context when sending prompts');
+    assert.ok(html.includes('nodeContexts: currentNodeContexts'), 'Must include node contexts when sending prompts');
 });
 
 test('Agent Workbench HTML: renders provider/session controls', () => {
@@ -65,5 +65,26 @@ test('Agent Workbench HTML: Enter submits and Shift+Enter keeps multiline input'
 
     assert.ok(html.includes("event.key === 'Enter' && !event.shiftKey"), 'Must submit on Enter unless Shift is held');
     assert.ok(html.includes('event.preventDefault()'), 'Must prevent textarea newline insertion on submit');
-    assert.ok(html.includes('form.requestSubmit()'), 'Must submit the composer form from the Enter key handler');
+    assert.ok(html.includes('sendPrompt();'), 'Must submit the composer from the Enter key handler');
+});
+
+test('Agent Workbench HTML: context usage and compaction follow Yagr runtime contracts', () => {
+    const { buildAgentWorkbenchHtml } = require('../../src/ui/agent-workbench-html.js');
+    const html: string = buildAgentWorkbenchHtml({
+        workflowId: 'wf-1',
+        workflowName: 'Workflow 1',
+        workflowUrl: 'http://localhost:5678/workflow/wf-1',
+        providerModelLabel: 'openai / gpt-5.4',
+    });
+
+    assert.ok(html.includes('id="context-pill"'), 'Must render the context usage pill');
+    assert.ok(html.includes('id="compact-context"'), 'Must render the manual compaction button');
+    assert.ok(!html.includes('.context-actions {\n            display: none;'), 'Must not hide context actions globally');
+    assert.ok(html.includes("if (!usage || usage.source !== 'api')"), 'Must hide context usage unless the source is api');
+    assert.ok(html.includes("if (event.source !== 'api')"), 'Must ignore estimated stream usage events');
+    assert.ok(html.includes('state.session.contextUsage = undefined'), 'Must reset context usage when a run starts');
+    assert.ok(html.includes("entry.kind !== 'context-usage' && entry.kind !== 'workflow-context' && entry.kind !== 'node-context'"), 'Must hide only metadata entries from the feed');
+    assert.ok(!html.includes("entry.kind !== 'compaction'"), 'Must keep compaction entries visible in the feed');
+    assert.ok(html.includes('Context compacted with fallback'), 'Must label fallback compactions explicitly');
+    assert.ok(html.includes("type: 'agent.context.compact'"), 'Must request runtime compaction from the extension host');
 });

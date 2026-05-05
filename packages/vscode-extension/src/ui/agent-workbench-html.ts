@@ -44,6 +44,11 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         // Fallback to iframe's own source origin behavior if URL parsing fails.
     }
     const iframeAllowPolicy = `clipboard-read ${iframePermissionOrigin}; clipboard-write ${iframePermissionOrigin}; geolocation ${iframePermissionOrigin}; microphone ${iframePermissionOrigin}; camera ${iframePermissionOrigin}`;
+    const lucideIcon = (paths: string) => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths}</svg>`;
+    const newConversationIcon = lucideIcon('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>');
+    const historyIcon = lucideIcon('<path d="M3 12a9 9 0 1 0 9-9 9.8 9.8 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>');
+    const compactIcon = lucideIcon('<path d="M6 12h12"/><path d="m8 4 4 4 4-4"/><path d="m8 20 4-4 4 4"/>');
+    const sendIcon = lucideIcon('<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>');
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -264,12 +269,34 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             display: flex;
             justify-content: space-between;
             gap: 12px;
-            align-items: center;
+            align-items: flex-start;
         }
         .chat-head-main {
             min-width: 0;
             display: grid;
-            gap: 4px;
+            gap: 8px;
+            flex: 1 1 auto;
+        }
+        .chat-title-row {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            min-width: 0;
+        }
+        .conversation-title {
+            min-width: 0;
+            color: var(--muted);
+            font-size: 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .context-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            min-width: 0;
         }
         .workflow-selector {
             width: fit-content;
@@ -455,11 +482,128 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             min-height: 30px;
         }
         .composer-provider {
+            position: relative;
             display: flex;
             gap: 8px;
             align-items: center;
             flex-wrap: wrap;
             min-width: 0;
+        }
+        .inline-popover {
+            position: absolute;
+            left: 0;
+            bottom: calc(100% + 8px);
+            z-index: 8;
+            display: none;
+            width: min(390px, calc(100vw - 28px));
+            max-height: min(420px, calc(100vh - 96px));
+            overflow: hidden;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--panel) 96%, black 6%);
+            box-shadow: 0 16px 42px rgba(0, 0, 0, .42);
+            grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+        }
+        .inline-popover.open { display: grid; }
+        .inline-popover.reasoning {
+            left: auto;
+            right: 0;
+            width: 220px;
+        }
+        .inline-popover-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: center;
+            padding: 9px 10px;
+            border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+            color: var(--muted);
+            font-size: 12px;
+        }
+        .inline-popover-head strong {
+            color: var(--text);
+            font-weight: 650;
+        }
+        .inline-back {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            width: 100%;
+            padding: 9px 10px;
+            border: 0;
+            border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+            border-radius: 0;
+            color: var(--text);
+            background: color-mix(in srgb, var(--accent) 16%, transparent);
+            text-align: left;
+            font-size: 12px;
+            font-weight: 650;
+        }
+        .inline-back:hover {
+            background: color-mix(in srgb, var(--accent) 24%, transparent);
+        }
+        .inline-search-wrap {
+            padding: 8px 9px;
+            border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+        }
+        .inline-search {
+            min-height: 30px;
+            padding: 6px 8px;
+            border-radius: 7px;
+            font-size: 12px;
+        }
+        .inline-popover-list {
+            overflow: auto;
+            min-height: 0;
+            padding: 4px;
+        }
+        .inline-popover-foot {
+            padding: 7px 10px;
+            border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+        }
+        .inline-link {
+            width: auto;
+            min-height: 0;
+            padding: 0;
+            border: 0;
+            color: var(--muted);
+            background: transparent;
+            font-size: 12px;
+            text-align: left;
+        }
+        .inline-link:hover {
+            color: var(--text);
+            text-decoration: underline;
+        }
+        .inline-option {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 4px 10px;
+            width: 100%;
+            padding: 8px 9px;
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text);
+            text-align: left;
+        }
+        .inline-option:hover,
+        .inline-option.active {
+            background: color-mix(in srgb, var(--accent) 18%, transparent);
+        }
+        .inline-option .main {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .inline-option .sub,
+        .inline-option .mark {
+            color: var(--muted);
+            font-size: 11px;
+        }
+        .inline-option .mark { align-self: center; }
+        .inline-option.provider {
+            font-weight: 650;
         }
         .context-badges {
             display: flex;
@@ -594,9 +738,24 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             border-radius: 6px;
         }
         .send-button {
-            min-width: 30px;
-            font-size: 13px;
+            display: inline-grid;
+            place-items: center;
+            width: 32px;
+            min-width: 32px;
+            height: 32px;
+            padding: 0;
+            border-radius: 9px;
             line-height: 1;
+            box-shadow: 0 1px 0 color-mix(in srgb, white 18%, transparent) inset;
+        }
+        .send-button svg {
+            width: 15px;
+            height: 15px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
         .stop-button {
             display: none;
@@ -681,17 +840,21 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             <header class="chat-head">
                 <div class="chat-head-row">
                     <div class="chat-head-main">
-                        <div class="chat-title">Workflow Architect</div>
-                        <div id="workflow-subtitle" class="workflow-selector" title="${initialWorkflowLabel}">${initialWorkflowLabel}${safeWorkflowId ? ` · ${safeWorkflowId}` : ''}</div>
+                        <div class="chat-title-row">
+                            <div class="chat-title">Workflow Architect</div>
+                            <div id="conversation-title" class="conversation-title"></div>
+                        </div>
+                        <div class="context-actions">
+                            <div id="context-pill" class="context-pill" title="Context usage">
+                                <span id="context-label">Context</span>
+                                <span class="context-meter" aria-hidden="true"><span id="context-meter-fill" class="context-meter-fill"></span></span>
+                            </div>
+                            <button id="compact-context" class="ghost small icon-button" type="button" title="Compact context" aria-label="Compact context">${compactIcon}</button>
+                        </div>
                     </div>
                     <div class="header-actions">
-                        <button id="new-session-header" class="ghost small icon-button" type="button" title="New conversation" aria-label="New conversation"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/><path d="M2.5 2.5h3M10.5 2.5h3v3M13.5 10.5v3h-3M5.5 13.5h-3v-3"/></svg></button>
-                        <button id="history-open" class="ghost small icon-button" type="button" title="Conversation history" aria-label="Conversation history"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h7"/><path d="M2 2.5h12v11H2z"/></svg></button>
-                        <div id="context-pill" class="context-pill" title="Context usage">
-                            <span id="context-label">Context</span>
-                            <span class="context-meter" aria-hidden="true"><span id="context-meter-fill" class="context-meter-fill"></span></span>
-                        </div>
-                        <button id="compact-context" class="ghost small" type="button" title="Compact context" aria-label="Compact context">Compact</button>
+                        <button id="history-open" class="ghost small icon-button" type="button" title="Conversation history" aria-label="Conversation history">${historyIcon}</button>
+                        <button id="new-session-header" class="ghost small icon-button" type="button" title="New conversation" aria-label="New conversation">${newConversationIcon}</button>
                         <div id="run-indicator" class="run-indicator" aria-label="Agent running" title="Agent running">
                             <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
                         </div>
@@ -708,10 +871,12 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                         <div class="composer-provider">
                             <button id="select-model" class="secondary small" type="button" title="${safeProviderModelLabel}">${safeProviderModelLabel}</button>
                             <button id="select-reasoning" class="secondary small" type="button">Reasoning</button>
+                            <div id="provider-menu" class="inline-popover" role="menu"></div>
+                            <div id="reasoning-menu" class="inline-popover reasoning" role="menu"></div>
                         </div>
                         <div class="composer-actions">
                             <button id="stop" class="ghost stop-button" type="button" disabled>Stop</button>
-                            <button id="send" class="send-button" type="submit" title="Send" aria-label="Send">▶</button>
+                            <button id="send" class="send-button" type="submit" title="Send" aria-label="Send">${sendIcon}</button>
                         </div>
                     </div>
                 </div>
@@ -739,7 +904,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                     <select id="session-filter" aria-label="Filter conversations">
                         <option value="current">Current workflow</option>
                         <option value="all">All conversations</option>
-                        <option value="unattached">New workflow chats</option>
                     </select>
                 </div>
                 <div id="session-list" class="sessions history-list"></div>
@@ -764,6 +928,13 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         let currentNodeContexts = [];
         let activeFilter = 'current';
         let state = null;
+        let providerModelCache = {};
+        let providerMenuOpen = false;
+        let providerMenuMode = 'models';
+        let providerMenuProvider = '';
+        let modelSearchQuery = '';
+        let reasoningMenuOpen = false;
+        let autoScrollFeed = true;
 
         const OP_ICONS = {
             'file-read': 'Read',
@@ -783,13 +954,15 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const stopButton = document.getElementById('stop');
         const selectModelButton = document.getElementById('select-model');
         const selectReasoningButton = document.getElementById('select-reasoning');
+        const providerMenu = document.getElementById('provider-menu');
+        const reasoningMenu = document.getElementById('reasoning-menu');
         const frame = document.getElementById('workflow-frame');
         const refreshPill = document.getElementById('refresh-pill');
         const contextBadges = document.getElementById('context-badges');
         const mentionMenu = document.getElementById('mention-menu');
+        const conversationTitle = document.getElementById('conversation-title');
         const sessionList = document.getElementById('session-list');
         const sessionFilter = document.getElementById('session-filter');
-        const workflowSubtitle = document.getElementById('workflow-subtitle');
         const contextPill = document.getElementById('context-pill');
         const contextLabel = document.getElementById('context-label');
         const contextMeterFill = document.getElementById('context-meter-fill');
@@ -803,6 +976,11 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
 
         function on(element, eventName, handler) {
             if (element) element.addEventListener(eventName, handler);
+        }
+
+        function isFeedNearBottom() {
+            if (!feed) return true;
+            return feed.scrollHeight - feed.scrollTop - feed.clientHeight <= 48;
         }
 
         function setRunning(running) {
@@ -987,7 +1165,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 badges.className = 'session-item-badges';
                 if (session.isActive) badges.appendChild(badge('Active', 'active'));
                 if (session.checkpointCount) badges.appendChild(badge(session.checkpointCount + ' cp', 'success'));
-                if (session.totalCompactions) badges.appendChild(badge(session.totalCompactions + ' compact', ''));
                 head.append(title, badges);
 
                 const foot = document.createElement('div');
@@ -1019,18 +1196,215 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             historyOverlay.classList.remove('open');
         }
 
+        function closeInlineMenus() {
+            providerMenuOpen = false;
+            reasoningMenuOpen = false;
+            if (providerMenu) providerMenu.classList.remove('open');
+            if (reasoningMenu) reasoningMenu.classList.remove('open');
+        }
+
+        function connectedProviders() {
+            const providers = Array.isArray(state && state.providerOptions) ? [...state.providerOptions] : [];
+            if (state && state.provider && !providers.some((provider) => provider.id === state.provider)) {
+                providers.unshift({
+                    id: state.provider,
+                    label: state.provider,
+                    description: 'Current provider',
+                    selected: true,
+                    connected: true,
+                    model: state.model,
+                });
+            }
+            return providers.filter((provider) => provider.connected || provider.selected);
+        }
+
+        function renderProviderMenu() {
+            if (!providerMenu || !state) return;
+            const providers = connectedProviders();
+            const selectedProvider = state.provider || '';
+            const activeProvider = providerMenuProvider || selectedProvider;
+            providerMenu.innerHTML = '';
+            if (providerMenuMode === 'providers') {
+                renderProviderPicker(providers, selectedProvider);
+            } else {
+                renderModelPicker(providers, activeProvider, selectedProvider);
+            }
+            providerMenu.classList.toggle('open', providerMenuOpen);
+        }
+
+        function renderProviderPicker(providers, selectedProvider) {
+            const head = document.createElement('div');
+            head.className = 'inline-popover-head';
+            head.innerHTML = '<strong>Connected providers</strong><span>' + escapeHtml(providers.length ? providers.length + ' connected' : 'none connected') + '</span>';
+            providerMenu.appendChild(head);
+            const list = document.createElement('div');
+            list.className = 'inline-popover-list';
+            if (!providers.length) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-note';
+                empty.textContent = 'No connected providers.';
+                list.appendChild(empty);
+            }
+            for (const provider of providers) {
+                const providerButton = inlineOption(provider.label || provider.id, provider.description || '', provider.id === selectedProvider ? 'Selected' : '', 'provider');
+                providerButton.addEventListener('click', () => {
+                    providerMenuMode = 'models';
+                    providerMenuProvider = provider.id;
+                    modelSearchQuery = '';
+                    renderProviderMenu();
+                    vscode.postMessage({ type: 'agent.selectModel', provider: provider.id });
+                });
+                list.appendChild(providerButton);
+            }
+            providerMenu.appendChild(list);
+            appendProviderMenuFooter();
+        }
+
+        function renderModelPicker(providers, activeProvider, selectedProvider) {
+            const provider = providers.find((candidate) => candidate.id === activeProvider) || providers.find((candidate) => candidate.id === selectedProvider) || providers[0] || { id: selectedProvider, label: selectedProvider || 'Provider' };
+            if (!providerMenuProvider && provider.id) providerMenuProvider = provider.id;
+            const back = document.createElement('button');
+            back.type = 'button';
+            back.className = 'inline-back';
+            back.textContent = '← Providers';
+            back.addEventListener('click', () => {
+                providerMenuMode = 'providers';
+                modelSearchQuery = '';
+                renderProviderMenu();
+            });
+            providerMenu.appendChild(back);
+
+            const head = document.createElement('div');
+            head.className = 'inline-popover-head';
+            head.innerHTML = '<strong>' + escapeHtml(provider.label || provider.id || 'Provider') + '</strong><span>Models</span>';
+            providerMenu.appendChild(head);
+
+            const searchWrap = document.createElement('div');
+            searchWrap.className = 'inline-search-wrap';
+            const search = document.createElement('input');
+            search.className = 'inline-search';
+            search.type = 'text';
+            search.placeholder = 'Search models...';
+            search.value = modelSearchQuery;
+            search.addEventListener('input', () => {
+                modelSearchQuery = search.value || '';
+                renderProviderMenu();
+                const nextSearch = providerMenu.querySelector('.inline-search');
+                if (nextSearch) {
+                    nextSearch.focus();
+                    nextSearch.selectionStart = nextSearch.selectionEnd = nextSearch.value.length;
+                }
+            });
+            searchWrap.appendChild(search);
+            providerMenu.appendChild(searchWrap);
+
+            const list = document.createElement('div');
+            list.className = 'inline-popover-list';
+            const allModels = providerModelCache[provider.id] || (provider.id === selectedProvider ? state.modelOptions || [] : []);
+            const query = modelSearchQuery.trim().toLowerCase();
+            const models = allModels.filter((model) => !query || String(model.label || model.id || '').toLowerCase().includes(query));
+            if (!allModels.length) {
+                const loading = document.createElement('div');
+                loading.className = 'empty-note';
+                loading.textContent = 'Loading models...';
+                list.appendChild(loading);
+                if (provider.id) vscode.postMessage({ type: 'agent.selectModel', provider: provider.id });
+            } else if (!models.length) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-note';
+                empty.textContent = 'No models match this search.';
+                list.appendChild(empty);
+            }
+            for (const model of models) {
+                const modelButton = inlineOption(model.label || model.id, model.fallback ? 'Known/default model' : provider.label || provider.id, model.selected ? 'Active' : '', 'model');
+                modelButton.addEventListener('click', () => {
+                    closeInlineMenus();
+                    vscode.postMessage({ type: 'agent.providerModel.select', provider: provider.id, model: model.id || model.label });
+                });
+                list.appendChild(modelButton);
+            }
+            providerMenu.appendChild(list);
+            appendProviderMenuFooter();
+        }
+
+        function appendProviderMenuFooter() {
+            const foot = document.createElement('div');
+            foot.className = 'inline-popover-foot';
+            const add = document.createElement('button');
+            add.type = 'button';
+            add.className = 'inline-link';
+            add.textContent = 'Add more providers...';
+            add.addEventListener('click', () => {
+                closeInlineMenus();
+                vscode.postMessage({ type: 'agent.providers.configure' });
+            });
+            foot.appendChild(add);
+            providerMenu.appendChild(foot);
+        }
+
+        function renderReasoningMenu() {
+            if (!reasoningMenu || !state) return;
+            reasoningMenu.innerHTML = '';
+            const head = document.createElement('div');
+            head.className = 'inline-popover-head';
+            head.textContent = 'Reasoning effort';
+            reasoningMenu.appendChild(head);
+            const list = document.createElement('div');
+            list.className = 'inline-popover-list';
+            const options = Array.isArray(state.reasoningOptions) ? state.reasoningOptions : [];
+            for (const option of options) {
+                const button = inlineOption(option.label || option.id, '', option.selected ? 'Active' : '', '');
+                button.addEventListener('click', () => {
+                    closeInlineMenus();
+                    vscode.postMessage({ type: 'agent.selectReasoningEffort', effort: option.id || option.label });
+                });
+                list.appendChild(button);
+            }
+            reasoningMenu.appendChild(list);
+            reasoningMenu.classList.toggle('open', reasoningMenuOpen && state.supportsReasoningEffort);
+        }
+
+        function inlineOption(label, sub, mark, klass) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'inline-option' + (klass ? ' ' + klass : '') + (mark ? ' active' : '');
+            const main = document.createElement('span');
+            main.className = 'main';
+            main.textContent = label || '';
+            const marker = document.createElement('span');
+            marker.className = 'mark';
+            marker.textContent = mark || '';
+            button.append(main, marker);
+            if (sub) {
+                const detail = document.createElement('span');
+                detail.className = 'sub';
+                detail.textContent = sub;
+                button.appendChild(detail);
+            }
+            return button;
+        }
+
         function renderChatMeta() {
             if (!state) return;
+            if (conversationTitle) {
+                const title = state.session && state.session.title ? state.session.title : '';
+                conversationTitle.textContent = title;
+                conversationTitle.title = title;
+            }
             const providerLabel = (state.provider || 'provider') + (state.model ? ' / ' + state.model : '');
             selectModelButton.textContent = providerLabel;
             selectModelButton.title = providerLabel;
+            if (state.provider && Array.isArray(state.modelOptions)) providerModelCache[state.provider] = state.modelOptions;
             selectReasoningButton.textContent = state.reasoningEffort ? 'Reasoning ' + state.reasoningEffort : 'Reasoning';
             selectReasoningButton.style.display = state.supportsReasoningEffort ? 'inline-block' : 'none';
+            renderProviderMenu();
+            renderReasoningMenu();
             const usage = state.session && state.session.contextUsage;
-            if (!usage) {
+            if (!usage || usage.source !== 'api') {
                 contextPill.classList.remove('active');
                 contextLabel.textContent = 'Context';
                 contextMeterFill.style.width = '0%';
+                contextPill.title = 'Context usage unavailable';
                 return;
             }
             const percent = Math.max(0, Math.min(100, Number(usage.fillPercent) || 0));
@@ -1041,6 +1415,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         }
 
         function renderFeed() {
+            const shouldStickToBottom = autoScrollFeed || isFeedNearBottom();
+            const previousScrollTop = feed.scrollTop;
             feed.innerHTML = '';
             const visibleEntries = state && state.session && Array.isArray(state.session.entries)
                 ? state.session.entries.filter((entry) => entry.kind !== 'context-usage' && entry.kind !== 'workflow-context' && entry.kind !== 'node-context')
@@ -1051,7 +1427,12 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             for (const entry of visibleEntries) {
                 feed.appendChild(renderEntry(entry));
             }
-            feed.scrollTop = feed.scrollHeight;
+            if (shouldStickToBottom) {
+                feed.scrollTop = feed.scrollHeight;
+                autoScrollFeed = true;
+            } else {
+                feed.scrollTop = previousScrollTop;
+            }
         }
 
         function renderEntry(entry) {
@@ -1069,6 +1450,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             if (entry.kind === 'compaction') {
                 const el = document.createElement('div');
                 el.className = 'entry compaction';
+                const isFallback = entry.event.source === 'fallback';
+                const title = isFallback ? 'Context compacted with fallback' : 'Context compacted';
                 const details = document.createElement('details');
                 details.className = 'details';
                 details.innerHTML = '<summary>Show compaction details</summary>' +
@@ -1080,7 +1463,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                     (entry.event.thresholdTokens ? '\\nThreshold tokens: ' + escapeHtml(entry.event.thresholdTokens) : '') +
                     (entry.event.fallbackReason ? '\\nFallback reason: ' + escapeHtml(entry.event.fallbackReason) : '') +
                     '</div>';
-                el.innerHTML = '<div class="entry-head"><div class="entry-title">Context compacted</div><div class="entry-subtle">' + escapeHtml(new Date(entry.timestamp).toLocaleTimeString()) + '</div></div><div>' + escapeHtml(entry.event.summary) + '</div>';
+                el.innerHTML = '<div class="entry-head"><div class="entry-title">' + escapeHtml(title) + '</div><div class="entry-subtle">' + escapeHtml(new Date(entry.timestamp).toLocaleTimeString()) + '</div></div><div>' + escapeHtml(entry.event.summary) + '</div>';
                 el.appendChild(details);
                 return el;
             }
@@ -1118,12 +1501,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             renderSessions();
             renderChatMeta();
             renderFeed();
-            if (state && state.workflow && workflowSubtitle) {
-                workflowSubtitle.textContent = state.workflow.name
-                    ? state.workflow.name + (state.workflow.id ? ' · ' + state.workflow.id : '')
-                    : 'New workflow chat';
-                workflowSubtitle.title = workflowSubtitle.textContent;
-            }
             renderMentionMenu();
         }
 
@@ -1311,6 +1688,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             if (!state || !state.session) return;
             let entries = Array.isArray(state.session.entries) ? [...state.session.entries] : [];
             if (event.type === 'start') {
+                entries = entries.filter((entry) => entry.kind !== 'context-usage');
+                state.session.contextUsage = undefined;
                 state.activeSessionId = event.sessionId;
                 const last = entries[entries.length - 1];
                 if (!last || last.kind !== 'user-message' || last.text !== event.message) {
@@ -1368,6 +1747,10 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 state.session.lastCompaction = event;
                 state.session.totalCompactions = (state.session.totalCompactions || 0) + 1;
             } else if (event.type === 'context-usage') {
+                if (event.source !== 'api') {
+                    renderAll();
+                    return;
+                }
                 state.session.contextUsage = {
                     promptTokens: event.promptTokens,
                     completionTokens: event.completionTokens,
@@ -1394,6 +1777,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
 
         on(form, 'submit', (event) => {
             event.preventDefault();
+            autoScrollFeed = true;
             sendPrompt();
         });
 
@@ -1403,8 +1787,25 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 sendPrompt();
             }
         });
+        window.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeInlineMenus();
+                if (mentionMenu) mentionMenu.classList.remove('open');
+                if (historyOverlay && historyOverlay.classList.contains('open')) closeHistory();
+            }
+        });
+        window.addEventListener('pointerdown', (event) => {
+            const target = event.target;
+            if (!(target instanceof Node)) return;
+            if (providerMenu && (providerMenu.contains(target) || selectModelButton.contains(target))) return;
+            if (reasoningMenu && (reasoningMenu.contains(target) || selectReasoningButton.contains(target))) return;
+            closeInlineMenus();
+        }, true);
         on(promptInput, 'input', renderMentionMenu);
         on(promptInput, 'keyup', renderMentionMenu);
+        on(feed, 'scroll', () => {
+            autoScrollFeed = isFeedNearBottom();
+        });
 
         on(stopButton, 'click', () => vscode.postMessage({ type: 'agent.stop' }));
         on(historyOpenButton, 'click', openHistory);
@@ -1412,8 +1813,22 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         on(historyOverlay, 'click', (event) => {
             if (event.target === historyOverlay) closeHistory();
         });
-        on(selectModelButton, 'click', () => vscode.postMessage({ type: 'agent.selectModel' }));
-        on(selectReasoningButton, 'click', () => vscode.postMessage({ type: 'agent.selectReasoningEffort' }));
+        on(selectModelButton, 'click', () => {
+            providerMenuOpen = !providerMenuOpen;
+            reasoningMenuOpen = false;
+            providerMenuMode = 'models';
+            providerMenuProvider = state && state.provider ? state.provider : providerMenuProvider;
+            if (providerMenuOpen) modelSearchQuery = '';
+            renderProviderMenu();
+            renderReasoningMenu();
+            if (providerMenuOpen) vscode.postMessage({ type: 'agent.providers.refresh' });
+        });
+        on(selectReasoningButton, 'click', () => {
+            reasoningMenuOpen = !reasoningMenuOpen;
+            providerMenuOpen = false;
+            renderProviderMenu();
+            renderReasoningMenu();
+        });
         function startNewSession() {
             closeHistory();
             vscode.postMessage({ type: 'agent.session.new' });
@@ -1497,6 +1912,13 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             if (message.type === 'agent.state') {
                 state = message.state || null;
                 renderAll();
+                return;
+            }
+
+            if (message.type === 'agent.providerModels') {
+                providerModelCache[String(message.provider || '')] = Array.isArray(message.models) ? message.models : [];
+                providerMenuOpen = true;
+                renderProviderMenu();
                 return;
             }
 

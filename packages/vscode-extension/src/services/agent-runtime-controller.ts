@@ -457,39 +457,68 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     async compactSession(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        if (this.activeRun) {
+            throw new Error(this.activeRun.sessionId === sessionId
+                ? 'An agent run is already active for this conversation.'
+                : 'An agent run is already active. Stop it before compacting context.');
+        }
         const sessions = await this.getSessionRuntime();
         const handle = await this.ensureAgentHandleWithCheckpoint(input);
-        const entries = this.readSessionEntries(sessions.service, sessionId);
-        const compactableEntries = entries.filter((entry) => entry.kind !== 'context-usage' && entry.kind !== 'compaction');
-        if (compactableEntries.length <= 8) {
-            return this.getWorkbenchState(input);
+        if (typeof handle.compactionService?.compactSession !== 'function') {
+            const entries = this.readSessionEntries(sessions.service, sessionId);
+            this.writeSessionEntries(sessions.service, sessionId, [
+                ...entries,
+                this.createSystemNotice('Manual context compaction is not supported by the installed Yagr runtime.'),
+            ]);
+            return this.getWorkbenchState({ ...input, sessionId });
         }
 
-        const preservedRecentMessages = 8;
-        const retained = compactableEntries.slice(-preservedRecentMessages);
-        const compacted = compactableEntries.slice(0, -preservedRecentMessages);
-        const summary = this.buildFallbackCompactionSummary(compacted);
-        const event: AgentCompactionSummary = {
-            summary,
-            source: 'fallback',
-            messagesCompacted: compacted.length,
-            preservedRecentMessages: retained.length,
-            estimatedTokens: Math.ceil(compacted.map((entry) => this.getEntryText(entry)).join('\n').length / 4),
-        };
+        const abortController = new AbortController();
+        this.activeRun = { abortController, sessionId };
+        try {
+            const result = await handle.compactionService.compactSession(sessionId, {
+                abortSignal: abortController.signal,
+            });
+            let entries = this.readSessionEntries(sessions.service, sessionId);
+            const status = String(result?.status || 'failed');
+            if (status === 'completed') {
+                const event = this.toCompactionSummary(result?.event);
+                if (event) {
+                    entries = [
+                        ...this.withoutContextUsage(entries),
+                        { kind: 'compaction', id: randomUUID(), timestamp: Date.now(), event },
+                    ];
+                } else {
+                    entries = [
+                        ...this.withoutContextUsage(entries),
+                        this.createSystemNotice('Context compacted, but the runtime did not return compaction details.'),
+                    ];
+                }
+                this.writeSessionEntries(sessions.service, sessionId, entries);
+                await sessions.service.saveCheckpoint(sessionId, {
+                    payloadState: handle.compactionService.getState(sessionId),
+                }).catch((error: any) => {
+                    this.outputChannel.appendLine(`[n8n-agent] Manual compaction checkpoint failed: ${error?.message || String(error)}`);
+                });
+                return this.getWorkbenchState({ ...input, sessionId });
+            }
 
-        await handle.compactionService.notifyCompaction(sessionId, event);
-        const latestUsage = [...entries].reverse().find((entry): entry is Extract<AgentTimelineEntry, { kind: 'context-usage' }> => entry.kind === 'context-usage');
-        this.writeSessionEntries(sessions.service, sessionId, [
-            ...(latestUsage ? [latestUsage] : []),
-            { kind: 'compaction', id: randomUUID(), timestamp: Date.now(), event },
-            ...retained,
-        ]);
-        await sessions.service.saveCheckpoint(sessionId, {
-            payloadState: handle.compactionService.getState(sessionId),
-        }).catch((error: any) => {
-            this.outputChannel.appendLine(`[n8n-agent] Manual compaction checkpoint failed: ${error?.message || String(error)}`);
-        });
-        return this.getWorkbenchState(input);
+            const reason = typeof result?.reason === 'string' && result.reason.trim() ? result.reason.trim() : undefined;
+            const message = status === 'skipped'
+                ? (reason || 'Nothing to compact.')
+                : status === 'unavailable'
+                    ? (reason || 'Manual context compaction is not available for this runtime.')
+                    : (reason || 'Context compaction failed.');
+            this.writeSessionEntries(sessions.service, sessionId, [
+                ...entries,
+                this.createSystemNotice(message),
+            ]);
+            return this.getWorkbenchState({ ...input, sessionId });
+        } finally {
+            if (this.activeRun?.abortController === abortController) {
+                this.activeRun = undefined;
+            }
+        }
     }
 
     async sendPrompt(input: AgentPromptInput, postMessage: AgentWorkbenchPostMessage): Promise<AgentRunResult> {
@@ -538,7 +567,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         sessions.service.touch(activeRecord.id, { title: derivedTitle });
         sessions.service.setTitle(activeRecord.id, derivedTitle);
 
-        let entries = this.readSessionEntries(sessions.service, activeRecord.id);
+        let entries = this.withoutContextUsage(this.readSessionEntries(sessions.service, activeRecord.id));
         entries = [...entries, { kind: 'user-message', id: randomUUID(), text: prompt, timestamp: Date.now() }];
 
         await postMessage({ type: 'agent.status', status: 'running', detail: 'Preparing n8n agent runtime...' });
@@ -624,24 +653,13 @@ export class AgentRuntimeController implements vscode.Disposable {
         sessions.service.setCheckpointer(handle.checkpointer);
         const agent = handle.agent;
         const messages = [{ role: 'user', content: await this.buildInvocationPrompt(input) }];
+        const contextWindowTokens = await this.resolveContextWindow(providerConfig.provider, providerConfig.model, providerConfig.apiKey, providerConfig.baseUrl);
         const config = {
             ...sessions.service.buildSessionConfig(input.sessionId || ''),
             signal,
         } as Record<string, unknown>;
 
         let entries = [...initialEntries];
-        const contextWindow = await this.resolveContextWindow(providerConfig.provider, providerConfig.model, providerConfig.apiKey, providerConfig.baseUrl);
-        const estimatedPromptTokens = Math.ceil(messages[0].content.length / 4);
-        const initialUsage: AgentContextUsageEvent = {
-            type: 'context-usage',
-            promptTokens: estimatedPromptTokens,
-            completionTokens: 0,
-            contextWindowTokens: contextWindow,
-            fillPercent: Math.round((estimatedPromptTokens / contextWindow) * 100),
-            source: 'estimated',
-        };
-        entries = this.applyStreamEvent(entries, initialUsage);
-        await postMessage({ type: 'agent.streamEvent', event: initialUsage });
 
         if (typeof (agent as any).streamEvents === 'function') {
             const stream = (agent as any).streamEvents({ messages }, config);
@@ -652,6 +670,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             for await (const event of stream) {
                 await this.throwIfAborted(signal);
                 await eventRuntime.processStreamEvent(event, accumulator, {
+                    contextWindowTokens,
                     onTextDelta: async (delta: string) => {
                         entries = this.applyStreamEvent(entries, { type: 'text-delta', delta });
                         await postMessage({ type: 'agent.streamEvent', event: { type: 'text-delta', delta } });
@@ -702,6 +721,21 @@ export class AgentRuntimeController implements vscode.Disposable {
                         entries = this.applyStreamEvent(entries, streamEvent);
                         await postMessage({ type: 'agent.streamEvent', event: streamEvent });
                     },
+                    onContextUsage: async (usage: any) => {
+                        if (usage?.source !== 'api') {
+                            return;
+                        }
+                        const streamEvent: AgentStreamEvent = {
+                            type: 'context-usage',
+                            promptTokens: Number(usage.promptTokens || 0),
+                            completionTokens: Number(usage.completionTokens || 0),
+                            contextWindowTokens: Number(usage.contextWindowTokens || contextWindowTokens),
+                            fillPercent: Number(usage.fillPercent || 0),
+                            source: 'api',
+                        };
+                        entries = this.applyStreamEvent(entries, streamEvent);
+                        await postMessage({ type: 'agent.streamEvent', event: streamEvent });
+                    },
                 });
             }
 
@@ -715,18 +749,6 @@ export class AgentRuntimeController implements vscode.Disposable {
                     this.outputChannel.appendLine(`[n8n-agent] Auto-checkpoint failed: ${error?.message || String(error)}`);
                 }
             }
-
-            const estimatedCompletionTokens = Math.ceil(accumulator.responseText.length / 4);
-            const finalUsage: AgentContextUsageEvent = {
-                type: 'context-usage',
-                promptTokens: estimatedPromptTokens,
-                completionTokens: estimatedCompletionTokens,
-                contextWindowTokens: contextWindow,
-                fillPercent: Math.min(100, Math.round(((estimatedPromptTokens + estimatedCompletionTokens) / contextWindow) * 100)),
-                source: 'estimated',
-            };
-            entries = this.applyStreamEvent(entries, finalUsage);
-            await postMessage({ type: 'agent.streamEvent', event: finalUsage });
 
             const finalEvent: AgentStreamEvent = {
                 type: 'final',
@@ -1192,7 +1214,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         const record = sessions.service.get(sessionId);
         const workflowContext = this.getLatestWorkflowContext(entries, record);
         const nodeContexts = workflowContext ? this.getLatestNodeContexts(entries) : [];
-        const latestUsageEntry = [...entries].reverse().find((entry): entry is Extract<AgentTimelineEntry, { kind: 'context-usage' }> => entry.kind === 'context-usage');
+        const latestUsageEntry = [...entries].reverse().find((entry): entry is Extract<AgentTimelineEntry, { kind: 'context-usage' }> => entry.kind === 'context-usage' && entry.usage.source === 'api');
         return {
             sessionId,
             title: displaySession?.title || record?.title || this.getDefaultSessionTitle(input.workflowName),
@@ -1212,17 +1234,6 @@ export class AgentRuntimeController implements vscode.Disposable {
             workflowContext,
             nodeContexts,
         };
-    }
-
-    private buildFallbackCompactionSummary(entries: AgentTimelineEntry[]): string {
-        const snippets = entries
-            .map((entry) => this.getEntryText(entry).trim())
-            .filter(Boolean)
-            .slice(-6)
-            .map((text) => text.length > 140 ? `${text.slice(0, 140)}...` : text);
-        return snippets.length
-            ? `Manual context compaction preserved recent conversation and summarized prior context: ${snippets.join(' | ')}`
-            : 'Manual context compaction preserved recent conversation and removed older low-signal context.';
     }
 
     private withWorkflowContext(entries: AgentTimelineEntry[], workflow: AgentWorkflowContext): AgentTimelineEntry[] {
@@ -1502,7 +1513,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                     source: event.source,
                 },
             };
-            const withoutPrevious = entries.filter((entry) => entry.kind !== 'context-usage');
+            const withoutPrevious = this.withoutContextUsage(entries);
             return [...withoutPrevious, usageEntry];
         }
         if (event.type === 'error') {
@@ -1619,6 +1630,39 @@ export class AgentRuntimeController implements vscode.Disposable {
 
     private createSystemNotice(text: string): AgentTimelineEntry {
         return { kind: 'system-notice', id: randomUUID(), text, timestamp: Date.now() };
+    }
+
+    private withoutContextUsage(entries: AgentTimelineEntry[]): AgentTimelineEntry[] {
+        return entries.filter((entry) => entry.kind !== 'context-usage');
+    }
+
+    private toCompactionSummary(value: unknown): AgentCompactionSummary | undefined {
+        if (!value || typeof value !== 'object') return undefined;
+        const event = value as Record<string, unknown>;
+        const summary = typeof event.summary === 'string' && event.summary.trim()
+            ? event.summary.trim()
+            : 'Context compacted';
+        return {
+            summary,
+            source: event.source === 'fallback' ? 'fallback' : 'llm',
+            messagesCompacted: this.numberOrZero(event.messagesCompacted),
+            preservedRecentMessages: this.numberOrZero(event.preservedRecentMessages),
+            estimatedTokens: this.optionalNumber(event.estimatedTokens),
+            thresholdTokens: this.optionalNumber(event.thresholdTokens),
+            fallbackReason: typeof event.fallbackReason === 'string' && event.fallbackReason.trim()
+                ? event.fallbackReason.trim()
+                : undefined,
+        };
+    }
+
+    private numberOrZero(value: unknown): number {
+        const number = typeof value === 'number' ? value : Number(value || 0);
+        return Number.isFinite(number) ? number : 0;
+    }
+
+    private optionalNumber(value: unknown): number | undefined {
+        const number = typeof value === 'number' ? value : Number(value);
+        return Number.isFinite(number) ? number : undefined;
     }
 
     private async ensureAgentHandleWithCheckpoint(input: Omit<AgentPromptInput, 'prompt'>): Promise<any> {

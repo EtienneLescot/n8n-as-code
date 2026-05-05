@@ -24,9 +24,12 @@ import type { AgentWorkflowContext } from './services/agent-runtime-controller.j
 import {
     YagrProviderService,
     YAGR_PROVIDER_DEFINITIONS,
+    YAGR_REASONING_EFFORTS,
     YAGR_SELECTABLE_PROVIDERS,
     normalizeYagrProviderId,
+    providerSupportsReasoningEffort,
     type YagrModelProvider,
+    type YagrReasoningEffort,
 } from './services/yagr-provider-service.js';
 import {
     N8nConfigurationController,
@@ -838,6 +841,10 @@ async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: I
                 listWorkflows: listAgentWorkflowOptions,
                 resolveWorkflow: resolveAgentWorkflowTarget,
                 listWorkflowNodes: listAgentWorkflowNodes,
+                listProviderOptions: listAgentProviderOptions,
+                listModelOptions: listAgentModelOptions,
+                selectProviderModel: selectAgentProviderModel,
+                selectReasoningEffort: selectInlineAgentReasoningEffort,
             },
             initialSessionId,
             vscode.ViewColumn.One,
@@ -925,6 +932,60 @@ async function listAgentWorkflowNodes(workflowContext: AgentWorkflowContext): Pr
         result.push({ name, type: type || undefined, id: id || undefined });
     }
     return result;
+}
+
+async function listAgentProviderOptions(): Promise<Array<Record<string, unknown>>> {
+    const states = await requireYagrProviderService().listProviderConnectionStates();
+    return states.filter((state) => state.connected || state.selected).map((state) => ({
+        id: state.id,
+        label: state.label,
+        description: state.description,
+        connected: state.connected,
+        selected: state.selected,
+        model: state.model,
+        defaultModel: state.defaultModel,
+        supportsReasoningEffort: state.supportsReasoningEffort,
+    }));
+}
+
+async function listAgentModelOptions(providerId: string): Promise<Array<Record<string, unknown>>> {
+    const provider = normalizeYagrProviderId(providerId) || 'openai';
+    const definition = YAGR_PROVIDER_DEFINITIONS[provider];
+    const config = vscode.workspace.getConfiguration('n8n.agent');
+    const selectedProvider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
+    const currentModel = String(config.get<string>('model') || '').trim() || definition.defaultModel;
+    const liveModels = await requireYagrProviderService().fetchAvailableModels(provider).catch(() => []);
+    return [...new Set([...(liveModels.length ? liveModels : []), definition.defaultModel, currentModel].filter(Boolean))]
+        .map((model) => ({
+            id: model,
+            label: model,
+            provider,
+            providerLabel: definition.label,
+            selected: provider === selectedProvider && model === currentModel,
+            fallback: !liveModels.length,
+        }));
+}
+
+async function selectAgentProviderModel(providerId: string, model: string): Promise<void> {
+    const provider = normalizeYagrProviderId(providerId) || 'openai';
+    const trimmedModel = model.trim() || YAGR_PROVIDER_DEFINITIONS[provider].defaultModel;
+    const config = vscode.workspace.getConfiguration('n8n.agent');
+    await config.update('provider', provider, vscode.ConfigurationTarget.Global);
+    await config.update('model', trimmedModel, vscode.ConfigurationTarget.Global);
+    await requireYagrProviderService().syncReasoningEffortConfiguration(provider, trimmedModel);
+}
+
+async function selectInlineAgentReasoningEffort(effort: string): Promise<void> {
+    const normalized = YAGR_REASONING_EFFORTS.includes(effort as YagrReasoningEffort) ? effort as YagrReasoningEffort : undefined;
+    if (!normalized) return;
+    const config = vscode.workspace.getConfiguration('n8n.agent');
+    const provider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
+    const model = String(config.get<string>('model') || '').trim() || undefined;
+    if (!providerSupportsReasoningEffort(provider, model)) {
+        await config.update('reasoningEffort', undefined, vscode.ConfigurationTarget.Global);
+        return;
+    }
+    await config.update('reasoningEffort', normalized, vscode.ConfigurationTarget.Global);
 }
 
 function getSelectedAgentProviderModelLabel(): string {
