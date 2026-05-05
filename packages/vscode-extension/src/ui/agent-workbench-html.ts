@@ -304,6 +304,11 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             justify-content: flex-end;
             gap: 8px;
         }
+        #checkpoint-open,
+        #checkpoint-overlay,
+        .checkpoint-item .checkpoint-actions {
+            display: none !important;
+        }
         .chat-head {
             display: grid;
             gap: 10px;
