@@ -51,7 +51,7 @@
     "deep-equal": "^2.2.3",
     "dotenv": "^17.2.3",
     "flexsearch": "^0.8.212",
-    "open": "^8.4.2"
+    "open": "^11.0.0"
   },
   "devDependencies": {
     "lefthook": "^2.1.4",
