@@ -62,10 +62,6 @@ const OPENAI_CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const OPENAI_CODEX_DEVICE_REDIRECT_URI = 'https://auth.openai.com/deviceauth/callback';
 const DISABLED_PROVIDERS_STATE_KEY = 'n8n.agent.disabledProviders';
 
-function importRuntimeModule<T = any>(specifier: string): Promise<T> {
-    return import(specifier) as Promise<T>;
-}
-
 const MODEL_LIST_MAPPER = (payload: Record<string, unknown>): string[] => {
     const data = Array.isArray(payload.data) ? payload.data : [];
     return data
@@ -470,21 +466,11 @@ export class YagrProviderService {
     }
 
     private async getDefaultReasoningEffort(model: string): Promise<YagrReasoningEffort> {
-        try {
-            const openAiAccount = await importRuntimeModule('@yagr/agent/dist/llm/openai-account.js');
-            return openAiAccount.getDefaultCodexReasoningEffort(model || YAGR_PROVIDER_DEFINITIONS['openai-oauth'].defaultModel) as YagrReasoningEffort;
-        } catch {
-            return 'medium';
-        }
+        const modelId = model || YAGR_PROVIDER_DEFINITIONS['openai-oauth'].defaultModel;
+        return modelId.includes('codex-mini') ? 'minimal' : 'medium';
     }
 
     private async fetchOpenAiOauthModels(accessToken: string): Promise<string[]> {
-        const accountRuntime = await importRuntimeModule('@yagr/agent/dist/llm/openai-account.js').catch(() => undefined);
-        if (accountRuntime) {
-            const session = await accountRuntime.ensureOpenAiAccountSession().catch(() => undefined);
-            const token = session?.accessToken || accessToken;
-            return token ? accountRuntime.fetchOpenAiAccountModels(token) : [];
-        }
         if (!accessToken) return [];
         const headers: Record<string, string> = {
             Authorization: `Bearer ${accessToken}`,
@@ -695,26 +681,7 @@ export class YagrProviderService {
     }
 
     private async completeOpenAiDeviceAuth(challenge: DeviceChallenge, cancellationToken?: vscode.CancellationToken): Promise<string> {
-        const accountRuntime = await importRuntimeModule('@yagr/agent/dist/llm/openai-account.js');
-        const wait = accountRuntime.completeCodexDeviceAuth({
-            deviceAuthId: challenge.deviceAuthId || '',
-            userCode: challenge.userCode,
-            intervalMs: challenge.intervalMs,
-            expiresAt: challenge.expiresAt,
-        });
-        if (!cancellationToken) {
-            return (await wait).accessToken;
-        }
-        const session = await Promise.race([
-            wait,
-            new Promise<never>((_, reject) => {
-                const disposable = cancellationToken.onCancellationRequested(() => {
-                    disposable.dispose();
-                    reject(new Error('OpenAI device login cancelled.'));
-                });
-            }),
-        ]);
-        return session.accessToken;
+        return this.completeOpenAiDeviceAuthLegacy(challenge, cancellationToken);
     }
 
     private async completeOpenAiDeviceAuthLegacy(challenge: DeviceChallenge, cancellationToken?: vscode.CancellationToken): Promise<string> {
@@ -788,25 +755,7 @@ export class YagrProviderService {
     }
 
     private async completeGitHubDeviceAuth(challenge: DeviceChallenge, cancellationToken?: vscode.CancellationToken): Promise<string> {
-        const accountRuntime = await importRuntimeModule('@yagr/agent/dist/llm/copilot-account.js');
-        const wait = accountRuntime.completeGitHubCopilotAuth({
-            deviceCode: challenge.deviceCode || '',
-            intervalMs: challenge.intervalMs,
-            expiresAt: challenge.expiresAt,
-        });
-        if (!cancellationToken) {
-            return (await wait).githubToken;
-        }
-        const session = await Promise.race([
-            wait,
-            new Promise<never>((_, reject) => {
-                const disposable = cancellationToken.onCancellationRequested(() => {
-                    disposable.dispose();
-                    reject(new Error('GitHub Copilot device login cancelled.'));
-                });
-            }),
-        ]);
-        return session.githubToken;
+        return this.completeGitHubDeviceAuthLegacy(challenge, cancellationToken);
     }
 
     private async completeGitHubDeviceAuthLegacy(challenge: DeviceChallenge, cancellationToken?: vscode.CancellationToken): Promise<string> {

@@ -296,6 +296,51 @@ type YagrProviderRegistryModule = {
     getProviderDisplayName(provider: string): string;
 };
 
+const YAGR_MODEL_PROVIDERS = Object.freeze([
+    'anthropic',
+    'openai',
+    'google',
+    'mistral',
+    'openrouter',
+    'openai-oauth',
+    'anthropic-proxy',
+    'copilot-proxy',
+    'minimax',
+    'minimax-token-plan',
+    'openai-compatible',
+]);
+
+const YAGR_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+    anthropic: 'Claude API',
+    openai: 'OpenAI API',
+    google: 'Gemini API',
+    mistral: 'Mistral API',
+    openrouter: 'OpenRouter API',
+    'openai-oauth': 'OpenAI ChatGPT OAuth',
+    'anthropic-proxy': 'Claude Account',
+    'copilot-proxy': 'GitHub Copilot OAuth',
+    minimax: 'MiniMax API',
+    'minimax-token-plan': 'MiniMax Token Plan',
+    'openai-compatible': 'OpenAI Compatible',
+};
+
+const YAGR_API_KEY_PROVIDERS = new Set(['anthropic', 'openai', 'google', 'mistral', 'openrouter', 'minimax', 'minimax-token-plan']);
+
+function normalizeAgentProviderId(provider: string | undefined): string | undefined {
+    const normalized = provider?.trim().toLowerCase();
+    if (!normalized) return undefined;
+    if (normalized === 'claude') return 'anthropic';
+    if (normalized === 'gemini') return 'google';
+    return YAGR_MODEL_PROVIDERS.includes(normalized) ? normalized : undefined;
+}
+
+const LOCAL_YAGR_PROVIDER_REGISTRY: YagrProviderRegistryModule = {
+    YAGR_MODEL_PROVIDERS: [...YAGR_MODEL_PROVIDERS],
+    normalizeProviderId: normalizeAgentProviderId,
+    providerRequiresApiKey: (provider: string) => YAGR_API_KEY_PROVIDERS.has(provider),
+    getProviderDisplayName: (provider: string) => YAGR_PROVIDER_DISPLAY_NAMES[provider] || provider,
+};
+
 type CompactionState = {
     lastCompaction: AgentCompactionSummary | null;
     compactionHistory: AgentCompactionSummary[];
@@ -758,13 +803,13 @@ export class AgentRuntimeController implements vscode.Disposable {
 
         if (typeof (agent as any).streamEvents === 'function') {
             const stream = (agent as any).streamEvents({ messages }, config);
-            const eventRuntime = await importRuntimeModule('@yagr/agent/dist/gateway/langgraph-events.js');
-            const accumulator = eventRuntime.createRunAccumulator();
-            const lastProgressKeys = new Set<string>();
+            const streamAdapter = await importRuntimeModule('@yagr/stream-adapter');
+            const accumulator = streamAdapter.createLangGraphStreamAccumulator();
+            let fileModificationDetected = false;
 
             for await (const event of stream) {
                 await this.throwIfAborted(signal);
-                await eventRuntime.processStreamEvent(event, accumulator, {
+                await streamAdapter.processLangGraphStreamEvent(event, accumulator, {
                     contextWindowTokens,
                     onTextDelta: async (delta: string) => {
                         entries = this.applyStreamEvent(entries, { type: 'text-delta', delta });
@@ -784,22 +829,9 @@ export class AgentRuntimeController implements vscode.Disposable {
                         };
                         entries = this.applyStreamEvent(entries, streamEvent);
                         await postMessage({ type: 'agent.streamEvent', event: streamEvent });
-                    },
-                    onUserVisibleUpdate: async (update: any) => {
-                        const dedupeKey = String(update.dedupeKey || `${update.title || 'progress'}:${update.detail || ''}`);
-                        if (lastProgressKeys.has(dedupeKey)) {
-                            return;
+                        if (streamEvent.status === 'done' && streamEvent.category === 'file-write') {
+                            fileModificationDetected = true;
                         }
-                        lastProgressKeys.add(dedupeKey);
-                        const streamEvent: AgentStreamEvent = {
-                            type: 'progress',
-                            tone: update.tone === 'error' ? 'error' : update.tone === 'success' ? 'success' : 'info',
-                            title: String(update.title || update.phase || 'Progress'),
-                            detail: this.truncateOperationDetail(update.detail),
-                            phase: typeof update.phase === 'string' ? update.phase : undefined,
-                        };
-                        entries = this.applyStreamEvent(entries, streamEvent);
-                        await postMessage({ type: 'agent.streamEvent', event: streamEvent });
                     },
                     onCompaction: async (compaction: any) => {
                         const streamEvent: AgentStreamEvent = {
@@ -842,7 +874,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             };
             entries = this.applyStreamEvent(entries, finalEvent);
             await postMessage({ type: 'agent.streamEvent', event: finalEvent });
-            if (accumulator.fileModificationDetected) {
+            if (fileModificationDetected) {
                 this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime detected local workflow modification sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'} workflowFilePath=${input.workflowFilePath || 'none'}`);
                 try {
                     await this.maybeSaveYagrCheckpoint(sessions.service, input.sessionId || '', 'after-tool', {
@@ -857,8 +889,8 @@ export class AgentRuntimeController implements vscode.Disposable {
                     this.outputChannel.appendLine(`[n8n-agent] Auto-checkpoint failed: ${error?.message || String(error)}`);
                 }
             }
-            this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime completed sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'} workflowChanged=${String(Boolean(accumulator.fileModificationDetected))}`);
-            return { entries, workflowChanged: Boolean(accumulator.fileModificationDetected) };
+            this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime completed sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'} workflowChanged=${String(fileModificationDetected)}`);
+            return { entries, workflowChanged: fileModificationDetected };
         }
 
         const result = await (agent as any).invoke({ messages }, config);
@@ -882,7 +914,7 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     private async loadYagrProviderRegistry(): Promise<YagrProviderRegistryModule> {
-        return importRuntimeModule<YagrProviderRegistryModule>('@yagr/agent/dist/llm/provider-registry.js');
+        return LOCAL_YAGR_PROVIDER_REGISTRY;
     }
 
     private async describeProviderRuntimeConfig(): Promise<ProviderRuntimeConfig> {
@@ -920,21 +952,17 @@ export class AgentRuntimeController implements vscode.Disposable {
         const model = String(config.get<string>('model') || '').trim() || undefined;
         const baseUrl = String(config.get<string>('baseUrl') || '').trim() || undefined;
         const apiKey = await this._context.secrets.get(getAgentProviderSecretKey(normalizedProvider));
-        if (normalizedProvider === 'openai-oauth') {
-            const accountRuntime = await importRuntimeModule('@yagr/agent/dist/llm/openai-account.js');
-            const session = await accountRuntime.ensureOpenAiAccountSession().catch(() => undefined);
-            if (!session?.accessToken) {
-                return {
-                    ready: false,
-                    reason: 'OpenAI OAuth needs to be reconnected once so n8n-as-code can persist the Codex account session used by the Yagr runtime. Open Settings > Agent Providers, disconnect OpenAI ChatGPT OAuth, then connect it again.',
-                    provider: normalizedProvider,
-                    model,
-                    baseUrl,
-                    apiKey,
-                    reasoningEffort,
-                    temperature: 0,
-                };
-            }
+        if (normalizedProvider === 'openai-oauth' && !apiKey) {
+            return {
+                ready: false,
+                reason: 'OpenAI OAuth needs to be connected. Open Settings > Agent Providers, then connect OpenAI ChatGPT OAuth.',
+                provider: normalizedProvider,
+                model,
+                baseUrl,
+                apiKey,
+                reasoningEffort,
+                temperature: 0,
+            };
         }
         if (providerRegistry.providerRequiresApiKey(normalizedProvider) && !apiKey && normalizedProvider !== 'openai-oauth' && normalizedProvider !== 'copilot-proxy' && normalizedProvider !== 'anthropic-proxy') {
             return {
@@ -961,10 +989,8 @@ export class AgentRuntimeController implements vscode.Disposable {
 
     private async getYagrAgentHandle(providerConfig: ProviderRuntimeConfig, input: AgentPromptInput): Promise<any> {
         const rootDir = input.workspaceRoot || process.cwd();
-        const [agentFactory, providerRegistry] = await Promise.all([
-            importRuntimeModule('@yagr/agent/dist/agent-factory.js'),
-            importRuntimeModule<YagrProviderRegistryModule>('@yagr/agent/dist/llm/provider-registry.js'),
-        ]);
+        const agentFactory = await importRuntimeModule('@yagr/agent');
+        const providerRegistry = LOCAL_YAGR_PROVIDER_REGISTRY;
         const memorySources = await this.getWorkspaceMemorySources(rootDir);
         const skillSourcePaths = await this.getWorkspaceSkillSources(rootDir);
         const key = JSON.stringify({
@@ -1230,13 +1256,14 @@ export class AgentRuntimeController implements vscode.Disposable {
     private async getSessionRuntime(): Promise<SessionRuntime> {
         if (!this.sessionRuntimePromise) {
             this.sessionRuntimePromise = (async () => {
-                const module = await importRuntimeModule('@yagr/agent/packages/session-service/dist/index.js');
+                const module = await importRuntimeModule('@yagr/session-service');
                 const sessionsRoot = path.join(this._context.globalStorageUri.fsPath, 'agent-sessions');
                 const webUiSessionsDir = path.join(sessionsRoot, 'display');
                 await fs.promises.mkdir(webUiSessionsDir, { recursive: true });
                 const service = new module.SessionService({
                     sessionsDir: path.join(sessionsRoot, 'records'),
                     webUiSessionsDir,
+                    memoriesDir: path.join(sessionsRoot, 'memories'),
                     checkpointPolicy: {
                         enabled: true,
                         afterFileModifications: true,
@@ -1884,9 +1911,9 @@ export class AgentRuntimeController implements vscode.Disposable {
             return DEFAULT_CONTEXT_WINDOW_TOKENS;
         }
         try {
-            const metadata = await importRuntimeModule('@yagr/agent/dist/llm/provider-metadata.js');
+            const metadata = await importRuntimeModule('@yagr/agent');
             const entry = await metadata.primeProviderModelMetadata(provider as any, model, apiKey, baseUrl);
-            return Number(entry?.contextWindow || metadata.getSnapshotContextWindow(provider as any, model) || DEFAULT_CONTEXT_WINDOW_TOKENS);
+            return Number(entry?.contextWindow || DEFAULT_CONTEXT_WINDOW_TOKENS);
         } catch {
             return DEFAULT_CONTEXT_WINDOW_TOKENS;
         }

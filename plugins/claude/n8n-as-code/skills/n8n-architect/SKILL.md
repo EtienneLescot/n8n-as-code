@@ -11,44 +11,44 @@ Use this skill for workflow engineering. Use the `n8n-manager` skill for instanc
 
 - Treat the current context root as the directory containing `n8nac-config.json`, `AGENTS.md`, `.agents/skills`, and the workflow sync folder.
 - Generated context root hint: not embedded. Use the shell launch directory or the workspace path explicitly given by the user.
-- Before any n8n work, first run `npx --yes n8nac update-ai` from the context root, then read `AGENTS.md`. `update-ai` is designed to create or refresh the n8n-as-code block without destroying existing user or agent instructions.
+- Before any n8n work, first run `npx --yes n8nac@next update-ai` from the context root, then read `AGENTS.md`. `update-ai` is designed to create or refresh the n8n-as-code block without destroying existing user or agent instructions.
 - Use the exact `n8nac command` and `n8n-manager command` listed in `AGENTS.md`. Those context-root commands override the portable examples in this skill.
-- Run every `npx --yes n8nac workspace ...`, `npx --yes n8nac list`, `pull`, `push`, `validate`, `test`, and `update-ai` command from the context root unless the user explicitly gives another context root.
+- Run every `npx --yes n8nac@next workspace ...`, `npx --yes n8nac@next list`, `pull`, `push`, `validate`, `test`, and `update-ai` command from the context root unless the user explicitly gives another context root.
 - `AGENTS.md` is bootstrap context only, not a source of configuration truth.
 - Do not infer instance, project, sync folder, or workflow directory from `AGENTS.md`.
 - Before n8n work, resolve the effective context from the backend:
 
 ```bash
-npx --yes n8nac workspace status --json
+npx --yes n8nac@next workspace status --json
 ```
 
 - Use the returned `workflowDir` for workflow files. Do not reconstruct it from `syncFolder`, `instanceIdentifier`, or `projectName`.
-- Never write `n8nac-config.json` by hand. Use `npx --yes n8nac workspace ...` commands.
+- Never write `n8nac-config.json` by hand. Use `npx --yes n8nac@next workspace ...` commands.
 
 ## Bootstrap Order
 
 1. `cd` to the context root.
-2. Run `npx --yes n8nac update-ai`, then read `AGENTS.md`.
-3. Run `npx --yes n8nac workspace status --json`.
-4. If the context root is not ready, inspect instances with `npx --yes @n8n-as-code/n8n-manager instances list`.
+2. Run `npx --yes n8nac@next update-ai`, then read `AGENTS.md`.
+3. Run `npx --yes n8nac@next workspace status --json`.
+4. If the context root is not ready, inspect instances with `npx --yes @n8n-as-code/n8n-manager@next instances list`.
 5. Reuse an existing instance when suitable.
 6. If no suitable instance exists, stop and ask the user whether they want to reuse/configure an existing instance, create a managed local n8n instance, or connect an existing/remote n8n instance. Do not create infrastructure by default. If the user chooses a managed local instance, ask separately whether they want a public tunnel.
 7. Ask for host/API key only for an explicitly remote or existing n8n instance.
 8. Configure context-root overrides with:
 
 ```bash
-npx --yes n8nac workspace pin-instance --instance-id <id>
-npx --yes n8nac workspace set-sync-folder workflows
-npx --yes n8nac workspace set-project --project-id <id> --project-name <name>
+npx --yes n8nac@next workspace pin-instance --instance-id <id>
+npx --yes n8nac@next workspace set-sync-folder workflows
+npx --yes n8nac@next workspace set-project --project-id <id> --project-name <name>
 ```
 
 For self-hosted n8n instances where the projects API is unavailable or returns 401/403, do not keep retrying project discovery. Use the standard personal project override unless the user gave another project:
 
 ```bash
-npx --yes n8nac workspace set-project --project-id personal --project-name Personal
+npx --yes n8nac@next workspace set-project --project-id personal --project-name Personal
 ```
 
-9. Run `npx --yes n8nac update-ai` after changing context-root overrides when the facade does not do it automatically.
+9. Run `npx --yes n8nac@next update-ai` after changing context-root overrides when the facade does not do it automatically.
 
 ## Sync Discipline
 
@@ -57,13 +57,13 @@ npx --yes n8nac workspace set-project --project-id personal --project-name Perso
 - Use `list` to inspect workflow IDs, file paths, and sync status.
 
 ```bash
-npx --yes n8nac list
-npx --yes n8nac pull <workflowId>
-npx --yes n8nac push <path-to-workflow.workflow.ts> --verify
+npx --yes n8nac@next list
+npx --yes n8nac@next pull <workflowId>
+npx --yes n8nac@next push <path-to-workflow.workflow.ts> --verify
 ```
 
 - `push` requires the full workflow file path, either absolute or context-root-relative. Do not pass a bare filename.
-- For a new workflow, create the file inside the `workflowDir` returned by `workspace status --json`, then confirm it with `npx --yes n8nac list --local`.
+- For a new workflow, create the file inside the `workflowDir` returned by `workspace status --json`, then confirm it with `npx --yes n8nac@next list --local`.
 - If push/pull reports a conflict, use explicit resolution commands. Do not overwrite remote changes blindly.
 - `pull` and conflict resolution operate on a single workflow ID.
 - `list` is the lightweight command that covers all workflows at once.
@@ -74,8 +74,8 @@ npx --yes n8nac push <path-to-workflow.workflow.ts> --verify
 If push or pull reports a conflict, stop and inspect the conflict. Use explicit resolution commands only after choosing the intended direction:
 
 ```bash
-npx --yes n8nac resolve <workflowId> --mode keep-current
-npx --yes n8nac resolve <workflowId> --mode keep-incoming
+npx --yes n8nac@next resolve <workflowId> --mode keep-current
+npx --yes n8nac@next resolve <workflowId> --mode keep-incoming
 ```
 
 - `keep-current` force-pushes the local version.
@@ -87,10 +87,10 @@ npx --yes n8nac resolve <workflowId> --mode keep-incoming
 Never guess n8n node parameters.
 
 ```bash
-npx --yes n8nac skills examples search "<workflow pattern>"
-npx --yes n8nac skills search "<node or capability>"
-npx --yes n8nac skills node-info <nodeName>
-npx --yes n8nac skills validate <workflow.workflow.ts>
+npx --yes n8nac@next skills examples search "<workflow pattern>"
+npx --yes n8nac@next skills search "<node or capability>"
+npx --yes n8nac@next skills node-info <nodeName>
+npx --yes n8nac@next skills validate <workflow.workflow.ts>
 ```
 
 - Use exact node `type` and valid `typeVersion` values from `node-info`.
@@ -105,19 +105,19 @@ npx --yes n8nac skills validate <workflow.workflow.ts>
 Use these commands instead of guessing:
 
 ```bash
-npx --yes n8nac skills search "<node or capability>"
-npx --yes n8nac skills node-info <nodeName>
-npx --yes n8nac skills node-schema <nodeName>
-npx --yes n8nac skills docs "<topic>"
-npx --yes n8nac skills guides "<topic>"
-npx --yes n8nac skills examples search "<workflow pattern>"
-npx --yes n8nac skills examples info <id>
-npx --yes n8nac skills examples download <id>
+npx --yes n8nac@next skills search "<node or capability>"
+npx --yes n8nac@next skills node-info <nodeName>
+npx --yes n8nac@next skills node-schema <nodeName>
+npx --yes n8nac@next skills docs "<topic>"
+npx --yes n8nac@next skills guides "<topic>"
+npx --yes n8nac@next skills examples search "<workflow pattern>"
+npx --yes n8nac@next skills examples info <id>
+npx --yes n8nac@next skills examples download <id>
 ```
 
 - Start with `examples search` when the user asks for a common automation pattern.
 - Use examples to learn patterns, not as authority over current node schemas.
-- If a command or flag is unfamiliar, run `npx --yes n8nac <subcommand> --help`; do not invent flags.
+- If a command or flag is unfamiliar, run `npx --yes n8nac@next <subcommand> --help`; do not invent flags.
 
 ## Workflow Authoring Rules
 
@@ -257,15 +257,15 @@ defineRouting() {
 After pushing:
 
 ```bash
-npx --yes n8nac verify <workflowId>
-npx --yes n8nac test-plan <workflowId> --json
+npx --yes n8nac@next verify <workflowId>
+npx --yes n8nac@next test-plan <workflowId> --json
 ```
 
 For webhook, chat, or form workflows, prefer the production test sequence:
 
 ```bash
-npx --yes n8nac workflow activate <workflowId>
-npx --yes n8nac test <workflowId> --prod
+npx --yes n8nac@next workflow activate <workflowId>
+npx --yes n8nac@next test <workflowId> --prod
 ```
 
 - Class A configuration gaps require user/config action, not workflow rewrites.
@@ -285,7 +285,7 @@ Run it whenever one of these is true:
 - the user asks to show, open, present, display, or give the URL/link for a workflow.
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager presentWorkflowResult --workflow-id <workflowId> --workspace-root <contextRoot>
+npx --yes @n8n-as-code/n8n-manager@next presentWorkflowResult --workflow-id <workflowId> --workspace-root <contextRoot>
 ```
 
 Rules:
@@ -293,7 +293,7 @@ Rules:
 - Do not manually construct n8n workflow URLs.
 - Do not return an internal local n8n URL when a presentation URL is available.
 - Use the `url` returned by `presentWorkflowResult` as the user-facing URL.
-- If you do not know the workflow ID, run `npx --yes n8nac list` first and select the matching workflow.
+- If you do not know the workflow ID, run `npx --yes n8nac@next list` first and select the matching workflow.
 - If `presentWorkflowResult` fails, report the backend diagnostic and then provide the best direct n8n URL only as a fallback.
 - Do this before the final response when the task created, changed, pushed, ran, or explicitly asks to show a workflow.
 
@@ -307,18 +307,18 @@ For webhook, chat, or form workflows:
 4. Test with `--prod` by default.
 
 ```bash
-npx --yes n8nac push <path-to-workflow.workflow.ts> --verify
-npx --yes n8nac test-plan <workflowId> --json
-npx --yes n8nac workflow activate <workflowId>
-npx --yes n8nac test <workflowId> --prod
+npx --yes n8nac@next push <path-to-workflow.workflow.ts> --verify
+npx --yes n8nac@next test-plan <workflowId> --json
+npx --yes n8nac@next workflow activate <workflowId>
+npx --yes n8nac@next test <workflowId> --prod
 ```
 
-Use bare `npx --yes n8nac test <workflowId>` only when a test URL was intentionally armed in the n8n editor.
+Use bare `npx --yes n8nac@next test <workflowId>` only when a test URL was intentionally armed in the n8n editor.
 
 For GET/HEAD webhooks that read from `$json.query`, prefer:
 
 ```bash
-npx --yes n8nac test <workflowId> --query '{"key":"value"}' --prod
+npx --yes n8nac@next test <workflowId> --query '{"key":"value"}' --prod
 ```
 
 ## Execution Debugging
@@ -326,8 +326,8 @@ npx --yes n8nac test <workflowId> --query '{"key":"value"}' --prod
 If a webhook returns success but the workflow behavior is wrong, inspect executions instead of guessing:
 
 ```bash
-npx --yes n8nac execution list --workflow-id <workflowId> --limit 5 --json
-npx --yes n8nac execution get <executionId> --include-data --json
+npx --yes n8nac@next execution list --workflow-id <workflowId> --limit 5 --json
+npx --yes n8nac@next execution get <executionId> --include-data --json
 ```
 
 - A successful HTTP trigger only means n8n accepted the request.
@@ -339,11 +339,11 @@ npx --yes n8nac execution get <executionId> --include-data --json
 When a workflow is blocked by missing credentials, resolve the credential gap without rewriting unrelated workflow logic.
 
 ```bash
-npx --yes n8nac workflow credential-required <workflowId> --json
-npx --yes n8nac credential schema <type>
-npx --yes n8nac credential list --json
-npx --yes n8nac credential create --type <type> --name <name> --file cred.json --json
-npx --yes n8nac workflow activate <workflowId>
+npx --yes n8nac@next workflow credential-required <workflowId> --json
+npx --yes n8nac@next credential schema <type>
+npx --yes n8nac@next credential list --json
+npx --yes n8nac@next credential create --type <type> --name <name> --file cred.json --json
+npx --yes n8nac@next workflow activate <workflowId>
 ```
 
 - `workflow credential-required` exits non-zero when at least one credential is missing. Treat that as a signal to act, not as a workflow-code failure.

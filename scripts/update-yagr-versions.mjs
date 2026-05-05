@@ -80,6 +80,35 @@ function collectManifests(rootDir = workspaceRoot) {
     .sort((left, right) => left.relativePath.localeCompare(right.relativePath));
 }
 
+function collectLockfileYagrPackages(rootDir = workspaceRoot) {
+  const lockfilePath = path.join(rootDir, 'package-lock.json');
+  if (!fs.existsSync(lockfilePath)) {
+    return [];
+  }
+
+  const lockfile = readJsonFile(lockfilePath).value;
+  const packageNames = new Set();
+  const packages = lockfile.packages || {};
+
+  for (const [packagePath, entry] of Object.entries(packages)) {
+    const nodeModulesPrefix = 'node_modules/';
+    if (packagePath.startsWith(`${nodeModulesPrefix}@yagr/`)) {
+      const packageName = packagePath.slice(nodeModulesPrefix.length);
+      if (isYagrDependency(packageName) && !packageName.includes('/node_modules/')) {
+        packageNames.add(packageName);
+      }
+    }
+
+    for (const dependencyName of Object.keys(entry?.dependencies || {})) {
+      if (isYagrDependency(dependencyName)) {
+        packageNames.add(dependencyName);
+      }
+    }
+  }
+
+  return [...packageNames].sort();
+}
+
 function isYagrDependency(dependencyName) {
   return YAGR_PACKAGE_PATTERN.test(dependencyName);
 }
@@ -98,18 +127,19 @@ function getSpecPrefix(spec) {
 }
 
 function updateYagrDependencySpecs(manifests) {
-  const packageNames = new Set();
+  const manifestPackageNames = new Set();
   for (const manifest of manifests) {
     for (const section of DEPENDENCY_SECTIONS) {
       for (const dependencyName of Object.keys(manifest.json[section] || {})) {
         if (isYagrDependency(dependencyName)) {
-          packageNames.add(dependencyName);
+          manifestPackageNames.add(dependencyName);
         }
       }
     }
   }
 
-  const sortedPackageNames = [...packageNames].sort();
+  const lockfilePackageNames = collectLockfileYagrPackages();
+  const sortedPackageNames = [...new Set([...manifestPackageNames, ...lockfilePackageNames])].sort();
   const latestVersions = new Map(sortedPackageNames.map(name => [name, getLatestPublishedVersion(name)]));
   const changes = [];
 
@@ -152,11 +182,26 @@ function updateYagrDependencySpecs(manifests) {
     changedFiles.push(manifest.relativePath);
   }
 
-  return { changes, changedFiles, packageNames: sortedPackageNames };
+  return {
+    changes,
+    changedFiles,
+    packageNames: sortedPackageNames,
+    manifestPackageNames: [...manifestPackageNames].sort(),
+    lockfilePackageNames,
+  };
 }
 
-function installWorkspaceDependencies() {
+function installWorkspaceDependencies(packageNames) {
   execFileSync('npm', ['install'], {
+    cwd: workspaceRoot,
+    stdio: 'inherit',
+  });
+
+  if (packageNames.length === 0) {
+    return;
+  }
+
+  execFileSync('npm', ['update', '--save=false', ...packageNames], {
     cwd: workspaceRoot,
     stdio: 'inherit',
   });
@@ -167,18 +212,23 @@ function runCli() {
   const result = updateYagrDependencySpecs(manifests);
 
   if (result.packageNames.length === 0) {
-    console.log('No Yagr dependencies found in workspace manifests.');
+    console.log('No Yagr dependencies found in workspace manifests or lockfile.');
     return;
   }
 
-  if (result.changes.length === 0) {
+  if (result.changes.length > 0) {
+    console.log('Updated Yagr dependency specs:');
+    for (const change of result.changes) {
+      console.log(`  - ${change.file}: ${change.section}.${change.dependency} ${change.from} -> ${change.to}`);
+    }
+  } else {
     console.log('Yagr dependency specs are already at the latest published versions.');
-    return;
   }
 
-  console.log('Updated Yagr dependency specs:');
-  for (const change of result.changes) {
-    console.log(`  - ${change.file}: ${change.section}.${change.dependency} ${change.from} -> ${change.to}`);
+  console.log('Refreshing Yagr package installation:');
+  for (const packageName of result.packageNames) {
+    const source = result.manifestPackageNames.includes(packageName) ? 'manifest' : 'lockfile';
+    console.log(`  - ${packageName} (${source})`);
   }
 
   const syncResult = syncDependencyManifests({ mode: 'write' });
@@ -187,7 +237,7 @@ function runCli() {
   }
 
   console.log('Refreshing workspace installation...');
-  installWorkspaceDependencies();
+  installWorkspaceDependencies(result.packageNames);
 }
 
 try {
