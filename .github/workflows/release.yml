@@ -19,7 +19,7 @@ jobs:
     environment: prod
     env:
       GITHUB_TOKEN: ${{ github.token }}
-      N8NAC_POSTHOG_KEY: ${{ secrets.N8NAC_POSTHOG_KEY }}
+      N8NAC_POSTHOG_KEY: ${{ vars.N8NAC_POSTHOG_KEY }}
       N8NAC_POSTHOG_HOST: ${{ vars.N8NAC_POSTHOG_HOST }}
       N8NAC_TELEMETRY_ENV: prod
     outputs:
@@ -85,7 +85,7 @@ jobs:
         if: steps.pending.outputs.pending == 'true'
         run: |
           if [[ -z "${N8NAC_POSTHOG_KEY:-}" ]]; then
-            echo "❌ N8NAC_POSTHOG_KEY is missing in prod environment secrets."
+            echo "❌ N8NAC_POSTHOG_KEY is missing in prod environment variables."
             exit 1
           fi
           if [[ -z "${N8NAC_POSTHOG_HOST:-}" ]]; then
@@ -490,7 +490,7 @@ jobs:
     environment: next
     env:
       GITHUB_TOKEN: ${{ github.token }}
-      N8NAC_POSTHOG_KEY: ${{ secrets.N8NAC_POSTHOG_KEY }}
+      N8NAC_POSTHOG_KEY: ${{ vars.N8NAC_POSTHOG_KEY }}
       N8NAC_POSTHOG_HOST: ${{ vars.N8NAC_POSTHOG_HOST }}
       N8NAC_TELEMETRY_ENV: next
     steps:
@@ -552,7 +552,7 @@ jobs:
         if: steps.prerelease-plan.outputs.changed == 'true'
         run: |
           if [[ -z "${N8NAC_POSTHOG_KEY:-}" ]]; then
-            echo "❌ N8NAC_POSTHOG_KEY is missing in next environment secrets."
+            echo "❌ N8NAC_POSTHOG_KEY is missing in next environment variables."
             exit 1
           fi
           if [[ -z "${N8NAC_POSTHOG_HOST:-}" ]]; then
