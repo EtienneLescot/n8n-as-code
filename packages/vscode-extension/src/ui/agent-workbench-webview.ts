@@ -80,10 +80,11 @@ export class AgentWorkbenchWebview {
             }
         }, null, this._disposables);
         this._panel.webview.onDidReceiveMessage((message) => {
-            void this.handleMessage(message).catch((error: any) => {
+            void this.handleMessage(message).catch(async (error: any) => {
                 const detail = error?.message || String(error);
                 console.error('[AgentWorkbench] Message handler error', error);
                 void this._panel.webview.postMessage({ type: 'agent.streamEvent', event: { type: 'error', error: detail } });
+                await this.postWorkbenchState();
             });
         }, null, this._disposables);
         this._panel.webview.html = this.getHtmlForWebview();
