@@ -80,17 +80,21 @@ export class ConfigService {
         const active = activeInstanceId ? instances.find((instance) => instance.id === activeInstanceId) : undefined;
         const activeProfile = effective ? this.contextToInstanceProfile(effective) : active;
 
+        const resolvedSyncFolder = overrides.syncFolder || effective?.syncFolder;
+        const resolvedProjectName = overrides.projectName || activeProfile?.projectName;
+
         return {
             version: 3,
             activeInstanceId,
             instances,
             ...this.toLocalConfig({
                 ...activeProfile,
-                syncFolder: overrides.syncFolder || effective?.syncFolder,
+                syncFolder: resolvedSyncFolder,
                 projectId: overrides.projectId || activeProfile?.projectId,
-                projectName: overrides.projectName || activeProfile?.projectName,
+                projectName: resolvedProjectName,
                 folderSync: overrides.folderSync ?? activeProfile?.folderSync,
                 customNodesPath: overrides.customNodesPath || activeProfile?.customNodesPath,
+                workflowDir: undefined,
             }),
         };
     }
@@ -533,7 +537,7 @@ export class ConfigService {
     }
 
     private contextToInstanceProfile(context: EffectiveN8nContext): IInstanceProfile {
-        const instanceIdentifier = this.canonicalInstanceIdentifier(context.instanceIdentifier);
+        const instanceIdentifier = context.instanceIdentifier;
         return {
             ...this.toInstanceProfile(context.instance),
             host: context.host,
