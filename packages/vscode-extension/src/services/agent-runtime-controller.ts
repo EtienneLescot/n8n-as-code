@@ -252,7 +252,9 @@ export class AgentRuntimeController implements vscode.Disposable {
     async getWorkbenchState(input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
         const scope = this.getSessionScope(input);
         const sessions = await this.getSessionRuntime();
-        const activeRecord = sessions.service.getActiveForScope(scope) || sessions.service.getOrCreateForScope(scope, {
+        const activeRecord = input.sessionId
+            ? sessions.service.ensure(input.sessionId, { scope, title: this.getDefaultSessionTitle(input.workflowName) })
+            : sessions.service.getActiveForScope(scope) || sessions.service.getOrCreateForScope(scope, {
             title: this.getDefaultSessionTitle(input.workflowName),
         });
         const session = await this.buildSessionState(activeRecord.id, input);
@@ -598,6 +600,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             }
 
             if (accumulator.fileModificationDetected) {
+                this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime detected local workflow modification sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'} workflowFilePath=${input.workflowFilePath || 'none'}`);
                 try {
                     await sessions.service.saveCheckpoint(input.sessionId || '', {
                         payloadState: handle.compactionService.getState(input.sessionId || ''),
@@ -627,6 +630,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             };
             entries = this.applyStreamEvent(entries, finalEvent);
             await postMessage({ type: 'agent.streamEvent', event: finalEvent });
+            this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime completed sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'} workflowChanged=${String(Boolean(accumulator.fileModificationDetected))}`);
             return { entries, workflowChanged: Boolean(accumulator.fileModificationDetected) };
         }
 
@@ -1155,31 +1159,24 @@ export class AgentRuntimeController implements vscode.Disposable {
         }
         if (event.type === 'text-delta') {
             const next = [...entries];
-            const last = next[next.length - 1];
-            if (last?.kind === 'assistant-body' && last.streaming) {
-                last.text += event.delta;
+            const streamingIndex = this.findLastAssistantBodyIndex(next, true);
+            if (streamingIndex >= 0) {
+                const entry = next[streamingIndex];
+                if (entry.kind === 'assistant-body') {
+                    entry.text += event.delta;
+                }
                 return next;
             }
             next.push({ kind: 'assistant-body', id: randomUUID(), text: event.delta, streaming: true });
             return next;
         }
         if (event.type === 'final') {
-            const next = [...entries];
-            const last = next[next.length - 1];
-            if (last?.kind === 'assistant-body') {
-                last.streaming = false;
-                if (!last.text) {
-                    last.text = event.response;
-                }
-                last.finalState = event.finalState;
-                return next;
-            }
-            next.push({ kind: 'assistant-body', id: randomUUID(), text: event.response, streaming: false, finalState: event.finalState });
-            return next;
+            const next = this.finalizePendingOperations([...entries], 'done');
+            return this.consolidateFinalAssistant(next, event.response, event.finalState);
         }
         if (event.type === 'operation') {
             const next = [...entries];
-            const existingIndex = next.findIndex((entry) => entry.kind === 'operation' && entry.id === event.operationId);
+            const existingIndex = this.findMatchingPendingOperationIndex(next, event.operationId, event.label, event.category);
             const operationEntry: AgentTimelineEntry = {
                 kind: 'operation',
                 id: event.operationId,
@@ -1201,17 +1198,24 @@ export class AgentRuntimeController implements vscode.Disposable {
             return next;
         }
         if (event.type === 'progress') {
+            const next = [...entries];
+            const existingIndex = this.findMatchingPendingOperationIndex(next, undefined, event.title, event.phase || 'phase');
+            const progressEntry: AgentTimelineEntry = {
+                kind: 'operation',
+                id: existingIndex >= 0 ? next[existingIndex].id : randomUUID(),
+                tone: event.tone,
+                title: event.title,
+                detail: event.detail,
+                category: event.phase || 'phase',
+                status: event.tone === 'error' ? 'error' : 'running',
+            };
+            if (existingIndex >= 0) {
+                next[existingIndex] = progressEntry;
+                return next;
+            }
             return [
-                ...entries,
-                {
-                    kind: 'operation',
-                    id: randomUUID(),
-                    tone: event.tone,
-                    title: event.title,
-                    detail: event.detail,
-                    category: event.phase || 'phase',
-                    status: event.tone === 'error' ? 'error' : 'running',
-                },
+                ...next,
+                progressEntry,
             ];
         }
         if (event.type === 'compaction') {
@@ -1250,9 +1254,115 @@ export class AgentRuntimeController implements vscode.Disposable {
             return [...withoutPrevious, usageEntry];
         }
         if (event.type === 'error') {
-            return [...entries, this.createSystemNotice(`Error: ${event.error}`)];
+            return [...this.finalizePendingOperations(entries, 'error'), this.createSystemNotice(`Error: ${event.error}`)];
         }
         return entries;
+    }
+
+    private finalizePendingOperations(entries: AgentTimelineEntry[], status: 'done' | 'error'): AgentTimelineEntry[] {
+        return entries.map((entry) => {
+            if (entry.kind !== 'operation' || entry.status !== 'running') return entry;
+            return {
+                ...entry,
+                tone: status === 'error' ? 'error' : 'success',
+                status,
+                endedAt: entry.endedAt || Date.now(),
+            };
+        });
+    }
+
+    private consolidateFinalAssistant(entries: AgentTimelineEntry[], response: string, finalState: string): AgentTimelineEntry[] {
+        const userIndex = this.findLastUserMessageIndex(entries);
+        const finalText = this.sanitizeAssistantText(response);
+        let chosenText = finalText;
+        let firstAssistantIndex = -1;
+
+        for (let idx = userIndex + 1; idx < entries.length; idx += 1) {
+            const entry = entries[idx];
+            if (entry.kind !== 'assistant-body') continue;
+            const text = this.sanitizeAssistantText(entry.text);
+            if (text && firstAssistantIndex < 0) {
+                firstAssistantIndex = idx;
+            }
+            if (text && finalText.includes(text) && text.length >= Math.max(80, finalText.length * 0.6)) {
+                chosenText = text;
+            }
+        }
+
+        const result: AgentTimelineEntry[] = [];
+        let inserted = false;
+        for (let idx = 0; idx < entries.length; idx += 1) {
+            const entry = entries[idx];
+            if (idx > userIndex && entry.kind === 'assistant-body') {
+                if (!inserted && chosenText && idx === firstAssistantIndex) {
+                    result.push({ kind: 'assistant-body', id: entry.id || randomUUID(), text: chosenText, streaming: false, finalState });
+                    inserted = true;
+                }
+                continue;
+            }
+            result.push(entry);
+        }
+        if (!inserted && chosenText) {
+            result.push({ kind: 'assistant-body', id: randomUUID(), text: chosenText, streaming: false, finalState });
+        }
+        return result;
+    }
+
+    private findLastUserMessageIndex(entries: AgentTimelineEntry[]): number {
+        for (let idx = entries.length - 1; idx >= 0; idx -= 1) {
+            if (entries[idx].kind === 'user-message') return idx;
+        }
+        return -1;
+    }
+
+    private findLastAssistantBodyIndex(entries: AgentTimelineEntry[], streamingOnly: boolean): number {
+        for (let idx = entries.length - 1; idx >= 0; idx -= 1) {
+            const entry = entries[idx];
+            if (entry.kind !== 'assistant-body') continue;
+            if (streamingOnly && !entry.streaming) continue;
+            return idx;
+        }
+        return -1;
+    }
+
+    private findMatchingPendingOperationIndex(entries: AgentTimelineEntry[], operationId: string | undefined, title: string, category: string): number {
+        if (operationId) {
+            const exactIndex = entries.findIndex((entry) => entry.kind === 'operation' && entry.id === operationId);
+            if (exactIndex >= 0) {
+                return exactIndex;
+            }
+        }
+
+        const targetKind = this.normalizeOperationKind(category, title);
+        for (let idx = entries.length - 1; idx >= 0; idx -= 1) {
+            const entry = entries[idx];
+            if (entry.kind !== 'operation') continue;
+            if (entry.status !== 'running') continue;
+
+            const entryKind = this.normalizeOperationKind(entry.category, entry.title);
+            if (entryKind && targetKind && entryKind === targetKind) {
+                return idx;
+            }
+
+            if (entry.title !== title) continue;
+
+            const entryCategory = String(entry.category || '').toLowerCase();
+            const targetCategory = String(category || '').toLowerCase();
+            if (entryCategory && targetCategory && entryCategory !== targetCategory && entryCategory !== 'phase') continue;
+
+            return idx;
+        }
+
+        return -1;
+    }
+
+    private normalizeOperationKind(category: string | undefined, title: string | undefined): string {
+        const value = String(category || title || '').toLowerCase().replace(/_/g, '-');
+        if (value === 'read-file' || value === 'file-read' || value === 'read') return 'file-read';
+        if (value === 'write-file' || value === 'file-write' || value === 'write') return 'file-write';
+        if (value.includes('shell')) return 'shell';
+        if (value.includes('web')) return 'web';
+        return value;
     }
 
     private createSystemNotice(text: string): AgentTimelineEntry {
