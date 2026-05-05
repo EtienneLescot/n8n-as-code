@@ -11,6 +11,7 @@ export interface AgentPromptInput {
     workflowFilePath?: string;
     workspaceRoot?: string;
     nodeContext?: AgentNodeContext;
+    nodeContexts?: AgentNodeContext[];
     sessionId?: string;
 }
 
@@ -22,6 +23,13 @@ export interface AgentNodeContext {
     name: string;
     type?: string;
     id?: string;
+}
+
+export interface AgentWorkflowContext {
+    id?: string;
+    name: string;
+    filename?: string;
+    filePath?: string;
 }
 
 export type AgentReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
@@ -63,12 +71,16 @@ export interface AgentSessionSummary {
     checkpointCount: number;
     workflowId?: string;
     workflowLabel: string;
+    workflowContext?: AgentWorkflowContext;
     totalCompactions: number;
 }
 
 export type AgentTimelineEntry =
     | { kind: 'user-message'; id: string; text: string; timestamp: number }
     | { kind: 'system-notice'; id: string; text: string; timestamp: number }
+    | { kind: 'workflow-context'; id: string; timestamp: number; action: 'set'; workflow: AgentWorkflowContext }
+    | { kind: 'workflow-context'; id: string; timestamp: number; action: 'clear' }
+    | { kind: 'node-context'; id: string; timestamp: number; nodes: AgentNodeContext[] }
     | { kind: 'assistant-body'; id: string; text: string; streaming: boolean; finalState?: string }
     | {
         kind: 'operation';
@@ -96,6 +108,8 @@ export interface AgentSessionState {
     totalCompactions: number;
     workflowId?: string;
     workflowLabel: string;
+    workflowContext?: AgentWorkflowContext;
+    nodeContexts: AgentNodeContext[];
 }
 
 export interface AgentWorkbenchState {
@@ -104,12 +118,14 @@ export interface AgentWorkbenchState {
         name?: string;
         filename?: string;
     };
+    workflowContext?: AgentWorkflowContext;
     provider: string;
     model?: string;
     baseUrl?: string;
     reasoningEffort?: AgentReasoningEffort;
     supportsReasoningEffort: boolean;
     currentNodeContext?: AgentNodeContext;
+    currentNodeContexts: AgentNodeContext[];
     activeSessionId: string;
     sessions: AgentSessionSummary[];
     session: AgentSessionState;
@@ -253,24 +269,28 @@ export class AgentRuntimeController implements vscode.Disposable {
         const scope = this.getSessionScope(input);
         const sessions = await this.getSessionRuntime();
         const activeRecord = input.sessionId
-            ? sessions.service.ensure(input.sessionId, { scope, title: this.getDefaultSessionTitle(input.workflowName) })
+            ? sessions.service.ensure(input.sessionId, { title: this.getDefaultSessionTitle(input.workflowName) })
             : sessions.service.getActiveForScope(scope) || sessions.service.getOrCreateForScope(scope, {
             title: this.getDefaultSessionTitle(input.workflowName),
         });
         const session = await this.buildSessionState(activeRecord.id, input);
+        const workflowContext = session.workflowContext;
+        const nodeContexts = session.nodeContexts.length ? session.nodeContexts : this.normalizeNodeContexts(input.nodeContexts || input.nodeContext);
         const providerConfig = await this.describeProviderRuntimeConfig();
         return {
             workflow: {
-                id: input.workflowId,
-                name: input.workflowName,
-                filename: input.workflowFilename,
+                id: workflowContext?.id,
+                name: workflowContext?.name,
+                filename: workflowContext?.filename,
             },
+            workflowContext,
             provider: providerConfig.provider,
             model: providerConfig.model,
             baseUrl: providerConfig.baseUrl,
             reasoningEffort: providerConfig.reasoningEffort,
             supportsReasoningEffort: providerConfig.provider === 'openai-oauth',
-            currentNodeContext: input.nodeContext,
+            currentNodeContext: nodeContexts[0],
+            currentNodeContexts: nodeContexts,
             activeSessionId: activeRecord.id,
             sessions: await this.listSessionSummaries(scope, activeRecord.id),
             session,
@@ -279,18 +299,50 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     async createSession(input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
-        const scope = this.getSessionScope(input);
+        const scope = this.getUnattachedSessionScope();
         const sessions = await this.getSessionRuntime();
         sessions.service.rotateForScope(scope, {
-            title: this.getDefaultSessionTitle(input.workflowName),
+            title: this.getDefaultSessionTitle(),
         });
-        return this.getWorkbenchState(input);
+        return this.getWorkbenchState({ ...input, workflowId: undefined, workflowName: undefined, workflowFilename: undefined, workflowFilePath: undefined, nodeContext: undefined, nodeContexts: undefined, sessionId: undefined });
+    }
+
+    async getLatestSessionId(): Promise<string | undefined> {
+        const sessions = await this.getSessionRuntime();
+        return [...sessions.service.list()]
+            .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]?.id;
+    }
+
+    async getLatestSessionIdForWorkflow(workflow: AgentWorkflowContext): Promise<string | undefined> {
+        const sessions = await this.getSessionRuntime();
+        const summaries = sessions.service.list();
+        let latest: { id: string; updatedAt: string } | undefined;
+        for (const summary of summaries) {
+            const record = sessions.service.get(summary.id);
+            const context = this.getLatestWorkflowContext(this.readSessionEntries(sessions.service, summary.id), record);
+            if (!context || !this.workflowContextsMatch(context, workflow)) continue;
+            if (!latest || summary.updatedAt.localeCompare(latest.updatedAt) > 0) {
+                latest = { id: summary.id, updatedAt: summary.updatedAt };
+            }
+        }
+        return latest?.id;
+    }
+
+    async createSessionForWorkflow(workflow: AgentWorkflowContext, input: Omit<AgentPromptInput, 'prompt'>): Promise<string> {
+        const name = workflow.name?.trim() || workflow.id || workflow.filename || 'Workflow';
+        const sessions = await this.getSessionRuntime();
+        const record = sessions.service.rotateForScope(this.getUnattachedSessionScope(), {
+            title: this.getDefaultSessionTitle(name),
+        });
+        this.writeSessionEntries(sessions.service, record.id, this.withWorkflowContext([], { ...workflow, name }));
+        await this.getWorkbenchState({ ...input, sessionId: record.id });
+        return record.id;
     }
 
     async selectSession(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
         const sessions = await this.getSessionRuntime();
-        sessions.service.ensure(sessionId, { scope: this.getSessionScope(input) });
-        return this.getWorkbenchState(input);
+        sessions.service.ensure(sessionId);
+        return this.getWorkbenchState({ ...input, sessionId });
     }
 
     async renameSession(sessionId: string, title: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
@@ -316,23 +368,56 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     async attachSessionToCurrentWorkflow(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
-        const scope = this.getSessionScope(input);
         if (!input.workflowId) {
             throw new Error('Open a workflow before attaching a session.');
         }
-        const sessions = await this.getSessionRuntime();
-        sessions.service.ensure(sessionId, { scope });
-        return this.getWorkbenchState(input);
+        return this.setWorkflowContext(sessionId, {
+            id: input.workflowId,
+            name: input.workflowName || input.workflowId,
+            filename: input.workflowFilename,
+            filePath: input.workflowFilePath,
+        }, input);
     }
 
     async detachSession(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
-        const currentScope = this.getSessionScope(input);
+        return this.clearWorkflowContext(sessionId, input);
+    }
+
+    async setWorkflowContext(sessionId: string, workflow: AgentWorkflowContext, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        const name = workflow.name?.trim() || workflow.id || workflow.filename || 'Workflow';
         const sessions = await this.getSessionRuntime();
-        sessions.service.ensure(sessionId, { scope: this.getUnattachedSessionScope() });
-        if (sessions.service.getActiveForScope(currentScope)?.id === sessionId) {
-            sessions.service.getOrCreateForScope(currentScope, { title: this.getDefaultSessionTitle(input.workflowName) });
+        sessions.service.ensure(sessionId);
+        const entries = this.withWorkflowContext(this.readSessionEntries(sessions.service, sessionId), {
+            ...workflow,
+            name,
+        });
+        this.writeSessionEntries(sessions.service, sessionId, entries);
+        return this.getWorkbenchState({ ...input, sessionId });
+    }
+
+    async clearWorkflowContext(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        const sessions = await this.getSessionRuntime();
+        sessions.service.ensure(sessionId);
+        this.writeSessionEntries(sessions.service, sessionId, [
+            ...this.readSessionEntries(sessions.service, sessionId),
+            { kind: 'workflow-context', id: randomUUID(), timestamp: Date.now(), action: 'clear' },
+            { kind: 'node-context', id: randomUUID(), timestamp: Date.now(), nodes: [] },
+        ]);
+        return this.getWorkbenchState({ ...input, sessionId, workflowId: undefined, workflowName: undefined, workflowFilename: undefined, workflowFilePath: undefined, nodeContext: undefined, nodeContexts: undefined });
+    }
+
+    async setNodeContexts(sessionId: string, nodes: AgentNodeContext[], input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        const sessions = await this.getSessionRuntime();
+        sessions.service.ensure(sessionId);
+        const workflowContext = this.getLatestWorkflowContext(this.readSessionEntries(sessions.service, sessionId), sessions.service.get(sessionId));
+        if (!workflowContext) {
+            return this.getWorkbenchState({ ...input, sessionId, nodeContext: undefined, nodeContexts: undefined });
         }
-        return this.getWorkbenchState(input);
+        this.writeSessionEntries(sessions.service, sessionId, [
+            ...this.readSessionEntries(sessions.service, sessionId),
+            { kind: 'node-context', id: randomUUID(), timestamp: Date.now(), nodes: this.normalizeNodeContexts(nodes) },
+        ]);
+        return this.getWorkbenchState({ ...input, sessionId });
     }
 
     async saveCheckpoint(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
@@ -424,10 +509,25 @@ export class AgentRuntimeController implements vscode.Disposable {
         const sessions = await this.getSessionRuntime();
         const scope = this.getSessionScope(input);
         const activeRecord = input.sessionId
-            ? sessions.service.ensure(input.sessionId, { scope, title: this.getDefaultSessionTitle(input.workflowName) })
+            ? sessions.service.ensure(input.sessionId, { title: this.getDefaultSessionTitle(input.workflowName) })
             : (sessions.service.getActiveForScope(scope) || sessions.service.getOrCreateForScope(scope, {
                 title: this.getDefaultSessionTitle(input.workflowName),
             }));
+        const sessionContext = await this.buildSessionState(activeRecord.id, input);
+        const promptWorkflowContext = sessionContext.workflowContext;
+        const promptNodeContexts = sessionContext.nodeContexts.length
+            ? sessionContext.nodeContexts
+            : this.normalizeNodeContexts(input.nodeContexts || input.nodeContext);
+        const promptInput: AgentPromptInput = {
+            ...input,
+            sessionId: activeRecord.id,
+            workflowId: promptWorkflowContext?.id,
+            workflowName: promptWorkflowContext?.name,
+            workflowFilename: promptWorkflowContext?.filename,
+            workflowFilePath: promptWorkflowContext?.filePath || input.workflowFilePath,
+            nodeContext: promptNodeContexts[0],
+            nodeContexts: promptNodeContexts,
+        };
 
         const abortController = new AbortController();
         this.activeRun = { abortController, sessionId: activeRecord.id };
@@ -445,8 +545,14 @@ export class AgentRuntimeController implements vscode.Disposable {
         await postMessage({ type: 'agent.streamEvent', event: { type: 'start', sessionId: activeRecord.id, message: prompt } });
 
         try {
-            const runResult = await this.runInitialAgentTurn({ ...input, sessionId: activeRecord.id }, entries, postMessage, abortController.signal);
+            const runResult = await this.runInitialAgentTurn(promptInput, entries, postMessage, abortController.signal);
             entries = runResult.entries;
+            if (runResult.workflowChanged && !promptWorkflowContext) {
+                const inferredWorkflow = await this.inferWorkflowContextFromWorkspace(input.workspaceRoot);
+                if (inferredWorkflow) {
+                    entries = this.withWorkflowContext(entries, inferredWorkflow);
+                }
+            }
             this.writeSessionEntries(sessions.service, activeRecord.id, entries);
             await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: activeRecord.id }) });
             await postMessage({ type: 'agent.done' });
@@ -796,10 +902,11 @@ export class AgentRuntimeController implements vscode.Disposable {
 
     private async buildInvocationPrompt(input: AgentPromptInput): Promise<string> {
         const workflowContext = await this.loadWorkflowContext(input);
+        const nodeContexts = this.normalizeNodeContexts(input.nodeContexts || input.nodeContext);
         const blocks = [
             input.workflowId ? `Current workflow: ${input.workflowName || input.workflowId} (${input.workflowId})` : 'No workflow is attached. The user may be designing a new workflow.',
             input.workflowFilename ? `Current workflow file: ${input.workflowFilename}` : undefined,
-            this.formatNodeContext(input.nodeContext),
+            this.formatNodeContexts(nodeContexts),
             workflowContext,
             'User request:',
             input.prompt.trim(),
@@ -807,16 +914,18 @@ export class AgentRuntimeController implements vscode.Disposable {
         return blocks.join('\n\n');
     }
 
-    private formatNodeContext(nodeContext: AgentNodeContext | undefined): string | undefined {
-        if (!nodeContext?.name) {
+    private formatNodeContexts(nodeContexts: AgentNodeContext[]): string | undefined {
+        if (!nodeContexts.length) {
             return undefined;
         }
         return [
-            'Current n8n node detail panel context:',
-            `Node name: ${nodeContext.name}`,
-            nodeContext.type ? `Node type: ${nodeContext.type}` : undefined,
-            nodeContext.id ? `Node ID: ${nodeContext.id}` : undefined,
-            'When the user makes an ambiguous node-specific request, assume it refers to this node unless they name another node.',
+            nodeContexts.length === 1 ? 'Current n8n node context:' : 'Current n8n node contexts:',
+            ...nodeContexts.map((node, index) => [
+                `${index + 1}. Node name: ${node.name}`,
+                node.type ? `   Node type: ${node.type}` : undefined,
+                node.id ? `   Node ID: ${node.id}` : undefined,
+            ].filter(Boolean).join('\n')),
+            'When the user makes an ambiguous node-specific request, assume it refers to these selected nodes unless they name another node.',
         ].filter(Boolean).join('\n');
     }
 
@@ -1037,10 +1146,8 @@ export class AgentRuntimeController implements vscode.Disposable {
         const handle = this.cachedAgentHandle?.handle;
         const summaries = await Promise.all(sessions.service.list().map(async (summary) => {
             const record = sessions.service.get(summary.id);
-            const recordScope = record?.scope;
-            const workflowId = recordScope?.kind === 'vscode-workflow' && recordScope.key !== UNATTACHED_WORKFLOW_SCOPE_KEY
-                ? recordScope.key
-                : undefined;
+            const entries = this.readSessionEntries(sessions.service, summary.id);
+            const workflowContext = this.getLatestWorkflowContext(entries, record);
             const compactionState = handle?.compactionService?.getState
                 ? handle.compactionService.getState(summary.id) as CompactionState
                 : { lastCompaction: null, compactionHistory: [], totalCompactions: 0 };
@@ -1054,8 +1161,9 @@ export class AgentRuntimeController implements vscode.Disposable {
                 isActive: summary.id === activeSessionId,
                 isClosed: Boolean(record?.closedAt),
                 checkpointCount: checkpoints.length,
-                workflowId,
-                workflowLabel: workflowId ? workflowId : 'New workflow chat',
+                workflowId: workflowContext?.id,
+                workflowLabel: workflowContext?.name || workflowContext?.id || workflowContext?.filename || 'New workflow chat',
+                workflowContext,
                 totalCompactions: compactionState.totalCompactions,
             };
         }));
@@ -1063,8 +1171,8 @@ export class AgentRuntimeController implements vscode.Disposable {
             if (left.isActive !== right.isActive) {
                 return left.isActive ? -1 : 1;
             }
-            const leftMatchesScope = left.workflowId === scope.key || (!left.workflowId && scope.key === UNATTACHED_WORKFLOW_SCOPE_KEY);
-            const rightMatchesScope = right.workflowId === scope.key || (!right.workflowId && scope.key === UNATTACHED_WORKFLOW_SCOPE_KEY);
+            const leftMatchesScope = left.workflowId === scope.key || (!left.workflowContext && scope.key === UNATTACHED_WORKFLOW_SCOPE_KEY);
+            const rightMatchesScope = right.workflowId === scope.key || (!right.workflowContext && scope.key === UNATTACHED_WORKFLOW_SCOPE_KEY);
             if (leftMatchesScope !== rightMatchesScope) {
                 return leftMatchesScope ? -1 : 1;
             }
@@ -1082,9 +1190,8 @@ export class AgentRuntimeController implements vscode.Disposable {
             ? handle.compactionService.getState(sessionId)
             : { lastCompaction: null, compactionHistory: [], totalCompactions: 0 };
         const record = sessions.service.get(sessionId);
-        const workflowId = record?.scope?.kind === 'vscode-workflow' && record.scope.key !== UNATTACHED_WORKFLOW_SCOPE_KEY
-            ? record.scope.key
-            : undefined;
+        const workflowContext = this.getLatestWorkflowContext(entries, record);
+        const nodeContexts = workflowContext ? this.getLatestNodeContexts(entries) : [];
         const latestUsageEntry = [...entries].reverse().find((entry): entry is Extract<AgentTimelineEntry, { kind: 'context-usage' }> => entry.kind === 'context-usage');
         return {
             sessionId,
@@ -1100,8 +1207,10 @@ export class AgentRuntimeController implements vscode.Disposable {
             contextUsage: latestUsageEntry?.usage,
             lastCompaction: compactionState.lastCompaction || undefined,
             totalCompactions: compactionState.totalCompactions,
-            workflowId,
-            workflowLabel: workflowId || 'New workflow chat',
+            workflowId: workflowContext?.id,
+            workflowLabel: workflowContext?.name || workflowContext?.id || workflowContext?.filename || 'New workflow chat',
+            workflowContext,
+            nodeContexts,
         };
     }
 
@@ -1116,9 +1225,152 @@ export class AgentRuntimeController implements vscode.Disposable {
             : 'Manual context compaction preserved recent conversation and removed older low-signal context.';
     }
 
+    private withWorkflowContext(entries: AgentTimelineEntry[], workflow: AgentWorkflowContext): AgentTimelineEntry[] {
+        const name = workflow.name?.trim() || workflow.id || workflow.filename || 'Workflow';
+        return [
+            ...entries,
+            {
+                kind: 'workflow-context',
+                id: randomUUID(),
+                timestamp: Date.now(),
+                action: 'set',
+                workflow: {
+                    id: workflow.id?.trim() || undefined,
+                    name,
+                    filename: workflow.filename?.trim() || undefined,
+                    filePath: workflow.filePath?.trim() || undefined,
+                },
+            },
+        ];
+    }
+
+    private getLatestWorkflowContext(entries: AgentTimelineEntry[], record?: DeepAgentSessionRecord): AgentWorkflowContext | undefined {
+        for (let idx = entries.length - 1; idx >= 0; idx -= 1) {
+            const entry = entries[idx];
+            if (entry.kind !== 'workflow-context') continue;
+            if (entry.action === 'clear') return undefined;
+            return entry.workflow;
+        }
+        const workflowId = record?.scope?.kind === 'vscode-workflow' && record.scope.key !== UNATTACHED_WORKFLOW_SCOPE_KEY
+            ? record.scope.key
+            : undefined;
+        return workflowId ? { id: workflowId, name: workflowId } : undefined;
+    }
+
+    private workflowContextsMatch(left: AgentWorkflowContext, right: AgentWorkflowContext): boolean {
+        if (left.id && right.id && left.id === right.id) return true;
+        if (left.filename && right.filename && left.filename === right.filename) return true;
+        return Boolean(left.name && right.name && left.name === right.name);
+    }
+
+    private getLatestNodeContexts(entries: AgentTimelineEntry[]): AgentNodeContext[] {
+        for (let idx = entries.length - 1; idx >= 0; idx -= 1) {
+            const entry = entries[idx];
+            if (entry.kind !== 'node-context') continue;
+            return this.normalizeNodeContexts(entry.nodes);
+        }
+        return [];
+    }
+
+    private normalizeNodeContexts(value: AgentNodeContext | AgentNodeContext[] | undefined): AgentNodeContext[] {
+        const values = Array.isArray(value) ? value : value ? [value] : [];
+        const seen = new Set<string>();
+        const result: AgentNodeContext[] = [];
+        for (const candidate of values) {
+            const name = typeof candidate?.name === 'string' ? candidate.name.trim() : '';
+            if (!name) continue;
+            const type = typeof candidate.type === 'string' ? candidate.type.trim() : '';
+            const id = typeof candidate.id === 'string' ? candidate.id.trim() : '';
+            const key = [name, type, id].join('|');
+            if (seen.has(key)) continue;
+            seen.add(key);
+            result.push({ name, type: type || undefined, id: id || undefined });
+        }
+        return result;
+    }
+
+    private async inferWorkflowContextFromWorkspace(workspaceRoot?: string): Promise<AgentWorkflowContext | undefined> {
+        if (!workspaceRoot) return undefined;
+        const candidates = await this.listWorkflowSourceCandidates(workspaceRoot);
+        candidates.sort((left, right) => right.mtimeMs - left.mtimeMs);
+        for (const candidate of candidates.slice(0, 12)) {
+            const context = await this.readWorkflowContextFromTypeScriptFile(candidate.filePath, workspaceRoot);
+            if (context) return context;
+        }
+        return undefined;
+    }
+
+    private async listWorkflowSourceCandidates(workspaceRoot: string): Promise<Array<{ filePath: string; mtimeMs: number }>> {
+        const results: Array<{ filePath: string; mtimeMs: number }> = [];
+        await this.collectWorkflowSourceCandidates(workspaceRoot, results, workspaceRoot, 0);
+        return results;
+    }
+
+    private async collectWorkflowSourceCandidates(
+        directory: string,
+        results: Array<{ filePath: string; mtimeMs: number }>,
+        workspaceRoot: string,
+        depth: number,
+    ): Promise<void> {
+        if (depth > 4) return;
+        const relative = path.relative(workspaceRoot, directory).replace(/\\/g, '/');
+        if (relative && /(^|\/)(node_modules|dist|out|\.git|\.kilo|\.yagr)(\/|$)/.test(relative)) {
+            return;
+        }
+        let entries: fs.Dirent[];
+        try {
+            entries = await fs.promises.readdir(directory, { withFileTypes: true });
+        } catch {
+            return;
+        }
+        for (const entry of entries) {
+            const filePath = path.join(directory, entry.name);
+            if (entry.isDirectory()) {
+                await this.collectWorkflowSourceCandidates(filePath, results, workspaceRoot, depth + 1);
+                continue;
+            }
+            if (!entry.isFile() || !entry.name.endsWith('.workflow.ts')) continue;
+            const stat = await fs.promises.stat(filePath).catch(() => undefined);
+            if (stat?.isFile()) results.push({ filePath, mtimeMs: stat.mtimeMs });
+        }
+    }
+
+    private async readWorkflowContextFromTypeScriptFile(filePath: string, workspaceRoot: string): Promise<AgentWorkflowContext | undefined> {
+        try {
+            const raw = await fs.promises.readFile(filePath, 'utf8');
+            const metadata = this.extractWorkflowDecoratorMetadata(raw);
+            const filename = path.relative(workspaceRoot, filePath).replace(/\\/g, '/');
+            return {
+                id: metadata.id,
+                name: metadata.name || path.basename(filePath, '.workflow.ts'),
+                filename,
+                filePath,
+            };
+        } catch {
+            return undefined;
+        }
+    }
+
+    private extractWorkflowDecoratorMetadata(source: string): { id?: string; name?: string } {
+        const decoratorMatch = source.match(/@workflow\s*\(\s*\{([\s\S]*?)\}\s*\)/);
+        const decoratorContent = decoratorMatch?.[1] || '';
+        return {
+            id: this.extractStringProperty(decoratorContent, 'id'),
+            name: this.extractStringProperty(decoratorContent, 'name'),
+        };
+    }
+
+    private extractStringProperty(source: string, property: string): string | undefined {
+        const match = source.match(new RegExp(`${property}\\s*:\\s*(["'])((?:\\\\.|(?!\\1)[\\s\\S])*?)\\1`));
+        return match?.[2]?.trim() || undefined;
+    }
+
     private getEntryText(entry: AgentTimelineEntry): string {
         if (entry.kind === 'user-message' || entry.kind === 'system-notice' || entry.kind === 'assistant-body') {
             return entry.text;
+        }
+        if (entry.kind === 'workflow-context' || entry.kind === 'node-context') {
+            return '';
         }
         if (entry.kind === 'operation') {
             return [entry.title, entry.detail, entry.summary, entry.body].filter(Boolean).join(' ');
