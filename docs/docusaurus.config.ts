@@ -4,6 +4,18 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
+function getTelemetryEnvironment(): string {
+  const explicit = process.env.N8NAC_TELEMETRY_ENV?.trim();
+  if (explicit) return explicit;
+
+  const refName = process.env.GITHUB_REF_NAME || process.env.GITHUB_REF?.replace(/^refs\/heads\//, '');
+  if (refName === 'main') return 'prod';
+  if (refName === 'next') return 'next';
+  if (process.env.NODE_ENV === 'test') return 'test';
+  if (process.env.CI === 'true') return 'ci';
+  return 'dev';
+}
+
 const config: Config = {
   title: 'n8n-as-code',
   tagline: 'Manage n8n workflows as code with version control and AI assistance',
@@ -11,6 +23,7 @@ const config: Config = {
   customFields: {
     posthogKey: process.env.N8NAC_POSTHOG_KEY || process.env.POSTHOG_KEY || '',
     posthogHost: process.env.N8NAC_POSTHOG_HOST || process.env.POSTHOG_HOST || 'https://eu.i.posthog.com',
+    telemetryEnvironment: getTelemetryEnvironment(),
   },
 
 

@@ -1,8 +1,9 @@
 import siteConfig from '@generated/docusaurus.config';
 
-const customFields = siteConfig.customFields as { posthogKey?: string; posthogHost?: string };
+const customFields = siteConfig.customFields as { posthogKey?: string; posthogHost?: string; telemetryEnvironment?: string };
 const POSTHOG_KEY = customFields.posthogKey;
 const POSTHOG_HOST = (customFields.posthogHost || 'https://eu.i.posthog.com').replace(/\/$/, '');
+const TELEMETRY_ENVIRONMENT = customFields.telemetryEnvironment || 'dev';
 const STORAGE_KEY = 'n8n-as-code:docs-telemetry-id';
 const DISABLED_KEY = 'n8n-as-code:telemetry-disabled';
 
@@ -51,6 +52,7 @@ function trackDocsPageView(): void {
         app: 'n8n-as-code',
         facade: 'docs',
         telemetry_schema_version: 1,
+        telemetry_environment: TELEMETRY_ENVIRONMENT,
         path_group: getPathGroup(pathname),
       },
     }),
