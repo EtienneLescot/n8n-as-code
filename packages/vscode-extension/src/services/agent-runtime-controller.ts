@@ -504,6 +504,8 @@ export class AgentRuntimeController implements vscode.Disposable {
         }
         if (this.isCompactionState(payloads.compaction) && typeof handle.compactionService?.setState === 'function') {
             handle.compactionService.setState(sessionId, payloads.compaction);
+        } else if (typeof handle.compactionService?.reset === 'function') {
+            handle.compactionService.reset(sessionId);
         }
         for (const warning of result.warnings || []) {
             const message = typeof warning === 'string' ? warning : String(warning);
@@ -1779,7 +1781,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         options: Omit<SaveCheckpointOptions, 'reason'>,
     ): Promise<SessionCheckpointMetadata | undefined> {
         if (typeof service.maybeSaveCheckpoint !== 'function') {
-            return undefined;
+            return this.saveYagrCheckpoint(service, sessionId, { ...options, reason });
         }
         return service.maybeSaveCheckpoint(sessionId, reason, this.withLegacyCheckpointPayload(options));
     }
