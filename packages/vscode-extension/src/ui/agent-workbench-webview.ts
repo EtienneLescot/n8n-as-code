@@ -16,6 +16,7 @@ export class AgentWorkbenchWebview {
     private readonly _panel: vscode.WebviewPanel;
     private readonly _context: vscode.ExtensionContext;
     private readonly _agentRuntime: AgentRuntimeController;
+    private readonly _outputChannel: vscode.OutputChannel;
     private readonly _disposables: vscode.Disposable[] = [];
     private _registryDisposable: { dispose(): void } | undefined;
     private _workflow: IWorkflowStatus | undefined;
@@ -35,6 +36,7 @@ export class AgentWorkbenchWebview {
         workflowReloadUrl: string | undefined,
         providerModelLabel: string,
         agentRuntime: AgentRuntimeController,
+        outputChannel: vscode.OutputChannel,
     ) {
         this._panel = panel;
         this._context = context;
@@ -44,11 +46,16 @@ export class AgentWorkbenchWebview {
         this._workflowReloadUrl = workflowReloadUrl;
         this._providerModelLabel = providerModelLabel;
         this._agentRuntime = agentRuntime;
+        this._outputChannel = outputChannel;
         this.updateRegistryRegistration();
 
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
         this._panel.webview.onDidReceiveMessage((message) => {
-            void this.handleMessage(message);
+            void this.handleMessage(message).catch((error: any) => {
+                const detail = error?.message || String(error);
+                console.error('[AgentWorkbench] Message handler error', error);
+                void this._panel.webview.postMessage({ type: 'agent.streamEvent', event: { type: 'error', error: detail } });
+            });
         }, null, this._disposables);
         this._panel.webview.html = this.getHtmlForWebview();
     }
@@ -61,6 +68,7 @@ export class AgentWorkbenchWebview {
         workflowReloadUrl: string | undefined,
         providerModelLabel: string,
         agentRuntime: AgentRuntimeController,
+        outputChannel: vscode.OutputChannel,
         viewColumn?: vscode.ViewColumn,
     ): void {
         const column = viewColumn || vscode.ViewColumn.One;
@@ -82,7 +90,7 @@ export class AgentWorkbenchWebview {
             },
         );
 
-        AgentWorkbenchWebview.currentPanel = new AgentWorkbenchWebview(panel, context, workflow, workflowFilePath, workflowUrl, workflowReloadUrl, providerModelLabel, agentRuntime);
+        AgentWorkbenchWebview.currentPanel = new AgentWorkbenchWebview(panel, context, workflow, workflowFilePath, workflowUrl, workflowReloadUrl, providerModelLabel, agentRuntime, outputChannel);
     }
 
     public static onClipboardPasteRequest(handler: (panel: vscode.WebviewPanel, grantToken: string) => Promise<void>): void {
@@ -137,7 +145,13 @@ export class AgentWorkbenchWebview {
         const payload = message as Record<string, unknown>;
 
         if (payload.type === 'agent.ready') {
+            this._outputChannel.appendLine(`[n8n-agent-debug] webview ready workflowId=${this._workflow?.id || 'none'} workflowFilePath=${this._workflowFilePath || 'none'}`);
             await this.postWorkbenchState();
+            return;
+        }
+
+        if (payload.type === 'workflow.reloadAck') {
+            this._outputChannel.appendLine(`[n8n-agent-debug] webview received workflow.reload workflowId=${String(payload.workflowId || this._workflow?.id || 'none')} hasFrame=${String(Boolean(payload.hasFrame))} url=${String(payload.url || this._workflowReloadUrl || this._workflowUrl || '')}`);
             return;
         }
 
@@ -158,6 +172,7 @@ export class AgentWorkbenchWebview {
 
         if (payload.type === 'agent.send') {
             const nodeContext = this.sanitizeNodeContext(payload.nodeContext) ?? this._nodeContext;
+            this._outputChannel.appendLine(`[n8n-agent-debug] agent.send workflowId=${this._workflow?.id || 'none'} workflowFilePath=${this._workflowFilePath || 'none'} sessionId=${typeof payload.sessionId === 'string' ? payload.sessionId : 'none'}`);
             const result = await this._agentRuntime.sendPrompt({
                 prompt: String(payload.text || ''),
                 workflowId: this._workflow?.id,
@@ -168,7 +183,9 @@ export class AgentWorkbenchWebview {
                 nodeContext,
                 sessionId: typeof payload.sessionId === 'string' ? payload.sessionId : undefined,
             }, (event) => this._panel.webview.postMessage(event));
+            this._outputChannel.appendLine(`[n8n-agent-debug] agent.send completed workflowId=${this._workflow?.id || 'none'} workflowChanged=${String(result.workflowChanged)}`);
             if (result.workflowChanged && this._workflow?.id) {
+                this._outputChannel.appendLine(`[n8n-agent-debug] posting workflow.reload after local workflowChanged workflowId=${this._workflow.id}`);
                 await this._panel.webview.postMessage({ type: 'workflow.reload' });
             }
             return;
@@ -311,8 +328,13 @@ export class AgentWorkbenchWebview {
 
         this._registryDisposable = workflowWebviewRegistry.register({
             getWorkflowId: () => this._workflow?.id,
-            reloadWorkflow: () => this._panel.webview.postMessage({ type: 'workflow.reload' }),
+            describeTarget: () => `agent-workbench:${this._panel.title}`,
+            reloadWorkflow: () => {
+                this._outputChannel.appendLine(`[n8n-agent-debug] registry requested workflow.reload workflowId=${this._workflow?.id || 'none'} panel=${this._panel.title}`);
+                return this._panel.webview.postMessage({ type: 'workflow.reload' });
+            },
         });
+        this._outputChannel.appendLine(`[n8n-agent-debug] registry registration ensured workflowId=${workflowId}`);
     }
 
     private getHtmlForWebview(): string {

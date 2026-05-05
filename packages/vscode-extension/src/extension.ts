@@ -359,7 +359,8 @@ export async function activate(context: vscode.ExtensionContext) {
                 const workflowId = updatedWorkflow?.id ?? pushedId ?? wf.id;
 
                 if (workflowId) {
-                    workflowWebviewRegistry.reloadIfMatching(workflowId);
+                    const reloaded = workflowWebviewRegistry.reloadIfMatching(workflowId);
+                    outputChannel.appendLine(`[n8n-agent-debug] command push reload workflowId=${workflowId} filename=${wf.filename} reloaded=${reloaded}`);
                 }
 
                 outputChannel.appendLine(`[n8n] Push successful: ${wf.name} (${workflowId ?? 'unknown id'})`);
@@ -819,6 +820,7 @@ async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: I
             openTarget?.targetUrl,
             providerModelLabel,
             requireAgentRuntimeController(),
+            outputChannel,
             vscode.ViewColumn.One,
         );
         if (openTarget?.url) {
@@ -1726,7 +1728,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     });
 
     syncManager.on('remote-updated', (data: { workflowId: string; filename: string }) => {
-        workflowWebviewRegistry.reloadIfMatching(data.workflowId);
+        const reloaded = workflowWebviewRegistry.reloadIfMatching(data.workflowId);
+        outputChannel.appendLine(`[n8n-agent-debug] syncManager remote-updated workflowId=${data.workflowId} filename=${data.filename} reloaded=${reloaded}`);
     });
 
     // ── Lightweight UI watchers ──────────────────────────────────────────────
@@ -1775,6 +1778,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         stateWatcher.onDidChange(async (changedUri) => {
             if (!cli) return;
             try {
+                outputChannel.appendLine(`[n8n-agent-debug] stateWatcher change path=${changedUri.fsPath}`);
                 store.dispatch(setWorkflows(await cli.list()));
                 enhancedTreeProvider.refresh();
                 // Only reload the webview if the currently displayed workflow was affected.
@@ -1786,7 +1790,8 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
                 for (const [id, entry] of Object.entries(state.workflows ?? {})) {
                     if (entry.lastSyncedAt && entry.lastSyncedAt !== stateSnapshot.get(id)) {
                         stateSnapshot.set(id, entry.lastSyncedAt);
-                        workflowWebviewRegistry.reloadIfMatching(id);
+                        const reloaded = workflowWebviewRegistry.reloadIfMatching(id);
+                        outputChannel.appendLine(`[n8n-agent-debug] stateWatcher changed workflowId=${id} lastSyncedAt=${entry.lastSyncedAt} reloaded=${reloaded}`);
                     }
                 }
             } catch (err) {

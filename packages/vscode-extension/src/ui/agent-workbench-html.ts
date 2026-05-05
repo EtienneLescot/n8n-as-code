@@ -734,6 +734,10 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const runIndicator = document.getElementById('run-indicator');
         const compactContextButton = document.getElementById('compact-context');
 
+        function on(element, eventName, handler) {
+            if (element) element.addEventListener(eventName, handler);
+        }
+
         function setRunning(running) {
             isRunning = running;
             sendButton.disabled = running;
@@ -1007,29 +1011,134 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             }
         }
 
+        function normalizeOperationKind(category, title) {
+            const value = String(category || title || '').toLowerCase().replace(/_/g, '-');
+            if (value === 'read-file' || value === 'file-read' || value === 'read') return 'file-read';
+            if (value === 'write-file' || value === 'file-write' || value === 'write') return 'file-write';
+            if (value.includes('shell')) return 'shell';
+            if (value.includes('web')) return 'web';
+            return value;
+        }
+
+        function findMatchingPendingOperationIndex(entries, operationId, title, category) {
+            const exactIndex = entries.findIndex((entry) => entry.kind === 'operation' && entry.id === operationId);
+            if (exactIndex >= 0) return exactIndex;
+            const targetKind = normalizeOperationKind(category, title);
+            for (let idx = entries.length - 1; idx >= 0; idx -= 1) {
+                const entry = entries[idx];
+                if (!entry || entry.kind !== 'operation') continue;
+                if (entry.status !== 'running') continue;
+                const entryKind = normalizeOperationKind(entry.category, entry.title);
+                if (entryKind && targetKind && entryKind === targetKind) return idx;
+                if ((entry.title || '') !== (title || '')) continue;
+                const entryCategory = String(entry.category || '').toLowerCase();
+                const targetCategory = String(category || '').toLowerCase();
+                if (entryCategory && targetCategory && entryCategory !== targetCategory && entryCategory !== 'phase') continue;
+                return idx;
+            }
+            return -1;
+        }
+
+        function finalizePendingOperations(entries, status) {
+            return entries.map((entry) => {
+                if (!entry || entry.kind !== 'operation' || entry.status !== 'running') return entry;
+                return {
+                    ...entry,
+                    tone: status === 'error' ? 'error' : 'success',
+                    status: status === 'error' ? 'error' : 'done',
+                    endedAt: entry.endedAt || Date.now(),
+                };
+            });
+        }
+
+        function stripEnvironmentDetails(text) {
+            let value = String(text || '');
+            const openTag = '<environment_details>';
+            const closeTag = '</environment_details>';
+            for (;;) {
+                const start = value.toLowerCase().indexOf(openTag);
+                if (start < 0) break;
+                const end = value.toLowerCase().indexOf(closeTag, start + openTag.length);
+                if (end < 0) {
+                    value = value.slice(0, start);
+                    break;
+                }
+                value = value.slice(0, start) + value.slice(end + closeTag.length);
+            }
+            return value.trim();
+        }
+
+        function lastUserMessageIndex(entries) {
+            for (let idx = entries.length - 1; idx >= 0; idx -= 1) {
+                if (entries[idx] && entries[idx].kind === 'user-message') return idx;
+            }
+            return -1;
+        }
+
+        function consolidateFinalAssistant(entries, response, finalState) {
+            const userIdx = lastUserMessageIndex(entries);
+            const finalText = stripEnvironmentDetails(response);
+            let chosenText = finalText;
+            const assistantTexts = [];
+            let firstAssistantIdx = -1;
+            for (let idx = userIdx + 1; idx < entries.length; idx += 1) {
+                const entry = entries[idx];
+                if (entry && entry.kind === 'assistant-body' && stripEnvironmentDetails(entry.text)) {
+                    if (firstAssistantIdx < 0) firstAssistantIdx = idx;
+                    assistantTexts.push(stripEnvironmentDetails(entry.text));
+                }
+            }
+            for (const text of assistantTexts) {
+                if (finalText.includes(text) && text.length >= Math.max(80, finalText.length * 0.6)) {
+                    chosenText = text;
+                }
+            }
+            const result = [];
+            let inserted = false;
+            for (let idx = 0; idx < entries.length; idx += 1) {
+                const entry = entries[idx];
+                if (idx > userIdx && entry.kind === 'assistant-body') {
+                    if (!inserted && chosenText && idx === firstAssistantIdx) {
+                        result.push({ kind: 'assistant-body', id: entry.id || crypto.randomUUID(), text: chosenText, streaming: false, finalState: finalState });
+                        inserted = true;
+                    }
+                    continue;
+                }
+                result.push(entry);
+            }
+            if (!inserted && chosenText) {
+                result.push({ kind: 'assistant-body', id: crypto.randomUUID(), text: chosenText, streaming: false, finalState: finalState });
+            }
+            return result;
+        }
+
         function applyStreamEvent(event) {
             if (!state || !state.session) return;
-            const entries = Array.isArray(state.session.entries) ? [...state.session.entries] : [];
+            let entries = Array.isArray(state.session.entries) ? [...state.session.entries] : [];
             if (event.type === 'start') {
                 state.activeSessionId = event.sessionId;
-            } else if (event.type === 'text-delta') {
                 const last = entries[entries.length - 1];
-                if (last && last.kind === 'assistant-body' && last.streaming) {
-                    last.text += event.delta || '';
+                if (!last || last.kind !== 'user-message' || last.text !== event.message) {
+                    entries.push({ kind: 'user-message', id: crypto.randomUUID(), text: event.message || '', timestamp: Date.now() });
+                }
+            } else if (event.type === 'text-delta') {
+                let streamingIdx = -1;
+                for (let idx = entries.length - 1; idx >= 0; idx -= 1) {
+                    if (entries[idx] && entries[idx].kind === 'assistant-body' && entries[idx].streaming) {
+                        streamingIdx = idx;
+                        break;
+                    }
+                }
+                if (streamingIdx >= 0) {
+                    entries[streamingIdx].text += event.delta || '';
                 } else {
                     entries.push({ kind: 'assistant-body', id: crypto.randomUUID(), text: event.delta || '', streaming: true });
                 }
             } else if (event.type === 'final') {
-                const last = entries[entries.length - 1];
-                if (last && last.kind === 'assistant-body') {
-                    last.streaming = false;
-                    last.finalState = event.finalState;
-                    if (!last.text) last.text = event.response || '';
-                } else {
-                    entries.push({ kind: 'assistant-body', id: crypto.randomUUID(), text: event.response || '', streaming: false, finalState: event.finalState });
-                }
+                entries = finalizePendingOperations(entries, 'done');
+                entries = consolidateFinalAssistant(entries, event.response || '', event.finalState);
             } else if (event.type === 'operation') {
-                const idx = entries.findIndex((entry) => entry.kind === 'operation' && entry.id === event.operationId);
+                const idx = findMatchingPendingOperationIndex(entries, event.operationId, event.label, event.category);
                 const opEntry = {
                     kind: 'operation',
                     id: event.operationId,
@@ -1046,7 +1155,18 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 if (idx >= 0) entries[idx] = opEntry;
                 else entries.push(opEntry);
             } else if (event.type === 'progress') {
-                entries.push({ kind: 'operation', id: crypto.randomUUID(), tone: event.tone, title: event.title, detail: event.detail, category: event.phase || 'phase', status: event.tone === 'error' ? 'error' : 'running' });
+                const idx = findMatchingPendingOperationIndex(entries, '', event.title, event.phase || 'phase');
+                const progressEntry = {
+                    kind: 'operation',
+                    id: idx >= 0 && entries[idx] && entries[idx].kind === 'operation' ? entries[idx].id : crypto.randomUUID(),
+                    tone: event.tone,
+                    title: event.title,
+                    detail: event.detail,
+                    category: event.phase || 'phase',
+                    status: event.tone === 'error' ? 'error' : 'running',
+                };
+                if (idx >= 0) entries[idx] = progressEntry;
+                else entries.push(progressEntry);
             } else if (event.type === 'compaction') {
                 const compactionEntry = { kind: 'compaction', id: crypto.randomUUID(), timestamp: Date.now(), event: event };
                 entries.push(compactionEntry);
@@ -1063,42 +1183,47 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 renderAll();
                 return;
             } else if (event.type === 'error') {
+                entries = finalizePendingOperations(entries, 'error');
                 entries.push({ kind: 'system-notice', id: crypto.randomUUID(), text: 'Error: ' + event.error, timestamp: Date.now() });
             }
             state.session.entries = entries;
             renderAll();
         }
 
-        form.addEventListener('submit', (event) => {
-            event.preventDefault();
+        function sendPrompt() {
             const text = promptInput.value.trim();
             if (!text || isRunning || !state) return;
             promptInput.value = '';
             vscode.postMessage({ type: 'agent.send', text, workflowId, nodeContext: currentNodeContext, sessionId: state.activeSessionId });
+        }
+
+        on(form, 'submit', (event) => {
+            event.preventDefault();
+            sendPrompt();
         });
 
-        promptInput.addEventListener('keydown', (event) => {
+        on(promptInput, 'keydown', (event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
-                form.requestSubmit();
+                sendPrompt();
             }
         });
 
-        stopButton.addEventListener('click', () => vscode.postMessage({ type: 'agent.stop' }));
-        workflowSelector.addEventListener('click', () => vscode.postMessage({ type: 'agent.workflow.select' }));
-        historyOpenButton.addEventListener('click', openHistory);
-        historyCloseButton.addEventListener('click', closeHistory);
-        historyOverlay.addEventListener('click', (event) => {
+        on(stopButton, 'click', () => vscode.postMessage({ type: 'agent.stop' }));
+        on(workflowSelector, 'click', () => vscode.postMessage({ type: 'agent.workflow.select' }));
+        on(historyOpenButton, 'click', openHistory);
+        on(historyCloseButton, 'click', closeHistory);
+        on(historyOverlay, 'click', (event) => {
             if (event.target === historyOverlay) closeHistory();
         });
-        selectModelButton.addEventListener('click', () => vscode.postMessage({ type: 'agent.selectModel' }));
-        selectReasoningButton.addEventListener('click', () => vscode.postMessage({ type: 'agent.selectReasoningEffort' }));
-        newSessionButton.addEventListener('click', () => {
+        on(selectModelButton, 'click', () => vscode.postMessage({ type: 'agent.selectModel' }));
+        on(selectReasoningButton, 'click', () => vscode.postMessage({ type: 'agent.selectReasoningEffort' }));
+        on(newSessionButton, 'click', () => {
             closeHistory();
             vscode.postMessage({ type: 'agent.session.new' });
         });
-        compactContextButton.addEventListener('click', () => state && vscode.postMessage({ type: 'agent.context.compact', sessionId: state.activeSessionId }));
-        sessionFilter.addEventListener('change', () => {
+        on(compactContextButton, 'click', () => state && vscode.postMessage({ type: 'agent.context.compact', sessionId: state.activeSessionId }));
+        on(sessionFilter, 'change', () => {
             activeFilter = sessionFilter.value || 'current';
             renderSessions();
         });
@@ -1108,6 +1233,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             if (!message || typeof message !== 'object') return;
 
             if (message.type === 'workflow.reload') {
+                vscode.postMessage({ type: 'workflow.reloadAck', workflowId, hasFrame: Boolean(frame), url: workflowReloadUrl || workflowUrl || '' });
                 reloadWorkflowFrame();
                 return;
             }
