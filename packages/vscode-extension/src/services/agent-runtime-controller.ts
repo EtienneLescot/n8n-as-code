@@ -289,11 +289,22 @@ type ProviderRuntimeConfig = {
     temperature: number;
 };
 
+type YagrProviderRegistryModule = {
+    YAGR_MODEL_PROVIDERS: string[];
+    normalizeProviderId(provider: string): string | undefined;
+    providerRequiresApiKey(provider: string): boolean;
+    getProviderDisplayName(provider: string): string;
+};
+
 type CompactionState = {
     lastCompaction: AgentCompactionSummary | null;
     compactionHistory: AgentCompactionSummary[];
     totalCompactions: number;
 };
+
+function importRuntimeModule<T = any>(specifier: string): Promise<T> {
+    return import(specifier) as Promise<T>;
+}
 
 export class AgentRuntimeController implements vscode.Disposable {
     private activeRun: { abortController: AbortController; sessionId: string } | undefined;
@@ -747,7 +758,7 @@ export class AgentRuntimeController implements vscode.Disposable {
 
         if (typeof (agent as any).streamEvents === 'function') {
             const stream = (agent as any).streamEvents({ messages }, config);
-            const eventRuntime = await import('@yagr/agent/dist/gateway/langgraph-events.js');
+            const eventRuntime = await importRuntimeModule('@yagr/agent/dist/gateway/langgraph-events.js');
             const accumulator = eventRuntime.createRunAccumulator();
             const lastProgressKeys = new Set<string>();
 
@@ -870,8 +881,8 @@ export class AgentRuntimeController implements vscode.Disposable {
         return normalized.length > 500 ? `${normalized.slice(0, 500)}...` : normalized;
     }
 
-    private async loadYagrProviderRegistry(): Promise<typeof import('@yagr/agent/dist/llm/provider-registry.js')> {
-        return import('@yagr/agent/dist/llm/provider-registry.js');
+    private async loadYagrProviderRegistry(): Promise<YagrProviderRegistryModule> {
+        return importRuntimeModule<YagrProviderRegistryModule>('@yagr/agent/dist/llm/provider-registry.js');
     }
 
     private async describeProviderRuntimeConfig(): Promise<ProviderRuntimeConfig> {
@@ -890,7 +901,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         return this.getProviderRuntimeConfig(providerRegistry);
     }
 
-    private async getProviderRuntimeConfig(providerRegistry: typeof import('@yagr/agent/dist/llm/provider-registry.js')): Promise<ProviderRuntimeConfig> {
+    private async getProviderRuntimeConfig(providerRegistry: YagrProviderRegistryModule): Promise<ProviderRuntimeConfig> {
         const config = vscode.workspace.getConfiguration('n8n.agent');
         const provider = String(config.get<string>('provider') || 'openai');
         const normalizedProvider = providerRegistry.normalizeProviderId(provider);
@@ -910,7 +921,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         const baseUrl = String(config.get<string>('baseUrl') || '').trim() || undefined;
         const apiKey = await this._context.secrets.get(getAgentProviderSecretKey(normalizedProvider));
         if (normalizedProvider === 'openai-oauth') {
-            const accountRuntime = await import('@yagr/agent/dist/llm/openai-account.js');
+            const accountRuntime = await importRuntimeModule('@yagr/agent/dist/llm/openai-account.js');
             const session = await accountRuntime.ensureOpenAiAccountSession().catch(() => undefined);
             if (!session?.accessToken) {
                 return {
@@ -951,8 +962,8 @@ export class AgentRuntimeController implements vscode.Disposable {
     private async getYagrAgentHandle(providerConfig: ProviderRuntimeConfig, input: AgentPromptInput): Promise<any> {
         const rootDir = input.workspaceRoot || process.cwd();
         const [agentFactory, providerRegistry] = await Promise.all([
-            import('@yagr/agent/dist/agent-factory.js'),
-            import('@yagr/agent/dist/llm/provider-registry.js'),
+            importRuntimeModule('@yagr/agent/dist/agent-factory.js'),
+            importRuntimeModule<YagrProviderRegistryModule>('@yagr/agent/dist/llm/provider-registry.js'),
         ]);
         const memorySources = await this.getWorkspaceMemorySources(rootDir);
         const skillSourcePaths = await this.getWorkspaceSkillSources(rootDir);
@@ -970,7 +981,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         }
 
         const credentials = new Map<string, string>();
-        await Promise.all(providerRegistry.YAGR_MODEL_PROVIDERS.map(async (provider) => {
+        await Promise.all(providerRegistry.YAGR_MODEL_PROVIDERS.map(async (provider: string) => {
             const value = await this._context.secrets.get(getAgentProviderSecretKey(provider));
             if (value) credentials.set(provider, value);
         }));
@@ -1219,7 +1230,7 @@ export class AgentRuntimeController implements vscode.Disposable {
     private async getSessionRuntime(): Promise<SessionRuntime> {
         if (!this.sessionRuntimePromise) {
             this.sessionRuntimePromise = (async () => {
-                const module = await import('@yagr/agent/packages/session-service/dist/index.js');
+                const module = await importRuntimeModule('@yagr/agent/packages/session-service/dist/index.js');
                 const sessionsRoot = path.join(this._context.globalStorageUri.fsPath, 'agent-sessions');
                 const webUiSessionsDir = path.join(sessionsRoot, 'display');
                 await fs.promises.mkdir(webUiSessionsDir, { recursive: true });
@@ -1873,7 +1884,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             return DEFAULT_CONTEXT_WINDOW_TOKENS;
         }
         try {
-            const metadata = await import('@yagr/agent/dist/llm/provider-metadata.js');
+            const metadata = await importRuntimeModule('@yagr/agent/dist/llm/provider-metadata.js');
             const entry = await metadata.primeProviderModelMetadata(provider as any, model, apiKey, baseUrl);
             return Number(entry?.contextWindow || metadata.getSnapshotContextWindow(provider as any, model) || DEFAULT_CONTEXT_WINDOW_TOKENS);
         } catch {
