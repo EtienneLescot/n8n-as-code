@@ -147,7 +147,6 @@ export class ConfigService {
         }
         return {
             ...prepared.context,
-            instanceIdentifier: this.canonicalInstanceIdentifier(prepared.context.instanceIdentifier),
         };
     }
 
@@ -517,7 +516,6 @@ export class ConfigService {
         });
         return {
             ...context,
-            instanceIdentifier: this.canonicalInstanceIdentifier(context.instanceIdentifier),
         };
     }
 
