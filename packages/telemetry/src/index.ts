@@ -4,6 +4,7 @@ import { homedir, platform } from 'node:os';
 import { dirname, join } from 'node:path';
 
 export type TelemetryFacade = 'cli' | 'vscode' | 'mcp' | 'skills' | 'openclaw' | 'claude' | 'docs' | 'yagr';
+export type TelemetryEnvironment = 'dev' | 'test' | 'next' | 'prod' | 'ci';
 export type TelemetryOutcome = 'success' | 'failure' | 'cancelled' | 'skipped';
 export type ErrorCategory =
     | 'configuration_error'
@@ -70,6 +71,7 @@ export interface TelemetryStatus {
     configPath: string;
     anonymousId?: string;
     posthogHost: string;
+    telemetryEnvironment: TelemetryEnvironment;
     noticeShownAt?: string;
 }
 
@@ -98,6 +100,9 @@ interface QueuedEvent {
 
 const TELEMETRY_SCHEMA_VERSION = 1;
 const DEFAULT_POSTHOG_HOST = 'https://eu.i.posthog.com';
+const BUILD_POSTHOG_KEY = 'N8NAC_BUILD_POSTHOG_KEY_PLACEHOLDER';
+const BUILD_POSTHOG_HOST = 'N8NAC_BUILD_POSTHOG_HOST_PLACEHOLDER';
+const BUILD_TELEMETRY_ENVIRONMENT = 'N8NAC_BUILD_TELEMETRY_ENVIRONMENT_PLACEHOLDER';
 
 const ALLOWED_PROPERTY_KEYS = new Set([
     'activation_source_event',
@@ -146,6 +151,7 @@ const ALLOWED_PROPERTY_KEYS = new Set([
     'subcommand',
     'target',
     'telemetry_schema_version',
+    'telemetry_environment',
     'tool_name',
     'tracked_count',
     'transport',
@@ -225,11 +231,56 @@ function getNodeMajor(): number | undefined {
 }
 
 function getPostHogKey(): string | undefined {
-    return process.env.N8NAC_POSTHOG_KEY?.trim() || process.env.POSTHOG_KEY?.trim() || undefined;
+    return process.env.N8NAC_POSTHOG_KEY?.trim() || process.env.POSTHOG_KEY?.trim() || getBuildValue(BUILD_POSTHOG_KEY);
 }
 
 function getPostHogHost(): string {
-    return (process.env.N8NAC_POSTHOG_HOST?.trim() || process.env.POSTHOG_HOST?.trim() || DEFAULT_POSTHOG_HOST).replace(/\/$/, '');
+    return (process.env.N8NAC_POSTHOG_HOST?.trim() || process.env.POSTHOG_HOST?.trim() || getBuildValue(BUILD_POSTHOG_HOST) || DEFAULT_POSTHOG_HOST).replace(/\/$/, '');
+}
+
+function getBuildValue(value: string): string | undefined {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.startsWith('N8NAC_BUILD_')) return undefined;
+    return trimmed;
+}
+
+function normalizeTelemetryEnvironment(value?: string): TelemetryEnvironment | undefined {
+    const normalized = value?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    if (!normalized) return undefined;
+    if (normalized === 'production' || normalized === 'prod' || normalized === 'main' || normalized === 'stable') return 'prod';
+    if (normalized === 'next' || normalized === 'preview' || normalized === 'prerelease' || normalized === 'pre_release') return 'next';
+    if (normalized === 'development' || normalized === 'dev' || normalized === 'local') return 'dev';
+    if (normalized === 'test' || normalized === 'testing') return 'test';
+    if (normalized === 'ci') return 'ci';
+    return undefined;
+}
+
+function getGitHubRefName(): string | undefined {
+    const refName = process.env.GITHUB_REF_NAME?.trim();
+    if (refName) return refName;
+
+    const ref = process.env.GITHUB_REF?.trim();
+    return ref?.replace(/^refs\/heads\//, '').replace(/^refs\/tags\//, '') || undefined;
+}
+
+function getTelemetryEnvironment(): TelemetryEnvironment {
+    const explicit = normalizeTelemetryEnvironment(process.env.N8NAC_TELEMETRY_ENV || process.env.N8NAC_ENV);
+    if (explicit) return explicit;
+
+    const branchEnvironment = normalizeTelemetryEnvironment(getGitHubRefName());
+    if (branchEnvironment === 'prod' || branchEnvironment === 'next') return branchEnvironment;
+
+    const nodeEnvironment = normalizeTelemetryEnvironment(process.env.NODE_ENV);
+    if (nodeEnvironment === 'test') return 'test';
+
+    const lifecycleEvent = process.env.npm_lifecycle_event?.toLowerCase() || '';
+    if (lifecycleEvent.includes('test')) return 'test';
+
+    const buildEnvironment = normalizeTelemetryEnvironment(getBuildValue(BUILD_TELEMETRY_ENVIRONMENT));
+    if (buildEnvironment) return buildEnvironment;
+
+    if (process.env.CI === 'true') return 'ci';
+    return 'dev';
 }
 
 function sanitizeProperties(properties: TelemetryProperties): TelemetryProperties {
@@ -317,6 +368,7 @@ export function getTelemetryStatus(context?: Pick<TelemetryContext, 'forceDisabl
         configPath: path,
         anonymousId: config.anonymousId,
         posthogHost: getPostHogHost(),
+        telemetryEnvironment: getTelemetryEnvironment(),
         noticeShownAt: config.noticeShownAt,
     };
 }
@@ -355,6 +407,7 @@ export function createTelemetryClient(context: TelemetryContext): TelemetryClien
         app: 'n8n-as-code',
         facade: context.facade,
         telemetry_schema_version: TELEMETRY_SCHEMA_VERSION,
+        telemetry_environment: getTelemetryEnvironment(),
         package_version: context.version,
         session_id: sessionId,
         workspace_id: context.workspaceId,

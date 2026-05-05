@@ -19,6 +19,9 @@ jobs:
     environment: prod
     env:
       GITHUB_TOKEN: ${{ github.token }}
+      N8NAC_POSTHOG_KEY: ${{ secrets.N8NAC_POSTHOG_KEY }}
+      N8NAC_POSTHOG_HOST: ${{ vars.N8NAC_POSTHOG_HOST }}
+      N8NAC_TELEMETRY_ENV: prod
     outputs:
       pending: ${{ steps.pending.outputs.pending }}
     steps:
@@ -77,6 +80,22 @@ jobs:
           key: ${{ runner.os }}-n8n-cache-${{ steps.n8n-tag.outputs.tag }}-${{ hashFiles('scripts/ensure-n8n-cache.cjs') }}
           restore-keys: |
             ${{ runner.os }}-n8n-cache-
+
+      - name: Verify telemetry release configuration
+        if: steps.pending.outputs.pending == 'true'
+        run: |
+          if [[ -z "${N8NAC_POSTHOG_KEY:-}" ]]; then
+            echo "❌ N8NAC_POSTHOG_KEY is missing in prod environment secrets."
+            exit 1
+          fi
+          if [[ -z "${N8NAC_POSTHOG_HOST:-}" ]]; then
+            echo "❌ N8NAC_POSTHOG_HOST is missing in prod environment variables."
+            exit 1
+          fi
+          if [[ "${N8NAC_TELEMETRY_ENV:-}" != "prod" ]]; then
+            echo "❌ N8NAC_TELEMETRY_ENV must be prod for stable releases."
+            exit 1
+          fi
 
       - name: Build all packages
         if: steps.pending.outputs.pending == 'true'
@@ -471,6 +490,9 @@ jobs:
     environment: next
     env:
       GITHUB_TOKEN: ${{ github.token }}
+      N8NAC_POSTHOG_KEY: ${{ secrets.N8NAC_POSTHOG_KEY }}
+      N8NAC_POSTHOG_HOST: ${{ vars.N8NAC_POSTHOG_HOST }}
+      N8NAC_TELEMETRY_ENV: next
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -525,6 +547,22 @@ jobs:
       - name: Refresh lockfile
         if: steps.prerelease-plan.outputs.changed == 'true'
         run: npm install --package-lock-only
+
+      - name: Verify telemetry release configuration
+        if: steps.prerelease-plan.outputs.changed == 'true'
+        run: |
+          if [[ -z "${N8NAC_POSTHOG_KEY:-}" ]]; then
+            echo "❌ N8NAC_POSTHOG_KEY is missing in next environment secrets."
+            exit 1
+          fi
+          if [[ -z "${N8NAC_POSTHOG_HOST:-}" ]]; then
+            echo "❌ N8NAC_POSTHOG_HOST is missing in next environment variables."
+            exit 1
+          fi
+          if [[ "${N8NAC_TELEMETRY_ENV:-}" != "next" ]]; then
+            echo "❌ N8NAC_TELEMETRY_ENV must be next for prereleases."
+            exit 1
+          fi
 
       - name: Build all packages
         if: steps.prerelease-plan.outputs.changed == 'true'

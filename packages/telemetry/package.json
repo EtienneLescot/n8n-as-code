@@ -21,7 +21,7 @@
     "directory": "packages/telemetry"
   },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && node scripts/embed-build-config.mjs",
     "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "devDependencies": {

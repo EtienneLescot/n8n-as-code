@@ -47,11 +47,50 @@ The VS Code extension also respects VS Code's telemetry setting.
 
 On the documentation site, use the telemetry control in the bottom-right corner to disable or re-enable anonymous docs telemetry in your browser.
 
+## Connect PostHog Cloud
+
+n8n-as-code sends telemetry to a PostHog project using the PostHog **Project token**. The PostHog **Project ID** is for the PostHog API and is not used for event ingestion.
+
+For a US Cloud PostHog project:
+
+```bash
+export N8NAC_POSTHOG_KEY="phc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+export N8NAC_POSTHOG_HOST="https://us.i.posthog.com"
+export N8NAC_TELEMETRY_ENV="dev"
+```
+
+For an EU Cloud PostHog project:
+
+```bash
+export N8NAC_POSTHOG_KEY="phc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+export N8NAC_POSTHOG_HOST="https://eu.i.posthog.com"
+export N8NAC_TELEMETRY_ENV="dev"
+```
+
+Every event includes a `telemetry_environment` property so one PostHog project can safely separate local development, tests, prereleases, and production. Use `N8NAC_TELEMETRY_ENV=dev` in `./.env`, `N8NAC_TELEMETRY_ENV=test` in `./.env.test`, `N8NAC_TELEMETRY_ENV=next` for prerelease builds, and `N8NAC_TELEMETRY_ENV=prod` for stable production builds.
+
+During release builds, `@n8n-as-code/telemetry` embeds the PostHog project token, host, and telemetry environment from the build environment into the published package. Runtime environment variables still take precedence, so local development and tests can override the release defaults without changing the published artifacts.
+
+Check the local telemetry status:
+
+```bash
+n8nac telemetry status
+```
+
+To inspect events locally while testing:
+
+```bash
+N8NAC_TELEMETRY_DEBUG=1 n8nac workspace status
+```
+
+In PostHog, open the target project and use the `Events` or `Activity` view to verify events such as `first_seen`, `product_active`, `cli_command_completed`, or `vscode_extension_activated`. Dashboards are built from PostHog insights over those events; the product code only needs the project token and region host.
+
 ## What Is Collected
 
 Telemetry events contain only coarse product usage metadata:
 
 - anonymous installation ID
+- telemetry environment, such as `dev`, `test`, `next`, or `prod`
 - facade, such as `cli`, `vscode`, `mcp`, `skills`, or `openclaw`
 - package or extension version
 - command or tool name from a controlled list
