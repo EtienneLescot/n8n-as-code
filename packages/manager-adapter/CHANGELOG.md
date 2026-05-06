@@ -1,5 +1,11 @@
 # @n8n-as-code/manager-adapter
 
+## [2.0.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/manager-adapter@v2.0.1...@n8n-as-code/manager-adapter@v2.0.2) (2026-05-06)
+
+### Bug Fixes
+
+* **deps:** upgrade n8n-manager-core to v0.7.0 ([db6b3f1](https://github.com/EtienneLescot/n8n-as-code/commit/db6b3f1c027f762c9623cd4949b347ce0c0b61e6))
+
 ## [2.0.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/manager-adapter@v2.0.0...@n8n-as-code/manager-adapter@v2.0.1) (2026-05-06)
 
 ### Bug Fixes

@@ -1,5 +1,16 @@
 # @n8n-as-code/cli
 
+## [2.0.3](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.0.2...n8nac@v2.0.3) (2026-05-06)
+
+### Bug Fixes
+
+* **deps:** upgrade n8n-manager-core to v0.7.0 ([db6b3f1](https://github.com/EtienneLescot/n8n-as-code/commit/db6b3f1c027f762c9623cd4949b347ce0c0b61e6))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/manager-adapter bumped from 2.0.1 to 2.0.2
+
 ## [2.0.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.0.1...n8nac@v2.0.2) (2026-05-06)
 
 ### Bug Fixes
