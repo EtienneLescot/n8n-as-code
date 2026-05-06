@@ -1,5 +1,20 @@
 # n8n-as-code
 
+## [2.0.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.0.1...n8n-as-code@v2.0.2) (2026-05-06)
+
+### Bug Fixes
+
+* make package build scripts cross-platform ([6fb7318](https://github.com/EtienneLescot/n8n-as-code/commit/6fb7318125fc07ee2fe712e63bb80f9256963d2f))
+
+### Documentation
+
+* update documentation for V2 release ([e0d6e83](https://github.com/EtienneLescot/n8n-as-code/commit/e0d6e83662aed95b2e862077b48468f180b70cca))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * n8nac bumped from 2.0.1 to 2.0.2
+
 ## [2.0.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.0.0...n8n-as-code@v2.0.1) (2026-05-06)
 
 ### Dependencies

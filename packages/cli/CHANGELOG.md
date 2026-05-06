@@ -1,5 +1,11 @@
 # @n8n-as-code/cli
 
+## [2.0.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.0.1...n8nac@v2.0.2) (2026-05-06)
+
+### Bug Fixes
+
+* make package build scripts cross-platform ([6fb7318](https://github.com/EtienneLescot/n8n-as-code/commit/6fb7318125fc07ee2fe712e63bb80f9256963d2f))
+
 ## [2.0.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.0.0...n8nac@v2.0.1) (2026-05-06)
 
 ### Dependencies
