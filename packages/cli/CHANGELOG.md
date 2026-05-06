@@ -1,5 +1,17 @@
 # @n8n-as-code/cli
 
+## [2.0.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.0.1...n8nac@v2.0.2) (2026-05-06)
+
+### Bug Fixes
+
+* **deps:** bump @n8n-as-code/n8n-manager-core from 0.6.1 to 0.6.2 ([2c92c62](https://github.com/EtienneLescot/n8n-as-code/commit/2c92c62b01545f934100d56af88c7f3fc098a724))
+* make package build scripts cross-platform ([6fb7318](https://github.com/EtienneLescot/n8n-as-code/commit/6fb7318125fc07ee2fe712e63bb80f9256963d2f))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/manager-adapter bumped from 2.0.0 to 2.0.1
+
 ## [2.0.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.0.0...n8nac@v2.0.1) (2026-05-06)
 
 ### Dependencies
