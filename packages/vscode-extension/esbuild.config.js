@@ -19,6 +19,7 @@ const managerCoreAgentToolingPaths = new Set([
 ]);
 const runtimeDependencyRoots = [
     '@yagr/agent',
+    '@yagr/provider-runtime',
     '@yagr/session-service',
     '@yagr/stream-adapter',
 ];
@@ -29,6 +30,14 @@ function packageNameToParts(packageName) {
 
 function getPackageDir(packageName) {
     const parts = packageNameToParts(packageName);
+    try {
+        const packageJsonPath = require.resolve(`${packageName}/package.json`, {
+            paths: [__dirname, path.join(__dirname, '..', '..')],
+        });
+        return path.dirname(packageJsonPath);
+    } catch {
+        // Fall back to direct node_modules probing below.
+    }
     const candidates = [
         path.join(__dirname, '..', '..', 'node_modules', ...parts),
         path.join(__dirname, 'node_modules', ...parts),
