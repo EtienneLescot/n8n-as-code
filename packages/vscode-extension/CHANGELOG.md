@@ -1,5 +1,11 @@
 # n8n-as-code
 
+## [2.0.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.0.1...n8n-as-code@v2.0.2) (2026-05-06)
+
+### Documentation
+
+* update documentation for V2 release ([e0d6e83](https://github.com/EtienneLescot/n8n-as-code/commit/e0d6e83662aed95b2e862077b48468f180b70cca))
+
 ## [2.0.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.0.0...n8n-as-code@v2.0.1) (2026-05-06)
 
 ### Dependencies
