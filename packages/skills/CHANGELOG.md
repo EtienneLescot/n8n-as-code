@@ -1,5 +1,11 @@
 # @n8n-as-code/skills
 
+## [2.0.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.0.1...@n8n-as-code/skills@v2.0.2) (2026-05-06)
+
+### Documentation
+
+* **skills:** update installation instructions for generic agents ([fb9b903](https://github.com/EtienneLescot/n8n-as-code/commit/fb9b903e560ea5d932b573fdfe5edd2f63bb2e64))
+
 ## [2.0.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.0.0...@n8n-as-code/skills@v2.0.1) (2026-05-06)
 
 ### Bug Fixes
