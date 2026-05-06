@@ -1,5 +1,7 @@
 # @n8n-as-code/transformer
 
+## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v1.2.1...@n8n-as-code/transformer@v2.0.0) (2026-05-06)
+
 ## [1.2.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v1.2.0...@n8n-as-code/transformer@v1.2.1) (2026-04-24)
 
 ### Bug Fixes

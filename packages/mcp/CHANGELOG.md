@@ -1,5 +1,23 @@
 # @n8n-as-code/mcp
 
+## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/mcp@v1.4.0...@n8n-as-code/mcp@v2.0.0) (2026-05-06)
+
+### Features
+
+* **telemetry:** add privacy-first product analytics ([7afb6e4](https://github.com/EtienneLescot/n8n-as-code/commit/7afb6e4500b8ac27a15f80636f48116a56480f7d))
+
+### Bug Fixes
+
+* **telemetry:** avoid queue growth without backend ([4e827c7](https://github.com/EtienneLescot/n8n-as-code/commit/4e827c73082a8c7f15e40048c1f2917776d3b5ec))
+* **telemetry:** refine active usage semantics ([4ffe544](https://github.com/EtienneLescot/n8n-as-code/commit/4ffe544583c2e784a066417edd8a0fceaa3dc5df))
+* **telemetry:** flush queued events on shutdown ([046f883](https://github.com/EtienneLescot/n8n-as-code/commit/046f883cdf92422d64906476951293b711cc753f))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/telemetry bumped from 0.1.0 to 2.0.0
+    * n8nac bumped from 1.8.1 to 2.0.0
+
 ## [1.4.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/mcp@v1.3.0...@n8n-as-code/mcp@v1.4.0) (2026-04-24)
 
 ### Features

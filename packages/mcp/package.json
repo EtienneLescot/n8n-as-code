@@ -1,6 +1,6 @@
 {
   "name": "@n8n-as-code/mcp",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "description": "Dedicated MCP server for n8n-as-code",
   "type": "module",
   "license": "MIT",
@@ -17,8 +17,8 @@
   "dependencies": {
     "@hono/node-server": "^1.19.12",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@n8n-as-code/telemetry": "0.1.0",
-    "n8nac": "1.8.1",
+    "@n8n-as-code/telemetry": "2.0.0",
+    "n8nac": "2.0.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

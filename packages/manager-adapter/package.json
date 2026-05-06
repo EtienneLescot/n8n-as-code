@@ -1,6 +1,6 @@
 {
   "name": "@n8n-as-code/manager-adapter",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "description": "Facade adapter from n8n-as-code surfaces to the independent n8n-manager runtime engine",
   "type": "module",
   "main": "./dist/index.js",
@@ -26,7 +26,7 @@
   "dependencies": {
     "@n8n-as-code/n8n-credentials-manager": "^0.1.4",
     "@n8n-as-code/n8n-manager-core": "^0.6.1",
-    "@n8n-as-code/workflow-core": "0.1.0"
+    "@n8n-as-code/workflow-core": "2.0.0"
   },
   "devDependencies": {
     "typescript": "^5.3.3"

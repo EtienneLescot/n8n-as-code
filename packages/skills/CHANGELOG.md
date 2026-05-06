@@ -1,5 +1,40 @@
 # @n8n-as-code/skills
 
+## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.10.0...@n8n-as-code/skills@v2.0.0) (2026-05-06)
+
+### ⚠ BREAKING CHANGES
+
+* migrate runtime ownership to n8n-manager ([8705ab4](https://github.com/EtienneLescot/n8n-as-code/commit/8705ab44abe4c73315d6985523c05a929cae3a94))
+
+### Features
+
+* **telemetry:** add privacy-first product analytics ([7afb6e4](https://github.com/EtienneLescot/n8n-as-code/commit/7afb6e4500b8ac27a15f80636f48116a56480f7d))
+* **skills:** use npx for n8n-manager commands in AI context and docs ([51e56b8](https://github.com/EtienneLescot/n8n-as-code/commit/51e56b8d7d57f28efa9ac14680ad474f04d32d05))
+
+### Bug Fixes
+
+* **workbench:** use public yagr runtime packages ([6a94670](https://github.com/EtienneLescot/n8n-as-code/commit/6a94670bf6c0ecdaa02fd977e515d1d58d894a14))
+* **skills:** align prerelease adapter commands ([9d1c0a4](https://github.com/EtienneLescot/n8n-as-code/commit/9d1c0a4ba54c9de1a031dc4a937dc64295260341))
+* pass env to child process and only use N8N_MANAGER_COMMAND env var when in project context ([82a2087](https://github.com/EtienneLescot/n8n-as-code/commit/82a2087c360042accc04b13edccb9e1dde4ed6c3))
+* inject n8n-manager agent tools across facades ([69be867](https://github.com/EtienneLescot/n8n-as-code/commit/69be86790121eb01a6ee0843ad838143ec858738))
+* **cli:** decouple runtime management from workspace management ([574bb05](https://github.com/EtienneLescot/n8n-as-code/commit/574bb0592e96411326e69a1a188b010c39169269))
+* **skills:** rebuild knowledge base for n8n@2.18.5 ([c391053](https://github.com/EtienneLescot/n8n-as-code/commit/c391053c2f079880ec54719a4e1631b5ec96492d))
+* **skills:** rebuild knowledge base for n8n@2.18.4 ([e672b3b](https://github.com/EtienneLescot/n8n-as-code/commit/e672b3bc3ff4d57ced0e3ab12f523c68b194a7ed))
+* **skills:** rebuild knowledge base for n8n@2.18.7 ([ccdbf0d](https://github.com/EtienneLescot/n8n-as-code/commit/ccdbf0d1547ffb7cc11166046827f5aa489c598c))
+* **skills:** rebuild knowledge base for n8n@2.18.5 ([466ad07](https://github.com/EtienneLescot/n8n-as-code/commit/466ad072cd92c81f7787ae6204bebb14f50d6733))
+* **skills:** rebuild knowledge base for n8n@2.17.8 ([a81c923](https://github.com/EtienneLescot/n8n-as-code/commit/a81c9239afffd0659c3d5152fd362349ba751692))
+
+### Documentation
+
+* **skills:** update n8n command examples to use @next tag ([760c227](https://github.com/EtienneLescot/n8n-as-code/commit/760c227b91ab138d59e6492101427db0631c0acb))
+* **skills:** remove @next suffix from n8n command examples ([5506838](https://github.com/EtienneLescot/n8n-as-code/commit/550683898bff44a64146d8a2957dd0dabc2095b0))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/telemetry bumped from 0.1.0 to 2.0.0
+    * @n8n-as-code/transformer bumped from 1.2.1 to 2.0.0
+
 ## [1.10.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.9.0...@n8n-as-code/skills@v1.10.0) (2026-04-24)
 
 ### Features

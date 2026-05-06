@@ -1,5 +1,52 @@
 # @n8n-as-code/cli
 
+## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.8.1...n8nac@v2.0.0) (2026-05-06)
+
+### ⚠ BREAKING CHANGES
+
+* migrate runtime ownership to n8n-manager ([8705ab4](https://github.com/EtienneLescot/n8n-as-code/commit/8705ab44abe4c73315d6985523c05a929cae3a94))
+
+### Features
+
+* **cli:** implement sync event journal for workflow tracking ([9d3776a](https://github.com/EtienneLescot/n8n-as-code/commit/9d3776ae44c1a405d952dff96791c462dd1aec21))
+* **telemetry:** embed PostHog release config ([33ba419](https://github.com/EtienneLescot/n8n-as-code/commit/33ba419effcdf787dff28475272a7d09ededbad7))
+* **cli:** simplify instance identifier logic and enforce canonical formats ([ece4b27](https://github.com/EtienneLescot/n8n-as-code/commit/ece4b27daec92111fb2d051920ada4144561b57c))
+* **vscode-extension:** enhance agent workbench and provider management ([b34e619](https://github.com/EtienneLescot/n8n-as-code/commit/b34e619ead5ce27ab83e695012fff764f0e3f145))
+* **telemetry:** add privacy-first product analytics ([7afb6e4](https://github.com/EtienneLescot/n8n-as-code/commit/7afb6e4500b8ac27a15f80636f48116a56480f7d))
+* **ai:** automatically infer local CLI command for context generation ([16d4cba](https://github.com/EtienneLescot/n8n-as-code/commit/16d4cba3c0bdb09282b6f26b181f619241c5a2e3))
+* use n8n-manager global configuration ([4ec83bd](https://github.com/EtienneLescot/n8n-as-code/commit/4ec83bdff72e0dd239dea32cec4109015311a095))
+
+### Bug Fixes
+
+* **deps:** bump @n8n-as-code/n8n-manager-core to ^0.6.1 ([015f504](https://github.com/EtienneLescot/n8n-as-code/commit/015f504800e83a1d22c5f2a180e5ed93d2f57b9e))
+* **cli:** remove redundant instance identifier canonicalization ([8825516](https://github.com/EtienneLescot/n8n-as-code/commit/88255169972f000ac693714de3889b31b1289a55))
+* **cli:** propagate current user transport errors ([3728e44](https://github.com/EtienneLescot/n8n-as-code/commit/3728e44b423d898bfc982cff47c7fe4fda27afb2))
+* update dependencies and add tunnel observation script ([bd1b33a](https://github.com/EtienneLescot/n8n-as-code/commit/bd1b33a4fe03b358e8327b1fa35138fc7cf80f6c))
+* **cli:** standardize instance identifier generation and resolution ([6d8242f](https://github.com/EtienneLescot/n8n-as-code/commit/6d8242f10dcde07e222dcc0413dd9073b3982729))
+* **deps:** bump @n8n-as-code/n8n-manager-core to ^0.5.1 ([ec58f6c](https://github.com/EtienneLescot/n8n-as-code/commit/ec58f6cf9357cba3addb890afab3225f41e3b747))
+* **telemetry:** refine active usage semantics ([4ffe544](https://github.com/EtienneLescot/n8n-as-code/commit/4ffe544583c2e784a066417edd8a0fceaa3dc5df))
+* **cli:** avoid leaking workflow stub helper types ([67d3b0c](https://github.com/EtienneLescot/n8n-as-code/commit/67d3b0ce1f3823967e4ddfd13c275d8684695de7))
+* **vscode-extension:** improve project sync feedback ([15a9a28](https://github.com/EtienneLescot/n8n-as-code/commit/15a9a28d83ebcf6892aa2cd1875aaeb3fe7ee489))
+* **skills:** align prerelease adapter commands ([9d1c0a4](https://github.com/EtienneLescot/n8n-as-code/commit/9d1c0a4ba54c9de1a031dc4a937dc64295260341))
+* **deps:** upgrade @n8n-as-code/n8n-manager-core to ^0.5.0 ([a6b0366](https://github.com/EtienneLescot/n8n-as-code/commit/a6b0366e0bef5ded7917a749b471c88ea4f9e273))
+* **cli:** allow preserving active instance during config save ([4d6d158](https://github.com/EtienneLescot/n8n-as-code/commit/4d6d158165e5ace7a67bbad1c350790516e6e1e2))
+* **deps:** upgrade n8n-manager-core and credentials-manager ([8238f73](https://github.com/EtienneLescot/n8n-as-code/commit/8238f730d2cdaa1c063378148c70650438fc7644))
+* **deps:** switch to semver for internal package dependencies ([d63f1d2](https://github.com/EtienneLescot/n8n-as-code/commit/d63f1d248adfa62408605b0cad847edc67e0271f))
+* preserve workspace context in agent tooling ([7b77b7c](https://github.com/EtienneLescot/n8n-as-code/commit/7b77b7c2bd958bd9194f7e9177f5de276fbb9487))
+* inject n8n-manager agent tools across facades ([69be867](https://github.com/EtienneLescot/n8n-as-code/commit/69be86790121eb01a6ee0843ad838143ec858738))
+* **cli:** decouple runtime management from workspace management ([574bb05](https://github.com/EtienneLescot/n8n-as-code/commit/574bb0592e96411326e69a1a188b010c39169269))
+* **cli:** resolve macOS /tmp symlink in sync-manager tests (#357) ([70d6c8d](https://github.com/EtienneLescot/n8n-as-code/commit/70d6c8dedfc151578d17548fda02cdb312f82a60))
+* **cli:** implement stable instance identifiers ([d9181cd](https://github.com/EtienneLescot/n8n-as-code/commit/d9181cd64570f9f873ded8cba92bebc5ba3eb111))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/manager-adapter bumped from 0.1.0 to 2.0.0
+    * @n8n-as-code/skills bumped from 1.10.0 to 2.0.0
+    * @n8n-as-code/telemetry bumped from 0.1.0 to 2.0.0
+    * @n8n-as-code/transformer bumped from 1.2.1 to 2.0.0
+    * @n8n-as-code/workflow-core bumped from 0.1.0 to 2.0.0
+
 ## [1.8.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v1.8.0...n8nac@v1.8.1) (2026-04-24)
 
 ### Bug Fixes

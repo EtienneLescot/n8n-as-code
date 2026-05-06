@@ -1,5 +1,84 @@
 # n8n-as-code
 
+## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.46.0...n8n-as-code@v2.0.0) (2026-05-06)
+
+### ⚠ BREAKING CHANGES
+
+* migrate runtime ownership to n8n-manager ([8705ab4](https://github.com/EtienneLescot/n8n-as-code/commit/8705ab44abe4c73315d6985523c05a929cae3a94))
+
+### Features
+
+* **cli:** implement sync event journal for workflow tracking ([9d3776a](https://github.com/EtienneLescot/n8n-as-code/commit/9d3776ae44c1a405d952dff96791c462dd1aec21))
+* **ui:** add Lucide icons for operation entry kinds ([95e6912](https://github.com/EtienneLescot/n8n-as-code/commit/95e691296f8448eb0eee02b8d83bf4a701a14e15))
+* **vscode-extension:** normalize tool output for better display ([ca29ca0](https://github.com/EtienneLescot/n8n-as-code/commit/ca29ca0d3ee04d36962adede09ff7ea6b0e8c392))
+* **workbench:** add yagr checkpoint controls ([9ae20b7](https://github.com/EtienneLescot/n8n-as-code/commit/9ae20b7447ba98515d25e52ca65bafdc2ee1088b))
+* **workbench:** integrate yagr context controls ([f8e3747](https://github.com/EtienneLescot/n8n-as-code/commit/f8e37475b99c5642166a02cea96cb97b387e85d7))
+* **workbench:** integrate workflow context and session management ([4e46ef3](https://github.com/EtienneLescot/n8n-as-code/commit/4e46ef320f7f5a3c749dd429684fa104728f3428))
+* **workbench:** implement session compaction and history modal ([26fbc98](https://github.com/EtienneLescot/n8n-as-code/commit/26fbc98ecd47deb9a2ac179dc6263c415260e5af))
+* **workbench:** implement workflow change detection and run indicator ([750a823](https://github.com/EtienneLescot/n8n-as-code/commit/750a8232cfe47f86ede17ce3c1689bbc418f7e7f))
+* **ui:** add reasoning effort selection and enhance workbench layout ([c09cf2f](https://github.com/EtienneLescot/n8n-as-code/commit/c09cf2f3715c014c1b820676a711bfdbce6985da))
+* **ui:** implement enter-to-submit with shift-enter for multiline support ([fd0af46](https://github.com/EtienneLescot/n8n-as-code/commit/fd0af46c4db9ac5cf208df83846ee07de3647f0c))
+* **vscode-extension:** implement node context awareness in agent workbench ([3ca0b42](https://github.com/EtienneLescot/n8n-as-code/commit/3ca0b426fa2c919518478a2293db96ec62995ca9))
+* **vscode-extension:** implement workflow reload mechanism in agent workbench ([a9354d0](https://github.com/EtienneLescot/n8n-as-code/commit/a9354d0742f1689852c73b3789ab96da839d633d))
+* **vscode-extension:** integrate public URL reconciliation into configuration ([71da970](https://github.com/EtienneLescot/n8n-as-code/commit/71da970e0ad50003ff6ee456e1a9405cba1c88a7))
+* **cli:** simplify instance identifier logic and enforce canonical formats ([ece4b27](https://github.com/EtienneLescot/n8n-as-code/commit/ece4b27daec92111fb2d051920ada4144561b57c))
+* **vscode-extension:** enhance agent workbench and provider management ([b34e619](https://github.com/EtienneLescot/n8n-as-code/commit/b34e619ead5ce27ab83e695012fff764f0e3f145))
+* **vscode-extension:** implement agent provider and model management ([49e8d0f](https://github.com/EtienneLescot/n8n-as-code/commit/49e8d0fb504e86bc043c14fc883ea83de96cf6e8))
+* **vscode-extension:** add agent workbench shell ([994a130](https://github.com/EtienneLescot/n8n-as-code/commit/994a130ecee8a4f47b1900f8fba4349b5b8596a1))
+* **telemetry:** add privacy-first product analytics ([7afb6e4](https://github.com/EtienneLescot/n8n-as-code/commit/7afb6e4500b8ac27a15f80636f48116a56480f7d))
+* **vscode-extension:** add local open bridge entrypoint and esbuild support ([00f8aef](https://github.com/EtienneLescot/n8n-as-code/commit/00f8aefb72e41522ba379ffa287409e9a776f972))
+* **manager:** add credential retrieval and enhance webview UI ([f4cb607](https://github.com/EtienneLescot/n8n-as-code/commit/f4cb6079607f33678a4b4a338374fca0a1df8839))
+* **ui:** add manual public URL refresh in configuration webview ([acd715d](https://github.com/EtienneLescot/n8n-as-code/commit/acd715d5365490a7b402369160c56958439aa15e))
+* **ui:** display runtime warnings and refine tunnel URL logic ([a1c438b](https://github.com/EtienneLescot/n8n-as-code/commit/a1c438b8aec52f08ede4c241dfb028a42c2c79c2))
+* **ui:** add instance lifecycle management and status indicators ([f749f99](https://github.com/EtienneLescot/n8n-as-code/commit/f749f99fd1311adf2915e6a421307c6593103bc4))
+* **ai:** automatically infer local CLI command for context generation ([16d4cba](https://github.com/EtienneLescot/n8n-as-code/commit/16d4cba3c0bdb09282b6f26b181f619241c5a2e3))
+* use n8n-manager global configuration ([4ec83bd](https://github.com/EtienneLescot/n8n-as-code/commit/4ec83bdff72e0dd239dea32cec4109015311a095))
+
+### Bug Fixes
+
+* **workbench:** use status icons in timeline ([b445396](https://github.com/EtienneLescot/n8n-as-code/commit/b44539610ac2c18f8ac5e446be98c79fa5195a5f))
+* **ui:** relocate run indicator to main container ([233a43b](https://github.com/EtienneLescot/n8n-as-code/commit/233a43b22953ae4a6d23d2b46b407953af4ca431))
+* **agent-runtime:** normalize shell operation display in timeline ([a92de59](https://github.com/EtienneLescot/n8n-as-code/commit/a92de59adbe2504eac0b9e690b061dc8239ddbe0))
+* **workbench:** preserve partial stream on run failure ([efcad0f](https://github.com/EtienneLescot/n8n-as-code/commit/efcad0f90c84ce57696e668b77bfed9612c21d5d))
+* **workbench:** persist streaming agent messages ([722859f](https://github.com/EtienneLescot/n8n-as-code/commit/722859f2f5881a0874447444da4995f62a05d314))
+* **workbench:** reconcile workflow context from runtime state ([1762210](https://github.com/EtienneLescot/n8n-as-code/commit/1762210dac3798b4906c5c64a575335e53999521))
+* **vscode-extension:** migrate to @yagr/deepagent-bootstrap ([1e12e06](https://github.com/EtienneLescot/n8n-as-code/commit/1e12e06c5de05f5a277f272239cb45231a9fe1ef))
+* **vscode-extension:** update @yagr runtime dependencies ([e8e9b54](https://github.com/EtienneLescot/n8n-as-code/commit/e8e9b5495dd0e7645b471f801fbc31295426232f))
+* **workbench:** consume public yagr runtime packages ([18a80bc](https://github.com/EtienneLescot/n8n-as-code/commit/18a80bc1b2db0f64994cf8747af08a12763fde24))
+* **vscode-extension:** add body suppression for LangGraph Command updates ([2cec5b6](https://github.com/EtienneLescot/n8n-as-code/commit/2cec5b6f49b648bf51bc275913d032141943c135))
+* **vscode-extension:** implement runtime dependency bundling in esbuild ([b1d3284](https://github.com/EtienneLescot/n8n-as-code/commit/b1d32842417c4db5be8868d2c8e9b48a22c24d66))
+* **deps:** bump @n8n-as-code/n8n-manager-core to ^0.6.1 ([015f504](https://github.com/EtienneLescot/n8n-as-code/commit/015f504800e83a1d22c5f2a180e5ed93d2f57b9e))
+* **workbench:** use public yagr runtime packages ([6a94670](https://github.com/EtienneLescot/n8n-as-code/commit/6a94670bf6c0ecdaa02fd977e515d1d58d894a14))
+* **deps:** add script to automate @yagr dependency updates ([764a113](https://github.com/EtienneLescot/n8n-as-code/commit/764a1138b15c339174f094f0e2866398eeb97b70))
+* **ui:** persist workbench state on message handler error ([8e9ea62](https://github.com/EtienneLescot/n8n-as-code/commit/8e9ea6214e15490361a4721df64d9e508a92e714))
+* **workbench:** avoid typed yagr subpath imports ([c71376b](https://github.com/EtienneLescot/n8n-as-code/commit/c71376b2d77cbcbd7877a3ce56eed739d414317d))
+* **workbench:** preserve checkpoint compatibility ([0abd23d](https://github.com/EtienneLescot/n8n-as-code/commit/0abd23dd45899013016a66e30da19aa33139f1b6))
+* **workbench:** remove workflow change detection and run indicator ([3c9eda1](https://github.com/EtienneLescot/n8n-as-code/commit/3c9eda1a037e8e455b0b438de543ebcb0feeba71))
+* **vscode-extension:** enhance agent workbench UI and sanitize assistant output ([981ceb0](https://github.com/EtienneLescot/n8n-as-code/commit/981ceb03d160c349fb4e93ed257441152bddc548))
+* update dependencies and add tunnel observation script ([bd1b33a](https://github.com/EtienneLescot/n8n-as-code/commit/bd1b33a4fe03b358e8327b1fa35138fc7cf80f6c))
+* **vscode-extension:** remove public URL reconciliation logic ([4b7f101](https://github.com/EtienneLescot/n8n-as-code/commit/4b7f101dc6bcdc3afedf1223ed9d351e68f43913))
+* **cli:** standardize instance identifier generation and resolution ([6d8242f](https://github.com/EtienneLescot/n8n-as-code/commit/6d8242f10dcde07e222dcc0413dd9073b3982729))
+* **vscode-extension:** add @yagr/runtime to esbuild external dependencies ([cff985e](https://github.com/EtienneLescot/n8n-as-code/commit/cff985e8cc2bb169a1afd7ba4938b099a510dcc7))
+* **vscode-extension:** address agent workbench review ([402f6a8](https://github.com/EtienneLescot/n8n-as-code/commit/402f6a87fdadaeb3e2cb7bab1d53b647caa01207))
+* **deps:** bump @n8n-as-code/n8n-manager-core to ^0.5.1 ([ec58f6c](https://github.com/EtienneLescot/n8n-as-code/commit/ec58f6cf9357cba3addb890afab3225f41e3b747))
+* **telemetry:** flush queued events on shutdown ([046f883](https://github.com/EtienneLescot/n8n-as-code/commit/046f883cdf92422d64906476951293b711cc753f))
+* **vscode-extension:** persist canonical project names ([b8d52ef](https://github.com/EtienneLescot/n8n-as-code/commit/b8d52ef726a5e211e1029b8e60d8f0f05daf1fb0))
+* **vscode-extension:** improve project sync feedback ([15a9a28](https://github.com/EtienneLescot/n8n-as-code/commit/15a9a28d83ebcf6892aa2cd1875aaeb3fe7ee489))
+* **skills:** align prerelease adapter commands ([9d1c0a4](https://github.com/EtienneLescot/n8n-as-code/commit/9d1c0a4ba54c9de1a031dc4a937dc64295260341))
+* **api:** prioritize apiBaseUrl over host for connection logic ([95f7b37](https://github.com/EtienneLescot/n8n-as-code/commit/95f7b37bb40a320bb109ef56114cace894dc10bf))
+* preserve workspace context in agent tooling ([7b77b7c](https://github.com/EtienneLescot/n8n-as-code/commit/7b77b7c2bd958bd9194f7e9177f5de276fbb9487))
+* inject n8n-manager agent tools across facades ([69be867](https://github.com/EtienneLescot/n8n-as-code/commit/69be86790121eb01a6ee0843ad838143ec858738))
+* **cli:** decouple runtime management from workspace management ([574bb05](https://github.com/EtienneLescot/n8n-as-code/commit/574bb0592e96411326e69a1a188b010c39169269))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/manager-adapter bumped from 0.1.0 to 2.0.0
+    * @n8n-as-code/skills bumped from 1.10.0 to 2.0.0
+    * @n8n-as-code/telemetry bumped from 0.1.0 to 2.0.0
+    * @n8n-as-code/workflow-core bumped from 0.1.0 to 2.0.0
+    * n8nac bumped from 1.8.1 to 2.0.0
+
 ## [1.46.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v1.44.0...n8n-as-code@v1.46.0) (2026-04-24)
 
 ### Dependencies

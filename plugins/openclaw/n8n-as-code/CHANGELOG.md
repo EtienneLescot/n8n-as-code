@@ -1,5 +1,35 @@
 # @n8n-as-code/n8nac
 
+## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2026.5.0...@n8n-as-code/n8nac@v2.0.0) (2026-05-06)
+
+### ⚠ BREAKING CHANGES
+
+* migrate runtime ownership to n8n-manager ([8705ab4](https://github.com/EtienneLescot/n8n-as-code/commit/8705ab44abe4c73315d6985523c05a929cae3a94))
+
+### Features
+
+* **telemetry:** add privacy-first product analytics ([7afb6e4](https://github.com/EtienneLescot/n8n-as-code/commit/7afb6e4500b8ac27a15f80636f48116a56480f7d))
+* **skills:** use npx for n8n-manager commands in AI context and docs ([51e56b8](https://github.com/EtienneLescot/n8n-as-code/commit/51e56b8d7d57f28efa9ac14680ad474f04d32d05))
+
+### Bug Fixes
+
+* **workbench:** use public yagr runtime packages ([6a94670](https://github.com/EtienneLescot/n8n-as-code/commit/6a94670bf6c0ecdaa02fd977e515d1d58d894a14))
+* **telemetry:** refine active usage semantics ([4ffe544](https://github.com/EtienneLescot/n8n-as-code/commit/4ffe544583c2e784a066417edd8a0fceaa3dc5df))
+* **skills:** align prerelease adapter commands ([9d1c0a4](https://github.com/EtienneLescot/n8n-as-code/commit/9d1c0a4ba54c9de1a031dc4a937dc64295260341))
+* **n8n-as-code:** improve cli robustness and update package scope ([ca20c7c](https://github.com/EtienneLescot/n8n-as-code/commit/ca20c7c90c65d8efee14c2ca505e2aae06c8b9a0))
+* **cli:** decouple runtime management from workspace management ([574bb05](https://github.com/EtienneLescot/n8n-as-code/commit/574bb0592e96411326e69a1a188b010c39169269))
+
+### Documentation
+
+* **skills:** update n8n command examples to use @next tag ([760c227](https://github.com/EtienneLescot/n8n-as-code/commit/760c227b91ab138d59e6492101427db0631c0acb))
+* **skills:** remove @next suffix from n8n command examples ([5506838](https://github.com/EtienneLescot/n8n-as-code/commit/550683898bff44a64146d8a2957dd0dabc2095b0))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/telemetry bumped from 0.1.0 to 2.0.0
+    * @n8n-as-code/workflow-core bumped from 0.1.0 to 2.0.0
+
 ## [2026.5.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2026.4.1...@n8n-as-code/n8nac@v2026.5.0) (2026-03-31)
 
 ### Features
