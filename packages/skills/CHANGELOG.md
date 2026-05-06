@@ -1,5 +1,12 @@
 # @n8n-as-code/skills
 
+## [2.0.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.0.0...@n8n-as-code/skills@v2.0.1) (2026-05-06)
+
+### Bug Fixes
+
+* **release:** keep vscode patch versions ([b087e19](https://github.com/EtienneLescot/n8n-as-code/commit/b087e193b1067b7933984c1223159b0efa17d8b4))
+* **release:** include generated release metadata ([dbc750f](https://github.com/EtienneLescot/n8n-as-code/commit/dbc750fc4a55429a718867bf365b88b5de36b34b))
+
 ## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v1.10.0...@n8n-as-code/skills@v2.0.0) (2026-05-06)
 
 ### ⚠ BREAKING CHANGES
