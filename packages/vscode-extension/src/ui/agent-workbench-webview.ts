@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { IWorkflowStatus } from 'n8nac';
-import { AgentRuntimeController, type AgentWorkflowContext } from '../services/agent-runtime-controller.js';
+import { AgentRuntimeController, type AgentWorkbenchMessage, type AgentWorkflowContext } from '../services/agent-runtime-controller.js';
 import { workflowWebviewRegistry } from '../services/workflow-webview-registry.js';
 import { buildAgentWorkbenchHtml } from './agent-workbench-html.js';
 
@@ -218,7 +218,7 @@ export class AgentWorkbenchWebview {
                 nodeContext: nodeContexts[0],
                 nodeContexts,
                 sessionId: typeof payload.sessionId === 'string' ? payload.sessionId : undefined,
-            }, (event) => this._panel.webview.postMessage(event));
+            }, (event) => this.postAgentRuntimeMessage(event));
             this._outputChannel.appendLine(`[n8n-agent-debug] agent.send completed workflowId=${this._workflow?.id || 'none'} workflowChanged=${String(result.workflowChanged)}`);
             if (result.workflowChanged && this._workflow?.id) {
                 this._outputChannel.appendLine(`[n8n-agent-debug] posting workflow.reload after local workflowChanged workflowId=${this._workflow.id}`);
@@ -471,6 +471,14 @@ export class AgentWorkbenchWebview {
             })),
         };
         await this._panel.webview.postMessage({ type: 'agent.state', state: enrichedState });
+    }
+
+    private async postAgentRuntimeMessage(message: AgentWorkbenchMessage): Promise<boolean> {
+        if (message.type === 'agent.state') {
+            await this.postWorkbenchState(message.state);
+            return true;
+        }
+        return this._panel.webview.postMessage(message);
     }
 
     private async reconcileWorkflowContext(workflowContext: AgentWorkflowContext | undefined): Promise<void> {
