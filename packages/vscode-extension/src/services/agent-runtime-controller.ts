@@ -730,7 +730,11 @@ export class AgentRuntimeController implements vscode.Disposable {
         } catch (error: any) {
             const message = error?.message || String(error);
             this.outputChannel.appendLine(`[n8n-agent] Run failed: ${message}`);
-            const failedEntries = [...entries, this.createSystemNotice(`Run failed: ${message}`)];
+            const latestEntries = this.withoutContextUsage(this.readSessionEntries(sessions.service, activeRecord.id));
+            const failedEntries = [
+                ...this.finalizePendingOperations(latestEntries, 'error'),
+                this.createSystemNotice(`Run failed: ${message}`),
+            ];
             this.writeSessionEntries(sessions.service, activeRecord.id, failedEntries);
             await postMessage({ type: 'agent.streamEvent', event: { type: 'error', error: message } });
             await postMessage({ type: 'agent.error', message });
