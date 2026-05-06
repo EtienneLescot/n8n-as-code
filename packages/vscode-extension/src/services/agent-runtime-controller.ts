@@ -709,6 +709,7 @@ export class AgentRuntimeController implements vscode.Disposable {
 
         let entries = this.withoutContextUsage(this.readSessionEntries(sessions.service, activeRecord.id));
         entries = [...entries, { kind: 'user-message', id: randomUUID(), text: prompt, timestamp: Date.now() }];
+        this.writeSessionEntries(sessions.service, activeRecord.id, entries);
 
         await postMessage({ type: 'agent.status', status: 'running', detail: 'Preparing n8n agent runtime...' });
         await postMessage({ type: 'agent.streamEvent', event: { type: 'start', sessionId: activeRecord.id, message: prompt } });
@@ -806,6 +807,10 @@ export class AgentRuntimeController implements vscode.Disposable {
             const streamAdapter = await importRuntimeModule('@yagr/stream-adapter');
             const accumulator = streamAdapter.createLangGraphStreamAccumulator();
             let fileModificationDetected = false;
+            const syncEntries = () => {
+                if (!input.sessionId) return;
+                this.writeSessionEntries(sessions.service, input.sessionId, entries);
+            };
 
             for await (const event of stream) {
                 await this.throwIfAborted(signal);
@@ -813,6 +818,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                     contextWindowTokens,
                     onTextDelta: async (delta: string) => {
                         entries = this.applyStreamEvent(entries, { type: 'text-delta', delta });
+                        syncEntries();
                         await postMessage({ type: 'agent.streamEvent', event: { type: 'text-delta', delta } });
                     },
                     onOperation: async (operation: any) => {
@@ -828,6 +834,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                             endedAt: typeof operation.endedAt === 'number' ? operation.endedAt : undefined,
                         };
                         entries = this.applyStreamEvent(entries, streamEvent);
+                        syncEntries();
                         await postMessage({ type: 'agent.streamEvent', event: streamEvent });
                         if (streamEvent.status === 'done' && streamEvent.category === 'file-write') {
                             fileModificationDetected = true;
@@ -846,6 +853,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                         };
                         await handle.compactionService.notifyCompaction(input.sessionId || '', streamEvent);
                         entries = this.applyStreamEvent(entries, streamEvent);
+                        syncEntries();
                         await postMessage({ type: 'agent.streamEvent', event: streamEvent });
                     },
                     onContextUsage: async (usage: any) => {
@@ -861,6 +869,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                             source: 'api',
                         };
                         entries = this.applyStreamEvent(entries, streamEvent);
+                        syncEntries();
                         await postMessage({ type: 'agent.streamEvent', event: streamEvent });
                     },
                 });
@@ -873,6 +882,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                 finalState: 'done',
             };
             entries = this.applyStreamEvent(entries, finalEvent);
+            syncEntries();
             await postMessage({ type: 'agent.streamEvent', event: finalEvent });
             if (fileModificationDetected) {
                 this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime detected local workflow modification sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'} workflowFilePath=${input.workflowFilePath || 'none'}`);
