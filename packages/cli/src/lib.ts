@@ -17,4 +17,11 @@ export {
     type IUpsertInstanceConfigResult,
     type ISelectInstanceResult,
     type IWorkspaceConfig,
+    type IWorkspaceEmbeddedInstance,
+    type IWorkspaceGlobalInstanceTarget,
+    type IWorkspaceEmbeddedInstanceTarget,
+    type IWorkspaceInstanceTarget,
+    type IWorkspaceEnvironment,
+    type IPersistedWorkspaceConfigV4,
+    type IResolvedWorkspaceEnvironment,
 } from './services/config-service.js';

@@ -1,6 +1,6 @@
 import { N8nApiClient, IN8nCredentials } from '../core/index.js';
 import chalk from 'chalk';
-import { ConfigService } from '../services/config-service.js';
+import { ConfigService, type IResolvedWorkspaceEnvironment } from '../services/config-service.js';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -10,6 +10,8 @@ export class BaseCommand {
     protected config: any;
     protected configService: ConfigService;
     protected activeInstanceId?: string;
+    protected activeEnvironmentNameOrId?: string;
+    protected activeEnvironment?: IResolvedWorkspaceEnvironment;
     protected instanceIdentifier: string | null = null;
     private runtimePrepared = false;
 
@@ -22,10 +24,47 @@ export class BaseCommand {
         let folderSync: boolean;
         let envCredentialsProvided = false;
 
-        // If --instance <name> was passed as a global option, resolve that instance;
-        // otherwise fall back to the locally active instance / env vars.
+        // If --env <name> was passed as a global option, resolve the workspace
+        // environment; otherwise fall back to the locally active environment or legacy instance config.
+        const requestedEnvironment = process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
         const requestedInstanceName = process.env.N8NAC_INSTANCE_NAME?.trim() || undefined;
-        if (requestedInstanceName) {
+        if (requestedEnvironment && requestedInstanceName) {
+            console.error(chalk.red('❌ Use either --env or --instance, not both.'));
+            process.exit(1);
+        }
+
+        const resolvedEnvironment = requestedEnvironment
+            ? this.configService.resolveEnvironment(requestedEnvironment)
+            : this.tryResolveEnvironment();
+
+        if (resolvedEnvironment) {
+            this.activeEnvironmentNameOrId = requestedEnvironment || resolvedEnvironment.environmentId;
+            this.activeEnvironment = resolvedEnvironment;
+            this.activeInstanceId = resolvedEnvironment.activeInstanceId;
+            host = resolvedEnvironment.host || '';
+            apiKey = resolvedEnvironment.apiKey || '';
+            const rawEnvHost = process.env.N8N_HOST;
+            const envHost = rawEnvHost ? rawEnvHost.trim().replace(/^['"]|['"]$/g, '') : '';
+            const rawEnvApiKey = process.env.N8N_API_KEY;
+            const envApiKey = rawEnvApiKey ? rawEnvApiKey.trim().replace(/^['"]|['"]$/g, '') : '';
+            if (envHost) host = envHost;
+            if (envApiKey) apiKey = envApiKey;
+            envCredentialsProvided = Boolean(envHost && envApiKey);
+            const effectiveContext = this.activeInstanceId ? this.configService.getEffectiveContext(this.activeInstanceId) : undefined;
+            const canPrepareManagedRuntime = resolvedEnvironment.targetKind === 'global-ref'
+                && effectiveContext?.instance.mode === 'managed-local-docker';
+            if (!host || !apiKey) {
+                if (!canPrepareManagedRuntime) {
+                    console.error(chalk.red(`❌ Environment "${resolvedEnvironment.environmentName}" needs a host and API key before this command can run.`));
+                    console.error(chalk.yellow('Configure a local API key for this environment or update the workspace environment target.'));
+                    process.exit(1);
+                }
+                apiKey = '';
+            }
+            directory = resolvedEnvironment.syncFolder || this.configService.resolveWorkspacePath('./workflows');
+            folderSync = resolvedEnvironment.folderSync ?? false;
+            this.instanceIdentifier = resolvedEnvironment.instanceIdentifier || null;
+        } else if (requestedInstanceName) {
             const matches = this.configService.listInstances().filter(
                 (i) => i.name.toLowerCase() === requestedInstanceName.toLowerCase()
             );
@@ -120,6 +159,14 @@ export class BaseCommand {
         } catch { /* never block the command */ }
     }
 
+    private tryResolveEnvironment(): IResolvedWorkspaceEnvironment | undefined {
+        try {
+            return this.configService.resolveEnvironment();
+        } catch {
+            return undefined;
+        }
+    }
+
     /**
      * Get or create instance identifier and ensure it's in the config
      */
@@ -140,7 +187,9 @@ export class BaseCommand {
     protected async getSyncConfig(): Promise<any> {
         await this.prepareRuntimeContext();
         const instanceIdentifier = await this.ensureInstanceIdentifier();
-        const localConfig = this.activeInstanceId
+        const localConfig = this.activeEnvironmentNameOrId
+            ? this.configService.getLocalConfig(this.activeEnvironmentNameOrId)
+            : this.activeInstanceId
             ? (this.configService.getEffectiveInstanceConfig(this.activeInstanceId) ?? this.configService.getLocalConfig())
             : this.configService.getLocalConfig();
 
@@ -167,6 +216,11 @@ export class BaseCommand {
             projectId: localConfig.projectId,
             projectName: localConfig.projectName,
             folderSync: localConfig.folderSync ?? false,
+            environmentId: this.activeEnvironment?.environmentId,
+            environmentName: this.activeEnvironment?.environmentName,
+            instanceTargetId: this.activeEnvironment?.instanceTargetId,
+            instanceTargetName: this.activeEnvironment?.instanceTargetName,
+            targetKind: this.activeEnvironment?.targetKind,
         };
     }
 
@@ -176,11 +230,18 @@ export class BaseCommand {
         }
 
         try {
-            const context = await this.configService.prepareWorkspaceContext(this.activeInstanceId);
+            const environment = this.activeEnvironmentNameOrId;
+            const preparedEnvironment = environment
+                ? await this.configService.prepareEnvironment(environment)
+                : undefined;
+            const context = preparedEnvironment
+                ? await this.configService.prepareWorkspaceContext({ environment })
+                : await this.configService.prepareWorkspaceContext(this.activeInstanceId);
             if (!context.host || !context.apiKey) {
                 this.exitWithError(`Instance "${context.activeInstanceName}" needs a host and API key before this command can run`);
             }
 
+            this.activeEnvironment = preparedEnvironment || this.activeEnvironment;
             this.activeInstanceId = context.activeInstanceId;
             this.client = new N8nApiClient({ host: context.host, apiKey: context.apiKey } as IN8nCredentials);
             this.config = {

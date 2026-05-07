@@ -1,19 +1,25 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import { ConfigService } from '../../src/services/config-service.js';
 
 describe('ConfigService', () => {
     let previousManagerHome: string | undefined;
+    let previousN8nApiKey: string | undefined;
+    let previousTargetApiKey: string | undefined;
     let managerHome: string;
     let workspaceRoot: string;
 
     beforeEach(() => {
         previousManagerHome = process.env.N8N_MANAGER_HOME;
+        previousN8nApiKey = process.env.N8N_API_KEY;
+        previousTargetApiKey = process.env.N8NAC_TARGET_PRODUCTION_N8N_API_KEY;
         managerHome = mkdtempSync(path.join(tmpdir(), 'n8nac-manager-home-'));
         workspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-workspace-'));
         process.env.N8N_MANAGER_HOME = managerHome;
+        delete process.env.N8N_API_KEY;
+        delete process.env.N8NAC_TARGET_PRODUCTION_N8N_API_KEY;
     });
 
     afterEach(() => {
@@ -21,6 +27,16 @@ describe('ConfigService', () => {
             delete process.env.N8N_MANAGER_HOME;
         } else {
             process.env.N8N_MANAGER_HOME = previousManagerHome;
+        }
+        if (previousN8nApiKey === undefined) {
+            delete process.env.N8N_API_KEY;
+        } else {
+            process.env.N8N_API_KEY = previousN8nApiKey;
+        }
+        if (previousTargetApiKey === undefined) {
+            delete process.env.N8NAC_TARGET_PRODUCTION_N8N_API_KEY;
+        } else {
+            process.env.N8NAC_TARGET_PRODUCTION_N8N_API_KEY = previousTargetApiKey;
         }
     });
 
@@ -346,5 +362,311 @@ describe('ConfigService', () => {
         expect(configService.migrateLegacyWorkspaceConfig()).toMatchObject({
             status: 'not-needed',
         });
+    });
+
+    it('does not synthesize a workspace environment from only the global active instance', () => {
+        const configService = new ConfigService(workspaceRoot);
+        configService.saveLocalConfig({ host: 'https://prod.example.test' }, {
+            instanceId: 'prod',
+            instanceName: 'Production',
+            apiKey: 'prod-key',
+        });
+        unlinkSync(path.join(workspaceRoot, 'n8nac-config.json'));
+
+        expect(() => configService.resolveEnvironment()).toThrow(/No workspace environment/);
+    });
+
+    it('creates and resolves v4 workspace instance targets and environments', () => {
+        const configService = new ConfigService(workspaceRoot);
+        configService.saveLocalConfig({ host: 'https://dev.example.test' }, {
+            instanceId: 'dev-instance',
+            instanceName: 'Dev Instance',
+            apiKey: 'dev-key',
+        });
+
+        const target = configService.addInstanceTarget({
+            name: 'Dev Target',
+            instanceRef: 'dev-instance',
+        });
+        const environment = configService.addEnvironment({
+            name: 'Dev',
+            instanceTarget: target.id,
+            projectId: 'personal',
+            projectName: 'Personal',
+            syncFolder: 'workflows/dev',
+        });
+        configService.pinEnvironment(environment.id);
+
+        expect(configService.getWorkspaceConfig()).toMatchObject({
+            version: 4,
+            activeEnvironmentId: environment.id,
+            instanceTargets: expect.arrayContaining([expect.objectContaining({ id: target.id, name: 'Dev Target', kind: 'global-ref', instanceRef: 'dev-instance' })]),
+            environments: expect.arrayContaining([expect.objectContaining({ id: environment.id, name: 'Dev', instanceTargetId: target.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' })]),
+        });
+        expect(configService.resolveEnvironment('Dev')).toMatchObject({
+            environmentId: environment.id,
+            environmentName: 'Dev',
+            instanceTargetId: target.id,
+            targetKind: 'global-ref',
+            host: 'https://dev.example.test',
+            apiKey: 'dev-key',
+            projectId: 'personal',
+            projectName: 'Personal',
+            syncFolder: path.join(workspaceRoot, 'workflows/dev'),
+        });
+    });
+
+    it('resolves embedded v4 targets without storing secrets in workspace config', () => {
+        const configService = new ConfigService(workspaceRoot);
+
+        const target = configService.addInstanceTarget({
+            name: 'Production n8n',
+            baseUrl: 'https://prod.example.test',
+        });
+        process.env.N8NAC_TARGET_PRODUCTION_N8N_API_KEY = 'embedded-key';
+        configService.addEnvironment({
+            name: 'Prod',
+            instanceTarget: target.id,
+            projectId: 'cgi',
+            projectName: 'CGI',
+            syncFolder: 'workflows/prod',
+        });
+
+        const resolved = configService.resolveEnvironment('Prod');
+        expect(resolved).toMatchObject({
+            targetKind: 'embedded',
+            host: 'https://prod.example.test',
+            apiKey: 'embedded-key',
+            apiKeySource: 'env',
+            accessStatus: 'unknown',
+        });
+        const raw = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-config.json'), 'utf8'));
+        expect(JSON.stringify(raw)).not.toContain('embedded-key');
+    });
+
+    it('keeps v4 workspace config when saving global instances and rejects legacy workspace fields', () => {
+        const configService = new ConfigService(workspaceRoot);
+        const target = configService.addInstanceTarget({ name: 'Target', baseUrl: 'https://target.example.test' });
+        configService.addEnvironment({
+            name: 'Dev',
+            instanceTarget: target.id,
+            projectId: 'personal',
+            projectName: 'Personal',
+            syncFolder: 'workflows/dev',
+        });
+
+        configService.saveLocalConfig({ host: 'https://other.example.test' }, {
+            instanceId: 'other',
+            instanceName: 'Other Instance',
+        });
+
+        const raw = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-config.json'), 'utf8'));
+        expect(raw).toMatchObject({
+            version: 4,
+            instanceTargets: expect.arrayContaining([expect.objectContaining({ id: target.id })]),
+            environments: expect.arrayContaining([expect.objectContaining({ name: 'Dev', syncFolder: 'workflows/dev' })]),
+        });
+        expect(() => configService.saveLocalConfig({
+            host: 'https://legacy.example.test',
+            syncFolder: 'legacy-workflows',
+        }, { instanceId: 'legacy', instanceName: 'Legacy' })).toThrow(/v4 environments/);
+    });
+
+    it('exposes per-environment access status in v4 workspace snapshots', () => {
+        const configService = new ConfigService(workspaceRoot);
+        const target = configService.addInstanceTarget({ name: 'Target', baseUrl: 'https://target.example.test' });
+        configService.addEnvironment({
+            name: 'Dev',
+            instanceTarget: target.id,
+            projectId: 'personal',
+            projectName: 'Personal',
+            syncFolder: 'workflows/dev',
+        });
+
+        expect(configService.getWorkspaceConfig().environments?.[0]).toMatchObject({
+            name: 'Dev',
+            targetKind: 'embedded',
+            apiKeyAvailable: false,
+            credentialSource: 'missing',
+            accessStatus: 'missing-api-key',
+        });
+        expect(configService.getWorkspaceConfig().instanceTargets?.[0]).toMatchObject({
+            name: 'Target',
+            kind: 'embedded',
+            baseUrl: 'https://target.example.test',
+            apiKeyAvailable: false,
+            credentialSource: 'missing',
+            accessStatus: 'missing-api-key',
+        });
+    });
+
+    it('does not mark access ready until credentials are verified', () => {
+        const configService = new ConfigService(workspaceRoot);
+        configService.saveLocalConfig({ host: 'https://dev.example.test' }, {
+            instanceId: 'dev-instance',
+            instanceName: 'Dev Instance',
+            apiKey: 'dev-key',
+        });
+
+        const target = configService.addInstanceTarget({ name: 'Dev Target', instanceRef: 'dev-instance' });
+        configService.addEnvironment({
+            name: 'Dev',
+            instanceTarget: target.id,
+            projectId: 'personal',
+            projectName: 'Personal',
+            syncFolder: 'workflows/dev',
+        });
+
+        expect(configService.resolveEnvironment('Dev').accessStatus).toBe('unknown');
+    });
+
+    it('rejects global-ref v4 targets that do not reference a known global instance', () => {
+        const configService = new ConfigService(workspaceRoot);
+
+        expect(() => configService.addInstanceTarget({
+            name: 'Missing Target',
+            instanceRef: 'missing-instance',
+        })).toThrow(/Unknown global n8n-manager instance/);
+    });
+
+    it('does not use generic N8N_API_KEY as a v4 environment credential', () => {
+        process.env.N8N_API_KEY = 'generic-key';
+        const configService = new ConfigService(workspaceRoot);
+        const target = configService.addInstanceTarget({
+            name: 'Production n8n',
+            baseUrl: 'https://prod.example.test',
+        });
+        configService.addEnvironment({
+            name: 'Prod',
+            instanceTarget: target.id,
+            projectId: 'cgi',
+            projectName: 'CGI',
+            syncFolder: 'workflows/prod',
+        });
+
+        const resolved = configService.resolveEnvironment('Prod');
+        expect(resolved.apiKey).toBeUndefined();
+        expect(resolved.apiKeySource).toBe('missing');
+    });
+
+    it('rejects legacy singleton workspace writes for v4 environment configs', () => {
+        const configService = new ConfigService(workspaceRoot);
+        const target = configService.addInstanceTarget({ name: 'Target', baseUrl: 'https://target.example.test' });
+        configService.addEnvironment({
+            name: 'Dev',
+            instanceTarget: target.id,
+            projectId: 'personal',
+            projectName: 'Personal',
+            syncFolder: 'workflows/dev',
+        });
+
+        expect(() => configService.setWorkspaceProject({ projectId: 'x', projectName: 'X' })).toThrow(/v4 environments/);
+        expect(() => configService.setWorkspaceSyncFolder('other')).toThrow(/v4 environments/);
+        expect(() => configService.pinWorkspaceInstance('anything')).toThrow(/v4 environments/);
+    });
+
+    it('rejects environments that share the same sync folder', () => {
+        const configService = new ConfigService(workspaceRoot);
+        const target = configService.addInstanceTarget({ name: 'Target', baseUrl: 'https://target.example.test' });
+        configService.addEnvironment({
+            name: 'Dev',
+            instanceTarget: target.id,
+            projectId: 'personal',
+            projectName: 'Personal',
+            syncFolder: 'workflows/shared',
+        });
+
+        expect(() => configService.addEnvironment({
+            name: 'Prod',
+            instanceTarget: target.id,
+            projectId: 'cgi',
+            projectName: 'CGI',
+            syncFolder: './workflows/shared',
+        })).toThrow(/dedicated sync folder/);
+    });
+
+    it('rejects clearing required environment fields on update', () => {
+        const configService = new ConfigService(workspaceRoot);
+        const target = configService.addInstanceTarget({ name: 'Target', baseUrl: 'https://target.example.test' });
+        configService.addEnvironment({
+            name: 'Dev',
+            instanceTarget: target.id,
+            projectId: 'personal',
+            projectName: 'Personal',
+            syncFolder: 'workflows/dev',
+        });
+
+        expect(() => configService.updateEnvironment('Dev', { projectId: '' })).toThrow(/Project ID is required/);
+        expect(() => configService.updateEnvironment('Dev', { projectName: '' })).toThrow(/Project name is required/);
+        expect(() => configService.updateEnvironment('Dev', { syncFolder: '' })).toThrow(/Sync folder is required/);
+    });
+
+    it('does not auto-pin another environment when removing the active environment', () => {
+        const configService = new ConfigService(workspaceRoot);
+        const target = configService.addInstanceTarget({ name: 'Target', baseUrl: 'https://target.example.test' });
+        configService.addEnvironment({
+            name: 'Dev',
+            instanceTarget: target.id,
+            projectId: 'personal',
+            projectName: 'Personal',
+            syncFolder: 'workflows/dev',
+        });
+        configService.addEnvironment({
+            name: 'Prod',
+            instanceTarget: target.id,
+            projectId: 'cgi',
+            projectName: 'CGI',
+            syncFolder: 'workflows/prod',
+        });
+
+        expect(() => configService.removeEnvironment('Dev')).toThrow(/active/);
+
+        configService.removeEnvironment('Dev', { force: true });
+
+        const workspaceConfig = configService.getWorkspaceConfig();
+        expect(workspaceConfig.activeEnvironmentId).toBeUndefined();
+        expect(workspaceConfig.environments).toEqual([expect.objectContaining({ name: 'Prod' })]);
+    });
+
+    it('rejects ambiguous v4 instance targets', () => {
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 4,
+            activeEnvironmentId: 'dev',
+            instanceTargets: [{
+                id: 'target',
+                name: 'Target',
+                kind: 'embedded',
+                instanceRef: 'global-instance',
+                instance: { mode: 'existing', baseUrl: 'https://target.example.test' },
+            }],
+            environments: [{
+                id: 'dev',
+                name: 'Dev',
+                instanceTargetId: 'target',
+                projectId: 'personal',
+                projectName: 'Personal',
+                syncFolder: 'workflows/dev',
+            }],
+        }));
+
+        expect(() => new ConfigService(workspaceRoot).getWorkspaceConfig()).toThrow(/must not define instanceRef/);
+    });
+
+    it('rejects malformed v4 entries instead of silently dropping them', () => {
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 4,
+            instanceTargets: [{ name: 'Missing ID', kind: 'embedded', instance: { mode: 'existing', baseUrl: 'https://target.example.test' } }],
+            environments: [],
+        }));
+
+        expect(() => new ConfigService(workspaceRoot).getWorkspaceConfig()).toThrow(/needs id and name/);
+
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 4,
+            instanceTargets: [{ id: 'target', name: 'Target', kind: 'embedded', instance: { mode: 'existing', baseUrl: 'https://target.example.test' } }],
+            environments: [{ id: 'dev', name: 'Dev', instanceTargetId: 'target' }],
+        }));
+
+        expect(() => new ConfigService(workspaceRoot).getWorkspaceConfig()).toThrow(/needs id, name, instanceTargetId, and syncFolder/);
     });
 });

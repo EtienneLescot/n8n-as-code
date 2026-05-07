@@ -149,7 +149,12 @@ export class ConfigurationWebview {
           return;
 
         case 'loadProjects': {
-          const instanceId = String(payload.instanceId || '').trim() || undefined;
+          let instanceId = String(payload.instanceId || '').trim() || undefined;
+          const instanceTargetId = String(payload.instanceTargetId || '').trim();
+          if (!instanceId && workspaceRoot && instanceTargetId) {
+            const target = new ConfigService(workspaceRoot).getInstanceTarget(instanceTargetId);
+            if (target.kind === 'global-ref') instanceId = target.instanceRef;
+          }
           const uiProjects = (await facade.listProjects({
             workspaceRoot,
             instanceId,
@@ -169,6 +174,104 @@ export class ConfigurationWebview {
             selectedProjectId: String(payload.projectId || ''),
             selectedProjectName: String(payload.projectName || ''),
           });
+          return;
+        }
+
+        case 'saveInstanceTarget': {
+          if (!workspaceRoot) throw new Error('Open a workspace before saving workspace instance targets.');
+          const configService = new ConfigService(workspaceRoot);
+          const targetId = String(payload.targetId || '').trim();
+          const input = {
+            name: String(payload.name || '').trim(),
+            instanceRef: String(payload.instanceRef || '').trim() || undefined,
+            baseUrl: normalizeHost(String(payload.baseUrl || '')) || undefined,
+            description: String(payload.description || '').trim() || undefined,
+          };
+          if (targetId) {
+            configService.updateInstanceTarget(targetId, input);
+          } else {
+            configService.addInstanceTarget(input);
+          }
+          await clearLegacyWorkspaceSettings();
+          await this._configurationController.refresh('webview-save-instance-target', { force: true });
+          this._panel.webview.postMessage({ type: 'saved' });
+          return;
+        }
+
+        case 'deleteInstanceTarget': {
+          if (!workspaceRoot) throw new Error('Open a workspace before deleting workspace instance targets.');
+          const targetId = String(payload.targetId || '').trim();
+          if (!targetId) throw new Error('Instance target is required.');
+          const configService = new ConfigService(workspaceRoot);
+          const target = configService.getInstanceTarget(targetId);
+          const confirmation = await vscode.window.showWarningMessage(
+            `Remove workspace instance target "${target.name}"?`,
+            { modal: true },
+            'Remove',
+          );
+          if (confirmation !== 'Remove') {
+            this._panel.webview.postMessage({ type: 'cancelled' });
+            return;
+          }
+          configService.removeInstanceTarget(targetId);
+          await this._configurationController.refresh('webview-delete-instance-target', { force: true });
+          this._panel.webview.postMessage({ type: 'saved' });
+          return;
+        }
+
+        case 'saveEnvironment': {
+          if (!workspaceRoot) throw new Error('Open a workspace before saving workspace environments.');
+          const configService = new ConfigService(workspaceRoot);
+          const environmentId = String(payload.environmentId || '').trim();
+          const input = {
+            name: String(payload.name || '').trim(),
+            instanceTarget: String(payload.instanceTargetId || '').trim(),
+            projectId: String(payload.projectId || '').trim(),
+            projectName: String(payload.projectName || '').trim(),
+            syncFolder: String(payload.syncFolder || '').trim(),
+            folderSync: Boolean(payload.folderSync),
+            customNodesPath: String(payload.customNodesPath || '').trim() || undefined,
+            description: String(payload.description || '').trim() || undefined,
+          };
+          if (environmentId) {
+            configService.updateEnvironment(environmentId, input);
+          } else {
+            configService.addEnvironment(input);
+          }
+          await clearLegacyWorkspaceSettings();
+          await this._configurationController.refresh('webview-save-environment', { force: true });
+          this._panel.webview.postMessage({ type: 'saved' });
+          return;
+        }
+
+        case 'pinEnvironment': {
+          if (!workspaceRoot) throw new Error('Open a workspace before pinning workspace environments.');
+          const environmentId = String(payload.environmentId || '').trim();
+          if (!environmentId) throw new Error('Environment is required.');
+          new ConfigService(workspaceRoot).pinEnvironment(environmentId);
+          await this._configurationController.refresh('webview-pin-environment', { force: true });
+          this._panel.webview.postMessage({ type: 'saved' });
+          return;
+        }
+
+        case 'deleteEnvironment': {
+          if (!workspaceRoot) throw new Error('Open a workspace before deleting workspace environments.');
+          const environmentId = String(payload.environmentId || '').trim();
+          if (!environmentId) throw new Error('Environment is required.');
+          const configService = new ConfigService(workspaceRoot);
+          const environment = configService.getEnvironment(environmentId);
+          const confirmation = await vscode.window.showWarningMessage(
+            `Remove workspace environment "${environment.name}"?`,
+            { modal: true },
+            'Remove',
+          );
+          if (confirmation !== 'Remove') {
+            this._panel.webview.postMessage({ type: 'cancelled' });
+            return;
+          }
+          configService.removeEnvironment(environmentId);
+          await this._configurationController.refresh('webview-delete-environment', { force: true });
+          this._panel.webview.postMessage({ type: 'saved' });
           return;
         }
 
