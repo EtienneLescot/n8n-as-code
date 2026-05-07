@@ -46,7 +46,7 @@
     },
     "devDependencies": {
         "@types/deep-equal": "^1.0.4",
-        "@types/diff": "^5.0.9",
+        "@types/diff": "^8.0.0",
         "@types/inquirer": "^9.0.9",
         "@types/node": "^20.10.6",
         "@vitest/coverage-v8": "^1.1.0",
