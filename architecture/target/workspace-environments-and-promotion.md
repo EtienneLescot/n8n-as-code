@@ -2,7 +2,7 @@
 
 - **Status**: Product and technical specification
 - **Scope**: n8nac workspace environment model, explicit environment targeting, and workflow promotion between environments
-- **Decision**: Replace direct instance targeting in the n8nac product model with workspace environments. Do not keep `--instance` as a product concept in this spec.
+- **Decision**: Replace direct instance targeting in the n8nac product model with workspace environments. An environment is created by attaching an existing instance target, one n8n project, and one sync folder. Instance targets can be global n8n-manager references or workspace-tracked non-secret public descriptors. Do not keep `--instance` as a product concept in this spec.
 
 ---
 
@@ -12,10 +12,15 @@ n8n-as-code should introduce a workspace-level **Environment** abstraction.
 
 An environment is a named workspace target composed of:
 
-- a global n8n-manager instance;
+- an existing instance target, either by global reference or workspace-tracked non-secret descriptor;
 - an n8n project for that instance;
 - a dedicated physical sync folder;
 - optional workflow settings such as `folderSync` and `customNodesPath`.
+
+This gives a deliberate two-step product model:
+
+1. create or register an instance target;
+2. create an environment by attaching that instance target, one of its projects, and a sync folder.
 
 Users can create as many environments as they want in a workspace:
 
@@ -26,10 +31,15 @@ Global instances, owned by n8n-manager:
 - cloudA
 - cloudB
 
+Workspace instance targets, owned by n8nac:
+- managedA-link = ref(managedA)
+- staging-n8n   = embedded https://staging-n8n.example.com
+- prod-n8n      = embedded https://prod-n8n.example.com
+
 Workspace environments, owned by n8nac:
-- Dev     = managedA + project Personal + workflows/dev
-- Staging = managedB + project Personal + workflows/staging
-- Prod    = cloudA   + project CGI      + workflows/prod
+- Dev     = managedA-link + project Personal + workflows/dev
+- Staging = staging-n8n   + project Personal + workflows/staging
+- Prod    = prod-n8n      + project CGI      + workflows/prod
 ```
 
 The user pins one environment as the default working environment. Commands run against that pinned environment unless another environment is explicitly selected.
@@ -39,7 +49,7 @@ n8nac should also provide commands to exchange or promote workflows between envi
 The short-term architecture stays intentionally robust:
 
 ```text
-1 environment = 1 instance + 1 project + 1 physical sync path
+1 environment = 1 existing instance target + 1 n8n project + 1 physical sync path
 ```
 
 Promotion is explicit and controlled. It copies/applies a workflow from one environment scope to another, then pushes to the target environment. It is not a magical multi-environment sync folder.
@@ -61,26 +71,42 @@ A raw instance is incomplete for workflow work because it does not include:
 - which credentials are available;
 - which conflict state applies.
 
-An environment bundles these pieces into a coherent workspace target.
+An environment bundles an already-defined instance target, a project, and a sync folder into a coherent workspace target.
+
+The instance target attached to an environment has two valid shapes:
+
+- **global reference** for machine-owned instances, especially managed/local Docker instances whose runtime details are not portable;
+- **embedded public descriptor** for shared existing instances whose URL should be tracked in Git.
+
+Secrets are never part of the environment definition.
 
 ### 2.2 Product Promise
 
 n8n-as-code lets users:
 
 - register multiple n8n instances globally via n8n-manager;
-- define workspace-specific environments that map to those instances and projects;
+- define workspace instance targets that either reference global instances or embed public instance descriptors;
+- define workspace-specific environments by attaching an instance target to a project and sync folder;
 - choose a default environment for day-to-day work;
 - run normal sync commands against any environment;
 - promote workflows explicitly between environments.
 
 ### 2.3 Example Narrative
 
-A user has three environments:
+A user first has three instance targets:
 
 ```text
-Dev     -> local managed n8n, Personal project
-Staging -> local managed n8n, Personal project
-Prod    -> n8n Cloud, CGI project
+Local Dev instance -> global ref to local managed n8n
+Staging instance   -> embedded public URL
+Production instance -> embedded public URL
+```
+
+Then the user creates three environments by attaching those instance targets to projects and sync folders:
+
+```text
+Dev     -> Local Dev instance + Personal project + workflows/dev
+Staging -> Staging instance   + Personal project + workflows/staging
+Prod    -> Production instance + CGI project      + workflows/prod
 ```
 
 The user works by default in Dev:
@@ -106,13 +132,13 @@ The command copies/adapts the workflow into the Prod sync scope, pushes it to th
 
 Users deploy to `Prod`, not to `cloudA`.
 
-2. **Instances remain global runtime/auth objects**
+2. **Global instances remain machine-owned runtime/auth objects**
 
-n8n-manager owns instances, API keys, Docker/runtime state, tunnels, and project discovery.
+n8n-manager owns machine-level instances, API keys, Docker/runtime state, tunnels, and project discovery. Managed/local instances should usually be referenced by environments, not copied into workspace config.
 
-3. **Environments are workspace-local**
+3. **Environments are workspace-local and portable**
 
-The same global instance may be used by multiple workspaces with different project/sync settings.
+The same global instance may be used by multiple workspaces with different project/sync settings. A workspace may also carry a public, non-secret descriptor for shared team instances so a cloned repo works without pre-created global instance IDs.
 
 4. **Every environment has its own physical sync scope**
 
@@ -134,12 +160,18 @@ A user may sync with Dev, Prod, or any environment. n8nac should not force one c
 
 Direct instance selection is the wrong abstraction for workflow sync and deployment.
 
+9. **Secrets and access rights are user-local concerns**
+
+Workspace environments may describe where an instance is and which project to use, but API keys, tokens, owner credentials, OAuth secrets, and permission grants remain local/user-managed and must not be committed.
+
 ### 2.5 Non-Goals
 
 - Do not introduce a mandatory “project/app/pipeline” abstraction above environments.
 - Do not introduce a single canonical source folder in the first implementation.
 - Do not pretend n8n has a native dev-to-prod merge model.
 - Do not make credentials portable automatically.
+- Do not store API keys, owner credentials, OAuth secrets, tokens, or runtime passwords in tracked workspace config.
+- Do not assume two engineers have the same permissions on the same shared instance.
 - Do not make one sync folder target multiple environments.
 - Do not keep `--instance` as part of the n8nac product model.
 
@@ -149,17 +181,48 @@ Direct instance selection is the wrong abstraction for workflow sync and deploym
 
 ### 3.1 Environment Management
 
-Preferred command group:
+The UX is intentionally two-step. First, an instance target exists. Then an environment attaches that instance target, one project, and one sync folder.
+
+Indicative instance target commands:
+
+```bash
+# Machine/global instance, created by n8n-manager as today.
+n8n-manager instances create managedA --mode managed-local
+n8n-manager instances add personalCloud --url https://personal-n8n.example.com
+
+# Workspace-tracked public instance target, stored without secrets in n8nac-config.json.
+n8nac instance-target add staging-n8n --base-url https://staging-n8n.example.com
+n8nac instance-target add prod-n8n --base-url https://prod-n8n.example.com
+```
+
+The exact command names can change during implementation. The product invariant is stable: environment creation consumes an existing instance target; it does not primarily create an instance inline.
+
+Preferred environment command group:
 
 ```bash
 n8nac env list
 n8nac env status
-n8nac env add Dev --instance-id managedA --project-id personal --project-name Personal --sync-folder workflows/dev
-n8nac env add Prod --instance-id cloudA --project-id cgi --project-name CGI --sync-folder workflows/prod
+n8nac env add Dev --instance-target managedA --project-id personal --project-name Personal --sync-folder workflows/dev
+n8nac env add Staging --instance-target staging-n8n --project-id personal --project-name Personal --sync-folder workflows/staging
+n8nac env add Prod --instance-target prod-n8n --project-id cgi --project-name CGI --sync-folder workflows/prod
 n8nac env pin Dev
 n8nac env update Prod --project-id cgi --project-name CGI
 n8nac env remove Staging
 ```
+
+Two instance target creation modes are supported before environment creation:
+
+```bash
+# Machine-owned managed/local instance: store a global reference only.
+n8n-manager instances create managedA --mode managed-local
+n8nac env add Dev --instance-target managedA --project-id personal --project-name Personal --sync-folder workflows/dev
+
+# Shared existing/public instance: store a portable non-secret descriptor in the repo.
+n8nac instance-target add prod-n8n --base-url https://prod-n8n.example.com
+n8nac env add Prod --instance-target prod-n8n --project-id cgi --project-name CGI --sync-folder workflows/prod
+```
+
+The CLI must reject environment creation commands that provide both an instance target and inline instance creation flags. A later convenience shortcut may combine the two steps, but it must still persist an instance target first and then attach it to the environment.
 
 `environment` can be provided as a long alias for discoverability:
 
@@ -186,6 +249,8 @@ n8nac --env Prod list
 n8nac --env Prod verify <workflow-id>
 n8nac --env Prod execution list --workflow-id <workflow-id> --json
 ```
+
+Credentials are deliberately separate from these commands. If an environment is attached to an embedded public instance target, each engineer still provides their own API key through environment variables, a local ignored secrets file, or the global n8n-manager secret store.
 
 ### 3.3 Promotion
 
@@ -473,11 +538,37 @@ Proposed v4:
 {
   "version": 4,
   "activeEnvironmentId": "dev",
+  "instanceTargets": [
+    {
+      "id": "managedA",
+      "name": "Local Managed A",
+      "kind": "global-ref",
+      "instanceRef": "managedA"
+    },
+    {
+      "id": "staging-n8n",
+      "name": "Staging n8n",
+      "kind": "embedded",
+      "instance": {
+        "mode": "existing",
+        "baseUrl": "https://staging-n8n.example.com"
+      }
+    },
+    {
+      "id": "prod-n8n",
+      "name": "Production n8n",
+      "kind": "embedded",
+      "instance": {
+        "mode": "existing",
+        "baseUrl": "https://prod-n8n.example.com"
+      }
+    }
+  ],
   "environments": [
     {
       "id": "dev",
       "name": "Dev",
-      "instanceId": "managedA",
+      "instanceTargetId": "managedA",
       "projectId": "personal",
       "projectName": "Personal",
       "syncFolder": "workflows/dev"
@@ -485,7 +576,7 @@ Proposed v4:
     {
       "id": "staging",
       "name": "Staging",
-      "instanceId": "managedB",
+      "instanceTargetId": "staging-n8n",
       "projectId": "personal",
       "projectName": "Personal",
       "syncFolder": "workflows/staging"
@@ -493,7 +584,7 @@ Proposed v4:
     {
       "id": "prod",
       "name": "Prod",
-      "instanceId": "cloudA",
+      "instanceTargetId": "prod-n8n",
       "projectId": "cgi",
       "projectName": "CGI",
       "syncFolder": "workflows/prod"
@@ -517,10 +608,46 @@ Use an array rather than an object map because it allows:
 Add n8nac-side interfaces first:
 
 ```ts
+export type N8nWorkspaceInstanceTarget =
+    | IN8nWorkspaceGlobalInstanceTarget
+    | IN8nWorkspaceEmbeddedInstanceTarget;
+
+export interface IN8nWorkspaceGlobalInstanceTarget {
+    id: string;
+    name: string;
+    kind: 'global-ref';
+    instanceRef: string;
+    description?: string;
+}
+
+export interface IN8nWorkspaceEmbeddedInstanceTarget {
+    id: string;
+    name: string;
+    kind: 'embedded';
+    instance: IN8nWorkspaceEmbeddedInstance;
+    description?: string;
+}
+
+export interface IN8nWorkspaceEmbeddedInstance {
+    mode: 'existing';
+    baseUrl: string;
+    name?: string;
+    instanceIdentifier?: string;
+    verification?: {
+        status: 'unverified' | 'verified' | 'failed';
+        normalizedHost?: string;
+        userId?: string;
+        userName?: string;
+        userEmail?: string;
+        lastCheckedAt?: string;
+        lastError?: string;
+    };
+}
+
 export interface IN8nWorkspaceEnvironment {
     id: string;
     name: string;
-    instanceId: string;
+    instanceTargetId: string;
     projectId?: string;
     projectName?: string;
     syncFolder: string;
@@ -532,6 +659,7 @@ export interface IN8nWorkspaceEnvironment {
 export interface IWorkspaceConfigV4 {
     version: 4;
     activeEnvironmentId?: string;
+    instanceTargets: N8nWorkspaceInstanceTarget[];
     environments: IN8nWorkspaceEnvironment[];
 }
 
@@ -548,6 +676,17 @@ export interface IWorkspaceConfig extends ILocalConfig {
 }
 ```
 
+Validation rules:
+
+- every environment must reference exactly one `instanceTargetId`;
+- every `instanceTargetId` must resolve to a workspace instance target or a global instance target exposed as a target;
+- global-ref targets point to global n8n-manager instances on the current machine;
+- embedded targets are tracked, non-secret descriptors and must not contain API keys or owner credentials;
+- embedded target `instance.mode` is initially limited to `existing`; managed/local runtimes should be references, not embedded descriptors;
+- `syncFolder` is required for every environment;
+- instance target `id` and `name` must be unique within the workspace, with name uniqueness checked case-insensitively;
+- environment `id` and `name` must be unique within the workspace, with name uniqueness checked case-insensitively.
+
 This needs to become a UI/effective snapshot type, not a direct persisted config type.
 
 Recommended split:
@@ -561,6 +700,7 @@ export interface IPersistedWorkspaceConfigV3 extends ILocalConfig {
 export interface IPersistedWorkspaceConfigV4 {
     version: 4;
     activeEnvironmentId?: string;
+    instanceTargets: N8nWorkspaceInstanceTarget[];
     environments: IN8nWorkspaceEnvironment[];
 }
 
@@ -569,8 +709,25 @@ export interface IEffectiveWorkspaceSnapshot extends ILocalConfig {
     activeEnvironmentId?: string;
     activeInstanceId?: string;
     activeEnvironment?: IN8nWorkspaceEnvironment;
+    instanceTargets: N8nWorkspaceInstanceTarget[];
     environments: IN8nWorkspaceEnvironment[];
     instances: IInstanceProfile[];
+}
+```
+
+The effective snapshot should also expose whether the environment’s attached instance target is a global reference or an embedded descriptor:
+
+```ts
+export interface IEffectiveEnvironmentSnapshot extends IN8nWorkspaceEnvironment {
+    targetKind: 'global-ref' | 'embedded';
+    instanceTargetId: string;
+    instanceTargetName: string;
+    instanceId?: string;
+    instanceName?: string;
+    baseUrl?: string;
+    apiKeyAvailable: boolean;
+    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+    workflowDir?: string;
 }
 ```
 
@@ -581,13 +738,19 @@ Add an explicit resolved environment context:
 ```ts
 export interface IResolvedWorkspaceEnvironment extends ILocalConfig {
     environment: IN8nWorkspaceEnvironment;
+    instanceTarget: N8nWorkspaceInstanceTarget;
     environmentId: string;
     environmentName: string;
-    activeInstanceId: string;
+    instanceTargetId: string;
+    instanceTargetName: string;
+    activeInstanceId?: string;
     activeInstanceName: string;
-    instance: IInstanceProfile;
+    instance: IInstanceProfile | IN8nWorkspaceEmbeddedInstance;
+    targetKind: 'global-ref' | 'embedded';
+    globalInstanceId?: string;
     host: string;
     apiKey?: string;
+    apiKeySource?: 'env' | 'workspace-local' | 'global' | 'missing';
     apiBaseUrl?: string;
     publicBaseUrl?: string;
     instanceIdentifier?: string;
@@ -599,12 +762,86 @@ export interface IResolvedWorkspaceEnvironment extends ILocalConfig {
     customNodesPath?: string;
     sources: {
         environment: 'explicit' | 'workspace-default' | 'legacy' | 'global-fallback';
-        instance: 'environment';
+        instance: 'global-ref' | 'embedded';
         project: 'environment' | 'instance-default' | 'missing';
         syncFolder: 'environment';
     };
 }
 ```
+
+### 5.5 Instance Target Variants
+
+There are two intentionally different instance target variants.
+
+#### Global Reference
+
+Use `instanceRef` when the instance is machine-owned or managed by n8n-manager:
+
+```json
+{
+  "id": "managed-local-dev-target",
+  "name": "Managed Local Dev",
+  "kind": "global-ref",
+  "instanceRef": "managed-local-dev",
+}
+```
+
+This is the correct shape for managed/local instances because their runtime details are machine-specific:
+
+- local ports can differ;
+- Docker container names can differ;
+- Docker volume names can differ;
+- runtime state paths are local;
+- tunnel URLs can rotate;
+- owner bootstrap credentials are local;
+- the instance may not exist on another engineer’s machine.
+
+#### Embedded Descriptor
+
+Use `instance` when the instance is an existing shared/public n8n endpoint whose non-secret connection metadata should be tracked with the repository:
+
+```json
+{
+  "id": "prod-n8n",
+  "name": "Production n8n",
+  "kind": "embedded",
+  "instance": {
+    "mode": "existing",
+    "baseUrl": "https://prod-n8n.example.com"
+  }
+}
+```
+
+This is the correct shape for team/shared environments because another engineer can clone the repo and immediately discover the public target and project mapping. They still need their own API key.
+
+An environment then attaches the target to a project and sync folder:
+
+```json
+{
+  "id": "prod",
+  "name": "Prod",
+  "instanceTargetId": "prod-n8n",
+  "projectId": "cgi",
+  "projectName": "CGI",
+  "syncFolder": "workflows/prod"
+}
+```
+
+### 5.6 Fields That Must Never Be Tracked
+
+Tracked workspace config must never contain:
+
+- API keys;
+- owner email/password for managed local n8n;
+- OAuth client secrets;
+- credential values;
+- session cookies;
+- generated bearer tokens;
+- local Docker runtime paths;
+- tunnel process metadata;
+- transient health/runtime status.
+
+If these values are needed, they belong in user-managed local secret storage, environment variables, or ignored files.
 
 ---
 
@@ -622,9 +859,20 @@ No change in principle:
 - tunnels;
 - default project per instance.
 
+Global instances remain the right home for machine-owned configuration. This includes managed Docker instances, local direct instances, personal sandboxes, and any shortcut the user wants available across many workspaces.
+
+Workspace environments may reference these global instances, but should not copy managed runtime details into Git.
+
 ### 6.2 Workspace Environments Live In n8nac Workspace Config
 
 The workspace file remains `n8nac-config.json`, but schema becomes v4.
+
+Workspace instance targets can carry either:
+
+- `instanceRef`, which links to a global machine-owned n8n-manager instance;
+- `instance`, which embeds a portable public descriptor for an existing shared instance.
+
+Workspace environments reference these instance targets through `instanceTargetId`, then add project and sync-folder settings. This means the workspace file can be tracked in Git for team/public instances without requiring every engineer to create matching global instance IDs first.
 
 Important current technical constraint:
 
@@ -663,12 +911,14 @@ Recommended approach:
 
 - Implement n8nac-side parsing/writing for v4 environments in `ConfigService`.
 - Continue using `N8nConfigurationService` for global instance list, secrets, runtime preparation, and v3 fallback resolution.
+- Use n8n-manager runtime orchestration only for environments whose instance target is `kind: 'global-ref'` and resolves to a global instance.
+- For environments whose instance target is `kind: 'embedded'`, construct the API context from the target `baseUrl` plus locally resolved credentials.
 - Update `manager-adapter` only where VS Code needs environment snapshots.
 - Later decide whether to upstream generic v4 awareness to n8n-manager-core.
 
 Reason:
 
-Environments are a workspace/product concept of n8nac. n8n-manager should not be forced to own workflow sync topology.
+Environments are a workspace/product concept of n8nac. n8n-manager should not be forced to own workflow sync topology, and it should not be required to store public shared instance descriptors globally before a repository can be used.
 
 ---
 
@@ -695,14 +945,29 @@ Environment names should be resolved by:
 
 Because v4 uses unique IDs, ambiguity should only be possible if duplicate names are allowed. Prefer enforcing unique names too.
 
+### 7.2.1 Instance Target Lookup
+
+Environment resolution first resolves `environment.instanceTargetId`.
+
+Lookup order:
+
+1. workspace `instanceTargets[].id` exact match;
+2. workspace `instanceTargets[].name` exact case-insensitive match, if a command accepts names;
+3. global n8n-manager instance ID match as a compatibility shortcut only when no workspace target exists;
+4. fail with an actionable error.
+
+Recommended persisted environments should always reference workspace instance target IDs. If the user attaches a global instance directly in the UI, the UI should create a workspace `kind: 'global-ref'` instance target first, then create the environment pointing to that target.
+
 ### 7.3 Project Resolution
 
 For an environment:
 
 ```ts
-projectId = environment.projectId ?? instance.defaultProject?.id
-projectName = environment.projectName ?? instance.defaultProject?.name
+projectId = environment.projectId ?? resolvedGlobalInstance?.defaultProject?.id
+projectName = environment.projectName ?? resolvedGlobalInstance?.defaultProject?.name
 ```
+
+Embedded descriptors do not have a reliable machine-local `defaultProject` unless the workspace config stores it. Therefore, embedded environments should normally carry `projectId` and `projectName` explicitly.
 
 For sync commands, missing project should remain an error unless the instance is a self-hosted n8n without projects API and user explicitly uses `personal`.
 
@@ -764,6 +1029,124 @@ private canonicalInstanceIdentifier(identifier?: string): string | undefined {
 For environments, the instance identifier still belongs to the global instance, not the environment.
 
 If missing, existing `getOrCreateInstanceIdentifier(host, instanceId)` behavior can remain, but called with the environment’s instance ID.
+
+For embedded descriptors, there may be no stable global `instanceId`. In that case, the identifier should be resolved from the local API key and cached only if the cache is local/ignored. The tracked environment may store `instance.instanceIdentifier` only if it is a non-secret stable user/instance identifier and the team explicitly accepts tracking it.
+
+### 7.6 Instance Target Resolution
+
+Resolution must branch by target kind.
+
+For a resolved instance target with `kind: 'global-ref'`:
+
+1. find the global n8n-manager instance by ID;
+2. use n8n-manager runtime preparation for managed/local instances;
+3. resolve URL from global instance runtime state, including tunnel/public URL if configured;
+4. resolve API key from env/workspace-local/global secrets;
+5. use global instance default project only when the environment does not specify one.
+
+For a resolved instance target with `kind: 'embedded'`:
+
+1. validate `mode: existing`;
+2. use `instance.baseUrl` as the API base URL;
+3. do not call managed runtime start/stop/tunnel logic;
+4. resolve API key from env/workspace-local/global secrets using environment ID and/or normalized base URL;
+5. require `projectId` and `projectName` unless a later project discovery step explicitly fills them.
+
+Target resolution output must include:
+
+```ts
+targetKind: 'global-ref' | 'embedded';
+baseUrl: string;
+apiKey?: string;
+apiKeySource: 'env' | 'workspace-local' | 'global' | 'missing';
+canManageRuntime: boolean;
+```
+
+`canManageRuntime` is true only for global references that resolve to managed instances.
+
+### 7.7 Credentials Resolution
+
+Credentials are outside the tracked environment definition. n8nac should resolve API keys in this order:
+
+1. explicit environment variables, for example `N8N_API_KEY`, or future scoped variants such as `N8NAC_ENV_PROD_API_KEY`;
+2. workspace-local ignored secret file, if the user opts into one;
+3. global n8n-manager secret store;
+4. missing.
+
+This spec does not require n8nac to create or own a workspace-local secrets file, because secrets remain the user’s responsibility. It must, however, define safe lookup points so advanced users can keep secrets in `.gitignore` while tracking environment definitions.
+
+Recommended ignored files if implemented later:
+
+```text
+.n8nac/secrets.local.json
+.n8nac/*.secret.json
+.n8n-manager/secrets.json
+```
+
+Example workspace-local secret shape if supported later:
+
+```json
+{
+  "version": 1,
+  "environmentApiKeys": {
+    "dev": "...",
+    "prod": "..."
+  },
+  "baseUrlApiKeys": {
+    "https://prod-n8n.example.com": "..."
+  }
+}
+```
+
+The lookup must never write secrets automatically into tracked config. If a command receives an API key through stdin, it must clearly state where it stored it, or not store it at all.
+
+### 7.8 Rights And Permissions Model
+
+Environment portability does not imply permission portability.
+
+Each engineer may have a different API key and therefore different n8n rights on the same embedded/public instance. n8nac must treat permission failures as environment access issues, not configuration corruption.
+
+For workflow sync and promotion, the API key generally needs rights to:
+
+- list workflows in the target project;
+- read workflow details;
+- create workflows;
+- update workflows;
+- activate/deactivate workflows when requested;
+- read executions when using execution commands;
+- list credentials metadata when checking required credentials;
+- create/delete credentials only when explicitly using credential commands.
+
+Promotion to another environment may fail because:
+
+- the API key cannot access the target project;
+- the project ID exists but the user is not a member;
+- the workflow references credentials the user cannot see;
+- the workflow references credentials that exist but are not shared with the target project;
+- the key can create workflows but cannot activate them;
+- the n8n instance version/API does not support the requested endpoint.
+
+Commands should surface these as clear diagnostics:
+
+```text
+Environment "Prod" resolved, but your API key cannot access project "CGI".
+Check your n8n project membership or provide a different local API key.
+```
+
+For VS Code and CLI status views, each environment should expose an access snapshot:
+
+```ts
+type EnvironmentAccessStatus =
+    | 'ready'
+    | 'missing-api-key'
+    | 'invalid-api-key'
+    | 'project-inaccessible'
+    | 'insufficient-workflow-permissions'
+    | 'runtime-unavailable'
+    | 'unknown';
+```
+
+This lets the UI distinguish “configuration exists” from “current user can operate it”.
 
 ---
 
@@ -845,8 +1228,11 @@ CLI shape:
 ```bash
 n8nac env list [--json]
 n8nac env status [--json]
-n8nac env add <name> --instance-id <id> --project-id <id> --project-name <name> --sync-folder <path> [--json]
-n8nac env update <name-or-id> [--instance-id <id>] [--project-id <id>] [--project-name <name>] [--sync-folder <path>] [--json]
+n8nac instance-target list [--json]
+n8nac instance-target add <name> --instance-ref <global-instance-id> [--json]
+n8nac instance-target add <name> --base-url <url> [--json]
+n8nac env add <name> --instance-target <target-id-or-name> --project-id <id> --project-name <name> --sync-folder <path> [--json]
+n8nac env update <name-or-id> [--instance-target <target-id-or-name>] [--project-id <id>] [--project-name <name>] [--sync-folder <path>] [--json]
 n8nac env pin <name-or-id> [--json]
 n8nac env remove <name-or-id> [--force] [--json]
 ```
@@ -856,10 +1242,10 @@ n8nac env remove <name-or-id> [--force] [--json]
 `n8nac env list` should show:
 
 ```text
-Active  Environment  Instance      Project   Sync Folder
-*       Dev          managedA      Personal  workflows/dev
-        Staging      managedB      Personal  workflows/staging
-        Prod         cloudA        CGI       workflows/prod
+Active  Environment  Target Kind  Target                    Project   Sync Folder
+*       Dev          global-ref   managedA                  Personal  workflows/dev
+        Staging      embedded     https://staging-n8n...    Personal  workflows/staging
+        Prod         embedded     https://prod-n8n...       CGI       workflows/prod
 ```
 
 JSON output should include resolved instance display info:
@@ -871,12 +1257,30 @@ JSON output should include resolved instance display info:
     {
       "id": "dev",
       "name": "Dev",
-      "instanceId": "managedA",
+      "targetKind": "global-ref",
+      "instanceTargetId": "managedA",
+      "instanceTargetName": "Local Managed A",
       "instanceName": "Local Dev",
       "projectId": "personal",
       "projectName": "Personal",
       "syncFolder": "workflows/dev",
-      "workflowDir": "/repo/workflows/dev/n8n_xxx/personal"
+      "workflowDir": "/repo/workflows/dev/n8n_xxx/personal",
+      "apiKeyAvailable": true,
+      "credentialSource": "global"
+    },
+    {
+      "id": "prod",
+      "name": "Prod",
+      "targetKind": "embedded",
+      "instanceTargetId": "prod-n8n",
+      "instanceTargetName": "Production n8n",
+      "baseUrl": "https://prod-n8n.example.com",
+      "projectId": "cgi",
+      "projectName": "CGI",
+      "syncFolder": "workflows/prod",
+      "workflowDir": "/repo/workflows/prod/n8n_yyy/cgi",
+      "apiKeyAvailable": false,
+      "credentialSource": "missing"
     }
   ]
 }
@@ -964,6 +1368,8 @@ private readN8nacWorkspaceConfig(): IPersistedWorkspaceConfigV3 | IPersistedWork
 private writeN8nacWorkspaceConfig(config: IPersistedWorkspaceConfigV4): void;
 private getWorkspaceConfigPath(): string;
 private normalizeEnvironmentInput(input: AddEnvironmentInput): IN8nWorkspaceEnvironment;
+private resolveEnvironmentInstanceTarget(environment: IN8nWorkspaceEnvironment): ResolvedInstanceTarget;
+private resolveEnvironmentApiKey(target: ResolvedInstanceTarget, environment: IN8nWorkspaceEnvironment): ResolvedApiKey;
 private slugEnvironmentId(name: string): string;
 private assertUniqueEnvironment(id: string, name: string, existing?: string): void;
 ```
@@ -984,14 +1390,23 @@ Implicit environment shape:
 
 ```ts
 {
+    instanceTargets: [{
+        id: 'default-instance',
+        name: 'Default Instance',
+        kind: 'global-ref',
+        instanceRef: v3.activeInstanceId ?? global.activeInstanceId,
+    }],
+    activeEnvironmentId: 'default',
+    environments: [{
     id: 'default',
     name: 'Default',
-    instanceId: v3.activeInstanceId ?? global.activeInstanceId,
+    instanceTargetId: 'default-instance',
     projectId: v3.projectId,
     projectName: v3.projectName,
     syncFolder: v3.syncFolder ?? 'workflows',
     folderSync: v3.folderSync,
     customNodesPath: v3.customNodesPath,
+    }]
 }
 ```
 
@@ -1015,19 +1430,24 @@ this.runtime.prepareEffectiveContext({
 
 New logic:
 
-1. resolve environment to instance ID;
-2. call runtime prepare with `instanceId: env.instanceId` to auto-start/prepare that instance;
-3. ignore workspace singleton project/sync fields from manager-core for v4;
-4. overlay environment project/sync fields in n8nac.
+1. resolve environment to a target kind;
+2. for `instanceRef`, call runtime prepare with the referenced global instance ID to auto-start/prepare managed instances;
+3. for embedded `instance`, skip runtime preparation and build the API context from `baseUrl` plus locally resolved credentials;
+4. ignore workspace singleton project/sync fields from manager-core for v4;
+5. overlay environment project/sync fields in n8nac.
 
 Pseudo-code:
 
 ```ts
 async prepareEnvironment(environmentNameOrId?: string): Promise<IResolvedWorkspaceEnvironment> {
     const resolved = this.resolveEnvironment(environmentNameOrId);
+    if (resolved.targetKind === 'embedded') {
+        return this.prepareEmbeddedEnvironment(resolved);
+    }
+
     const prepared = await this.runtime.prepareEffectiveContext({
         workspaceRoot: this.workspaceRoot,
-        instanceId: resolved.environment.instanceId,
+        instanceId: resolved.globalInstanceId,
         syncFolderDefault: 'workspace',
         consumer: 'cli',
         autoStart: true,
@@ -1057,6 +1477,7 @@ This should become selected environment context.
 protected activeEnvironmentId?: string;
 protected activeEnvironmentName?: string;
 protected activeInstanceId?: string;
+protected activeTargetKind?: 'global-ref' | 'embedded';
 protected instanceIdentifier: string | null = null;
 ```
 
@@ -1090,6 +1511,7 @@ Then set:
 this.activeEnvironmentId = context.environmentId;
 this.activeEnvironmentName = context.environmentName;
 this.activeInstanceId = context.activeInstanceId;
+this.activeTargetKind = context.targetKind;
 this.client = new N8nApiClient({ host: context.host, apiKey: context.apiKey });
 this.config = {
     ...this.config,
@@ -1129,6 +1551,8 @@ New sync config should include environment metadata too:
     folderSync: context.folderSync ?? false,
     environmentId: context.environmentId,
     environmentName: context.environmentName,
+    targetKind: context.targetKind,
+    apiKeySource: context.apiKeySource,
 }
 ```
 
@@ -1164,6 +1588,8 @@ interface ISyncConfig {
     folderSync?: boolean;
     environmentId?: string;
     environmentName?: string;
+    targetKind?: 'global-ref' | 'embedded';
+    apiKeySource?: 'env' | 'workspace-local' | 'global' | 'missing';
 }
 ```
 
@@ -1332,15 +1758,191 @@ Current VS Code configuration UI has concepts like:
 - project settings;
 - sync folder settings.
 
-Environment model requires UI changes:
+The target UI should keep the useful “instance creation and instance list” experience, but change the workspace side from singleton project/sync settings to explicit environment management.
 
-1. show workspace environments;
-2. allow add/edit/remove environment;
-3. allow pin active workspace environment;
-4. show effective instance/project/sync folder from active environment;
-5. pass environment selection into CLI/core operations.
+Recommended layout:
 
-### 13.1 Snapshot Shape
+```text
++---------------------------------------+---------------------------------------+
+| Instances                             | Workspace Environments                |
+| Machine/global n8n-manager registry   | Repo-local n8nac environment mapping  |
++---------------------------------------+---------------------------------------+
+| + Create managed local instance       | + Add instance target                 |
+| + Connect existing instance globally  | + Add environment                     |
+|                                       | + Attach target + project + folder    |
+| Global instances list:                |                                       |
+| - managedA                            | Instance targets:                     |
+| - localSandbox                        | - Dev target -> ref(managedA)         |
+| - personalCloud                       | - Prod target -> https://prod...      |
+|                                       | Environments:                         |
+|                                       | * Dev  = Dev target + Personal        |
+|                                       |   Prod = Prod target + CGI            |
+| Actions:                              |                                       |
+| - start/stop/restart managed          | Actions:                              |
+| - test auth                           | - pin default                         |
+| - select global default               | - edit project/sync folder            |
+| - delete global instance              | - check access                        |
+|                                       | - remove environment                  |
++---------------------------------------+---------------------------------------+
+```
+
+### 13.1 Left Panel: Global/Machine Instances
+
+The left side remains the n8n-manager view.
+
+It should show:
+
+- global active instance;
+- all machine-known instances;
+- mode: `managed-local-docker`, `existing`, `generation-only`, etc.;
+- base URL or current public/tunnel URL;
+- managed runtime status;
+- whether an API key exists locally;
+- default project if selected globally;
+- start/stop/restart controls for managed instances;
+- auth/test actions;
+- create/connect/delete actions.
+
+The left panel is not the workspace targeting model. It is the machine registry and runtime manager.
+
+### 13.2 Right Panel: Workspace Environments
+
+The right side becomes the n8nac workspace environment manager.
+
+It should show:
+
+- active workspace environment;
+- all environments defined in `n8nac-config.json`;
+- target kind: `global-ref` or `embedded`;
+- referenced global instance name when target kind is `global-ref`;
+- embedded base URL when target kind is `embedded`;
+- project ID/name;
+- sync folder;
+- computed workflow directory;
+- credential/access status for the current user;
+- warnings if the config is tracked but no local API key is available;
+- warnings if an environment references a missing global instance.
+
+Right-side actions:
+
+- **Add instance target from selected global instance**: creates a workspace target with `kind: 'global-ref'`.
+- **Add embedded public instance target**: creates a workspace target with `kind: 'embedded'`, `instance.mode = existing`, and `baseUrl`.
+- **Add environment**: attaches one instance target, one project, and one sync folder.
+- **Pin default environment**: writes `activeEnvironmentId`.
+- **Edit project**: updates `projectId/projectName`.
+- **Edit sync folder**: updates `syncFolder`.
+- **Check access**: validates API key, project access, workflow permissions where possible.
+- **Promote workflow**: later action exposed from a workflow item or command palette.
+- **Remove environment**: removes the mapping but does not delete a global instance or remote n8n instance.
+
+The UI must make the difference explicit:
+
+```text
+Deleting an environment removes this workspace mapping only.
+Deleting a global instance removes it from this machine's n8n-manager registry.
+Neither action deletes workflows from n8n unless a separate destructive workflow command is run.
+```
+
+### 13.3 Instance Target And Environment Creation UI
+
+Creation should happen in two conceptual steps.
+
+Step A: create or select an instance target.
+
+From selected global instance:
+
+```text
+Instance target name: Local Managed A
+Target: managedA (global instance reference)
+```
+
+Writes:
+
+```json
+{
+  "id": "managedA",
+  "name": "Local Managed A",
+  "kind": "global-ref",
+  "instanceRef": "managedA",
+}
+```
+
+Embedded public instance target:
+
+```text
+Instance target name: Production n8n
+URL: https://prod-n8n.example.com
+```
+
+Writes:
+
+```json
+{
+  "id": "prod-n8n",
+  "name": "Production n8n",
+  "kind": "embedded",
+  "instance": {
+    "mode": "existing",
+    "baseUrl": "https://prod-n8n.example.com"
+  }
+}
+```
+
+Step B: create an environment by attaching the instance target to a project and sync folder.
+
+```text
+Environment name: Production
+Instance target: Production n8n
+Project: CGI
+Sync folder: workflows/prod
+```
+
+Writes:
+
+```json
+{
+  "id": "production",
+  "name": "Production",
+  "instanceTargetId": "prod-n8n",
+  "projectId": "cgi",
+  "projectName": "CGI",
+  "syncFolder": "workflows/prod"
+}
+```
+
+The UI must not write API keys into either the tracked instance target or the tracked environment config.
+
+### 13.4 Access And Credential UI
+
+Each environment should have an access status badge:
+
+```text
+Ready
+Missing API key
+Invalid API key
+Project inaccessible
+Insufficient permissions
+Referenced global instance missing
+Runtime unavailable
+Unknown
+```
+
+For embedded environments, if the URL is configured but no API key is found, show:
+
+```text
+Environment is tracked, but no local API key is configured for your user.
+Provide one through your preferred secret mechanism or n8n-manager global secrets.
+```
+
+If the team chooses to support workspace-local ignored secrets later, the UI may offer:
+
+```text
+Store API key locally for this workspace
+```
+
+But this must write only to ignored local files and must clearly show the target path.
+
+### 13.5 Snapshot Shape
 
 `N8nConfigurationSnapshot` should include:
 
@@ -1348,24 +1950,55 @@ Environment model requires UI changes:
 workspace: {
     version: 4;
     activeEnvironmentId?: string;
+    instanceTargets: Array<{
+        id: string;
+        name: string;
+        kind: 'global-ref' | 'embedded';
+        instanceRef?: string;
+        instance?: {
+            mode: 'existing';
+            baseUrl: string;
+        };
+        apiKeyAvailable: boolean;
+        credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+        accessStatus: EnvironmentAccessStatus;
+    }>;
     environments: Array<{
         id: string;
         name: string;
-        instanceId: string;
+        instanceTargetId: string;
+        instanceTargetName: string;
+        targetKind: 'global-ref' | 'embedded';
+        globalInstanceId?: string;
         instanceName?: string;
+        baseUrl?: string;
         projectId?: string;
         projectName?: string;
         syncFolder: string;
         workflowDir?: string;
+        apiKeyAvailable: boolean;
+        credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+        accessStatus: EnvironmentAccessStatus;
     }>;
 }
 ```
 
-### 13.2 Extension Command Targeting
+### 13.6 Extension Command Targeting
 
 Any extension command that currently uses effective context should use active environment by default.
 
-Later UI can allow “Run this action in environment…” QuickPick.
+Commands that need a non-default environment should show an environment QuickPick, not an instance QuickPick.
+
+Examples:
+
+```text
+Deploy/Promote workflow...
+Run list in environment...
+Open workflow in environment...
+Check credentials in environment...
+```
+
+The extension must pass the selected environment ID/name to the same environment-aware `ConfigService`/CLI API path used by the CLI.
 
 ---
 
@@ -1390,7 +2023,10 @@ npx --yes n8nac workspace pin-instance --instance-id <id>
 with:
 
 ```bash
-npx --yes n8nac env add Dev --instance-id <id> --project-id <project-id> --project-name <project-name> --sync-folder workflows/dev
+npx --yes n8nac instance-target add DevTarget --instance-ref <global-instance-id>
+npx --yes n8nac instance-target add ProdTarget --base-url <public-url>
+npx --yes n8nac env add Dev --instance-target DevTarget --project-id <project-id> --project-name <project-name> --sync-folder workflows/dev
+npx --yes n8nac env add Prod --instance-target ProdTarget --project-id <project-id> --project-name <project-name> --sync-folder workflows/prod
 npx --yes n8nac env pin Dev
 ```
 
@@ -1401,6 +2037,8 @@ Agent behavior:
 - when user asks “check Prod”, use `n8nac --env Prod ...`;
 - never manually copy files between environment folders if `promote` exists;
 - never assume credentials are portable.
+- never assume an embedded public environment means the current user has access rights;
+- when access fails, ask the user to provide/check their own API key or project permissions rather than editing tracked config.
 
 ---
 
@@ -1426,7 +2064,7 @@ Later user docs should explain:
 Suggested docs wording:
 
 ```text
-An environment is a workspace-level target composed of an n8n instance, an n8n project, and its own local sync folder. You can set a default environment for normal work, and explicitly promote workflows between environments when needed.
+An environment is a workspace-level target created by attaching an existing n8n instance target, one n8n project, and one local sync folder. The instance target can reference a machine-owned global n8n-manager instance or embed a public non-secret URL for a shared team instance. You can set a default environment for normal work, and explicitly promote workflows between environments when needed.
 ```
 
 ---
@@ -1453,12 +2091,25 @@ If v3 exists:
 
 ```json
 {
-  "id": "default",
-  "name": "Default",
-  "instanceId": "test",
-  "syncFolder": "workflows-test",
-  "projectId": "project-test",
-  "projectName": "Test Project"
+  "instanceTargets": [
+    {
+      "id": "default-instance",
+      "name": "Default Instance",
+      "kind": "global-ref",
+      "instanceRef": "test"
+    }
+  ],
+  "activeEnvironmentId": "default",
+  "environments": [
+    {
+      "id": "default",
+      "name": "Default",
+      "instanceTargetId": "default-instance",
+      "syncFolder": "workflows-test",
+      "projectId": "project-test",
+      "projectName": "Test Project"
+    }
+  ]
 }
 ```
 
@@ -1492,7 +2143,7 @@ Update/add tests in:
 
 Cases:
 
-1. creates v4 environment config with `env add`;
+1. creates v4 instance target config with `instance-target add`;
 2. pins environment and resolves it by default;
 3. explicit environment overrides pinned environment;
 4. resolves by environment ID;
@@ -1505,7 +2156,13 @@ Cases:
 11. v3 is only rewritten to v4 on write command;
 12. missing project gives environment-aware error;
 13. missing sync folder gives environment-aware error;
-14. environment with instance default project resolves project from global instance.
+14. environment with instance default project resolves project from global instance;
+15. global-ref instance target resolves through global n8n-manager instance store;
+16. embedded instance target resolves from tracked `baseUrl` without requiring global instance ID;
+17. managed/local instance details are never copied into v4 environment config;
+18. instance target validation rejects both `instanceRef` and `instance` on the same entry;
+19. instance target validation rejects embedded managed-local descriptors;
+20. API key source resolution reports `env`, `workspace-local`, `global`, or `missing`.
 
 ### 17.2 Integration Tests: CLI Environment Commands
 
@@ -1517,13 +2174,19 @@ packages/cli/tests/integration/environment-cli.integration.test.ts
 
 Cases:
 
-1. `n8nac env add Dev ... --json` writes v4 config;
+1. `n8nac instance-target add ProdTarget --base-url ... --json` writes v4 instance target config;
 2. `n8nac env list --json` includes resolved instance info;
 3. `n8nac env pin Dev` sets active environment;
 4. `n8nac env status --json` shows effective context;
 5. `n8nac --env Prod workspace status --json` or equivalent shows Prod context;
 6. global option parsing works with `help --env Dev skills`;
-7. removed direct instance targeting is not in `n8nac --help`.
+7. removed direct instance targeting is not in `n8nac --help`;
+8. `instance-target add DevTarget --instance-ref managedA` writes a reference target;
+9. `instance-target add ProdTarget --base-url https://prod...` writes an embedded public descriptor;
+10. `env add Prod --instance-target ProdTarget --project-id ... --sync-folder ...` writes an environment attachment;
+11. `instance-target add Bad --instance-ref a --base-url b` fails;
+12. embedded environment can list/status with API key from env var;
+13. embedded environment with no API key returns missing credential diagnostics, not a config parse error.
 
 ### 17.3 Sync Isolation Tests
 
@@ -1573,6 +2236,13 @@ Cases:
 2. active environment controls effective display;
 3. saving workspace environment writes correct config shape;
 4. deleting active env requires explicit fallback or clears active environment.
+5. left panel global instance list remains available;
+6. right panel environment list shows `global-ref` and `embedded` targets distinctly;
+7. access status shows missing API key for embedded environment without local credentials;
+8. instance target creation from selected global instance writes `kind: 'global-ref'` and `instanceRef`;
+9. instance target creation from public URL writes embedded `instance` descriptor;
+10. environment creation attaches existing target + project + sync folder;
+11. removing environment does not delete global instance or workspace instance target unless explicitly requested.
 
 ---
 
@@ -1590,15 +2260,17 @@ architecture/target/workspace-environments-and-promotion.md
 
 Implement v4 workspace config parsing/writing in `ConfigService`.
 
-Add environment types, methods, and tests.
+Add instance target types, environment attachment types, credential-source reporting, validation methods, and tests.
 
 ### Phase 3: CLI Environment Commands
 
-Add `env` and `environment` commands.
+Add `instance-target`, `env`, and `environment` commands.
 
 Add global `--env` option.
 
 Route `BaseCommand` through environment resolution.
+
+Add instance target creation paths for `--instance-ref` and `--base-url`, then environment creation through `--instance-target`.
 
 ### Phase 4: Sync Integration
 
@@ -1616,7 +2288,7 @@ Implement safe file adaptation and target push.
 
 ### Phase 6: VS Code And Agent Guidance
 
-Update VS Code configuration snapshot and UI.
+Update VS Code configuration snapshot and UI with a two-panel model: global/machine instances on the left, workspace environment management on the right.
 
 Update skills and generated agent context.
 
@@ -1652,6 +2324,18 @@ Recommended answer: file path first. It is deterministic and avoids remote ambig
 
 Recommended answer: yes. Enforce unique ID and case-insensitive unique name.
 
+7. Should embedded descriptors support managed/local instances?
+
+Recommended answer: no. Managed/local instances are machine-owned and should be global references only.
+
+8. Should n8nac provide first-class workspace-local secret storage?
+
+Recommended answer: not in the first implementation. Define lookup hooks and diagnostics, but keep secrets user-owned unless a later product decision adds local secret management.
+
+9. Should embedded descriptors be automatically imported into global n8n-manager config?
+
+Recommended answer: no by default. The workspace instance target can be used directly. A later explicit command may offer “save this workspace endpoint globally” as a convenience.
+
 ---
 
 ## 20. Risks
@@ -1665,6 +2349,17 @@ Mitigation:
 - centralize all v4 environment reads/writes in `ConfigService`;
 - do not call `manager.writeWorkspaceOverrides()` for v4 environment updates;
 - update adapter/extension to consume `ConfigService` or equivalent environment-aware facade.
+
+### 20.1.1 Target Ownership Confusion
+
+Users may confuse global instances and workspace environments, especially when the VS Code UI shows both.
+
+Mitigation:
+
+- label the left panel “Machine instances” or “Global n8n-manager instances”;
+- label the right panel “Workspace environments”;
+- make delete actions explicit about what they remove;
+- show `global-ref` vs `embedded` target kind in environment details.
 
 ### 20.2 Promotion Duplicates
 
@@ -1686,6 +2381,17 @@ Mitigation:
 - provide `credential-required` checks in target env;
 - do not auto-map credentials in MVP.
 
+### 20.3.1 Access Rights Mismatch
+
+Two engineers may clone the same workspace config but have different permissions on the same public n8n instance.
+
+Mitigation:
+
+- access status per environment must be per-user/per-machine;
+- do not write permission-derived state into tracked config;
+- surface project membership and workflow permission failures clearly;
+- avoid “fixing” access failures by modifying environment config.
+
 ### 20.4 Breaking Existing User Habits
 
 Moving from instance targeting to environment targeting changes user vocabulary.
@@ -1704,17 +2410,26 @@ Mitigation:
 Product acceptance:
 
 - users can define multiple environments per workspace;
+- users can define workspace instance targets from global instance references or embedded public instance descriptors;
+- users can define environments by attaching one instance target, one project, and one sync folder;
 - users can pin a default environment;
 - users can target an environment explicitly with `--env`;
 - users can promote a workflow from one environment to another;
+- VS Code exposes global instances and workspace environments as distinct concepts;
 - docs and agent guidance explain environments, not direct instance targeting.
 
 Technical acceptance:
 
-- v4 workspace config stores environment list and active environment;
+- v4 workspace config stores instance target list, environment list, and active environment;
+- v4 workspace config supports exactly one target kind per instance target: `instanceRef` or embedded `instance`;
+- v4 workspace environments reference targets through `instanceTargetId`;
+- embedded descriptors never contain secrets or managed runtime details;
 - ConfigService resolves explicit/pinned environments correctly;
+- ConfigService resolves instance targets, global references, and embedded descriptors correctly;
+- credential source resolution reports env/workspace-local/global/missing;
 - project/sync settings do not leak between environments;
 - sync state remains physically isolated per environment;
+- access status distinguishes missing credentials from inaccessible project and insufficient permissions;
 - promotion preserves target IDs and strips source IDs as needed;
 - tests cover config, CLI, sync isolation, and promotion.
 
@@ -1725,11 +2440,11 @@ Technical acceptance:
 High-level product description:
 
 ```text
-In n8n-as-code, an environment is a workspace-level target composed of an n8n instance, an n8n project, and its own local sync folder. Users can create as many environments as needed, choose a default one for normal work, and explicitly promote workflows between environments when they want to move work from Dev to Staging or Production.
+In n8n-as-code, an environment is a workspace-level target created by attaching an existing n8n instance target, one n8n project, and one local sync folder. The instance target can reference a machine-owned global n8n-manager instance or embed a shared public n8n URL. Users can create as many environments as needed, choose a default one for normal work, and explicitly promote workflows between environments when they want to move work from Dev to Staging or Production.
 ```
 
 Short version:
 
 ```text
-n8n-manager owns instances. n8nac owns workspace environments. Git owns review and versioning. promote owns explicit workflow movement between environments.
+n8n-manager owns machine instances and runtime management. n8nac owns workspace environments and portable public target descriptors. Git owns review and versioning. promote owns explicit workflow movement between environments. Secrets and access rights stay local to each user.
 ```
