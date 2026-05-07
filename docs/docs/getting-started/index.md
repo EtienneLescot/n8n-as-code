@@ -52,7 +52,7 @@ If you prefer the terminal or need CI/CD integration.
 ### 1. Install
 
 ```bash
-npm install -g n8nac
+npm install -g n8nac@v1
 ```
 
 To update to the latest version later:
@@ -116,7 +116,7 @@ Let an AI agent set up the workspace and manage workflows for you.
 ### Claude Code
 
 ```text
-/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code
+/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#v1
 /plugin install n8n-as-code@n8nac-marketplace
 ```
 
@@ -130,7 +130,7 @@ See the full [Claude Plugin guide](/docs/usage/claude-plugin).
 ### OpenClaw
 
 ```bash
-openclaw plugins install @n8n-as-code/n8nac
+openclaw plugins install @n8n-as-code/n8nac@2026.5.0
 openclaw n8nac:setup
 openclaw gateway restart
 ```

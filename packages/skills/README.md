@@ -6,7 +6,7 @@ This package powers the shared n8n ontology behind `n8n-as-code`: searchable nod
 
 > **⚠️ BREAKING CHANGE (v0.16.0)**: Workflows are now generated and documented in **TypeScript format** (`.workflow.ts`) instead of JSON for better AI compatibility and readability.
 
-> **📌 Internal Library** — This package is not meant to be used directly. Public access is via [`n8nac`](https://www.npmjs.com/package/n8nac): `npx n8nac skills <command>`.
+> **📌 Internal Library** — This package is not meant to be used directly. Public access is via [`n8nac`](https://www.npmjs.com/package/n8nac): `npx n8nac@v1 skills <command>`.
 
 Specialized tooling for AI agents across Copilot, Cursor, Windsurf, Claude Code, and related editor or CLI workflows.
 
@@ -22,10 +22,10 @@ This package provides programmatic tools and the skills library consumed by `n8n
 All commands below are accessed through the `n8nac` CLI:
 
 ```bash
-npx n8nac skills --help
+npx n8nac@v1 skills --help
 ```
 
-For installation: `npm install -g n8nac`
+For installation: `npm install -g n8nac@v1`
 
 ## 📖 CLI Usage (`n8nac skills`)
 
@@ -232,9 +232,9 @@ index: they win on key collision, so you can also patch incorrect official schem
 `skills search` uses the pre-generated `n8n-knowledge-index.json` and will not include custom
 nodes that exist only in the sidecar file.
 
-For troubleshooting, run `npx n8nac skills list --debug` to print the resolved `n8nac-config.json`
+For troubleshooting, run `npx n8nac@v1 skills list --debug` to print the resolved `n8nac-config.json`
 path, the selected custom nodes file, and the merged node counts. If you're checking a single
-custom node, `npx n8nac skills node-info <nodeName> --debug` is the most direct verification.
+custom node, `npx n8nac@v1 skills node-info <nodeName> --debug` is the most direct verification.
 
 A minimal schema (`"properties": []`) is enough to suppress errors and skip parameter
 validation. Full property definitions enable parameter validation just like official nodes.

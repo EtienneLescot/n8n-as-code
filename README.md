@@ -37,6 +37,26 @@ Zero external calls. Zero latency. Zero hallucination.
 
 ---
 
+## V1 Legacy Release Line
+
+This branch contains the V1 documentation and source code. V2 is now the default release line on npm, so V1 users should always pin the V1 package line instead of using bare `n8nac` commands.
+
+```bash
+npx --yes n8nac@v1 <command>
+openclaw plugins install @n8n-as-code/n8nac@2026.5.0
+```
+
+Claude Code users should install the repo-hosted marketplace from this branch:
+
+```text
+/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#v1
+/plugin install n8n-as-code@n8nac-marketplace
+```
+
+V1 receives compatibility fixes only. New features are developed on V2.
+
+---
+
 ## ⚡ Quick Start
 
 Choose the entry point that matches how you already work.
@@ -67,7 +87,7 @@ Plugin-driven workflow work with Claude.
 **Best for:** agent-led editing with marketplace install
 
 **Run**  
-<code>/plugin marketplace add <wbr>https:&#47;&#47;github.com&#47;EtienneLescot&#47;n8n-as-code</code><br>
+<code>/plugin marketplace add <wbr>https:&#47;&#47;github.com&#47;EtienneLescot&#47;n8n-as-code#v1</code><br>
 <code>/plugin install <wbr>n8n-as-code@n8nac-marketplace</code><br>
 .
 
@@ -85,7 +105,7 @@ OpenClaw-native plugin and workspace bootstrap flow.
 **Best for:** OpenClaw users who want built-in grounding and setup
 
 **Run**  
-<code>openclaw plugins install <wbr>@n8n-as-code/n8nac</code><br>
+<code>openclaw plugins install <wbr>@n8n-as-code/n8nac@2026.5.0</code><br>
 <code>openclaw n8nac:setup</code><br>
 <code>openclaw gateway restart</code>
 
@@ -137,7 +157,7 @@ Explicit terminal-first workflow for sync and automation.
 **Best for:** scripts, CI, GitOps pipelines, direct workflow operations
 
 **Run**  
-<code>npx --yes n8nac init</code>
+<code>npx --yes n8nac@v1 init</code>
 
 [Full Getting Started Guide](https://n8nascode.dev/docs/getting-started/)
 
@@ -151,7 +171,7 @@ If you are using Claude Desktop or another MCP client, point it at the local MCP
   "mcpServers": {
     "n8n-as-code": {
       "command": "npx",
-      "args": ["--yes", "n8nac", "skills", "mcp"]
+      "args": ["--yes", "n8nac@v1", "skills", "mcp"]
     }
   }
 }
@@ -160,8 +180,8 @@ If you are using Claude Desktop or another MCP client, point it at the local MCP
 Initialize your workspace first so it has both the sync config and AI context it needs:
 
 ```bash
-npx --yes n8nac init
-npx --yes n8nac update-ai
+npx --yes n8nac@v1 init
+npx --yes n8nac@v1 update-ai
 ```
 
 ---
@@ -185,10 +205,10 @@ In 2026 AI tooling language, this layer is increasingly described as an **ontolo
 
 ```bash
 # Your agent can search nodes, docs, and templates instantly
-npx --yes n8nac skills search "send slack message when google sheet is updated"
-npx --yes n8nac skills node-info slack          # Full schema + docs + examples
-npx --yes n8nac skills examples search "AI agent"  # Search 7,702 templates
-npx --yes n8nac skills validate workflow.json   # Validate before deploying
+npx --yes n8nac@v1 skills search "send slack message when google sheet is updated"
+npx --yes n8nac@v1 skills node-info slack          # Full schema + docs + examples
+npx --yes n8nac@v1 skills examples search "AI agent"  # Search 7,702 templates
+npx --yes n8nac@v1 skills validate workflow.json   # Validate before deploying
 ```
 
 Claude Code uses the same `n8nac` CLI and ships the `n8n-architect` skill through the `n8n-as-code` plugin, so natural-language workflow work and terminal automation stay aligned around the same n8n ontology.
@@ -222,11 +242,11 @@ Thanks to the `n8nworkflows.xyz` project for maintaining the public archive that
 ```
 
 ```bash
-npx n8nac init                              # Save an instance config and select a project
-npx n8nac list                              # See sync status at a glance
-npx n8nac pull <id>                         # Pull remote → local
-npx n8nac push my-workflow.workflow.ts      # Push local → remote
-npx n8nac resolve <id> --mode keep-current  # Explicit conflict resolution
+npx n8nac@v1 init                              # Save an instance config and select a project
+npx n8nac@v1 list                              # See sync status at a glance
+npx n8nac@v1 pull <id>                         # Pull remote → local
+npx n8nac@v1 push my-workflow.workflow.ts      # Push local → remote
+npx n8nac@v1 resolve <id> --mode keep-current  # Explicit conflict resolution
 ```
 
 **3-way merge** conflict detection · **Multi-instance** support
@@ -304,11 +324,11 @@ You can keep multiple saved instance configs in the same workspace and switch wh
 
 | Package | What it does | Install |
 |:--------|:-------------|:--------|
-| **[n8nac](packages/cli)** | CLI — sync, convert, validate, search | `npx n8nac` |
+| **[n8nac](packages/cli)** | CLI — sync, convert, validate, search | `npx n8nac@v1` |
 | **[VS Code Extension](packages/vscode-extension)** | Visual UI — sidebar, canvas, push-on-save | [Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) |
-| **[@n8n-as-code/n8nac](plugins/openclaw/n8n-as-code)** | OpenClaw plugin — setup wizard, prompt context, workflow operations | `openclaw plugins install @n8n-as-code/n8nac` |
-| **[@n8n-as-code/skills](packages/skills)** | AI Skill — knowledge base, search, schemas | `npm i @n8n-as-code/skills` |
-| **[@n8n-as-code/transformer](packages/transformer)** | JSON ↔ TypeScript converter | `npm i @n8n-as-code/transformer` |
+| **[@n8n-as-code/n8nac](plugins/openclaw/n8n-as-code)** | OpenClaw plugin — setup wizard, prompt context, workflow operations | `openclaw plugins install @n8n-as-code/n8nac@2026.5.0` |
+| **[@n8n-as-code/skills](packages/skills)** | AI Skill — knowledge base, search, schemas | `npm i @n8n-as-code/skills@v1` |
+| **[@n8n-as-code/transformer](packages/transformer)** | JSON ↔ TypeScript converter | `npm i @n8n-as-code/transformer@v1` |
 
 ---
 

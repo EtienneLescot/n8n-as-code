@@ -55,14 +55,14 @@ describe('AiContextGenerator', () => {
             expect(startMarkers?.length).toBe(1);
         });
 
-        test('should use npx n8nac skills commands (no shims)', async () => {
+        test('should use npx n8nac@v1 skills commands (no shims)', async () => {
             await generator.generate(tempDir, '1.0.0');
 
             const agentsPath = path.join(tempDir, 'AGENTS.md');
             const agentsContent = fs.readFileSync(agentsPath, 'utf-8');
 
             // New unified command format
-            expect(agentsContent).toContain('npx --yes n8nac skills');
+            expect(agentsContent).toContain('npx --yes n8nac@v1 skills');
 
             // No old shim-style commands
             expect(agentsContent).not.toContain('./n8nac-skills');
@@ -88,7 +88,7 @@ describe('AiContextGenerator', () => {
 
             expect(agentsContent).toContain(cliCmd);
             expect(agentsContent).toContain(`${cliCmd} skills`);
-            expect(agentsContent).not.toContain('npx --yes n8nac skills');
+            expect(agentsContent).not.toContain('npx --yes n8nac@v1 skills');
         });
 
         test('should NOT create shim files (shims removed)', async () => {
@@ -123,7 +123,7 @@ describe('AiContextGenerator', () => {
 
             const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
             expect(agentsContent).toContain('ai_tool');
-            expect(agentsContent).toContain('Run `npx --yes n8nac skills node-info <nodeName>` before writing parameters.');
+            expect(agentsContent).toContain('Run `npx --yes n8nac@v1 skills node-info <nodeName>` before writing parameters.');
             expect(agentsContent).toContain('Do not assume tool parameter names or reuse stale node-specific guidance.');
         });
 
@@ -157,20 +157,20 @@ describe('AiContextGenerator', () => {
             expect(skillContent).toContain('does not yet contain `projectId` and `projectName`');
             expect(agentsContent).toContain('Never write `n8nac-config.json` by hand.');
             expect(skillContent).toContain('Never write `n8nac-config.json` by hand.');
-            expect(agentsContent).toContain('npx --yes n8nac instance add');
-            expect(skillContent).toContain('npx --yes n8nac instance add');
+            expect(agentsContent).toContain('npx --yes n8nac@v1 instance add');
+            expect(skillContent).toContain('npx --yes n8nac@v1 instance add');
             expect(agentsContent).toContain('For autonomous agents, the default non-interactive initialization flow is the explicit 2-step sequence');
             expect(skillContent).toContain('For autonomous agents, the default non-interactive initialization flow is the explicit 2-step sequence');
-            expect(agentsContent).toContain('npx --yes n8nac instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]');
-            expect(skillContent).toContain('npx --yes n8nac instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]');
+            expect(agentsContent).toContain('npx --yes n8nac@v1 instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]');
+            expect(skillContent).toContain('npx --yes n8nac@v1 instance add --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]');
             expect(agentsContent).toContain('Optional 1-command non-interactive setup when the project is already known');
             expect(skillContent).toContain('Optional 1-command non-interactive setup when the project is already known');
-            expect(agentsContent).toContain('npx --yes n8nac instance list --json');
-            expect(skillContent).toContain('npx --yes n8nac instance list --json');
-            expect(agentsContent).toContain('npx --yes n8nac init-auth');
-            expect(skillContent).toContain('npx --yes n8nac init-auth');
-            expect(agentsContent).toContain('npx --yes n8nac init-project');
-            expect(skillContent).toContain('npx --yes n8nac init-project');
+            expect(agentsContent).toContain('npx --yes n8nac@v1 instance list --json');
+            expect(skillContent).toContain('npx --yes n8nac@v1 instance list --json');
+            expect(agentsContent).toContain('npx --yes n8nac@v1 init-auth');
+            expect(skillContent).toContain('npx --yes n8nac@v1 init-auth');
+            expect(agentsContent).toContain('npx --yes n8nac@v1 init-project');
+            expect(skillContent).toContain('npx --yes n8nac@v1 init-project');
         });
 
         test('getOpenClawSkillContent() should describe OpenClaw tool usage and AGENTS handoff', () => {
@@ -182,11 +182,11 @@ describe('AiContextGenerator', () => {
             expect(content).toContain('`action: "instance_select"`');
             expect(content).toContain('`action: "instance_delete"`');
             expect(content).toContain('Treat `AGENTS.md` as the authoritative workflow-engineering protocol once this skill is active.');
-            expect(content).toContain('npx --yes n8nac workflow credential-required <workflowId> --json');
+            expect(content).toContain('npx --yes n8nac@v1 workflow credential-required <workflowId> --json');
             expect(content).toContain('credential create --type <type> --name "<name>" --file cred.json --json');
             expect(content).toContain('Do not invent unsupported `n8nac` tool actions or CLI flags; use `--help` if you are unsure.');
-            expect(content).toContain('npx --yes n8nac execution list --workflow-id <workflowId> --limit 5 --json');
-            expect(content).toContain('npx --yes n8nac execution get <executionId> --include-data --json');
+            expect(content).toContain('npx --yes n8nac@v1 execution list --workflow-id <workflowId> --limit 5 --json');
+            expect(content).toContain('npx --yes n8nac@v1 execution get <executionId> --include-data --json');
             expect(content).toContain('n8nac test --query <json>');
             expect(content).toContain('manual arm step in the n8n editor');
             expect(content).toContain('### AI tool nodes');

@@ -86,14 +86,14 @@ Someone (or you in the n8n UI) modified the workflow remotely since your last pu
 
 1. Make sure you ran both commands:
    ```text
-   /plugin marketplace add https://github.com/EtienneLescot/n8n-as-code
+   /plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#v1
    /plugin install n8n-as-code@n8nac-marketplace
    ```
 2. Restart Claude Code after installing
 3. Check that the workspace is initialized:
    ```bash
-   npx --yes n8nac init
-   npx --yes n8nac update-ai
+   npx --yes n8nac@v1 init
+   npx --yes n8nac@v1 update-ai
    ```
 
 ### SSH authentication fails during `/plugin marketplace add`
@@ -101,7 +101,7 @@ Someone (or you in the n8n UI) modified the workflow remotely since your last pu
 If Claude Code reports `git@github.com: Permission denied (publickey)`, use the full HTTPS marketplace URL instead of the `owner/repo` shorthand:
 
 ```text
-/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code
+/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#v1
 ```
 
 ### Claude hallucinates nodes or parameters
@@ -110,7 +110,7 @@ This usually means `AGENTS.md` is missing or outdated:
 
 1. Regenerate it:
    ```bash
-   npx --yes n8nac update-ai
+   npx --yes n8nac@v1 update-ai
    ```
 2. Verify `AGENTS.md` exists at the project root
 3. Ask Claude to show which section of `AGENTS.md` it is following — if it can't, it's not using the skill correctly
@@ -118,7 +118,7 @@ This usually means `AGENTS.md` is missing or outdated:
 ### MCP server not connecting (Claude Desktop)
 
 1. Check `claude_desktop_config.json` syntax — must be valid JSON
-2. Verify `npx --yes n8nac skills mcp` runs without errors in your terminal
+2. Verify `npx --yes n8nac@v1 skills mcp` runs without errors in your terminal
 3. Set `N8N_AS_CODE_PROJECT_DIR` to the **absolute** path of your project
 4. Restart Claude Desktop after config changes
 
@@ -128,10 +128,10 @@ This usually means `AGENTS.md` is missing or outdated:
 
 1. Make sure the plugin is installed:
    ```bash
-   openclaw plugins install @n8n-as-code/n8nac
+   openclaw plugins install @n8n-as-code/n8nac@2026.5.0
    ```
    If you migrated from `@n8n-as-code/openclaw-plugin`, run `openclaw plugins uninstall n8nac` first and then reinstall the package.
-2. Check that `n8nac` (or `npx n8nac`) is available in your PATH
+2. Check that `n8nac` (or `npx n8nac@v1`) is available in your PATH
 3. Verify your n8n instance URL and API key
 
 ### Plugin not active after setup
@@ -160,10 +160,10 @@ openclaw gateway restart
 
 ```bash
 # Install globally
-npm install -g n8nac
+npm install -g n8nac@v1
 
 # Or use npx
-npx --yes n8nac --version
+npx --yes n8nac@v1 --version
 
 # Check your PATH includes npm global bin
 npm config get prefix

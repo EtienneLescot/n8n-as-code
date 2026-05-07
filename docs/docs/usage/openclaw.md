@@ -29,7 +29,7 @@ Once installed, the plugin gives OpenClaw:
 Install the published plugin package:
 
 ```bash
-openclaw plugins install @n8n-as-code/n8nac
+openclaw plugins install @n8n-as-code/n8nac@2026.5.0
 ```
 
 :::note Existing installs
@@ -95,13 +95,13 @@ The plugin keeps its working files under:
 The plugin still uses the shared CLI model underneath:
 
 ```bash
-npx --yes n8nac instance list --json
-npx --yes n8nac instance select --instance-id <instanceId>
-npx --yes n8nac instance delete --instance-id <instanceId> --yes
-npx --yes n8nac list
-npx --yes n8nac pull <workflow-id>
-npx --yes n8nac push <file>
-npx --yes n8nac update-ai
+npx --yes n8nac@v1 instance list --json
+npx --yes n8nac@v1 instance select --instance-id <instanceId>
+npx --yes n8nac@v1 instance delete --instance-id <instanceId> --yes
+npx --yes n8nac@v1 list
+npx --yes n8nac@v1 pull <workflow-id>
+npx --yes n8nac@v1 push <file>
+npx --yes n8nac@v1 update-ai
 ```
 
 That keeps OpenClaw aligned with the CLI, VS Code extension, and Claude plugin instead of inventing a separate sync path.

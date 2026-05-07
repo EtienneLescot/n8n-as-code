@@ -304,7 +304,7 @@ export function createN8nAcTool(opts: { workspaceDir: string }) {
             output: r.stdout,
             warning: ai.stderr || ai.stdout || "AGENTS.md regeneration failed.",
             next:
-              "Workspace initialized, but AI context regeneration failed. Run `npx --yes n8nac update-ai` before relying on agent-guided workflow work.",
+              "Workspace initialized, but AI context regeneration failed. Run `npx --yes n8nac@v1 update-ai` before relying on agent-guided workflow work.",
           });
         }
         return ok({

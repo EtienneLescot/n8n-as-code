@@ -33,18 +33,18 @@ Before using any workflow command, check whether the workspace is initialized.
 - If `n8nac-config.json` is missing, or it exists but does not contain a selected project context, the workspace is not initialized yet.
 - Never ask the user to run `n8nac` commands themselves. You are the agent and must run them.
 - Default non-interactive setup flow:
-  - `npx --yes n8nac init-auth --host <url> --api-key <key> [--sync-folder <path>]`
-  - `npx --yes n8nac init-project --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]`
+  - `npx --yes n8nac@v1 init-auth --host <url> --api-key <key> [--sync-folder <path>]`
+  - `npx --yes n8nac@v1 init-project --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]`
 - If the target project is already known, a one-command setup is also valid:
-  - `npx --yes n8nac init --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]`
-- If saved instances already exist, inspect them first with `npx --yes n8nac instance list --json`.
-- Reuse an existing saved instance with `npx --yes n8nac instance select --instance-id <id>` or `--instance-name <name>` when possible.
+  - `npx --yes n8nac@v1 init --yes --host <url> --api-key <key> --project-id <id>|--project-name <name>|--project-index <n> [--sync-folder <path>]`
+- If saved instances already exist, inspect them first with `npx --yes n8nac@v1 instance list --json`.
+- Reuse an existing saved instance with `npx --yes n8nac@v1 instance select --instance-id <id>` or `--instance-name <name>` when possible.
 - Never write `n8nac-config.json` by hand.
 
 ### Required order
 
 1. Check for `n8nac-config.json`.
-2. If saved configs exist, inspect them with `npx --yes n8nac instance list --json`.
+2. If saved configs exist, inspect them with `npx --yes n8nac@v1 instance list --json`.
 3. If initialization is missing and credentials are available, run `init-auth`, inspect projects, then run `init-project`.
 4. If credentials are missing, ask the user for the n8n host URL and API key, then run the commands yourself.
 5. After initialization, read `AGENTS.md` before making workflow changes.
@@ -58,7 +58,7 @@ This project uses a Git-like explicit sync model.
 Always pull first:
 
 ```bash
-npx --yes n8nac pull <workflowId>
+npx --yes n8nac@v1 pull <workflowId>
 ```
 
 ### After modifying a workflow
@@ -66,18 +66,18 @@ npx --yes n8nac pull <workflowId>
 Always push the local file back to n8n:
 
 ```bash
-npx --yes n8nac push <path-to-workflow>
-npx --yes n8nac push <path-to-workflow> --verify
+npx --yes n8nac@v1 push <path-to-workflow>
+npx --yes n8nac@v1 push <path-to-workflow> --verify
 ```
 
 ### Conflict handling
 
 If push fails with an OCC conflict:
 
-- Inspect the workflow state with `npx --yes n8nac list --json`.
+- Inspect the workflow state with `npx --yes n8nac@v1 list --json`.
 - Resolve explicitly with:
-  - `npx --yes n8nac resolve <workflowId> --mode keep-current`
-  - `npx --yes n8nac resolve <workflowId> --mode keep-incoming`
+  - `npx --yes n8nac@v1 resolve <workflowId> --mode keep-current`
+  - `npx --yes n8nac@v1 resolve <workflowId> --mode keep-incoming`
 - Never overwrite remote changes blindly.
 
 ## Research protocol
@@ -89,9 +89,9 @@ Never guess node parameters.
 If CLI access is available, use:
 
 ```bash
-npx --yes n8nac skills search "http request"
-npx --yes n8nac skills node-info "httpRequest"
-npx --yes n8nac skills validate workflow.workflow.ts
+npx --yes n8nac@v1 skills search "http request"
+npx --yes n8nac@v1 skills node-info "httpRequest"
+npx --yes n8nac@v1 skills validate workflow.workflow.ts
 ```
 
 If the MCP tools are available and it is more convenient, use them for the same knowledge tasks:
@@ -155,19 +155,19 @@ export class MyWorkflow {
 After pushing:
 
 ```bash
-npx --yes n8nac test-plan <workflowId>
-npx --yes n8nac workflow credential-required <workflowId> --json
-npx --yes n8nac credential schema <type>
-npx --yes n8nac credential create --type <type> --name "<name>" --file cred.json --json
-npx --yes n8nac workflow activate <workflowId>
-npx --yes n8nac test <workflowId> --prod
+npx --yes n8nac@v1 test-plan <workflowId>
+npx --yes n8nac@v1 workflow credential-required <workflowId> --json
+npx --yes n8nac@v1 credential schema <type>
+npx --yes n8nac@v1 credential create --type <type> --name "<name>" --file cred.json --json
+npx --yes n8nac@v1 workflow activate <workflowId>
+npx --yes n8nac@v1 test <workflowId> --prod
 ```
 
 If a workflow still looks broken after a successful webhook call, inspect executions:
 
 ```bash
-npx --yes n8nac execution list --workflow-id <workflowId> --limit 5 --json
-npx --yes n8nac execution get <executionId> --include-data --json
+npx --yes n8nac@v1 execution list --workflow-id <workflowId> --limit 5 --json
+npx --yes n8nac@v1 execution get <executionId> --include-data --json
 ```
 
 ## Response rules

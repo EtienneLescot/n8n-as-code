@@ -63,7 +63,7 @@ export function buildPromptContext(workspaceDir: string): string {
     : [
         "",
         "Detailed workflow-authoring guidance is intentionally scoped to the `n8n-architect` skill, but the generated workspace AI context file (`AGENTS.md`) is missing.",
-        "If the user starts explicit n8n workflow work, regenerate `AGENTS.md` with `npx --yes n8nac update-ai` or rerun `openclaw n8nac:setup` first.",
+        "If the user starts explicit n8n workflow work, regenerate `AGENTS.md` with `npx --yes n8nac@v1 update-ai` or rerun `openclaw n8nac:setup` first.",
       ];
 
   return [

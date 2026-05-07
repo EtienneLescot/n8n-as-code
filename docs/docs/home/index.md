@@ -43,7 +43,7 @@ Or jump straight to the [Getting Started guide](/docs/getting-started) for step-
 
 ```bash
 # Install
-npm install -g n8nac
+npm install -g n8nac@v1
 
 # Save an instance config and select a project
 n8nac init

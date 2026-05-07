@@ -6,28 +6,30 @@ The main command-line interface for the **n8n-as-code** ecosystem. Manage, synch
 
 ## Installation
 
+This is the V1 release line. Since V2 is now npm `latest`, use the `v1` semver range for V1 workspaces, scripts, and agent instructions.
+
 No installation required — run directly with npx:
 
 ```bash
-npx n8nac <command>
+npx n8nac@v1 <command>
 ```
 
 For CI, scripts, and AI agents, prefer `npx --yes` to avoid interactive install prompts:
 
 ```bash
-npx --yes n8nac <command>
+npx --yes n8nac@v1 <command>
 ```
 
 If you need fully repeatable automation, pin an explicit package version instead of relying on whatever `npx` resolves that day:
 
 ```bash
-npx --yes n8nac@1.8.0 <command>
+npx --yes n8nac@1.8.1 <command>
 ```
 
 Or install globally if you prefer:
 
 ```bash
-npm install -g n8nac
+npm install -g n8nac@v1
 ```
 
 ## Commands
@@ -176,9 +178,9 @@ n8nac skills update-ai
 AI tooling commands are available as `n8nac skills <command>` — powered by `@n8n-as-code/skills`. Run via npx (no global install needed):
 
 ```bash
-npx n8nac skills --help
-npx n8nac skills search "google sheets"
-npx n8nac skills node-info googleSheets
+npx n8nac@v1 skills --help
+npx n8nac@v1 skills search "google sheets"
+npx n8nac@v1 skills node-info googleSheets
 ```
 
 ---

@@ -24,7 +24,7 @@ It is the shared foundation consumed by the CLI, the skills package, and the VS 
 ## Installation
 
 ```bash
-npm install @n8n-as-code/transformer
+npm install @n8n-as-code/transformer@v1
 ```
 
 ## Usage

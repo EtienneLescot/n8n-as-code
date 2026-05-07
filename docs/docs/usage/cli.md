@@ -14,12 +14,12 @@ This page is intentionally command-heavy and serves as the detailed reference fo
 
 ### Global Installation
 ```bash
-npm install -g n8nac
+npm install -g n8nac@v1
 ```
 
 ### Project Installation
 ```bash
-npm install --save-dev n8nac
+npm install --save-dev n8nac@v1
 ```
 
 ### Verify Installation

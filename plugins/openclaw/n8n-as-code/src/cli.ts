@@ -238,7 +238,7 @@ export function registerN8nAcCli({ program, workspaceDir }: CliOpts): void {
         p.log.error(aiResult.stderr || aiResult.stdout || "Unknown error.");
         p.outro(
           "Setup partially completed: credentials and project were saved, but AGENTS.md generation failed. " +
-            "Run `npx --yes n8nac update-ai` after fixing the issue.",
+            "Run `npx --yes n8nac@v1 update-ai` after fixing the issue.",
         );
         process.exit(1);
       }

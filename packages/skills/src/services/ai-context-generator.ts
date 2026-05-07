@@ -64,8 +64,8 @@ export class AiContextGenerator {
       };
     }
     return {
-      skillsCmd: distTag ? `npx --yes n8nac@${distTag} skills` : 'npx --yes n8nac skills',
-      cliCmd: distTag ? `npx --yes n8nac@${distTag}` : 'npx --yes n8nac',
+      skillsCmd: distTag ? `npx --yes n8nac@${distTag} skills` : 'npx --yes n8nac@v1 skills',
+      cliCmd: distTag ? `npx --yes n8nac@${distTag}` : 'npx --yes n8nac@v1',
     };
   }
 
@@ -752,13 +752,13 @@ If the push fails with an OCC conflict (the remote was modified since your last 
 When a user mentions a node type (e.g., "HTTP Request", "Google Sheets", "Code"), first search for it:
 
 \`\`\`bash
-npx --yes n8nac skills search "<search term>"
+npx --yes n8nac@v1 skills search "<search term>"
 \`\`\`
 
 **Examples:**
-- \`npx --yes n8nac skills search "http request"\`
-- \`npx --yes n8nac skills search "google sheets"\`
-- \`npx --yes n8nac skills search "webhook"\`
+- \`npx --yes n8nac@v1 skills search "http request"\`
+- \`npx --yes n8nac@v1 skills search "google sheets"\`
+- \`npx --yes n8nac@v1 skills search "webhook"\`
 
 This returns a list of matching nodes with their exact technical names.
 
@@ -767,13 +767,13 @@ This returns a list of matching nodes with their exact technical names.
 Once you have the exact node name, retrieve its complete schema:
 
 \`\`\`bash
-npx --yes n8nac skills node-info "<nodeName>"
+npx --yes n8nac@v1 skills node-info "<nodeName>"
 \`\`\`
 
 **Examples:**
-- \`npx --yes n8nac skills node-info "httpRequest"\`
-- \`npx --yes n8nac skills node-info "googleSheets"\`
-- \`npx --yes n8nac skills node-info "code"\`
+- \`npx --yes n8nac@v1 skills node-info "httpRequest"\`
+- \`npx --yes n8nac@v1 skills node-info "googleSheets"\`
+- \`npx --yes n8nac@v1 skills node-info "code"\`
 
 This returns the full JSON schema including all parameters, types, defaults, valid options, and input/output structure.
 
@@ -802,7 +802,7 @@ export class MyWorkflow {
     position: [250, 300]
   })
   MyNode = {
-    /* parameters from npx --yes n8nac skills node-info */
+    /* parameters from npx --yes n8nac@v1 skills node-info */
   };
 
   @links()
@@ -855,7 +855,7 @@ ${this.getSharedToolGuidanceLines(skillsCmd).join('\n')}
 1. **Always verify node schemas** before generating configuration
 2. **Use descriptive node names** for clarity ("Get Customers", not "HTTP Request")
 3. **Add comments in Code nodes** to explain logic
-4. **Validate node parameters** using \`npx --yes n8nac skills node-info <nodeName>\`
+4. **Validate node parameters** using \`npx --yes n8nac@v1 skills node-info <nodeName>\`
 5. **Reference credentials** by name, never hardcode
 6. **Use error handling** nodes for production workflows
 
@@ -865,17 +865,17 @@ If you're unsure about any node:
 
 1. **List all available nodes:**
    \`\`\`bash
-   npx --yes n8nac skills list
+   npx --yes n8nac@v1 skills list
    \`\`\`
 
 2. **Search for similar nodes:**
    \`\`\`bash
-   npx --yes n8nac skills search "keyword"
+   npx --yes n8nac@v1 skills search "keyword"
    \`\`\`
 
 3. **Get detailed documentation:**
    \`\`\`bash
-   npx --yes n8nac skills node-info "nodeName"
+   npx --yes n8nac@v1 skills node-info "nodeName"
    \`\`\`
 
 ## 🔑 Credential Management
@@ -886,54 +886,54 @@ When a workflow is blocked because a credential is missing, resolve it without o
 
 1. **Detect missing credentials for a workflow (exit 1 = act, exit 0 = all present):**
    \`\`\`bash
-   npx --yes n8nac workflow credential-required <workflowId> --json
+   npx --yes n8nac@v1 workflow credential-required <workflowId> --json
    \`\`\`
    Output: \`[{ nodeName, credentialType, credentialName, exists }]\`  
    Run this immediately after pushing. Exit code 1 means at least one credential is missing.
 
 2. **Discover required fields for a credential type:**
    \`\`\`bash
-   npx --yes n8nac credential schema <type>
+   npx --yes n8nac@v1 credential schema <type>
    \`\`\`
-   Example: \`npx --yes n8nac credential schema notionApi\`  
+   Example: \`npx --yes n8nac@v1 credential schema notionApi\`  
    Use the output to build the credential data file. Ask the user for secret values — never guess.
 
 3. **Create the credential from a file (preferred — keeps secrets out of shell history):**
    \`\`\`bash
-   npx --yes n8nac credential create --type <type> --name "My Credential" --file cred.json --json
+   npx --yes n8nac@v1 credential create --type <type> --name "My Credential" --file cred.json --json
    \`\`\`
 
 4. **Activate the workflow after credentials are provisioned:**
    \`\`\`bash
-   npx --yes n8nac workflow activate <workflowId>
+   npx --yes n8nac@v1 workflow activate <workflowId>
    \`\`\`
 
 5. **Run the test:**
    \`\`\`bash
-   npx --yes n8nac test <workflowId>
+   npx --yes n8nac@v1 test <workflowId>
    \`\`\`
    A Class A error that was blocking the test should now be resolved.
    If the workflow uses a classic Webhook or Form trigger and the test URL says the webhook is not registered, this is usually a manual arm/listen issue in the n8n editor rather than a code bug.
    Click \`Execute workflow\` or \`Listen for test event\` in the editor, then retry the same test request once.
    If the trigger uses GET or HEAD and the workflow reads from \`$json.query\`, prefer:
    \`\`\`bash
-   npx --yes n8nac test <workflowId> --query '{"chatInput":"hello"}'
+   npx --yes n8nac@v1 test <workflowId> --query '{"chatInput":"hello"}'
    \`\`\`
 
 6. **If the webhook call succeeds but the workflow still misbehaves, inspect executions:**
    \`\`\`bash
-   npx --yes n8nac execution list --workflow-id <workflowId> --limit 5 --json
-   npx --yes n8nac execution get <executionId> --include-data --json
+   npx --yes n8nac@v1 execution list --workflow-id <workflowId> --limit 5 --json
+   npx --yes n8nac@v1 execution get <executionId> --include-data --json
    \`\`\`
    Use this to debug server-side execution failures without opening the n8n UI.
 
 **Other credential commands:**
    \`\`\`bash
-   npx --yes n8nac credential list --json               # List all existing credentials as JSON
-   npx --yes n8nac workflow deactivate <workflowId>     # Deactivate a workflow
+   npx --yes n8nac@v1 credential list --json               # List all existing credentials as JSON
+   npx --yes n8nac@v1 workflow deactivate <workflowId>     # Deactivate a workflow
    \`\`\`
 
-If \`credential create\` fails, read the returned validation message and change the payload before retrying. Never rerun the same failing command unchanged. If a subcommand is unfamiliar, run \`npx --yes n8nac <subcommand> --help\` instead of inventing flags.
+If \`credential create\` fails, read the returned validation message and change the payload before retrying. Never rerun the same failing command unchanged. If a subcommand is unfamiliar, run \`npx --yes n8nac@v1 <subcommand> --help\` instead of inventing flags.
 
 ${this.getSharedResponseFormatLines(cliCmd).join('\n')}
 `;
@@ -967,7 +967,7 @@ Use this skill only for explicit n8n workflow work.
 
 1. Check whether \`n8nac-config.json\` exists in the workspace root.
 2. If the workspace is initialized, read \`AGENTS.md\` from the workspace root before making workflow changes. It is the detailed, workspace-specific source of truth generated by \`n8nac update-ai\`.
-3. If \`AGENTS.md\` is missing or unreadable, regenerate it with \`npx --yes n8nac update-ai\` or run the \`openclaw n8nac:setup\` command before attempting workflow authoring.
+3. If \`AGENTS.md\` is missing or unreadable, regenerate it with \`npx --yes n8nac@v1 update-ai\` or run the \`openclaw n8nac:setup\` command before attempting workflow authoring.
 4. If the workspace is not initialized, ask the user for the n8n host URL and API key, then use the \`n8nac\` tool with \`action: "init_auth"\` and \`action: "init_project"\` to complete setup yourself. If you need to add a second saved instance later, call \`action: "init_auth"\` with \`newInstance: true\` first.
 
 ## Using the n8nac tool
@@ -977,9 +977,9 @@ Use this skill only for explicit n8n workflow work.
 - Use \`action: "skills"\` whenever you need node search or schema details.
 - Never guess node parameters. The schema lookup is the source of truth.
 - Treat \`AGENTS.md\` as the authoritative workflow-engineering protocol once this skill is active.
-- When a workflow fails due to missing credentials (Class A), identify the missing credentials clearly and use the documented \`n8nac\` CLI commands from \`AGENTS.md\` (for example \`npx --yes n8nac workflow credential-required <workflowId> --json\`, \`npx --yes n8nac credential schema <type>\`, \`npx --yes n8nac credential create --type <type> --name "<name>" --file cred.json --json\`, and \`npx --yes n8nac workflow activate <workflowId>\`). Do not invent unsupported \`n8nac\` tool actions or CLI flags; use \`--help\` if you are unsure.
+- When a workflow fails due to missing credentials (Class A), identify the missing credentials clearly and use the documented \`n8nac\` CLI commands from \`AGENTS.md\` (for example \`npx --yes n8nac@v1 workflow credential-required <workflowId> --json\`, \`npx --yes n8nac@v1 credential schema <type>\`, \`npx --yes n8nac@v1 credential create --type <type> --name "<name>" --file cred.json --json\`, and \`npx --yes n8nac@v1 workflow activate <workflowId>\`). Do not invent unsupported \`n8nac\` tool actions or CLI flags; use \`--help\` if you are unsure.
 - When \`n8nac test\` reports that a webhook is not registered, treat that as a runtime-state issue first, not as a workflow-code bug. For classic Webhook/Form triggers, the test URL usually requires a manual arm step in the n8n editor (\`Execute workflow\` or \`Listen for test event\`). There is no documented public API here to arm test webhooks automatically.
-- When a webhook call succeeds but the workflow still seems broken, inspect the resulting execution with the documented CLI commands from \`AGENTS.md\` (for example \`npx --yes n8nac execution list --workflow-id <workflowId> --limit 5 --json\` then \`npx --yes n8nac execution get <executionId> --include-data --json\`).
+- When a webhook call succeeds but the workflow still seems broken, inspect the resulting execution with the documented CLI commands from \`AGENTS.md\` (for example \`npx --yes n8nac@v1 execution list --workflow-id <workflowId> --limit 5 --json\` then \`npx --yes n8nac@v1 execution get <executionId> --include-data --json\`).
 - For GET/HEAD webhooks, prefer \`n8nac test --query <json>\` when the workflow reads from \`$json.query\`. Do not invent flags like \`--query\` unless they are documented in the current \`--help\`.
 
 ${workflowMapLines.join('\n')}

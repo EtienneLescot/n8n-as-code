@@ -33,7 +33,7 @@ You stay at the level of intent. The technical details are handled for you.
 Two commands in Claude Code:
 
 ```text
-/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code
+/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#v1
 /plugin install n8n-as-code@n8nac-marketplace
 ```
 
@@ -41,8 +41,8 @@ Then initialize your workspace once:
 
 ```bash
 cd /path/to/your/n8n-project
-npx --yes n8nac init
-npx --yes n8nac update-ai
+npx --yes n8nac@v1 init
+npx --yes n8nac@v1 update-ai
 ```
 
 Restart Claude Code if needed, then start asking for workflow changes.
@@ -63,8 +63,8 @@ Use the local MCP server to give Claude Desktop access to the n8n knowledge base
    {
      "mcpServers": {
        "n8n-as-code": {
-         "command": "npx",
-         "args": ["--yes", "n8nac", "skills", "mcp"],
+          "command": "npx",
+          "args": ["--yes", "n8nac@v1", "skills", "mcp"],
          "env": {
            "N8N_AS_CODE_PROJECT_DIR": "/absolute/path/to/your/n8n-project"
          }
@@ -79,8 +79,8 @@ Use the local MCP server to give Claude Desktop access to the n8n knowledge base
 
    ```bash
    cd /path/to/your/n8n-project
-   npx --yes n8nac init
-   npx --yes n8nac update-ai
+   npx --yes n8nac@v1 init
+   npx --yes n8nac@v1 update-ai
    ```
 
 3. **Restart Claude Desktop** to reload the MCP server.

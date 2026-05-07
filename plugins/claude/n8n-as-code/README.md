@@ -8,7 +8,7 @@ This directory is the actual plugin root used by the marketplace entry, so Claud
 > Until the official Claude Code listing is approved, the recommended install path is the repo-hosted alternative marketplace:
 >
 > ```text
-> /plugin marketplace add https://github.com/EtienneLescot/n8n-as-code
+> /plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#v1
 > /plugin install n8n-as-code@n8nac-marketplace
 > ```
 >
@@ -27,8 +27,8 @@ This directory is the actual plugin root used by the marketplace entry, so Claud
 Initialize your workspace with:
 
 ```bash
-npx --yes n8nac init
-npx --yes n8nac update-ai
+npx --yes n8nac@v1 init
+npx --yes n8nac@v1 update-ai
 ```
 
 For Claude Desktop or other MCP clients, use:
@@ -38,7 +38,7 @@ For Claude Desktop or other MCP clients, use:
   "mcpServers": {
     "n8n-as-code": {
       "command": "npx",
-      "args": ["--yes", "n8nac", "skills", "mcp"]
+      "args": ["--yes", "n8nac@v1", "skills", "mcp"]
     }
   }
 }

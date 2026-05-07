@@ -121,7 +121,7 @@ description: Expert assistant... # max 1024 chars, explains WHEN to use
 
 **DO:**
 - Reuse content from `AiContextGenerator.getSkillContent()`
-- Use `npx n8nac skills` (via the `n8nac` unified CLI)
+- Use `npx n8nac@v1 skills` (via the `n8nac` unified CLI)
 - Provide concrete examples in bash code blocks
 - Keep instructions imperative and clear
 
@@ -188,7 +188,7 @@ The adapter follows the Skills package lifecycle:
 
 ## 📚 Key Dependencies
 
-- **n8nac**: The unified CLI that exposes `@n8n-as-code/skills` commands via `npx n8nac skills`
+- **n8nac**: The unified CLI that exposes `@n8n-as-code/skills` commands via `npx n8nac@v1 skills`
 - **@n8n-as-code/skills**: Owns the shared generator and command surface
 - **Node.js**: Required for build and NPX execution
 
@@ -199,7 +199,7 @@ The adapter follows the Skills package lifecycle:
 - Check whether the source change was made in `AiContextGenerator` rather than a generated file
 
 ### Generated files do not match the current CLI
-- Verify the command examples still use `npx --yes n8nac skills`
+- Verify the command examples still use `npx --yes n8nac@v1 skills`
 - Check `packages/skills/tests/ai-context-generator.test.ts` for the expected canonical forms
 
 ### Skill not recognized by Claude

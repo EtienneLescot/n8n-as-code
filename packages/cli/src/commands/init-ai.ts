@@ -16,13 +16,16 @@ import {
 import { ConfigService } from '../services/config-service.js';
 import dotenv from 'dotenv';
 
-/** Returns 'next' for pre-release builds, undefined for stable builds.
- * AGENTS.md will use `npx --yes n8nac@next` vs `npx --yes n8nac` accordingly. */
+/** Returns the npm dist-tag that generated agent instructions should pin.
+ * V1 must not emit bare `npx --yes n8nac`, because that now resolves to V2. */
 function getDistTag(): string | undefined {
     try {
         const __dir = dirname(fileURLToPath(import.meta.url));
         const pkg = JSON.parse(readFileSync(join(__dir, '..', '..', 'package.json'), 'utf8'));
-        return pkg.version?.includes('-') ? 'next' : undefined;
+        const version = typeof pkg.version === 'string' ? pkg.version : '';
+        if (version.includes('-')) return 'next';
+        if (version.startsWith('1.')) return 'v1';
+        return undefined;
     } catch {
         return undefined;
     }

@@ -7,14 +7,14 @@ Use OpenClaw to build, update, validate, and manage n8n workflows with the same 
 ## Install
 
 ```bash
-openclaw plugins install @n8n-as-code/n8nac
+openclaw plugins install @n8n-as-code/n8nac@2026.5.0
 ```
 
 If you previously installed `@n8n-as-code/openclaw-plugin`, remove the old install first so OpenClaw re-registers the plugin cleanly under `n8nac`:
 
 ```bash
 openclaw plugins uninstall n8nac
-openclaw plugins install @n8n-as-code/n8nac
+openclaw plugins install @n8n-as-code/n8nac@2026.5.0
 ```
 
 Restart the gateway, then run the setup wizard:
@@ -86,7 +86,7 @@ The plugin registers the `n8nac` tool with these actions:
 | `pull` | Download a workflow by ID |
 | `push` | Upload a workflow file |
 | `verify` | Validate live workflow against schema |
-| `skills` | Run any `npx n8nac skills` subcommand |
+| `skills` | Run any `npx n8nac@v1 skills` subcommand |
 | `validate` | Validate a local `.workflow.ts` file |
 
 ## Local development

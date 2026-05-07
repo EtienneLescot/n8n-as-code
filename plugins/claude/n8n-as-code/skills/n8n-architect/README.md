@@ -12,14 +12,14 @@ After installing the plugin, initialize the target workspace. For autonomous age
 
 ```bash
 # Default 2-step flow when Claude needs to inspect the project list first
-# npx --yes n8nac init-auth --host <your-n8n-url> --api-key <your-api-key>
-# npx --yes n8nac init-project --project-id <id>|--project-name "Personal"|--project-index <n>
+# npx --yes n8nac@v1 init-auth --host <your-n8n-url> --api-key <your-api-key>
+# npx --yes n8nac@v1 init-project --project-id <id>|--project-name "Personal"|--project-index <n>
 
 # Optional 1-command setup when the project selector is already known
-# npx --yes n8nac instance add --yes --host <your-n8n-url> --api-key <your-api-key> --project-name "Personal"
+# npx --yes n8nac@v1 instance add --yes --host <your-n8n-url> --api-key <your-api-key> --project-name "Personal"
 
 # Optional: refresh AGENTS.md and snippets later
-npx --yes n8nac update-ai
+npx --yes n8nac@v1 update-ai
 ```
 
 That leaves `AGENTS.md` in the project root. For multi-agent setups that use a repo-level `CLAUDE.md`, keep it small and point it back to `AGENTS.md` so planners and coding agents use the generated n8n-as-code instructions instead of inventing node schemas.

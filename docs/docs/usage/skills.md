@@ -31,13 +31,13 @@ The Skills CLI is available as an npm package and can be run directly with npx:
 n8nac skills <command>
 
 # Or run directly with npx
-npx n8nac skills <command>
+npx n8nac@v1 skills <command>
 
 # Or install globally
-npm install -g n8nac
+npm install -g n8nac@v1
 ```
 
-Note: When you run `update-ai` from the main `n8nac`, ensure `n8nac` is available to the project (install locally with `npm install --save-dev n8nac`, install globally, or use `npx`). The VS Code extension is the only caller that generates the AGENTS.md and AI context files.
+Note: When you run `update-ai` from the main `n8nac`, ensure V1 is available to the project (install locally with `npm install --save-dev n8nac@v1`, install globally, or use `npx n8nac@v1`). The VS Code extension is the only caller that generates the AGENTS.md and AI context files.
 
 ## 🛠️ Available Commands
 
@@ -203,8 +203,8 @@ The Skills CLI is designed to be used by AI coding assistants to:
 ```bash
 # AI Assistant workflow for generating n8n workflow code
 1. User asks: "Create a workflow that reads from Google Sheets"
-2. AI runs: npx n8nac skills search "google sheets"
-3. AI gets node schemas: npx n8nac skills node-info googleSheets
+2. AI runs: npx n8nac@v1 skills search "google sheets"
+3. AI gets node schemas: npx n8nac@v1 skills node-info googleSheets
 4. AI generates accurate JSON with proper parameters
 ```
 
@@ -246,17 +246,17 @@ For workflow management and automation, use the [Main CLI](/docs/usage/cli).
 
 1. **Search for nodes you need:**
    ```bash
-   npx n8nac skills search "your query"
+   npx n8nac@v1 skills search "your query"
    ```
 
 2. **Get detailed schema for a specific node:**
    ```bash
-   npx n8nac skills node-info nodeName
+   npx n8nac@v1 skills node-info nodeName
    ```
 
 3. **List all available nodes:**
    ```bash
-   npx n8nac skills list
+   npx n8nac@v1 skills list
    ```
 
 ## 📖 Next Steps
@@ -270,19 +270,19 @@ For workflow management and automation, use the [Main CLI](/docs/usage/cli).
 **Command not found:**
 ```bash
 # Make sure you're using the correct package name
-npx n8nac skills --help
+npx n8nac@v1 skills --help
 ```
 
 **Node not found:**
 ```bash
 # Check available nodes first
-npx n8nac skills list | grep "your-node"
+npx n8nac@v1 skills list | grep "your-node"
 ```
 
 **JSON parsing issues:**
 ```bash
 # Pipe output to jq for pretty printing
-npx n8nac skills search "http" | jq .
+npx n8nac@v1 skills search "http" | jq .
 ```
 
 For more help, check the [Troubleshooting guide](/docs/troubleshooting) or [open an issue](https://github.com/EtienneLescot/n8n-as-code/issues).

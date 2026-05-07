@@ -44,18 +44,18 @@ packages/skills/
 The supported interface for humans and agents is:
 
 ```bash
-npx --yes n8nac skills --help
+npx --yes n8nac@v1 skills --help
 ```
 
 Typical commands include:
 
 ```bash
-npx --yes n8nac skills search "google sheets"
-npx --yes n8nac skills node-info googleSheets
-npx --yes n8nac skills node-schema httpRequest
-npx --yes n8nac skills examples search "slack notification"
-npx --yes n8nac skills validate my-workflow.workflow.ts
-npx --yes n8nac skills update-ai
+npx --yes n8nac@v1 skills search "google sheets"
+npx --yes n8nac@v1 skills node-info googleSheets
+npx --yes n8nac@v1 skills node-schema httpRequest
+npx --yes n8nac@v1 skills examples search "slack notification"
+npx --yes n8nac@v1 skills validate my-workflow.workflow.ts
+npx --yes n8nac@v1 skills update-ai
 ```
 
 ### Internal API
@@ -165,7 +165,7 @@ cd packages/skills
 npm test
 ```
 
-Key coverage includes `AiContextGenerator` behavior and the expectation that generated guidance uses `npx --yes n8nac skills`.
+Key coverage includes `AiContextGenerator` behavior and the expectation that generated guidance uses `npx --yes n8nac@v1 skills`.
 
 ## 📌 Contribution Notes
 
