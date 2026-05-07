@@ -5,18 +5,19 @@ import {
   createN8nManagerFacade,
   resolveN8nManagerConfigurationPaths,
 } from '@n8n-as-code/manager-adapter';
-import { isCanonicalUserInstanceIdentifier, resolveInstanceIdentifier } from 'n8nac';
+import { ConfigService, isCanonicalUserInstanceIdentifier, resolveInstanceIdentifier, type IWorkspaceConfig } from 'n8nac';
 
 type N8nManagerFacade = ReturnType<typeof createN8nManagerFacade>;
 type N8nGlobalConfig = Awaited<ReturnType<N8nManagerFacade['getGlobalConfig']>>;
 type N8nWorkspaceOverrides = Awaited<ReturnType<N8nManagerFacade['readWorkspaceOverrides']>>;
+type WorkspaceSnapshotConfig = IWorkspaceConfig | N8nWorkspaceOverrides;
 type PreparedN8nContext = Awaited<ReturnType<N8nManagerFacade['prepareEffectiveContext']>>;
 type EffectiveN8nContext = PreparedN8nContext['context'];
 
 export interface N8nConfigurationSnapshot {
   workspaceRoot?: string;
   global: N8nGlobalConfig;
-  workspace: N8nWorkspaceOverrides;
+  workspace: WorkspaceSnapshotConfig;
   effective?: EffectiveN8nContext;
   runtime?: PreparedN8nContext['runtime'];
   diagnostics?: PreparedN8nContext['diagnostics'];
@@ -105,19 +106,24 @@ export class N8nConfigurationController implements vscode.Disposable {
   private async readSnapshot(): Promise<N8nConfigurationSnapshot> {
     const workspaceRoot = getWorkspaceRoot();
     const facade = createN8nManagerFacade({ workspaceRoot });
+    const configService = workspaceRoot ? new ConfigService(workspaceRoot) : undefined;
     const hasWorkspaceConfig = workspaceRoot
       ? fs.existsSync(path.join(workspaceRoot, 'n8nac-config.json'))
       : false;
 
     try {
       let global = await facade.getGlobalConfig();
-      const workspace = workspaceRoot ? await facade.readWorkspaceOverrides(workspaceRoot) : { version: 3 as const };
-      let prepared = await facade.prepareEffectiveContext({
+      const workspace = workspaceRoot && configService ? configService.getWorkspaceConfig() : { version: 3 as const };
+      const isEnvironmentWorkspace = workspace.version === 4;
+      let prepared = isEnvironmentWorkspace ? undefined : await facade.prepareEffectiveContext({
         workspaceRoot,
         syncFolderDefault: 'workspace',
         consumer: 'vscode',
         autoStart: true,
       }).catch(() => undefined);
+      let effective = isEnvironmentWorkspace && configService
+        ? configService.getEffectiveContext()
+        : prepared?.context;
       if (prepared) {
         const effectiveHost = prepared.context.apiBaseUrl ?? prepared.context.host;
         if (effectiveHost && prepared.context.apiKey && !isCanonicalUserInstanceIdentifier(prepared.context.instanceIdentifier)) {
@@ -143,7 +149,6 @@ export class N8nConfigurationController implements vscode.Disposable {
         }
         global = await facade.getGlobalConfig();
       }
-      const effective = prepared?.context;
       const hasValidConnection = Boolean((effective?.apiBaseUrl ?? effective?.host) && effective?.apiKey && !prepared?.runtime.blocked);
       return this.buildSnapshot({
         workspaceRoot,
@@ -161,8 +166,8 @@ export class N8nConfigurationController implements vscode.Disposable {
         defaultSyncFolder: '',
         instances: [],
       }));
-      const workspace = workspaceRoot
-        ? await facade.readWorkspaceOverrides(workspaceRoot).catch(() => ({ version: 3 as const }))
+      const workspace = workspaceRoot && configService
+        ? configService.getWorkspaceConfig()
         : { version: 3 as const };
       return this.buildSnapshot({
         workspaceRoot,
@@ -178,7 +183,7 @@ export class N8nConfigurationController implements vscode.Disposable {
   private buildSnapshot(input: {
     workspaceRoot?: string;
     global: N8nGlobalConfig;
-    workspace: N8nWorkspaceOverrides;
+    workspace: WorkspaceSnapshotConfig;
     effective?: EffectiveN8nContext;
     runtime?: PreparedN8nContext['runtime'];
     diagnostics?: PreparedN8nContext['diagnostics'];

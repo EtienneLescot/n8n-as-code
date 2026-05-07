@@ -174,12 +174,12 @@ const getFirstPositionalToken = (args: string[], startIndex = 0): string | undef
             return args[index + 1];
         }
 
-        if (token === '--instance') {
+        if (token === '--instance' || token === '--env' || token === '--environment') {
             index += 1;
             continue;
         }
 
-        if (token.startsWith('--instance=')) {
+        if (token.startsWith('--instance=') || token.startsWith('--env=') || token.startsWith('--environment=')) {
             continue;
         }
 
@@ -315,15 +315,26 @@ program
     .name('n8nac')
     .description('N8N Sync Command Line Interface - Manage n8n workflows as code')
     .version(getVersion())
-    .option('--instance <name>', 'Target a specific global n8n-manager instance by name instead of the effective one');
+    .option('--env <name>', 'Target a specific workspace environment by name or ID')
+    .addOption(new Option('--environment <name>', 'Alias for --env').hideHelp())
+    .addOption(new Option('--instance <name>', 'Target a specific global n8n-manager instance by name instead of the effective one').hideHelp());
 
 // Inject --instance into the environment only for the lifetime of the command action
 // so BaseCommand can pick it up without leaking process-wide state afterwards.
 let previousInstanceEnv: string | undefined;
+let previousEnvironmentEnv: string | undefined;
 
 const applyGlobalInstanceOption = () => {
     previousInstanceEnv = process.env.N8NAC_INSTANCE_NAME;
+    previousEnvironmentEnv = process.env.N8NAC_ENVIRONMENT;
     const globalInstance = program.opts().instance as string | undefined;
+    const globalEnvironment = (program.opts().env || program.opts().environment) as string | undefined;
+
+    if (globalEnvironment) {
+        process.env.N8NAC_ENVIRONMENT = globalEnvironment;
+    } else if (previousEnvironmentEnv === undefined) {
+        delete process.env.N8NAC_ENVIRONMENT;
+    }
 
     if (globalInstance) {
         process.env.N8NAC_INSTANCE_NAME = globalInstance;
@@ -343,6 +354,13 @@ const restoreGlobalInstanceOption = () => {
     }
 
     previousInstanceEnv = undefined;
+    if (previousEnvironmentEnv === undefined) {
+        delete process.env.N8NAC_ENVIRONMENT;
+    } else {
+        process.env.N8NAC_ENVIRONMENT = previousEnvironmentEnv;
+    }
+
+    previousEnvironmentEnv = undefined;
 };
 
 program.hook('preAction', applyGlobalInstanceOption);
@@ -411,18 +429,22 @@ workspaceProgram.command('status')
     .option('--json', 'Output effective workspace context as JSON')
     .action((options) => {
         const configService = new ConfigService();
+        const selectedEnvironment = process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
         const workspaceConfig = configService.getWorkspaceConfig();
-        const activeInstance = workspaceConfig.instances.find((instance) => instance.id === workspaceConfig.activeInstanceId);
+        const resolvedEnvironment = selectedEnvironment
+            ? (() => { try { return configService.resolveEnvironment(selectedEnvironment); } catch { return undefined; } })()
+            : undefined;
         printJsonOrText(
             options,
-            workspaceConfig,
+            resolvedEnvironment ? { ...workspaceConfig, selectedEnvironment: resolvedEnvironment } : workspaceConfig,
             [
                 chalk.cyan('\nEffective n8n workspace context:\n'),
-                `Instance: ${chalk.bold(activeInstance ? `${activeInstance.name} (${activeInstance.id})` : workspaceConfig.activeInstanceId || '(none)')}`,
-                `Project : ${chalk.bold(workspaceConfig.projectName || workspaceConfig.projectId || '(none)')}`,
-                `Sync    : ${chalk.bold(workspaceConfig.workflowDir || workspaceConfig.syncFolder || '(none)')}`,
+                workspaceConfig.activeEnvironmentId ? `Env     : ${chalk.bold(resolvedEnvironment?.environmentName || workspaceConfig.activeEnvironment?.name || workspaceConfig.activeEnvironmentId)}` : undefined,
+                `Instance: ${chalk.bold(resolvedEnvironment?.activeInstanceName || workspaceConfig.activeInstanceId || '(none)')}`,
+                `Project : ${chalk.bold(resolvedEnvironment?.projectName || workspaceConfig.projectName || workspaceConfig.projectId || '(none)')}`,
+                `Sync    : ${chalk.bold(resolvedEnvironment?.workflowDir || workspaceConfig.workflowDir || workspaceConfig.syncFolder || '(none)')}`,
                 '',
-            ].join('\n'),
+            ].filter(Boolean).join('\n'),
         );
     });
 
@@ -505,6 +527,202 @@ workspaceProgram.command('clear-project')
         configService.clearWorkspaceProjectOverride();
         const workspaceConfig = configService.getWorkspaceConfig();
         printJsonOrText(options, workspaceConfig, chalk.green('✔ Workspace project override cleared.'));
+    });
+
+const instanceTargetProgram = program.command('instance-target')
+    .alias('target')
+    .description('Manage workspace instance targets used by environments');
+
+instanceTargetProgram.command('list')
+    .description('List workspace instance targets')
+    .option('--json', 'Output targets as JSON')
+    .action((options) => {
+        const configService = new ConfigService();
+        const targets = configService.listInstanceTargets();
+        printJsonOrText(
+            options,
+            targets,
+            targets.length
+                ? targets.map((target) => `${target.id}\t${target.name}\t${target.kind}\t${target.kind === 'global-ref' ? target.instanceRef : target.instance.baseUrl}`).join('\n')
+                : 'No workspace instance targets configured.',
+        );
+    });
+
+instanceTargetProgram.command('add')
+    .description('Add a workspace instance target from a global instance reference or public URL')
+    .argument('<name>', 'Target display name')
+    .option('--id <id>', 'Stable target ID')
+    .option('--instance-ref <id>', 'Global n8n-manager instance ID to reference')
+    .option('--base-url <url>', 'Public existing n8n URL to embed without secrets')
+    .option('--description <text>', 'Target description')
+    .option('--json', 'Output target as JSON')
+    .action((name, options) => {
+        const configService = new ConfigService();
+        const target = configService.addInstanceTarget({
+            name,
+            id: options.id,
+            instanceRef: options.instanceRef,
+            baseUrl: options.baseUrl,
+            description: options.description,
+        });
+        printJsonOrText(options, target, chalk.green(`✔ Workspace instance target added: ${target.name}`));
+    });
+
+instanceTargetProgram.command('update')
+    .description('Update a workspace instance target')
+    .argument('<name-or-id>', 'Target name or ID')
+    .option('--name <name>', 'New display name')
+    .option('--instance-ref <id>', 'New global n8n-manager instance reference for global-ref targets')
+    .option('--base-url <url>', 'New public URL for embedded targets')
+    .option('--description <text>', 'New description')
+    .option('--json', 'Output target as JSON')
+    .action((nameOrId, options) => {
+        const configService = new ConfigService();
+        const target = configService.updateInstanceTarget(nameOrId, options);
+        printJsonOrText(options, target, chalk.green(`✔ Workspace instance target updated: ${target.name}`));
+    });
+
+instanceTargetProgram.command('remove')
+    .alias('rm')
+    .description('Remove an unused workspace instance target')
+    .argument('<name-or-id>', 'Target name or ID')
+    .option('--json', 'Output removed target as JSON')
+    .action((nameOrId, options) => {
+        const configService = new ConfigService();
+        const target = configService.removeInstanceTarget(nameOrId);
+        printJsonOrText(options, target, chalk.green(`✔ Workspace instance target removed: ${target.name}`));
+    });
+
+const environmentProgram = program.command('env')
+    .alias('environment')
+    .description('Manage workspace environments');
+
+environmentProgram.command('list')
+    .description('List workspace environments')
+    .option('--json', 'Output environments as JSON')
+    .action((options) => {
+        const configService = new ConfigService();
+        const config = configService.getWorkspaceConfig();
+        const environments = configService.listEnvironments().map((environment) => {
+            const resolved = (() => { try { return configService.resolveEnvironment(environment.id); } catch { return undefined; } })();
+            return { ...environment, resolved };
+        });
+        printJsonOrText(
+            options,
+            { activeEnvironmentId: config.activeEnvironmentId, environments },
+            environments.length
+                ? environments.map((environment) => [
+                    environment.id === config.activeEnvironmentId ? '*' : ' ',
+                    environment.id,
+                    environment.name,
+                    environment.resolved?.instanceTargetName || environment.instanceTargetId,
+                    environment.projectName || environment.projectId || '(no project)',
+                    environment.syncFolder,
+                ].join('\t')).join('\n')
+                : 'No workspace environments configured.',
+        );
+    });
+
+environmentProgram.command('add')
+    .description('Add a workspace environment by attaching an instance target, project, and sync folder')
+    .argument('<name>', 'Environment display name')
+    .requiredOption('--instance-target <name-or-id>', 'Workspace instance target name or ID')
+    .requiredOption('--project-id <id>', 'n8n project ID')
+    .requiredOption('--project-name <name>', 'n8n project display name')
+    .requiredOption('--sync-folder <path>', 'Environment sync folder')
+    .option('--id <id>', 'Stable environment ID')
+    .option('--folder-sync', 'Enable folder sync for this environment')
+    .option('--custom-nodes-path <path>', 'Custom nodes path for this environment')
+    .option('--description <text>', 'Environment description')
+    .option('--json', 'Output environment as JSON')
+    .action((name, options) => {
+        const configService = new ConfigService();
+        const environment = configService.addEnvironment({
+            name,
+            id: options.id,
+            instanceTarget: options.instanceTarget,
+            projectId: options.projectId,
+            projectName: options.projectName,
+            syncFolder: options.syncFolder,
+            folderSync: Boolean(options.folderSync),
+            customNodesPath: options.customNodesPath,
+            description: options.description,
+        });
+        printJsonOrText(options, environment, chalk.green(`✔ Workspace environment added: ${environment.name}`));
+    });
+
+environmentProgram.command('update')
+    .description('Update a workspace environment')
+    .argument('<name-or-id>', 'Environment name or ID')
+    .option('--name <name>', 'New display name')
+    .option('--instance-target <name-or-id>', 'Workspace instance target name or ID')
+    .option('--project-id <id>', 'n8n project ID')
+    .option('--project-name <name>', 'n8n project display name')
+    .option('--sync-folder <path>', 'Environment sync folder')
+    .option('--folder-sync', 'Enable folder sync for this environment')
+    .option('--no-folder-sync', 'Disable folder sync for this environment')
+    .option('--custom-nodes-path <path>', 'Custom nodes path for this environment')
+    .option('--description <text>', 'Environment description')
+    .option('--json', 'Output environment as JSON')
+    .action((nameOrId, options) => {
+        const configService = new ConfigService();
+        const patch = {
+            name: options.name,
+            instanceTarget: options.instanceTarget,
+            projectId: options.projectId,
+            projectName: options.projectName,
+            syncFolder: options.syncFolder,
+            folderSync: typeof options.folderSync === 'boolean' ? options.folderSync : undefined,
+            customNodesPath: options.customNodesPath,
+            description: options.description,
+        };
+        const environment = configService.updateEnvironment(nameOrId, patch);
+        printJsonOrText(options, environment, chalk.green(`✔ Workspace environment updated: ${environment.name}`));
+    });
+
+environmentProgram.command('pin')
+    .alias('use')
+    .description('Pin the default workspace environment')
+    .argument('<name-or-id>', 'Environment name or ID')
+    .option('--json', 'Output environment as JSON')
+    .action((nameOrId, options) => {
+        const configService = new ConfigService();
+        const environment = configService.pinEnvironment(nameOrId);
+        printJsonOrText(options, environment, chalk.green(`✔ Workspace environment pinned: ${environment.name}`));
+    });
+
+environmentProgram.command('remove')
+    .alias('rm')
+    .description('Remove a workspace environment')
+    .argument('<name-or-id>', 'Environment name or ID')
+    .option('--json', 'Output removed environment as JSON')
+    .action((nameOrId, options) => {
+        const configService = new ConfigService();
+        const environment = configService.removeEnvironment(nameOrId);
+        printJsonOrText(options, environment, chalk.green(`✔ Workspace environment removed: ${environment.name}`));
+    });
+
+environmentProgram.command('status')
+    .description('Show resolved workspace environment context')
+    .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
+    .option('--json', 'Output resolved environment as JSON')
+    .action((nameOrId, options) => {
+        const configService = new ConfigService();
+        const environment = configService.resolveEnvironment(nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined);
+        printJsonOrText(
+            options,
+            environment,
+            [
+                chalk.cyan(`\nWorkspace environment: ${environment.environmentName}\n`),
+                `Target  : ${chalk.bold(`${environment.instanceTargetName} (${environment.targetKind})`)}`,
+                `Instance: ${chalk.bold(environment.activeInstanceName || environment.globalInstanceId || '(embedded)')}`,
+                `Host    : ${chalk.bold(environment.host)}`,
+                `Project : ${chalk.bold(environment.projectName || environment.projectId || '(none)')}`,
+                `Sync    : ${chalk.bold(environment.workflowDir || environment.syncFolder)}`,
+                `API key : ${chalk.bold(environment.apiKeyAvailable ? environment.apiKeySource : 'missing')}`,
+                '',
+            ].join('\n'),
+        );
     });
 
 program.command('setup')

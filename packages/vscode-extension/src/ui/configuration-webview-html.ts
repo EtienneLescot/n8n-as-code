@@ -338,6 +338,64 @@ export function getConfigurationHtml(nonce: string): string {
               <button id="saveWorkspace">Save settings</button>
               <button id="clearWorkspaceSettings" class="secondary">Clear folder/project</button>
             </div>
+            <div>
+              <h3>Workspace instance targets</h3>
+              <p class="muted">Targets are tracked workspace endpoints. Global refs point to machine-owned n8n-manager instances; embedded targets store only a public URL.</p>
+              <div id="targetList" class="instances"></div>
+            </div>
+            <label>
+              Target name
+              <input id="targetName" type="text" placeholder="Production n8n" />
+            </label>
+            <label>
+              Target type
+              <select id="targetKind">
+                <option value="global-ref">Global n8n-manager instance</option>
+                <option value="embedded">Embedded public URL</option>
+              </select>
+            </label>
+            <label>
+              Global instance
+              <select id="targetGlobalInstance"></select>
+            </label>
+            <label>
+              Public n8n URL
+              <input id="targetBaseUrl" type="text" placeholder="https://prod-n8n.example.com" />
+            </label>
+            <div class="toolbar">
+              <button id="saveTarget">Save target</button>
+            </div>
+            <div>
+              <h3>Workspace environments</h3>
+              <p class="muted">An environment attaches one target, one n8n project, and one local sync folder.</p>
+              <div id="environmentList" class="instances"></div>
+            </div>
+            <label>
+              Environment name
+              <input id="environmentName" type="text" placeholder="Dev" />
+            </label>
+            <label>
+              Instance target
+              <select id="environmentTarget"></select>
+            </label>
+            <label>
+              Project ID
+              <input id="environmentProjectId" type="text" placeholder="personal" />
+            </label>
+            <label>
+              Project name
+              <input id="environmentProjectName" type="text" placeholder="Personal" />
+            </label>
+            <label>
+              Sync folder
+              <input id="environmentSync" type="text" placeholder="workflows/dev" />
+            </label>
+            <label>
+              <span><input id="environmentFolderSync" type="checkbox" /> Enable folder sync</span>
+            </label>
+            <div class="toolbar">
+              <button id="saveEnvironment">Save environment</button>
+            </div>
           </section>
         </div>
       </section>
@@ -483,6 +541,20 @@ export function getConfigurationHtml(nonce: string): string {
       loadProjects: document.getElementById('loadProjects'),
       saveWorkspace: document.getElementById('saveWorkspace'),
       clearWorkspaceSettings: document.getElementById('clearWorkspaceSettings'),
+      targetList: document.getElementById('targetList'),
+      targetName: document.getElementById('targetName'),
+      targetKind: document.getElementById('targetKind'),
+      targetGlobalInstance: document.getElementById('targetGlobalInstance'),
+      targetBaseUrl: document.getElementById('targetBaseUrl'),
+      saveTarget: document.getElementById('saveTarget'),
+      environmentList: document.getElementById('environmentList'),
+      environmentName: document.getElementById('environmentName'),
+      environmentTarget: document.getElementById('environmentTarget'),
+      environmentProjectId: document.getElementById('environmentProjectId'),
+      environmentProjectName: document.getElementById('environmentProjectName'),
+      environmentSync: document.getElementById('environmentSync'),
+      environmentFolderSync: document.getElementById('environmentFolderSync'),
+      saveEnvironment: document.getElementById('saveEnvironment'),
       error: document.getElementById('error'),
       saved: document.getElementById('saved'),
       modal: document.getElementById('instanceModal'),
@@ -522,6 +594,8 @@ export function getConfigurationHtml(nonce: string): string {
     const PERSONAL_PROJECT = { id: 'personal', name: 'Personal', type: 'personal' };
     let projects = [PERSONAL_PROJECT];
     let editingInstanceId = '';
+    let editingTargetId = '';
+    let editingEnvironmentId = '';
     let workspaceInstanceOverrideId = '';
     let connectingInstanceId = '';
     let credentialValues = { username: '', password: '' };
@@ -543,6 +617,12 @@ export function getConfigurationHtml(nonce: string): string {
     }
     function providers() {
       return state.providers || [];
+    }
+    function targets() {
+      return state.workspace?.instanceTargets || [];
+    }
+    function environments() {
+      return state.workspace?.environments || [];
     }
     function instanceById(id) {
       return instances().find((instance) => instance.id === id);
@@ -568,6 +648,10 @@ export function getConfigurationHtml(nonce: string): string {
       const effective = state.effective;
       workspaceInstanceOverrideId = workspace.activeInstanceId || '';
       els.workspaceSync.value = workspace.syncFolder || '';
+      renderTargetControls();
+      renderTargetList();
+      renderEnvironmentControls();
+      renderEnvironmentList();
       renderInstanceList();
       renderProjects(workspace.projectId || effective?.projectId || 'personal');
       renderProviders();
@@ -651,6 +735,15 @@ export function getConfigurationHtml(nonce: string): string {
         const actions = document.createElement('div');
         actions.className = 'toolbar';
         const edit = button('Edit', 'secondary compact', () => openModal(instance));
+        const attach = button('Add target', 'secondary compact', () => {
+          editingTargetId = '';
+          els.targetName.value = instance.name || instance.id;
+          els.targetKind.value = 'global-ref';
+          els.targetGlobalInstance.value = instance.id;
+          els.targetBaseUrl.value = '';
+          renderTargetKindFields();
+          post('saveInstanceTarget', { name: els.targetName.value, instanceRef: instance.id });
+        });
         const del = button('Delete', 'danger compact', () => {
           post('deleteInstance', { instanceId: instance.id, instanceName: instance.name || instance.id });
         });
@@ -666,6 +759,7 @@ export function getConfigurationHtml(nonce: string): string {
             actions.append(button('Credentials', 'secondary compact', () => post('showManagedCredentials', { instanceId: instance.id })));
           }
         }
+        actions.append(attach);
         actions.append(edit);
         actions.append(del);
         foot.append(hint, actions);
@@ -675,6 +769,109 @@ export function getConfigurationHtml(nonce: string): string {
         });
         row.append(main);
         els.instanceList.appendChild(row);
+      }
+    }
+    function renderTargetControls() {
+      els.targetGlobalInstance.innerHTML = '';
+      for (const instance of instances()) {
+        const opt = document.createElement('option');
+        opt.value = instance.id;
+        opt.textContent = instance.name || instance.id;
+        els.targetGlobalInstance.appendChild(opt);
+      }
+      renderTargetKindFields();
+    }
+    function renderTargetKindFields() {
+      const embedded = els.targetKind.value === 'embedded';
+      els.targetGlobalInstance.closest('label').style.display = embedded ? 'none' : 'grid';
+      els.targetBaseUrl.closest('label').style.display = embedded ? 'grid' : 'none';
+    }
+    function renderTargetList() {
+      els.targetList.innerHTML = '';
+      if (!targets().length) {
+        const empty = document.createElement('p');
+        empty.className = 'muted';
+        empty.textContent = 'No workspace instance targets yet.';
+        els.targetList.appendChild(empty);
+        return;
+      }
+      for (const target of targets()) {
+        const row = document.createElement('div');
+        row.className = 'instance-row';
+        const main = document.createElement('div');
+        main.className = 'instance-main';
+        const top = document.createElement('div');
+        top.className = 'instance-top';
+        const identity = document.createElement('div');
+        identity.className = 'instance-identity';
+        const title = document.createElement('div');
+        title.className = 'instance-title';
+        title.textContent = target.name || target.id;
+        const detail = document.createElement('div');
+        detail.className = 'instance-mode';
+        detail.textContent = target.kind === 'global-ref' ? 'Global ref: ' + target.instanceRef : 'Embedded URL: ' + target.instance?.baseUrl;
+        identity.append(title, detail);
+        const status = document.createElement('div');
+        status.className = 'instance-status';
+        status.appendChild(badge(target.kind, target.kind === 'embedded' ? 'warning' : 'ready'));
+        top.append(identity, status);
+        const actions = document.createElement('div');
+        actions.className = 'toolbar';
+        actions.append(button('Edit', 'secondary compact', () => editTarget(target)));
+        actions.append(button('Remove', 'danger compact', () => post('deleteInstanceTarget', { targetId: target.id })));
+        main.append(top, actions);
+        row.append(main);
+        els.targetList.appendChild(row);
+      }
+    }
+    function renderEnvironmentControls() {
+      els.environmentTarget.innerHTML = '';
+      for (const target of targets()) {
+        const opt = document.createElement('option');
+        opt.value = target.id;
+        opt.textContent = target.name || target.id;
+        els.environmentTarget.appendChild(opt);
+      }
+    }
+    function renderEnvironmentList() {
+      els.environmentList.innerHTML = '';
+      if (!environments().length) {
+        const empty = document.createElement('p');
+        empty.className = 'muted';
+        empty.textContent = 'No workspace environments yet.';
+        els.environmentList.appendChild(empty);
+        return;
+      }
+      for (const env of environments()) {
+        const row = document.createElement('div');
+        const active = env.id === state.workspace?.activeEnvironmentId;
+        row.className = 'instance-row' + (active ? ' selected' : '');
+        const main = document.createElement('div');
+        main.className = 'instance-main';
+        const top = document.createElement('div');
+        top.className = 'instance-top';
+        const identity = document.createElement('div');
+        identity.className = 'instance-identity';
+        const title = document.createElement('div');
+        title.className = 'instance-title';
+        title.textContent = env.name || env.id;
+        const target = targets().find((item) => item.id === env.instanceTargetId);
+        const detail = document.createElement('div');
+        detail.className = 'instance-mode';
+        detail.textContent = [target?.name || env.instanceTargetId, env.projectName || env.projectId, env.syncFolder].filter(Boolean).join(' · ');
+        identity.append(title, detail);
+        const status = document.createElement('div');
+        status.className = 'instance-status';
+        if (active) status.appendChild(badge('Default', 'active'));
+        top.append(identity, status);
+        const actions = document.createElement('div');
+        actions.className = 'toolbar';
+        actions.append(button('Edit', 'secondary compact', () => editEnvironment(env)));
+        if (!active) actions.append(button('Pin', 'secondary compact', () => post('pinEnvironment', { environmentId: env.id })));
+        actions.append(button('Remove', 'danger compact', () => post('deleteEnvironment', { environmentId: env.id })));
+        main.append(top, actions);
+        row.append(main);
+        els.environmentList.appendChild(row);
       }
     }
     function badge(text, cls) {
@@ -738,7 +935,7 @@ export function getConfigurationHtml(nonce: string): string {
       const cards = [
         ['Extension', state.about?.extensionVersion || 'unknown'],
         ['n8nac dependency', state.about?.cliVersion || 'unknown'],
-        ['Workspace', state.effective?.activeInstanceName || state.effective?.activeInstanceId || 'No active n8n instance'],
+        ['Workspace', state.workspace?.activeEnvironment?.name || state.workspace?.activeEnvironmentId || state.effective?.activeInstanceName || state.effective?.activeInstanceId || 'No active n8n environment'],
       ];
       for (const [title, value] of cards) {
         const card = document.createElement('div');
@@ -804,6 +1001,39 @@ export function getConfigurationHtml(nonce: string): string {
     }
     function currentWorkspaceInstanceId() {
       return workspaceInstanceOverrideId;
+    }
+    function editTarget(target) {
+      editingTargetId = target?.id || '';
+      els.targetName.value = target?.name || '';
+      els.targetKind.value = target?.kind || 'global-ref';
+      els.targetGlobalInstance.value = target?.instanceRef || '';
+      els.targetBaseUrl.value = target?.instance?.baseUrl || '';
+      renderTargetKindFields();
+    }
+    function editEnvironment(env) {
+      editingEnvironmentId = env?.id || '';
+      els.environmentName.value = env?.name || '';
+      els.environmentTarget.value = env?.instanceTargetId || targets()[0]?.id || '';
+      els.environmentProjectId.value = env?.projectId || '';
+      els.environmentProjectName.value = env?.projectName || '';
+      els.environmentSync.value = env?.syncFolder || '';
+      els.environmentFolderSync.checked = Boolean(env?.folderSync);
+    }
+    function clearTargetForm() {
+      editingTargetId = '';
+      els.targetName.value = '';
+      els.targetBaseUrl.value = '';
+      els.targetKind.value = 'global-ref';
+      renderTargetKindFields();
+    }
+    function clearEnvironmentForm() {
+      editingEnvironmentId = '';
+      els.environmentName.value = '';
+      els.environmentTarget.value = targets()[0]?.id || '';
+      els.environmentProjectId.value = '';
+      els.environmentProjectName.value = '';
+      els.environmentSync.value = '';
+      els.environmentFolderSync.checked = false;
     }
     function openConnectModal(instance) {
       connectingInstanceId = instance?.id || '';
@@ -902,6 +1132,29 @@ export function getConfigurationHtml(nonce: string): string {
     els.copyCredentialUsername.addEventListener('click', () => copyText(credentialValues.username));
     els.copyCredentialPassword.addEventListener('click', () => copyText(credentialValues.password));
     els.modalMode.addEventListener('change', renderModalFields);
+    els.targetKind.addEventListener('change', renderTargetKindFields);
+    els.saveTarget.addEventListener('click', () => {
+      const embedded = els.targetKind.value === 'embedded';
+      post('saveInstanceTarget', {
+        targetId: editingTargetId,
+        name: els.targetName.value,
+        instanceRef: embedded ? '' : els.targetGlobalInstance.value,
+        baseUrl: embedded ? normalizeHost(els.targetBaseUrl.value) : '',
+      });
+      clearTargetForm();
+    });
+    els.saveEnvironment.addEventListener('click', () => {
+      post('saveEnvironment', {
+        environmentId: editingEnvironmentId,
+        name: els.environmentName.value,
+        instanceTargetId: els.environmentTarget.value,
+        projectId: els.environmentProjectId.value,
+        projectName: els.environmentProjectName.value,
+        syncFolder: els.environmentSync.value,
+        folderSync: els.environmentFolderSync.checked,
+      });
+      clearEnvironmentForm();
+    });
     els.saveInstance.addEventListener('click', () => {
       post('saveGlobalInstance', {
         instanceId: editingInstanceId,

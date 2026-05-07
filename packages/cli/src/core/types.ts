@@ -64,6 +64,12 @@ export interface ISyncConfig {
     instanceConfigPath?: string; // Optional: explicit path for n8nac-config.json
     projectId: string;           // REQUIRED: Project scope for sync
     projectName: string;         // REQUIRED: Project display name
+    folderSync?: boolean;
+    environmentId?: string;
+    environmentName?: string;
+    instanceTargetId?: string;
+    instanceTargetName?: string;
+    targetKind?: 'global-ref' | 'embedded';
 }
 
 // ── Execution / Test types ────────────────────────────────────────────────────

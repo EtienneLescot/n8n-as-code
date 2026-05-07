@@ -163,6 +163,7 @@ function trimProcessedSyncEvents(): void {
 
 type SwitchInstanceCommandArgs = {
     instanceId?: string;
+    environmentId?: string;
     silent?: boolean;
 };
 
@@ -174,6 +175,10 @@ type DeleteInstanceCommandArgs = {
 
 type InstanceQuickPickItem = vscode.QuickPickItem & {
     instanceId: string;
+};
+
+type EnvironmentQuickPickItem = vscode.QuickPickItem & {
+    environmentId: string;
 };
 
 function findWorkflowByCommandArg(arg: any): IWorkflowStatus | undefined {
@@ -1286,6 +1291,19 @@ function toInstanceQuickPickItem(
     };
 }
 
+function toEnvironmentQuickPickItem(
+    environment: { id: string; name: string; instanceTargetId: string; projectName?: string; syncFolder?: string },
+    activeEnvironmentId?: string,
+): EnvironmentQuickPickItem {
+    return {
+        label: environment.name,
+        description: environment.projectName || environment.instanceTargetId,
+        detail: environment.syncFolder || (environment.id === activeEnvironmentId ? 'Currently active' : ''),
+        picked: environment.id === activeEnvironmentId,
+        environmentId: environment.id,
+    };
+}
+
 async function switchWorkspaceInstance(
     context: vscode.ExtensionContext,
     args: SwitchInstanceCommandArgs = {}
@@ -1297,20 +1315,20 @@ async function switchWorkspaceInstance(
     }
 
     const configService = new ConfigService(workspaceRoot);
-    const instances = configService.listInstances();
-    if (!instances.length) {
-        vscode.window.showWarningMessage('No configured n8n instances found.');
+    const environments = configService.listEnvironments();
+    if (!environments.length) {
+        vscode.window.showWarningMessage('No workspace environments found. Create one in n8n: Configure.');
         return undefined;
     }
 
-    const activeInstanceId = configService.getActiveInstanceId();
-    let targetInstanceId = args.instanceId?.trim();
+    const activeEnvironmentId = configService.getWorkspaceConfig().activeEnvironmentId;
+    let targetEnvironmentId = args.environmentId?.trim() || args.instanceId?.trim();
 
-    if (!targetInstanceId) {
+    if (!targetEnvironmentId) {
         const picked = await vscode.window.showQuickPick(
-            instances.map((instance) => toInstanceQuickPickItem(instance, activeInstanceId)),
+            environments.map((environment) => toEnvironmentQuickPickItem(environment, activeEnvironmentId)),
             {
-                title: 'Select the active n8n instance',
+                title: 'Select the active workspace environment',
                 ignoreFocusOut: true,
             }
         );
@@ -1319,40 +1337,29 @@ async function switchWorkspaceInstance(
             return undefined;
         }
 
-        targetInstanceId = picked.instanceId;
+        targetEnvironmentId = picked.environmentId;
     }
 
-    if (targetInstanceId === activeInstanceId) {
-        return targetInstanceId;
+    if (targetEnvironmentId === activeEnvironmentId) {
+        return targetEnvironmentId;
     }
 
-    const selection = await configService.selectInstanceConfigWithVerification(targetInstanceId);
-    const selectedInstance = selection.profile;
+    const selectedEnvironment = configService.pinEnvironment(targetEnvironmentId);
 
     if (syncManager) {
         await reinitializeSyncManager(context);
     } else {
         await determineInitialState(context);
     }
-    await refreshConfigurationSnapshotAfterHandledMutation('command-switch-global-instance');
+    await refreshConfigurationSnapshotAfterHandledMutation('command-switch-workspace-environment');
 
     updateContextKeys();
 
     if (!args.silent) {
-        if (selection.status === 'duplicate') {
-            vscode.window.showWarningMessage(
-                `This config resolves to the existing global instance "${selection.duplicateInstance.name}". Switched to that verified instance instead.`
-            );
-        } else if (selection.verificationStatus === 'failed') {
-            vscode.window.showWarningMessage(
-                `Active n8n instance: ${selectedInstance.name}. Verification failed, but the config remains saved.`
-            );
-        } else {
-            vscode.window.showInformationMessage(`Active n8n instance: ${selectedInstance.name}`);
-        }
+        vscode.window.showInformationMessage(`Active n8n environment: ${selectedEnvironment.name}`);
     }
 
-    return selectedInstance.id;
+    return selectedEnvironment.id;
 }
 
 async function pinWorkspaceInstance(
@@ -1366,42 +1373,42 @@ async function pinWorkspaceInstance(
     }
 
     const configService = new ConfigService(workspaceRoot);
-    const instances = configService.listInstances();
-    if (!instances.length) {
-        vscode.window.showWarningMessage('No configured n8n instances found.');
+    const environments = configService.listEnvironments();
+    if (!environments.length) {
+        vscode.window.showWarningMessage('No workspace environments found. Create one in n8n: Configure.');
         return undefined;
     }
 
-    let targetInstanceId = args.instanceId?.trim();
-    if (!targetInstanceId) {
-        const activeInstanceId = configService.getActiveInstanceId();
+    let targetEnvironmentId = args.environmentId?.trim() || args.instanceId?.trim();
+    if (!targetEnvironmentId) {
+        const activeEnvironmentId = configService.getWorkspaceConfig().activeEnvironmentId;
         const picked = await vscode.window.showQuickPick(
-            instances.map((instance) => toInstanceQuickPickItem(instance, activeInstanceId)),
+            environments.map((environment) => toEnvironmentQuickPickItem(environment, activeEnvironmentId)),
             {
-                title: 'Pin n8n instance for this workspace',
+                title: 'Pin workspace environment',
                 ignoreFocusOut: true,
             }
         );
         if (!picked) {
             return undefined;
         }
-        targetInstanceId = picked.instanceId;
+        targetEnvironmentId = picked.environmentId;
     }
 
-    const selectedInstance = configService.pinWorkspaceInstance(targetInstanceId);
+    const selectedEnvironment = configService.pinEnvironment(targetEnvironmentId);
     if (syncManager) {
         await reinitializeSyncManager(context);
     } else {
         await determineInitialState(context);
     }
-    await refreshConfigurationSnapshotAfterHandledMutation('command-pin-workspace-instance');
+    await refreshConfigurationSnapshotAfterHandledMutation('command-pin-workspace-environment');
     updateContextKeys();
 
     if (!args.silent) {
-        vscode.window.showInformationMessage(`Workspace n8n instance pinned: ${selectedInstance.name}`);
+        vscode.window.showInformationMessage(`Workspace environment pinned: ${selectedEnvironment.name}`);
     }
 
-    return selectedInstance.id;
+    return selectedEnvironment.id;
 }
 
 async function clearWorkspaceInstancePin(context: vscode.ExtensionContext): Promise<void> {
@@ -1412,15 +1419,18 @@ async function clearWorkspaceInstancePin(context: vscode.ExtensionContext): Prom
     }
 
     const configService = new ConfigService(workspaceRoot);
-    configService.clearWorkspaceInstanceOverride();
+    const environments = configService.listEnvironments();
+    if (environments[0]) {
+        configService.pinEnvironment(environments[0].id);
+    }
     if (syncManager) {
         await reinitializeSyncManager(context);
     } else {
         await determineInitialState(context);
     }
-    await refreshConfigurationSnapshotAfterHandledMutation('command-clear-workspace-instance');
+    await refreshConfigurationSnapshotAfterHandledMutation('command-clear-workspace-environment');
     updateContextKeys();
-    vscode.window.showInformationMessage('Workspace n8n instance pin cleared.');
+    vscode.window.showInformationMessage('Workspace environment reset to the first configured environment.');
 }
 
 async function deleteWorkspaceInstance(
@@ -1798,25 +1808,30 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     if (!workspaceRoot) throw new Error(NO_WORKSPACE_ERROR_MESSAGE);
 
     const facade = createN8nManagerFacade({ workspaceRoot });
-    const prepared = await facade.prepareEffectiveContext({
+    const configService = new ConfigService(workspaceRoot);
+    const workspaceConfig = configService.getWorkspaceConfig();
+    const environment = workspaceConfig.version === 4
+        ? await configService.prepareEnvironment()
+        : undefined;
+    const prepared = environment ? undefined : await facade.prepareEffectiveContext({
         workspaceRoot,
         syncFolderDefault: 'workspace',
         consumer: 'vscode',
         autoStart: true,
     });
-    if (prepared.runtime.blocked) {
+    if (prepared?.runtime.blocked) {
         throw new Error(prepared.runtime.blocked.message);
     }
 
-    const effective = prepared.context;
+    const effective = prepared?.context;
     const resolvedConfig = {
         ...getResolvedN8nConfig(workspaceRoot),
-        activeInstanceId: effective.activeInstanceId,
-            host: effective.apiBaseUrl ?? effective.host,
-        apiKey: effective.apiKey,
-        syncFolder: effective.syncFolder,
-        projectId: effective.projectId,
-        projectName: effective.projectName,
+        activeInstanceId: environment?.activeInstanceId || effective?.activeInstanceId || '',
+        host: environment?.host || effective?.apiBaseUrl || effective?.host || '',
+        apiKey: environment?.apiKey || effective?.apiKey || '',
+        syncFolder: environment?.syncFolder || effective?.syncFolder || 'workflows',
+        projectId: environment?.projectId || effective?.projectId || '',
+        projectName: environment?.projectName || effective?.projectName || '',
     };
 
     const { host, apiKey } = resolvedConfig;
@@ -1870,10 +1885,10 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         });
         instanceIdentifier = resolution.identifier;
         outputChannel.appendLine(`[n8n] Instance identifier: ${instanceIdentifier}`);
-        const currentIdentifier = effective.instance.instanceIdentifier;
-        if (!isCanonicalUserInstanceIdentifier(currentIdentifier)) {
+        const currentIdentifier = environment?.instanceIdentifier || effective?.instance.instanceIdentifier;
+        if (!environment && !isCanonicalUserInstanceIdentifier(currentIdentifier)) {
             await facade.upsertInstance({
-                id: effective.activeInstanceId,
+                id: effective?.activeInstanceId,
                 instanceIdentifier,
             }, { setActive: false });
         }
@@ -1889,7 +1904,12 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         instanceIdentifier,
         instanceConfigPath: path.join(workspaceRoot, 'n8nac-config.json'),
         projectId: projectId!,
-        projectName: projectName!
+        projectName: projectName!,
+        environmentId: environment?.environmentId,
+        environmentName: environment?.environmentName,
+        instanceTargetId: environment?.instanceTargetId,
+        instanceTargetName: environment?.instanceTargetName,
+        targetKind: environment?.targetKind,
     });
 
     // Create CliApi — the thin facade that all command handlers use.

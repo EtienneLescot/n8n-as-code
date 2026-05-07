@@ -13,6 +13,10 @@ export interface ResolvedN8nWorkspaceConfig {
   projectName: string;
   activeInstanceId: string;
   activeInstanceName: string;
+  environmentId?: string;
+  environmentName?: string;
+  instanceTargetId?: string;
+  instanceTargetName?: string;
 }
 
 function readString(value: unknown): string {
@@ -35,6 +39,28 @@ function getEnvValue(key: 'N8N_HOST' | 'N8N_API_KEY'): string {
 export function getResolvedN8nConfig(workspaceRoot = getWorkspaceRoot()): ResolvedN8nWorkspaceConfig {
   const unified = workspaceRoot ? readUnifiedWorkspaceConfig(workspaceRoot) : undefined;
   const configService = workspaceRoot ? new ConfigService(workspaceRoot) : undefined;
+  const environment = configService ? (() => {
+    try {
+      return configService.resolveEnvironment();
+    } catch {
+      return undefined;
+    }
+  })() : undefined;
+  if (environment) {
+    return {
+      host: normalizeHost(environment.host) || getEnvValue('N8N_HOST'),
+      apiKey: environment.apiKey || getSettingsValue('apiKey') || getEnvValue('N8N_API_KEY'),
+      syncFolder: environment.syncFolder || 'workflows',
+      projectId: environment.projectId || '',
+      projectName: environment.projectName || '',
+      activeInstanceId: environment.activeInstanceId || '',
+      activeInstanceName: environment.activeInstanceName || environment.instanceTargetName || '',
+      environmentId: environment.environmentId,
+      environmentName: environment.environmentName,
+      instanceTargetId: environment.instanceTargetId,
+      instanceTargetName: environment.instanceTargetName,
+    };
+  }
   const activeInstance = workspaceRoot && configService ? configService.getActiveInstance() : undefined;
   const host = normalizeHost(
     readString(unified?.host) || getSettingsValue('host') || getEnvValue('N8N_HOST')
