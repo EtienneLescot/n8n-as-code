@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
-import { ConfigService, resolveInstanceIdentifier } from 'n8nac';
+import { ConfigService, N8nApiClient, resolveInstanceIdentifier } from 'n8nac';
 import { getWorkspaceRoot } from '../utils/state-detection.js';
 import type { N8nConfigurationController, N8nConfigurationSnapshot } from '../services/n8n-configuration-controller.js';
 import { YagrProviderService, normalizeYagrProviderId, type YagrModelProvider } from '../services/yagr-provider-service.js';
@@ -154,6 +154,24 @@ export class ConfigurationWebview {
           if (!instanceId && workspaceRoot && instanceTargetId) {
             const target = new ConfigService(workspaceRoot).getInstanceTarget(instanceTargetId);
             if (target.kind === 'global-ref') instanceId = target.instanceRef;
+            if (target.kind === 'embedded') {
+              const apiKey = process.env.N8N_API_KEY?.trim().replace(/^['"]|['"]$/g, '');
+              if (!apiKey) throw new Error('N8N_API_KEY is required to load projects from an embedded workspace target.');
+              const projects = await new N8nApiClient({ host: target.instance.baseUrl, apiKey }).getProjects();
+              this._panel.webview.postMessage({
+                type: 'projectsLoaded',
+                projects: projects.map((project) => ({
+                  id: project.id,
+                  name: getCanonicalProjectName(project),
+                  type: project.type,
+                  detail: getProjectDetail(project),
+                  displayName: getProjectDisplayLabel(project),
+                })),
+                selectedProjectId: String(payload.projectId || ''),
+                selectedProjectName: String(payload.projectName || ''),
+              });
+              return;
+            }
           }
           const uiProjects = (await facade.listProjects({
             workspaceRoot,
@@ -181,6 +199,7 @@ export class ConfigurationWebview {
           if (!workspaceRoot) throw new Error('Open a workspace before saving workspace instance targets.');
           const configService = new ConfigService(workspaceRoot);
           const targetId = String(payload.targetId || '').trim();
+          const requestedKind = String(payload.targetKind || '').trim();
           const input = {
             name: String(payload.name || '').trim(),
             instanceRef: String(payload.instanceRef || '').trim() || undefined,
@@ -188,6 +207,10 @@ export class ConfigurationWebview {
             description: String(payload.description || '').trim() || undefined,
           };
           if (targetId) {
+            const existing = configService.getInstanceTarget(targetId);
+            if (requestedKind && requestedKind !== existing.kind) {
+              throw new Error('Changing an instance target type is not supported. Create a new target instead.');
+            }
             configService.updateInstanceTarget(targetId, input);
           } else {
             configService.addInstanceTarget(input);
@@ -362,6 +385,9 @@ export class ConfigurationWebview {
 
         case 'saveWorkspaceContext': {
           if (!workspaceRoot) throw new Error('Open a workspace before saving workspace n8n settings.');
+          if (new ConfigService(workspaceRoot).getWorkspaceConfig().version === 4) {
+            throw new Error('This workspace uses environments. Pin or edit an environment instead of saving legacy workspace settings.');
+          }
           const syncFolder = String(payload.syncFolder || '').trim();
           await facade.writeWorkspaceOverrides({
             version: 3,

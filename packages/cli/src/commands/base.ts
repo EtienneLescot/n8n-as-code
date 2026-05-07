@@ -28,8 +28,9 @@ export class BaseCommand {
         // environment; otherwise fall back to the locally active environment or legacy instance config.
         const requestedEnvironment = process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
         const requestedInstanceName = process.env.N8NAC_INSTANCE_NAME?.trim() || undefined;
-        if (requestedEnvironment && requestedInstanceName) {
-            console.error(chalk.red('❌ Use either --env or --instance, not both.'));
+        if (requestedInstanceName) {
+            console.error(chalk.red('❌ Direct instance targeting is no longer supported by n8nac.'));
+            console.error(chalk.yellow('Create a workspace environment with `n8nac instance-target add ...` and `n8nac env add ...`, then use `--env <name>`.'));
             process.exit(1);
         }
 
@@ -64,39 +65,6 @@ export class BaseCommand {
             directory = resolvedEnvironment.syncFolder || this.configService.resolveWorkspacePath('./workflows');
             folderSync = resolvedEnvironment.folderSync ?? false;
             this.instanceIdentifier = resolvedEnvironment.instanceIdentifier || null;
-        } else if (requestedInstanceName) {
-            const matches = this.configService.listInstances().filter(
-                (i) => i.name.toLowerCase() === requestedInstanceName.toLowerCase()
-            );
-            if (matches.length === 0) {
-                console.error(chalk.red(`❌ Unknown instance: "${requestedInstanceName}". Run \`n8n-manager instances list\` to see available instances.`));
-                process.exit(1);
-            }
-            if (matches.length > 1) {
-                const duplicateInstances = matches
-                    .map((i) => `- ${i.name} (${i.id})`)
-                    .join('\n');
-                console.error(chalk.red(`❌ Ambiguous instance name: "${requestedInstanceName}". Multiple global n8n-manager instances match this name:`));
-                console.error(chalk.yellow(duplicateInstances));
-                console.error(chalk.yellow('Please rename the instance(s) to use unique names, or use an `--instance-id` option if available.'));
-                process.exit(1);
-            }
-            const match = matches[0];
-            host = match.host || '';
-            apiKey = host ? (this.configService.getApiKey(host, match.id) || '') : '';
-            const effectiveContext = this.configService.getEffectiveContext(match.id);
-            const canPrepareManagedRuntime = effectiveContext?.instance.mode === 'managed-local-docker' && Boolean(host);
-            if (!host || !apiKey) {
-                if (!canPrepareManagedRuntime) {
-                    console.error(chalk.red(`❌ Instance "${requestedInstanceName}" has no host or API key configured.`));
-                    process.exit(1);
-                }
-                apiKey = '';
-            }
-            this.activeInstanceId = match.id;
-            const effectiveConfig = this.configService.getEffectiveInstanceConfig(match.id) ?? match;
-            directory = this.configService.resolveWorkspacePath(effectiveConfig.syncFolder || './workflows');
-            folderSync = effectiveConfig.folderSync ?? false;
         } else {
             const localConfig = this.configService.getLocalConfig();
             this.activeInstanceId = this.configService.getActiveInstanceId();
@@ -142,7 +110,7 @@ export class BaseCommand {
             apiKeyConfigured: Boolean(apiKey),
             folderSync,
         };
-        this.runtimePrepared = envCredentialsProvided;
+        this.runtimePrepared = envCredentialsProvided && !this.activeEnvironmentNameOrId;
 
         // Silently refresh AGENTS.md in the background if the installed n8nac version changed.
         // Spawned as a fully-detached child process so it never blocks the command, never
@@ -176,6 +144,10 @@ export class BaseCommand {
             return this.instanceIdentifier;
         }
 
+        if (this.activeEnvironment?.targetKind === 'embedded' && this.activeEnvironment.instanceIdentifier) {
+            this.instanceIdentifier = this.activeEnvironment.instanceIdentifier;
+            return this.instanceIdentifier;
+        }
         this.instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(this.config.host, this.activeInstanceId);
         return this.instanceIdentifier;
     }
@@ -242,6 +214,7 @@ export class BaseCommand {
             }
 
             this.activeEnvironment = preparedEnvironment || this.activeEnvironment;
+            this.instanceIdentifier = preparedEnvironment?.instanceIdentifier || this.instanceIdentifier;
             this.activeInstanceId = context.activeInstanceId;
             this.client = new N8nApiClient({ host: context.host, apiKey: context.apiKey } as IN8nCredentials);
             this.config = {

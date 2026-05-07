@@ -1049,6 +1049,19 @@ async function resolveWorkflowWebviewTarget(workflow: IWorkflowStatus): Promise<
 
     const workspaceRoot = getWorkspaceRoot();
     const facade = createN8nManagerFacade({ workspaceRoot });
+    if (workspaceRoot) {
+        const configService = new ConfigService(workspaceRoot);
+        const workspaceConfig = configService.getWorkspaceConfig();
+        if (workspaceConfig.version === 4) {
+            const environment = await configService.prepareEnvironment();
+            const n8nBaseUrl = environment.host;
+            const proxyUrl = await proxyService.start(n8nBaseUrl);
+            const workflowUrl = new URL(`/workflow/${encodeURIComponent(workflow.id)}`, n8nBaseUrl.endsWith('/') ? n8nBaseUrl : `${n8nBaseUrl}/`);
+            workflowUrl.searchParams.set('_n8nacBridge', String(Date.now()));
+            outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} in workspace environment ${environment.environmentName}.`);
+            return { url: `${proxyUrl}/workflow/${encodeURIComponent(workflow.id)}?_n8nacBridge=${Date.now()}`, targetUrl: workflowUrl.toString() };
+        }
+    }
     const prepared = await facade.prepareEffectiveContext({
         workspaceRoot,
         syncFolderDefault: workspaceRoot ? 'workspace' : 'global',
@@ -1846,7 +1859,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     const health = await client.getHealth();
 
     if (!projectId || !projectName) {
-        const projects = await facade.listProjects({
+        const projects = environment ? await client.getProjects() : await facade.listProjects({
             workspaceRoot,
             syncFolderDefault: 'workspace',
             consumer: 'vscode',
