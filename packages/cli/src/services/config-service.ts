@@ -30,10 +30,120 @@ export interface IInstanceProfile extends ILocalConfig {
     verification?: IInstanceVerification;
 }
 
+export interface IWorkspaceEmbeddedInstance {
+    mode: 'existing';
+    baseUrl: string;
+    name?: string;
+    instanceIdentifier?: string;
+    verification?: IInstanceVerification;
+}
+
+export interface IWorkspaceGlobalInstanceTarget {
+    id: string;
+    name: string;
+    kind: 'global-ref';
+    instanceRef: string;
+    description?: string;
+    globalInstanceId?: string;
+    instanceName?: string;
+    baseUrl?: string;
+    apiKeyAvailable?: boolean;
+    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+    accessStatus?: EnvironmentAccessStatus;
+}
+
+export interface IWorkspaceEmbeddedInstanceTarget {
+    id: string;
+    name: string;
+    kind: 'embedded';
+    instance: IWorkspaceEmbeddedInstance;
+    description?: string;
+    baseUrl?: string;
+    apiKeyAvailable?: boolean;
+    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+    accessStatus?: EnvironmentAccessStatus;
+}
+
+export type IWorkspaceInstanceTarget = IWorkspaceGlobalInstanceTarget | IWorkspaceEmbeddedInstanceTarget;
+
+export interface IWorkspaceEnvironment {
+    id: string;
+    name: string;
+    instanceTargetId: string;
+    projectId?: string;
+    projectName?: string;
+    syncFolder: string;
+    folderSync?: boolean;
+    customNodesPath?: string;
+    description?: string;
+    targetKind?: 'global-ref' | 'embedded';
+    instanceTargetName?: string;
+    globalInstanceId?: string;
+    instanceName?: string;
+    baseUrl?: string;
+    workflowDir?: string;
+    apiKeyAvailable?: boolean;
+    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+    accessStatus?: EnvironmentAccessStatus;
+}
+
+export type EnvironmentAccessStatus =
+    | 'ready'
+    | 'missing-api-key'
+    | 'invalid-api-key'
+    | 'project-inaccessible'
+    | 'insufficient-workflow-permissions'
+    | 'runtime-unavailable'
+    | 'unknown';
+
+export interface IPersistedWorkspaceConfigV4 {
+    version: 4;
+    activeEnvironmentId?: string;
+    instanceTargets: IWorkspaceInstanceTarget[];
+    environments: IWorkspaceEnvironment[];
+}
+
 export interface IWorkspaceConfig extends ILocalConfig {
-    version: 3;
+    version: 3 | 4;
     activeInstanceId?: string;
     instances: IInstanceProfile[];
+    activeEnvironmentId?: string;
+    activeEnvironment?: IWorkspaceEnvironment;
+    instanceTargets?: IWorkspaceInstanceTarget[];
+    environments?: IWorkspaceEnvironment[];
+    targetKind?: 'global-ref' | 'embedded';
+    instanceTargetId?: string;
+    instanceTargetName?: string;
+    apiKeyAvailable?: boolean;
+    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+}
+
+export interface IResolvedWorkspaceEnvironment extends ILocalConfig {
+    environment: IWorkspaceEnvironment;
+    instanceTarget: IWorkspaceInstanceTarget;
+    instance: IInstanceProfile | IWorkspaceEmbeddedInstance;
+    environmentId: string;
+    environmentName: string;
+    instanceTargetId: string;
+    instanceTargetName: string;
+    activeInstanceId?: string;
+    activeInstanceName: string;
+    targetKind: 'global-ref' | 'embedded';
+    globalInstanceId?: string;
+    host: string;
+    apiKey?: string;
+    apiKeySource: 'env' | 'workspace-local' | 'global' | 'missing';
+    apiKeyAvailable: boolean;
+    accessStatus: EnvironmentAccessStatus;
+    syncFolder: string;
+    instanceIdentifier?: string;
+    workflowDir?: string;
+    sources: {
+        environment: 'explicit' | 'workspace-default' | 'legacy' | 'global-fallback';
+        instance: 'global-ref' | 'embedded';
+        project: 'environment' | 'instance-default' | 'missing';
+        syncFolder: 'environment';
+    };
 }
 
 export interface ILegacyWorkspaceMigrationInstance extends Partial<ILocalConfig> {
@@ -84,12 +194,15 @@ export class ConfigService {
         this.runtime = new N8nRuntimeOrchestrator({ configuration: this.manager });
     }
 
-    getLocalConfig(): Partial<ILocalConfig> {
-        this.manager.readWorkspaceOverrides(this.workspaceRoot);
+    getLocalConfig(environmentNameOrId?: string): Partial<ILocalConfig> {
         try {
-            return this.contextToLocalConfig(this.resolveWorkspaceContext());
+            return this.environmentToLocalConfig(this.resolveEnvironment(environmentNameOrId));
         } catch {
-            return {};
+            try {
+                return this.contextToLocalConfig(this.resolveWorkspaceContext());
+            } catch {
+                return {};
+            }
         }
     }
 
@@ -101,6 +214,29 @@ export class ConfigService {
                 'Run `n8nac workspace migrate-v1` to inspect it, then `n8nac workspace migrate-v1 --write` to migrate it.'
             );
         }
+        const persisted = this.readWorkspaceConfigFile();
+        if (persisted.version === 4) {
+            const instances = this.listInstances();
+            const effective = tryResolve(() => this.resolveEnvironment());
+            const instanceTargets = persisted.instanceTargets.map((target) => this.instanceTargetToSnapshot(target));
+            const environments = persisted.environments.map((environment) => this.environmentToSnapshot(environment));
+            return {
+                version: 4,
+                activeEnvironmentId: persisted.activeEnvironmentId,
+                activeInstanceId: effective?.activeInstanceId,
+                activeEnvironment: effective?.environment,
+                instanceTargets,
+                environments,
+                instances,
+                ...(effective ? this.environmentToLocalConfig(effective) : {}),
+                targetKind: effective?.targetKind,
+                instanceTargetId: effective?.instanceTargetId,
+                instanceTargetName: effective?.instanceTargetName,
+                apiKeyAvailable: effective?.apiKeyAvailable,
+                credentialSource: effective?.apiKeySource,
+            };
+        }
+
         const overrides = this.manager.readWorkspaceOverrides(this.workspaceRoot);
         const instances = this.listInstances();
         const effective = tryResolve(() => this.resolveWorkspaceContext());
@@ -127,12 +263,281 @@ export class ConfigService {
         };
     }
 
+    listInstanceTargets(): IWorkspaceInstanceTarget[] {
+        return this.ensureV4WorkspaceConfig().instanceTargets;
+    }
+
+    listEnvironments(): IWorkspaceEnvironment[] {
+        return this.ensureV4WorkspaceConfig().environments;
+    }
+
+    addInstanceTarget(input: { name: string; instanceRef?: string; baseUrl?: string; id?: string; description?: string }): IWorkspaceInstanceTarget {
+        const name = cleanRequired(input.name, 'Instance target name');
+        const hasRef = Boolean(input.instanceRef?.trim());
+        const hasBaseUrl = Boolean(input.baseUrl?.trim());
+        if (hasRef === hasBaseUrl) {
+            throw new Error('Provide exactly one of --instance-ref or --base-url.');
+        }
+
+        const config = this.ensureV4WorkspaceConfig();
+        const id = this.uniqueWorkspaceId(input.id || this.slugId(name), [
+            ...config.instanceTargets.map((target) => target.id),
+            ...config.environments.map((environment) => environment.id),
+        ]);
+        this.assertUniqueName(name, config.instanceTargets, 'instance target');
+
+        const target: IWorkspaceInstanceTarget = hasRef
+            ? {
+                id,
+                name,
+                kind: 'global-ref',
+                instanceRef: this.resolveExistingGlobalInstanceRef(input.instanceRef),
+                description: input.description,
+            }
+            : {
+                id,
+                name,
+                kind: 'embedded',
+                instance: {
+                    mode: 'existing',
+                    baseUrl: cleanRequired(input.baseUrl, 'Base URL'),
+                    name,
+                },
+                description: input.description,
+            };
+
+        const next = {
+            ...config,
+            instanceTargets: [...config.instanceTargets, target],
+        };
+        this.writeWorkspaceConfigV4(next);
+        return target;
+    }
+
+    updateInstanceTarget(nameOrId: string, patch: { name?: string; instanceRef?: string; baseUrl?: string; description?: string }): IWorkspaceInstanceTarget {
+        const config = this.ensureV4WorkspaceConfig();
+        const target = this.findInstanceTarget(config, nameOrId);
+        const nextName = cleanOptional(patch.name) || target.name;
+        if (nextName.toLowerCase() !== target.name.toLowerCase()) {
+            this.assertUniqueName(nextName, config.instanceTargets.filter((item) => item.id !== target.id), 'instance target');
+        }
+
+        const nextTarget: IWorkspaceInstanceTarget = target.kind === 'global-ref'
+            ? stripUndefined({
+                ...target,
+                name: nextName,
+                instanceRef: patch.instanceRef ? this.resolveExistingGlobalInstanceRef(patch.instanceRef) : target.instanceRef,
+                description: patch.description ?? target.description,
+            })
+            : stripUndefined({
+                ...target,
+                name: nextName,
+                instance: stripUndefined({
+                    ...target.instance,
+                    baseUrl: cleanOptional(patch.baseUrl) || target.instance.baseUrl,
+                    name: nextName,
+                }),
+                description: patch.description ?? target.description,
+            });
+
+        this.writeWorkspaceConfigV4({
+            ...config,
+            instanceTargets: config.instanceTargets.map((item) => item.id === target.id ? nextTarget : item),
+        });
+        return nextTarget;
+    }
+
+    removeInstanceTarget(nameOrId: string): IWorkspaceInstanceTarget {
+        const config = this.ensureV4WorkspaceConfig();
+        const target = this.findInstanceTarget(config, nameOrId);
+        const usedBy = config.environments.filter((environment) => environment.instanceTargetId === target.id);
+        if (usedBy.length > 0) {
+            throw new Error(`Workspace instance target "${target.name}" is used by environment(s): ${usedBy.map((environment) => environment.name).join(', ')}.`);
+        }
+        this.writeWorkspaceConfigV4({
+            ...config,
+            instanceTargets: config.instanceTargets.filter((item) => item.id !== target.id),
+        });
+        return target;
+    }
+
+    addEnvironment(input: {
+        name: string;
+        instanceTarget: string;
+        projectId: string;
+        projectName: string;
+        syncFolder: string;
+        id?: string;
+        folderSync?: boolean;
+        customNodesPath?: string;
+        description?: string;
+    }): IWorkspaceEnvironment {
+        const config = this.ensureV4WorkspaceConfig();
+        const name = cleanRequired(input.name, 'Environment name');
+        const target = this.findInstanceTarget(config, input.instanceTarget);
+        const id = this.uniqueWorkspaceId(input.id || this.slugId(name), [
+            ...config.instanceTargets.map((item) => item.id),
+            ...config.environments.map((item) => item.id),
+        ]);
+        this.assertUniqueName(name, config.environments, 'environment');
+
+        const environment: IWorkspaceEnvironment = {
+            id,
+            name,
+            instanceTargetId: target.id,
+            projectId: cleanRequired(input.projectId, 'Project ID'),
+            projectName: cleanRequired(input.projectName, 'Project name'),
+            syncFolder: cleanRequired(input.syncFolder, 'Sync folder'),
+            folderSync: input.folderSync,
+            customNodesPath: input.customNodesPath,
+            description: input.description,
+        };
+        this.assertUniqueEnvironmentSyncFolders([...config.environments, environment]);
+
+        const next = {
+            ...config,
+            activeEnvironmentId: config.activeEnvironmentId || environment.id,
+            environments: [...config.environments, environment],
+        };
+        this.writeWorkspaceConfigV4(next);
+        return environment;
+    }
+
+    updateEnvironment(nameOrId: string, patch: Partial<Pick<IWorkspaceEnvironment, 'name' | 'projectId' | 'projectName' | 'syncFolder' | 'folderSync' | 'customNodesPath' | 'description'>> & { instanceTarget?: string }): IWorkspaceEnvironment {
+        const config = this.ensureV4WorkspaceConfig();
+        const environment = this.findEnvironment(config, nameOrId);
+        const target = patch.instanceTarget ? this.findInstanceTarget(config, patch.instanceTarget) : undefined;
+        const nextName = cleanOptional(patch.name) || environment.name;
+        if (nextName.toLowerCase() !== environment.name.toLowerCase()) {
+            this.assertUniqueName(nextName, config.environments.filter((item) => item.id !== environment.id), 'environment');
+        }
+        const nextEnvironment: IWorkspaceEnvironment = stripUndefined({
+            ...environment,
+            name: nextName,
+            instanceTargetId: target?.id || environment.instanceTargetId,
+            projectId: patch.projectId !== undefined ? cleanRequired(patch.projectId, 'Project ID') : environment.projectId,
+            projectName: patch.projectName !== undefined ? cleanRequired(patch.projectName, 'Project name') : environment.projectName,
+            syncFolder: patch.syncFolder !== undefined ? cleanRequired(patch.syncFolder, 'Sync folder') : environment.syncFolder,
+            folderSync: patch.folderSync ?? environment.folderSync,
+            customNodesPath: patch.customNodesPath ?? environment.customNodesPath,
+            description: patch.description ?? environment.description,
+        });
+        this.assertUniqueEnvironmentSyncFolders([
+            ...config.environments.filter((item) => item.id !== environment.id),
+            nextEnvironment,
+        ]);
+        const next = {
+            ...config,
+            environments: config.environments.map((item) => item.id === environment.id ? nextEnvironment : item),
+        };
+        this.writeWorkspaceConfigV4(next);
+        return nextEnvironment;
+    }
+
+    pinEnvironment(nameOrId: string): IWorkspaceEnvironment {
+        const config = this.ensureV4WorkspaceConfig();
+        const environment = this.findEnvironment(config, nameOrId);
+        this.writeWorkspaceConfigV4({
+            ...config,
+            activeEnvironmentId: environment.id,
+        });
+        return environment;
+    }
+
+    removeEnvironment(nameOrId: string, options: { force?: boolean } = {}): IWorkspaceEnvironment {
+        const config = this.ensureV4WorkspaceConfig();
+        const environment = this.findEnvironment(config, nameOrId);
+        if (config.activeEnvironmentId === environment.id && !options.force) {
+            throw new Error(`Workspace environment "${environment.name}" is active. Pin another environment first, or re-run with --force to remove it and clear the active environment.`);
+        }
+        const nextEnvironments = config.environments.filter((item) => item.id !== environment.id);
+        this.writeWorkspaceConfigV4({
+            ...config,
+            activeEnvironmentId: config.activeEnvironmentId === environment.id ? undefined : config.activeEnvironmentId,
+            environments: nextEnvironments,
+        });
+        return environment;
+    }
+
+    getEnvironment(nameOrId: string): IWorkspaceEnvironment {
+        return this.findEnvironment(this.ensureV4WorkspaceConfig(), nameOrId);
+    }
+
+    getInstanceTarget(nameOrId: string): IWorkspaceInstanceTarget {
+        return this.findInstanceTarget(this.ensureV4WorkspaceConfig(), nameOrId);
+    }
+
+    resolveEnvironment(environmentNameOrId?: string): IResolvedWorkspaceEnvironment {
+        const persisted = this.readWorkspaceConfigFile();
+        const config = persisted.version === 4 ? persisted : this.v3ToV4WorkspaceConfig();
+        if (config.environments.length === 0) {
+            throw new Error('No workspace environment is configured. Run `n8nac env add` first.');
+        }
+        const environment = environmentNameOrId
+            ? this.findEnvironment(config, environmentNameOrId)
+            : config.activeEnvironmentId
+                ? this.findEnvironment(config, config.activeEnvironmentId)
+                : config.environments[0];
+        const target = this.findInstanceTarget(config, environment.instanceTargetId);
+        return this.resolveEnvironmentFromTarget(environment, target, environmentNameOrId ? 'explicit' : config.activeEnvironmentId ? 'workspace-default' : persisted.version === 4 ? 'workspace-default' : 'legacy');
+    }
+
+    async prepareEnvironment(environmentNameOrId?: string): Promise<IResolvedWorkspaceEnvironment> {
+        const resolved = this.resolveEnvironment(environmentNameOrId);
+        if (resolved.targetKind === 'embedded') {
+            if (resolved.apiKey && !resolved.instanceIdentifier) {
+                const instanceIdentifier = await this.resolveInstanceIdentifier(resolved.host, resolved.apiKey).catch(() => undefined);
+                return {
+                    ...resolved,
+                    instanceIdentifier,
+                    workflowDir: this.buildWorkflowDir(resolved.syncFolder, instanceIdentifier, resolved.projectName),
+                };
+            }
+            return resolved;
+        }
+
+        const prepared = await this.runtime.prepareEffectiveContext({
+            instanceId: resolved.globalInstanceId,
+            syncFolderDefault: 'global',
+            consumer: 'cli',
+            autoStart: true,
+        });
+        if (prepared.runtime.blocked) {
+            throw new Error(prepared.runtime.blocked.message);
+        }
+
+        const context = prepared.context;
+        const apiKey = resolved.apiKey || context.apiKey;
+        const syncFolder = resolved.syncFolder;
+        const projectId = resolved.projectId || context.projectId;
+        const projectName = resolved.projectName || context.projectName;
+        let instanceIdentifier = this.canonicalInstanceIdentifier(context.instanceIdentifier || resolved.instanceIdentifier);
+        if (apiKey && resolved.apiKeySource === 'env') {
+            instanceIdentifier = this.canonicalInstanceIdentifier(await this.resolveInstanceIdentifier(context.host, apiKey).catch(() => undefined)) || instanceIdentifier;
+        }
+        return {
+            ...resolved,
+            host: context.host,
+            apiKey,
+            apiKeyAvailable: Boolean(apiKey),
+            apiKeySource: resolved.apiKey ? resolved.apiKeySource : context.apiKey ? 'global' : 'missing',
+            accessStatus: this.deriveAccessStatus({ host: context.host, apiKey, projectId, projectName, verification: resolved.apiKeySource === 'env' ? undefined : context.instance.verification }),
+            activeInstanceId: context.activeInstanceId,
+            activeInstanceName: context.activeInstanceName,
+            instanceIdentifier,
+            projectId,
+            projectName,
+            syncFolder,
+            workflowDir: this.buildWorkflowDir(syncFolder, instanceIdentifier, projectName),
+        };
+    }
+
     listInstanceConfigs(): IInstanceProfile[] {
         return this.listInstances();
     }
 
     listInstances(): IInstanceProfile[] {
-        const overrides = tryResolve(() => this.manager.readWorkspaceOverrides(this.workspaceRoot));
+        const overrides = this.isWorkspaceConfigV4() ? undefined : tryResolve(() => this.manager.readWorkspaceOverrides(this.workspaceRoot));
         return this.manager.listInstances().map((instance) => this.toInstanceProfile(instance, overrides));
     }
 
@@ -149,25 +554,44 @@ export class ConfigService {
     }
 
     getActiveInstance(): IInstanceProfile | undefined {
+        const effective = tryResolve(() => this.resolveEnvironment());
+        if (effective?.targetKind === 'global-ref' && effective.activeInstanceId) {
+            return this.getInstanceConfig(effective.activeInstanceId);
+        }
+        const legacy = tryResolve(() => this.resolveWorkspaceContext());
+        return legacy ? this.contextToInstanceProfile(legacy) : undefined;
+    }
+
+    getEffectiveInstanceConfig(instanceId?: string): IInstanceProfile | undefined {
+        if (instanceId) {
+            const effective = tryResolve(() => this.resolveWorkspaceContext(instanceId));
+            return effective ? this.contextToInstanceProfile(effective) : undefined;
+        }
+        const environment = tryResolve(() => this.resolveEnvironment());
+        if (environment) return this.environmentToInstanceProfile(environment);
         const effective = tryResolve(() => this.resolveWorkspaceContext());
         return effective ? this.contextToInstanceProfile(effective) : undefined;
     }
 
-    getEffectiveInstanceConfig(instanceId?: string): IInstanceProfile | undefined {
-        const effective = tryResolve(() => this.resolveWorkspaceContext(instanceId));
-        return effective ? this.contextToInstanceProfile(effective) : undefined;
-    }
-
     getEffectiveContext(instanceId?: string): EffectiveN8nContext | undefined {
+        if (!instanceId && this.isWorkspaceConfigV4()) {
+            return this.resolvedEnvironmentToEffectiveContext(tryResolve(() => this.resolveEnvironment()));
+        }
         return tryResolve(() => this.resolveWorkspaceContext(instanceId));
     }
 
-    async prepareWorkspaceContext(instanceId?: string): Promise<EffectiveN8nContext> {
+    async prepareWorkspaceContext(input?: string | { instanceId?: string; environment?: string; consumer?: 'cli' | 'vscode' | string }): Promise<EffectiveN8nContext> {
+        const instanceId = typeof input === 'string' ? input : input?.instanceId;
+        const environment = typeof input === 'string' ? undefined : input?.environment;
+        const consumer = typeof input === 'string' ? 'cli' : input?.consumer === 'vscode' ? 'vscode' : 'cli';
+        if (environment || (!instanceId && this.isWorkspaceConfigV4())) {
+            return this.resolvedEnvironmentToEffectiveContext(await this.prepareEnvironment(environment))!;
+        }
         const prepared = await this.runtime.prepareEffectiveContext({
             workspaceRoot: this.workspaceRoot,
             instanceId,
             syncFolderDefault: 'workspace',
-            consumer: 'cli',
+            consumer,
             autoStart: true,
         });
         if (prepared.runtime.blocked) {
@@ -183,7 +607,8 @@ export class ConfigService {
     }
 
     getActiveInstanceId(): string | undefined {
-        return this.getActiveInstance()?.id || this.manager.getGlobalConfig().activeInstanceId;
+        const environment = tryResolve(() => this.resolveEnvironment());
+        return environment?.activeInstanceId || this.getActiveInstance()?.id || this.manager.getGlobalConfig().activeInstanceId;
     }
 
     getCurrentInstance(): IInstanceProfile | undefined {
@@ -203,6 +628,7 @@ export class ConfigService {
     }
 
     pinWorkspaceInstance(instanceId: string): IInstanceProfile {
+        this.assertLegacyWorkspaceOverridesWritable();
         const instance = this.manager.getInstance(instanceId);
         if (!instance) {
             throw new Error(`Unknown global n8n-manager instance: ${instanceId}`);
@@ -216,6 +642,7 @@ export class ConfigService {
     }
 
     clearWorkspaceInstanceOverride(): void {
+        this.assertLegacyWorkspaceOverridesWritable();
         const current = this.manager.readWorkspaceOverrides(this.workspaceRoot);
         this.manager.writeWorkspaceOverrides(this.workspaceRoot, {
             ...current,
@@ -224,6 +651,7 @@ export class ConfigService {
     }
 
     setWorkspaceSyncFolder(syncFolder: string): void {
+        this.assertLegacyWorkspaceOverridesWritable();
         const current = this.manager.readWorkspaceOverrides(this.workspaceRoot);
         this.manager.writeWorkspaceOverrides(this.workspaceRoot, {
             ...current,
@@ -232,6 +660,7 @@ export class ConfigService {
     }
 
     clearWorkspaceSyncFolderOverride(): void {
+        this.assertLegacyWorkspaceOverridesWritable();
         const current = this.manager.readWorkspaceOverrides(this.workspaceRoot);
         this.manager.writeWorkspaceOverrides(this.workspaceRoot, {
             ...current,
@@ -240,6 +669,7 @@ export class ConfigService {
     }
 
     setWorkspaceProject(project: { projectId: string; projectName: string }): void {
+        this.assertLegacyWorkspaceOverridesWritable();
         const current = this.manager.readWorkspaceOverrides(this.workspaceRoot);
         this.manager.writeWorkspaceOverrides(this.workspaceRoot, {
             ...current,
@@ -249,6 +679,7 @@ export class ConfigService {
     }
 
     clearWorkspaceProjectOverride(): void {
+        this.assertLegacyWorkspaceOverridesWritable();
         const current = this.manager.readWorkspaceOverrides(this.workspaceRoot);
         this.manager.writeWorkspaceOverrides(this.workspaceRoot, {
             ...current,
@@ -346,6 +777,10 @@ export class ConfigService {
         config: Partial<ILocalConfig>,
         options: { instanceId?: string; instanceName?: string; setActive?: boolean; createNew?: boolean; apiKey?: string; verification?: IInstanceVerification } = {}
     ): IInstanceProfile {
+        const workspaceConfigIsV4 = this.isWorkspaceConfigV4();
+        if (workspaceConfigIsV4) {
+            this.assertNoLegacyWorkspaceFields(config);
+        }
         const current = options.createNew ? undefined : (options.instanceId ? this.manager.getInstance(options.instanceId) : this.manager.getGlobalActiveInstance());
         const host = this.resolveStoredBaseUrl(current, config.host);
         const saved = this.manager.upsertInstance({
@@ -360,6 +795,10 @@ export class ConfigService {
         }, {
             setActive: options.setActive,
         });
+
+        if (workspaceConfigIsV4) {
+            return this.toInstanceProfile(saved);
+        }
 
         this.writeWorkspaceFields(saved.id, config, options.setActive !== false);
         return this.toInstanceProfile(saved, this.manager.readWorkspaceOverrides(this.workspaceRoot));
@@ -426,7 +865,7 @@ export class ConfigService {
             return this.manager.getApiKey(instanceId);
         }
         const normalized = this.normalizeHost(host);
-        const instance = this.manager.listInstances().find((candidate) => this.normalizeHost(candidate.baseUrl || '') === normalized);
+        const instance = this.manager.listInstances().find((candidate) => this.normalizeHost(candidate.baseUrl || '') === normalized || this.normalizeHost(candidate.tunnelPublicUrl || '') === normalized);
         return instance ? this.manager.getApiKey(instance.id) : undefined;
     }
 
@@ -674,6 +1113,498 @@ export class ConfigService {
         return backupPath;
     }
 
+    private readWorkspaceConfigFile(): { version: 3 } | IPersistedWorkspaceConfigV4 {
+        const configPath = this.getInstanceConfigPath();
+        if (!fs.existsSync(configPath)) return { version: 3 };
+        const raw = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        if (raw?.version === 4) {
+            return this.sanitizeV4Config(raw);
+        }
+        if (raw?.version !== undefined && raw.version !== 3) {
+            throw new Error(`Unsupported legacy n8n workspace config version: ${raw.version}`);
+        }
+        return { version: 3 };
+    }
+
+    isWorkspaceConfigV4(): boolean {
+        const configPath = this.getInstanceConfigPath();
+        if (!fs.existsSync(configPath)) return false;
+        const raw = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        return raw?.version === 4;
+    }
+
+    private assertLegacyWorkspaceOverridesWritable(): void {
+        if (this.isWorkspaceConfigV4()) {
+            throw new Error('This workspace uses v4 environments. Use `n8nac instance-target ...` and `n8nac env ...` instead of legacy workspace singleton commands.');
+        }
+    }
+
+    private ensureV4WorkspaceConfig(): IPersistedWorkspaceConfigV4 {
+        const config = this.readWorkspaceConfigFile();
+        return config.version === 4 ? config : this.v3ToV4WorkspaceConfig();
+    }
+
+    private sanitizeV4Config(raw: any): IPersistedWorkspaceConfigV4 {
+        if (!Array.isArray(raw.instanceTargets)) {
+            throw new Error('Invalid v4 workspace config: instanceTargets must be an array.');
+        }
+        if (!Array.isArray(raw.environments)) {
+            throw new Error('Invalid v4 workspace config: environments must be an array.');
+        }
+        const rawInstanceTargets = raw.instanceTargets as unknown[];
+        const rawEnvironments = raw.environments as unknown[];
+        const instanceTargets = rawInstanceTargets.map((target, index) => this.sanitizeInstanceTarget(target, index));
+        const environments = rawEnvironments.map((environment, index) => this.sanitizeEnvironment(environment, index));
+        this.assertUniqueIdsAndNames(instanceTargets, 'instance target');
+        this.assertUniqueIdsAndNames(environments, 'environment');
+        this.assertUniqueEnvironmentSyncFolders(environments);
+        const targetIds = new Set(instanceTargets.map((target) => target.id));
+        for (const environment of environments) {
+            if (!targetIds.has(environment.instanceTargetId)) {
+                throw new Error(`Invalid v4 workspace config: environment "${environment.name}" references unknown instance target "${environment.instanceTargetId}".`);
+            }
+        }
+        if (typeof raw.activeEnvironmentId === 'string' && raw.activeEnvironmentId && !environments.some((environment) => environment.id === raw.activeEnvironmentId)) {
+            throw new Error(`Invalid v4 workspace config: activeEnvironmentId references unknown environment "${raw.activeEnvironmentId}".`);
+        }
+        return stripUndefined({
+            version: 4 as const,
+            activeEnvironmentId: typeof raw.activeEnvironmentId === 'string' ? raw.activeEnvironmentId : undefined,
+            instanceTargets,
+            environments,
+        });
+    }
+
+    private sanitizeInstanceTarget(target: any, index: number): IWorkspaceInstanceTarget {
+        if (!target || typeof target !== 'object') {
+            throw new Error(`Invalid v4 workspace config: instance target at index ${index} must be an object.`);
+        }
+        const id = cleanOptional(target.id);
+        const name = cleanOptional(target.name) || id;
+        if (!id || !name) {
+            throw new Error(`Invalid v4 workspace config: instance target at index ${index} needs id and name.`);
+        }
+        if (target.kind === 'global-ref') {
+            if (target.instance) throw new Error(`Invalid v4 workspace config: global-ref target "${name}" must not embed instance details.`);
+            const instanceRef = cleanOptional(target.instanceRef);
+            if (!instanceRef) throw new Error(`Invalid v4 workspace config: global-ref target "${name}" needs instanceRef.`);
+            return stripUndefined({ id, name, kind: 'global-ref' as const, instanceRef, description: cleanOptional(target.description) });
+        }
+        if (target.kind === 'embedded') {
+            if (target.instanceRef) throw new Error(`Invalid v4 workspace config: embedded target "${name}" must not define instanceRef.`);
+            if (target.instance?.apiKey || target.instance?.token || target.instance?.password || target.apiKey || target.token || target.password) {
+                throw new Error(`Invalid v4 workspace config: embedded target "${name}" must not contain secrets.`);
+            }
+            if (target.instance?.mode && target.instance.mode !== 'existing') {
+                throw new Error(`Invalid v4 workspace config: embedded target "${name}" must use mode "existing".`);
+            }
+            const baseUrl = cleanOptional(target.instance?.baseUrl);
+            if (!baseUrl) throw new Error(`Invalid v4 workspace config: embedded target "${name}" needs instance.baseUrl.`);
+            return stripUndefined({
+                id,
+                name,
+                kind: 'embedded' as const,
+                instance: stripUndefined({
+                    mode: 'existing' as const,
+                    baseUrl,
+                    name: cleanOptional(target.instance?.name),
+                    instanceIdentifier: this.canonicalInstanceIdentifier(target.instance?.instanceIdentifier),
+                    verification: target.instance?.verification,
+                }),
+                description: cleanOptional(target.description),
+            });
+        }
+        throw new Error(`Invalid v4 workspace config: instance target "${name}" has unsupported kind "${String(target.kind)}".`);
+    }
+
+    private assertUniqueIdsAndNames<T extends { id: string; name: string }>(items: T[], label: string): void {
+        const ids = new Set<string>();
+        const names = new Set<string>();
+        for (const item of items) {
+            if (ids.has(item.id)) throw new Error(`Invalid v4 workspace config: duplicate ${label} ID "${item.id}".`);
+            ids.add(item.id);
+            const name = item.name.toLowerCase();
+            if (names.has(name)) throw new Error(`Invalid v4 workspace config: duplicate ${label} name "${item.name}".`);
+            names.add(name);
+        }
+    }
+
+    private assertUniqueEnvironmentSyncFolders(environments: IWorkspaceEnvironment[]): void {
+        const folders = new Map<string, IWorkspaceEnvironment>();
+        for (const environment of environments) {
+            const folder = this.normalizeWorkspacePathKey(environment.syncFolder);
+            const existing = folders.get(folder);
+            if (existing) {
+                throw new Error(`Invalid v4 workspace config: environments "${existing.name}" and "${environment.name}" share sync folder "${environment.syncFolder}". Each environment needs a dedicated sync folder.`);
+            }
+            folders.set(folder, environment);
+        }
+    }
+
+    private normalizeWorkspacePathKey(value: string): string {
+        return path.normalize(this.resolveWorkspacePath(value));
+    }
+
+    private sanitizeEnvironment(environment: any, index: number): IWorkspaceEnvironment {
+        if (!environment || typeof environment !== 'object') {
+            throw new Error(`Invalid v4 workspace config: environment at index ${index} must be an object.`);
+        }
+        const id = cleanOptional(environment.id);
+        const name = cleanOptional(environment.name) || id;
+        const instanceTargetId = cleanOptional(environment.instanceTargetId);
+        const syncFolder = cleanOptional(environment.syncFolder);
+        if (!id || !name || !instanceTargetId || !syncFolder) {
+            throw new Error(`Invalid v4 workspace config: environment at index ${index} needs id, name, instanceTargetId, and syncFolder.`);
+        }
+        return stripUndefined({
+            id,
+            name,
+            instanceTargetId,
+            projectId: cleanOptional(environment.projectId),
+            projectName: cleanOptional(environment.projectName),
+            syncFolder,
+            folderSync: typeof environment.folderSync === 'boolean' ? environment.folderSync : undefined,
+            customNodesPath: cleanOptional(environment.customNodesPath),
+            description: cleanOptional(environment.description),
+        });
+    }
+
+    private v3ToV4WorkspaceConfig(): IPersistedWorkspaceConfigV4 {
+        const overrides = tryResolve(() => this.manager.readWorkspaceOverrides(this.workspaceRoot)) || { version: 3 as const };
+        const hasWorkspaceOverrides = Boolean(
+            overrides.activeInstanceId
+            || overrides.syncFolder
+            || overrides.projectId
+            || overrides.projectName
+            || overrides.folderSync !== undefined
+            || overrides.customNodesPath
+        );
+        const instanceRef = hasWorkspaceOverrides ? (overrides.activeInstanceId || this.manager.getGlobalConfig().activeInstanceId) : undefined;
+        const instanceTargets: IWorkspaceInstanceTarget[] = instanceRef
+            ? [{ id: 'default-instance', name: 'Default Instance', kind: 'global-ref', instanceRef }]
+            : [];
+        const environments: IWorkspaceEnvironment[] = instanceRef
+            ? [stripUndefined({
+                id: 'default',
+                name: 'Default',
+                instanceTargetId: 'default-instance',
+                projectId: overrides.projectId,
+                projectName: overrides.projectName,
+                syncFolder: overrides.syncFolder || 'workflows',
+                folderSync: overrides.folderSync,
+                customNodesPath: overrides.customNodesPath,
+            })]
+            : [];
+        return {
+            version: 4,
+            activeEnvironmentId: environments[0]?.id,
+            instanceTargets,
+            environments,
+        };
+    }
+
+    private writeWorkspaceConfigV4(config: IPersistedWorkspaceConfigV4): void {
+        const configPath = this.getInstanceConfigPath();
+        const sanitized = this.sanitizeV4Config({ ...config, version: 4 });
+        fs.mkdirSync(path.dirname(configPath), { recursive: true });
+        fs.writeFileSync(configPath, `${JSON.stringify(sanitized, null, 2)}\n`, 'utf8');
+    }
+
+    private findEnvironment(config: IPersistedWorkspaceConfigV4, nameOrId: string): IWorkspaceEnvironment {
+        const key = cleanRequired(nameOrId, 'Environment');
+        const byId = config.environments.find((environment) => environment.id === key);
+        if (byId) return byId;
+        const matches = config.environments.filter((environment) => environment.name.toLowerCase() === key.toLowerCase());
+        if (matches.length === 1) return matches[0];
+        if (matches.length > 1) throw new Error(`Ambiguous environment name: ${key}`);
+        throw new Error(`Unknown workspace environment: ${key}`);
+    }
+
+    private findInstanceTarget(config: IPersistedWorkspaceConfigV4, nameOrId: string): IWorkspaceInstanceTarget {
+        const key = cleanRequired(nameOrId, 'Instance target');
+        const byId = config.instanceTargets.find((target) => target.id === key);
+        if (byId) return byId;
+        const matches = config.instanceTargets.filter((target) => target.name.toLowerCase() === key.toLowerCase());
+        if (matches.length === 1) return matches[0];
+        if (matches.length > 1) throw new Error(`Ambiguous instance target name: ${key}`);
+        throw new Error(`Unknown workspace instance target: ${key}`);
+    }
+
+    private resolveEnvironmentFromTarget(environment: IWorkspaceEnvironment, target: IWorkspaceInstanceTarget, source: IResolvedWorkspaceEnvironment['sources']['environment']): IResolvedWorkspaceEnvironment {
+        const syncFolder = this.resolveWorkspacePath(environment.syncFolder);
+        if (target.kind === 'global-ref') {
+            const instance = this.manager.getInstance(target.instanceRef);
+            if (!instance) throw new Error(`Workspace environment "${environment.name}" references missing global n8n-manager instance: ${target.instanceRef}`);
+            const host = instance.tunnelPublicUrl || instance.baseUrl || '';
+            const envApiKey = this.readEnvApiKey(environment, target);
+            const globalApiKey = this.manager.getApiKey(instance.id);
+            const apiKey = envApiKey || globalApiKey;
+            const projectId = environment.projectId || instance.defaultProject?.id;
+            const projectName = environment.projectName || instance.defaultProject?.name;
+            const instanceIdentifier = this.canonicalInstanceIdentifier(instance.instanceIdentifier);
+            return {
+                environment,
+                instanceTarget: target,
+                environmentId: environment.id,
+                environmentName: environment.name,
+                instanceTargetId: target.id,
+                instanceTargetName: target.name,
+                activeInstanceId: instance.id,
+                activeInstanceName: instance.name,
+                targetKind: 'global-ref',
+                globalInstanceId: instance.id,
+                instance: this.toInstanceProfile(instance),
+                host,
+                apiKey,
+                apiKeySource: envApiKey ? 'env' : globalApiKey ? 'global' : 'missing',
+                apiKeyAvailable: Boolean(apiKey),
+                accessStatus: this.deriveAccessStatus({ host, apiKey, projectId, projectName, verification: envApiKey ? undefined : instance.verification }),
+                syncFolder,
+                projectId,
+                projectName,
+                instanceIdentifier,
+                workflowDir: this.buildWorkflowDir(syncFolder, instanceIdentifier, projectName),
+                folderSync: environment.folderSync ?? false,
+                customNodesPath: environment.customNodesPath,
+                sources: {
+                    environment: source,
+                    instance: 'global-ref',
+                    project: environment.projectId || environment.projectName ? 'environment' : instance.defaultProject ? 'instance-default' : 'missing',
+                    syncFolder: 'environment',
+                },
+            };
+        }
+
+        const host = target.instance.baseUrl;
+        const envApiKey = this.readEnvApiKey(environment, target);
+        const globalApiKey = this.getApiKey(host);
+        const apiKey = envApiKey || globalApiKey;
+        const instanceIdentifier = this.canonicalInstanceIdentifier(target.instance.instanceIdentifier);
+        return {
+            environment,
+            instanceTarget: target,
+            environmentId: environment.id,
+            environmentName: environment.name,
+            instanceTargetId: target.id,
+            instanceTargetName: target.name,
+            activeInstanceName: target.name,
+            targetKind: 'embedded',
+            instance: target.instance,
+            host,
+            apiKey,
+            apiKeySource: envApiKey ? 'env' : globalApiKey ? 'global' : 'missing',
+            apiKeyAvailable: Boolean(apiKey),
+            accessStatus: this.deriveAccessStatus({ host, apiKey, projectId: environment.projectId, projectName: environment.projectName, verification: target.instance.verification }),
+            syncFolder,
+            projectId: environment.projectId,
+            projectName: environment.projectName,
+            instanceIdentifier,
+            workflowDir: this.buildWorkflowDir(syncFolder, instanceIdentifier, environment.projectName),
+            folderSync: environment.folderSync ?? false,
+            customNodesPath: environment.customNodesPath,
+            sources: {
+                environment: source,
+                instance: 'embedded',
+                project: environment.projectId || environment.projectName ? 'environment' : 'missing',
+                syncFolder: 'environment',
+            },
+        };
+    }
+
+    private readEnvApiKey(environment: IWorkspaceEnvironment, target: IWorkspaceInstanceTarget): string | undefined {
+        const candidates = [
+            `N8NAC_ENV_${envVarSlug(environment.id)}_API_KEY`,
+            `N8NAC_ENV_${envVarSlug(environment.name)}_API_KEY`,
+            `N8NAC_TARGET_${envVarSlug(target.id)}_API_KEY`,
+            `N8NAC_TARGET_${envVarSlug(target.name)}_API_KEY`,
+        ];
+        for (const key of candidates) {
+            const value = process.env[key]?.trim().replace(/^['"]|['"]$/g, '');
+            if (value) return value;
+        }
+        return undefined;
+    }
+
+    private readTargetEnvApiKey(target: IWorkspaceInstanceTarget): string | undefined {
+        const candidates = [
+            `N8NAC_TARGET_${envVarSlug(target.id)}_API_KEY`,
+            `N8NAC_TARGET_${envVarSlug(target.name)}_API_KEY`,
+        ];
+        for (const key of candidates) {
+            const value = process.env[key]?.trim().replace(/^["']|["']$/g, '');
+            if (value) return value;
+        }
+        return undefined;
+    }
+
+    private resolveExistingGlobalInstanceRef(instanceRef: unknown): string {
+        const cleaned = cleanRequired(instanceRef, 'Global instance reference');
+        const instance = this.manager.getInstance(cleaned);
+        if (!instance) {
+            throw new Error(`Unknown global n8n-manager instance: ${cleaned}`);
+        }
+        return instance.id;
+    }
+
+    private environmentToLocalConfig(environment: IResolvedWorkspaceEnvironment): Partial<ILocalConfig> {
+        return stripUndefined({
+            host: environment.host,
+            syncFolder: environment.syncFolder,
+            projectId: environment.projectId,
+            projectName: environment.projectName,
+            instanceIdentifier: environment.instanceIdentifier,
+            workflowDir: environment.workflowDir,
+            customNodesPath: environment.customNodesPath,
+            folderSync: environment.folderSync,
+        });
+    }
+
+    private environmentToSnapshot(environment: IWorkspaceEnvironment): IWorkspaceEnvironment {
+        const resolved = tryResolve(() => this.resolveEnvironment(environment.id));
+        if (!resolved) {
+            return {
+                ...environment,
+                apiKeyAvailable: false,
+                credentialSource: 'missing',
+                accessStatus: 'unknown',
+            };
+        }
+        return stripUndefined({
+            ...environment,
+            targetKind: resolved.targetKind,
+            instanceTargetName: resolved.instanceTargetName,
+            globalInstanceId: resolved.globalInstanceId,
+            instanceName: resolved.activeInstanceName,
+            baseUrl: resolved.targetKind === 'embedded' ? resolved.host : undefined,
+            workflowDir: resolved.workflowDir,
+            apiKeyAvailable: resolved.apiKeyAvailable,
+            credentialSource: resolved.apiKeySource,
+            accessStatus: resolved.accessStatus,
+        });
+    }
+
+    private instanceTargetToSnapshot(target: IWorkspaceInstanceTarget): IWorkspaceInstanceTarget {
+        if (target.kind === 'global-ref') {
+            const instance = this.manager.getInstance(target.instanceRef);
+            if (!instance) {
+                return stripUndefined({
+                    ...target,
+                    globalInstanceId: target.instanceRef,
+                    apiKeyAvailable: false,
+                    credentialSource: 'missing' as const,
+                    accessStatus: 'runtime-unavailable' as const,
+                });
+            }
+            const host = instance.tunnelPublicUrl || instance.baseUrl || '';
+            const envApiKey = this.readTargetEnvApiKey(target);
+            const globalApiKey = this.manager.getApiKey(instance.id);
+            const apiKey = envApiKey || globalApiKey;
+            return stripUndefined({
+                ...target,
+                globalInstanceId: instance.id,
+                instanceName: instance.name,
+                baseUrl: host,
+                apiKeyAvailable: Boolean(apiKey),
+                credentialSource: envApiKey ? 'env' as const : globalApiKey ? 'global' as const : 'missing' as const,
+                accessStatus: this.deriveAccessStatus({ host, apiKey, verification: envApiKey ? undefined : instance.verification }),
+            });
+        }
+
+        const host = target.instance.baseUrl;
+        const envApiKey = this.readTargetEnvApiKey(target);
+        const globalApiKey = this.getApiKey(host);
+        const apiKey = envApiKey || globalApiKey;
+        return stripUndefined({
+            ...target,
+            baseUrl: host,
+            apiKeyAvailable: Boolean(apiKey),
+            credentialSource: envApiKey ? 'env' as const : globalApiKey ? 'global' as const : 'missing' as const,
+            accessStatus: this.deriveAccessStatus({ host, apiKey, verification: target.instance.verification }),
+        });
+    }
+
+    private deriveAccessStatus(input: { host?: string; apiKey?: string; projectId?: string; projectName?: string; verification?: IInstanceVerification }): EnvironmentAccessStatus {
+        if (!input.host) return 'runtime-unavailable';
+        if (!input.apiKey) return 'missing-api-key';
+        if (input.verification?.status === 'failed') return 'invalid-api-key';
+        if (!input.projectId || !input.projectName) return 'unknown';
+        return input.verification?.status === 'verified' ? 'ready' : 'unknown';
+    }
+
+    private environmentToInstanceProfile(environment: IResolvedWorkspaceEnvironment): IInstanceProfile {
+        return stripUndefined({
+            id: environment.activeInstanceId || environment.instanceTargetId,
+            name: environment.activeInstanceName || environment.instanceTargetName,
+            host: environment.host,
+            syncFolder: environment.syncFolder,
+            projectId: environment.projectId,
+            projectName: environment.projectName,
+            instanceIdentifier: environment.instanceIdentifier,
+            workflowDir: environment.workflowDir,
+            customNodesPath: environment.customNodesPath,
+            folderSync: environment.folderSync,
+        });
+    }
+
+    private resolvedEnvironmentToEffectiveContext(environment?: IResolvedWorkspaceEnvironment): EffectiveN8nContext | undefined {
+        if (!environment) return undefined;
+        return {
+            instance: {
+                id: environment.activeInstanceId || environment.instanceTargetId,
+                name: environment.activeInstanceName || environment.instanceTargetName,
+                mode: environment.targetKind === 'embedded' ? 'existing' : 'existing',
+                baseUrl: environment.host,
+                instanceIdentifier: environment.instanceIdentifier,
+                defaultProject: environment.projectId && environment.projectName ? { id: environment.projectId, name: environment.projectName } : undefined,
+            } as GlobalN8nInstance,
+            activeInstanceId: environment.activeInstanceId || environment.instanceTargetId,
+            activeInstanceName: environment.activeInstanceName || environment.instanceTargetName,
+            apiBaseUrl: environment.host,
+            host: environment.host,
+            baseUrl: environment.host,
+            apiKey: environment.apiKey,
+            syncFolder: environment.syncFolder,
+            projectId: environment.projectId,
+            projectName: environment.projectName,
+            instanceIdentifier: environment.instanceIdentifier,
+            folderSync: environment.folderSync ?? false,
+            customNodesPath: environment.customNodesPath,
+            environmentId: environment.environmentId,
+            environmentName: environment.environmentName,
+            instanceTargetId: environment.instanceTargetId,
+            instanceTargetName: environment.instanceTargetName,
+            targetKind: environment.targetKind,
+            apiKeySource: environment.apiKeySource,
+            sources: {
+                instance: environment.targetKind === 'global-ref' ? 'workspace' : 'explicit',
+                syncFolder: 'workspace',
+                project: environment.projectId || environment.projectName ? 'workspace' : 'missing',
+            },
+        } as EffectiveN8nContext;
+    }
+
+    private uniqueWorkspaceId(baseId: string, existingIds: string[]): string {
+        const base = this.slugId(baseId) || 'item';
+        if (!existingIds.includes(base)) return base;
+        let counter = 2;
+        while (existingIds.includes(`${base}-${counter}`)) counter += 1;
+        return `${base}-${counter}`;
+    }
+
+    private assertUniqueName<T extends { id: string; name: string }>(name: string, items: T[], label: string): void {
+        if (items.some((item) => item.name.toLowerCase() === name.toLowerCase())) {
+            throw new Error(`A workspace ${label} named "${name}" already exists.`);
+        }
+    }
+
+    private slugId(value: string): string {
+        return value
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '') || 'item';
+    }
+
     private canonicalInstanceIdentifier(identifier?: string): string | undefined {
         return isCanonicalUserInstanceIdentifier(identifier) ? identifier : undefined;
     }
@@ -709,6 +1640,19 @@ export class ConfigService {
             folderSync: config.folderSync ?? current.folderSync,
             customNodesPath: config.customNodesPath || current.customNodesPath,
         });
+    }
+
+    private assertNoLegacyWorkspaceFields(config: Partial<ILocalConfig>): void {
+        const fields = [
+            config.syncFolder ? 'syncFolder' : undefined,
+            config.projectId ? 'projectId' : undefined,
+            config.projectName ? 'projectName' : undefined,
+            config.folderSync !== undefined ? 'folderSync' : undefined,
+            config.customNodesPath ? 'customNodesPath' : undefined,
+        ].filter(Boolean);
+        if (fields.length > 0) {
+            throw new Error(`This workspace uses v4 environments. Configure ${fields.join(', ')} with \`n8nac env ...\` instead of legacy workspace fields.`);
+        }
     }
 
     private resolveWorkspaceContext(instanceId?: string): EffectiveN8nContext {
@@ -860,4 +1804,18 @@ function asString(value: unknown): string | undefined {
 
 function asBoolean(value: unknown): boolean | undefined {
     return typeof value === 'boolean' ? value : undefined;
+}
+
+function cleanOptional(value: unknown): string | undefined {
+    return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function cleanRequired(value: unknown, label: string): string {
+    const cleaned = cleanOptional(value);
+    if (!cleaned) throw new Error(`${label} is required.`);
+    return cleaned;
+}
+
+function envVarSlug(value: string): string {
+    return value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
