@@ -675,8 +675,9 @@ export function getConfigurationHtml(nonce: string): string {
         return;
       }
       for (const instance of instances()) {
+        const isEnvironmentWorkspace = state.workspace?.version === 4;
         const isEffective = instance.id === state.effective?.activeInstanceId;
-        const canChangeWorkspaceSelection = !isEffective;
+        const canChangeWorkspaceSelection = !isEnvironmentWorkspace && !isEffective;
         const row = document.createElement('div');
         row.className = 'instance-row' + (canChangeWorkspaceSelection ? ' selectable' : '') + (isEffective ? ' selected' : '');
         row.title = canChangeWorkspaceSelection ? 'Click to update this workspace connection.' : 'This workspace uses this instance.';
@@ -729,7 +730,9 @@ export function getConfigurationHtml(nonce: string): string {
         foot.className = 'instance-foot';
         const hint = document.createElement('div');
         hint.className = 'instance-hint';
-        hint.textContent = isEffective
+        hint.textContent = isEnvironmentWorkspace
+          ? 'Use Add target, then create/pin an environment'
+          : isEffective
           ? 'Selected for this workspace'
           : 'Click to select this instance for this workspace';
         const actions = document.createElement('div');
@@ -1137,6 +1140,7 @@ export function getConfigurationHtml(nonce: string): string {
       const embedded = els.targetKind.value === 'embedded';
       post('saveInstanceTarget', {
         targetId: editingTargetId,
+        targetKind: els.targetKind.value,
         name: els.targetName.value,
         instanceRef: embedded ? '' : els.targetGlobalInstance.value,
         baseUrl: embedded ? normalizeHost(els.targetBaseUrl.value) : '',
@@ -1169,7 +1173,8 @@ export function getConfigurationHtml(nonce: string): string {
     });
     els.loadProjects.addEventListener('click', () => {
       post('loadProjects', {
-        instanceId: currentWorkspaceInstanceId() || state.global?.activeInstanceId || '',
+        instanceId: state.workspace?.version === 4 ? '' : currentWorkspaceInstanceId() || state.global?.activeInstanceId || '',
+        instanceTargetId: els.environmentTarget.value || '',
         projectId: state.workspace?.projectId || state.effective?.projectId || '',
         projectName: state.workspace?.projectName || state.effective?.projectName || '',
       });

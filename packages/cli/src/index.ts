@@ -2,6 +2,7 @@
 import { Command, Option } from 'commander';
 import { ListCommand } from './commands/list.js';
 import { SyncCommand } from './commands/sync.js';
+import { PromoteCommand } from './commands/promote.js';
 import { UpdateAiCommand } from './commands/update-ai.js';
 import { ConvertCommand } from './commands/convert.js';
 import { TestCommand } from './commands/test.js';
@@ -316,18 +317,14 @@ program
     .description('N8N Sync Command Line Interface - Manage n8n workflows as code')
     .version(getVersion())
     .option('--env <name>', 'Target a specific workspace environment by name or ID')
-    .addOption(new Option('--environment <name>', 'Alias for --env').hideHelp())
-    .addOption(new Option('--instance <name>', 'Target a specific global n8n-manager instance by name instead of the effective one').hideHelp());
+    .addOption(new Option('--environment <name>', 'Alias for --env').hideHelp());
 
-// Inject --instance into the environment only for the lifetime of the command action
+// Inject --env into the environment only for the lifetime of the command action
 // so BaseCommand can pick it up without leaking process-wide state afterwards.
-let previousInstanceEnv: string | undefined;
 let previousEnvironmentEnv: string | undefined;
 
 const applyGlobalInstanceOption = () => {
-    previousInstanceEnv = process.env.N8NAC_INSTANCE_NAME;
     previousEnvironmentEnv = process.env.N8NAC_ENVIRONMENT;
-    const globalInstance = program.opts().instance as string | undefined;
     const globalEnvironment = (program.opts().env || program.opts().environment) as string | undefined;
 
     if (globalEnvironment) {
@@ -336,24 +333,9 @@ const applyGlobalInstanceOption = () => {
         delete process.env.N8NAC_ENVIRONMENT;
     }
 
-    if (globalInstance) {
-        process.env.N8NAC_INSTANCE_NAME = globalInstance;
-        return;
-    }
-
-    if (previousInstanceEnv === undefined) {
-        delete process.env.N8NAC_INSTANCE_NAME;
-    }
 };
 
 const restoreGlobalInstanceOption = () => {
-    if (previousInstanceEnv === undefined) {
-        delete process.env.N8NAC_INSTANCE_NAME;
-    } else {
-        process.env.N8NAC_INSTANCE_NAME = previousInstanceEnv;
-    }
-
-    previousInstanceEnv = undefined;
     if (previousEnvironmentEnv === undefined) {
         delete process.env.N8NAC_ENVIRONMENT;
     } else {
@@ -999,6 +981,31 @@ program.command('push')
             console.log(chalk.dim('\n── Post-push verification ──────────────────────────────'));
             const ok = await cmd.verifyRemote(workflowId);
             if (!ok) await exitWithTelemetry(1);
+        }
+    });
+
+program.command('promote')
+    .description('Promote a local workflow file from one workspace environment to another')
+    .argument('<path>', 'Workflow file path inside the source environment sync scope')
+    .requiredOption('--from <environment>', 'Source environment name or ID')
+    .requiredOption('--to <environment>', 'Target environment name or ID')
+    .option('--dry-run', 'Show the planned promotion without writing or pushing')
+    .option('--no-push', 'Copy/adapt the workflow into the target environment without pushing')
+    .option('--overwrite', 'Overwrite the target local workflow file if it already exists')
+    .option('--json', 'Output promotion result as JSON')
+    .action(async (pathArg, options) => {
+        try {
+            await new PromoteCommand().run(pathArg, {
+                from: options.from,
+                to: options.to,
+                dryRun: options.dryRun,
+                push: options.push,
+                overwrite: options.overwrite,
+                json: options.json,
+            });
+        } catch (error: any) {
+            console.error(chalk.red(`❌ Promotion failed: ${error?.message || error}`));
+            await exitWithTelemetry(1);
         }
     });
 

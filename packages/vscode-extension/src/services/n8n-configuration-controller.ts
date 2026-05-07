@@ -122,7 +122,7 @@ export class N8nConfigurationController implements vscode.Disposable {
         autoStart: true,
       }).catch(() => undefined);
       let effective = isEnvironmentWorkspace && configService
-        ? configService.getEffectiveContext()
+        ? await configService.prepareWorkspaceContext({ consumer: 'vscode' }).catch(() => configService.getEffectiveContext())
         : prepared?.context;
       if (prepared) {
         const effectiveHost = prepared.context.apiBaseUrl ?? prepared.context.host;
