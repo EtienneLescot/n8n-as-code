@@ -1,5 +1,16 @@
 # @n8n-as-code/skills
 
+## [2.0.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.0.1...@n8n-as-code/skills@v2.0.2) (2026-05-07)
+
+### Bug Fixes
+
+* **skills:** rebuild knowledge base for n8n@2.19.4 ([2b2d238](https://github.com/EtienneLescot/n8n-as-code/commit/2b2d23841dd168cf1aaa0ff5eda810f962b152d3))
+
+### Documentation
+
+* update documentation for v2 split runtime and workspace model ([b8a4125](https://github.com/EtienneLescot/n8n-as-code/commit/b8a41256ea28d16382607a744c1f92fd3bac5824))
+* **skills:** update installation instructions for generic agents ([fb9b903](https://github.com/EtienneLescot/n8n-as-code/commit/fb9b903e560ea5d932b573fdfe5edd2f63bb2e64))
+
 ## [2.0.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.0.0...@n8n-as-code/skills@v2.0.1) (2026-05-06)
 
 ### Bug Fixes
