@@ -244,11 +244,28 @@ describe('ConfigService', () => {
         expect(migrated.status).toBe('migrated');
         expect(migrated.status === 'migrated' && existsSync(migrated.backupPath)).toBe(true);
         expect(configService.getWorkspaceConfig()).toMatchObject({
-            version: 3,
-            activeInstanceId: 'prod',
-            syncFolder: 'flows',
+            version: 4,
+            activeEnvironmentId: 'default',
             projectId: 'project-1',
             projectName: 'Main',
+            syncFolder: path.join(workspaceRoot, 'flows'),
+            instanceTargets: [expect.objectContaining({
+                id: 'default-instance',
+                name: 'Production',
+                kind: 'embedded',
+                instance: expect.objectContaining({
+                    mode: 'existing',
+                    baseUrl: 'https://prod.example.test',
+                }),
+            })],
+            environments: [expect.objectContaining({
+                id: 'default',
+                name: 'Default',
+                instanceTargetId: 'default-instance',
+                syncFolder: 'flows',
+                projectId: 'project-1',
+                projectName: 'Main',
+            })],
         });
         expect(configService.getInstanceConfig('prod')).toMatchObject({
             name: 'Production',
@@ -259,6 +276,10 @@ describe('ConfigService', () => {
         const migratedConfig = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-config.json'), 'utf8'));
         expect(migratedConfig.instances).toBeUndefined();
         expect(migratedConfig.apiKey).toBeUndefined();
+        expect(migratedConfig).toMatchObject({
+            version: 4,
+            activeEnvironmentId: 'default',
+        });
     });
 
     it('uses the first migrated instance when the legacy active instance is stale', () => {
@@ -282,8 +303,12 @@ describe('ConfigService', () => {
         const migrated = configService.migrateLegacyWorkspaceConfig({ write: true });
 
         expect(migrated.status).toBe('migrated');
-        expect(configService.getWorkspaceConfig().activeInstanceId).toBe('prod');
-        expect(configService.getActiveInstance()?.id).toBe('prod');
+        expect(configService.resolveEnvironment()).toMatchObject({
+            environmentId: 'default',
+            targetKind: 'embedded',
+            host: 'https://prod.example.test',
+        });
+        expect(configService.getWorkspaceConfig().activeEnvironmentId).toBe('default');
     });
 
     it('migrates multiple legacy instances without ids with unique ids and API keys', () => {
@@ -321,7 +346,12 @@ describe('ConfigService', () => {
         });
         expect(configService.getApiKey('https://prod.example.test', 'legacy-1')).toBe('prod-key');
         expect(configService.getApiKey('https://staging.example.test', 'legacy-2')).toBe('staging-key');
-        expect(configService.getWorkspaceConfig().activeInstanceId).toBe('legacy-1');
+        expect(configService.resolveEnvironment()).toMatchObject({
+            environmentId: 'default',
+            targetKind: 'embedded',
+            host: 'https://prod.example.test',
+        });
+        expect(configService.getWorkspaceConfig().activeEnvironmentId).toBe('default');
     });
 
     it('does not synthesize an invalid instance from an empty legacy instances array', () => {
@@ -585,7 +615,7 @@ describe('ConfigService', () => {
         })).toThrow(/dedicated sync folder/);
     });
 
-    it('rejects clearing required environment fields on update', () => {
+    it('rejects clearing required environment sync folder on update', () => {
         const configService = new ConfigService(workspaceRoot);
         const target = configService.addInstanceTarget({ name: 'Target', baseUrl: 'https://target.example.test' });
         configService.addEnvironment({
@@ -596,8 +626,6 @@ describe('ConfigService', () => {
             syncFolder: 'workflows/dev',
         });
 
-        expect(() => configService.updateEnvironment('Dev', { projectId: '' })).toThrow(/Project ID is required/);
-        expect(() => configService.updateEnvironment('Dev', { projectName: '' })).toThrow(/Project name is required/);
         expect(() => configService.updateEnvironment('Dev', { syncFolder: '' })).toThrow(/Sync folder is required/);
     });
 

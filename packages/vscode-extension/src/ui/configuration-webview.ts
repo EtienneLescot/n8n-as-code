@@ -164,8 +164,63 @@ export class ConfigurationWebview {
           await this._configurationController.refresh('webview-refresh', { force: true });
           return;
 
+        case 'migrateLegacyWorkspaceConfig': {
+          if (!workspaceRoot) throw new Error('Open a workspace before migrating legacy n8n-as-code config.');
+          const configService = new ConfigService(workspaceRoot);
+          const plan = configService.detectLegacyWorkspaceConfig();
+          if (!plan) {
+            this._panel.webview.postMessage({ type: 'saved' });
+            await this._configurationController.refresh('webview-migrate-legacy-not-needed', { force: true });
+            return;
+          }
+          const confirmation = await vscode.window.showWarningMessage(
+            'Migrate legacy n8n-as-code config? A backup will be created before changing n8nac-config.json.',
+            { modal: true },
+            'Migrate workspace',
+          );
+          if (confirmation !== 'Migrate workspace') {
+            this._panel.webview.postMessage({ type: 'cancelled' });
+            return;
+          }
+          const result = configService.migrateLegacyWorkspaceConfig({ write: true });
+          await clearLegacyWorkspaceSettings();
+          await this._configurationController.refresh('webview-migrate-legacy', { force: true });
+          this._panel.webview.postMessage({
+            type: 'legacyMigrationCompleted',
+            backupPath: result.status === 'migrated' ? result.backupPath : '',
+          });
+          return;
+        }
+
         case 'loadProjects': {
           let instanceId = String(payload.instanceId || '').trim() || undefined;
+          const host = normalizeHost(String(payload.host || ''));
+          const apiKey = String(payload.apiKey || '').trim();
+          if (host) {
+            if (!apiKey) {
+              this._panel.webview.postMessage({
+                type: 'projectsLoaded',
+                projects: [PERSONAL_PROJECT],
+                selectedProjectId: String(payload.projectId || 'personal'),
+                selectedProjectName: String(payload.projectName || 'Personal'),
+              });
+              return;
+            }
+            const projects = await new N8nApiClient({ host, apiKey }).getProjects();
+            this._panel.webview.postMessage({
+              type: 'projectsLoaded',
+              projects: projects.map((project) => ({
+                id: project.id,
+                name: getCanonicalProjectName(project),
+                type: project.type,
+                detail: getProjectDetail(project),
+                displayName: getProjectDisplayLabel(project),
+              })),
+              selectedProjectId: String(payload.projectId || ''),
+              selectedProjectName: String(payload.projectName || ''),
+            });
+            return;
+          }
           const instanceTargetId = String(payload.instanceTargetId || '').trim();
           if (!instanceId && workspaceRoot && instanceTargetId) {
             const configService = new ConfigService(workspaceRoot);
@@ -194,7 +249,15 @@ export class ConfigurationWebview {
             if (target.kind === 'global-ref') instanceId = target.instanceRef;
             if (target.kind === 'embedded') {
               const apiKey = readWorkspaceTargetApiKey(target.id, target.name) || configService.getApiKey(target.instance.baseUrl);
-              if (!apiKey) throw new Error('A local API key is required to load projects from this embedded workspace target.');
+              if (!apiKey) {
+                this._panel.webview.postMessage({
+                  type: 'projectsLoaded',
+                  projects: [PERSONAL_PROJECT],
+                  selectedProjectId: String(payload.projectId || 'personal'),
+                  selectedProjectName: String(payload.projectName || 'Personal'),
+                });
+                return;
+              }
               const projects = await new N8nApiClient({ host: target.instance.baseUrl, apiKey }).getProjects();
               this._panel.webview.postMessage({
                 type: 'projectsLoaded',
@@ -284,11 +347,72 @@ export class ConfigurationWebview {
           if (!workspaceRoot) throw new Error('Open a workspace before saving workspace environments.');
           const configService = new ConfigService(workspaceRoot);
           const environmentId = String(payload.environmentId || '').trim();
+          let instanceTargetId = String(payload.instanceTargetId || '').trim();
+          const instanceId = String(payload.instanceId || '').trim();
+          const baseUrl = normalizeHost(String(payload.baseUrl || ''));
+          const apiKey = String(payload.apiKey || '').trim();
+          const name = String(payload.name || '').trim();
+          const projectId = String(payload.projectId || '').trim();
+          const projectName = String(payload.projectName || '').trim();
+          if (!instanceTargetId && instanceId) {
+            const instance = (await facade.listInstances()).find((item) => item.id === instanceId);
+            if (!instance) throw new Error(`Unknown n8n instance preset: ${instanceId}`);
+            if (instance.mode === 'managed-local-docker') {
+              const existingTarget = configService.listInstanceTargets().find((target) => target.kind === 'global-ref' && target.instanceRef === instanceId);
+              instanceTargetId = existingTarget?.id || configService.addInstanceTarget({
+                name: instance.name || instanceId,
+                instanceRef: instanceId,
+              }).id;
+            } else {
+              const targetUrl = normalizeHost(instance.tunnelPublicUrl || instance.baseUrl || baseUrl);
+              if (!targetUrl) throw new Error('Remote n8n URL is required for this environment.');
+              instanceTargetId = this.ensureEmbeddedWorkspaceTarget(configService, {
+                name: instance.name || name || targetUrl,
+                baseUrl: targetUrl,
+              });
+            }
+          }
+          if (!instanceTargetId && baseUrl) {
+            const existingPreset = (await facade.listInstances()).find((instance) => normalizeHost(instance.tunnelPublicUrl || instance.baseUrl || '') === baseUrl && instance.mode !== 'managed-local-docker');
+            configService.saveLocalConfig({ host: baseUrl }, {
+              instanceId: existingPreset?.id,
+              instanceName: existingPreset?.name || name || baseUrl,
+              createNew: !existingPreset,
+              setActive: false,
+              apiKey: apiKey || undefined,
+            });
+            instanceTargetId = this.ensureEmbeddedWorkspaceTarget(configService, {
+              name: name || existingPreset?.name || baseUrl,
+              baseUrl,
+            });
+          }
+          if (instanceTargetId && baseUrl) {
+            const selectedTarget = configService.getInstanceTarget(instanceTargetId);
+            const targetInstance = selectedTarget.kind === 'global-ref'
+              ? (await facade.listInstances()).find((instance) => instance.id === selectedTarget.instanceRef)
+              : undefined;
+            if (selectedTarget.kind === 'global-ref' && targetInstance?.mode !== 'managed-local-docker') {
+              instanceTargetId = this.ensureEmbeddedWorkspaceTarget(configService, {
+                name: selectedTarget.name || name || baseUrl,
+                baseUrl,
+              });
+            }
+          }
+          if (instanceTargetId && baseUrl && apiKey) {
+            const existingPreset = (await facade.listInstances()).find((instance) => normalizeHost(instance.tunnelPublicUrl || instance.baseUrl || '') === baseUrl && instance.mode !== 'managed-local-docker');
+            configService.saveLocalConfig({ host: baseUrl }, {
+              instanceId: existingPreset?.id,
+              instanceName: existingPreset?.name || name || baseUrl,
+              createNew: !existingPreset,
+              setActive: false,
+              apiKey,
+            });
+          }
           const input = {
-            name: String(payload.name || '').trim(),
-            instanceTarget: String(payload.instanceTargetId || '').trim(),
-            projectId: String(payload.projectId || '').trim(),
-            projectName: String(payload.projectName || '').trim(),
+            name,
+            instanceTarget: instanceTargetId,
+            projectId,
+            projectName,
             syncFolder: String(payload.syncFolder || '').trim(),
             folderSync: Boolean(payload.folderSync),
             customNodesPath: String(payload.customNodesPath || '').trim() || undefined,
@@ -521,6 +645,24 @@ export class ConfigurationWebview {
     }
   }
 
+  private ensureEmbeddedWorkspaceTarget(configService: ConfigService, input: { name: string; baseUrl: string }): string {
+    const baseUrl = normalizeHost(input.baseUrl);
+    const existing = configService.listInstanceTargets().find((target) => {
+      return target.kind === 'embedded' && normalizeHost(target.instance.baseUrl) === baseUrl;
+    });
+    if (existing) return existing.id;
+
+    const existingNames = new Set(configService.listInstanceTargets().map((target) => target.name.toLowerCase()));
+    const baseName = input.name || baseUrl;
+    let name = baseName;
+    let counter = 2;
+    while (existingNames.has(name.toLowerCase())) {
+      name = `${baseName} ${counter}`;
+      counter += 1;
+    }
+    return configService.addInstanceTarget({ name, baseUrl }).id;
+  }
+
   private async saveGlobalInstance(
     payload: Record<string, unknown>,
     facade: ReturnType<typeof createN8nManagerFacade>,
@@ -643,6 +785,7 @@ export class ConfigurationWebview {
         instances,
       },
       workspace: workspaceOverrides,
+      legacyMigration: currentSnapshot.legacyMigration,
       effective: effectiveContext ? {
         activeInstanceId: effectiveContext.activeInstanceId,
         activeInstanceName: effectiveContext.activeInstanceName,

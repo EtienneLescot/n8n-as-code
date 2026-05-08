@@ -141,4 +141,38 @@ describe('CLI workspace integration', () => {
         expect(workspaceConfig.activeInstanceId).toBe('test');
         expect(workspaceConfig.projectId).toBe('project-test');
     });
+
+    it('creates remote environments directly without exposing low-level targets', () => {
+        const workspaceDir = createTempDir('n8nac-cli-env-workspace-');
+        const homeDir = createTempDir('n8nac-cli-env-home-');
+
+        const created = JSON.parse(runCli(workspaceDir, homeDir, [
+            'env', 'add', 'Dev',
+            '--base-url', 'https://dev.example.com',
+            '--sync-folder', 'workflows/dev',
+            '--json',
+        ]));
+
+        expect(created).toMatchObject({
+            name: 'Dev',
+            syncFolder: 'workflows/dev',
+            projectId: 'personal',
+            projectName: 'Personal',
+        });
+
+        const workspaceConfig = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'n8nac-config.json'), 'utf8'));
+        expect(workspaceConfig).toMatchObject({
+            version: 4,
+            activeEnvironmentId: created.id,
+            environments: [expect.objectContaining({ id: created.id, instanceTargetId: expect.any(String) })],
+            instanceTargets: [expect.objectContaining({
+                kind: 'embedded',
+                instance: expect.objectContaining({
+                    mode: 'existing',
+                    baseUrl: 'https://dev.example.com',
+                }),
+            })],
+        });
+        expect(JSON.stringify(workspaceConfig)).not.toContain('apiKey');
+    });
 });
