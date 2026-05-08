@@ -495,8 +495,11 @@ export class ConfigService {
         }
 
         const instances = this.readLegacyInstances(raw);
-        const activeInstanceId = asString(raw.activeInstanceId) || instances[0]?.id;
-        const activeInstance = instances.find((instance) => instance.id === activeInstanceId) || instances[0];
+        const requestedActiveInstanceId = asString(raw.activeInstanceId);
+        const activeInstance = requestedActiveInstanceId
+            ? (instances.find((instance) => instance.id === requestedActiveInstanceId) || instances[0])
+            : instances[0];
+        const activeInstanceId = activeInstance?.id;
         const workspace = stripUndefined({
             syncFolder: asString(raw.syncFolder) || activeInstance?.syncFolder,
             projectId: asString(raw.projectId) || activeInstance?.projectId,
@@ -507,10 +510,13 @@ export class ConfigService {
         const warnings = [
             'Global n8n instances and API keys now live in n8n-manager, not in n8nac-config.json.',
             'n8nac-config.json will keep only workspace overrides after migration.',
+            requestedActiveInstanceId && requestedActiveInstanceId !== activeInstanceId
+                ? `Legacy active instance "${requestedActiveInstanceId}" was not found; migration will use ${activeInstanceId ? `"${activeInstanceId}"` : 'no pinned instance'} instead.`
+                : undefined,
             instances.some((instance) => instance.hasApiKey)
                 ? 'Embedded API keys found: --write will move them into the local n8n-manager secret store.'
                 : 'No embedded API keys found: you may need to run n8n-manager auth set after migration.',
-        ];
+        ].filter(Boolean) as string[];
 
         return {
             status: 'legacy-detected',
@@ -590,7 +596,7 @@ export class ConfigService {
     }
 
     private isLegacyWorkspaceConfig(raw: Record<string, unknown>): boolean {
-        if (typeof raw.version === 'number' && raw.version !== 3) return true;
+        if (raw.version === 1 || raw.version === 2) return true;
         if (Array.isArray(raw.instances)) return true;
         if (typeof raw.apiKey === 'string') return true;
         return false;
@@ -598,10 +604,16 @@ export class ConfigService {
 
     private readLegacyInstances(raw: Record<string, unknown>): ILegacyWorkspaceMigrationInstance[] {
         const rawInstances = Array.isArray(raw.instances) ? raw.instances : [];
-        const candidates = rawInstances.length > 0 ? rawInstances : [raw];
+        const candidates = rawInstances.length > 0
+            ? rawInstances
+            : this.hasRootLegacyInstance(raw) ? [raw] : [];
         return candidates
             .map((candidate, index) => this.toLegacyInstance(candidate, raw, index))
             .filter((instance): instance is ILegacyWorkspaceMigrationInstance => Boolean(instance));
+    }
+
+    private hasRootLegacyInstance(raw: Record<string, unknown>): boolean {
+        return Boolean(asString(raw.host) || asString(raw.baseUrl));
     }
 
     private toLegacyInstance(candidate: unknown, root: Record<string, unknown>, index: number): ILegacyWorkspaceMigrationInstance | undefined {
