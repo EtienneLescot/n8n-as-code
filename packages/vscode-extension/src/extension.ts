@@ -1058,8 +1058,24 @@ async function resolveWorkflowWebviewTarget(workflow: IWorkflowStatus): Promise<
             const proxyUrl = await proxyService.start(n8nBaseUrl);
             const workflowUrl = new URL(`/workflow/${encodeURIComponent(workflow.id)}`, n8nBaseUrl.endsWith('/') ? n8nBaseUrl : `${n8nBaseUrl}/`);
             workflowUrl.searchParams.set('_n8nacBridge', String(Date.now()));
-            outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} in workspace environment ${environment.environmentName}.`);
-            return { url: `${proxyUrl}/workflow/${encodeURIComponent(workflow.id)}?_n8nacBridge=${Date.now()}`, targetUrl: workflowUrl.toString() };
+            if (environment.targetKind === 'global-ref') {
+                const openTarget = await facade.resolveWorkflowWebviewOpen({
+                    workflowId: workflow.id,
+                    proxyBaseUrl: proxyUrl,
+                    workspaceRoot,
+                    workflowUrl: workflowUrl.toString(),
+                    instanceId: environment.globalInstanceId,
+                });
+                if (openTarget.routePath && openTarget.autoLoginPageHtml) {
+                    proxyService.registerHtmlRoute(openTarget.routePath, openTarget.autoLoginPageHtml);
+                    outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} in environment ${environment.environmentName} through managed auto-login route.`);
+                } else {
+                    outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} in environment ${environment.environmentName} through direct route.`);
+                }
+                return { url: openTarget.url, targetUrl: openTarget.targetUrl };
+            }
+            outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} in embedded workspace environment ${environment.environmentName}.`);
+            return { url: `${proxyUrl}/workflow/${encodeURIComponent(workflow.id)}?${workflowUrl.searchParams.toString()}`, targetUrl: workflowUrl.toString() };
         }
     }
     const prepared = await facade.prepareEffectiveContext({
@@ -1328,13 +1344,57 @@ async function switchWorkspaceInstance(
     }
 
     const configService = new ConfigService(workspaceRoot);
+    const workspaceConfig = configService.getWorkspaceConfig();
+    if (workspaceConfig.version !== 4) {
+        const instances = configService.listInstances();
+        if (!instances.length) {
+            vscode.window.showWarningMessage('No configured n8n instances found.');
+            return undefined;
+        }
+
+        const activeInstanceId = configService.getActiveInstanceId();
+        let targetInstanceId = args.instanceId?.trim();
+        if (!targetInstanceId) {
+            const picked = await vscode.window.showQuickPick(
+                instances.map((instance) => toInstanceQuickPickItem(instance, activeInstanceId)),
+                {
+                    title: 'Select the active workspace instance',
+                    ignoreFocusOut: true,
+                }
+            );
+            if (!picked) {
+                return undefined;
+            }
+            targetInstanceId = picked.instanceId;
+        }
+
+        if (targetInstanceId === activeInstanceId) {
+            return targetInstanceId;
+        }
+
+        const selectedInstance = configService.pinWorkspaceInstance(targetInstanceId);
+        if (syncManager) {
+            await reinitializeSyncManager(context);
+        } else {
+            await determineInitialState(context);
+        }
+        await refreshConfigurationSnapshotAfterHandledMutation('command-switch-workspace-instance');
+        updateContextKeys();
+
+        if (!args.silent) {
+            vscode.window.showInformationMessage(`Active n8n instance: ${selectedInstance.name}`);
+        }
+
+        return selectedInstance.id;
+    }
+
     const environments = configService.listEnvironments();
     if (!environments.length) {
         vscode.window.showWarningMessage('No workspace environments found. Create one in n8n: Configure.');
         return undefined;
     }
 
-    const activeEnvironmentId = configService.getWorkspaceConfig().activeEnvironmentId;
+    const activeEnvironmentId = workspaceConfig.activeEnvironmentId;
     let targetEnvironmentId = args.environmentId?.trim() || args.instanceId?.trim();
 
     if (!targetEnvironmentId) {
@@ -1386,6 +1446,46 @@ async function pinWorkspaceInstance(
     }
 
     const configService = new ConfigService(workspaceRoot);
+    const workspaceConfig = configService.getWorkspaceConfig();
+    if (workspaceConfig.version !== 4) {
+        const instances = configService.listInstances();
+        if (!instances.length) {
+            vscode.window.showWarningMessage('No configured n8n instances found.');
+            return undefined;
+        }
+
+        let targetInstanceId = args.instanceId?.trim();
+        if (!targetInstanceId) {
+            const activeInstanceId = configService.getActiveInstanceId();
+            const picked = await vscode.window.showQuickPick(
+                instances.map((instance) => toInstanceQuickPickItem(instance, activeInstanceId)),
+                {
+                    title: 'Pin workspace instance',
+                    ignoreFocusOut: true,
+                }
+            );
+            if (!picked) {
+                return undefined;
+            }
+            targetInstanceId = picked.instanceId;
+        }
+
+        const selectedInstance = configService.pinWorkspaceInstance(targetInstanceId);
+        if (syncManager) {
+            await reinitializeSyncManager(context);
+        } else {
+            await determineInitialState(context);
+        }
+        await refreshConfigurationSnapshotAfterHandledMutation('command-pin-workspace-instance');
+        updateContextKeys();
+
+        if (!args.silent) {
+            vscode.window.showInformationMessage(`Workspace instance pinned: ${selectedInstance.name}`);
+        }
+
+        return selectedInstance.id;
+    }
+
     const environments = configService.listEnvironments();
     if (!environments.length) {
         vscode.window.showWarningMessage('No workspace environments found. Create one in n8n: Configure.');
@@ -1394,7 +1494,7 @@ async function pinWorkspaceInstance(
 
     let targetEnvironmentId = args.environmentId?.trim() || args.instanceId?.trim();
     if (!targetEnvironmentId) {
-        const activeEnvironmentId = configService.getWorkspaceConfig().activeEnvironmentId;
+        const activeEnvironmentId = workspaceConfig.activeEnvironmentId;
         const picked = await vscode.window.showQuickPick(
             environments.map((environment) => toEnvironmentQuickPickItem(environment, activeEnvironmentId)),
             {
@@ -1432,18 +1532,21 @@ async function clearWorkspaceInstancePin(context: vscode.ExtensionContext): Prom
     }
 
     const configService = new ConfigService(workspaceRoot);
-    const environments = configService.listEnvironments();
-    if (environments[0]) {
-        configService.pinEnvironment(environments[0].id);
+    const workspaceConfig = configService.getWorkspaceConfig();
+    if (workspaceConfig.version !== 4) {
+        configService.clearWorkspaceInstanceOverride();
+        if (syncManager) {
+            await reinitializeSyncManager(context);
+        } else {
+            await determineInitialState(context);
+        }
+        await refreshConfigurationSnapshotAfterHandledMutation('command-clear-workspace-instance');
+        updateContextKeys();
+        vscode.window.showInformationMessage('Workspace instance override cleared.');
+        return;
     }
-    if (syncManager) {
-        await reinitializeSyncManager(context);
-    } else {
-        await determineInitialState(context);
-    }
-    await refreshConfigurationSnapshotAfterHandledMutation('command-clear-workspace-environment');
-    updateContextKeys();
-    vscode.window.showInformationMessage('Workspace environment reset to the first configured environment.');
+
+    vscode.window.showInformationMessage('This workspace uses environments. Use "Pin workspace environment" to change the default target.');
 }
 
 async function deleteWorkspaceInstance(
@@ -1858,6 +1961,10 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     await assertN8nApiAccess(client, host);
     const health = await client.getHealth();
 
+    if (environment && (!projectId || !projectName)) {
+        throw new Error(`Environment "${environment.environmentName}" is missing project configuration. Set it in n8n: Configure or run n8nac env update ${environment.environmentId} --project-id <id> --project-name <name>.`);
+    }
+
     if (!projectId || !projectName) {
         const projects = environment ? await client.getProjects() : await facade.listProjects({
             workspaceRoot,
@@ -1972,10 +2079,9 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     // 2. Sync event journal watcher: written by CLI after successful remote mutations.
     // 3. Remote polling every 60s: discovers workflows created/deleted on the n8n instance.
     if (vscode.workspace.workspaceFolders?.length) {
-        const pattern = new vscode.RelativePattern(
-            vscode.workspace.workspaceFolders[0],
-            `${folder}/**/*.workflow.ts`
-        );
+        const pattern = path.isAbsolute(folder)
+            ? new vscode.RelativePattern(vscode.Uri.file(absDirectory), '**/*.workflow.ts')
+            : new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], `${folder}/**/*.workflow.ts`);
         const fileWatcher = vscode.workspace.createFileSystemWatcher(pattern, false, true, false);
         const reloadList = async () => {
             if (!syncManager) return;
@@ -2021,10 +2127,9 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     //    Register after the initial list so SyncManager internals are initialized.
     //    The webview reloads only for new workflow.push success events with remoteChanged=true.
     if (vscode.workspace.workspaceFolders?.length && syncManager) {
-        const journalPattern = new vscode.RelativePattern(
-            vscode.workspace.workspaceFolders[0],
-            `${folder}/**/${SYNC_EVENT_JOURNAL_FILENAME}`
-        );
+        const journalPattern = path.isAbsolute(folder)
+            ? new vscode.RelativePattern(vscode.Uri.file(absDirectory), `**/${SYNC_EVENT_JOURNAL_FILENAME}`)
+            : new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], `${folder}/**/${SYNC_EVENT_JOURNAL_FILENAME}`);
         const journalUri = vscode.Uri.file(await syncManager.getSyncEventJournalPath());
         await processSyncEventJournal(journalUri, 'sync journal seed', true);
 

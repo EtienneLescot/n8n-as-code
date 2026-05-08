@@ -323,7 +323,7 @@ export function getConfigurationHtml(nonce: string): string {
               <h2>Workspace settings</h2>
               <p class="muted">Folder and project stay scoped to this workspace.</p>
             </div>
-            <label>
+            <label id="legacyWorkspaceSyncField">
               Sync folder
               <input id="workspaceSync" type="text" placeholder="Use workspace default: workflows" />
             </label>
@@ -334,7 +334,7 @@ export function getConfigurationHtml(nonce: string): string {
               </label>
               <button id="loadProjects" class="secondary">Load projects</button>
             </div>
-            <div class="toolbar">
+            <div id="legacyWorkspaceActions" class="toolbar">
               <button id="saveWorkspace">Save settings</button>
               <button id="clearWorkspaceSettings" class="secondary">Clear folder/project</button>
             </div>
@@ -541,6 +541,8 @@ export function getConfigurationHtml(nonce: string): string {
       loadProjects: document.getElementById('loadProjects'),
       saveWorkspace: document.getElementById('saveWorkspace'),
       clearWorkspaceSettings: document.getElementById('clearWorkspaceSettings'),
+      legacyWorkspaceSyncField: document.getElementById('legacyWorkspaceSyncField'),
+      legacyWorkspaceActions: document.getElementById('legacyWorkspaceActions'),
       targetList: document.getElementById('targetList'),
       targetName: document.getElementById('targetName'),
       targetKind: document.getElementById('targetKind'),
@@ -643,11 +645,33 @@ export function getConfigurationHtml(nonce: string): string {
       if (instance.runtimeStatus === 'unknown') return badge('Status unknown', 'warning');
       return undefined;
     }
+    function accessBadge(item) {
+      const status = item?.accessStatus || (item?.apiKeyAvailable ? 'unknown' : 'missing-api-key');
+      if (status === 'ready') return badge('Ready', 'ready');
+      if (status === 'missing-api-key') return badge('Missing API key', 'warning');
+      if (status === 'invalid-api-key') return badge('Invalid API key', 'error');
+      if (status === 'project-inaccessible') return badge('Project inaccessible', 'error');
+      if (status === 'insufficient-workflow-permissions') return badge('Insufficient permissions', 'error');
+      if (status === 'runtime-unavailable') return badge('Runtime unavailable', 'error');
+      return badge('Access unknown', 'warning');
+    }
+    function credentialBadge(item) {
+      if (item?.credentialSource === 'env') return badge('API key: env', 'ready');
+      if (item?.credentialSource === 'workspace-local') return badge('API key: local', 'ready');
+      if (item?.credentialSource === 'global') return badge('API key: global', 'ready');
+      return undefined;
+    }
     function render() {
       const workspace = state.workspace || {};
       const effective = state.effective;
+      const isEnvironmentWorkspace = workspace.version === 4;
       workspaceInstanceOverrideId = workspace.activeInstanceId || '';
       els.workspaceSync.value = workspace.syncFolder || '';
+      els.legacyWorkspaceSyncField.classList.toggle('hidden', isEnvironmentWorkspace);
+      els.legacyWorkspaceActions.classList.toggle('hidden', isEnvironmentWorkspace);
+      els.workspaceSync.disabled = isEnvironmentWorkspace;
+      els.saveWorkspace.disabled = isEnvironmentWorkspace;
+      els.clearWorkspaceSettings.disabled = isEnvironmentWorkspace;
       renderTargetControls();
       renderTargetList();
       renderEnvironmentControls();
@@ -817,6 +841,9 @@ export function getConfigurationHtml(nonce: string): string {
         const status = document.createElement('div');
         status.className = 'instance-status';
         status.appendChild(badge(target.kind, target.kind === 'embedded' ? 'warning' : 'ready'));
+        status.appendChild(accessBadge(target));
+        const targetCredential = credentialBadge(target);
+        if (targetCredential) status.appendChild(targetCredential);
         top.append(identity, status);
         const actions = document.createElement('div');
         actions.className = 'toolbar';
@@ -866,6 +893,9 @@ export function getConfigurationHtml(nonce: string): string {
         const status = document.createElement('div');
         status.className = 'instance-status';
         if (active) status.appendChild(badge('Default', 'active'));
+        status.appendChild(accessBadge(env));
+        const envCredential = credentialBadge(env);
+        if (envCredential) status.appendChild(envCredential);
         top.append(identity, status);
         const actions = document.createElement('div');
         actions.className = 'toolbar';
@@ -986,6 +1016,13 @@ export function getConfigurationHtml(nonce: string): string {
         els.workspaceProject.appendChild(opt);
       }
       els.workspaceProject.value = selectedId || '';
+    }
+    function applySelectedProjectToEnvironment() {
+      if (state.workspace?.version !== 4) return;
+      const selectedOption = els.workspaceProject.selectedOptions[0];
+      if (!selectedOption || !selectedOption.value) return;
+      els.environmentProjectId.value = selectedOption.value;
+      els.environmentProjectName.value = selectedOption.dataset.projectName || selectedOption.textContent || selectedOption.value;
     }
     function openModal(instance) {
       editingInstanceId = instance?.id || '';
@@ -1175,10 +1212,12 @@ export function getConfigurationHtml(nonce: string): string {
       post('loadProjects', {
         instanceId: state.workspace?.version === 4 ? '' : currentWorkspaceInstanceId() || state.global?.activeInstanceId || '',
         instanceTargetId: els.environmentTarget.value || '',
+        environmentId: editingEnvironmentId || '',
         projectId: state.workspace?.projectId || state.effective?.projectId || '',
         projectName: state.workspace?.projectName || state.effective?.projectName || '',
       });
     });
+    els.workspaceProject.addEventListener('change', applySelectedProjectToEnvironment);
     els.saveWorkspace.addEventListener('click', () => saveWorkspaceContext(currentWorkspaceInstanceId()));
     els.clearWorkspaceSettings.addEventListener('click', () => {
       els.workspaceSync.value = '';
@@ -1203,6 +1242,7 @@ export function getConfigurationHtml(nonce: string): string {
       } else if (message.type === 'projectsLoaded') {
         projects = (message.projects && message.projects.length) ? message.projects : [PERSONAL_PROJECT];
         renderProjects(message.selectedProjectId || state.workspace?.projectId || state.effective?.projectId || 'personal');
+        applySelectedProjectToEnvironment();
       } else if (message.type === 'saved') {
         showSaved();
       } else if (message.type === 'copied') {

@@ -49,7 +49,7 @@ export function getResolvedN8nConfig(workspaceRoot = getWorkspaceRoot()): Resolv
   if (environment) {
     return {
       host: normalizeHost(environment.host) || getEnvValue('N8N_HOST'),
-      apiKey: environment.apiKey || getSettingsValue('apiKey') || getEnvValue('N8N_API_KEY'),
+      apiKey: environment.apiKey || '',
       syncFolder: environment.syncFolder || 'workflows',
       projectId: environment.projectId || '',
       projectName: environment.projectName || '',
