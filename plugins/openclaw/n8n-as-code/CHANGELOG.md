@@ -1,5 +1,11 @@
 # @n8n-as-code/n8nac
 
+## [2.0.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2.0.0...@n8n-as-code/n8nac@v2.0.1) (2026-05-08)
+
+### Documentation
+
+* update documentation for v2 split runtime and workspace model ([b8a4125](https://github.com/EtienneLescot/n8n-as-code/commit/b8a41256ea28d16382607a744c1f92fd3bac5824))
+
 ## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2026.5.0...@n8n-as-code/n8nac@v2.0.0) (2026-05-06)
 
 ### ⚠ BREAKING CHANGES

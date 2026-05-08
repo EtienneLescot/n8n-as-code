@@ -1,5 +1,18 @@
 # n8n-as-code
 
+## [2.0.4](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.0.3...n8n-as-code@v2.0.4) (2026-05-08)
+
+### Documentation
+
+* clarify v1 legacy extension install ([49ad824](https://github.com/EtienneLescot/n8n-as-code/commit/49ad8244b4a29525b96445cdea2b34a2eedb25a8))
+* update documentation for v2 split runtime and workspace model ([b8a4125](https://github.com/EtienneLescot/n8n-as-code/commit/b8a41256ea28d16382607a744c1f92fd3bac5824))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.0.1 to 2.0.2
+    * n8nac bumped from 2.0.3 to 2.0.4
+
 ## [2.0.3](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.0.2...n8n-as-code@v2.0.3) (2026-05-06)
 
 ### Bug Fixes

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-08T04:13:16.989Z",
+  "generatedAt": "2026-05-08T11:08:48.987Z",
   "version": "1.0.0",
   "sourceUrl": "https://docs.n8n.io/llms.txt",
   "totalPages": 1278,
@@ -11735,6 +11735,118 @@
     },
     {
       "id": "page-0129",
+      "title": "Root",
+      "url": "https://docs.n8n.io/data/expression-reference/root/index.md",
+      "urlPath": "data/expression-reference/root/index.md",
+      "category": "data",
+      "subcategory": null,
+      "nodeName": null,
+      "nodeType": null,
+      "content": {
+        "markdown": "# Root\n\n## **`$()`**\n\n**Description:** Returns the data of the specified node\n\n**Syntax:** $(nodeName)\n\n**Returns:** NodeData\n\n**Source:** Custom n8n functionality\n\n**Parameters:**\n\n- `nodeName` (String) - The name of the node to retrieve data for\n\n## **`$binary`**\n\n**Description:** Returns any binary input data to the current node, for the current item. Shorthand for `$input.item.binary`.\n\n**Syntax:** **`$binary`**\n\n**Returns:** Array\n\n**Source:** Custom n8n functionality\n\n## **`$execution`**\n\n**Description:** Retrieve or set metadata for the current execution\n\n**Syntax:** **`$execution`**\n\n**Returns:** ExecData\n\n**Source:** Custom n8n functionality\n\n## **`$fromAI()`**\n\n**Description:** Use when a large language model should provide the value of a node parameter. Consider providing a description for better results.\n\n**Syntax:** $fromAI(key, description?, type?, defaultValue?)\n\n**Returns:** any\n\n**Source:** Custom n8n functionality\n\n**Parameters:**\n\n- `key` (String) - The name of the field to fetch. May only contain letters, numbers, underscores and hyphens.\n- `description` (String) - optional - Use to give the model more context on exactly what it should return\n- `type` (String) - optional - The type of the value to return. One of `string`, `number`, `boolean`, `json`, `date`, `datetime`. Defaults to `string`.\n- `defaultValue` (any) - optional - A value to use if the model doesn’t return the key\n\n**Examples:**\n\n```\n// Ask the model to provide a name, and use it here\n$fromAI('name')\n```\n\n```\n// Ask the model to provide the age of the person (as a number with a default value of 18), and use it here\n$fromAI('age', 'The age of the person', 'number', 18)\n```\n\n```\n// Ask the model to provide a boolean signifying whether the person is a student (with default value false), and use it here\n$fromAI('isStudent', 'Is the person a student', 'boolean', false)\n```\n\n## **`$if()`**\n\n**Description:** Returns one of two values depending on the `condition`. Similar to the `?` operator in JavaScript.\n\n**Syntax:** $if(condition, valueIfTrue, valueIfFalse)\n\n**Returns:** any\n\n**Source:** Custom n8n functionality\n\n**Parameters:**\n\n- `condition` (Boolean) - The check to make. Should evaluate to either `true` or `false`\n- `valueIfTrue` (any) - The value to return if the condition is true\n- `valueIfFalse` (any) - The value to return if the condition is false\n\n**Examples:**\n\n```\n// Return \"Good day\" if time is before 5pm, otherwise \"Good evening\"\n$if($now.hour < 17, \"Good day\", \"Good evening\")\n```\n\n```\n// $if() calls can be combined:\n// Return \"Good morning\" if time is before 10am, \"Good day\" it's before 5pm, otherwise \"Good evening\"\n$if($now.hour < 10, \"Good morning\", $if($now.hour < 17, \"Good day\", \"Good evening\"))\n```\n\n## **`$ifEmpty()`**\n\n**Description:** Returns the first parameter if it isn’t empty, otherwise returns the second parameter. The following count as empty: `””`, `[]`, `{}`, `null`, `undefined`\n\n**Syntax:** $ifEmpty(value, valueIfEmpty)\n\n**Returns:** any\n\n**Source:** Custom n8n functionality\n\n**Parameters:**\n\n- `value` (any) - The value to return, provided it isn’t empty\n- `valueIfEmpty` (any) - What to return if `value` is empty\n\n**Examples:**\n\n```\n\"Hi \" + $ifEmpty(name, \"there\") // e.g. \"Hi Nathan\" or \"Hi there\"\n```\n\n## **`$input`**\n\n**Description:** The input data of the current node\n\n**Syntax:** **`$input`**\n\n**Returns:** NodeData\n\n**Source:** Custom n8n functionality\n\n## **`$itemIndex`**\n\n**Description:** The position of the item currently being processed in the list of input items\n\n**Syntax:** **`$itemIndex`**\n\n**Returns:** Number\n\n**Source:** Custom n8n functionality\n\n## **`$jmespath()`**\n\n**Description:** Extracts data from an object (or array of objects) using a [JMESPath](%E2%80%9D/code/cookbook/jmespath/%E2%80%9D) expression. Useful for querying complex, nested objects. Returns `undefined` if the expression is invalid.\n\n**Syntax:** $jmespath(obj, expression)\n\n**Returns:** any\n\n**Source:** Custom n8n functionality\n\n**Parameters:**\n\n- `obj` (Object|Array) - The Object or array of Objects to retrieve data from\n- `expression` (String) - A [JMESPath expression](%E2%80%9Dhttps://jmespath.org/examples.html%E2%80%9D) defining the data to retrieve from the object\n\n**Examples:**\n\n```\ndata = {\n  \"people\": [\n    {\n      \"age\": 20,\n      \"other\": \"foo\",\n      \"name\": \"Bob\"\n    },\n    {\n      \"age\": 25,\n      \"other\": \"bar\",\n      \"name\": \"Fred\"\n    },\n    {\n      \"age\": 30,\n      \"other\": \"baz\",\n      \"name\": \"George\"\n    }\n  ]\n}\n\n// Get all names, in an array\n{{ $jmespath(data, '[*].name') }} //=> [\"Bob\", \"Fred\", \"George\"]\n\n// Get the names and ages of everyone under 20\n$jmespath(data, '[?age > `20`].[name, age]') //=> [ [\"Fred\",25], [\"George\",30] ]\n\n// Get the name of the first person under 20\n$jmespath($json.people, '[?age > `20`].name | [0]') //=> Fred\n```\n\n```\ndata = {\n    \"reservations\": [\n      {\n        \"id\": 1,\n        \"guests\": [\n          {\n            \"name\": \"Nathan\",\n            \"requirements\": {\n              \"room\": \"double\",\n              \"meal\": \"vegetarian\"\n            }\n          },\n          {\n            \"name\": \"Meg\",\n            \"requirements\": {\n              \"room\": \"single\"\n            }\n          }\n        ]\n      },\n      {\n        \"id\": 2,\n        \"guests\": [\n          {\n            \"name\": \"Lex\",\n            \"requirements\": {\n              \"room\": \"double\"\n            }\n          }\n        ]\n      }\n    ]\n  }\n\n// Get the names of all the guests in each reservation that require a double room\n$jmespath(data, 'reservations[].guests[?requirements.room==`double`].name')\n```\n\n## **`$json`**\n\n**Description:** Returns the JSON input data to the current node, for the current item. Shorthand for `$input.item.json`. [More info](/data/data-structure/)\n\n**Syntax:** **`$json`**\n\n**Returns:** Object\n\n**Source:** Custom n8n functionality\n\n## **`$max()`**\n\n**Description:** Returns the highest of the given numbers\n\n**Syntax:** $max(num1, num2, …, numN)\n\n**Returns:** Number\n\n**Source:** Custom n8n functionality\n\n**Parameters:**\n\n- `num1` (Number) - The first number to compare\n- `num2` (Number) - The second number to compare\n\n## **`$min()`**\n\n**Description:** Returns the lowest of the given numbers\n\n**Syntax:** $min(num1, num2, …, numN)\n\n**Returns:** Number\n\n**Source:** Custom n8n functionality\n\n**Parameters:**\n\n- `num1` (Number) - The first number to compare\n- `num2` (Number) - The second number to compare\n\n## **`$nodeVersion`**\n\n**Description:** The version of the current node (as displayed at the bottom of the nodes’s settings pane)\n\n**Syntax:** **`$nodeVersion`**\n\n**Returns:** String\n\n**Source:** Custom n8n functionality\n\n## **`$now`**\n\n**Description:** A DateTime representing the current moment.\n\nUses the workflow’s time zone (which can be changed in the workflow settings).\n\n**Syntax:** **`$now`**\n\n**Returns:** DateTime\n\n**Source:** Custom n8n functionality\n\n## **`$pageCount`**\n\n**Description:** The number of results pages the node has fetched. Only available in the ‘HTTP Request’ node.\n\n**Syntax:** **`$pageCount`**\n\n**Returns:** Number\n\n**Source:** Custom n8n functionality\n\n## **`$parameter`**\n\n**Description:** The configuration settings of the current node. These are the parameters you fill out within the node’s UI (e.g. its operation).\n\n**Syntax:** **`$parameter`**\n\n**Returns:** NodeParams\n\n**Source:** Custom n8n functionality\n\n## **`$prevNode`**\n\n**Description:** Information about the node that the current input came from.\n\nWhen in a ‘Merge’ node, always uses the first input connector.\n\n**Syntax:** **`$prevNode`**\n\n**Returns:** PrevNodeData\n\n**Source:** Custom n8n functionality\n\n## **`$request`**\n\n**Description:** The request object sent during the last run of the node. Only available in the ‘HTTP Request’ node.\n\n**Syntax:** **`$request`**\n\n**Returns:** Object\n\n**Source:** Custom n8n functionality\n\n## **`$response`**\n\n**Description:** The response returned by the last HTTP call. Only available in the ‘HTTP Request’ node.\n\n**Syntax:** **`$response`**\n\n**Returns:** HTTPResponse\n\n**Source:** Custom n8n functionality\n\n## **`$runIndex`**\n\n**Description:** The index of the current run of the current node execution. Starts at 0.\n\n**Syntax:** **`$runIndex`**\n\n**Returns:** Number\n\n**Source:** Custom n8n functionality\n\n## **`$secrets`**\n\n**Description:** The secrets from an [external secrets vault](/external-secrets/), if configured. Secret values are never displayed to the user. Only available in credential fields.\n\n**Syntax:** **`$secrets`**\n\n**Returns:** Object\n\n**Source:** Custom n8n functionality\n\n## **`$today`**\n\n**Description:** A DateTime representing midnight at the start of the current day.\n\nUses the instance’s time zone (unless overridden in the workflow’s settings).\n\n**Syntax:** **`$today`**\n\n**Returns:** DateTime\n\n**Source:** Custom n8n functionality\n\n## **`$vars`**\n\n**Description:** The [variables](/code/variables/) available to the workflow\n\n**Syntax:** **`$vars`**\n\n**Returns:** Object\n\n**Source:** Custom n8n functionality\n\n## **`$workflow`**\n\n**Description:** Information about the current workflow\n\n**Syntax:** **`$workflow`**\n\n**Returns:** WorkflowData\n\n**Source:** Custom n8n functionality\n",
+        "excerpt": "# Root  ## **`$()`**  **Description:** Returns the data of the specified node  **Syntax:** $(nodeName)  **Returns:** NodeData  **Source:** Custom n8n functionality  **Parameters:**  - `nodeName` (String) - The name of the node to retrieve data for  ## **`$binary`**  **Description:** Returns any binary input data to the current node, for the current item. Shorthand for `$input.item.binary`.  **Syntax:** **`$binary`**  **Returns:** Array  **Source:** Custom n8n functionality  ## **`$execution`**...",
+        "sections": [
+          {
+            "title": "Root",
+            "level": 1,
+            "content": ""
+          }
+        ]
+      },
+      "metadata": {
+        "keywords": [
+          "root",
+          "**`$()`**",
+          "**`$binary`**",
+          "**`$execution`**",
+          "**`$fromai()`**",
+          "**`$if()`**",
+          "**`$ifempty()`**",
+          "**`$input`**",
+          "**`$itemindex`**",
+          "**`$jmespath()`**",
+          "**`$json`**",
+          "**`$max()`**",
+          "**`$min()`**",
+          "**`$nodeversion`**",
+          "**`$now`**",
+          "**`$pagecount`**",
+          "**`$parameter`**",
+          "**`$prevnode`**",
+          "**`$request`**",
+          "**`$response`**",
+          "**`$runindex`**",
+          "**`$secrets`**",
+          "**`$today`**",
+          "**`$vars`**",
+          "**`$workflow`**"
+        ],
+        "useCases": [],
+        "operations": [],
+        "codeExamples": 8,
+        "complexity": "intermediate",
+        "readingTime": "6 min",
+        "contentLength": 9178,
+        "relatedPages": []
+      },
+      "searchIndex": {
+        "fullText": "root # root\n\n## **`$()`**\n\n**description:** returns the data of the specified node\n\n**syntax:** $(nodename)\n\n**returns:** nodedata\n\n**source:** custom n8n functionality\n\n**parameters:**\n\n- `nodename` (string) - the name of the node to retrieve data for\n\n## **`$binary`**\n\n**description:** returns any binary input data to the current node, for the current item. shorthand for `$input.item.binary`.\n\n**syntax:** **`$binary`**\n\n**returns:** array\n\n**source:** custom n8n functionality\n\n## **`$execution`**\n\n**description:** retrieve or set metadata for the current execution\n\n**syntax:** **`$execution`**\n\n**returns:** execdata\n\n**source:** custom n8n functionality\n\n## **`$fromai()`**\n\n**description:** use when a large language model should provide the value of a node parameter. consider providing a description for better results.\n\n**syntax:** $fromai(key, description?, type?, defaultvalue?)\n\n**returns:** any\n\n**source:** custom n8n functionality\n\n**parameters:**\n\n- `key` (string) - the name of the field to fetch. may only contain letters, numbers, underscores and hyphens.\n- `description` (string) - optional - use to give the model more context on exactly what it should return\n- `type` (string) - optional - the type of the value to return. one of `string`, `number`, `boolean`, `json`, `date`, `datetime`. defaults to `string`.\n- `defaultvalue` (any) - optional - a value to use if the model doesn’t return the key\n\n**examples:**\n\n```\n// ask the model to provide a name, and use it here\n$fromai('name')\n```\n\n```\n// ask the model to provide the age of the person (as a number with a default value of 18), and use it here\n$fromai('age', 'the age of the person', 'number', 18)\n```\n\n```\n// ask the model to provide a boolean signifying whether the person is a student (with default value false), and use it here\n$fromai('isstudent', 'is the person a student', 'boolean', false)\n```\n\n## **`$if()`**\n\n**description:** returns one of two values depending on the `condition`. similar to the `?` operator in javascript.\n\n**syntax:** $if(condition, valueiftrue, valueiffalse)\n\n**returns:** any\n\n**source:** custom n8n functionality\n\n**parameters:**\n\n- `condition` (boolean) - the check to make. should evaluate to either `true` or `false`\n- `valueiftrue` (any) - the value to return if the condition is true\n- `valueiffalse` (any) - the value to return if the condition is false\n\n**examples:**\n\n```\n// return \"good day\" if time is before 5pm, otherwise \"good evening\"\n$if($now.hour < 17, \"good day\", \"good evening\")\n```\n\n```\n// $if() calls can be combined:\n// return \"good morning\" if time is before 10am, \"good day\" it's before 5pm, otherwise \"good evening\"\n$if($now.hour < 10, \"good morning\", $if($now.hour < 17, \"good day\", \"good evening\"))\n```\n\n## **`$ifempty()`**\n\n**description:** returns the first parameter if it isn’t empty, otherwise returns the second parameter. the following count as empty: `””`, `[]`, `{}`, `null`, `undefined`\n\n**syntax:** $ifempty(value, valueifempty)\n\n**returns:** any\n\n**source:** custom n8n functionality\n\n**parameters:**\n\n- `value` (any) - the value to return, provided it isn’t empty\n- `valueifempty` (any) - what to return if `value` is empty\n\n**examples:**\n\n```\n\"hi \" + $ifempty(name, \"there\") // e.g. \"hi nathan\" or \"hi there\"\n```\n\n## **`$input`**\n\n**description:** the input data of the current node\n\n**syntax:** **`$input`**\n\n**returns:** nodedata\n\n**source:** custom n8n functionality\n\n## **`$itemindex`**\n\n**description:** the position of the item currently being processed in the list of input items\n\n**syntax:** **`$itemindex`**\n\n**returns:** number\n\n**source:** custom n8n functionality\n\n## **`$jmespath()`**\n\n**description:** extracts data from an object (or array of objects) using a [jmespath](%e2%80%9d/code/cookbook/jmespath/%e2%80%9d) expression. useful for querying complex, nested objects. returns `undefined` if the expression is invalid.\n\n**syntax:** $jmespath(obj, expression)\n\n**returns:** any\n\n**source:** custom n8n functionality\n\n**parameters:**\n\n- `obj` (object|array) - the object or array of objects to retrieve data from\n- `expression` (string) - a [jmespath expression](%e2%80%9dhttps://jmespath.org/examples.html%e2%80%9d) defining the data to retrieve from the object\n\n**examples:**\n\n```\ndata = {\n  \"people\": [\n    {\n      \"age\": 20,\n      \"other\": \"foo\",\n      \"name\": \"bob\"\n    },\n    {\n      \"age\": 25,\n      \"other\": \"bar\",\n      \"name\": \"fred\"\n    },\n    {\n      \"age\": 30,\n      \"other\": \"baz\",\n      \"name\": \"george\"\n    }\n  ]\n}\n\n// get all names, in an array\n{{ $jmespath(data, '[*].name') }} //=> [\"bob\", \"fred\", \"george\"]\n\n// get the names and ages of everyone under 20\n$jmespath(data, '[?age > `20`].[name, age]') //=> [ [\"fred\",25], [\"george\",30] ]\n\n// get the name of the first person under 20\n$jmespath($json.people, '[?age > `20`].name | [0]') //=> fred\n```\n\n```\ndata = {\n    \"reservations\": [\n      {\n        \"id\": 1,\n        \"guests\": [\n          {\n            \"name\": \"nathan\",\n            \"requirements\": {\n              \"room\": \"double\",\n              \"meal\": \"vegetarian\"\n            }\n          },\n          {\n            \"name\": \"meg\",\n            \"requirements\": {\n              \"room\": \"single\"\n            }\n          }\n        ]\n      },\n      {\n        \"id\": 2,\n        \"guests\": [\n          {\n            \"name\": \"lex\",\n            \"requirements\": {\n              \"room\": \"double\"\n            }\n          }\n        ]\n      }\n    ]\n  }\n\n// get the names of all the guests in each reservation that require a double room\n$jmespath(data, 'reservations[].guests[?requirements.room==`double`].name')\n```\n\n## **`$json`**\n\n**description:** returns the json input data to the current node, for the current item. shorthand for `$input.item.json`. [more info](/data/data-structure/)\n\n**syntax:** **`$json`**\n\n**returns:** object\n\n**source:** custom n8n functionality\n\n## **`$max()`**\n\n**description:** returns the highest of the given numbers\n\n**syntax:** $max(num1, num2, …, numn)\n\n**returns:** number\n\n**source:** custom n8n functionality\n\n**parameters:**\n\n- `num1` (number) - the first number to compare\n- `num2` (number) - the second number to compare\n\n## **`$min()`**\n\n**description:** returns the lowest of the given numbers\n\n**syntax:** $min(num1, num2, …, numn)\n\n**returns:** number\n\n**source:** custom n8n functionality\n\n**parameters:**\n\n- `num1` (number) - the first number to compare\n- `num2` (number) - the second number to compare\n\n## **`$nodeversion`**\n\n**description:** the version of the current node (as displayed at the bottom of the nodes’s settings pane)\n\n**syntax:** **`$nodeversion`**\n\n**returns:** string\n\n**source:** custom n8n functionality\n\n## **`$now`**\n\n**description:** a datetime representing the current moment.\n\nuses the workflow’s time zone (which can be changed in the workflow settings).\n\n**syntax:** **`$now`**\n\n**returns:** datetime\n\n**source:** custom n8n functionality\n\n## **`$pagecount`**\n\n**description:** the number of results pages the node has fetched. only available in the ‘http request’ node.\n\n**syntax:** **`$pagecount`**\n\n**returns:** number\n\n**source:** custom n8n functionality\n\n## **`$parameter`**\n\n**description:** the configuration settings of the current node. these are the parameters you fill out within the node’s ui (e.g. its operation).\n\n**syntax:** **`$parameter`**\n\n**returns:** nodeparams\n\n**source:** custom n8n functionality\n\n## **`$prevnode`**\n\n**description:** information about the node that the current input came from.\n\nwhen in a ‘merge’ node, always uses the first input connector.\n\n**syntax:** **`$prevnode`**\n\n**returns:** prevnodedata\n\n**source:** custom n8n functionality\n\n## **`$request`**\n\n**description:** the request object sent during the last run of the node. only available in the ‘http request’ node.\n\n**syntax:** **`$request`**\n\n**returns:** object\n\n**source:** custom n8n functionality\n\n## **`$response`**\n\n**description:** the response returned by the last http call. only available in the ‘http request’ node.\n\n**syntax:** **`$response`**\n\n**returns:** httpresponse\n\n**source:** custom n8n functionality\n\n## **`$runindex`**\n\n**description:** the index of the current run of the current node execution. starts at 0.\n\n**syntax:** **`$runindex`**\n\n**returns:** number\n\n**source:** custom n8n functionality\n\n## **`$secrets`**\n\n**description:** the secrets from an [external secrets vault](/external-secrets/), if configured. secret values are never displayed to the user. only available in credential fields.\n\n**syntax:** **`$secrets`**\n\n**returns:** object\n\n**source:** custom n8n functionality\n\n## **`$today`**\n\n**description:** a datetime representing midnight at the start of the current day.\n\nuses the instance’s time zone (unless overridden in the workflow’s settings).\n\n**syntax:** **`$today`**\n\n**returns:** datetime\n\n**source:** custom n8n functionality\n\n## **`$vars`**\n\n**description:** the [variables](/code/variables/) available to the workflow\n\n**syntax:** **`$vars`**\n\n**returns:** object\n\n**source:** custom n8n functionality\n\n## **`$workflow`**\n\n**description:** information about the current workflow\n\n**syntax:** **`$workflow`**\n\n**returns:** workflowdata\n\n**source:** custom n8n functionality\n root",
+        "importantTerms": [
+          "returns",
+          "description",
+          "syntax",
+          "source",
+          "custom",
+          "functionality",
+          "node",
+          "number",
+          "name",
+          "data",
+          "current",
+          "value",
+          "input",
+          "good",
+          "jmespath",
+          "return",
+          "object",
+          "parameters",
+          "string",
+          "workflow",
+          "model",
+          "json",
+          "request",
+          "item",
+          "array",
+          "fromai",
+          "parameter",
+          "only",
+          "datetime",
+          "examples",
+          "person",
+          "condition",
+          "first",
+          "from",
+          "expression",
+          "room",
+          "available",
+          "secrets",
+          "retrieve",
+          "binary",
+          "execution",
+          "provide",
+          "boolean",
+          "false",
+          "time",
+          "evening",
+          "empty",
+          "fred",
+          "guests",
+          "requirements"
+        ]
+      }
+    },
+    {
+      "id": "page-0130",
       "title": "String",
       "url": "https://docs.n8n.io/data/expression-reference/string/index.md",
       "urlPath": "data/expression-reference/string/index.md",
@@ -11861,118 +11973,6 @@
           "array",
           "split",
           "extracturl"
-        ]
-      }
-    },
-    {
-      "id": "page-0130",
-      "title": "Root",
-      "url": "https://docs.n8n.io/data/expression-reference/root/index.md",
-      "urlPath": "data/expression-reference/root/index.md",
-      "category": "data",
-      "subcategory": null,
-      "nodeName": null,
-      "nodeType": null,
-      "content": {
-        "markdown": "# Root\n\n## **`$()`**\n\n**Description:** Returns the data of the specified node\n\n**Syntax:** $(nodeName)\n\n**Returns:** NodeData\n\n**Source:** Custom n8n functionality\n\n**Parameters:**\n\n- `nodeName` (String) - The name of the node to retrieve data for\n\n## **`$binary`**\n\n**Description:** Returns any binary input data to the current node, for the current item. Shorthand for `$input.item.binary`.\n\n**Syntax:** **`$binary`**\n\n**Returns:** Array\n\n**Source:** Custom n8n functionality\n\n## **`$execution`**\n\n**Description:** Retrieve or set metadata for the current execution\n\n**Syntax:** **`$execution`**\n\n**Returns:** ExecData\n\n**Source:** Custom n8n functionality\n\n## **`$fromAI()`**\n\n**Description:** Use when a large language model should provide the value of a node parameter. Consider providing a description for better results.\n\n**Syntax:** $fromAI(key, description?, type?, defaultValue?)\n\n**Returns:** any\n\n**Source:** Custom n8n functionality\n\n**Parameters:**\n\n- `key` (String) - The name of the field to fetch. May only contain letters, numbers, underscores and hyphens.\n- `description` (String) - optional - Use to give the model more context on exactly what it should return\n- `type` (String) - optional - The type of the value to return. One of `string`, `number`, `boolean`, `json`, `date`, `datetime`. Defaults to `string`.\n- `defaultValue` (any) - optional - A value to use if the model doesn’t return the key\n\n**Examples:**\n\n```\n// Ask the model to provide a name, and use it here\n$fromAI('name')\n```\n\n```\n// Ask the model to provide the age of the person (as a number with a default value of 18), and use it here\n$fromAI('age', 'The age of the person', 'number', 18)\n```\n\n```\n// Ask the model to provide a boolean signifying whether the person is a student (with default value false), and use it here\n$fromAI('isStudent', 'Is the person a student', 'boolean', false)\n```\n\n## **`$if()`**\n\n**Description:** Returns one of two values depending on the `condition`. Similar to the `?` operator in JavaScript.\n\n**Syntax:** $if(condition, valueIfTrue, valueIfFalse)\n\n**Returns:** any\n\n**Source:** Custom n8n functionality\n\n**Parameters:**\n\n- `condition` (Boolean) - The check to make. Should evaluate to either `true` or `false`\n- `valueIfTrue` (any) - The value to return if the condition is true\n- `valueIfFalse` (any) - The value to return if the condition is false\n\n**Examples:**\n\n```\n// Return \"Good day\" if time is before 5pm, otherwise \"Good evening\"\n$if($now.hour < 17, \"Good day\", \"Good evening\")\n```\n\n```\n// $if() calls can be combined:\n// Return \"Good morning\" if time is before 10am, \"Good day\" it's before 5pm, otherwise \"Good evening\"\n$if($now.hour < 10, \"Good morning\", $if($now.hour < 17, \"Good day\", \"Good evening\"))\n```\n\n## **`$ifEmpty()`**\n\n**Description:** Returns the first parameter if it isn’t empty, otherwise returns the second parameter. The following count as empty: `””`, `[]`, `{}`, `null`, `undefined`\n\n**Syntax:** $ifEmpty(value, valueIfEmpty)\n\n**Returns:** any\n\n**Source:** Custom n8n functionality\n\n**Parameters:**\n\n- `value` (any) - The value to return, provided it isn’t empty\n- `valueIfEmpty` (any) - What to return if `value` is empty\n\n**Examples:**\n\n```\n\"Hi \" + $ifEmpty(name, \"there\") // e.g. \"Hi Nathan\" or \"Hi there\"\n```\n\n## **`$input`**\n\n**Description:** The input data of the current node\n\n**Syntax:** **`$input`**\n\n**Returns:** NodeData\n\n**Source:** Custom n8n functionality\n\n## **`$itemIndex`**\n\n**Description:** The position of the item currently being processed in the list of input items\n\n**Syntax:** **`$itemIndex`**\n\n**Returns:** Number\n\n**Source:** Custom n8n functionality\n\n## **`$jmespath()`**\n\n**Description:** Extracts data from an object (or array of objects) using a [JMESPath](%E2%80%9D/code/cookbook/jmespath/%E2%80%9D) expression. Useful for querying complex, nested objects. Returns `undefined` if the expression is invalid.\n\n**Syntax:** $jmespath(obj, expression)\n\n**Returns:** any\n\n**Source:** Custom n8n functionality\n\n**Parameters:**\n\n- `obj` (Object|Array) - The Object or array of Objects to retrieve data from\n- `expression` (String) - A [JMESPath expression](%E2%80%9Dhttps://jmespath.org/examples.html%E2%80%9D) defining the data to retrieve from the object\n\n**Examples:**\n\n```\ndata = {\n  \"people\": [\n    {\n      \"age\": 20,\n      \"other\": \"foo\",\n      \"name\": \"Bob\"\n    },\n    {\n      \"age\": 25,\n      \"other\": \"bar\",\n      \"name\": \"Fred\"\n    },\n    {\n      \"age\": 30,\n      \"other\": \"baz\",\n      \"name\": \"George\"\n    }\n  ]\n}\n\n// Get all names, in an array\n{{ $jmespath(data, '[*].name') }} //=> [\"Bob\", \"Fred\", \"George\"]\n\n// Get the names and ages of everyone under 20\n$jmespath(data, '[?age > `20`].[name, age]') //=> [ [\"Fred\",25], [\"George\",30] ]\n\n// Get the name of the first person under 20\n$jmespath($json.people, '[?age > `20`].name | [0]') //=> Fred\n```\n\n```\ndata = {\n    \"reservations\": [\n      {\n        \"id\": 1,\n        \"guests\": [\n          {\n            \"name\": \"Nathan\",\n            \"requirements\": {\n              \"room\": \"double\",\n              \"meal\": \"vegetarian\"\n            }\n          },\n          {\n            \"name\": \"Meg\",\n            \"requirements\": {\n              \"room\": \"single\"\n            }\n          }\n        ]\n      },\n      {\n        \"id\": 2,\n        \"guests\": [\n          {\n            \"name\": \"Lex\",\n            \"requirements\": {\n              \"room\": \"double\"\n            }\n          }\n        ]\n      }\n    ]\n  }\n\n// Get the names of all the guests in each reservation that require a double room\n$jmespath(data, 'reservations[].guests[?requirements.room==`double`].name')\n```\n\n## **`$json`**\n\n**Description:** Returns the JSON input data to the current node, for the current item. Shorthand for `$input.item.json`. [More info](/data/data-structure/)\n\n**Syntax:** **`$json`**\n\n**Returns:** Object\n\n**Source:** Custom n8n functionality\n\n## **`$max()`**\n\n**Description:** Returns the highest of the given numbers\n\n**Syntax:** $max(num1, num2, …, numN)\n\n**Returns:** Number\n\n**Source:** Custom n8n functionality\n\n**Parameters:**\n\n- `num1` (Number) - The first number to compare\n- `num2` (Number) - The second number to compare\n\n## **`$min()`**\n\n**Description:** Returns the lowest of the given numbers\n\n**Syntax:** $min(num1, num2, …, numN)\n\n**Returns:** Number\n\n**Source:** Custom n8n functionality\n\n**Parameters:**\n\n- `num1` (Number) - The first number to compare\n- `num2` (Number) - The second number to compare\n\n## **`$nodeVersion`**\n\n**Description:** The version of the current node (as displayed at the bottom of the nodes’s settings pane)\n\n**Syntax:** **`$nodeVersion`**\n\n**Returns:** String\n\n**Source:** Custom n8n functionality\n\n## **`$now`**\n\n**Description:** A DateTime representing the current moment.\n\nUses the workflow’s time zone (which can be changed in the workflow settings).\n\n**Syntax:** **`$now`**\n\n**Returns:** DateTime\n\n**Source:** Custom n8n functionality\n\n## **`$pageCount`**\n\n**Description:** The number of results pages the node has fetched. Only available in the ‘HTTP Request’ node.\n\n**Syntax:** **`$pageCount`**\n\n**Returns:** Number\n\n**Source:** Custom n8n functionality\n\n## **`$parameter`**\n\n**Description:** The configuration settings of the current node. These are the parameters you fill out within the node’s UI (e.g. its operation).\n\n**Syntax:** **`$parameter`**\n\n**Returns:** NodeParams\n\n**Source:** Custom n8n functionality\n\n## **`$prevNode`**\n\n**Description:** Information about the node that the current input came from.\n\nWhen in a ‘Merge’ node, always uses the first input connector.\n\n**Syntax:** **`$prevNode`**\n\n**Returns:** PrevNodeData\n\n**Source:** Custom n8n functionality\n\n## **`$request`**\n\n**Description:** The request object sent during the last run of the node. Only available in the ‘HTTP Request’ node.\n\n**Syntax:** **`$request`**\n\n**Returns:** Object\n\n**Source:** Custom n8n functionality\n\n## **`$response`**\n\n**Description:** The response returned by the last HTTP call. Only available in the ‘HTTP Request’ node.\n\n**Syntax:** **`$response`**\n\n**Returns:** HTTPResponse\n\n**Source:** Custom n8n functionality\n\n## **`$runIndex`**\n\n**Description:** The index of the current run of the current node execution. Starts at 0.\n\n**Syntax:** **`$runIndex`**\n\n**Returns:** Number\n\n**Source:** Custom n8n functionality\n\n## **`$secrets`**\n\n**Description:** The secrets from an [external secrets vault](/external-secrets/), if configured. Secret values are never displayed to the user. Only available in credential fields.\n\n**Syntax:** **`$secrets`**\n\n**Returns:** Object\n\n**Source:** Custom n8n functionality\n\n## **`$today`**\n\n**Description:** A DateTime representing midnight at the start of the current day.\n\nUses the instance’s time zone (unless overridden in the workflow’s settings).\n\n**Syntax:** **`$today`**\n\n**Returns:** DateTime\n\n**Source:** Custom n8n functionality\n\n## **`$vars`**\n\n**Description:** The [variables](/code/variables/) available to the workflow\n\n**Syntax:** **`$vars`**\n\n**Returns:** Object\n\n**Source:** Custom n8n functionality\n\n## **`$workflow`**\n\n**Description:** Information about the current workflow\n\n**Syntax:** **`$workflow`**\n\n**Returns:** WorkflowData\n\n**Source:** Custom n8n functionality\n",
-        "excerpt": "# Root  ## **`$()`**  **Description:** Returns the data of the specified node  **Syntax:** $(nodeName)  **Returns:** NodeData  **Source:** Custom n8n functionality  **Parameters:**  - `nodeName` (String) - The name of the node to retrieve data for  ## **`$binary`**  **Description:** Returns any binary input data to the current node, for the current item. Shorthand for `$input.item.binary`.  **Syntax:** **`$binary`**  **Returns:** Array  **Source:** Custom n8n functionality  ## **`$execution`**...",
-        "sections": [
-          {
-            "title": "Root",
-            "level": 1,
-            "content": ""
-          }
-        ]
-      },
-      "metadata": {
-        "keywords": [
-          "root",
-          "**`$()`**",
-          "**`$binary`**",
-          "**`$execution`**",
-          "**`$fromai()`**",
-          "**`$if()`**",
-          "**`$ifempty()`**",
-          "**`$input`**",
-          "**`$itemindex`**",
-          "**`$jmespath()`**",
-          "**`$json`**",
-          "**`$max()`**",
-          "**`$min()`**",
-          "**`$nodeversion`**",
-          "**`$now`**",
-          "**`$pagecount`**",
-          "**`$parameter`**",
-          "**`$prevnode`**",
-          "**`$request`**",
-          "**`$response`**",
-          "**`$runindex`**",
-          "**`$secrets`**",
-          "**`$today`**",
-          "**`$vars`**",
-          "**`$workflow`**"
-        ],
-        "useCases": [],
-        "operations": [],
-        "codeExamples": 8,
-        "complexity": "intermediate",
-        "readingTime": "6 min",
-        "contentLength": 9178,
-        "relatedPages": []
-      },
-      "searchIndex": {
-        "fullText": "root # root\n\n## **`$()`**\n\n**description:** returns the data of the specified node\n\n**syntax:** $(nodename)\n\n**returns:** nodedata\n\n**source:** custom n8n functionality\n\n**parameters:**\n\n- `nodename` (string) - the name of the node to retrieve data for\n\n## **`$binary`**\n\n**description:** returns any binary input data to the current node, for the current item. shorthand for `$input.item.binary`.\n\n**syntax:** **`$binary`**\n\n**returns:** array\n\n**source:** custom n8n functionality\n\n## **`$execution`**\n\n**description:** retrieve or set metadata for the current execution\n\n**syntax:** **`$execution`**\n\n**returns:** execdata\n\n**source:** custom n8n functionality\n\n## **`$fromai()`**\n\n**description:** use when a large language model should provide the value of a node parameter. consider providing a description for better results.\n\n**syntax:** $fromai(key, description?, type?, defaultvalue?)\n\n**returns:** any\n\n**source:** custom n8n functionality\n\n**parameters:**\n\n- `key` (string) - the name of the field to fetch. may only contain letters, numbers, underscores and hyphens.\n- `description` (string) - optional - use to give the model more context on exactly what it should return\n- `type` (string) - optional - the type of the value to return. one of `string`, `number`, `boolean`, `json`, `date`, `datetime`. defaults to `string`.\n- `defaultvalue` (any) - optional - a value to use if the model doesn’t return the key\n\n**examples:**\n\n```\n// ask the model to provide a name, and use it here\n$fromai('name')\n```\n\n```\n// ask the model to provide the age of the person (as a number with a default value of 18), and use it here\n$fromai('age', 'the age of the person', 'number', 18)\n```\n\n```\n// ask the model to provide a boolean signifying whether the person is a student (with default value false), and use it here\n$fromai('isstudent', 'is the person a student', 'boolean', false)\n```\n\n## **`$if()`**\n\n**description:** returns one of two values depending on the `condition`. similar to the `?` operator in javascript.\n\n**syntax:** $if(condition, valueiftrue, valueiffalse)\n\n**returns:** any\n\n**source:** custom n8n functionality\n\n**parameters:**\n\n- `condition` (boolean) - the check to make. should evaluate to either `true` or `false`\n- `valueiftrue` (any) - the value to return if the condition is true\n- `valueiffalse` (any) - the value to return if the condition is false\n\n**examples:**\n\n```\n// return \"good day\" if time is before 5pm, otherwise \"good evening\"\n$if($now.hour < 17, \"good day\", \"good evening\")\n```\n\n```\n// $if() calls can be combined:\n// return \"good morning\" if time is before 10am, \"good day\" it's before 5pm, otherwise \"good evening\"\n$if($now.hour < 10, \"good morning\", $if($now.hour < 17, \"good day\", \"good evening\"))\n```\n\n## **`$ifempty()`**\n\n**description:** returns the first parameter if it isn’t empty, otherwise returns the second parameter. the following count as empty: `””`, `[]`, `{}`, `null`, `undefined`\n\n**syntax:** $ifempty(value, valueifempty)\n\n**returns:** any\n\n**source:** custom n8n functionality\n\n**parameters:**\n\n- `value` (any) - the value to return, provided it isn’t empty\n- `valueifempty` (any) - what to return if `value` is empty\n\n**examples:**\n\n```\n\"hi \" + $ifempty(name, \"there\") // e.g. \"hi nathan\" or \"hi there\"\n```\n\n## **`$input`**\n\n**description:** the input data of the current node\n\n**syntax:** **`$input`**\n\n**returns:** nodedata\n\n**source:** custom n8n functionality\n\n## **`$itemindex`**\n\n**description:** the position of the item currently being processed in the list of input items\n\n**syntax:** **`$itemindex`**\n\n**returns:** number\n\n**source:** custom n8n functionality\n\n## **`$jmespath()`**\n\n**description:** extracts data from an object (or array of objects) using a [jmespath](%e2%80%9d/code/cookbook/jmespath/%e2%80%9d) expression. useful for querying complex, nested objects. returns `undefined` if the expression is invalid.\n\n**syntax:** $jmespath(obj, expression)\n\n**returns:** any\n\n**source:** custom n8n functionality\n\n**parameters:**\n\n- `obj` (object|array) - the object or array of objects to retrieve data from\n- `expression` (string) - a [jmespath expression](%e2%80%9dhttps://jmespath.org/examples.html%e2%80%9d) defining the data to retrieve from the object\n\n**examples:**\n\n```\ndata = {\n  \"people\": [\n    {\n      \"age\": 20,\n      \"other\": \"foo\",\n      \"name\": \"bob\"\n    },\n    {\n      \"age\": 25,\n      \"other\": \"bar\",\n      \"name\": \"fred\"\n    },\n    {\n      \"age\": 30,\n      \"other\": \"baz\",\n      \"name\": \"george\"\n    }\n  ]\n}\n\n// get all names, in an array\n{{ $jmespath(data, '[*].name') }} //=> [\"bob\", \"fred\", \"george\"]\n\n// get the names and ages of everyone under 20\n$jmespath(data, '[?age > `20`].[name, age]') //=> [ [\"fred\",25], [\"george\",30] ]\n\n// get the name of the first person under 20\n$jmespath($json.people, '[?age > `20`].name | [0]') //=> fred\n```\n\n```\ndata = {\n    \"reservations\": [\n      {\n        \"id\": 1,\n        \"guests\": [\n          {\n            \"name\": \"nathan\",\n            \"requirements\": {\n              \"room\": \"double\",\n              \"meal\": \"vegetarian\"\n            }\n          },\n          {\n            \"name\": \"meg\",\n            \"requirements\": {\n              \"room\": \"single\"\n            }\n          }\n        ]\n      },\n      {\n        \"id\": 2,\n        \"guests\": [\n          {\n            \"name\": \"lex\",\n            \"requirements\": {\n              \"room\": \"double\"\n            }\n          }\n        ]\n      }\n    ]\n  }\n\n// get the names of all the guests in each reservation that require a double room\n$jmespath(data, 'reservations[].guests[?requirements.room==`double`].name')\n```\n\n## **`$json`**\n\n**description:** returns the json input data to the current node, for the current item. shorthand for `$input.item.json`. [more info](/data/data-structure/)\n\n**syntax:** **`$json`**\n\n**returns:** object\n\n**source:** custom n8n functionality\n\n## **`$max()`**\n\n**description:** returns the highest of the given numbers\n\n**syntax:** $max(num1, num2, …, numn)\n\n**returns:** number\n\n**source:** custom n8n functionality\n\n**parameters:**\n\n- `num1` (number) - the first number to compare\n- `num2` (number) - the second number to compare\n\n## **`$min()`**\n\n**description:** returns the lowest of the given numbers\n\n**syntax:** $min(num1, num2, …, numn)\n\n**returns:** number\n\n**source:** custom n8n functionality\n\n**parameters:**\n\n- `num1` (number) - the first number to compare\n- `num2` (number) - the second number to compare\n\n## **`$nodeversion`**\n\n**description:** the version of the current node (as displayed at the bottom of the nodes’s settings pane)\n\n**syntax:** **`$nodeversion`**\n\n**returns:** string\n\n**source:** custom n8n functionality\n\n## **`$now`**\n\n**description:** a datetime representing the current moment.\n\nuses the workflow’s time zone (which can be changed in the workflow settings).\n\n**syntax:** **`$now`**\n\n**returns:** datetime\n\n**source:** custom n8n functionality\n\n## **`$pagecount`**\n\n**description:** the number of results pages the node has fetched. only available in the ‘http request’ node.\n\n**syntax:** **`$pagecount`**\n\n**returns:** number\n\n**source:** custom n8n functionality\n\n## **`$parameter`**\n\n**description:** the configuration settings of the current node. these are the parameters you fill out within the node’s ui (e.g. its operation).\n\n**syntax:** **`$parameter`**\n\n**returns:** nodeparams\n\n**source:** custom n8n functionality\n\n## **`$prevnode`**\n\n**description:** information about the node that the current input came from.\n\nwhen in a ‘merge’ node, always uses the first input connector.\n\n**syntax:** **`$prevnode`**\n\n**returns:** prevnodedata\n\n**source:** custom n8n functionality\n\n## **`$request`**\n\n**description:** the request object sent during the last run of the node. only available in the ‘http request’ node.\n\n**syntax:** **`$request`**\n\n**returns:** object\n\n**source:** custom n8n functionality\n\n## **`$response`**\n\n**description:** the response returned by the last http call. only available in the ‘http request’ node.\n\n**syntax:** **`$response`**\n\n**returns:** httpresponse\n\n**source:** custom n8n functionality\n\n## **`$runindex`**\n\n**description:** the index of the current run of the current node execution. starts at 0.\n\n**syntax:** **`$runindex`**\n\n**returns:** number\n\n**source:** custom n8n functionality\n\n## **`$secrets`**\n\n**description:** the secrets from an [external secrets vault](/external-secrets/), if configured. secret values are never displayed to the user. only available in credential fields.\n\n**syntax:** **`$secrets`**\n\n**returns:** object\n\n**source:** custom n8n functionality\n\n## **`$today`**\n\n**description:** a datetime representing midnight at the start of the current day.\n\nuses the instance’s time zone (unless overridden in the workflow’s settings).\n\n**syntax:** **`$today`**\n\n**returns:** datetime\n\n**source:** custom n8n functionality\n\n## **`$vars`**\n\n**description:** the [variables](/code/variables/) available to the workflow\n\n**syntax:** **`$vars`**\n\n**returns:** object\n\n**source:** custom n8n functionality\n\n## **`$workflow`**\n\n**description:** information about the current workflow\n\n**syntax:** **`$workflow`**\n\n**returns:** workflowdata\n\n**source:** custom n8n functionality\n root",
-        "importantTerms": [
-          "returns",
-          "description",
-          "syntax",
-          "source",
-          "custom",
-          "functionality",
-          "node",
-          "number",
-          "name",
-          "data",
-          "current",
-          "value",
-          "input",
-          "good",
-          "jmespath",
-          "return",
-          "object",
-          "parameters",
-          "string",
-          "workflow",
-          "model",
-          "json",
-          "request",
-          "item",
-          "array",
-          "fromai",
-          "parameter",
-          "only",
-          "datetime",
-          "examples",
-          "person",
-          "condition",
-          "first",
-          "from",
-          "expression",
-          "room",
-          "available",
-          "secrets",
-          "retrieve",
-          "binary",
-          "execution",
-          "provide",
-          "boolean",
-          "false",
-          "time",
-          "evening",
-          "empty",
-          "fred",
-          "guests",
-          "requirements"
         ]
       }
     },
@@ -30779,67 +30779,6 @@
     },
     {
       "id": "page-0385",
-      "title": "Microsoft SQL",
-      "url": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.microsoftsql/index.md",
-      "urlPath": "integrations/builtin/app-nodes/n8n-nodes-base.microsoftsql/index.md",
-      "category": "integrations",
-      "subcategory": "app-nodes",
-      "nodeName": "microsoftsql",
-      "nodeType": "n8n-nodes-base.microsoftsql",
-      "content": {
-        "markdown": "# Microsoft SQL node\n\nUse the Microsoft SQL node to automate work in Microsoft SQL, and integrate Microsoft SQL with other applications. n8n has built-in support for a wide range of Microsoft SQL features, including executing SQL queries, and inserting rows into the database.\n\nOn this page, you'll find a list of operations the Microsoft SQL node supports and links to more resources.\n\nCredentials\n\nRefer to [Microsoft SQL credentials](../../credentials/microsoftsql/) for guidance on setting up authentication.\n\nThis node can be used as an AI tool\n\nThis node can be used to enhance the capabilities of an AI agent. When used in this way, many parameters can be set automatically, or with information directed by AI - find out more in the [AI tool parameters documentation](../../../../advanced-ai/examples/using-the-fromai-function/).\n\n## Operations\n\n- Execute an SQL query\n- Insert rows in database\n- Update rows in database\n- Delete rows in database\n\n## Templates and examples\n\n**Generate Monthly Financial Reports with Gemini AI, SQL, and Outlook**\n\nby Amjid Ali\n\n[View template details](https://n8n.io/workflows/3617-generate-monthly-financial-reports-with-gemini-ai-sql-and-outlook/)\n\n**Execute an SQL query in Microsoft SQL**\n\nby tanaypant\n\n[View template details](https://n8n.io/workflows/479-execute-an-sql-query-in-microsoft-sql/)\n\n**Export SQL table into CSV file**\n\nby Eduard\n\n[View template details](https://n8n.io/workflows/1914-export-sql-table-into-csv-file/)\n\n[Browse Microsoft SQL integration templates](https://n8n.io/integrations/microsoft-sql/), or [search all templates](https://n8n.io/workflows/)\n",
-        "excerpt": "# Microsoft SQL node  Use the Microsoft SQL node to automate work in Microsoft SQL, and integrate Microsoft SQL with other applications. n8n has built-in support for a wide range of Microsoft SQL features, including executing SQL queries, and inserting rows into the database.  On this page, you'll find a list of operations the Microsoft SQL node supports and links to more resources.  Credentials  Refer to [Microsoft SQL credentials](../../credentials/microsoftsql/) for guidance on setting up aut...",
-        "sections": [
-          {
-            "title": "Microsoft SQL node",
-            "level": 1,
-            "content": "Use the Microsoft SQL node to automate work in Microsoft SQL, and integrate Microsoft SQL with other applications. n8n has built-in support for a wide range of Microsoft SQL features, including executing SQL queries, and inserting rows into the database.\n\nOn this page, you'll find a list of operations the Microsoft SQL node supports and links to more resources.\n\nCredentials\n\nRefer to [Microsoft SQL credentials](../../credentials/microsoftsql/) for guidance on setting up authentication.\n\nThis node can be used as an AI tool\n\nThis node can be used to enhance the capabilities of an AI agent. When used in this way, many parameters can be set automatically, or with information directed by AI - find out more in the [AI tool parameters documentation](../../../../advanced-ai/examples/using-the-fromai-function/)."
-          }
-        ]
-      },
-      "metadata": {
-        "keywords": [
-          "microsoft",
-          "node",
-          "operations",
-          "templates",
-          "examples"
-        ],
-        "useCases": [],
-        "operations": [
-          ""
-        ],
-        "codeExamples": 0,
-        "complexity": "beginner",
-        "readingTime": "1 min",
-        "contentLength": 1621,
-        "relatedPages": []
-      },
-      "searchIndex": {
-        "fullText": "microsoft sql # microsoft sql node\n\nuse the microsoft sql node to automate work in microsoft sql, and integrate microsoft sql with other applications. n8n has built-in support for a wide range of microsoft sql features, including executing sql queries, and inserting rows into the database.\n\non this page, you'll find a list of operations the microsoft sql node supports and links to more resources.\n\ncredentials\n\nrefer to [microsoft sql credentials](../../credentials/microsoftsql/) for guidance on setting up authentication.\n\nthis node can be used as an ai tool\n\nthis node can be used to enhance the capabilities of an ai agent. when used in this way, many parameters can be set automatically, or with information directed by ai - find out more in the [ai tool parameters documentation](../../../../advanced-ai/examples/using-the-fromai-function/).\n\n## operations\n\n- execute an sql query\n- insert rows in database\n- update rows in database\n- delete rows in database\n\n## templates and examples\n\n**generate monthly financial reports with gemini ai, sql, and outlook**\n\nby amjid ali\n\n[view template details](https://n8n.io/workflows/3617-generate-monthly-financial-reports-with-gemini-ai-sql-and-outlook/)\n\n**execute an sql query in microsoft sql**\n\nby tanaypant\n\n[view template details](https://n8n.io/workflows/479-execute-an-sql-query-in-microsoft-sql/)\n\n**export sql table into csv file**\n\nby eduard\n\n[view template details](https://n8n.io/workflows/1914-export-sql-table-into-csv-file/)\n\n[browse microsoft sql integration templates](https://n8n.io/integrations/microsoft-sql/), or [search all templates](https://n8n.io/workflows/)\n microsoft sql node",
-        "importantTerms": [
-          "microsoft",
-          "node",
-          "https",
-          "with",
-          "rows",
-          "database",
-          "this",
-          "workflows",
-          "into",
-          "credentials",
-          "used",
-          "execute",
-          "query",
-          "templates",
-          "view",
-          "template",
-          "details"
-        ]
-      }
-    },
-    {
-      "id": "page-0386",
       "title": "Microsoft SharePoint",
       "url": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.microsoftsharepoint/index.md",
       "urlPath": "integrations/builtin/app-nodes/n8n-nodes-base.microsoftsharepoint/index.md",
@@ -30903,6 +30842,67 @@
           "templates",
           "view",
           "template"
+        ]
+      }
+    },
+    {
+      "id": "page-0386",
+      "title": "Microsoft SQL",
+      "url": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.microsoftsql/index.md",
+      "urlPath": "integrations/builtin/app-nodes/n8n-nodes-base.microsoftsql/index.md",
+      "category": "integrations",
+      "subcategory": "app-nodes",
+      "nodeName": "microsoftsql",
+      "nodeType": "n8n-nodes-base.microsoftsql",
+      "content": {
+        "markdown": "# Microsoft SQL node\n\nUse the Microsoft SQL node to automate work in Microsoft SQL, and integrate Microsoft SQL with other applications. n8n has built-in support for a wide range of Microsoft SQL features, including executing SQL queries, and inserting rows into the database.\n\nOn this page, you'll find a list of operations the Microsoft SQL node supports and links to more resources.\n\nCredentials\n\nRefer to [Microsoft SQL credentials](../../credentials/microsoftsql/) for guidance on setting up authentication.\n\nThis node can be used as an AI tool\n\nThis node can be used to enhance the capabilities of an AI agent. When used in this way, many parameters can be set automatically, or with information directed by AI - find out more in the [AI tool parameters documentation](../../../../advanced-ai/examples/using-the-fromai-function/).\n\n## Operations\n\n- Execute an SQL query\n- Insert rows in database\n- Update rows in database\n- Delete rows in database\n\n## Templates and examples\n\n**Generate Monthly Financial Reports with Gemini AI, SQL, and Outlook**\n\nby Amjid Ali\n\n[View template details](https://n8n.io/workflows/3617-generate-monthly-financial-reports-with-gemini-ai-sql-and-outlook/)\n\n**Execute an SQL query in Microsoft SQL**\n\nby tanaypant\n\n[View template details](https://n8n.io/workflows/479-execute-an-sql-query-in-microsoft-sql/)\n\n**Export SQL table into CSV file**\n\nby Eduard\n\n[View template details](https://n8n.io/workflows/1914-export-sql-table-into-csv-file/)\n\n[Browse Microsoft SQL integration templates](https://n8n.io/integrations/microsoft-sql/), or [search all templates](https://n8n.io/workflows/)\n",
+        "excerpt": "# Microsoft SQL node  Use the Microsoft SQL node to automate work in Microsoft SQL, and integrate Microsoft SQL with other applications. n8n has built-in support for a wide range of Microsoft SQL features, including executing SQL queries, and inserting rows into the database.  On this page, you'll find a list of operations the Microsoft SQL node supports and links to more resources.  Credentials  Refer to [Microsoft SQL credentials](../../credentials/microsoftsql/) for guidance on setting up aut...",
+        "sections": [
+          {
+            "title": "Microsoft SQL node",
+            "level": 1,
+            "content": "Use the Microsoft SQL node to automate work in Microsoft SQL, and integrate Microsoft SQL with other applications. n8n has built-in support for a wide range of Microsoft SQL features, including executing SQL queries, and inserting rows into the database.\n\nOn this page, you'll find a list of operations the Microsoft SQL node supports and links to more resources.\n\nCredentials\n\nRefer to [Microsoft SQL credentials](../../credentials/microsoftsql/) for guidance on setting up authentication.\n\nThis node can be used as an AI tool\n\nThis node can be used to enhance the capabilities of an AI agent. When used in this way, many parameters can be set automatically, or with information directed by AI - find out more in the [AI tool parameters documentation](../../../../advanced-ai/examples/using-the-fromai-function/)."
+          }
+        ]
+      },
+      "metadata": {
+        "keywords": [
+          "microsoft",
+          "node",
+          "operations",
+          "templates",
+          "examples"
+        ],
+        "useCases": [],
+        "operations": [
+          ""
+        ],
+        "codeExamples": 0,
+        "complexity": "beginner",
+        "readingTime": "1 min",
+        "contentLength": 1621,
+        "relatedPages": []
+      },
+      "searchIndex": {
+        "fullText": "microsoft sql # microsoft sql node\n\nuse the microsoft sql node to automate work in microsoft sql, and integrate microsoft sql with other applications. n8n has built-in support for a wide range of microsoft sql features, including executing sql queries, and inserting rows into the database.\n\non this page, you'll find a list of operations the microsoft sql node supports and links to more resources.\n\ncredentials\n\nrefer to [microsoft sql credentials](../../credentials/microsoftsql/) for guidance on setting up authentication.\n\nthis node can be used as an ai tool\n\nthis node can be used to enhance the capabilities of an ai agent. when used in this way, many parameters can be set automatically, or with information directed by ai - find out more in the [ai tool parameters documentation](../../../../advanced-ai/examples/using-the-fromai-function/).\n\n## operations\n\n- execute an sql query\n- insert rows in database\n- update rows in database\n- delete rows in database\n\n## templates and examples\n\n**generate monthly financial reports with gemini ai, sql, and outlook**\n\nby amjid ali\n\n[view template details](https://n8n.io/workflows/3617-generate-monthly-financial-reports-with-gemini-ai-sql-and-outlook/)\n\n**execute an sql query in microsoft sql**\n\nby tanaypant\n\n[view template details](https://n8n.io/workflows/479-execute-an-sql-query-in-microsoft-sql/)\n\n**export sql table into csv file**\n\nby eduard\n\n[view template details](https://n8n.io/workflows/1914-export-sql-table-into-csv-file/)\n\n[browse microsoft sql integration templates](https://n8n.io/integrations/microsoft-sql/), or [search all templates](https://n8n.io/workflows/)\n microsoft sql node",
+        "importantTerms": [
+          "microsoft",
+          "node",
+          "https",
+          "with",
+          "rows",
+          "database",
+          "this",
+          "workflows",
+          "into",
+          "credentials",
+          "used",
+          "execute",
+          "query",
+          "templates",
+          "view",
+          "template",
+          "details"
         ]
       }
     },
@@ -47159,6 +47159,77 @@
     },
     {
       "id": "page-0595",
+      "title": "Anthropic Chat Model",
+      "url": "https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatanthropic/index.md",
+      "urlPath": "integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatanthropic/index.md",
+      "category": "cluster-nodes",
+      "subcategory": null,
+      "nodeName": null,
+      "nodeType": null,
+      "content": {
+        "markdown": "# Anthropic Chat Model node\n\nUse the Anthropic Chat Model node to use Anthropic's Claude family of chat models with conversational [agents](../../../../../glossary/#ai-agent).\n\nOn this page, you'll find the node parameters for the Anthropic Chat Model node, and links to more resources.\n\nCredentials\n\nYou can find authentication information for this node [here](../../../credentials/anthropic/).\n\nParameter resolution in sub-nodes\n\nSub-nodes behave differently to other nodes when processing multiple items using an expression.\n\nMost nodes, including root nodes, take any number of items as input, process these items, and output the results. You can use expressions to refer to input items, and the node resolves the expression for each item in turn. For example, given an input of five `name` values, the expression `{{ $json.name }}` resolves to each name in turn.\n\nIn sub-nodes, the expression always resolves to the first item. For example, given an input of five `name` values, the expression `{{ $json.name }}` always resolves to the first name.\n\n## Node parameters\n\n- **Model**: Select the model that generates the completion. Choose from:\n  - **Claude**\n  - **Claude Instant**\n\nLearn more in the [Anthropic model documentation](https://docs.anthropic.com/claude/reference/selecting-a-model).\n\n## Node options\n\n- **Maximum Number of Tokens**: Enter the maximum number of tokens used, which sets the completion length.\n- **Sampling Temperature**: Use this option to control the randomness of the sampling process. A higher temperature creates more diverse sampling, but increases the risk of hallucinations.\n- **Top K**: Enter the number of token choices the model uses to generate the next token.\n- **Top P**: Use this option to set the probability the completion should use. Use a lower value to ignore less probable options.\n\n## Templates and examples\n\n**Notion AI Assistant Generator**\n\nby Max Tkacz\n\n[View template details](https://n8n.io/workflows/2415-notion-ai-assistant-generator/)\n\n**Gmail AI Email Manager**\n\nby Max Mitcham\n\n[View template details](https://n8n.io/workflows/4722-gmail-ai-email-manager/)\n\n**🤖 AI content generation for Auto Service 🚘 Automate your social media📲!**\n\nby N8ner\n\n[View template details](https://n8n.io/workflows/4600-ai-content-generation-for-auto-service-automate-your-social-media/)\n\n[Browse Anthropic Chat Model integration templates](https://n8n.io/integrations/anthropic-chat-model/), or [search all templates](https://n8n.io/workflows/)\n\n## Related resources\n\nRefer to [LangChains's Anthropic documentation](https://js.langchain.com/docs/integrations/chat/anthropic/) for more information about the service.\n\nView n8n's [Advanced AI](../../../../../advanced-ai/) documentation.\n",
+        "excerpt": "# Anthropic Chat Model node  Use the Anthropic Chat Model node to use Anthropic's Claude family of chat models with conversational [agents](../../../../../glossary/#ai-agent).  On this page, you'll find the node parameters for the Anthropic Chat Model node, and links to more resources.  Credentials  You can find authentication information for this node [here](../../../credentials/anthropic/).  Parameter resolution in sub-nodes  Sub-nodes behave differently to other nodes when processing multiple...",
+        "sections": [
+          {
+            "title": "Anthropic Chat Model node",
+            "level": 1,
+            "content": "Use the Anthropic Chat Model node to use Anthropic's Claude family of chat models with conversational [agents](../../../../../glossary/#ai-agent).\n\nOn this page, you'll find the node parameters for the Anthropic Chat Model node, and links to more resources.\n\nCredentials\n\nYou can find authentication information for this node [here](../../../credentials/anthropic/).\n\nParameter resolution in sub-nodes\n\nSub-nodes behave differently to other nodes when processing multiple items using an expression.\n\nMost nodes, including root nodes, take any number of items as input, process these items, and output the results. You can use expressions to refer to input items, and the node resolves the expression for each item in turn. For example, given an input of five `name` values, the expression `{{ $json.name }}` resolves to each name in turn.\n\nIn sub-nodes, the expression always resolves to the first item. For example, given an input of five `name` values, the expression `{{ $json.name }}` always reso"
+          }
+        ]
+      },
+      "metadata": {
+        "keywords": [
+          "anthropic",
+          "chat",
+          "model",
+          "node",
+          "parameters",
+          "options",
+          "templates",
+          "examples",
+          "related",
+          "resources"
+        ],
+        "useCases": [],
+        "operations": [],
+        "codeExamples": 0,
+        "complexity": "beginner",
+        "readingTime": "2 min",
+        "contentLength": 2734,
+        "relatedPages": []
+      },
+      "searchIndex": {
+        "fullText": "anthropic chat model # anthropic chat model node\n\nuse the anthropic chat model node to use anthropic's claude family of chat models with conversational [agents](../../../../../glossary/#ai-agent).\n\non this page, you'll find the node parameters for the anthropic chat model node, and links to more resources.\n\ncredentials\n\nyou can find authentication information for this node [here](../../../credentials/anthropic/).\n\nparameter resolution in sub-nodes\n\nsub-nodes behave differently to other nodes when processing multiple items using an expression.\n\nmost nodes, including root nodes, take any number of items as input, process these items, and output the results. you can use expressions to refer to input items, and the node resolves the expression for each item in turn. for example, given an input of five `name` values, the expression `{{ $json.name }}` resolves to each name in turn.\n\nin sub-nodes, the expression always resolves to the first item. for example, given an input of five `name` values, the expression `{{ $json.name }}` always resolves to the first name.\n\n## node parameters\n\n- **model**: select the model that generates the completion. choose from:\n  - **claude**\n  - **claude instant**\n\nlearn more in the [anthropic model documentation](https://docs.anthropic.com/claude/reference/selecting-a-model).\n\n## node options\n\n- **maximum number of tokens**: enter the maximum number of tokens used, which sets the completion length.\n- **sampling temperature**: use this option to control the randomness of the sampling process. a higher temperature creates more diverse sampling, but increases the risk of hallucinations.\n- **top k**: enter the number of token choices the model uses to generate the next token.\n- **top p**: use this option to set the probability the completion should use. use a lower value to ignore less probable options.\n\n## templates and examples\n\n**notion ai assistant generator**\n\nby max tkacz\n\n[view template details](https://n8n.io/workflows/2415-notion-ai-assistant-generator/)\n\n**gmail ai email manager**\n\nby max mitcham\n\n[view template details](https://n8n.io/workflows/4722-gmail-ai-email-manager/)\n\n**🤖 ai content generation for auto service 🚘 automate your social media📲!**\n\nby n8ner\n\n[view template details](https://n8n.io/workflows/4600-ai-content-generation-for-auto-service-automate-your-social-media/)\n\n[browse anthropic chat model integration templates](https://n8n.io/integrations/anthropic-chat-model/), or [search all templates](https://n8n.io/workflows/)\n\n## related resources\n\nrefer to [langchains's anthropic documentation](https://js.langchain.com/docs/integrations/chat/anthropic/) for more information about the service.\n\nview n8n's [advanced ai](../../../../../advanced-ai/) documentation.\n anthropic chat model node",
+        "importantTerms": [
+          "anthropic",
+          "model",
+          "chat",
+          "node",
+          "https",
+          "nodes",
+          "name",
+          "expression",
+          "claude",
+          "this",
+          "more",
+          "items",
+          "number",
+          "input",
+          "resolves",
+          "view",
+          "workflows",
+          "completion",
+          "documentation",
+          "sampling",
+          "templates",
+          "template",
+          "details",
+          "service"
+        ]
+      }
+    },
+    {
+      "id": "page-0596",
       "title": "AWS Bedrock Chat Model",
       "url": "https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatawsbedrock/index.md",
       "urlPath": "integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatawsbedrock/index.md",
@@ -47227,77 +47298,6 @@
           "templates",
           "template",
           "details"
-        ]
-      }
-    },
-    {
-      "id": "page-0596",
-      "title": "Anthropic Chat Model",
-      "url": "https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatanthropic/index.md",
-      "urlPath": "integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.lmchatanthropic/index.md",
-      "category": "cluster-nodes",
-      "subcategory": null,
-      "nodeName": null,
-      "nodeType": null,
-      "content": {
-        "markdown": "# Anthropic Chat Model node\n\nUse the Anthropic Chat Model node to use Anthropic's Claude family of chat models with conversational [agents](../../../../../glossary/#ai-agent).\n\nOn this page, you'll find the node parameters for the Anthropic Chat Model node, and links to more resources.\n\nCredentials\n\nYou can find authentication information for this node [here](../../../credentials/anthropic/).\n\nParameter resolution in sub-nodes\n\nSub-nodes behave differently to other nodes when processing multiple items using an expression.\n\nMost nodes, including root nodes, take any number of items as input, process these items, and output the results. You can use expressions to refer to input items, and the node resolves the expression for each item in turn. For example, given an input of five `name` values, the expression `{{ $json.name }}` resolves to each name in turn.\n\nIn sub-nodes, the expression always resolves to the first item. For example, given an input of five `name` values, the expression `{{ $json.name }}` always resolves to the first name.\n\n## Node parameters\n\n- **Model**: Select the model that generates the completion. Choose from:\n  - **Claude**\n  - **Claude Instant**\n\nLearn more in the [Anthropic model documentation](https://docs.anthropic.com/claude/reference/selecting-a-model).\n\n## Node options\n\n- **Maximum Number of Tokens**: Enter the maximum number of tokens used, which sets the completion length.\n- **Sampling Temperature**: Use this option to control the randomness of the sampling process. A higher temperature creates more diverse sampling, but increases the risk of hallucinations.\n- **Top K**: Enter the number of token choices the model uses to generate the next token.\n- **Top P**: Use this option to set the probability the completion should use. Use a lower value to ignore less probable options.\n\n## Templates and examples\n\n**Notion AI Assistant Generator**\n\nby Max Tkacz\n\n[View template details](https://n8n.io/workflows/2415-notion-ai-assistant-generator/)\n\n**Gmail AI Email Manager**\n\nby Max Mitcham\n\n[View template details](https://n8n.io/workflows/4722-gmail-ai-email-manager/)\n\n**🤖 AI content generation for Auto Service 🚘 Automate your social media📲!**\n\nby N8ner\n\n[View template details](https://n8n.io/workflows/4600-ai-content-generation-for-auto-service-automate-your-social-media/)\n\n[Browse Anthropic Chat Model integration templates](https://n8n.io/integrations/anthropic-chat-model/), or [search all templates](https://n8n.io/workflows/)\n\n## Related resources\n\nRefer to [LangChains's Anthropic documentation](https://js.langchain.com/docs/integrations/chat/anthropic/) for more information about the service.\n\nView n8n's [Advanced AI](../../../../../advanced-ai/) documentation.\n",
-        "excerpt": "# Anthropic Chat Model node  Use the Anthropic Chat Model node to use Anthropic's Claude family of chat models with conversational [agents](../../../../../glossary/#ai-agent).  On this page, you'll find the node parameters for the Anthropic Chat Model node, and links to more resources.  Credentials  You can find authentication information for this node [here](../../../credentials/anthropic/).  Parameter resolution in sub-nodes  Sub-nodes behave differently to other nodes when processing multiple...",
-        "sections": [
-          {
-            "title": "Anthropic Chat Model node",
-            "level": 1,
-            "content": "Use the Anthropic Chat Model node to use Anthropic's Claude family of chat models with conversational [agents](../../../../../glossary/#ai-agent).\n\nOn this page, you'll find the node parameters for the Anthropic Chat Model node, and links to more resources.\n\nCredentials\n\nYou can find authentication information for this node [here](../../../credentials/anthropic/).\n\nParameter resolution in sub-nodes\n\nSub-nodes behave differently to other nodes when processing multiple items using an expression.\n\nMost nodes, including root nodes, take any number of items as input, process these items, and output the results. You can use expressions to refer to input items, and the node resolves the expression for each item in turn. For example, given an input of five `name` values, the expression `{{ $json.name }}` resolves to each name in turn.\n\nIn sub-nodes, the expression always resolves to the first item. For example, given an input of five `name` values, the expression `{{ $json.name }}` always reso"
-          }
-        ]
-      },
-      "metadata": {
-        "keywords": [
-          "anthropic",
-          "chat",
-          "model",
-          "node",
-          "parameters",
-          "options",
-          "templates",
-          "examples",
-          "related",
-          "resources"
-        ],
-        "useCases": [],
-        "operations": [],
-        "codeExamples": 0,
-        "complexity": "beginner",
-        "readingTime": "2 min",
-        "contentLength": 2734,
-        "relatedPages": []
-      },
-      "searchIndex": {
-        "fullText": "anthropic chat model # anthropic chat model node\n\nuse the anthropic chat model node to use anthropic's claude family of chat models with conversational [agents](../../../../../glossary/#ai-agent).\n\non this page, you'll find the node parameters for the anthropic chat model node, and links to more resources.\n\ncredentials\n\nyou can find authentication information for this node [here](../../../credentials/anthropic/).\n\nparameter resolution in sub-nodes\n\nsub-nodes behave differently to other nodes when processing multiple items using an expression.\n\nmost nodes, including root nodes, take any number of items as input, process these items, and output the results. you can use expressions to refer to input items, and the node resolves the expression for each item in turn. for example, given an input of five `name` values, the expression `{{ $json.name }}` resolves to each name in turn.\n\nin sub-nodes, the expression always resolves to the first item. for example, given an input of five `name` values, the expression `{{ $json.name }}` always resolves to the first name.\n\n## node parameters\n\n- **model**: select the model that generates the completion. choose from:\n  - **claude**\n  - **claude instant**\n\nlearn more in the [anthropic model documentation](https://docs.anthropic.com/claude/reference/selecting-a-model).\n\n## node options\n\n- **maximum number of tokens**: enter the maximum number of tokens used, which sets the completion length.\n- **sampling temperature**: use this option to control the randomness of the sampling process. a higher temperature creates more diverse sampling, but increases the risk of hallucinations.\n- **top k**: enter the number of token choices the model uses to generate the next token.\n- **top p**: use this option to set the probability the completion should use. use a lower value to ignore less probable options.\n\n## templates and examples\n\n**notion ai assistant generator**\n\nby max tkacz\n\n[view template details](https://n8n.io/workflows/2415-notion-ai-assistant-generator/)\n\n**gmail ai email manager**\n\nby max mitcham\n\n[view template details](https://n8n.io/workflows/4722-gmail-ai-email-manager/)\n\n**🤖 ai content generation for auto service 🚘 automate your social media📲!**\n\nby n8ner\n\n[view template details](https://n8n.io/workflows/4600-ai-content-generation-for-auto-service-automate-your-social-media/)\n\n[browse anthropic chat model integration templates](https://n8n.io/integrations/anthropic-chat-model/), or [search all templates](https://n8n.io/workflows/)\n\n## related resources\n\nrefer to [langchains's anthropic documentation](https://js.langchain.com/docs/integrations/chat/anthropic/) for more information about the service.\n\nview n8n's [advanced ai](../../../../../advanced-ai/) documentation.\n anthropic chat model node",
-        "importantTerms": [
-          "anthropic",
-          "model",
-          "chat",
-          "node",
-          "https",
-          "nodes",
-          "name",
-          "expression",
-          "claude",
-          "this",
-          "more",
-          "items",
-          "number",
-          "input",
-          "resolves",
-          "view",
-          "workflows",
-          "completion",
-          "documentation",
-          "sampling",
-          "templates",
-          "template",
-          "details",
-          "service"
         ]
       }
     },
@@ -69341,58 +69341,6 @@
     },
     {
       "id": "page-0898",
-      "title": "Mocean credentials",
-      "url": "https://docs.n8n.io/integrations/builtin/credentials/mocean/index.md",
-      "urlPath": "integrations/builtin/credentials/mocean/index.md",
-      "category": "other",
-      "subcategory": null,
-      "nodeName": null,
-      "nodeType": null,
-      "content": {
-        "markdown": "# Mocean credentials\n\nYou can use these credentials to authenticate the following nodes:\n\n- [Mocean](../../app-nodes/n8n-nodes-base.mocean/)\n\n## Prerequisites\n\nCreate a [Mocean](https://moceanapi.com/) account.\n\n## Supported authentication methods\n\n- API key\n\n## Related resources\n\nRefer to [Mocean's API documentation](https://moceanapi.com/docs/) for more information about the service.\n\n## Using API key\n\nTo configure this credential, you'll need:\n\n- An **API Key**\n- An **API Secret**\n\nBoth the key and secret are accessible in your Mocean [Dashboard](https://dashboard.moceanapi.com/). Refer to [API Authentication](https://moceanapi.com/docs/#authentication) for more information.\n",
-        "excerpt": "# Mocean credentials  You can use these credentials to authenticate the following nodes:  - [Mocean](../../app-nodes/n8n-nodes-base.mocean/)  ## Prerequisites  Create a [Mocean](https://moceanapi.com/) account.  ## Supported authentication methods  - API key  ## Related resources  Refer to [Mocean's API documentation](https://moceanapi.com/docs/) for more information about the service.  ## Using API key  To configure this credential, you'll need:  - An **API Key** - An **API Secret**  Both the k...",
-        "sections": [
-          {
-            "title": "Mocean credentials",
-            "level": 1,
-            "content": "You can use these credentials to authenticate the following nodes:\n\n- [Mocean](../../app-nodes/n8n-nodes-base.mocean/)"
-          }
-        ]
-      },
-      "metadata": {
-        "keywords": [
-          "mocean",
-          "credentials",
-          "prerequisites",
-          "supported",
-          "authentication",
-          "methods",
-          "related",
-          "resources",
-          "using"
-        ],
-        "useCases": [],
-        "operations": [],
-        "codeExamples": 0,
-        "complexity": "beginner",
-        "readingTime": "1 min",
-        "contentLength": 687,
-        "relatedPages": []
-      },
-      "searchIndex": {
-        "fullText": "mocean credentials # mocean credentials\n\nyou can use these credentials to authenticate the following nodes:\n\n- [mocean](../../app-nodes/n8n-nodes-base.mocean/)\n\n## prerequisites\n\ncreate a [mocean](https://moceanapi.com/) account.\n\n## supported authentication methods\n\n- api key\n\n## related resources\n\nrefer to [mocean's api documentation](https://moceanapi.com/docs/) for more information about the service.\n\n## using api key\n\nto configure this credential, you'll need:\n\n- an **api key**\n- an **api secret**\n\nboth the key and secret are accessible in your mocean [dashboard](https://dashboard.moceanapi.com/). refer to [api authentication](https://moceanapi.com/docs/#authentication) for more information.\n mocean credentials",
-        "importantTerms": [
-          "mocean",
-          "credentials",
-          "https",
-          "moceanapi",
-          "nodes",
-          "authentication"
-        ]
-      }
-    },
-    {
-      "id": "page-0899",
       "title": "Mistral Cloud credentials",
       "url": "https://docs.n8n.io/integrations/builtin/credentials/mistral/index.md",
       "urlPath": "integrations/builtin/credentials/mistral/index.md",
@@ -69450,6 +69398,58 @@
           "keys",
           "docs",
           "your"
+        ]
+      }
+    },
+    {
+      "id": "page-0899",
+      "title": "Mocean credentials",
+      "url": "https://docs.n8n.io/integrations/builtin/credentials/mocean/index.md",
+      "urlPath": "integrations/builtin/credentials/mocean/index.md",
+      "category": "other",
+      "subcategory": null,
+      "nodeName": null,
+      "nodeType": null,
+      "content": {
+        "markdown": "# Mocean credentials\n\nYou can use these credentials to authenticate the following nodes:\n\n- [Mocean](../../app-nodes/n8n-nodes-base.mocean/)\n\n## Prerequisites\n\nCreate a [Mocean](https://moceanapi.com/) account.\n\n## Supported authentication methods\n\n- API key\n\n## Related resources\n\nRefer to [Mocean's API documentation](https://moceanapi.com/docs/) for more information about the service.\n\n## Using API key\n\nTo configure this credential, you'll need:\n\n- An **API Key**\n- An **API Secret**\n\nBoth the key and secret are accessible in your Mocean [Dashboard](https://dashboard.moceanapi.com/). Refer to [API Authentication](https://moceanapi.com/docs/#authentication) for more information.\n",
+        "excerpt": "# Mocean credentials  You can use these credentials to authenticate the following nodes:  - [Mocean](../../app-nodes/n8n-nodes-base.mocean/)  ## Prerequisites  Create a [Mocean](https://moceanapi.com/) account.  ## Supported authentication methods  - API key  ## Related resources  Refer to [Mocean's API documentation](https://moceanapi.com/docs/) for more information about the service.  ## Using API key  To configure this credential, you'll need:  - An **API Key** - An **API Secret**  Both the k...",
+        "sections": [
+          {
+            "title": "Mocean credentials",
+            "level": 1,
+            "content": "You can use these credentials to authenticate the following nodes:\n\n- [Mocean](../../app-nodes/n8n-nodes-base.mocean/)"
+          }
+        ]
+      },
+      "metadata": {
+        "keywords": [
+          "mocean",
+          "credentials",
+          "prerequisites",
+          "supported",
+          "authentication",
+          "methods",
+          "related",
+          "resources",
+          "using"
+        ],
+        "useCases": [],
+        "operations": [],
+        "codeExamples": 0,
+        "complexity": "beginner",
+        "readingTime": "1 min",
+        "contentLength": 687,
+        "relatedPages": []
+      },
+      "searchIndex": {
+        "fullText": "mocean credentials # mocean credentials\n\nyou can use these credentials to authenticate the following nodes:\n\n- [mocean](../../app-nodes/n8n-nodes-base.mocean/)\n\n## prerequisites\n\ncreate a [mocean](https://moceanapi.com/) account.\n\n## supported authentication methods\n\n- api key\n\n## related resources\n\nrefer to [mocean's api documentation](https://moceanapi.com/docs/) for more information about the service.\n\n## using api key\n\nto configure this credential, you'll need:\n\n- an **api key**\n- an **api secret**\n\nboth the key and secret are accessible in your mocean [dashboard](https://dashboard.moceanapi.com/). refer to [api authentication](https://moceanapi.com/docs/#authentication) for more information.\n mocean credentials",
+        "importantTerms": [
+          "mocean",
+          "credentials",
+          "https",
+          "moceanapi",
+          "nodes",
+          "authentication"
         ]
       }
     },
@@ -85365,86 +85365,6 @@
     },
     {
       "id": "page-1166",
-      "title": "Manual installation",
-      "url": "https://docs.n8n.io/integrations/community-nodes/installation/manual-install/index.md",
-      "urlPath": "integrations/community-nodes/installation/manual-install/index.md",
-      "category": "other",
-      "subcategory": null,
-      "nodeName": null,
-      "nodeType": null,
-      "content": {
-        "markdown": "# Manually install community nodes from npm\n\nYou can manually install community nodes from the npm registry on self-hosted n8n.\n\nYou need to manually install community nodes in the following circumstances:\n\n- Your n8n instance runs in queue mode.\n- You want to install [private packages](https://docs.npmjs.com/creating-and-publishing-private-packages).\n\n## Install a community node\n\nAccess your Docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\nCreate `~/.n8n/nodes` if it doesn't already exist, and navigate into it:\n\n```\nmkdir ~/.n8n/nodes\ncd ~/.n8n/nodes\n```\n\nInstall the node:\n\n```\nnpm i n8n-nodes-nodeName\n```\n\nThen restart n8n.\n\n## Uninstall a community node\n\nAccess your Docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\nRun npm uninstall:\n\n```\nnpm uninstall n8n-nodes-nodeName\n```\n\n## Upgrade a community node\n\nBreaking changes in versions\n\nNode developers may introduce breaking changes in new versions of their nodes. A breaking change is an update that breaks previous functionality. Depending on the node versioning approach that a node developer chooses, upgrading to a version with a breaking change could cause all workflows using the node to break. Be careful when upgrading your nodes. If you find that an upgrade causes issues, you can [downgrade](#upgrade-or-downgrade-to-a-specific-version).\n\n### Upgrade to the latest version\n\nAccess your Docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\nRun npm update:\n\n```\nnpm update n8n-nodes-nodeName\n```\n\n### Upgrade or downgrade to a specific version\n\nAccess your Docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\nRun npm uninstall to remove the current version:\n\n```\nnpm uninstall n8n-nodes-nodeName\n```\n\nRun npm install with the version specified:\n\n```\n# Replace 2.1.0 with your version number\nnpm install n8n-nodes-nodeName@2.1.0\n```\n",
-        "excerpt": "# Manually install community nodes from npm  You can manually install community nodes from the npm registry on self-hosted n8n.  You need to manually install community nodes in the following circumstances:  - Your n8n instance runs in queue mode. - You want to install [private packages](https://docs.npmjs.com/creating-and-publishing-private-packages).  ## Install a community node  Access your Docker shell:  ``` docker exec -it n8n sh ```  Create `~/.n8n/nodes` if it doesn't already exist, and na...",
-        "sections": [
-          {
-            "title": "Manually install community nodes from npm",
-            "level": 1,
-            "content": "You can manually install community nodes from the npm registry on self-hosted n8n.\n\nYou need to manually install community nodes in the following circumstances:\n\n- Your n8n instance runs in queue mode.\n- You want to install [private packages](https://docs.npmjs.com/creating-and-publishing-private-packages)."
-          },
-          {
-            "title": "Replace 2.1.0 with your version number",
-            "level": 1,
-            "content": "npm install n8n-nodes-nodeName@2.1.0\n```"
-          }
-        ]
-      },
-      "metadata": {
-        "keywords": [
-          "manual",
-          "installation",
-          "manually",
-          "install",
-          "community",
-          "nodes",
-          "from",
-          "node",
-          "uninstall",
-          "upgrade",
-          "latest",
-          "version",
-          "downgrade",
-          "specific",
-          "replace",
-          "with",
-          "your",
-          "number"
-        ],
-        "useCases": [],
-        "operations": [],
-        "codeExamples": 10,
-        "complexity": "beginner",
-        "readingTime": "2 min",
-        "contentLength": 1788,
-        "relatedPages": []
-      },
-      "searchIndex": {
-        "fullText": "manual installation # manually install community nodes from npm\n\nyou can manually install community nodes from the npm registry on self-hosted n8n.\n\nyou need to manually install community nodes in the following circumstances:\n\n- your n8n instance runs in queue mode.\n- you want to install [private packages](https://docs.npmjs.com/creating-and-publishing-private-packages).\n\n## install a community node\n\naccess your docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\ncreate `~/.n8n/nodes` if it doesn't already exist, and navigate into it:\n\n```\nmkdir ~/.n8n/nodes\ncd ~/.n8n/nodes\n```\n\ninstall the node:\n\n```\nnpm i n8n-nodes-nodename\n```\n\nthen restart n8n.\n\n## uninstall a community node\n\naccess your docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\nrun npm uninstall:\n\n```\nnpm uninstall n8n-nodes-nodename\n```\n\n## upgrade a community node\n\nbreaking changes in versions\n\nnode developers may introduce breaking changes in new versions of their nodes. a breaking change is an update that breaks previous functionality. depending on the node versioning approach that a node developer chooses, upgrading to a version with a breaking change could cause all workflows using the node to break. be careful when upgrading your nodes. if you find that an upgrade causes issues, you can [downgrade](#upgrade-or-downgrade-to-a-specific-version).\n\n### upgrade to the latest version\n\naccess your docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\nrun npm update:\n\n```\nnpm update n8n-nodes-nodename\n```\n\n### upgrade or downgrade to a specific version\n\naccess your docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\nrun npm uninstall to remove the current version:\n\n```\nnpm uninstall n8n-nodes-nodename\n```\n\nrun npm install with the version specified:\n\n```\n# replace 2.1.0 with your version number\nnpm install n8n-nodes-nodename@2.1.0\n```\n manually install community nodes from npm replace 2.1.0 with your version number",
-        "importantTerms": [
-          "nodes",
-          "install",
-          "your",
-          "node",
-          "docker",
-          "version",
-          "community",
-          "nodename",
-          "uninstall",
-          "upgrade",
-          "manually",
-          "access",
-          "shell",
-          "exec",
-          "breaking",
-          "with",
-          "from",
-          "update",
-          "that",
-          "downgrade"
-        ]
-      }
-    },
-    {
-      "id": "page-1167",
       "title": "GUI installation",
       "url": "https://docs.n8n.io/integrations/community-nodes/installation/gui-install/index.md",
       "urlPath": "integrations/community-nodes/installation/gui-install/index.md",
@@ -85519,6 +85439,86 @@
           "versions",
           "using",
           "risks",
+          "downgrade"
+        ]
+      }
+    },
+    {
+      "id": "page-1167",
+      "title": "Manual installation",
+      "url": "https://docs.n8n.io/integrations/community-nodes/installation/manual-install/index.md",
+      "urlPath": "integrations/community-nodes/installation/manual-install/index.md",
+      "category": "other",
+      "subcategory": null,
+      "nodeName": null,
+      "nodeType": null,
+      "content": {
+        "markdown": "# Manually install community nodes from npm\n\nYou can manually install community nodes from the npm registry on self-hosted n8n.\n\nYou need to manually install community nodes in the following circumstances:\n\n- Your n8n instance runs in queue mode.\n- You want to install [private packages](https://docs.npmjs.com/creating-and-publishing-private-packages).\n\n## Install a community node\n\nAccess your Docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\nCreate `~/.n8n/nodes` if it doesn't already exist, and navigate into it:\n\n```\nmkdir ~/.n8n/nodes\ncd ~/.n8n/nodes\n```\n\nInstall the node:\n\n```\nnpm i n8n-nodes-nodeName\n```\n\nThen restart n8n.\n\n## Uninstall a community node\n\nAccess your Docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\nRun npm uninstall:\n\n```\nnpm uninstall n8n-nodes-nodeName\n```\n\n## Upgrade a community node\n\nBreaking changes in versions\n\nNode developers may introduce breaking changes in new versions of their nodes. A breaking change is an update that breaks previous functionality. Depending on the node versioning approach that a node developer chooses, upgrading to a version with a breaking change could cause all workflows using the node to break. Be careful when upgrading your nodes. If you find that an upgrade causes issues, you can [downgrade](#upgrade-or-downgrade-to-a-specific-version).\n\n### Upgrade to the latest version\n\nAccess your Docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\nRun npm update:\n\n```\nnpm update n8n-nodes-nodeName\n```\n\n### Upgrade or downgrade to a specific version\n\nAccess your Docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\nRun npm uninstall to remove the current version:\n\n```\nnpm uninstall n8n-nodes-nodeName\n```\n\nRun npm install with the version specified:\n\n```\n# Replace 2.1.0 with your version number\nnpm install n8n-nodes-nodeName@2.1.0\n```\n",
+        "excerpt": "# Manually install community nodes from npm  You can manually install community nodes from the npm registry on self-hosted n8n.  You need to manually install community nodes in the following circumstances:  - Your n8n instance runs in queue mode. - You want to install [private packages](https://docs.npmjs.com/creating-and-publishing-private-packages).  ## Install a community node  Access your Docker shell:  ``` docker exec -it n8n sh ```  Create `~/.n8n/nodes` if it doesn't already exist, and na...",
+        "sections": [
+          {
+            "title": "Manually install community nodes from npm",
+            "level": 1,
+            "content": "You can manually install community nodes from the npm registry on self-hosted n8n.\n\nYou need to manually install community nodes in the following circumstances:\n\n- Your n8n instance runs in queue mode.\n- You want to install [private packages](https://docs.npmjs.com/creating-and-publishing-private-packages)."
+          },
+          {
+            "title": "Replace 2.1.0 with your version number",
+            "level": 1,
+            "content": "npm install n8n-nodes-nodeName@2.1.0\n```"
+          }
+        ]
+      },
+      "metadata": {
+        "keywords": [
+          "manual",
+          "installation",
+          "manually",
+          "install",
+          "community",
+          "nodes",
+          "from",
+          "node",
+          "uninstall",
+          "upgrade",
+          "latest",
+          "version",
+          "downgrade",
+          "specific",
+          "replace",
+          "with",
+          "your",
+          "number"
+        ],
+        "useCases": [],
+        "operations": [],
+        "codeExamples": 10,
+        "complexity": "beginner",
+        "readingTime": "2 min",
+        "contentLength": 1788,
+        "relatedPages": []
+      },
+      "searchIndex": {
+        "fullText": "manual installation # manually install community nodes from npm\n\nyou can manually install community nodes from the npm registry on self-hosted n8n.\n\nyou need to manually install community nodes in the following circumstances:\n\n- your n8n instance runs in queue mode.\n- you want to install [private packages](https://docs.npmjs.com/creating-and-publishing-private-packages).\n\n## install a community node\n\naccess your docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\ncreate `~/.n8n/nodes` if it doesn't already exist, and navigate into it:\n\n```\nmkdir ~/.n8n/nodes\ncd ~/.n8n/nodes\n```\n\ninstall the node:\n\n```\nnpm i n8n-nodes-nodename\n```\n\nthen restart n8n.\n\n## uninstall a community node\n\naccess your docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\nrun npm uninstall:\n\n```\nnpm uninstall n8n-nodes-nodename\n```\n\n## upgrade a community node\n\nbreaking changes in versions\n\nnode developers may introduce breaking changes in new versions of their nodes. a breaking change is an update that breaks previous functionality. depending on the node versioning approach that a node developer chooses, upgrading to a version with a breaking change could cause all workflows using the node to break. be careful when upgrading your nodes. if you find that an upgrade causes issues, you can [downgrade](#upgrade-or-downgrade-to-a-specific-version).\n\n### upgrade to the latest version\n\naccess your docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\nrun npm update:\n\n```\nnpm update n8n-nodes-nodename\n```\n\n### upgrade or downgrade to a specific version\n\naccess your docker shell:\n\n```\ndocker exec -it n8n sh\n```\n\nrun npm uninstall to remove the current version:\n\n```\nnpm uninstall n8n-nodes-nodename\n```\n\nrun npm install with the version specified:\n\n```\n# replace 2.1.0 with your version number\nnpm install n8n-nodes-nodename@2.1.0\n```\n manually install community nodes from npm replace 2.1.0 with your version number",
+        "importantTerms": [
+          "nodes",
+          "install",
+          "your",
+          "node",
+          "docker",
+          "version",
+          "community",
+          "nodename",
+          "uninstall",
+          "upgrade",
+          "manually",
+          "access",
+          "shell",
+          "exec",
+          "breaking",
+          "with",
+          "from",
+          "update",
+          "that",
           "downgrade"
         ]
       }
@@ -93041,6 +93041,58 @@
     },
     {
       "id": "page-1264",
+      "title": "Tags",
+      "url": "https://docs.n8n.io/workflows/tags/index.md",
+      "urlPath": "workflows/tags/index.md",
+      "category": "workflows",
+      "subcategory": null,
+      "nodeName": null,
+      "nodeType": null,
+      "content": {
+        "markdown": "# Tags\n\nWorkflow tags allow you to label your workflows. You can then filter workflows by tag.\n\nTags are global. This means when you create a tag, it's available to all users on your n8n instance.\n\n## Add a tag to a workflow\n\nTo add a tag to your workflow:\n\n1. In your workflow, select **+ Add tag**.\n1. Select an existing tag, or enter a new tag name.\n1. Once you select a tag and click away from the tag modal, n8n displays the tag next to the workflow name.\n\nYou can add more than one tag.\n\n## Filter by tag\n\nWhen browsing the workflows on your instance, you can filter by tag.\n\n1. On the **Workflows** page, select **Filters**.\n1. Select **Tags**.\n1. Select the tag or tags you want to filter by. n8n lists the workflows with that tag.\n\n## Manage tags\n\nYou can edit existing tags. Instance owners can delete tags.\n\n1. Select **Manage tags**. This is available from **Filters** > **Tags** on the **Workflows** page, or in the **+ Add tag** modal in your workflow.\n1. Hover over the tag you want to change.\n1. Select **Edit** to rename it, or **Delete** to delete it.\n\nGlobal tags\n\nTags are global. If you edit or delete a tag, this affects all users of your n8n instance.\n",
+        "excerpt": "# Tags  Workflow tags allow you to label your workflows. You can then filter workflows by tag.  Tags are global. This means when you create a tag, it's available to all users on your n8n instance.  ## Add a tag to a workflow  To add a tag to your workflow:  1. In your workflow, select **+ Add tag**. 1. Select an existing tag, or enter a new tag name. 1. Once you select a tag and click away from the tag modal, n8n displays the tag next to the workflow name.  You can add more than one tag.  ## Fil...",
+        "sections": [
+          {
+            "title": "Tags",
+            "level": 1,
+            "content": "Workflow tags allow you to label your workflows. You can then filter workflows by tag.\n\nTags are global. This means when you create a tag, it's available to all users on your n8n instance."
+          }
+        ]
+      },
+      "metadata": {
+        "keywords": [
+          "tags",
+          "workflow",
+          "filter",
+          "manage"
+        ],
+        "useCases": [],
+        "operations": [],
+        "codeExamples": 0,
+        "complexity": "beginner",
+        "readingTime": "2 min",
+        "contentLength": 1175,
+        "relatedPages": []
+      },
+      "searchIndex": {
+        "fullText": "tags # tags\n\nworkflow tags allow you to label your workflows. you can then filter workflows by tag.\n\ntags are global. this means when you create a tag, it's available to all users on your n8n instance.\n\n## add a tag to a workflow\n\nto add a tag to your workflow:\n\n1. in your workflow, select **+ add tag**.\n1. select an existing tag, or enter a new tag name.\n1. once you select a tag and click away from the tag modal, n8n displays the tag next to the workflow name.\n\nyou can add more than one tag.\n\n## filter by tag\n\nwhen browsing the workflows on your instance, you can filter by tag.\n\n1. on the **workflows** page, select **filters**.\n1. select **tags**.\n1. select the tag or tags you want to filter by. n8n lists the workflows with that tag.\n\n## manage tags\n\nyou can edit existing tags. instance owners can delete tags.\n\n1. select **manage tags**. this is available from **filters** > **tags** on the **workflows** page, or in the **+ add tag** modal in your workflow.\n1. hover over the tag you want to change.\n1. select **edit** to rename it, or **delete** to delete it.\n\nglobal tags\n\ntags are global. if you edit or delete a tag, this affects all users of your n8n instance.\n tags",
+        "importantTerms": [
+          "tags",
+          "select",
+          "your",
+          "workflow",
+          "workflows",
+          "filter",
+          "instance",
+          "delete",
+          "global",
+          "this",
+          "edit"
+        ]
+      }
+    },
+    {
+      "id": "page-1265",
       "title": "Templates",
       "url": "https://docs.n8n.io/workflows/templates/index.md",
       "urlPath": "workflows/templates/index.md",
@@ -93135,58 +93187,6 @@
           "http",
           "json",
           "draft"
-        ]
-      }
-    },
-    {
-      "id": "page-1265",
-      "title": "Tags",
-      "url": "https://docs.n8n.io/workflows/tags/index.md",
-      "urlPath": "workflows/tags/index.md",
-      "category": "workflows",
-      "subcategory": null,
-      "nodeName": null,
-      "nodeType": null,
-      "content": {
-        "markdown": "# Tags\n\nWorkflow tags allow you to label your workflows. You can then filter workflows by tag.\n\nTags are global. This means when you create a tag, it's available to all users on your n8n instance.\n\n## Add a tag to a workflow\n\nTo add a tag to your workflow:\n\n1. In your workflow, select **+ Add tag**.\n1. Select an existing tag, or enter a new tag name.\n1. Once you select a tag and click away from the tag modal, n8n displays the tag next to the workflow name.\n\nYou can add more than one tag.\n\n## Filter by tag\n\nWhen browsing the workflows on your instance, you can filter by tag.\n\n1. On the **Workflows** page, select **Filters**.\n1. Select **Tags**.\n1. Select the tag or tags you want to filter by. n8n lists the workflows with that tag.\n\n## Manage tags\n\nYou can edit existing tags. Instance owners can delete tags.\n\n1. Select **Manage tags**. This is available from **Filters** > **Tags** on the **Workflows** page, or in the **+ Add tag** modal in your workflow.\n1. Hover over the tag you want to change.\n1. Select **Edit** to rename it, or **Delete** to delete it.\n\nGlobal tags\n\nTags are global. If you edit or delete a tag, this affects all users of your n8n instance.\n",
-        "excerpt": "# Tags  Workflow tags allow you to label your workflows. You can then filter workflows by tag.  Tags are global. This means when you create a tag, it's available to all users on your n8n instance.  ## Add a tag to a workflow  To add a tag to your workflow:  1. In your workflow, select **+ Add tag**. 1. Select an existing tag, or enter a new tag name. 1. Once you select a tag and click away from the tag modal, n8n displays the tag next to the workflow name.  You can add more than one tag.  ## Fil...",
-        "sections": [
-          {
-            "title": "Tags",
-            "level": 1,
-            "content": "Workflow tags allow you to label your workflows. You can then filter workflows by tag.\n\nTags are global. This means when you create a tag, it's available to all users on your n8n instance."
-          }
-        ]
-      },
-      "metadata": {
-        "keywords": [
-          "tags",
-          "workflow",
-          "filter",
-          "manage"
-        ],
-        "useCases": [],
-        "operations": [],
-        "codeExamples": 0,
-        "complexity": "beginner",
-        "readingTime": "2 min",
-        "contentLength": 1175,
-        "relatedPages": []
-      },
-      "searchIndex": {
-        "fullText": "tags # tags\n\nworkflow tags allow you to label your workflows. you can then filter workflows by tag.\n\ntags are global. this means when you create a tag, it's available to all users on your n8n instance.\n\n## add a tag to a workflow\n\nto add a tag to your workflow:\n\n1. in your workflow, select **+ add tag**.\n1. select an existing tag, or enter a new tag name.\n1. once you select a tag and click away from the tag modal, n8n displays the tag next to the workflow name.\n\nyou can add more than one tag.\n\n## filter by tag\n\nwhen browsing the workflows on your instance, you can filter by tag.\n\n1. on the **workflows** page, select **filters**.\n1. select **tags**.\n1. select the tag or tags you want to filter by. n8n lists the workflows with that tag.\n\n## manage tags\n\nyou can edit existing tags. instance owners can delete tags.\n\n1. select **manage tags**. this is available from **filters** > **tags** on the **workflows** page, or in the **+ add tag** modal in your workflow.\n1. hover over the tag you want to change.\n1. select **edit** to rename it, or **delete** to delete it.\n\nglobal tags\n\ntags are global. if you edit or delete a tag, this affects all users of your n8n instance.\n tags",
-        "importantTerms": [
-          "tags",
-          "select",
-          "your",
-          "workflow",
-          "workflows",
-          "filter",
-          "instance",
-          "delete",
-          "global",
-          "this",
-          "edit"
         ]
       }
     },
@@ -96005,7 +96005,7 @@
         "page-1252",
         "page-1253",
         "page-1260",
-        "page-1264",
+        "page-1265",
         "page-1273"
       ],
       "default": [
@@ -96755,7 +96755,7 @@
       "replace": [
         "page-0003",
         "page-0209",
-        "page-1166"
+        "page-1167"
       ],
       "command": [
         "page-0003",
@@ -97029,7 +97029,7 @@
         "page-1063",
         "page-1161",
         "page-1164",
-        "page-1166",
+        "page-1167",
         "page-1171",
         "page-1172",
         "page-1173",
@@ -97053,7 +97053,7 @@
         "page-1243",
         "page-1252",
         "page-1253",
-        "page-1264",
+        "page-1265",
         "page-1266",
         "page-1269",
         "page-1272"
@@ -97231,7 +97231,7 @@
         "page-0085",
         "page-0684",
         "page-0749",
-        "page-1166",
+        "page-1167",
         "page-1207",
         "page-1219",
         "page-1260",
@@ -98034,7 +98034,7 @@
         "page-0913",
         "page-0958",
         "page-1164",
-        "page-1166",
+        "page-1167",
         "page-1185",
         "page-1220",
         "page-1222",
@@ -98364,7 +98364,7 @@
         "page-0006",
         "page-0040",
         "page-0114",
-        "page-0130",
+        "page-0129",
         "page-0204",
         "page-0226",
         "page-0549",
@@ -98901,7 +98901,7 @@
         "page-1219",
         "page-1220",
         "page-1237",
-        "page-1264"
+        "page-1265"
       ],
       "hosting": [
         "page-0009",
@@ -99753,7 +99753,7 @@
         "page-0741",
         "page-0809",
         "page-0856",
-        "page-0899",
+        "page-0898",
         "page-0958",
         "page-1002",
         "page-1012",
@@ -100818,7 +100818,7 @@
         "page-0380",
         "page-0383",
         "page-0384",
-        "page-0386",
+        "page-0385",
         "page-0387",
         "page-0391",
         "page-0396",
@@ -101366,7 +101366,7 @@
         "page-0380",
         "page-0383",
         "page-0384",
-        "page-0386",
+        "page-0385",
         "page-0387",
         "page-0391",
         "page-0396",
@@ -102310,7 +102310,7 @@
         "page-0727",
         "page-0730",
         "page-1220",
-        "page-1264"
+        "page-1265"
       ],
       "widget": [
         "page-0017"
@@ -102470,7 +102470,7 @@
         "page-0019",
         "page-0101",
         "page-0559",
-        "page-0595",
+        "page-0596",
         "page-0597",
         "page-0600",
         "page-0670",
@@ -103723,7 +103723,7 @@
         "page-1188",
         "page-1190",
         "page-1191",
-        "page-1264"
+        "page-1265"
       ],
       "fill": [
         "page-0037"
@@ -103893,7 +103893,7 @@
         "page-1219",
         "page-1220",
         "page-1237",
-        "page-1264"
+        "page-1265"
       ],
       "instances": [
         "page-0043",
@@ -104463,7 +104463,7 @@
         "page-1207",
         "page-1240",
         "page-1251",
-        "page-1265"
+        "page-1264"
       ],
       "other": [
         "page-0051",
@@ -105761,7 +105761,7 @@
         "page-0672",
         "page-0679",
         "page-0704",
-        "page-1166",
+        "page-1167",
         "page-1184"
       ],
       "returned": [
@@ -105845,7 +105845,7 @@
         "page-0686",
         "page-0721",
         "page-0844",
-        "page-1264"
+        "page-1265"
       ],
       "index": [
         "page-0072",
@@ -106486,7 +106486,7 @@
         "page-0672",
         "page-1184",
         "page-1220",
-        "page-1265",
+        "page-1264",
         "page-1272",
         "page-1278"
       ],
@@ -106773,7 +106773,7 @@
       ],
       "string": [
         "page-0114",
-        "page-0129",
+        "page-0130",
         "page-0134",
         "page-0659",
         "page-0672",
@@ -106806,7 +106806,7 @@
       ],
       "**`concat()`**": [
         "page-0115",
-        "page-0129"
+        "page-0130"
       ],
       "**`difference()`**": [
         "page-0115"
@@ -106824,11 +106824,11 @@
       ],
       "**`includes()`**": [
         "page-0115",
-        "page-0129"
+        "page-0130"
       ],
       "**`indexof()`**": [
         "page-0115",
-        "page-0129"
+        "page-0130"
       ],
       "**`intersection()`**": [
         "page-0115"
@@ -106838,12 +106838,12 @@
         "page-0117",
         "page-0126",
         "page-0127",
-        "page-0129"
+        "page-0130"
       ],
       "**`isnotempty()`**": [
         "page-0115",
         "page-0127",
-        "page-0129"
+        "page-0130"
       ],
       "**`join()`**": [
         "page-0115"
@@ -106855,7 +106855,7 @@
       ],
       "**`length`**": [
         "page-0115",
-        "page-0129"
+        "page-0130"
       ],
       "**`map()`**": [
         "page-0115"
@@ -106886,7 +106886,7 @@
       ],
       "**`slice()`**": [
         "page-0115",
-        "page-0129"
+        "page-0130"
       ],
       "**`smartjoin()`**": [
         "page-0115"
@@ -106900,7 +106900,7 @@
       "**`tojsonstring()`**": [
         "page-0115",
         "page-0127",
-        "page-0129"
+        "page-0130"
       ],
       "**`tospliced()`**": [
         "page-0115"
@@ -106948,7 +106948,7 @@
       ],
       "**`tonumber()`**": [
         "page-0117",
-        "page-0129"
+        "page-0130"
       ],
       "`$execution": [
         "page-0118"
@@ -106972,7 +106972,7 @@
       "**`todatetime()`**": [
         "page-0119",
         "page-0126",
-        "page-0129"
+        "page-0130"
       ],
       "*`datetime`*": [
         "page-0120"
@@ -107176,7 +107176,7 @@
       ],
       "**`toboolean()`**": [
         "page-0126",
-        "page-0129"
+        "page-0130"
       ],
       "*`object`*": [
         "page-0127"
@@ -107201,7 +107201,7 @@
       ],
       "**`urlencode()`**": [
         "page-0127",
-        "page-0129"
+        "page-0130"
       ],
       "**`values()`**": [
         "page-0127"
@@ -107216,169 +107216,169 @@
       "**`runindex`**": [
         "page-0128"
       ],
-      "*`string`*": [
-        "page-0129"
-      ],
-      "**`base64decode()`**": [
-        "page-0129"
-      ],
-      "**`base64encode()`**": [
-        "page-0129"
-      ],
-      "**`extractdomain()`**": [
-        "page-0129"
-      ],
-      "**`extractemail()`**": [
-        "page-0129"
-      ],
-      "**`extracturl()`**": [
-        "page-0129"
-      ],
-      "**`extracturlpath()`**": [
-        "page-0129"
-      ],
-      "**`hash()`**": [
-        "page-0129"
-      ],
-      "**`isdomain()`**": [
-        "page-0129"
-      ],
-      "**`isemail()`**": [
-        "page-0129"
-      ],
-      "**`isnumeric()`**": [
-        "page-0129"
-      ],
-      "**`isurl()`**": [
-        "page-0129"
-      ],
-      "**`match()`**": [
-        "page-0129"
-      ],
-      "**`parsejson()`**": [
-        "page-0129"
-      ],
-      "**`quote()`**": [
-        "page-0129"
-      ],
-      "**`removemarkdown()`**": [
-        "page-0129"
-      ],
-      "**`removetags()`**": [
-        "page-0129"
-      ],
-      "**`replace()`**": [
-        "page-0129"
-      ],
-      "**`replaceall()`**": [
-        "page-0129"
-      ],
-      "**`replacespecialchars()`**": [
-        "page-0129"
-      ],
-      "**`search()`**": [
-        "page-0129"
-      ],
-      "**`split()`**": [
-        "page-0129"
-      ],
-      "**`startswith()`**": [
-        "page-0129"
-      ],
-      "**`substring()`**": [
-        "page-0129"
-      ],
-      "**`tolowercase()`**": [
-        "page-0129"
-      ],
-      "**`tosentencecase()`**": [
-        "page-0129"
-      ],
-      "**`tosnakecase()`**": [
-        "page-0129"
-      ],
-      "**`totitlecase()`**": [
-        "page-0129"
-      ],
-      "**`touppercase()`**": [
-        "page-0129"
-      ],
-      "**`trim()`**": [
-        "page-0129"
-      ],
-      "**`urldecode()`**": [
-        "page-0129"
-      ],
       "**`$()`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$binary`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$execution`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$fromai()`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$if()`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$ifempty()`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$input`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$itemindex`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$jmespath()`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$json`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$max()`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$min()`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$nodeversion`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$now`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$pagecount`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$parameter`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$prevnode`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$request`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$response`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$runindex`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$secrets`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$today`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$vars`**": [
-        "page-0130"
+        "page-0129"
       ],
       "**`$workflow`**": [
+        "page-0129"
+      ],
+      "*`string`*": [
+        "page-0130"
+      ],
+      "**`base64decode()`**": [
+        "page-0130"
+      ],
+      "**`base64encode()`**": [
+        "page-0130"
+      ],
+      "**`extractdomain()`**": [
+        "page-0130"
+      ],
+      "**`extractemail()`**": [
+        "page-0130"
+      ],
+      "**`extracturl()`**": [
+        "page-0130"
+      ],
+      "**`extracturlpath()`**": [
+        "page-0130"
+      ],
+      "**`hash()`**": [
+        "page-0130"
+      ],
+      "**`isdomain()`**": [
+        "page-0130"
+      ],
+      "**`isemail()`**": [
+        "page-0130"
+      ],
+      "**`isnumeric()`**": [
+        "page-0130"
+      ],
+      "**`isurl()`**": [
+        "page-0130"
+      ],
+      "**`match()`**": [
+        "page-0130"
+      ],
+      "**`parsejson()`**": [
+        "page-0130"
+      ],
+      "**`quote()`**": [
+        "page-0130"
+      ],
+      "**`removemarkdown()`**": [
+        "page-0130"
+      ],
+      "**`removetags()`**": [
+        "page-0130"
+      ],
+      "**`replace()`**": [
+        "page-0130"
+      ],
+      "**`replaceall()`**": [
+        "page-0130"
+      ],
+      "**`replacespecialchars()`**": [
+        "page-0130"
+      ],
+      "**`search()`**": [
+        "page-0130"
+      ],
+      "**`split()`**": [
+        "page-0130"
+      ],
+      "**`startswith()`**": [
+        "page-0130"
+      ],
+      "**`substring()`**": [
+        "page-0130"
+      ],
+      "**`tolowercase()`**": [
+        "page-0130"
+      ],
+      "**`tosentencecase()`**": [
+        "page-0130"
+      ],
+      "**`tosnakecase()`**": [
+        "page-0130"
+      ],
+      "**`totitlecase()`**": [
+        "page-0130"
+      ],
+      "**`touppercase()`**": [
+        "page-0130"
+      ],
+      "**`trim()`**": [
+        "page-0130"
+      ],
+      "**`urldecode()`**": [
         "page-0130"
       ],
       "`$workflow`": [
@@ -107873,7 +107873,7 @@
         "page-0676",
         "page-1219",
         "page-1231",
-        "page-1265"
+        "page-1264"
       ],
       "relationship": [
         "page-0148"
@@ -108152,19 +108152,19 @@
         "page-0732",
         "page-1053",
         "page-1176",
-        "page-1264"
+        "page-1265"
       ],
       "endpoints": [
         "page-0161",
         "page-0177",
         "page-1220",
         "page-1243",
-        "page-1264"
+        "page-1265"
       ],
       "schemas": [
         "page-0161",
         "page-0530",
-        "page-1264"
+        "page-1265"
       ],
       "encryption": [
         "page-0162",
@@ -108396,7 +108396,7 @@
         "page-0170",
         "page-0230",
         "page-0567",
-        "page-0595",
+        "page-0596",
         "page-0597",
         "page-0600",
         "page-0712",
@@ -109372,7 +109372,7 @@
       "manually": [
         "page-0218",
         "page-0730",
-        "page-1166",
+        "page-1167",
         "page-1256"
       ],
       "launched": [
@@ -110832,7 +110832,7 @@
         "page-1220"
       ],
       "sharepoint": [
-        "page-0386",
+        "page-0385",
         "page-0887"
       ],
       "teams": [
@@ -110851,12 +110851,12 @@
         "page-0391",
         "page-0591",
         "page-0605",
-        "page-0899",
+        "page-0898",
         "page-1220"
       ],
       "mocean": [
         "page-0392",
-        "page-0898"
+        "page-0899"
       ],
       "monday": [
         "page-0393",
@@ -111320,7 +111320,7 @@
       ],
       "anthropic": [
         "page-0495",
-        "page-0596",
+        "page-0595",
         "page-0744"
       ],
       "gemini": [
@@ -112260,7 +112260,7 @@
       ],
       "bedrock": [
         "page-0583",
-        "page-0595"
+        "page-0596"
       ],
       "cohere": [
         "page-0585",
@@ -114495,7 +114495,7 @@
         "page-1262"
       ],
       "n8n:": [
-        "page-1264"
+        "page-1265"
       ],
       "components": [
         "page-1267"
@@ -116295,10 +116295,10 @@
       "microsoftoutlook": [
         "page-0384"
       ],
-      "microsoftsql": [
+      "microsoftsharepoint": [
         "page-0385"
       ],
-      "microsoftsharepoint": [
+      "microsoftsql": [
         "page-0386"
       ],
       "microsoftteams": [

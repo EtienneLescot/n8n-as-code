@@ -1,5 +1,16 @@
 # @n8n-as-code/cli
 
+## [2.0.4](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.0.3...n8nac@v2.0.4) (2026-05-08)
+
+### Documentation
+
+* update documentation for v2 split runtime and workspace model ([b8a4125](https://github.com/EtienneLescot/n8n-as-code/commit/b8a41256ea28d16382607a744c1f92fd3bac5824))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.0.1 to 2.0.2
+
 ## [2.0.3](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.0.2...n8nac@v2.0.3) (2026-05-06)
 
 ### Bug Fixes
