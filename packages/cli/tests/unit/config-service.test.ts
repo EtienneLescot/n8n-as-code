@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import { ConfigService } from '../../src/services/config-service.js';
@@ -200,5 +200,48 @@ describe('ConfigService', () => {
         const configService = new ConfigService(workspaceRoot);
 
         expect(() => configService.getWorkspaceConfig()).toThrow(/Unsupported legacy n8n workspace config/);
+    });
+
+    it('migrates legacy workspace configs into manager storage with a backup', () => {
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 2,
+            activeInstanceId: 'prod',
+            syncFolder: 'flows',
+            projectId: 'project-1',
+            projectName: 'Main',
+            instances: [{
+                id: 'prod',
+                name: 'Production',
+                host: 'https://prod.example.test',
+                apiKey: 'legacy-api-key',
+            }],
+        }, null, 2));
+
+        const configService = new ConfigService(workspaceRoot);
+        const dryRun = configService.migrateLegacyWorkspaceConfig();
+
+        expect(dryRun.status).toBe('dry-run');
+        expect(dryRun.status === 'dry-run' ? dryRun.plan.instances[0]?.hasApiKey : false).toBe(true);
+
+        const migrated = configService.migrateLegacyWorkspaceConfig({ write: true });
+
+        expect(migrated.status).toBe('migrated');
+        expect(migrated.status === 'migrated' && existsSync(migrated.backupPath)).toBe(true);
+        expect(configService.getWorkspaceConfig()).toMatchObject({
+            version: 3,
+            activeInstanceId: 'prod',
+            syncFolder: 'flows',
+            projectId: 'project-1',
+            projectName: 'Main',
+        });
+        expect(configService.getInstanceConfig('prod')).toMatchObject({
+            name: 'Production',
+            host: 'https://prod.example.test',
+        });
+        expect(configService.getApiKey('https://prod.example.test', 'prod')).toBe('legacy-api-key');
+
+        const migratedConfig = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-config.json'), 'utf8'));
+        expect(migratedConfig.instances).toBeUndefined();
+        expect(migratedConfig.apiKey).toBeUndefined();
     });
 });

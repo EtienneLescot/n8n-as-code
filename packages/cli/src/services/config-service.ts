@@ -36,6 +36,27 @@ export interface IWorkspaceConfig extends ILocalConfig {
     instances: IInstanceProfile[];
 }
 
+export interface ILegacyWorkspaceMigrationInstance extends Partial<ILocalConfig> {
+    id: string;
+    name: string;
+    hasApiKey: boolean;
+}
+
+export interface ILegacyWorkspaceMigrationPlan {
+    status: 'legacy-detected';
+    configPath: string;
+    version?: number;
+    activeInstanceId?: string;
+    instances: ILegacyWorkspaceMigrationInstance[];
+    workspace: Partial<ILocalConfig>;
+    warnings: string[];
+}
+
+export type ILegacyWorkspaceMigrationResult =
+    | { status: 'not-needed'; configPath: string }
+    | { status: 'dry-run'; plan: ILegacyWorkspaceMigrationPlan }
+    | { status: 'migrated'; plan: ILegacyWorkspaceMigrationPlan; backupPath: string; instances: IInstanceProfile[] };
+
 export interface IInstanceVerificationClient {
     getCurrentUser(): Promise<{ id?: string; email?: string; firstName?: string; lastName?: string } | null>;
 }
@@ -73,6 +94,13 @@ export class ConfigService {
     }
 
     getWorkspaceConfig(): IWorkspaceConfig {
+        const legacyPlan = this.detectLegacyWorkspaceConfig();
+        if (legacyPlan) {
+            throw new Error(
+                `Unsupported legacy n8n workspace config at ${legacyPlan.configPath}. ` +
+                'Run `n8nac workspace migrate-v1` to inspect it, then `n8nac workspace migrate-v1 --write` to migrate it.'
+            );
+        }
         const overrides = this.manager.readWorkspaceOverrides(this.workspaceRoot);
         const instances = this.listInstances();
         const effective = tryResolve(() => this.resolveWorkspaceContext());
@@ -459,10 +487,159 @@ export class ConfigService {
         return this.workspaceRoot;
     }
 
+    detectLegacyWorkspaceConfig(): ILegacyWorkspaceMigrationPlan | undefined {
+        const configPath = this.getInstanceConfigPath();
+        const raw = this.readRawWorkspaceConfig(configPath);
+        if (!raw || !this.isLegacyWorkspaceConfig(raw)) {
+            return undefined;
+        }
+
+        const instances = this.readLegacyInstances(raw);
+        const activeInstanceId = asString(raw.activeInstanceId) || instances[0]?.id;
+        const activeInstance = instances.find((instance) => instance.id === activeInstanceId) || instances[0];
+        const workspace = stripUndefined({
+            syncFolder: asString(raw.syncFolder) || activeInstance?.syncFolder,
+            projectId: asString(raw.projectId) || activeInstance?.projectId,
+            projectName: asString(raw.projectName) || activeInstance?.projectName,
+            customNodesPath: asString(raw.customNodesPath) || activeInstance?.customNodesPath,
+            folderSync: asBoolean(raw.folderSync) ?? activeInstance?.folderSync,
+        });
+        const warnings = [
+            'Global n8n instances and API keys now live in n8n-manager, not in n8nac-config.json.',
+            'n8nac-config.json will keep only workspace overrides after migration.',
+            instances.some((instance) => instance.hasApiKey)
+                ? 'Embedded API keys found: --write will move them into the local n8n-manager secret store.'
+                : 'No embedded API keys found: you may need to run n8n-manager auth set after migration.',
+        ];
+
+        return {
+            status: 'legacy-detected',
+            configPath,
+            version: typeof raw.version === 'number' ? raw.version : undefined,
+            activeInstanceId,
+            instances,
+            workspace,
+            warnings,
+        };
+    }
+
+    migrateLegacyWorkspaceConfig(options: { write?: boolean } = {}): ILegacyWorkspaceMigrationResult {
+        const plan = this.detectLegacyWorkspaceConfig();
+        const configPath = this.getInstanceConfigPath();
+        if (!plan) {
+            return { status: 'not-needed', configPath };
+        }
+
+        if (!options.write) {
+            return { status: 'dry-run', plan };
+        }
+
+        const backupPath = this.createLegacyConfigBackup(configPath);
+        const rawLegacyConfig = this.readRawWorkspaceConfig(configPath) || {};
+        const migratedInstances: IInstanceProfile[] = [];
+        for (const legacyInstance of plan.instances) {
+            const apiKey = this.readLegacyApiKey(legacyInstance.id, rawLegacyConfig);
+            const saved = this.saveLocalConfig({
+                host: legacyInstance.host,
+                syncFolder: legacyInstance.syncFolder || plan.workspace.syncFolder,
+                projectId: legacyInstance.projectId || plan.workspace.projectId,
+                projectName: legacyInstance.projectName || plan.workspace.projectName,
+                instanceIdentifier: legacyInstance.instanceIdentifier,
+                customNodesPath: legacyInstance.customNodesPath || plan.workspace.customNodesPath,
+                folderSync: legacyInstance.folderSync ?? plan.workspace.folderSync,
+            }, {
+                instanceId: legacyInstance.id,
+                instanceName: legacyInstance.name,
+                setActive: legacyInstance.id === plan.activeInstanceId,
+                apiKey,
+            });
+            migratedInstances.push(saved);
+        }
+
+        this.manager.writeWorkspaceOverrides(this.workspaceRoot, stripUndefined({
+            version: 3 as const,
+            activeInstanceId: plan.activeInstanceId || migratedInstances[0]?.id,
+            syncFolder: plan.workspace.syncFolder,
+            projectId: plan.workspace.projectId,
+            projectName: plan.workspace.projectName,
+            customNodesPath: plan.workspace.customNodesPath,
+            folderSync: plan.workspace.folderSync,
+        }));
+
+        return { status: 'migrated', plan, backupPath, instances: migratedInstances };
+    }
+
     resolveWorkspacePath(targetPath: string): string {
         return path.isAbsolute(targetPath)
             ? targetPath
             : path.resolve(this.workspaceRoot, targetPath);
+    }
+
+    private readRawWorkspaceConfig(configPath: string): Record<string, unknown> | undefined {
+        if (!fs.existsSync(configPath)) {
+            return undefined;
+        }
+        try {
+            const value = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            return value && typeof value === 'object' && !Array.isArray(value)
+                ? value as Record<string, unknown>
+                : undefined;
+        } catch {
+            return undefined;
+        }
+    }
+
+    private isLegacyWorkspaceConfig(raw: Record<string, unknown>): boolean {
+        if (typeof raw.version === 'number' && raw.version !== 3) return true;
+        if (Array.isArray(raw.instances)) return true;
+        if (typeof raw.apiKey === 'string') return true;
+        return false;
+    }
+
+    private readLegacyInstances(raw: Record<string, unknown>): ILegacyWorkspaceMigrationInstance[] {
+        const rawInstances = Array.isArray(raw.instances) ? raw.instances : [];
+        const candidates = rawInstances.length > 0 ? rawInstances : [raw];
+        return candidates
+            .map((candidate, index) => this.toLegacyInstance(candidate, raw, index))
+            .filter((instance): instance is ILegacyWorkspaceMigrationInstance => Boolean(instance));
+    }
+
+    private toLegacyInstance(candidate: unknown, root: Record<string, unknown>, index: number): ILegacyWorkspaceMigrationInstance | undefined {
+        if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+            return undefined;
+        }
+        const value = candidate as Record<string, unknown>;
+        const id = asString(value.id) || asString(root.activeInstanceId) || `legacy-${index + 1}`;
+        const host = asString(value.host) || asString(value.baseUrl) || asString(root.host) || asString(root.baseUrl);
+        const name = asString(value.name) || host || id;
+        return stripUndefined({
+            id,
+            name,
+            host,
+            syncFolder: asString(value.syncFolder) || asString(root.syncFolder),
+            projectId: asString(value.projectId) || asString(root.projectId),
+            projectName: asString(value.projectName) || asString(root.projectName),
+            instanceIdentifier: asString(value.instanceIdentifier) || asString(root.instanceIdentifier),
+            customNodesPath: asString(value.customNodesPath) || asString(root.customNodesPath),
+            folderSync: asBoolean(value.folderSync) ?? asBoolean(root.folderSync),
+            hasApiKey: Boolean(asString(value.apiKey) || asString(root.apiKey)),
+        });
+    }
+
+    private readLegacyApiKey(instanceId: string, root: Record<string, unknown>): string | undefined {
+        const instances = Array.isArray(root.instances) ? root.instances : [];
+        const match = instances.find((candidate) => {
+            return candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+                && asString((candidate as Record<string, unknown>).id) === instanceId;
+        }) as Record<string, unknown> | undefined;
+        return asString(match?.apiKey) || asString(root.apiKey);
+    }
+
+    private createLegacyConfigBackup(configPath: string): string {
+        const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*$/, '').replace('T', '-');
+        const backupPath = path.join(path.dirname(configPath), `n8nac-config.v1-backup-${timestamp}.json`);
+        fs.copyFileSync(configPath, backupPath);
+        return backupPath;
     }
 
     private canonicalInstanceIdentifier(identifier?: string): string | undefined {
@@ -643,4 +820,12 @@ function tryResolve<T>(callback: () => T): T | undefined {
 
 function stripUndefined<T extends object>(value: T): T {
     return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
+}
+
+function asString(value: unknown): string | undefined {
+    return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function asBoolean(value: unknown): boolean | undefined {
+    return typeof value === 'boolean' ? value : undefined;
 }

@@ -32,7 +32,7 @@ V2 ships an integrated VS Code/Cursor Agent, real instance management through `n
 
 ---
 
-> **Using V1?** V2 is now the default release line. V1 users can keep using the legacy branch and packages: [V1 branch](https://github.com/EtienneLescot/n8n-as-code/tree/v1) · CLI: `npx --yes n8nac@v1 <command>` · Claude Code: `/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#v1`. The VS Code/OpenVSX listing now follows V2; see [VS Code / Cursor V1 legacy](#vs-code--cursor-v1-legacy) before installing the editor extension.
+> **Using V1?** V2 is now the default release line. Start with the [V1 to V2 migration guide](https://n8nascode.dev/docs/migration/v1-to-v2/) and run `n8nac workspace migrate-v1` before changing workspace config. V1 users can keep using the legacy branch and packages: [V1 branch](https://github.com/EtienneLescot/n8n-as-code/tree/v1) · CLI: `npx --yes n8nac@v1 <command>` · Claude Code: `/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#v1`. The VS Code/OpenVSX listing now follows V2; see [VS Code / Cursor V1 legacy](#vs-code--cursor-v1-legacy) before installing the editor extension.
 
 > **⚠ n8n version compatibility** — The node schema bundled with n8n-as-code is built against the **latest stable release of n8n**. For best results, keep your n8n instance up to date. Using an outdated instance may cause generated workflows to reference node type-versions not yet supported by your instance, which n8n renders as broken nodes in the canvas.
 
@@ -125,6 +125,8 @@ npx --yes n8nac verify <workflow-id>
 - **Integrated VS Code Agent** — the extension now includes an Agent Workbench that understands the selected workflow, selected node, active instance, project, and local workspace.
 - **`n8n-manager` runtime foundation** — instance registration, API keys, managed local runtimes, project selection, credential readiness, deployment, execution, and inspection use the same runtime layer across surfaces.
 - **Split runtime/workspace config** — `n8n-manager` stores global instances and API keys, while `n8nac-config.json` stores repository-local overrides such as pinned instance, project, and sync folder.
+- **V1 migration command** — `n8nac workspace migrate-v1` detects legacy workspace config, shows a dry-run summary, backs up the old file, and migrates safe workspace overrides.
+- **VS Code workspace agents** — `n8nac update-ai` now writes `.github/agents/*.agent.md` for VS Code/GitHub Copilot-compatible agents, plus portable skill fallbacks for other runtimes.
 - **One grounded workflow loop** — local files, n8n schema knowledge, docs, templates, validation, push/pull, credential setup, activation, test execution, and execution inspection are available from the same product flow.
 
 ### Prereleases

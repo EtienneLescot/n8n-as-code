@@ -2,8 +2,6 @@
 
 Portable n8n-as-code skills for agents that can read `SKILL.md` files.
 
-Documentation: [Skills guide](https://n8nascode.dev/docs/usage/skills/) · [n8n-manager guide](https://n8nascode.dev/docs/usage/n8n-manager/) · [CLI workspace commands](https://n8nascode.dev/docs/usage/cli/#workspace)
-
 ## Skills
 
 - `n8n-manager`: instance, runtime, tunnel, auth, project, credential, and workflow presentation management.

@@ -70,8 +70,25 @@ export class AiContextGenerator {
     // 1. AGENTS.md (lightweight context-root bootstrap)
     this.injectOrUpdate(path.join(projectRoot, 'AGENTS.md'), agentsContent, true);
 
-    // 2. Local portable skills for agents that only see the context root.
+    // 2. VS Code/Copilot workspace agents plus portable skills for other agent runtimes.
+    this.materializeWorkspaceAgents(projectRoot, distTag, options);
     this.materializeAgentSkills(projectRoot, distTag, options);
+  }
+
+  private materializeWorkspaceAgents(
+    projectRoot: string,
+    distTag?: string,
+    options: { cliCommandOverride?: string; managerCommandOverride?: string } = {},
+  ): void {
+    const agentsRoot = path.join(projectRoot, '.github', 'agents');
+    const agentNames = ['n8n-manager', 'n8n-architect'] as const;
+    fs.mkdirSync(agentsRoot, { recursive: true });
+    for (const agentName of agentNames) {
+      fs.writeFileSync(
+        path.join(agentsRoot, `${agentName}.agent.md`),
+        this.getWorkspaceAgentContent(agentName, distTag, options, projectRoot),
+      );
+    }
   }
 
   private materializeAgentSkills(
@@ -90,6 +107,17 @@ export class AiContextGenerator {
         content,
       );
     }
+  }
+
+  private getWorkspaceAgentContent(
+    agentName: 'n8n-manager' | 'n8n-architect',
+    distTag?: string,
+    options: { cliCommandOverride?: string; managerCommandOverride?: string } = {},
+    projectRoot?: string,
+  ): string {
+    return this.getAgentSkillContent(agentName, distTag, options, projectRoot)
+      .replaceAll('Use this skill', 'Use this workspace agent')
+      .replaceAll('`n8n-manager` skill', '`n8n-manager` workspace agent');
   }
 
   private injectOrUpdate(filePath: string, content: string, isMarkdownFile: boolean = false): void {
@@ -146,14 +174,19 @@ export class AiContextGenerator {
       ``,
       `---`,
       ``,
-      `## Required Local Skills`,
+      `## Required Local Agents`,
       ``,
-      `Read these local skill files before doing n8n work:`,
+      `VS Code and GitHub Copilot-compatible agents are generated here:`,
+      ``,
+      `- \`.github/agents/n8n-manager.agent.md\``,
+      `- \`.github/agents/n8n-architect.agent.md\``,
+      ``,
+      `Portable skill fallbacks are also generated for runtimes that do not read \`.github/agents\`:`,
       ``,
       `- \`.agents/skills/n8n-manager/SKILL.md\``,
       `- \`.agents/skills/n8n-architect/SKILL.md\``,
       ``,
-      `If your agent runtime supports skills, load those skills. If it does not, treat the files as mandatory instructions.`,
+      `If your agent runtime supports workspace agents, use the \`.github/agents/*.agent.md\` files. If it supports skills instead, load the skill files. Otherwise, treat the files as mandatory instructions.`,
       ``,
       `---`,
       ``,

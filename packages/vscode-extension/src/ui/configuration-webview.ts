@@ -28,7 +28,7 @@ function normalizeHost(host: string): string {
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
 }
 
-async function clearLegacyWorkspaceSettings(): Promise<void> {
+async function clearLegacyWorkspaceSettings(): Promise<string[]> {
   const config = vscode.workspace.getConfiguration('n8n');
   const keys: Array<'host' | 'apiKey' | 'syncFolder' | 'projectId' | 'projectName'> = [
     'host',
@@ -37,16 +37,20 @@ async function clearLegacyWorkspaceSettings(): Promise<void> {
     'projectId',
     'projectName',
   ];
+  const cleared: string[] = [];
 
   for (const key of keys) {
     const inspected = config.inspect<string>(key);
     if (inspected?.workspaceValue !== undefined) {
       await config.update(key, undefined, vscode.ConfigurationTarget.Workspace);
+      cleared.push(`n8n.${key}`);
     }
     if (inspected?.workspaceFolderValue !== undefined) {
       await config.update(key, undefined, vscode.ConfigurationTarget.WorkspaceFolder);
+      cleared.push(`n8n.${key}`);
     }
   }
+  return [...new Set(cleared)];
 }
 
 function getNonce(): string {
@@ -264,9 +268,14 @@ export class ConfigurationWebview {
             projectName: String(payload.projectName || '').trim() || undefined,
             folderSync: Boolean(payload.folderSync),
           }, workspaceRoot);
-          await clearLegacyWorkspaceSettings();
+          const clearedLegacySettings = await clearLegacyWorkspaceSettings();
           await this._context.workspaceState.update('n8n.suppressSettingsChangedOnce', true);
           await this._configurationController.refresh('webview-save-workspace-context', { force: true });
+          if (clearedLegacySettings.length > 0) {
+            void vscode.window.showInformationMessage(
+              `n8n-as-code moved legacy VS Code workspace settings (${clearedLegacySettings.join(', ')}) into n8n-manager plus n8nac-config.json workspace overrides.`,
+            );
+          }
           this._panel.webview.postMessage({ type: 'saved' });
           return;
         }

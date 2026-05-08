@@ -159,6 +159,10 @@ Version 2 makes `n8n-manager` the source of truth for instances, API keys, manag
 
 `n8nac-config.json` stores workspace overrides only. It is safe to commit when it contains only project and sync context. Do not commit secrets.
 
+If you upgraded an existing workspace and still have a legacy config with embedded instances or API keys, run `n8nac workspace migrate-v1` from the workspace root before editing settings in the extension. The command shows a dry-run summary and `--write` creates a backup before converting the file.
+
+An instance ID is a local `n8n-manager` connection profile ID. It is not a shared identifier for the n8n server, so different developers can have different IDs for the same n8n URL.
+
 ### Switching Instances
 
 Use either:
@@ -200,6 +204,8 @@ Archived workflow tabs let you switch between **Workflows**, **Archived**, and *
 The extension works with `n8nac` to generate local context for AI coding assistants:
 
 - `AGENTS.md` contains workflow development instructions.
+- `.github/agents/n8n-manager.agent.md` and `.github/agents/n8n-architect.agent.md` are VS Code/GitHub Copilot-compatible workspace agents.
+- `.agents/skills/.../SKILL.md` contains portable skill fallbacks for other agent runtimes.
 - `.vscode/n8n.code-snippets` contains common n8n node and workflow snippets.
 - JSON schema configuration gives live validation and completion.
 
