@@ -244,4 +244,69 @@ describe('ConfigService', () => {
         expect(migratedConfig.instances).toBeUndefined();
         expect(migratedConfig.apiKey).toBeUndefined();
     });
+
+    it('uses the first migrated instance when the legacy active instance is stale', () => {
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 2,
+            activeInstanceId: 'missing',
+            instances: [{
+                id: 'prod',
+                name: 'Production',
+                host: 'https://prod.example.test',
+            }],
+        }, null, 2));
+
+        const configService = new ConfigService(workspaceRoot);
+        const dryRun = configService.migrateLegacyWorkspaceConfig();
+
+        expect(dryRun.status).toBe('dry-run');
+        expect(dryRun.status === 'dry-run' ? dryRun.plan.activeInstanceId : undefined).toBe('prod');
+        expect(dryRun.status === 'dry-run' ? dryRun.plan.warnings.join('\n') : '').toContain('"missing" was not found');
+
+        const migrated = configService.migrateLegacyWorkspaceConfig({ write: true });
+
+        expect(migrated.status).toBe('migrated');
+        expect(configService.getWorkspaceConfig().activeInstanceId).toBe('prod');
+        expect(configService.getActiveInstance()?.id).toBe('prod');
+    });
+
+    it('does not synthesize an invalid instance from an empty legacy instances array', () => {
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 2,
+            activeInstanceId: 'missing',
+            syncFolder: 'flows',
+            instances: [],
+        }, null, 2));
+
+        const configService = new ConfigService(workspaceRoot);
+        const dryRun = configService.migrateLegacyWorkspaceConfig();
+
+        expect(dryRun.status).toBe('dry-run');
+        expect(dryRun.status === 'dry-run' ? dryRun.plan.instances : []).toEqual([]);
+
+        const migrated = configService.migrateLegacyWorkspaceConfig({ write: true });
+
+        expect(migrated.status).toBe('migrated');
+        expect(migrated.status === 'migrated' ? migrated.instances : []).toEqual([]);
+        expect(configService.listInstances()).toEqual([]);
+        expect(configService.getWorkspaceConfig()).toMatchObject({
+            version: 3,
+            syncFolder: 'flows',
+        });
+        expect(configService.getWorkspaceConfig().activeInstanceId).toBeUndefined();
+    });
+
+    it('does not treat unknown future config versions as legacy by version alone', () => {
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 4,
+            syncFolder: 'flows',
+        }, null, 2));
+
+        const configService = new ConfigService(workspaceRoot);
+
+        expect(configService.detectLegacyWorkspaceConfig()).toBeUndefined();
+        expect(configService.migrateLegacyWorkspaceConfig()).toMatchObject({
+            status: 'not-needed',
+        });
+    });
 });
