@@ -28,6 +28,22 @@ function normalizeHost(host: string): string {
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
 }
 
+function envVarSlug(value: string): string {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function readWorkspaceTargetApiKey(targetId: string, targetName: string): string | undefined {
+  const candidates = [
+    `N8NAC_TARGET_${envVarSlug(targetId)}_API_KEY`,
+    `N8NAC_TARGET_${envVarSlug(targetName)}_API_KEY`,
+  ];
+  for (const key of candidates) {
+    const value = process.env[key]?.trim().replace(/^['"]|['"]$/g, '');
+    if (value) return value;
+  }
+  return undefined;
+}
+
 async function clearLegacyWorkspaceSettings(): Promise<string[]> {
   const config = vscode.workspace.getConfiguration('n8n');
   const keys: Array<'host' | 'apiKey' | 'syncFolder' | 'projectId' | 'projectName'> = [
@@ -152,11 +168,33 @@ export class ConfigurationWebview {
           let instanceId = String(payload.instanceId || '').trim() || undefined;
           const instanceTargetId = String(payload.instanceTargetId || '').trim();
           if (!instanceId && workspaceRoot && instanceTargetId) {
-            const target = new ConfigService(workspaceRoot).getInstanceTarget(instanceTargetId);
+            const configService = new ConfigService(workspaceRoot);
+            const environmentId = String(payload.environmentId || '').trim();
+            const environment = environmentId ? configService.getEnvironment(environmentId) : undefined;
+            const targetChanged = Boolean(environment && instanceTargetId && environment.instanceTargetId !== instanceTargetId);
+            const target = configService.getInstanceTarget(instanceTargetId || environment?.instanceTargetId || '');
+            if (environmentId && !targetChanged) {
+              const environment = await configService.prepareEnvironment(environmentId);
+              if (!environment.apiKey) throw new Error(`Environment "${environment.environmentName}" needs a local API key before projects can be loaded.`);
+              const projects = await new N8nApiClient({ host: environment.host, apiKey: environment.apiKey }).getProjects();
+              this._panel.webview.postMessage({
+                type: 'projectsLoaded',
+                projects: projects.map((project) => ({
+                  id: project.id,
+                  name: getCanonicalProjectName(project),
+                  type: project.type,
+                  detail: getProjectDetail(project),
+                  displayName: getProjectDisplayLabel(project),
+                })),
+                selectedProjectId: String(payload.projectId || ''),
+                selectedProjectName: String(payload.projectName || ''),
+              });
+              return;
+            }
             if (target.kind === 'global-ref') instanceId = target.instanceRef;
             if (target.kind === 'embedded') {
-              const apiKey = process.env.N8N_API_KEY?.trim().replace(/^['"]|['"]$/g, '');
-              if (!apiKey) throw new Error('N8N_API_KEY is required to load projects from an embedded workspace target.');
+              const apiKey = readWorkspaceTargetApiKey(target.id, target.name) || configService.getApiKey(target.instance.baseUrl);
+              if (!apiKey) throw new Error('A local API key is required to load projects from this embedded workspace target.');
               const projects = await new N8nApiClient({ host: target.instance.baseUrl, apiKey }).getProjects();
               this._panel.webview.postMessage({
                 type: 'projectsLoaded',

@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { createHash } from 'crypto';
 import {
   createN8nManagerFacade,
   resolveN8nManagerConfigurationPaths,
@@ -13,12 +14,16 @@ type N8nWorkspaceOverrides = Awaited<ReturnType<N8nManagerFacade['readWorkspaceO
 type WorkspaceSnapshotConfig = IWorkspaceConfig | N8nWorkspaceOverrides;
 type PreparedN8nContext = Awaited<ReturnType<N8nManagerFacade['prepareEffectiveContext']>>;
 type EffectiveN8nContext = PreparedN8nContext['context'];
+type SanitizedEffectiveN8nContext = Omit<EffectiveN8nContext, 'apiKey'> & {
+  apiKey?: undefined;
+  apiKeyAvailable?: boolean;
+};
 
 export interface N8nConfigurationSnapshot {
   workspaceRoot?: string;
   global: N8nGlobalConfig;
   workspace: WorkspaceSnapshotConfig;
-  effective?: EffectiveN8nContext;
+  effective?: SanitizedEffectiveN8nContext;
   runtime?: PreparedN8nContext['runtime'];
   diagnostics?: PreparedN8nContext['diagnostics'];
   hasWorkspaceConfig: boolean;
@@ -167,7 +172,7 @@ export class N8nConfigurationController implements vscode.Disposable {
         instances: [],
       }));
       const workspace = workspaceRoot && configService
-        ? configService.getWorkspaceConfig()
+        ? this.readWorkspaceSnapshotConfig(configService)
         : { version: 3 as const };
       return this.buildSnapshot({
         workspaceRoot,
@@ -191,8 +196,22 @@ export class N8nConfigurationController implements vscode.Disposable {
     hasValidConnection: boolean;
     error?: string;
   }): N8nConfigurationSnapshot {
+    const workspace = input.workspace as any;
+    const effective = input.effective as any;
+    const credentialFingerprint = input.effective?.apiKey
+      ? createHash('sha256').update(input.effective.apiKey).digest('hex')
+      : '';
     const runtimeSignature = JSON.stringify({
       workspaceRoot: input.workspaceRoot || '',
+      workspaceVersion: workspace?.version || '',
+      activeEnvironmentId: workspace?.activeEnvironmentId || '',
+      environmentId: effective?.environmentId || workspace?.activeEnvironment?.id || '',
+      environmentName: effective?.environmentName || workspace?.activeEnvironment?.name || '',
+      instanceTargetId: effective?.instanceTargetId || workspace?.instanceTargetId || '',
+      instanceTargetName: effective?.instanceTargetName || workspace?.instanceTargetName || '',
+      targetKind: effective?.targetKind || workspace?.targetKind || '',
+      credentialSource: effective?.apiKeySource || workspace?.credentialSource || '',
+      credentialFingerprint,
       activeInstanceId: input.effective?.activeInstanceId || '',
       apiBaseUrl: input.effective?.apiBaseUrl ?? input.effective?.host ?? '',
       publicBaseUrl: input.effective?.publicBaseUrl || '',
@@ -234,8 +253,27 @@ export class N8nConfigurationController implements vscode.Disposable {
 
     return {
       ...input,
+      effective: this.sanitizeEffectiveContext(input.effective),
       signature,
       runtimeSignature,
+    };
+  }
+
+  private readWorkspaceSnapshotConfig(configService: ConfigService): WorkspaceSnapshotConfig {
+    try {
+      return configService.getWorkspaceConfig();
+    } catch {
+      return { version: 3 as const };
+    }
+  }
+
+  private sanitizeEffectiveContext(effective?: EffectiveN8nContext): SanitizedEffectiveN8nContext | undefined {
+    if (!effective) return undefined;
+    const { apiKey: _apiKey, ...safeEffective } = effective as EffectiveN8nContext & { apiKey?: string };
+    return {
+      ...safeEffective,
+      apiKey: undefined,
+      apiKeyAvailable: Boolean(effective.apiKey),
     };
   }
 
