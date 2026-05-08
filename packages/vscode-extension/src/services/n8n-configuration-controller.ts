@@ -31,6 +31,13 @@ export interface N8nConfigurationSnapshot {
   signature: string;
   runtimeSignature: string;
   error?: string;
+  legacyMigration?: {
+    configPath: string;
+    version?: number;
+    activeInstanceId?: string;
+    instanceCount: number;
+    warnings: string[];
+  };
 }
 
 export interface N8nConfigurationChangeEvent {
@@ -118,6 +125,23 @@ export class N8nConfigurationController implements vscode.Disposable {
 
     try {
       let global = await facade.getGlobalConfig();
+      const legacyPlan = configService?.detectLegacyWorkspaceConfig();
+      if (legacyPlan) {
+        return this.buildSnapshot({
+          workspaceRoot,
+          global,
+          workspace: { version: 3 as const },
+          hasWorkspaceConfig,
+          hasValidConnection: false,
+          legacyMigration: {
+            configPath: legacyPlan.configPath,
+            version: legacyPlan.version,
+            activeInstanceId: legacyPlan.activeInstanceId,
+            instanceCount: legacyPlan.instances.length,
+            warnings: legacyPlan.warnings,
+          },
+        });
+      }
       const workspace = workspaceRoot && configService ? configService.getWorkspaceConfig() : { version: 3 as const };
       const isEnvironmentWorkspace = workspace.version === 4;
       let prepared = isEnvironmentWorkspace ? undefined : await facade.prepareEffectiveContext({
@@ -195,6 +219,7 @@ export class N8nConfigurationController implements vscode.Disposable {
     hasWorkspaceConfig: boolean;
     hasValidConnection: boolean;
     error?: string;
+    legacyMigration?: N8nConfigurationSnapshot['legacyMigration'];
   }): N8nConfigurationSnapshot {
     const workspace = input.workspace as any;
     const effective = input.effective as any;
@@ -227,6 +252,12 @@ export class N8nConfigurationController implements vscode.Disposable {
       tunnelPublicUrl: input.runtime?.tunnel?.publicUrl || '',
       tunnelRunning: Boolean(input.runtime?.tunnel?.running),
       error: input.error || '',
+      legacyMigration: input.legacyMigration ? {
+        configPath: input.legacyMigration.configPath,
+        version: input.legacyMigration.version || '',
+        activeInstanceId: input.legacyMigration.activeInstanceId || '',
+        instanceCount: input.legacyMigration.instanceCount,
+      } : undefined,
     });
 
     const signature = JSON.stringify({
@@ -256,6 +287,7 @@ export class N8nConfigurationController implements vscode.Disposable {
       effective: this.sanitizeEffectiveContext(input.effective),
       signature,
       runtimeSignature,
+      legacyMigration: input.legacyMigration,
     };
   }
 

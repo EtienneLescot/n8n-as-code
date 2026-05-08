@@ -66,6 +66,11 @@
         "icon": "$(settings-gear)"
       },
       {
+        "command": "n8n.migrateLegacyWorkspace",
+        "title": "n8n: Migrate Legacy Workspace Config",
+        "icon": "$(repo-sync)"
+      },
+      {
         "command": "n8n.switchInstance",
         "title": "n8n: Select Global Instance",
         "icon": "$(list-selection)"

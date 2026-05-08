@@ -30,7 +30,7 @@ export class BaseCommand {
         const requestedInstanceName = process.env.N8NAC_INSTANCE_NAME?.trim() || undefined;
         if (requestedInstanceName) {
             console.error(chalk.red('❌ Direct instance targeting is no longer supported by n8nac.'));
-            console.error(chalk.yellow('Create a workspace environment with `n8nac instance-target add ...` and `n8nac env add ...`, then use `--env <name>`.'));
+            console.error(chalk.yellow('Create a workspace environment with `n8nac env add <name> --base-url <url> --sync-folder workflows/<name>`, then use `--env <name>`.'));
             process.exit(1);
         }
 
@@ -52,7 +52,7 @@ export class BaseCommand {
             if (!host || !apiKey) {
                 if (!canPrepareRuntime) {
                     console.error(chalk.red(`❌ Environment "${resolvedEnvironment.environmentName}" needs a host and API key before this command can run.`));
-                    console.error(chalk.yellow('Configure a local API key for this environment or update the workspace environment target.'));
+                    console.error(chalk.yellow(`Configure a local API key with \`n8nac env auth set ${resolvedEnvironment.environmentName} --api-key-stdin\` or update the environment URL.`));
                     process.exit(1);
                 }
                 apiKey = '';
@@ -86,7 +86,7 @@ export class BaseCommand {
             if (!host || !apiKey) {
                 if (!canPrepareManagedRuntime) {
                     console.error(chalk.red('❌ CLI not configured.'));
-                    console.error(chalk.yellow('Configure n8n with `n8n-manager auth set` and set workspace context with `n8nac workspace ...`.'));
+                    console.error(chalk.yellow('Create a workspace environment with `n8nac env add <name> --base-url <url> --sync-folder workflows/<name>` and store auth with `n8nac env auth set <name> --api-key-stdin`.'));
                     process.exit(1);
                 }
                 apiKey = '';
@@ -175,7 +175,7 @@ export class BaseCommand {
 
         if (missing.length > 0) {
             console.error(chalk.red(`❌ Missing required project configuration: ${missing.join(', ')}.`));
-            console.error(chalk.yellow('Set workspace context with `n8nac workspace set-sync-folder workflows`. For self-hosted n8n where the projects API is unavailable, use `n8nac workspace set-project --project-id personal --project-name Personal`; otherwise select a project with `n8n-manager projects select`.'));
+            console.error(chalk.yellow('Update the workspace environment with `n8nac env update <name> --project-id personal --project-name Personal --sync-folder workflows/<name>`.'));
             process.exit(1);
         }
 

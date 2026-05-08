@@ -283,6 +283,10 @@ export async function activate(context: vscode.ExtensionContext) {
             ConfigurationWebview.createOrShow(context, requireConfigurationController());
         }),
 
+        registerTelemetryCommand('n8n.migrateLegacyWorkspace', async () => {
+            await migrateLegacyWorkspaceConfig();
+        }),
+
         registerTelemetryCommand('n8n.switchInstance', async (args?: SwitchInstanceCommandArgs) => {
             await switchWorkspaceInstance(context, args);
         }),
@@ -1120,6 +1124,38 @@ function requireConfigurationController(): N8nConfigurationController {
         throw new Error('n8n configuration controller is not initialized.');
     }
     return configurationController;
+}
+
+async function migrateLegacyWorkspaceConfig(): Promise<void> {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) {
+        vscode.window.showWarningMessage(NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION).then((selection) => {
+            if (selection === OPEN_FOLDER_ACTION) void vscode.commands.executeCommand('vscode.openFolder');
+        });
+        return;
+    }
+
+    const configService = new ConfigService(workspaceRoot);
+    const plan = configService.detectLegacyWorkspaceConfig();
+    if (!plan) {
+        await vscode.window.showInformationMessage('No legacy n8n-as-code workspace config detected.');
+        await requireConfigurationController().refresh('migrate-legacy-not-needed', { force: true });
+        return;
+    }
+
+    const confirmation = await vscode.window.showWarningMessage(
+        'Migrate legacy n8n-as-code config? A backup will be created before changing n8nac-config.json.',
+        { modal: true },
+        'Migrate workspace',
+    );
+    if (confirmation !== 'Migrate workspace') return;
+
+    const result = configService.migrateLegacyWorkspaceConfig({ write: true });
+    await requireConfigurationController().refresh('migrate-legacy-workspace-command', { force: true });
+    updateContextKeys();
+    if (result.status === 'migrated') {
+        await vscode.window.showInformationMessage(`Workspace migrated. Backup: ${result.backupPath}`);
+    }
 }
 
 function requireAgentRuntimeController(): AgentRuntimeController {

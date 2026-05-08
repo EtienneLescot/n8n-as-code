@@ -58,6 +58,22 @@ function createManagerFacadeFromOptions(options: { host?: string; apiKey?: strin
     });
 }
 
+async function ensureManagedLocalTarget(configService: ConfigService, instanceId: string) {
+    const instance = (await createManagerFacadeFromOptions({}).listInstances()).find((item) => item.id === instanceId);
+    if (!instance) {
+        throw new Error(`Unknown managed local n8n instance: ${instanceId}`);
+    }
+    if (instance.mode !== 'managed-local-docker') {
+        throw new Error(`Instance "${instance.name || instance.id}" is not managed locally. Use --base-url for remote n8n environments.`);
+    }
+    const existing = configService.listInstanceTargets().find((target) => target.kind === 'global-ref' && target.instanceRef === instance.id);
+    if (existing) return existing;
+    return configService.addInstanceTarget({
+        name: instance.name || instance.id,
+        instanceRef: instance.id,
+    });
+}
+
 function parseCredentialValues(values: string[] | undefined): Record<string, string> {
     const parsed: Record<string, string> = {};
     for (const value of values ?? []) {
@@ -76,6 +92,11 @@ function printJsonOrText(options: { json?: boolean }, payload: unknown, text: st
         return;
     }
     console.log(text);
+}
+
+function hideCommand<T extends Command>(command: T): T {
+    (command as T & { hidden: boolean }).hidden = true;
+    return command;
 }
 
 function formatLegacyMigrationResult(result: ILegacyWorkspaceMigrationResult): string {
@@ -323,7 +344,8 @@ program
     .description('N8N Sync Command Line Interface - Manage n8n workflows as code')
     .version(getVersion())
     .option('--env <name>', 'Target a specific workspace environment by name or ID')
-    .addOption(new Option('--environment <name>', 'Alias for --env').hideHelp());
+    .addOption(new Option('--environment <name>', 'Alias for --env').hideHelp())
+    .addOption(new Option('--instance <name>', 'Deprecated; use --env').hideHelp());
 
 // Inject --env into the environment only for the lifetime of the command action
 // so BaseCommand can pick it up without leaking process-wide state afterwards.
@@ -409,7 +431,7 @@ telemetryProgram.command('disable')
     });
 
 const workspaceProgram = program.command('workspace')
-    .description('Manage n8n workspace overrides');
+    .description('Inspect or migrate n8n workspace configuration');
 
 workspaceProgram.command('status')
     .alias('get')
@@ -446,7 +468,7 @@ workspaceProgram.command('migrate-v1')
         printJsonOrText(options, result, formatLegacyMigrationResult(result));
     });
 
-workspaceProgram.command('pin-instance')
+hideCommand(workspaceProgram.command('pin-instance'))
     .description('Pin the effective n8n instance for this workspace')
     .requiredOption('--instance-id <id>', 'Global n8n instance ID to pin')
     .option('--json', 'Output workspace config as JSON')
@@ -461,7 +483,7 @@ workspaceProgram.command('pin-instance')
         );
     });
 
-workspaceProgram.command('clear-instance')
+hideCommand(workspaceProgram.command('clear-instance'))
     .description('Clear the workspace n8n instance pin and fall back to the global active instance')
     .option('--json', 'Output workspace config as JSON')
     .action((options) => {
@@ -471,7 +493,7 @@ workspaceProgram.command('clear-instance')
         printJsonOrText(options, workspaceConfig, chalk.green('✔ Workspace instance override cleared.'));
     });
 
-workspaceProgram.command('set-sync-folder')
+hideCommand(workspaceProgram.command('set-sync-folder'))
     .description('Set the n8n sync folder override for this workspace')
     .argument('<path>', 'Workspace sync folder path')
     .option('--json', 'Output workspace config as JSON')
@@ -482,7 +504,7 @@ workspaceProgram.command('set-sync-folder')
         printJsonOrText(options, workspaceConfig, chalk.green(`✔ Workspace sync folder set to: ${syncFolder}`));
     });
 
-workspaceProgram.command('clear-sync-folder')
+hideCommand(workspaceProgram.command('clear-sync-folder'))
     .description('Clear the workspace n8n sync folder override and fall back to the global default')
     .option('--json', 'Output workspace config as JSON')
     .action((options) => {
@@ -492,7 +514,7 @@ workspaceProgram.command('clear-sync-folder')
         printJsonOrText(options, workspaceConfig, chalk.green('✔ Workspace sync folder override cleared.'));
     });
 
-workspaceProgram.command('set-project')
+hideCommand(workspaceProgram.command('set-project'))
     .description('Set the n8n project override for this workspace from known project values')
     .requiredOption('--project-id <id>', 'n8n project ID to store in this workspace')
     .requiredOption('--project-name <name>', 'n8n project display name to store in this workspace')
@@ -507,7 +529,7 @@ workspaceProgram.command('set-project')
         printJsonOrText(options, workspaceConfig, chalk.green(`✔ Workspace project set to: ${options.projectName}`));
     });
 
-workspaceProgram.command('clear-project')
+hideCommand(workspaceProgram.command('clear-project'))
     .description('Clear the workspace n8n project override and fall back to the instance default project')
     .option('--json', 'Output workspace config as JSON')
     .action((options) => {
@@ -517,9 +539,9 @@ workspaceProgram.command('clear-project')
         printJsonOrText(options, workspaceConfig, chalk.green('✔ Workspace project override cleared.'));
     });
 
-const instanceTargetProgram = program.command('instance-target')
+const instanceTargetProgram = hideCommand(program.command('instance-target')
     .alias('target')
-    .description('Manage workspace instance targets used by environments');
+    .description('Compatibility: manage low-level workspace targets used by environments'));
 
 instanceTargetProgram.command('list')
     .description('List workspace instance targets')
@@ -537,15 +559,22 @@ instanceTargetProgram.command('list')
     });
 
 instanceTargetProgram.command('add')
-    .description('Add a workspace instance target from a global instance reference or public URL')
+    .description('Compatibility: add a low-level workspace target. Prefer `n8nac env add --base-url ...`.')
     .argument('<name>', 'Target display name')
     .option('--id <id>', 'Stable target ID')
     .option('--instance-ref <id>', 'Global n8n-manager instance ID to reference')
     .option('--base-url <url>', 'Public existing n8n URL to embed without secrets')
     .option('--description <text>', 'Target description')
     .option('--json', 'Output target as JSON')
-    .action((name, options) => {
+    .action(async (name, options) => {
         const configService = new ConfigService();
+        if (options.instanceRef) {
+            const instance = (await createManagerFacadeFromOptions({}).listInstances()).find((item) => item.id === options.instanceRef);
+            if (!instance) throw new Error(`Unknown managed local n8n instance: ${options.instanceRef}`);
+            if (instance.mode !== 'managed-local-docker') {
+                throw new Error(`Instance "${instance.name || instance.id}" is not managed locally. Prefer \`n8nac env add <name> --base-url <url> --sync-folder <path>\` for remote n8n environments.`);
+            }
+        }
         const target = configService.addInstanceTarget({
             name,
             id: options.id,
@@ -583,7 +612,7 @@ instanceTargetProgram.command('remove')
 
 const environmentProgram = program.command('env')
     .alias('environment')
-    .description('Manage workspace environments');
+    .description('Manage n8n workspace environments');
 
 environmentProgram.command('list')
     .description('List workspace environments')
@@ -612,25 +641,57 @@ environmentProgram.command('list')
     });
 
 environmentProgram.command('add')
-    .description('Add a workspace environment by attaching an instance target, project, and sync folder')
+    .description('Add an n8n workspace environment')
     .argument('<name>', 'Environment display name')
-    .requiredOption('--instance-target <name-or-id>', 'Workspace instance target name or ID')
-    .requiredOption('--project-id <id>', 'n8n project ID')
-    .requiredOption('--project-name <name>', 'n8n project display name')
+    .option('--base-url <url>', 'Remote existing n8n URL to store in this workspace environment')
+    .option('--managed-instance <id>', 'Local managed n8n instance ID to reference')
+    .option('--instance-target <name-or-id>', 'Compatibility: existing workspace target name or ID')
+    .option('--api-key <key>', 'Store a local API key for --base-url without committing it')
+    .option('--api-key-stdin', 'Read the local API key for --base-url from stdin')
+    .option('--project-id <id>', 'n8n project ID')
+    .option('--project-name <name>', 'n8n project display name')
     .requiredOption('--sync-folder <path>', 'Environment sync folder')
     .option('--id <id>', 'Stable environment ID')
     .option('--folder-sync', 'Enable folder sync for this environment')
     .option('--custom-nodes-path <path>', 'Custom nodes path for this environment')
     .option('--description <text>', 'Environment description')
     .option('--json', 'Output environment as JSON')
-    .action((name, options) => {
+    .action(async (name, options) => {
+        await hydrateApiKeyFromStdin(options);
         const configService = new ConfigService();
+        const selectors = [options.instanceTarget, options.baseUrl, options.managedInstance].filter(Boolean);
+        if (selectors.length !== 1) {
+            throw new Error('Provide exactly one of --base-url, --managed-instance, or --instance-target.');
+        }
+        if ((options.projectId && !options.projectName) || (!options.projectId && options.projectName)) {
+            throw new Error('Provide both --project-id and --project-name, or omit both.');
+        }
+        let instanceTarget = options.instanceTarget;
+        if (options.baseUrl) {
+            const target = configService.ensureEmbeddedInstanceTarget({
+                name,
+                baseUrl: options.baseUrl,
+            });
+            instanceTarget = target.id;
+            configService.upsertRemoteInstancePreset({
+                host: options.baseUrl,
+                apiKey: options.apiKey,
+                name,
+            });
+        }
+        if (options.managedInstance) {
+            const target = await ensureManagedLocalTarget(configService, options.managedInstance);
+            instanceTarget = target.id;
+        }
+        if (!instanceTarget) {
+            throw new Error('Unable to resolve an instance for this environment.');
+        }
         const environment = configService.addEnvironment({
             name,
             id: options.id,
-            instanceTarget: options.instanceTarget,
-            projectId: options.projectId,
-            projectName: options.projectName,
+            instanceTarget,
+            projectId: options.projectId || (options.baseUrl ? 'personal' : undefined),
+            projectName: options.projectName || (options.baseUrl ? 'Personal' : undefined),
             syncFolder: options.syncFolder,
             folderSync: Boolean(options.folderSync),
             customNodesPath: options.customNodesPath,
@@ -643,7 +704,11 @@ environmentProgram.command('update')
     .description('Update a workspace environment')
     .argument('<name-or-id>', 'Environment name or ID')
     .option('--name <name>', 'New display name')
+    .option('--base-url <url>', 'Move this environment to a remote existing n8n URL')
+    .option('--managed-instance <id>', 'Move this environment to a local managed n8n instance')
     .option('--instance-target <name-or-id>', 'Workspace instance target name or ID')
+    .option('--api-key <key>', 'Store a local API key for --base-url without committing it')
+    .option('--api-key-stdin', 'Read the local API key for --base-url from stdin')
     .option('--project-id <id>', 'n8n project ID')
     .option('--project-name <name>', 'n8n project display name')
     .option('--sync-folder <path>', 'Environment sync folder')
@@ -652,11 +717,33 @@ environmentProgram.command('update')
     .option('--custom-nodes-path <path>', 'Custom nodes path for this environment')
     .option('--description <text>', 'Environment description')
     .option('--json', 'Output environment as JSON')
-    .action((nameOrId, options) => {
+    .action(async (nameOrId, options) => {
+        await hydrateApiKeyFromStdin(options);
         const configService = new ConfigService();
+        const selectors = [options.instanceTarget, options.baseUrl, options.managedInstance].filter(Boolean);
+        if (selectors.length > 1) {
+            throw new Error('Provide at most one of --base-url, --managed-instance, or --instance-target.');
+        }
+        let instanceTarget = options.instanceTarget;
+        if (options.baseUrl) {
+            const target = configService.ensureEmbeddedInstanceTarget({
+                name: options.name || nameOrId,
+                baseUrl: options.baseUrl,
+            });
+            instanceTarget = target.id;
+            configService.upsertRemoteInstancePreset({
+                host: options.baseUrl,
+                apiKey: options.apiKey,
+                name: options.name || nameOrId,
+            });
+        }
+        if (options.managedInstance) {
+            const target = await ensureManagedLocalTarget(configService, options.managedInstance);
+            instanceTarget = target.id;
+        }
         const patch = {
             name: options.name,
-            instanceTarget: options.instanceTarget,
+            instanceTarget,
             projectId: options.projectId,
             projectName: options.projectName,
             syncFolder: options.syncFolder,
@@ -691,6 +778,35 @@ environmentProgram.command('remove')
         printJsonOrText(options, environment, chalk.green(`✔ Workspace environment removed: ${environment.name}`));
     });
 
+const environmentAuthProgram = environmentProgram.command('auth')
+    .description('Manage local authentication for n8n environments');
+
+environmentAuthProgram.command('set')
+    .description('Store a local API key for a remote n8n environment without committing it')
+    .argument('<name-or-id>', 'Environment name or ID')
+    .option('--api-key <key>', 'n8n API key to store locally')
+    .option('--api-key-stdin', 'Read the n8n API key from stdin')
+    .option('--json', 'Output resolved environment as JSON')
+    .action(async (nameOrId, options) => {
+        await hydrateApiKeyFromStdin(options);
+        if (!options.apiKey) {
+            throw new Error('Provide --api-key or --api-key-stdin.');
+        }
+        const configService = new ConfigService();
+        const environment = configService.resolveEnvironment(nameOrId);
+        configService.upsertRemoteInstancePreset({
+            host: environment.host,
+            apiKey: options.apiKey,
+            name: environment.instanceTargetName || environment.environmentName,
+        });
+        const resolved = configService.resolveEnvironment(nameOrId);
+        printJsonOrText(
+            options,
+            redactResolvedEnvironment(resolved),
+            chalk.green(`✔ Local API key stored for environment: ${resolved.environmentName}`),
+        );
+    });
+
 environmentProgram.command('status')
     .description('Show resolved workspace environment context')
     .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
@@ -714,7 +830,7 @@ environmentProgram.command('status')
         );
     });
 
-program.command('setup')
+hideCommand(program.command('setup'))
     .description('Choose how this facade should use n8n runtime capabilities')
     .option('--mode <mode>', 'managed-local, connect-existing, or generation-only', 'connect-existing')
     .option('--host <url>', 'Existing n8n URL for connect-existing mode')
@@ -776,7 +892,7 @@ program.command('setup')
         );
     });
 
-program.command('setup-modes')
+hideCommand(program.command('setup-modes'))
     .description('List supported facade setup modes')
     .option('--json', 'Output modes as JSON')
     .action((options) => {
@@ -790,7 +906,7 @@ program.command('setup-modes')
     });
 
 const credentialsProgram = program.command('credentials')
-    .description('Manage runtime credential readiness through n8n-manager');
+    .description('Manage credential readiness recipes and local inventory');
 
 credentialsProgram.command('recipes')
     .description('List credential recipes available to all facades')
@@ -1232,7 +1348,7 @@ Examples:
 // credential - Manage n8n credentials
 const credentialCmd = program
     .command('credential')
-    .description('Manage n8n credentials (schema introspection, create, list, delete)');
+    .description('Manage credentials in the active n8n environment');
 
 credentialCmd
     .command('schema')

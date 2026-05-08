@@ -314,6 +314,32 @@ export class ConfigService {
         return target;
     }
 
+    ensureEmbeddedInstanceTarget(input: { name: string; baseUrl: string; id?: string; description?: string }): IWorkspaceInstanceTarget {
+        const baseUrl = cleanRequired(input.baseUrl, 'Base URL');
+        const normalizedBaseUrl = this.normalizeHost(baseUrl);
+        const config = this.ensureV4WorkspaceConfig();
+        const existing = config.instanceTargets.find((target) => {
+            return target.kind === 'embedded' && this.normalizeHost(target.instance.baseUrl) === normalizedBaseUrl;
+        });
+        if (existing) return existing;
+
+        const existingNames = new Set(config.instanceTargets.map((target) => target.name.toLowerCase()));
+        const baseName = cleanRequired(input.name, 'Instance name');
+        let name = baseName;
+        let counter = 2;
+        while (existingNames.has(name.toLowerCase())) {
+            name = `${baseName} ${counter}`;
+            counter += 1;
+        }
+
+        return this.addInstanceTarget({
+            name,
+            id: input.id,
+            baseUrl,
+            description: input.description,
+        });
+    }
+
     updateInstanceTarget(nameOrId: string, patch: { name?: string; instanceRef?: string; baseUrl?: string; description?: string }): IWorkspaceInstanceTarget {
         const config = this.ensureV4WorkspaceConfig();
         const target = this.findInstanceTarget(config, nameOrId);
@@ -364,8 +390,8 @@ export class ConfigService {
     addEnvironment(input: {
         name: string;
         instanceTarget: string;
-        projectId: string;
-        projectName: string;
+        projectId?: string;
+        projectName?: string;
         syncFolder: string;
         id?: string;
         folderSync?: boolean;
@@ -385,8 +411,8 @@ export class ConfigService {
             id,
             name,
             instanceTargetId: target.id,
-            projectId: cleanRequired(input.projectId, 'Project ID'),
-            projectName: cleanRequired(input.projectName, 'Project name'),
+            projectId: cleanOptional(input.projectId),
+            projectName: cleanOptional(input.projectName),
             syncFolder: cleanRequired(input.syncFolder, 'Sync folder'),
             folderSync: input.folderSync,
             customNodesPath: input.customNodesPath,
@@ -415,8 +441,8 @@ export class ConfigService {
             ...environment,
             name: nextName,
             instanceTargetId: target?.id || environment.instanceTargetId,
-            projectId: patch.projectId !== undefined ? cleanRequired(patch.projectId, 'Project ID') : environment.projectId,
-            projectName: patch.projectName !== undefined ? cleanRequired(patch.projectName, 'Project name') : environment.projectName,
+            projectId: patch.projectId !== undefined ? cleanOptional(patch.projectId) : environment.projectId,
+            projectName: patch.projectName !== undefined ? cleanOptional(patch.projectName) : environment.projectName,
             syncFolder: patch.syncFolder !== undefined ? cleanRequired(patch.syncFolder, 'Sync folder') : environment.syncFolder,
             folderSync: patch.folderSync ?? environment.folderSync,
             customNodesPath: patch.customNodesPath ?? environment.customNodesPath,
@@ -889,6 +915,27 @@ export class ConfigService {
         this.manager.saveApiKey(saved.id, apiKey);
     }
 
+    upsertRemoteInstancePreset(input: { host: string; apiKey?: string; name?: string }): IInstanceProfile {
+        const host = cleanRequired(input.host, 'n8n URL');
+        const normalized = this.normalizeHost(host);
+        const existing = this.manager.listInstances().find((candidate) => {
+            return candidate.mode !== 'managed-local-docker'
+                && (this.normalizeHost(candidate.baseUrl || '') === normalized || this.normalizeHost(candidate.tunnelPublicUrl || '') === normalized);
+        });
+        const instanceIdentifier = input.apiKey ? this.resolveInstanceIdentifierFromApiKey(input.apiKey) : undefined;
+        const saved = this.manager.upsertInstance({
+            id: existing?.id,
+            name: input.name || existing?.name || host,
+            mode: 'existing',
+            baseUrl: host,
+            apiKey: input.apiKey,
+            instanceIdentifier: instanceIdentifier || existing?.instanceIdentifier,
+            defaultProject: existing?.defaultProject,
+            verification: existing?.verification,
+        }, { setActive: false });
+        return this.toInstanceProfile(saved);
+    }
+
     getApiKeyForActiveInstance(): string | undefined {
         const active = this.getActiveInstance();
         return active ? this.manager.getApiKey(active.id) : undefined;
@@ -948,7 +995,7 @@ export class ConfigService {
         });
         const warnings = [
             'Global n8n instances and API keys now live in n8n-manager, not in n8nac-config.json.',
-            'n8nac-config.json will keep only workspace overrides after migration.',
+            'n8nac-config.json will keep workspace environments after migration.',
             requestedActiveInstanceId && requestedActiveInstanceId !== activeInstanceId
                 ? `Legacy active instance "${requestedActiveInstanceId}" was not found; migration will use ${activeInstanceId ? `"${activeInstanceId}"` : 'no pinned instance'} instead.`
                 : undefined,
@@ -1001,15 +1048,45 @@ export class ConfigService {
             migratedInstances.push(saved);
         }
 
-        this.manager.writeWorkspaceOverrides(this.workspaceRoot, stripUndefined({
-            version: 3 as const,
-            activeInstanceId: plan.activeInstanceId || migratedInstances[0]?.id,
-            syncFolder: plan.workspace.syncFolder,
-            projectId: plan.workspace.projectId,
-            projectName: plan.workspace.projectName,
-            customNodesPath: plan.workspace.customNodesPath,
-            folderSync: plan.workspace.folderSync,
-        }));
+        const activeInstance = migratedInstances.find((instance) => instance.id === plan.activeInstanceId) || migratedInstances[0];
+        if (activeInstance) {
+            const instanceTargetId = 'default-instance';
+            const environmentId = 'default';
+            this.writeWorkspaceConfigV4({
+                version: 4,
+                activeEnvironmentId: environmentId,
+                instanceTargets: [{
+                    id: instanceTargetId,
+                    name: activeInstance.name || 'Default instance',
+                    kind: 'embedded',
+                    instance: stripUndefined({
+                        mode: 'existing' as const,
+                        baseUrl: cleanRequired(activeInstance.host, 'Legacy instance URL'),
+                        name: activeInstance.name,
+                        instanceIdentifier: activeInstance.instanceIdentifier,
+                    }),
+                }],
+                environments: [stripUndefined({
+                    id: environmentId,
+                    name: 'Default',
+                    instanceTargetId,
+                    projectId: plan.workspace.projectId,
+                    projectName: plan.workspace.projectName,
+                    syncFolder: plan.workspace.syncFolder || 'workflows',
+                    customNodesPath: plan.workspace.customNodesPath,
+                    folderSync: plan.workspace.folderSync,
+                })],
+            });
+        } else {
+            this.manager.writeWorkspaceOverrides(this.workspaceRoot, stripUndefined({
+                version: 3 as const,
+                syncFolder: plan.workspace.syncFolder,
+                projectId: plan.workspace.projectId,
+                projectName: plan.workspace.projectName,
+                customNodesPath: plan.workspace.customNodesPath,
+                folderSync: plan.workspace.folderSync,
+            }));
+        }
 
         return { status: 'migrated', plan, backupPath, instances: migratedInstances };
     }
