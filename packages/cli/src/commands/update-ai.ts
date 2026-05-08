@@ -15,7 +15,11 @@ import {
 } from '@n8n-as-code/skills';
 import { ConfigService } from '../services/config-service.js';
 import dotenv from 'dotenv';
-import { getN8nacDevConfigFilenames } from '@n8n-as-code/skills';
+
+const N8NAC_DEV_CONFIG_FILENAMES = [
+    '.n8nac-dev.json',
+    '.n8n-as-code-dev.json',
+] as const;
 
 /** Returns 'next' for pre-release builds, undefined for stable builds.
  * The generated command is resolved centrally by @n8n-as-code/skills:
@@ -55,7 +59,7 @@ function quoteShellArg(value: string): string {
 }
 
 function hasWorkspaceDevCommand(projectRoot: string): boolean {
-    return getN8nacDevConfigFilenames().some((filename) => existsSync(join(projectRoot, filename)));
+    return N8NAC_DEV_CONFIG_FILENAMES.some((filename) => existsSync(join(projectRoot, filename)));
 }
 
 function inferLocalDevCliCommand(projectRoot: string): string | undefined {
@@ -132,7 +136,7 @@ export class UpdateAiCommand {
 
         if (!silent) {
             console.log(chalk.blue('🤖 Updating AI Context...'));
-            console.log(chalk.gray('   Regenerating AGENTS.md and local agent skills\n'));
+            console.log(chalk.gray('   Regenerating AGENTS.md, VS Code agents, and portable skills\n'));
         }
 
         const projectRoot: string = options.projectRoot ?? process.cwd();
@@ -161,7 +165,7 @@ export class UpdateAiCommand {
             }
 
             // 2. Generate Context (AGENTS.md)
-            if (!silent) console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md + .agents/skills)...'));
+            if (!silent) console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md + .github/agents + .agents/skills)...'));
             const aiContextGenerator = new AiContextGenerator();
             const distTag = typeof options.cliVersion === 'string' && options.cliVersion.trim()
                 ? options.cliVersion.trim()
@@ -170,7 +174,7 @@ export class UpdateAiCommand {
                 cliCommandOverride: options.cliCmd || inferLocalDevCliCommand(projectRoot),
                 managerCommandOverride: options.managerCmd || inferLocalDevManagerCommand(),
                 cliVersion: getCliVersion(),
-            });
+            } as Parameters<AiContextGenerator['generate']>[3] & { managerCommandOverride?: string });
             if (!silent) console.log(chalk.green('   ✅ AI context files created.'));
 
             // 3. Update n8n-workflows.d.ts for all configured instances
@@ -205,7 +209,8 @@ export class UpdateAiCommand {
 
                 console.log(chalk.green('\n✨ AI Context Updated Successfully!'));
                 console.log(chalk.gray('   ✔ AGENTS.md: Lightweight context-root bootstrap'));
-                console.log(chalk.gray('   ✔ .agents/skills: Portable n8n-manager and n8n-architect skills'));
+                console.log(chalk.gray('   ✔ .github/agents: VS Code/Copilot workspace agents'));
+                console.log(chalk.gray('   ✔ .agents/skills: Portable n8n-manager and n8n-architect skill fallbacks'));
                 console.log(chalk.gray('   ✔ n8n-workflows.d.ts: TypeScript stubs (per instance)'));
                 console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/skills)\n'));
             } else if (updatedCount > 0 || existsSync(join(projectRoot, 'AGENTS.md'))) {

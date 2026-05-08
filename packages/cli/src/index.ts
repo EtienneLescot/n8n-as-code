@@ -18,7 +18,7 @@ import { createRequire } from 'module';
 import { parsePositiveIntegerOption } from './utils/option-parsers.js';
 import { spawn } from 'child_process';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
-import { ConfigService } from './services/config-service.js';
+import { ConfigService, type ILegacyWorkspaceMigrationResult } from './services/config-service.js';
 import {
     N8N_FACADE_SETUP_MODES,
     isN8nFacadeSetupMode,
@@ -75,6 +75,45 @@ function printJsonOrText(options: { json?: boolean }, payload: unknown, text: st
         return;
     }
     console.log(text);
+}
+
+function formatLegacyMigrationResult(result: ILegacyWorkspaceMigrationResult): string {
+    if (result.status === 'not-needed') {
+        return chalk.green(`No legacy n8nac workspace config detected at ${result.configPath}.`);
+    }
+
+    const plan = result.plan;
+    const instanceLines = plan.instances.length > 0
+        ? plan.instances.map((instance) => `- ${instance.name} (${instance.id})${instance.host ? ` -> ${instance.host}` : ''}${instance.hasApiKey ? ' [API key found]' : ''}`)
+        : ['- No instances found in the legacy config.'];
+    const workspaceLines = [
+        plan.workspace.syncFolder ? `- Sync folder: ${plan.workspace.syncFolder}` : undefined,
+        plan.workspace.projectName || plan.workspace.projectId ? `- Project: ${plan.workspace.projectName || plan.workspace.projectId}` : undefined,
+        plan.activeInstanceId ? `- Workspace-pinned instance: ${plan.activeInstanceId}` : undefined,
+    ].filter(Boolean) as string[];
+    const header = result.status === 'dry-run'
+        ? chalk.yellow('Legacy n8nac workspace config detected. No files changed.')
+        : chalk.green('Legacy n8nac workspace config migrated.');
+    const footer = result.status === 'dry-run'
+        ? ['Run `n8nac workspace migrate-v1 --write` to migrate and create a backup first.']
+        : [`Backup: ${result.backupPath}`, 'Run `n8nac workspace status --json` to verify the resolved context.'];
+
+    return [
+        header,
+        `Config: ${plan.configPath}`,
+        plan.version ? `Legacy version: ${plan.version}` : undefined,
+        '',
+        'Instances:',
+        ...instanceLines,
+        workspaceLines.length ? '' : undefined,
+        workspaceLines.length ? 'Workspace overrides:' : undefined,
+        ...workspaceLines,
+        '',
+        'Notes:',
+        ...plan.warnings.map((warning) => `- ${warning}`),
+        '',
+        ...footer,
+    ].filter(Boolean).join('\n');
 }
 
 /**
@@ -373,17 +412,28 @@ workspaceProgram.command('status')
     .action((options) => {
         const configService = new ConfigService();
         const workspaceConfig = configService.getWorkspaceConfig();
+        const activeInstance = workspaceConfig.instances.find((instance) => instance.id === workspaceConfig.activeInstanceId);
         printJsonOrText(
             options,
             workspaceConfig,
             [
                 chalk.cyan('\nEffective n8n workspace context:\n'),
-                `Instance: ${chalk.bold(workspaceConfig.activeInstanceId || '(none)')}`,
+                `Instance: ${chalk.bold(activeInstance ? `${activeInstance.name} (${activeInstance.id})` : workspaceConfig.activeInstanceId || '(none)')}`,
                 `Project : ${chalk.bold(workspaceConfig.projectName || workspaceConfig.projectId || '(none)')}`,
                 `Sync    : ${chalk.bold(workspaceConfig.workflowDir || workspaceConfig.syncFolder || '(none)')}`,
                 '',
             ].join('\n'),
         );
+    });
+
+workspaceProgram.command('migrate-v1')
+    .description('Inspect or migrate a legacy v1/v2 n8nac-config.json into the v2 manager-backed storage model')
+    .option('--write', 'Apply the migration. Without this flag, the command only reports what would change.')
+    .option('--json', 'Output migration result as JSON')
+    .action((options) => {
+        const configService = new ConfigService();
+        const result = configService.migrateLegacyWorkspaceConfig({ write: Boolean(options.write) });
+        printJsonOrText(options, result, formatLegacyMigrationResult(result));
     });
 
 workspaceProgram.command('pin-instance')

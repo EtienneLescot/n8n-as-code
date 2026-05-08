@@ -17,6 +17,17 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Migration',
+      items: [
+        {
+          type: 'doc',
+          id: 'migration/v1-to-v2',
+          label: 'V1 to V2',
+        },
+      ],
+    },
+    {
+      type: 'category',
       label: 'Usage',
       link: {
         type: 'doc',

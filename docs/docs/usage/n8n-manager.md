@@ -64,6 +64,27 @@ n8nac workspace status --json
 
 `pin-instance` is intentionally an `n8nac workspace` command, not an `n8n-manager` command: it does not create or modify the global instance. It only records that the current workspace should prefer that instance over the global active instance.
 
+The instance ID shown by `n8n-manager instances list` is a local connection profile ID. It is not intended to be the shared identity of the n8n server. Two developers can connect to the same n8n URL and still have different local instance IDs because each machine has its own `n8n-manager` store.
+
+For team documentation, prefer the n8n URL, project name, and sync folder. Use the instance ID only in local commands such as `n8nac workspace pin-instance --instance-id <instance-id>`.
+
+### Migrating a legacy workspace
+
+If an existing `n8nac-config.json` still contains embedded instances, API keys, or a pre-V2 `version`, inspect it with:
+
+```bash
+n8nac workspace migrate-v1
+```
+
+Apply the migration only after reviewing the dry-run output:
+
+```bash
+n8nac workspace migrate-v1 --write
+n8nac workspace status --json
+```
+
+The migration writes a backup first, moves instance/API-key data into local `n8n-manager` storage, and leaves only workspace-safe overrides in `n8nac-config.json`.
+
 ### Repo-local manager store (advanced)
 
 The recommended v2 model is a shared global `n8n-manager` store plus repository-local `n8nac-config.json` overrides. If you need a fully repo-local manager store for a sandbox, set `N8N_MANAGER_HOME` before running both `n8n-manager` and `n8nac`:

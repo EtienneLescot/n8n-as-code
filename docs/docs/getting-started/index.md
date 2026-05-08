@@ -108,6 +108,10 @@ npm install -g n8nac
 The CLI was previously published as `@n8n-as-code/cli`, which is now deprecated. If you have it installed alongside `n8nac`, remove it to avoid command shadowing: `npm uninstall -g @n8n-as-code/cli`. See [Troubleshooting](/docs/troubleshooting#cli-package-conflicts) for details.
 :::
 
+:::tip Upgrading from V1
+Run `n8nac workspace migrate-v1` from the repository root before reconfiguring. It dry-runs the migration, explains what moved to `n8n-manager`, and tells you whether API keys were found. See the [V1 to V2 migration guide](/docs/migration/v1-to-v2).
+:::
+
 ### 2. Connect And Initialize
 
 For an existing n8n instance:

@@ -278,6 +278,32 @@ n8nac --help   # should show the full command list
 
 The current package is **`n8nac`** (on npm). `@n8n-as-code/cli` is no longer maintained.
 
+## V1 Migration Issues
+
+### Workspace config fails after upgrading
+
+If commands fail with an unsupported legacy workspace config message, your repository still has a pre-V2 `n8nac-config.json` with embedded instance data.
+
+Inspect the migration first:
+
+```bash
+n8nac workspace migrate-v1
+```
+
+Then apply it:
+
+```bash
+n8nac workspace migrate-v1 --write
+n8nac workspace status --json
+n8nac update-ai
+```
+
+The migration creates a timestamped backup before replacing `n8nac-config.json`. Do not commit backups that contain API keys.
+
+### Instance IDs differ across teammates
+
+This is expected in V2. An instance ID is a local `n8n-manager` connection profile ID, not the shared identity of the n8n server. Use the n8n URL, project name, and sync folder when documenting team setup.
+
 ## Still Stuck?
 
 When asking for help, include:
