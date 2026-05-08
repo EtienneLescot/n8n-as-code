@@ -604,11 +604,14 @@ export class ConfigService {
 
     private readLegacyInstances(raw: Record<string, unknown>): ILegacyWorkspaceMigrationInstance[] {
         const rawInstances = Array.isArray(raw.instances) ? raw.instances : [];
-        const candidates = rawInstances.length > 0
-            ? rawInstances
-            : this.hasRootLegacyInstance(raw) ? [raw] : [];
+        if (rawInstances.length > 0) {
+            return rawInstances
+                .map((candidate, index) => this.toLegacyInstance(candidate, raw, index, false))
+                .filter((instance): instance is ILegacyWorkspaceMigrationInstance => Boolean(instance));
+        }
+        const candidates = this.hasRootLegacyInstance(raw) ? [raw] : [];
         return candidates
-            .map((candidate, index) => this.toLegacyInstance(candidate, raw, index))
+            .map((candidate, index) => this.toLegacyInstance(candidate, raw, index, true))
             .filter((instance): instance is ILegacyWorkspaceMigrationInstance => Boolean(instance));
     }
 
@@ -616,12 +619,12 @@ export class ConfigService {
         return Boolean(asString(raw.host) || asString(raw.baseUrl));
     }
 
-    private toLegacyInstance(candidate: unknown, root: Record<string, unknown>, index: number): ILegacyWorkspaceMigrationInstance | undefined {
+    private toLegacyInstance(candidate: unknown, root: Record<string, unknown>, index: number, useRootActiveInstanceId: boolean): ILegacyWorkspaceMigrationInstance | undefined {
         if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
             return undefined;
         }
         const value = candidate as Record<string, unknown>;
-        const id = asString(value.id) || asString(root.activeInstanceId) || `legacy-${index + 1}`;
+        const id = asString(value.id) || (useRootActiveInstanceId ? asString(root.activeInstanceId) : undefined) || `legacy-${index + 1}`;
         const host = asString(value.host) || asString(value.baseUrl) || asString(root.host) || asString(root.baseUrl);
         const name = asString(value.name) || host || id;
         return stripUndefined({
@@ -644,7 +647,24 @@ export class ConfigService {
             return candidate && typeof candidate === 'object' && !Array.isArray(candidate)
                 && asString((candidate as Record<string, unknown>).id) === instanceId;
         }) as Record<string, unknown> | undefined;
-        return asString(match?.apiKey) || asString(root.apiKey);
+        if (match) {
+            return asString(match.apiKey) || asString(root.apiKey);
+        }
+
+        const syntheticIndex = this.syntheticLegacyIndex(instanceId);
+        const syntheticMatch = syntheticIndex !== undefined ? instances[syntheticIndex] : undefined;
+        if (syntheticMatch && typeof syntheticMatch === 'object' && !Array.isArray(syntheticMatch)) {
+            return asString((syntheticMatch as Record<string, unknown>).apiKey) || asString(root.apiKey);
+        }
+
+        return asString(root.apiKey);
+    }
+
+    private syntheticLegacyIndex(instanceId: string): number | undefined {
+        const match = instanceId.match(/^legacy-(\d+)$/);
+        if (!match) return undefined;
+        const index = Number.parseInt(match[1], 10) - 1;
+        return Number.isSafeInteger(index) && index >= 0 ? index : undefined;
     }
 
     private createLegacyConfigBackup(configPath: string): string {

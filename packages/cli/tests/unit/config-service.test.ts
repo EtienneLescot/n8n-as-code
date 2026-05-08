@@ -270,6 +270,44 @@ describe('ConfigService', () => {
         expect(configService.getActiveInstance()?.id).toBe('prod');
     });
 
+    it('migrates multiple legacy instances without ids with unique ids and API keys', () => {
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 2,
+            activeInstanceId: 'old-active',
+            instances: [{
+                name: 'Production',
+                host: 'https://prod.example.test',
+                apiKey: 'prod-key',
+            }, {
+                name: 'Staging',
+                host: 'https://staging.example.test',
+                apiKey: 'staging-key',
+            }],
+        }, null, 2));
+
+        const configService = new ConfigService(workspaceRoot);
+        const dryRun = configService.migrateLegacyWorkspaceConfig();
+
+        expect(dryRun.status).toBe('dry-run');
+        expect(dryRun.status === 'dry-run' ? dryRun.plan.instances.map((instance) => instance.id) : []).toEqual(['legacy-1', 'legacy-2']);
+
+        const migrated = configService.migrateLegacyWorkspaceConfig({ write: true });
+
+        expect(migrated.status).toBe('migrated');
+        expect(migrated.status === 'migrated' ? migrated.instances.map((instance) => instance.id) : []).toEqual(['legacy-1', 'legacy-2']);
+        expect(configService.getInstanceConfig('legacy-1')).toMatchObject({
+            name: 'Production',
+            host: 'https://prod.example.test',
+        });
+        expect(configService.getInstanceConfig('legacy-2')).toMatchObject({
+            name: 'Staging',
+            host: 'https://staging.example.test',
+        });
+        expect(configService.getApiKey('https://prod.example.test', 'legacy-1')).toBe('prod-key');
+        expect(configService.getApiKey('https://staging.example.test', 'legacy-2')).toBe('staging-key');
+        expect(configService.getWorkspaceConfig().activeInstanceId).toBe('legacy-1');
+    });
+
     it('does not synthesize an invalid instance from an empty legacy instances array', () => {
         writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
             version: 2,
