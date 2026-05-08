@@ -4,8 +4,9 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 // Detect whether this is a pre-release (next) build.
-// Stable builds → AGENTS.md will use `npx --yes n8nac <cmd>`
-// Pre-release builds → AGENTS.md will use `npx --yes n8nac@next <cmd>`
+// Legacy V1 stable builds must keep generated AGENTS.md commands pinned to
+// `npx --yes n8nac@v1 <cmd>` so they never resolve to the V2 latest line.
+// Pre-release builds → AGENTS.md will use `npx --yes n8nac@next <cmd>`.
 const githubRef = process.env.GITHUB_REF || '';
 let gitBranch = '';
 try {
@@ -112,7 +113,8 @@ const extensionBuild = esbuild.build({
         'empty-import-meta': 'silent'
     },
     define: {
-        // 'next' on pre-release builds, '' on stable — drives npx dist-tag in AGENTS.md
+        // 'next' on pre-release builds, '' on V1 stable builds. The V1 skills
+        // generator defaults an empty tag to n8nac@v1, not to latest.
         '__N8NAC_VERSION__': JSON.stringify(n8nacVersion),
         // Installed n8nac CLI semver — stamped into AGENTS.md for stale-detection
         '__N8NAC_CLI_SEMVER__': JSON.stringify(n8nacCliSemver),
