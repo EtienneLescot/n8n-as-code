@@ -117,6 +117,12 @@ function formatLegacyMigrationResult(result: ILegacyWorkspaceMigrationResult): s
     ].filter(Boolean).join('\n');
 }
 
+function redactResolvedEnvironment<T extends { apiKey?: string } | undefined>(environment: T): T {
+    if (!environment) return environment;
+    const { apiKey: _apiKey, ...safeEnvironment } = environment;
+    return safeEnvironment as T;
+}
+
 /**
  * Get version from package.json
  */
@@ -418,7 +424,7 @@ workspaceProgram.command('status')
             : undefined;
         printJsonOrText(
             options,
-            resolvedEnvironment ? { ...workspaceConfig, selectedEnvironment: resolvedEnvironment } : workspaceConfig,
+            resolvedEnvironment ? { ...workspaceConfig, selectedEnvironment: redactResolvedEnvironment(resolvedEnvironment) } : workspaceConfig,
             [
                 chalk.cyan('\nEffective n8n workspace context:\n'),
                 workspaceConfig.activeEnvironmentId ? `Env     : ${chalk.bold(resolvedEnvironment?.environmentName || workspaceConfig.activeEnvironment?.name || workspaceConfig.activeEnvironmentId)}` : undefined,
@@ -587,7 +593,7 @@ environmentProgram.command('list')
         const config = configService.getWorkspaceConfig();
         const environments = configService.listEnvironments().map((environment) => {
             const resolved = (() => { try { return configService.resolveEnvironment(environment.id); } catch { return undefined; } })();
-            return { ...environment, resolved };
+            return { ...environment, resolved: redactResolvedEnvironment(resolved) };
         });
         printJsonOrText(
             options,
@@ -677,10 +683,11 @@ environmentProgram.command('remove')
     .alias('rm')
     .description('Remove a workspace environment')
     .argument('<name-or-id>', 'Environment name or ID')
+    .option('--force', 'Remove the active environment and clear the active environment pin')
     .option('--json', 'Output removed environment as JSON')
     .action((nameOrId, options) => {
         const configService = new ConfigService();
-        const environment = configService.removeEnvironment(nameOrId);
+        const environment = configService.removeEnvironment(nameOrId, { force: Boolean(options.force) });
         printJsonOrText(options, environment, chalk.green(`✔ Workspace environment removed: ${environment.name}`));
     });
 
@@ -693,7 +700,7 @@ environmentProgram.command('status')
         const environment = configService.resolveEnvironment(nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined);
         printJsonOrText(
             options,
-            environment,
+            redactResolvedEnvironment(environment),
             [
                 chalk.cyan(`\nWorkspace environment: ${environment.environmentName}\n`),
                 `Target  : ${chalk.bold(`${environment.instanceTargetName} (${environment.targetKind})`)}`,

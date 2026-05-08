@@ -44,18 +44,13 @@ export class BaseCommand {
             this.activeInstanceId = resolvedEnvironment.activeInstanceId;
             host = resolvedEnvironment.host || '';
             apiKey = resolvedEnvironment.apiKey || '';
-            const rawEnvHost = process.env.N8N_HOST;
-            const envHost = rawEnvHost ? rawEnvHost.trim().replace(/^['"]|['"]$/g, '') : '';
-            const rawEnvApiKey = process.env.N8N_API_KEY;
-            const envApiKey = rawEnvApiKey ? rawEnvApiKey.trim().replace(/^['"]|['"]$/g, '') : '';
-            if (envHost) host = envHost;
-            if (envApiKey) apiKey = envApiKey;
-            envCredentialsProvided = Boolean(envHost && envApiKey);
-            const effectiveContext = this.activeInstanceId ? this.configService.getEffectiveContext(this.activeInstanceId) : undefined;
-            const canPrepareManagedRuntime = resolvedEnvironment.targetKind === 'global-ref'
-                && effectiveContext?.instance.mode === 'managed-local-docker';
+            const effectiveContext = this.activeInstanceId
+                ? (() => { try { return this.configService.getEffectiveContext(this.activeInstanceId); } catch { return undefined; } })()
+                : undefined;
+            const canPrepareRuntime = resolvedEnvironment.targetKind === 'global-ref'
+                && (!host || !apiKey || effectiveContext?.instance.mode === 'managed-local-docker');
             if (!host || !apiKey) {
-                if (!canPrepareManagedRuntime) {
+                if (!canPrepareRuntime) {
                     console.error(chalk.red(`❌ Environment "${resolvedEnvironment.environmentName}" needs a host and API key before this command can run.`));
                     console.error(chalk.yellow('Configure a local API key for this environment or update the workspace environment target.'));
                     process.exit(1);
@@ -130,7 +125,12 @@ export class BaseCommand {
     private tryResolveEnvironment(): IResolvedWorkspaceEnvironment | undefined {
         try {
             return this.configService.resolveEnvironment();
-        } catch {
+        } catch (error: any) {
+            if (this.configService.isWorkspaceConfigV4()) {
+                console.error(chalk.red(`❌ Workspace environment resolution failed: ${error?.message || error}`));
+                console.error(chalk.yellow('Fix the pinned workspace environment with `n8nac env pin <name>` or update the v4 environment config.'));
+                process.exit(1);
+            }
             return undefined;
         }
     }
@@ -147,6 +147,9 @@ export class BaseCommand {
         if (this.activeEnvironment?.targetKind === 'embedded' && this.activeEnvironment.instanceIdentifier) {
             this.instanceIdentifier = this.activeEnvironment.instanceIdentifier;
             return this.instanceIdentifier;
+        }
+        if (this.activeEnvironment?.targetKind === 'embedded') {
+            this.exitWithError(`Environment "${this.activeEnvironment.environmentName}" needs a resolvable instance identifier before sync can run`);
         }
         this.instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(this.config.host, this.activeInstanceId);
         return this.instanceIdentifier;
