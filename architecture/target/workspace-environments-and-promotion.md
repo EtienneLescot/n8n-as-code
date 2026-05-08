@@ -6,6 +6,31 @@
 
 ---
 
+## 0. MVP Contract And Normative Scope
+
+This document describes the target architecture, but the first implementation must use the following MVP contract as the review baseline.
+
+MVP requirements:
+
+- v4 workspace config is owned by n8nac `ConfigService`; n8n-manager-core remains the owner of global instances, runtime state, and global secrets.
+- persisted v4 environments must reference persisted workspace `instanceTargets[].id`; direct global instance IDs may be accepted as command input only if the command first creates a `global-ref` workspace target.
+- v4 sync-capable commands must resolve through an explicit or pinned environment; if v4 resolution fails, commands must not fall back to legacy workspace settings, `N8N_HOST`, or generic `N8N_API_KEY`.
+- scoped environment or target API key variables are MVP; workspace-local ignored secret files are later unless separately specified.
+- every persisted environment `syncFolder` is an environment root, resolved relative to the workspace root unless absolute paths are explicitly allowed by the implementation; two environments must not use the same resolved sync-folder path.
+- `workflowDir` is computed from `syncFolder`, instance identifier, and project slug; users do not edit final `workflowDir` directly.
+- removing an active environment must not auto-pin another environment; it must either fail or clear `activeEnvironmentId` with explicit user intent.
+- promotion MVP supports path-based promotion with `--from` and `--to`, preserves target workflow ID when replacing an existing target file, strips source IDs for new target files, rewrites target project metadata, and pushes by default.
+- promotion MVP includes `--dry-run`, `--no-push`, and `--overwrite` as safety controls if implemented; they are not considered future-only once exposed in the CLI.
+- access status is diagnostic only in MVP. Offline snapshots may report credential availability and `unknown`; commands surface remote permission failures as environment access diagnostics rather than trying to fully preflight every permission.
+
+Later/non-MVP unless explicitly implemented:
+
+- first-class workspace-local secret file management;
+- workflow ID/name fuzzy promotion;
+- logical deployment keys;
+- full project/workflow permission probing for every environment;
+- automatic credential or permission repair.
+
 ## 1. Executive Summary
 
 n8n-as-code should introduce a workspace-level **Environment** abstraction.
@@ -231,6 +256,15 @@ n8nac environment list
 n8nac environment pin Prod
 ```
 
+Environment lifecycle semantics:
+
+- `env add` creates an environment mapping only; it does not create a global n8n-manager instance or remote n8n project.
+- `env update` changes the environment mapping only; it does not mutate the attached instance target unless an explicit target command is used.
+- `env pin` validates that the environment exists. It does not require credentials or remote access.
+- `env remove` removes only the environment mapping. It never deletes workspace instance targets, global n8n-manager instances, remote n8n projects, remote workflows, local workflow files, or sync state files.
+- Removing the active environment must not silently pin another environment. The CLI/UI should either fail and ask the user to pin a replacement first, or clear `activeEnvironmentId` with explicit confirmation.
+- If `activeEnvironmentId` references a missing environment in a malformed config, sync-capable commands should fail with setup guidance; status/list commands may show a stale-pin warning.
+
 ### 3.2 Running Commands Against An Environment
 
 Default pinned environment:
@@ -279,19 +313,30 @@ The command should:
 9. push target workflow to target remote;
 10. update target sync state.
 
-### 3.4 Later Promotion UX
+### 3.4 Promotion Safety Flags
 
-Possible later additions:
+The MVP may expose these safety flags when implemented with the path-based promotion command:
 
 ```bash
-n8nac promote <workflow-id-or-name> --from Dev --to Prod
-n8nac promote <path> --to Prod
 n8nac promote <path> --from Dev --to Prod --dry-run
 n8nac promote <path> --from Dev --to Prod --no-push
 n8nac promote <path> --from Dev --to Prod --overwrite
 ```
 
-These should be deferred until the MVP behavior is safe and well-tested.
+Semantics:
+
+- `--dry-run` resolves both environments and target paths, but does not write or push.
+- `--no-push` writes/adapts the target local workflow file, but does not push to the target remote.
+- `--overwrite` is required when the derived target workflow file already exists, unless the command is a dry run.
+
+Later additions:
+
+```bash
+n8nac promote <workflow-id-or-name> --from Dev --to Prod
+n8nac promote <path> --to Prod
+```
+
+These should be deferred until path-based MVP behavior is safe and well-tested.
 
 ---
 
@@ -934,6 +979,8 @@ When a command needs an effective target:
 4. global active instance fallback only for generation-light commands that do not require sync;
 5. otherwise fail with actionable setup guidance.
 
+For v4 workspaces, failed environment resolution is terminal for sync-capable commands. Do not recover by reading legacy workspace singleton fields, VS Code legacy settings, `N8N_HOST`, or generic `N8N_API_KEY`.
+
 ### 7.2 Explicit Environment Lookup
 
 Environment names should be resolved by:
@@ -953,10 +1000,9 @@ Lookup order:
 
 1. workspace `instanceTargets[].id` exact match;
 2. workspace `instanceTargets[].name` exact case-insensitive match, if a command accepts names;
-3. global n8n-manager instance ID match as a compatibility shortcut only when no workspace target exists;
-4. fail with an actionable error.
+3. fail with an actionable error.
 
-Recommended persisted environments should always reference workspace instance target IDs. If the user attaches a global instance directly in the UI, the UI should create a workspace `kind: 'global-ref'` instance target first, then create the environment pointing to that target.
+Persisted environments must always reference workspace instance target IDs. If the user attaches a global instance directly in the UI or CLI, that command should create a workspace `kind: 'global-ref'` instance target first, then create the environment pointing to that target. `resolveEnvironment()` must not silently resolve a missing persisted `instanceTargetId` against global n8n-manager instances.
 
 ### 7.3 Project Resolution
 
@@ -1009,6 +1055,8 @@ workflowDir = path.join(
 
 This preserves current isolation behavior and gives each environment a physical sync scope.
 
+MVP validation should reject two environments that use the same resolved sync-folder path. If the implementation supports absolute paths or existing symlinks, collision checks should compare canonical real paths where available. A stricter implementation may also reject nested sync folders such as `workflows` and `workflows/prod` to avoid accidental overlapping sync state.
+
 Example:
 
 ```text
@@ -1049,7 +1097,7 @@ For a resolved instance target with `kind: 'embedded'`:
 1. validate `mode: existing`;
 2. use `instance.baseUrl` as the API base URL;
 3. do not call managed runtime start/stop/tunnel logic;
-4. resolve API key from env/workspace-local/global secrets using environment ID and/or normalized base URL;
+4. resolve API key from scoped environment variables and, where safe, the global n8n-manager secret store using environment ID, target ID, or normalized base URL;
 5. require `projectId` and `projectName` unless a later project discovery step explicitly fills them.
 
 Target resolution output must include:
@@ -1066,14 +1114,13 @@ canManageRuntime: boolean;
 
 ### 7.7 Credentials Resolution
 
-Credentials are outside the tracked environment definition. n8nac should resolve API keys in this order:
+Credentials are outside the tracked environment definition. For v4 environments, n8nac should avoid using one generic API key for every environment; it should resolve API keys in this order:
 
-1. explicit environment variables, for example `N8N_API_KEY`, or future scoped variants such as `N8NAC_ENV_PROD_API_KEY`;
-2. workspace-local ignored secret file, if the user opts into one;
-3. global n8n-manager secret store;
+1. explicit scoped environment variables, for example `N8NAC_ENV_PROD_API_KEY` or `N8NAC_TARGET_PROD_N8N_API_KEY`;
+2. global n8n-manager secret store, where the environment target is a global reference or the embedded target can be matched safely by URL;
 4. missing.
 
-This spec does not require n8nac to create or own a workspace-local secrets file, because secrets remain the user’s responsibility. It must, however, define safe lookup points so advanced users can keep secrets in `.gitignore` while tracking environment definitions.
+Workspace-local ignored secret files are not part of the MVP lookup order. This spec does not require n8nac to create or own a workspace-local secrets file, because secrets remain the user’s responsibility. If workspace-local secret lookup is added later, it must define exact file paths, schema, gitignore behavior, precedence, and malformed-file diagnostics.
 
 Recommended ignored files if implemented later:
 
@@ -1146,7 +1193,7 @@ type EnvironmentAccessStatus =
     | 'unknown';
 ```
 
-This lets the UI distinguish “configuration exists” from “current user can operate it”.
+This lets the UI distinguish “configuration exists” from “current user can operate it”. MVP access snapshots are diagnostic only and are not a command-routing fallback. They must not be persisted in tracked workspace config. Offline views may report `missing-api-key`, `runtime-unavailable`, or `unknown` without probing n8n. Full `project-inaccessible` and `insufficient-workflow-permissions` reporting requires explicit online checks or surfaced API failures.
 
 ---
 
@@ -1384,7 +1431,7 @@ This can still be used for path resolution, but not for v4 serialization if mana
 
 ### 9.4 v3 Compatibility As Migration Input
 
-Even if `--instance` is not retained, existing workspace configs may exist. v3 config should be interpreted as an implicit environment until the user writes v4.
+Even if `--instance` is not retained, existing workspace configs may exist. If no v4 workspace config exists, v3 config should be interpreted as one read-only implicit environment until the user writes v4.
 
 Implicit environment shape:
 
@@ -1413,6 +1460,13 @@ Implicit environment shape:
 When the user runs `n8nac env add`, `env update`, or `env pin`, write v4.
 
 Do not automatically rewrite user files on read.
+
+MVP v3 fallback rules:
+
+- the implicit environment exists only when the persisted workspace config is v3 or absent; it must not coexist with persisted v4 environments;
+- sync-capable commands may use the implicit environment only if it resolves an instance ID from `v3.activeInstanceId` or the global active instance, project settings from v3 or the global instance default, and a sync folder from v3 or the default `workflows`;
+- if these fields cannot be resolved, sync-capable commands fail with migration/setup guidance;
+- when config version is 4, v3 singleton fields are ignored and must not be used as fallback.
 
 ### 9.5 Environment Preparation And Runtime
 
@@ -1638,6 +1692,7 @@ interface PromoteOptions {
     to: string;
     dryRun?: boolean;
     noPush?: boolean;
+    overwrite?: boolean;
     json?: boolean;
 }
 ```
@@ -1663,12 +1718,13 @@ Do not initially support workflow ID or fuzzy name. That can be added later afte
 7. Compute target relative path from source path relative to source `workflowDir`.
 8. Resolve target file path under target `workflowDir`.
 9. If target file exists, read target workflow metadata and preserve target workflow ID.
-10. If target file does not exist, strip source remote workflow ID so push creates a new remote workflow.
-11. Rewrite project metadata to target environment’s `projectId/projectName`.
-12. Write target file.
-13. If `--no-push`, stop after file creation and report next command.
-14. Otherwise run push using target environment context.
-15. Report source env, target env, target file, and target remote workflow ID.
+10. If target file exists and this is not `--dry-run`, require `--overwrite` before replacing the local target file.
+11. If target file does not exist, strip source remote workflow ID so push creates a new remote workflow.
+12. Rewrite project metadata to target environment’s `projectId/projectName`.
+13. Write target file unless `--dry-run`.
+14. If `--no-push`, stop after file creation and report next command.
+15. Otherwise run push using target environment context.
+16. Report source env, target env, target file, and target remote workflow ID.
 
 ### 12.4 ID Handling
 
@@ -1680,6 +1736,7 @@ Rules:
 
 - If target file exists and has an ID, preserve target ID.
 - If target file does not exist, remove ID before first target push.
+- If target file exists, replacing it requires `--overwrite`; `--dry-run` may still report the derived target path without replacing it.
 - If target file exists but remote target workflow is missing, existing sync logic can recreate or fail depending on current `push` semantics.
 
 ### 12.5 Target Matching MVP
@@ -2162,7 +2219,7 @@ Cases:
 17. managed/local instance details are never copied into v4 environment config;
 18. instance target validation rejects both `instanceRef` and `instance` on the same entry;
 19. instance target validation rejects embedded managed-local descriptors;
-20. API key source resolution reports `env`, `workspace-local`, `global`, or `missing`.
+20. API key source resolution reports MVP sources `env`, `global`, or `missing`; `workspace-local` is reserved for later secret-file support.
 
 ### 17.2 Integration Tests: CLI Environment Commands
 
@@ -2426,10 +2483,10 @@ Technical acceptance:
 - embedded descriptors never contain secrets or managed runtime details;
 - ConfigService resolves explicit/pinned environments correctly;
 - ConfigService resolves instance targets, global references, and embedded descriptors correctly;
-- credential source resolution reports env/workspace-local/global/missing;
+- credential source resolution reports env/global/missing in MVP, with workspace-local reserved for later secret-file support;
 - project/sync settings do not leak between environments;
 - sync state remains physically isolated per environment;
-- access status distinguishes missing credentials from inaccessible project and insufficient permissions;
+- access diagnostics distinguish missing credentials from runtime/config unknown states offline, and surface inaccessible project or insufficient permission failures when commands or explicit online status checks encounter them;
 - promotion preserves target IDs and strips source IDs as needed;
 - tests cover config, CLI, sync isolation, and promotion.
 
