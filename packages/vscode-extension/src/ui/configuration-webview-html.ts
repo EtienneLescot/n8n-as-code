@@ -1472,10 +1472,6 @@ export function getConfigurationHtml(nonce: string): string {
     function loadEnvironmentProjects(env) {
       const candidate = environmentConnectionCandidate();
       const selected = candidate.selected;
-      if (selected.mode === 'managed') {
-        setEnvironmentConnectionState(true, '', { projectsAvailable: false, step: 'settings' });
-        return;
-      }
       if (!candidate.canValidate) {
         setEnvironmentConnectionState(false, '', { step: 'connection' });
         return;
@@ -1645,8 +1641,8 @@ export function getConfigurationHtml(nonce: string): string {
         instanceId: selected.source === 'global' ? selected.id : '',
         baseUrl: selected.mode === 'remote' ? normalizeHost(els.environmentRemoteUrl.value || selected.baseUrl) : '',
         apiKey: selected.mode === 'remote' ? els.environmentApiKey.value : '',
-        projectId: selected.mode === 'managed' ? '' : els.environmentProject.value,
-        projectName: selected.mode === 'managed' ? '' : selectedProject?.dataset.projectName || selectedProject?.textContent || els.environmentProject.value,
+        projectId: els.environmentProject.value,
+        projectName: selectedProject?.dataset.projectName || selectedProject?.textContent || els.environmentProject.value,
         syncFolder: els.environmentSync.value,
       });
       closeEnvironmentModal();
