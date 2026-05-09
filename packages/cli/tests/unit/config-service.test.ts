@@ -347,11 +347,83 @@ describe('ConfigService', () => {
         expect(configService.getApiKey('https://prod.example.test', 'legacy-1')).toBe('prod-key');
         expect(configService.getApiKey('https://staging.example.test', 'legacy-2')).toBe('staging-key');
         expect(configService.resolveEnvironment()).toMatchObject({
-            environmentId: 'default',
+            environmentId: 'legacy-1',
             targetKind: 'embedded',
             host: 'https://prod.example.test',
         });
-        expect(configService.getWorkspaceConfig().activeEnvironmentId).toBe('default');
+        const workspaceConfig = configService.getWorkspaceConfig();
+        expect(workspaceConfig.activeEnvironmentId).toBe('legacy-1');
+        expect(workspaceConfig.instanceTargets).toHaveLength(2);
+        expect(workspaceConfig.environments).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                id: 'legacy-1',
+                name: 'Production',
+            }),
+            expect.objectContaining({
+                id: 'legacy-2',
+                name: 'Staging',
+            }),
+        ]));
+        expect(new Set(workspaceConfig.environments?.map((env) => env.syncFolder)).size).toBe(2);
+    });
+
+    it('migrates each configured v2 instance to its own environment and keeps the active instance pinned', () => {
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 2,
+            activeInstanceId: 'instance-86ea2ff2',
+            instances: [{
+                id: 'instance-ce718986',
+                name: 'etiennel.app.n8n.cloud · Etienne Lescot',
+                host: 'https://etiennel.app.n8n.cloud',
+                syncFolder: 'workflows',
+                projectId: 'sD2aDWI5bIJF3Km3',
+                projectName: 'Personal',
+                instanceIdentifier: 'etiennel_cloud_etienne_l',
+                workflowDir: 'workflows/etiennel_cloud_etienne_l/personal',
+            }, {
+                id: 'instance-86ea2ff2',
+                name: 'localhost · Etienne Lescot',
+                host: 'http://localhost:5678',
+                syncFolder: 'workflows',
+                projectId: 'personal',
+                projectName: 'Personal',
+                instanceIdentifier: 'local_5678_etienne_l',
+                workflowDir: 'workflows/local_5678_etienne_l/personal',
+            }],
+            host: 'http://localhost:5678',
+            syncFolder: 'workflows',
+            projectId: 'personal',
+            projectName: 'Personal',
+            instanceIdentifier: 'local_5678_etienne_l',
+            workflowDir: 'workflows/local_5678_etienne_l/personal',
+        }, null, 2));
+
+        const configService = new ConfigService(workspaceRoot);
+        const migrated = configService.migrateLegacyWorkspaceConfig({ write: true });
+
+        expect(migrated.status).toBe('migrated');
+        const workspaceConfig = configService.getWorkspaceConfig();
+        expect(workspaceConfig.instanceTargets).toHaveLength(2);
+        expect(workspaceConfig.environments).toHaveLength(2);
+        expect(workspaceConfig.activeEnvironmentId).toBe('instance-86ea2ff2');
+        expect(workspaceConfig.environments).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                id: 'instance-ce718986',
+                name: 'etiennel.app.n8n.cloud · Etienne Lescot',
+                projectId: 'sD2aDWI5bIJF3Km3',
+                syncFolder: 'workflows/etiennel_cloud_etienne_l/personal',
+            }),
+            expect.objectContaining({
+                id: 'instance-86ea2ff2',
+                name: 'localhost · Etienne Lescot',
+                projectId: 'personal',
+                syncFolder: 'workflows/local_5678_etienne_l/personal',
+            }),
+        ]));
+        expect(configService.resolveEnvironment()).toMatchObject({
+            environmentId: 'instance-86ea2ff2',
+            host: 'http://localhost:5678',
+        });
     });
 
     it('does not synthesize an invalid instance from an empty legacy instances array', () => {

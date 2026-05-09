@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import { Store } from '@reduxjs/toolkit';
-import { IWorkflowStatus, SyncManager, WorkflowSyncStatus } from 'n8nac';
+import { ConfigService, IWorkflowStatus, SyncManager, WorkflowSyncStatus } from 'n8nac';
 import { ExtensionState } from '../types.js';
-import { validateN8nConfig } from '../utils/state-detection.js';
+import { getWorkspaceRoot, validateN8nConfig } from '../utils/state-detection.js';
 
 import { store, RootState, selectAllWorkflows, selectConflicts } from '../services/workflow-store.js';
 
@@ -150,11 +150,20 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
 
     // Root level items
     if (!element) {
+      const legacyMigrationItems = this.getLegacyMigrationItems();
+      if (legacyMigrationItems) {
+        return legacyMigrationItems;
+      }
+
       switch (this.extensionState) {
         case ExtensionState.UNINITIALIZED:
+          return this.getUninitializedItems();
+
         case ExtensionState.CONFIGURING:
+          return this.getConfiguringItems();
+
         case ExtensionState.SETTINGS_CHANGED:
-          return [];
+          return this.getSettingsChangedItems();
 
         case ExtensionState.INITIALIZING:
           return this.getInitializingItems();
@@ -212,6 +221,89 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
 
   private getInitializingItems(): BaseTreeItem[] {
     return [new LoadingItem('Initializing n8n...')];
+  }
+
+  private getLegacyMigrationItems(): BaseTreeItem[] | undefined {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) return undefined;
+
+    try {
+      const plan = new ConfigService(workspaceRoot).detectLegacyWorkspaceConfig();
+      if (!plan) return undefined;
+
+      const version = plan.version ? `v${plan.version}` : 'legacy';
+      const instanceCount = plan.instances.length;
+      const items: BaseTreeItem[] = [];
+
+      const title = new InfoItem(
+        'Legacy n8n-as-code config detected',
+        'Migration required',
+        new vscode.ThemeIcon('warning', new vscode.ThemeColor('notificationsWarningIcon.foreground'))
+      );
+      title.tooltip = `This workspace uses an old ${version} config at ${plan.configPath}.`;
+      items.push(title);
+
+      items.push(new InfoItem(
+        'Migrate to n8n environments',
+        `${instanceCount} instance${instanceCount === 1 ? '' : 's'} detected`,
+        new vscode.ThemeIcon('info')
+      ));
+
+      const migrate = new InfoItem('Migrate workspace', '', new vscode.ThemeIcon('arrow-right'));
+      migrate.tooltip = 'Create a backup, then convert this workspace to n8n environments.';
+      migrate.command = {
+        command: 'n8n.migrateLegacyWorkspace',
+        title: 'Migrate Workspace'
+      };
+      items.push(migrate);
+
+      const configure = new InfoItem('Open n8n environments', '', new vscode.ThemeIcon('settings-gear'));
+      configure.command = {
+        command: 'n8n.configure',
+        title: 'Open n8n Environments'
+      };
+      items.push(configure);
+
+      return items;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private getUninitializedItems(): BaseTreeItem[] {
+    return [
+      new InfoItem('n8n-as-code is not initialized', 'Open configuration to start', new vscode.ThemeIcon('info')),
+      this.createConfigureItem('Configure n8n environments')
+    ];
+  }
+
+  private getConfiguringItems(): BaseTreeItem[] {
+    return [
+      new InfoItem('Configure n8n environments', 'Workspace configuration is incomplete', new vscode.ThemeIcon('warning')),
+      this.createConfigureItem('Open configuration')
+    ];
+  }
+
+  private getSettingsChangedItems(): BaseTreeItem[] {
+    const apply = new InfoItem('Apply configuration changes', '', new vscode.ThemeIcon('check'));
+    apply.command = {
+      command: 'n8n.applySettings',
+      title: 'Apply Configuration Changes'
+    };
+    return [
+      new InfoItem('Configuration changed', 'Apply changes before syncing', new vscode.ThemeIcon('warning')),
+      apply,
+      this.createConfigureItem('Open configuration')
+    ];
+  }
+
+  private createConfigureItem(label: string): InfoItem {
+    const item = new InfoItem(label, '', new vscode.ThemeIcon('settings-gear'));
+    item.command = {
+      command: 'n8n.configure',
+      title: label
+    };
+    return item;
   }
 
   private async getInitializedItems(): Promise<BaseTreeItem[]> {
