@@ -277,6 +277,36 @@ export class ConfigurationWebview {
           return;
         }
 
+        case 'migrateGlobalInstancesToWorkspace': {
+          if (!workspaceRoot) throw new Error('Open a workspace before migrating global n8n instances.');
+          const configService = new ConfigService(workspaceRoot);
+          const plan = configService.detectGlobalInstanceWorkspaceMigration();
+          if (!plan) {
+            this._panel.webview.postMessage({ type: 'saved' });
+            await this._configurationController.refresh('webview-global-instance-migration-not-needed', { force: true });
+            return;
+          }
+          const confirmation = await vscode.window.showWarningMessage(
+            `Migrate ${plan.instances.length} global n8n instance${plan.instances.length === 1 ? '' : 's'} into this workspace? Old non-managed global instance entries will be removed after migration.`,
+            { modal: true },
+            'Migrate global instances',
+          );
+          if (confirmation !== 'Migrate global instances') {
+            this._panel.webview.postMessage({ type: 'cancelled' });
+            return;
+          }
+          const result = configService.migrateGlobalInstancesToWorkspace({ write: true });
+          await clearLegacyWorkspaceSettings();
+          const snapshot = await this._configurationController.refresh('webview-migrate-global-instances', { force: true });
+          await this.postInitialState(snapshot);
+          this._panel.webview.postMessage({
+            type: 'globalInstanceMigrationCompleted',
+            migratedCount: result.status === 'migrated' ? result.migratedEnvironmentIds.length : 0,
+            deletedCount: result.status === 'migrated' ? result.deletedGlobalInstanceIds.length : 0,
+          });
+          return;
+        }
+
         case 'loadProjects': {
           const scope = String(payload.scope || 'workspace');
           const requestId = Number(payload.requestId || 0);
@@ -319,7 +349,7 @@ export class ConfigurationWebview {
             }
             if (target.kind === 'global-ref') instanceId = target.instanceRef;
             if (target.kind === 'embedded') {
-              const apiKey = readWorkspaceTargetApiKey(target.id, target.name) || configService.getApiKey(target.instance.baseUrl);
+              const apiKey = readWorkspaceTargetApiKey(target.id, target.name) || configService.getWorkspaceTargetApiKey(target.id) || configService.getApiKey(target.instance.baseUrl);
               if (!apiKey) {
                 if (scope === 'environment') throw new Error('Missing API key. Add an API key before selecting project or sync settings.');
                 postProjectsLoaded([PERSONAL_PROJECT], 'personal');
@@ -869,6 +899,7 @@ export class ConfigurationWebview {
       },
       workspace: workspaceOverrides,
       legacyMigration: currentSnapshot.legacyMigration,
+      globalInstanceMigration: currentSnapshot.globalInstanceMigration,
       effective: effectiveContext ? {
         activeInstanceId: effectiveContext.activeInstanceId,
         activeInstanceName: effectiveContext.activeInstanceName,

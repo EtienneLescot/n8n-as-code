@@ -169,6 +169,29 @@ export type ILegacyWorkspaceMigrationResult =
     | { status: 'dry-run'; plan: ILegacyWorkspaceMigrationPlan }
     | { status: 'migrated'; plan: ILegacyWorkspaceMigrationPlan; backupPath: string; instances: IInstanceProfile[] };
 
+export interface IGlobalInstanceWorkspaceMigrationInstance {
+    id: string;
+    name: string;
+    mode: 'existing' | 'managed-local-docker';
+    baseUrl?: string;
+    projectId?: string;
+    projectName?: string;
+    apiKeyAvailable: boolean;
+}
+
+export interface IGlobalInstanceWorkspaceMigrationPlan {
+    status: 'global-instances-detected';
+    configPath: string;
+    activeInstanceId?: string;
+    instances: IGlobalInstanceWorkspaceMigrationInstance[];
+    warnings: string[];
+}
+
+export type IGlobalInstanceWorkspaceMigrationResult =
+    | { status: 'not-needed'; configPath: string }
+    | { status: 'dry-run'; plan: IGlobalInstanceWorkspaceMigrationPlan }
+    | { status: 'migrated'; plan: IGlobalInstanceWorkspaceMigrationPlan; migratedEnvironmentIds: string[]; deletedGlobalInstanceIds: string[] };
+
 export interface IPreviousWorkspaceUpgradePlan {
     status: 'upgrade-available';
     configPath: string;
@@ -933,6 +956,16 @@ export class ConfigService {
         this.manager.saveApiKey(saved.id, apiKey);
     }
 
+    getWorkspaceTargetApiKey(targetId: string): string | undefined {
+        const target = this.getInstanceTarget(targetId);
+        return this.manager.getApiKey(target.id);
+    }
+
+    saveWorkspaceTargetApiKey(targetId: string, apiKey: string): void {
+        const target = this.getInstanceTarget(targetId);
+        this.manager.saveApiKey(target.id, apiKey);
+    }
+
     upsertRemoteInstancePreset(input: { host: string; apiKey?: string; name?: string }): IInstanceProfile {
         const host = cleanRequired(input.host, 'n8n URL');
         const normalized = this.normalizeHost(host);
@@ -1133,6 +1166,197 @@ export class ConfigService {
         return { status: 'migrated', plan, backupPath, instances: migratedInstances };
     }
 
+    detectGlobalInstanceWorkspaceMigration(): IGlobalInstanceWorkspaceMigrationPlan | undefined {
+        const configPath = this.getInstanceConfigPath();
+        const global = this.manager.getGlobalConfig();
+        const instances = global.instances
+            .filter((instance) => (instance.mode === 'existing' && instance.baseUrl) || instance.mode === 'managed-local-docker')
+            .map((instance) => stripUndefined({
+                id: instance.id,
+                name: instance.name || instance.baseUrl || instance.id,
+                mode: instance.mode as 'existing' | 'managed-local-docker',
+                baseUrl: instance.baseUrl || '',
+                projectId: instance.defaultProject?.id,
+                projectName: instance.defaultProject?.name,
+                apiKeyAvailable: Boolean(this.manager.getApiKey(instance.id)),
+            }));
+
+        if (!instances.length) return undefined;
+        return {
+            status: 'global-instances-detected',
+            configPath,
+            activeInstanceId: global.activeInstanceId,
+            instances,
+            warnings: [
+                'Global existing n8n instances belong to the previous v2 workspace model.',
+                'Migration will copy existing instances into this workspace as environments, move API keys to workspace target secrets, then remove the old non-managed global instance entries.',
+                'Managed local instances will be added to this workspace as global-ref environments and will stay global.',
+            ],
+        };
+    }
+
+    migrateGlobalInstancesToWorkspace(options: { write?: boolean } = {}): IGlobalInstanceWorkspaceMigrationResult {
+        const plan = this.detectGlobalInstanceWorkspaceMigration();
+        const configPath = this.getInstanceConfigPath();
+        if (!plan) return { status: 'not-needed', configPath };
+        if (!options.write) return { status: 'dry-run', plan };
+
+        const current = this.readWorkspaceConfigFileSafe();
+        const usedIds = [
+            ...current.instanceTargets.map((item) => item.id),
+            ...current.environments.map((item) => item.id),
+        ];
+        const targetNames = new Set(current.instanceTargets.map((item) => item.name));
+        const environmentNames = new Set(current.environments.map((item) => item.name));
+        const instanceTargets = [...current.instanceTargets];
+        const environments = [...current.environments];
+        const migratedEnvironmentIds: string[] = [];
+        const deletedGlobalInstanceIds: string[] = [];
+        let activeMigratedEnvironmentId: string | undefined;
+
+        for (const item of plan.instances) {
+            const instance = this.manager.getInstance(item.id);
+            if (!instance) continue;
+            if (instance.mode === 'managed-local-docker') {
+                const existingTarget = instanceTargets.find((target) => target.kind === 'global-ref' && target.instanceRef === instance.id);
+                let targetId = existingTarget?.id;
+                if (!targetId) {
+                    const targetName = this.uniqueDisplayName(instance.name || instance.id, targetNames);
+                    targetId = this.uniqueWorkspaceId(instance.id, usedIds);
+                    usedIds.push(targetId);
+                    instanceTargets.push({
+                        id: targetId,
+                        name: targetName,
+                        kind: 'global-ref',
+                        instanceRef: instance.id,
+                    });
+                }
+
+                let existingEnvironment = environments.find((environment) => environment.instanceTargetId === targetId);
+                if (!existingEnvironment) {
+                    const environmentName = this.uniqueDisplayName(instance.name || instance.id, environmentNames);
+                    const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
+                    usedIds.push(environmentId);
+                    existingEnvironment = stripUndefined({
+                        id: environmentId,
+                        name: environmentName,
+                        instanceTargetId: targetId,
+                        projectId: instance.defaultProject?.id || 'personal',
+                        projectName: instance.defaultProject?.name || 'Personal',
+                        syncFolder: `workflows/${this.slugId(environmentName)}`,
+                    });
+                    environments.push(existingEnvironment);
+                    migratedEnvironmentIds.push(environmentId);
+                }
+                if (instance.id === plan.activeInstanceId) activeMigratedEnvironmentId = existingEnvironment.id;
+                continue;
+            }
+
+            if (instance.mode !== 'existing' || !instance.baseUrl) continue;
+            const apiKey = this.manager.getApiKey(instance.id);
+            const normalizedBaseUrl = this.normalizeHost(instance.baseUrl);
+            const existingTargetIndex = instanceTargets.findIndex((target) => {
+                if (target.kind === 'global-ref') return target.instanceRef === instance.id;
+                return this.normalizeHost(target.instance.baseUrl) === normalizedBaseUrl;
+            });
+            if (existingTargetIndex >= 0) {
+                const existingTarget = instanceTargets[existingTargetIndex];
+                if (existingTarget.kind === 'global-ref') {
+                    instanceTargets[existingTargetIndex] = {
+                        id: existingTarget.id,
+                        name: existingTarget.name,
+                        kind: 'embedded',
+                        instance: stripUndefined({
+                            mode: 'existing' as const,
+                            baseUrl: instance.baseUrl,
+                            name: instance.name,
+                            instanceIdentifier: instance.instanceIdentifier,
+                            verification: instance.verification,
+                        }),
+                        description: existingTarget.description,
+                    };
+                }
+                if (apiKey) this.manager.saveApiKey(existingTarget.id, apiKey);
+                let existingEnvironment = environments.find((environment) => environment.instanceTargetId === existingTarget.id);
+                if (!existingEnvironment) {
+                    const environmentName = this.uniqueDisplayName(instance.name || instance.baseUrl || instance.id, environmentNames);
+                    const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
+                    usedIds.push(environmentId);
+                    existingEnvironment = stripUndefined({
+                        id: environmentId,
+                        name: environmentName,
+                        instanceTargetId: existingTarget.id,
+                        projectId: instance.defaultProject?.id || 'personal',
+                        projectName: instance.defaultProject?.name || 'Personal',
+                        syncFolder: `workflows/${this.slugId(environmentName)}`,
+                    });
+                    environments.push(existingEnvironment);
+                    migratedEnvironmentIds.push(environmentId);
+                }
+                if (instance.id === plan.activeInstanceId) activeMigratedEnvironmentId = existingEnvironment.id;
+                continue;
+            }
+            const targetName = this.uniqueDisplayName(instance.name || instance.baseUrl || instance.id, targetNames);
+            const environmentName = this.uniqueDisplayName(instance.name || instance.baseUrl || instance.id, environmentNames);
+            const targetId = this.uniqueWorkspaceId(`${instance.id}-instance`, usedIds);
+            usedIds.push(targetId);
+            const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
+            usedIds.push(environmentId);
+            const projectId = instance.defaultProject?.id || 'personal';
+            const projectName = instance.defaultProject?.name || 'Personal';
+            const syncFolder = environments.length === 0 && plan.instances.length === 1
+                ? 'workflows'
+                : `workflows/${this.slugId(environmentName)}`;
+
+            instanceTargets.push({
+                id: targetId,
+                name: targetName,
+                kind: 'embedded',
+                instance: stripUndefined({
+                    mode: 'existing' as const,
+                    baseUrl: instance.baseUrl,
+                    name: instance.name,
+                    instanceIdentifier: instance.instanceIdentifier,
+                    verification: instance.verification,
+                }),
+            });
+            environments.push(stripUndefined({
+                id: environmentId,
+                name: environmentName,
+                instanceTargetId: targetId,
+                projectId,
+                projectName,
+                syncFolder,
+            }));
+
+            if (apiKey) this.manager.saveApiKey(targetId, apiKey);
+            migratedEnvironmentIds.push(environmentId);
+            if (instance.id === plan.activeInstanceId) activeMigratedEnvironmentId = environmentId;
+        }
+
+        const activeEnvironmentId = current.activeEnvironmentId
+            || activeMigratedEnvironmentId
+            || migratedEnvironmentIds[0]
+            || environments[0]?.id;
+
+        this.writeWorkspaceConfigV4(stripUndefined({
+            version: 4 as const,
+            activeEnvironmentId,
+            instanceTargets,
+            environments,
+        }));
+
+        for (const item of plan.instances) {
+            const instance = this.manager.getInstance(item.id);
+            if (instance?.mode === 'existing') {
+                this.manager.deleteInstance(item.id);
+                deletedGlobalInstanceIds.push(item.id);
+            }
+        }
+
+        return { status: 'migrated', plan, migratedEnvironmentIds, deletedGlobalInstanceIds };
+    }
+
     resolveWorkspacePath(targetPath: string): string {
         return path.isAbsolute(targetPath)
             ? targetPath
@@ -1266,6 +1490,14 @@ export class ConfigService {
             throw new Error(`Unsupported legacy n8n workspace config version: ${raw.version}`);
         }
         return { version: 3 };
+    }
+
+    private readWorkspaceConfigFileSafe(): IPersistedWorkspaceConfigV4 {
+        try {
+            return this.ensureV4WorkspaceConfig();
+        } catch {
+            return { version: 4, instanceTargets: [], environments: [] };
+        }
     }
 
     isWorkspaceConfigV4(): boolean {
@@ -1518,8 +1750,9 @@ export class ConfigService {
 
         const host = target.instance.baseUrl;
         const envApiKey = this.readEnvApiKey(environment, target);
+        const workspaceApiKey = this.manager.getApiKey(target.id);
         const globalApiKey = this.getApiKey(host);
-        const apiKey = envApiKey || globalApiKey;
+        const apiKey = envApiKey || workspaceApiKey || globalApiKey;
         const instanceIdentifier = this.canonicalInstanceIdentifier(target.instance.instanceIdentifier);
         return {
             environment,
@@ -1533,7 +1766,7 @@ export class ConfigService {
             instance: target.instance,
             host,
             apiKey,
-            apiKeySource: envApiKey ? 'env' : globalApiKey ? 'global' : 'missing',
+            apiKeySource: envApiKey ? 'env' : workspaceApiKey ? 'workspace-local' : globalApiKey ? 'global' : 'missing',
             apiKeyAvailable: Boolean(apiKey),
             accessStatus: this.deriveAccessStatus({ host, apiKey, projectId: environment.projectId, projectName: environment.projectName, verification: target.instance.verification }),
             syncFolder,
@@ -1653,13 +1886,14 @@ export class ConfigService {
 
         const host = target.instance.baseUrl;
         const envApiKey = this.readTargetEnvApiKey(target);
+        const workspaceApiKey = this.manager.getApiKey(target.id);
         const globalApiKey = this.getApiKey(host);
-        const apiKey = envApiKey || globalApiKey;
+        const apiKey = envApiKey || workspaceApiKey || globalApiKey;
         return stripUndefined({
             ...target,
             baseUrl: host,
             apiKeyAvailable: Boolean(apiKey),
-            credentialSource: envApiKey ? 'env' as const : globalApiKey ? 'global' as const : 'missing' as const,
+            credentialSource: envApiKey ? 'env' as const : workspaceApiKey ? 'workspace-local' as const : globalApiKey ? 'global' as const : 'missing' as const,
             accessStatus: this.deriveAccessStatus({ host, apiKey, verification: target.instance.verification }),
         });
     }

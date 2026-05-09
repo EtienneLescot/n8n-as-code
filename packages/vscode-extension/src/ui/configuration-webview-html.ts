@@ -354,6 +354,13 @@ export function getConfigurationHtml(nonce: string): string {
                 <button id="migrateLegacyWorkspace" type="button">Migrate workspace</button>
               </div>
             </div>
+            <div id="globalInstanceMigrationNotice" class="message warning hidden">
+              <strong>Global n8n instances detected.</strong>
+              <div id="globalInstanceMigrationText" class="muted"></div>
+              <div class="toolbar">
+                <button id="migrateGlobalInstances" type="button">Migrate global instances</button>
+              </div>
+            </div>
             <div id="environmentList" class="instances"></div>
 
             <div class="hidden" aria-hidden="true">
@@ -630,6 +637,9 @@ export function getConfigurationHtml(nonce: string): string {
       legacyMigrationNotice: document.getElementById('legacyMigrationNotice'),
       legacyMigrationText: document.getElementById('legacyMigrationText'),
       migrateLegacyWorkspace: document.getElementById('migrateLegacyWorkspace'),
+      globalInstanceMigrationNotice: document.getElementById('globalInstanceMigrationNotice'),
+      globalInstanceMigrationText: document.getElementById('globalInstanceMigrationText'),
+      migrateGlobalInstances: document.getElementById('migrateGlobalInstances'),
       environmentList: document.getElementById('environmentList'),
       environmentModal: document.getElementById('environmentModal'),
       environmentModalTitle: document.getElementById('environmentModalTitle'),
@@ -958,6 +968,7 @@ export function getConfigurationHtml(nonce: string): string {
       renderTargetList();
       renderEnvironmentControls();
       renderLegacyMigrationNotice();
+      renderGlobalInstanceMigrationNotice();
       renderEnvironmentList();
       renderInstanceList();
       renderProjects(workspace.projectId || effective?.projectId || 'personal', workspace.projectName || effective?.projectName || '');
@@ -980,6 +991,13 @@ export function getConfigurationHtml(nonce: string): string {
       if (!legacy) return;
       const version = legacy.version ? 'v' + legacy.version : 'legacy';
       els.legacyMigrationText.textContent = 'This workspace uses an old ' + version + ' config at ' + legacy.configPath + '. Migration creates a backup, then converts it to n8n environments.';
+    }
+    function renderGlobalInstanceMigrationNotice() {
+      const migration = state.globalInstanceMigration;
+      els.globalInstanceMigrationNotice.classList.toggle('hidden', !migration);
+      if (!migration) return;
+      const count = Number(migration.instanceCount || 0);
+      els.globalInstanceMigrationText.textContent = 'We detected ' + count + ' global n8n instance' + (count === 1 ? '' : 's') + ' from the previous v2 workspace model. Migrate them into this workspace? Existing instance entries will be removed after migration; managed local instances will be referenced by workspace environments and stay global.';
     }
     function renderInstanceList() {
       els.instanceList.innerHTML = '';
@@ -1573,6 +1591,7 @@ export function getConfigurationHtml(nonce: string): string {
     }
     els.refresh.addEventListener('click', () => post('refreshState'));
     els.migrateLegacyWorkspace.addEventListener('click', () => post('migrateLegacyWorkspaceConfig'));
+    els.migrateGlobalInstances.addEventListener('click', () => post('migrateGlobalInstancesToWorkspace'));
     els.tabButtons.forEach((tabButton) => tabButton.addEventListener('click', () => setActiveTab(tabButton.dataset.tab)));
     els.providerSelectModel.addEventListener('click', () => post('selectProviderModel', { provider: providers().find((provider) => provider.selected)?.id || 'openai' }));
     els.openManagedInstances.addEventListener('click', openManagedInstancesModal);
@@ -1687,6 +1706,7 @@ export function getConfigurationHtml(nonce: string): string {
           global: message.global || { instances: [] },
           workspace: message.workspace || {},
           legacyMigration: message.legacyMigration,
+          globalInstanceMigration: message.globalInstanceMigration,
           effective: message.effective,
           providers: message.providers || [],
           about: message.about || {},
@@ -1719,6 +1739,8 @@ export function getConfigurationHtml(nonce: string): string {
         showSaved();
       } else if (message.type === 'legacyMigrationCompleted') {
         showSaved(message.backupPath ? 'Workspace migrated. Backup: ' + message.backupPath : 'Workspace migrated.');
+      } else if (message.type === 'globalInstanceMigrationCompleted') {
+        showSaved('Global instances migrated.');
       } else if (message.type === 'copied') {
         showSaved();
       } else if (message.type === 'managedCredentials') {
