@@ -284,7 +284,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
 
         registerTelemetryCommand('n8n.migrateLegacyWorkspace', async () => {
-            await migrateLegacyWorkspaceConfig();
+            await migrateLegacyWorkspaceConfig(context);
         }),
 
         registerTelemetryCommand('n8n.switchInstance', async (args?: SwitchInstanceCommandArgs) => {
@@ -1126,7 +1126,7 @@ function requireConfigurationController(): N8nConfigurationController {
     return configurationController;
 }
 
-async function migrateLegacyWorkspaceConfig(): Promise<void> {
+async function migrateLegacyWorkspaceConfig(context: vscode.ExtensionContext): Promise<void> {
     const workspaceRoot = getWorkspaceRoot();
     if (!workspaceRoot) {
         vscode.window.showWarningMessage(NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION).then((selection) => {
@@ -1150,12 +1150,42 @@ async function migrateLegacyWorkspaceConfig(): Promise<void> {
     );
     if (confirmation !== 'Migrate workspace') return;
 
+    const legacySettings = readLegacyN8nSettingsForMigration();
     const result = configService.migrateLegacyWorkspaceConfig({ write: true });
+    if (result.status === 'migrated') {
+        const environmentHost = String(configService.resolveEnvironment().host || '').trim().replace(/\/$/, '');
+        const migratedInstance = result.instances.find((instance) => String(instance.host || '').trim().replace(/\/$/, '') === environmentHost);
+        preserveMigratedLegacyApiKey(configService, legacySettings, migratedInstance?.id);
+    }
     await requireConfigurationController().refresh('migrate-legacy-workspace-command', { force: true });
+    await determineInitialState(context);
     updateContextKeys();
     if (result.status === 'migrated') {
         await vscode.window.showInformationMessage(`Workspace migrated. Backup: ${result.backupPath}`);
     }
+}
+
+function readLegacyN8nSettingsForMigration(): { host: string; apiKey: string } {
+    const config = vscode.workspace.getConfiguration('n8n');
+    return {
+        host: String(config.get<string>('host') || '').trim().replace(/\/$/, ''),
+        apiKey: String(config.get<string>('apiKey') || '').trim(),
+    };
+}
+
+function preserveMigratedLegacyApiKey(configService: ConfigService, settings: { host: string; apiKey: string }, instanceId?: string): void {
+    if (!settings.apiKey) return;
+    const environment = configService.resolveEnvironment();
+    const environmentHost = String(environment.host || '').trim().replace(/\/$/, '');
+    if (!environmentHost) return;
+    if (settings.host && settings.host !== environmentHost) return;
+    configService.saveLocalConfig({ host: environmentHost }, {
+        instanceId,
+        instanceName: environment.activeInstanceName || environment.instanceTargetName,
+        createNew: !instanceId,
+        setActive: false,
+        apiKey: settings.apiKey,
+    });
 }
 
 function requireAgentRuntimeController(): AgentRuntimeController {
@@ -1704,6 +1734,7 @@ function resetExtensionRuntimeState(): void {
 async function determineInitialState(context: vscode.ExtensionContext) {
     const configValidation = validateN8nConfig();
     const workspaceRoot = getWorkspaceRoot();
+    const snapshot = configurationController?.getSnapshot();
 
     if (!workspaceRoot) {
         resetExtensionRuntimeState();
@@ -1713,7 +1744,8 @@ async function determineInitialState(context: vscode.ExtensionContext) {
         return;
     }
 
-    const hasUnifiedConfig = fs.existsSync(path.join(workspaceRoot, 'n8nac-config.json'));
+    const hasUnifiedConfig = fs.existsSync(path.join(workspaceRoot, 'n8nac-config.json'))
+        || (snapshot?.workspaceRoot === workspaceRoot && snapshot.hasWorkspaceConfig);
     if (!hasUnifiedConfig) {
         resetExtensionRuntimeState();
         enhancedTreeProvider.setExtensionState(ExtensionState.CONFIGURING);
@@ -1722,7 +1754,10 @@ async function determineInitialState(context: vscode.ExtensionContext) {
         return;
     }
 
-    if (configValidation.isValid) {
+    const hasValidConnection = configValidation.isValid
+        || Boolean(snapshot?.workspaceRoot === workspaceRoot && snapshot.hasWorkspaceConfig && snapshot.hasValidConnection);
+
+    if (hasValidConnection) {
         const autoInitConnectionKey = getAutoInitConnectionKey(workspaceRoot);
         if (failedAutoInitConnectionKey === autoInitConnectionKey) {
             outputChannel.appendLine('[n8n] Skipping automatic sync initialization for unchanged connection after previous failure.');
@@ -1757,7 +1792,7 @@ async function determineInitialState(context: vscode.ExtensionContext) {
         } finally {
             initializingPromise = undefined;
         }
-    } else if (!configValidation.isValid) {
+    } else if (!configValidation.isValid || snapshot?.error) {
         enhancedTreeProvider.setExtensionState(ExtensionState.CONFIGURING);
         statusBar.showConfiguring();
     }

@@ -275,6 +275,16 @@ export function getConfigurationHtml(nonce: string): string {
     .message.error { color: var(--vscode-errorForeground); }
     .message.ok { color: var(--vscode-testing-iconPassed, var(--vscode-foreground)); }
     .message.warning { display: block; color: var(--vscode-editorWarning-foreground, var(--vscode-foreground)); }
+    .form-note {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 9px 10px;
+      background: var(--vscode-input-background);
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .form-note.warning { color: var(--vscode-editorWarning-foreground, var(--vscode-foreground)); }
+    .form-note.error { color: var(--vscode-errorForeground); }
     .about-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
     .about-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px; background: var(--soft); display: grid; gap: 8px; }
     @media (max-width: 860px) {
@@ -504,6 +514,7 @@ export function getConfigurationHtml(nonce: string): string {
             API key locale
             <input id="environmentApiKey" type="password" placeholder="Leave empty if already stored locally" />
           </label>
+          <p id="environmentConnectionStatus" class="form-note full hidden"></p>
           <div id="environmentProjectRow" class="field-row full">
           <label>
             Project
@@ -511,12 +522,9 @@ export function getConfigurationHtml(nonce: string): string {
           </label>
             <button id="loadEnvironmentProjects" class="secondary" type="button">Load projects</button>
           </div>
-          <label class="full">
+          <label id="environmentSyncField" class="full">
             Sync folder
             <select id="environmentSync"></select>
-          </label>
-          <label class="full">
-            <span><input id="environmentFolderSync" type="checkbox" /> Enable folder sync</span>
           </label>
         </div>
       </div>
@@ -616,11 +624,12 @@ export function getConfigurationHtml(nonce: string): string {
       environmentRemoteUrl: document.getElementById('environmentRemoteUrl'),
       environmentApiKeyField: document.getElementById('environmentApiKeyField'),
       environmentApiKey: document.getElementById('environmentApiKey'),
+      environmentConnectionStatus: document.getElementById('environmentConnectionStatus'),
       environmentProjectRow: document.getElementById('environmentProjectRow'),
       environmentProject: document.getElementById('environmentProject'),
       loadEnvironmentProjects: document.getElementById('loadEnvironmentProjects'),
+      environmentSyncField: document.getElementById('environmentSyncField'),
       environmentSync: document.getElementById('environmentSync'),
-      environmentFolderSync: document.getElementById('environmentFolderSync'),
       manageInstancesFromEnvironment: document.getElementById('manageInstancesFromEnvironment'),
       saveEnvironment: document.getElementById('saveEnvironment'),
       error: document.getElementById('error'),
@@ -660,7 +669,13 @@ export function getConfigurationHtml(nonce: string): string {
 
     let state = { global: { instances: [] }, workspace: {}, effective: undefined, providers: [], about: {} };
     const PERSONAL_PROJECT = { id: 'personal', name: 'Personal', type: 'personal' };
-    let projects = [PERSONAL_PROJECT];
+    let workspaceProjects = [PERSONAL_PROJECT];
+    let environmentProjects = [PERSONAL_PROJECT];
+    let projectRequestSeq = 0;
+    let latestWorkspaceProjectRequestId = 0;
+    let latestEnvironmentProjectRequestId = 0;
+    let environmentConnectionReady = false;
+    let environmentProjectsAvailable = false;
     let editingInstanceId = '';
     let editingTargetId = '';
     let editingEnvironmentId = '';
@@ -705,6 +720,68 @@ export function getConfigurationHtml(nonce: string): string {
     function slug(value) {
       return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'env';
     }
+    function projectOptionLabel(project) {
+      const label = String(project.displayName || project.name || '').trim();
+      if (label && label !== project.id) return label;
+      if (project.id === 'personal' || project.type === 'personal') return 'Personal';
+      return 'Unnamed project';
+    }
+    function fallbackProjectLabel(projectId, projectName) {
+      const id = String(projectId || '').trim();
+      const name = String(projectName || '').trim();
+      if (name && name !== id) return name;
+      if (id === 'personal') return 'Personal';
+      return 'Selected project';
+    }
+    function normalizeProjectSelection(projectList, selectedId, selectedName) {
+      const byId = new Map();
+      for (const project of projectList.length ? projectList : [PERSONAL_PROJECT]) {
+        if (!project?.id) continue;
+        const existing = byId.get(project.id);
+        if (!existing || (!existing.name && project.name) || existing.id === 'personal') {
+          byId.set(project.id, project);
+        }
+      }
+      const personalProjects = Array.from(byId.values()).filter((project) => project.id === 'personal' || project.type === 'personal');
+      if (personalProjects.length > 1) {
+        const preferred = personalProjects.find((project) => project.id !== 'personal') || personalProjects[0];
+        for (const project of personalProjects) {
+          if (project.id !== preferred.id) byId.delete(project.id);
+        }
+      }
+      const projects = Array.from(byId.values());
+      let value = selectedId || projects[0]?.id || '';
+      if (selectedId === 'personal' && !projects.some((project) => project.id === selectedId)) {
+        value = projects.find((project) => project.type === 'personal')?.id || selectedId;
+      }
+      if (value && !projects.some((project) => project.id === value)) {
+        const matchingName = projects.find((project) => projectOptionLabel(project) === fallbackProjectLabel(selectedId, selectedName));
+        if (matchingName) value = matchingName.id;
+      }
+      return { projects, value };
+    }
+    function isFallbackPersonalProjectList(projectList) {
+      return projectList.length === 1 && projectList[0]?.id === 'personal' && projectList[0]?.type === 'personal';
+    }
+    function setEnvironmentConnectionState(connected, message, options = {}) {
+      environmentConnectionReady = connected;
+      environmentProjectsAvailable = Boolean(options.projectsAvailable);
+      const hasMessage = Boolean(message);
+      els.environmentConnectionStatus.classList.toggle('hidden', !hasMessage);
+      els.environmentConnectionStatus.classList.toggle('error', !connected && hasMessage);
+      els.environmentConnectionStatus.classList.toggle('warning', connected && hasMessage);
+      els.environmentConnectionStatus.textContent = message || '';
+      els.environmentProjectRow.classList.toggle('hidden', !connected || !environmentProjectsAvailable);
+      els.environmentProject.disabled = !connected || !environmentProjectsAvailable;
+      els.loadEnvironmentProjects.disabled = !(connected || options.canValidate);
+      els.environmentSync.disabled = !connected;
+      els.saveEnvironment.disabled = !connected;
+    }
+    function selectedInstanceNeedsApiKey(selected) {
+      if (selected.source === 'manual') return !els.environmentApiKey.value.trim();
+      if (selected.mode === 'managed') return false;
+      return !selected.apiKeyAvailable;
+    }
     function environmentInstanceChoices() {
       const choices = [{
         value: 'manual:remote',
@@ -713,6 +790,8 @@ export function getConfigurationHtml(nonce: string): string {
         mode: 'remote',
         label: 'Enter URL and API key',
         detail: '',
+        apiKeyAvailable: false,
+        accessStatus: 'manual',
       }];
       const embeddedUrls = new Set();
       for (const target of targets()) {
@@ -727,6 +806,8 @@ export function getConfigurationHtml(nonce: string): string {
           baseUrl: target.kind === 'embedded' ? target.instance?.baseUrl : linkedInstance?.baseUrl || linkedInstance?.host || '',
           label: target.instanceName || target.name || target.id,
           detail: isManagedTarget ? 'managed local instance' : target.kind === 'embedded' ? target.instance?.baseUrl : linkedInstance?.baseUrl || 'local instance missing',
+          apiKeyAvailable: Boolean(target.apiKeyAvailable),
+          accessStatus: target.accessStatus || (target.apiKeyAvailable ? 'unknown' : 'missing-api-key'),
         });
       }
       for (const instance of managedInstances()) {
@@ -737,6 +818,8 @@ export function getConfigurationHtml(nonce: string): string {
           mode: 'managed',
           label: instance.name || instance.id,
           detail: 'managed local instance',
+          apiKeyAvailable: Boolean(instance.apiKeyAvailable),
+          accessStatus: instance.accessStatus || (instance.apiKeyAvailable ? 'unknown' : 'missing-api-key'),
         });
       }
       for (const instance of remoteInstances()) {
@@ -750,6 +833,8 @@ export function getConfigurationHtml(nonce: string): string {
           baseUrl,
           label: instance.name || instance.id,
           detail: baseUrl,
+          apiKeyAvailable: Boolean(instance.apiKeyAvailable),
+          accessStatus: instance.accessStatus || (instance.apiKeyAvailable ? 'unknown' : 'missing-api-key'),
         });
       }
       choices.push({
@@ -769,6 +854,8 @@ export function getConfigurationHtml(nonce: string): string {
         id: option?.dataset.id || '',
         mode: option?.dataset.mode || '',
         baseUrl: option?.dataset.baseUrl || '',
+        apiKeyAvailable: option?.dataset.apiKeyAvailable === 'true',
+        accessStatus: option?.dataset.accessStatus || '',
       };
     }
     function modeLabel(mode) {
@@ -821,7 +908,7 @@ export function getConfigurationHtml(nonce: string): string {
       renderLegacyMigrationNotice();
       renderEnvironmentList();
       renderInstanceList();
-      renderProjects(workspace.projectId || effective?.projectId || 'personal');
+      renderProjects(workspace.projectId || effective?.projectId || 'personal', workspace.projectName || effective?.projectName || '');
       renderProviders();
       renderAbout();
     }
@@ -1004,6 +1091,7 @@ export function getConfigurationHtml(nonce: string): string {
         opt.value = '';
         opt.textContent = 'Create or add an instance first';
         els.environmentInstance.appendChild(opt);
+        els.environmentInstance.disabled = Boolean(editingEnvironmentId);
         return;
       }
       for (const choice of choices) {
@@ -1013,9 +1101,12 @@ export function getConfigurationHtml(nonce: string): string {
         opt.dataset.id = choice.id;
         opt.dataset.mode = choice.mode || '';
         opt.dataset.baseUrl = choice.baseUrl || '';
+        opt.dataset.apiKeyAvailable = choice.apiKeyAvailable ? 'true' : 'false';
+        opt.dataset.accessStatus = choice.accessStatus || '';
         opt.textContent = choice.detail ? choice.label + ' (' + choice.detail + ')' : choice.label;
         els.environmentInstance.appendChild(opt);
       }
+      els.environmentInstance.disabled = Boolean(editingEnvironmentId);
     }
     function renderEnvironmentList() {
       els.environmentList.innerHTML = '';
@@ -1056,6 +1147,9 @@ export function getConfigurationHtml(nonce: string): string {
         const status = document.createElement('div');
         status.className = 'instance-status';
         if (active) status.appendChild(badge('Default', 'active'));
+        status.appendChild(accessBadge(env));
+        const envCredential = credentialBadge(env);
+        if (envCredential) status.appendChild(envCredential);
         top.append(identity, status);
         const actions = document.createElement('div');
         actions.className = 'toolbar';
@@ -1152,9 +1246,10 @@ export function getConfigurationHtml(nonce: string): string {
       });
       return el;
     }
-    function renderProjects(selectedId) {
+    function renderProjects(selectedId, selectedName) {
       els.workspaceProject.innerHTML = '';
-      const availableProjects = projects.length ? projects : [PERSONAL_PROJECT];
+      const normalized = normalizeProjectSelection(workspaceProjects, selectedId, selectedName);
+      const availableProjects = normalized.projects;
       els.workspaceProject.disabled = false;
       const empty = document.createElement('option');
       empty.value = '';
@@ -1164,39 +1259,42 @@ export function getConfigurationHtml(nonce: string): string {
         const opt = document.createElement('option');
         opt.value = project.id;
         opt.dataset.projectName = project.name;
-        opt.textContent = project.displayName || project.name;
+        opt.textContent = projectOptionLabel(project);
         opt.title = project.detail || opt.textContent;
         els.workspaceProject.appendChild(opt);
       }
-      if (selectedId && !availableProjects.some((project) => project.id === selectedId)) {
+      if (selectedId && !availableProjects.some((project) => project.id === normalized.value)) {
         const opt = document.createElement('option');
         opt.value = selectedId;
-        opt.dataset.projectName = state.workspace?.projectName || state.effective?.projectName || selectedId;
+        opt.dataset.projectName = selectedName || state.workspace?.projectName || state.effective?.projectName || '';
         opt.textContent = opt.dataset.projectName;
+        opt.textContent = fallbackProjectLabel(selectedId, opt.dataset.projectName);
+        opt.title = selectedId;
         els.workspaceProject.appendChild(opt);
       }
-      els.workspaceProject.value = selectedId || '';
-      renderEnvironmentProjectOptions(selectedId || 'personal');
+      els.workspaceProject.value = normalized.value || '';
     }
-    function renderEnvironmentProjectOptions(selectedId) {
+    function renderEnvironmentProjectOptions(selectedId, selectedName) {
       els.environmentProject.innerHTML = '';
-      const availableProjects = projects.length ? projects : [PERSONAL_PROJECT];
+      const normalized = normalizeProjectSelection(environmentProjects, selectedId, selectedName);
+      const availableProjects = normalized.projects;
       for (const project of availableProjects) {
         const opt = document.createElement('option');
         opt.value = project.id;
         opt.dataset.projectName = project.name;
-        opt.textContent = project.displayName || project.name;
+        opt.textContent = projectOptionLabel(project);
         opt.title = project.detail || opt.textContent;
         els.environmentProject.appendChild(opt);
       }
-      if (selectedId && !availableProjects.some((project) => project.id === selectedId)) {
+      if (selectedId && !availableProjects.some((project) => project.id === normalized.value)) {
         const opt = document.createElement('option');
         opt.value = selectedId;
-        opt.dataset.projectName = selectedId;
-        opt.textContent = selectedId;
+        opt.dataset.projectName = selectedName || '';
+        opt.textContent = fallbackProjectLabel(selectedId, selectedName);
+        opt.title = selectedId;
         els.environmentProject.appendChild(opt);
       }
-      els.environmentProject.value = selectedId || availableProjects[0]?.id || '';
+      els.environmentProject.value = normalized.value || '';
     }
     function renderEnvironmentSyncOptions(selectedValue) {
       const current = selectedValue || els.environmentSync.value;
@@ -1226,10 +1324,18 @@ export function getConfigurationHtml(nonce: string): string {
       const isManaged = selected.mode === 'managed';
       els.environmentRemoteUrlField.classList.toggle('hidden', isManaged);
       els.environmentApiKeyField.classList.toggle('hidden', isManaged);
-      els.environmentProjectRow.classList.toggle('hidden', isManaged);
       if (!isManaged && selected.baseUrl) {
         els.environmentRemoteUrl.value = selected.baseUrl;
       }
+      if (selected.source === 'manual' && !normalizeHost(els.environmentRemoteUrl.value)) {
+        setEnvironmentConnectionState(false, 'Enter an n8n URL and API key before selecting project or sync settings.');
+        return;
+      }
+      if (selectedInstanceNeedsApiKey(selected)) {
+        setEnvironmentConnectionState(false, 'Missing local API key. Add an API key to validate this instance before selecting project or sync settings.');
+        return;
+      }
+      setEnvironmentConnectionState(false, 'Validate the n8n connection before selecting project or sync settings.', { canValidate: true });
     }
     function openModal(instance) {
       editingInstanceId = instance?.id || '';
@@ -1270,13 +1376,13 @@ export function getConfigurationHtml(nonce: string): string {
       els.environmentName.value = env?.name || 'Dev';
       renderEnvironmentControls();
       els.environmentInstance.value = instanceChoice || (env?.instanceTargetId ? 'target:' + env.instanceTargetId : els.environmentInstance.options[0]?.value || '');
+      els.environmentInstance.disabled = Boolean(editingEnvironmentId);
       const selected = selectedEnvironmentInstance();
       els.environmentRemoteUrl.value = selected.baseUrl || '';
       els.environmentApiKey.value = '';
       renderEnvironmentInstanceFields();
-      renderEnvironmentProjectOptions(env?.projectId || state.effective?.projectId || 'personal');
+      renderEnvironmentProjectOptions(env?.projectId || state.effective?.projectId || 'personal', env?.projectName || state.effective?.projectName || '');
       renderEnvironmentSyncOptions(env?.syncFolder || (els.environmentName.value ? 'workflows/' + slug(els.environmentName.value) : 'workflows/dev'));
-      els.environmentFolderSync.checked = Boolean(env?.folderSync);
       els.environmentModal.classList.remove('hidden');
       if (selected.mode !== 'managed') loadEnvironmentProjects(env);
     }
@@ -1294,18 +1400,31 @@ export function getConfigurationHtml(nonce: string): string {
     function clearEnvironmentForm() {
       editingEnvironmentId = '';
       els.environmentName.value = '';
+      els.environmentInstance.disabled = false;
       els.environmentInstance.value = els.environmentInstance.options[0]?.value || '';
       els.environmentRemoteUrl.value = '';
       els.environmentApiKey.value = '';
       renderEnvironmentInstanceFields();
-      renderEnvironmentProjectOptions('personal');
+      renderEnvironmentProjectOptions('personal', 'Personal');
       renderEnvironmentSyncOptions('workflows/dev');
-      els.environmentFolderSync.checked = false;
     }
     function loadEnvironmentProjects(env) {
       const selected = selectedEnvironmentInstance();
-      if (selected.mode === 'managed') return;
+      if (selected.source === 'manual' && !normalizeHost(els.environmentRemoteUrl.value)) {
+        setEnvironmentConnectionState(false, 'Enter an n8n URL and API key before validating the connection.');
+        return;
+      }
+      if (selectedInstanceNeedsApiKey(selected)) {
+        setEnvironmentConnectionState(false, 'Missing local API key. Add an API key to validate this instance.');
+        return;
+      }
+      const requestId = ++projectRequestSeq;
+      latestEnvironmentProjectRequestId = requestId;
+      els.loadEnvironmentProjects.disabled = true;
+      setEnvironmentConnectionState(false, 'Validating n8n connection...', { canValidate: false });
       post('loadProjects', {
+        scope: 'environment',
+        requestId,
         instanceId: selected.source === 'global' ? selected.id : '',
         instanceTargetId: selected.source === 'target' ? selected.id : '',
         host: selected.source === 'manual' ? normalizeHost(els.environmentRemoteUrl.value) : '',
@@ -1419,6 +1538,8 @@ export function getConfigurationHtml(nonce: string): string {
     els.copyCredentialPassword.addEventListener('click', () => copyText(credentialValues.password));
     els.modalMode.addEventListener('change', renderModalFields);
     els.environmentName.addEventListener('input', () => renderEnvironmentSyncOptions(els.environmentSync.value));
+    els.environmentRemoteUrl.addEventListener('input', renderEnvironmentInstanceFields);
+    els.environmentApiKey.addEventListener('input', renderEnvironmentInstanceFields);
     els.environmentInstance.addEventListener('change', () => {
       if (selectedEnvironmentInstance().source === 'action') {
         renderEnvironmentInstanceFields();
@@ -1445,6 +1566,7 @@ export function getConfigurationHtml(nonce: string): string {
       clearTargetForm();
     });
     els.saveEnvironment.addEventListener('click', () => {
+      if (!environmentConnectionReady) return;
       const selected = selectedEnvironmentInstance();
       const selectedProject = els.environmentProject.selectedOptions[0];
       post('saveEnvironment', {
@@ -1454,10 +1576,9 @@ export function getConfigurationHtml(nonce: string): string {
         instanceId: selected.source === 'global' ? selected.id : '',
         baseUrl: selected.mode === 'remote' ? normalizeHost(els.environmentRemoteUrl.value || selected.baseUrl) : '',
         apiKey: selected.mode === 'remote' ? els.environmentApiKey.value : '',
-        projectId: selected.mode === 'managed' ? '' : els.environmentProject.value,
-        projectName: selected.mode === 'managed' ? '' : selectedProject?.dataset.projectName || selectedProject?.textContent || els.environmentProject.value,
+        projectId: selected.mode === 'managed' || !environmentProjectsAvailable ? '' : els.environmentProject.value,
+        projectName: selected.mode === 'managed' || !environmentProjectsAvailable ? '' : selectedProject?.dataset.projectName || selectedProject?.textContent || els.environmentProject.value,
         syncFolder: els.environmentSync.value,
-        folderSync: els.environmentFolderSync.checked,
       });
       closeEnvironmentModal();
     });
@@ -1474,7 +1595,12 @@ export function getConfigurationHtml(nonce: string): string {
       closeModal();
     });
     els.loadProjects.addEventListener('click', () => {
+      const requestId = ++projectRequestSeq;
+      latestWorkspaceProjectRequestId = requestId;
+      els.loadProjects.disabled = true;
       post('loadProjects', {
+        scope: 'workspace',
+        requestId,
         instanceId: state.workspace?.version === 4 ? '' : currentWorkspaceInstanceId() || state.global?.activeInstanceId || '',
         instanceTargetId: '',
         environmentId: editingEnvironmentId || '',
@@ -1500,13 +1626,34 @@ export function getConfigurationHtml(nonce: string): string {
           providers: message.providers || [],
           about: message.about || {},
         };
-        projects = state.effective?.projectId
-          ? [{ id: state.effective.projectId, name: state.effective.projectName || state.effective.projectId, type: state.effective.projectId === 'personal' ? 'personal' : 'unknown' }]
+        const initialProjects = state.effective?.projectId
+          ? [{ id: state.effective.projectId, name: state.effective.projectName || '', type: state.effective.projectId === 'personal' ? 'personal' : 'unknown' }]
           : [PERSONAL_PROJECT];
+        workspaceProjects = initialProjects;
+        if (els.environmentModal.classList.contains('hidden')) {
+          environmentProjects = initialProjects;
+        }
         render();
       } else if (message.type === 'projectsLoaded') {
-        projects = (message.projects && message.projects.length) ? message.projects : [PERSONAL_PROJECT];
-        renderProjects(message.selectedProjectId || state.workspace?.projectId || state.effective?.projectId || 'personal');
+        const scope = message.scope || 'workspace';
+        const requestId = Number(message.requestId || 0);
+        const loadedProjects = (message.projects && message.projects.length) ? message.projects : [PERSONAL_PROJECT];
+        if (scope === 'environment') {
+          if (requestId && requestId !== latestEnvironmentProjectRequestId) return;
+          environmentProjects = loadedProjects;
+          const projectsAvailable = !isFallbackPersonalProjectList(loadedProjects);
+          renderEnvironmentProjectOptions(projectsAvailable ? (message.selectedProjectId || els.environmentProject.value || 'personal') : '', projectsAvailable ? (message.selectedProjectName || '') : '');
+          setEnvironmentConnectionState(
+            true,
+            projectsAvailable ? '' : 'Connection validated. Projects API is unavailable, so the instance default project will be used.',
+            { projectsAvailable }
+          );
+        } else {
+          if (requestId && requestId !== latestWorkspaceProjectRequestId) return;
+          workspaceProjects = loadedProjects;
+          els.loadProjects.disabled = false;
+          renderProjects(message.selectedProjectId || state.workspace?.projectId || state.effective?.projectId || 'personal', message.selectedProjectName || state.workspace?.projectName || state.effective?.projectName || '');
+        }
       } else if (message.type === 'saved') {
         showSaved();
       } else if (message.type === 'legacyMigrationCompleted') {
@@ -1516,6 +1663,11 @@ export function getConfigurationHtml(nonce: string): string {
       } else if (message.type === 'managedCredentials') {
         openCredentialsModal(message.credentials);
       } else if (message.type === 'error') {
+        els.loadProjects.disabled = false;
+        els.loadEnvironmentProjects.disabled = false;
+        if (!els.environmentModal.classList.contains('hidden')) {
+          setEnvironmentConnectionState(false, message.message || 'Connection failed. Check the URL and API key.', { canValidate: true });
+        }
         showError(message.message || 'Unexpected error');
       } else if (message.type === 'instanceDeleted') {
         showSaved();

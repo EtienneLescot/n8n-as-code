@@ -134,15 +134,30 @@ export class N8nApiClient {
      */
     async getProjects(): Promise<IProject[]> {
         try {
-            const res = await this.client.get('/api/v1/projects');
-            const projects = res.data.data || [];
-            return projects.map((p: any) => ({
-                id: p.id,
-                name: p.name,
-                type: p.type,
-                createdAt: p.createdAt,
-                updatedAt: p.updatedAt
-            }));
+            const projects: IProject[] = [];
+            const seenIds = new Set<string>();
+            let cursor: string | undefined;
+
+            do {
+                const res = cursor
+                    ? await this.client.get('/api/v1/projects', { params: { cursor } })
+                    : await this.client.get('/api/v1/projects');
+                const page = res.data.data || [];
+                for (const p of page) {
+                    if (!p?.id || seenIds.has(p.id)) continue;
+                    seenIds.add(p.id);
+                    projects.push({
+                        id: p.id,
+                        name: p.name,
+                        type: p.type,
+                        createdAt: p.createdAt,
+                        updatedAt: p.updatedAt
+                    });
+                }
+                cursor = res.data?.nextCursor;
+            } while (cursor);
+
+            return projects;
         } catch (error: any) {
             if (this.shouldUsePersonalProjectFallback(error)) {
                 console.warn('[N8nApiClient] Projects API unavailable or restricted. Using placeholder Personal project fallback.');

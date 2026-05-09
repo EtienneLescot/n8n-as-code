@@ -150,6 +150,7 @@ export interface ILegacyWorkspaceMigrationInstance extends Partial<ILocalConfig>
     id: string;
     name: string;
     hasApiKey: boolean;
+    verification?: IInstanceVerification;
 }
 
 export interface ILegacyWorkspaceMigrationPlan {
@@ -1044,8 +1045,11 @@ export class ConfigService {
         const backupPath = this.createLegacyConfigBackup(configPath);
         const rawLegacyConfig = this.readRawWorkspaceConfig(configPath) || {};
         const migratedInstances: IInstanceProfile[] = [];
+        const migratedPairs: Array<{ legacy: ILegacyWorkspaceMigrationInstance; profile: IInstanceProfile }> = [];
         for (const legacyInstance of plan.instances) {
-            const apiKey = this.readLegacyApiKey(legacyInstance.id, rawLegacyConfig);
+            const apiKey = this.readLegacyApiKey(legacyInstance.id, rawLegacyConfig)
+                || this.manager.getApiKey(legacyInstance.id)
+                || (legacyInstance.host ? this.getApiKey(legacyInstance.host) : undefined);
             const saved = this.saveLocalConfig({
                 host: legacyInstance.host,
                 syncFolder: legacyInstance.syncFolder || plan.workspace.syncFolder,
@@ -1061,36 +1065,59 @@ export class ConfigService {
                 apiKey,
             });
             migratedInstances.push(saved);
+            migratedPairs.push({ legacy: legacyInstance, profile: saved });
         }
 
-        const activeInstance = migratedInstances.find((instance) => instance.id === plan.activeInstanceId) || migratedInstances[0];
-        if (activeInstance) {
-            const instanceTargetId = 'default-instance';
-            const environmentId = 'default';
-            this.writeWorkspaceConfigV4({
-                version: 4,
-                activeEnvironmentId: environmentId,
-                instanceTargets: [{
-                    id: instanceTargetId,
-                    name: activeInstance.name || 'Default instance',
+        if (migratedPairs.length > 0) {
+            const usedIds: string[] = [];
+            const targetNames = new Set<string>();
+            const environmentNames = new Set<string>();
+            const syncFolders = new Set<string>();
+            const instanceTargets: IWorkspaceInstanceTarget[] = [];
+            const environments: IWorkspaceEnvironment[] = [];
+
+            for (const { legacy, profile } of migratedPairs) {
+                const baseName = profile.name || legacy.name || profile.host || legacy.id;
+                const singleInstanceMigration = migratedPairs.length === 1;
+                const targetName = this.uniqueDisplayName(baseName, targetNames);
+                const environmentName = this.uniqueDisplayName(singleInstanceMigration ? 'Default' : baseName, environmentNames);
+                const targetId = this.uniqueWorkspaceId(singleInstanceMigration ? 'default-instance' : `${profile.id || legacy.id || targetName}-instance`, usedIds);
+                usedIds.push(targetId);
+                const environmentId = this.uniqueWorkspaceId(singleInstanceMigration ? 'default' : profile.id || legacy.id || environmentName, usedIds);
+                usedIds.push(environmentId);
+                const syncFolder = this.uniqueLegacyEnvironmentSyncFolder(legacy, plan.workspace, profile, environmentName, syncFolders);
+
+                instanceTargets.push({
+                    id: targetId,
+                    name: targetName,
                     kind: 'embedded',
                     instance: stripUndefined({
                         mode: 'existing' as const,
-                        baseUrl: cleanRequired(activeInstance.host, 'Legacy instance URL'),
-                        name: activeInstance.name,
-                        instanceIdentifier: activeInstance.instanceIdentifier,
+                        baseUrl: cleanRequired(profile.host || legacy.host, 'Legacy instance URL'),
+                        name: profile.name || legacy.name,
+                        instanceIdentifier: profile.instanceIdentifier || legacy.instanceIdentifier,
+                        verification: legacy.verification,
                     }),
-                }],
-                environments: [stripUndefined({
+                });
+                environments.push(stripUndefined({
                     id: environmentId,
-                    name: 'Default',
-                    instanceTargetId,
-                    projectId: plan.workspace.projectId,
-                    projectName: plan.workspace.projectName,
-                    syncFolder: plan.workspace.syncFolder || 'workflows',
-                    customNodesPath: plan.workspace.customNodesPath,
-                    folderSync: plan.workspace.folderSync,
-                })],
+                    name: environmentName,
+                    instanceTargetId: targetId,
+                    projectId: legacy.projectId || plan.workspace.projectId,
+                    projectName: legacy.projectName || plan.workspace.projectName,
+                    syncFolder,
+                    customNodesPath: legacy.customNodesPath || plan.workspace.customNodesPath,
+                    folderSync: legacy.folderSync ?? plan.workspace.folderSync,
+                }));
+            }
+
+            const activePair = migratedPairs.find(({ legacy }) => legacy.id === plan.activeInstanceId) || migratedPairs[0];
+            const activeEnvironmentId = environments[migratedPairs.indexOf(activePair)]?.id || environments[0]?.id;
+            this.writeWorkspaceConfigV4({
+                version: 4,
+                activeEnvironmentId,
+                instanceTargets,
+                environments,
             });
         } else {
             this.manager.writeWorkspaceOverrides(this.workspaceRoot, stripUndefined({
@@ -1166,6 +1193,10 @@ export class ConfigService {
             projectId: asString(value.projectId) || asString(root.projectId),
             projectName: asString(value.projectName) || asString(root.projectName),
             instanceIdentifier: asString(value.instanceIdentifier) || asString(root.instanceIdentifier),
+            workflowDir: asString(value.workflowDir) || asString(root.workflowDir),
+            verification: value.verification && typeof value.verification === 'object' && !Array.isArray(value.verification)
+                ? value.verification as IInstanceVerification
+                : undefined,
             customNodesPath: asString(value.customNodesPath) || asString(root.customNodesPath),
             folderSync: asBoolean(value.folderSync) ?? asBoolean(root.folderSync),
             hasApiKey: Boolean(asString(value.apiKey) || asString(root.apiKey)),
@@ -1681,6 +1712,46 @@ export class ConfigService {
         let counter = 2;
         while (existingIds.includes(`${base}-${counter}`)) counter += 1;
         return `${base}-${counter}`;
+    }
+
+    private uniqueDisplayName(baseName: string, existingNames: Set<string>): string {
+        const base = cleanRequired(baseName, 'Name');
+        let name = base;
+        let counter = 2;
+        while (existingNames.has(name.toLowerCase())) {
+            name = `${base} ${counter}`;
+            counter += 1;
+        }
+        existingNames.add(name.toLowerCase());
+        return name;
+    }
+
+    private uniqueLegacyEnvironmentSyncFolder(
+        legacy: ILegacyWorkspaceMigrationInstance,
+        workspace: Partial<ILocalConfig>,
+        profile: IInstanceProfile,
+        environmentName: string,
+        existingFolders: Set<string>,
+    ): string {
+        const baseSyncFolder = legacy.syncFolder || workspace.syncFolder || 'workflows';
+        let syncFolder = legacy.workflowDir
+            || this.buildWorkflowDir(baseSyncFolder, legacy.instanceIdentifier || profile.instanceIdentifier, legacy.projectName || workspace.projectName)
+            || baseSyncFolder;
+        let key = this.normalizeWorkspacePathKey(syncFolder);
+        if (!existingFolders.has(key)) {
+            existingFolders.add(key);
+            return syncFolder;
+        }
+
+        const base = syncFolder;
+        let counter = 2;
+        do {
+            syncFolder = path.join(base, this.slugId(environmentName) + (counter === 2 ? '' : `-${counter}`));
+            key = this.normalizeWorkspacePathKey(syncFolder);
+            counter += 1;
+        } while (existingFolders.has(key));
+        existingFolders.add(key);
+        return syncFolder;
     }
 
     private assertUniqueName<T extends { id: string; name: string }>(name: string, items: T[], label: string): void {

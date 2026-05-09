@@ -23,6 +23,45 @@ const PERSONAL_PROJECT: UiProject = {
   displayName: 'Personal',
 };
 
+function toUiProject(project: { id: string; name?: string; title?: string; displayName?: string; label?: string; type?: string; }): UiProject {
+  const name = project.name || project.title || project.displayName || project.label || '';
+  const displayable = { id: project.id, name, type: project.type };
+  return {
+    id: project.id,
+    name: getCanonicalProjectName(displayable),
+    type: project.type,
+    detail: getProjectDetail(displayable),
+    displayName: getProjectDisplayLabel(displayable),
+  };
+}
+
+function dedupeUiProjects(projects: UiProject[]): UiProject[] {
+  const byId = new Map<string, UiProject>();
+  for (const project of projects) {
+    if (!project.id) continue;
+    const existing = byId.get(project.id);
+    if (!existing || (!existing.name && project.name) || existing.id === 'personal') {
+      byId.set(project.id, project);
+    }
+  }
+
+  const personal = [...byId.values()].filter((project) => project.id === 'personal' || project.type === 'personal');
+  if (personal.length > 1) {
+    const preferred = personal.find((project) => project.id !== 'personal') ?? personal[0];
+    for (const project of personal) {
+      if (project.id !== preferred.id) byId.delete(project.id);
+    }
+  }
+
+  return [...byId.values()];
+}
+
+async function loadProjectsFromApi(host: string, apiKey: string): Promise<UiProject[]> {
+  const client = new N8nApiClient({ host, apiKey });
+  await client.assertApiAccess();
+  return (await client.getProjects()).map(toUiProject);
+}
+
 function normalizeHost(host: string): string {
   const trimmed = (host || '').trim();
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
@@ -42,6 +81,29 @@ function readWorkspaceTargetApiKey(targetId: string, targetName: string): string
     if (value) return value;
   }
   return undefined;
+}
+
+function readLegacyN8nSettings(): { host: string; apiKey: string } {
+  const config = vscode.workspace.getConfiguration('n8n');
+  return {
+    host: normalizeHost(String(config.get<string>('host') || '')),
+    apiKey: String(config.get<string>('apiKey') || '').trim(),
+  };
+}
+
+function preserveMigratedLegacyApiKey(configService: ConfigService, settings: { host: string; apiKey: string }, instanceId?: string): void {
+  if (!settings.apiKey) return;
+  const environment = configService.resolveEnvironment();
+  const environmentHost = normalizeHost(environment.host || '');
+  if (!environmentHost) return;
+  if (settings.host && normalizeHost(settings.host) !== environmentHost) return;
+  configService.saveLocalConfig({ host: environmentHost }, {
+    instanceId,
+    instanceName: environment.activeInstanceName || environment.instanceTargetName,
+    createNew: !instanceId,
+    setActive: false,
+    apiKey: settings.apiKey,
+  });
 }
 
 async function clearLegacyWorkspaceSettings(): Promise<string[]> {
@@ -182,7 +244,13 @@ export class ConfigurationWebview {
             this._panel.webview.postMessage({ type: 'cancelled' });
             return;
           }
+          const legacySettings = readLegacyN8nSettings();
           const result = configService.migrateLegacyWorkspaceConfig({ write: true });
+          if (result.status === 'migrated') {
+            const environmentHost = normalizeHost(configService.resolveEnvironment().host || '');
+            const migratedInstance = result.instances.find((instance) => normalizeHost(instance.host || '') === environmentHost);
+            preserveMigratedLegacyApiKey(configService, legacySettings, migratedInstance?.id);
+          }
           await clearLegacyWorkspaceSettings();
           await this._configurationController.refresh('webview-migrate-legacy', { force: true });
           this._panel.webview.postMessage({
@@ -193,32 +261,30 @@ export class ConfigurationWebview {
         }
 
         case 'loadProjects': {
+          const scope = String(payload.scope || 'workspace');
+          const requestId = Number(payload.requestId || 0);
+          const selectedProjectId = String(payload.projectId || '');
+          const selectedProjectName = String(payload.projectName || '');
+          const postProjectsLoaded = (projects: UiProject[], fallbackProjectId = '') => {
+            this._panel.webview.postMessage({
+              type: 'projectsLoaded',
+              scope,
+              requestId,
+              projects: dedupeUiProjects(projects),
+              selectedProjectId: selectedProjectId || fallbackProjectId,
+              selectedProjectName: selectedProjectName || (fallbackProjectId === 'personal' ? 'Personal' : ''),
+            });
+          };
           let instanceId = String(payload.instanceId || '').trim() || undefined;
           const host = normalizeHost(String(payload.host || ''));
           const apiKey = String(payload.apiKey || '').trim();
           if (host) {
             if (!apiKey) {
-              this._panel.webview.postMessage({
-                type: 'projectsLoaded',
-                projects: [PERSONAL_PROJECT],
-                selectedProjectId: String(payload.projectId || 'personal'),
-                selectedProjectName: String(payload.projectName || 'Personal'),
-              });
+              if (scope === 'environment') throw new Error('Missing local API key. Add an API key before selecting project or sync settings.');
+              postProjectsLoaded([PERSONAL_PROJECT], 'personal');
               return;
             }
-            const projects = await new N8nApiClient({ host, apiKey }).getProjects();
-            this._panel.webview.postMessage({
-              type: 'projectsLoaded',
-              projects: projects.map((project) => ({
-                id: project.id,
-                name: getCanonicalProjectName(project),
-                type: project.type,
-                detail: getProjectDetail(project),
-                displayName: getProjectDisplayLabel(project),
-              })),
-              selectedProjectId: String(payload.projectId || ''),
-              selectedProjectName: String(payload.projectName || ''),
-            });
+            postProjectsLoaded(await loadProjectsFromApi(host, apiKey));
             return;
           }
           const instanceTargetId = String(payload.instanceTargetId || '').trim();
@@ -231,46 +297,18 @@ export class ConfigurationWebview {
             if (environmentId && !targetChanged) {
               const environment = await configService.prepareEnvironment(environmentId);
               if (!environment.apiKey) throw new Error(`Environment "${environment.environmentName}" needs a local API key before projects can be loaded.`);
-              const projects = await new N8nApiClient({ host: environment.host, apiKey: environment.apiKey }).getProjects();
-              this._panel.webview.postMessage({
-                type: 'projectsLoaded',
-                projects: projects.map((project) => ({
-                  id: project.id,
-                  name: getCanonicalProjectName(project),
-                  type: project.type,
-                  detail: getProjectDetail(project),
-                  displayName: getProjectDisplayLabel(project),
-                })),
-                selectedProjectId: String(payload.projectId || ''),
-                selectedProjectName: String(payload.projectName || ''),
-              });
+              postProjectsLoaded(await loadProjectsFromApi(environment.host, environment.apiKey));
               return;
             }
             if (target.kind === 'global-ref') instanceId = target.instanceRef;
             if (target.kind === 'embedded') {
               const apiKey = readWorkspaceTargetApiKey(target.id, target.name) || configService.getApiKey(target.instance.baseUrl);
               if (!apiKey) {
-                this._panel.webview.postMessage({
-                  type: 'projectsLoaded',
-                  projects: [PERSONAL_PROJECT],
-                  selectedProjectId: String(payload.projectId || 'personal'),
-                  selectedProjectName: String(payload.projectName || 'Personal'),
-                });
+                if (scope === 'environment') throw new Error('Missing local API key. Add an API key before selecting project or sync settings.');
+                postProjectsLoaded([PERSONAL_PROJECT], 'personal');
                 return;
               }
-              const projects = await new N8nApiClient({ host: target.instance.baseUrl, apiKey }).getProjects();
-              this._panel.webview.postMessage({
-                type: 'projectsLoaded',
-                projects: projects.map((project) => ({
-                  id: project.id,
-                  name: getCanonicalProjectName(project),
-                  type: project.type,
-                  detail: getProjectDetail(project),
-                  displayName: getProjectDisplayLabel(project),
-                })),
-                selectedProjectId: String(payload.projectId || ''),
-                selectedProjectName: String(payload.projectName || ''),
-              });
+              postProjectsLoaded(await loadProjectsFromApi(target.instance.baseUrl, apiKey));
               return;
             }
           }
@@ -280,19 +318,8 @@ export class ConfigurationWebview {
             syncFolderDefault: 'workspace',
             consumer: 'vscode',
             autoStart: true,
-          })).map((project) => ({
-            id: project.id,
-            name: getCanonicalProjectName(project),
-            type: project.type,
-            detail: getProjectDetail(project),
-            displayName: getProjectDisplayLabel(project),
-          }));
-          this._panel.webview.postMessage({
-            type: 'projectsLoaded',
-            projects: uiProjects,
-            selectedProjectId: String(payload.projectId || ''),
-            selectedProjectName: String(payload.projectName || ''),
-          });
+          })).map(toUiProject);
+          postProjectsLoaded(uiProjects);
           return;
         }
 
@@ -348,6 +375,9 @@ export class ConfigurationWebview {
           const configService = new ConfigService(workspaceRoot);
           const environmentId = String(payload.environmentId || '').trim();
           let instanceTargetId = String(payload.instanceTargetId || '').trim();
+          if (environmentId) {
+            instanceTargetId = configService.getEnvironment(environmentId).instanceTargetId;
+          }
           const instanceId = String(payload.instanceId || '').trim();
           const baseUrl = normalizeHost(String(payload.baseUrl || ''));
           const apiKey = String(payload.apiKey || '').trim();
@@ -386,7 +416,7 @@ export class ConfigurationWebview {
               baseUrl,
             });
           }
-          if (instanceTargetId && baseUrl) {
+          if (!environmentId && instanceTargetId && baseUrl) {
             const selectedTarget = configService.getInstanceTarget(instanceTargetId);
             const targetInstance = selectedTarget.kind === 'global-ref'
               ? (await facade.listInstances()).find((instance) => instance.id === selectedTarget.instanceRef)
@@ -408,13 +438,14 @@ export class ConfigurationWebview {
               apiKey,
             });
           }
+          const folderSync = typeof payload.folderSync === 'boolean' ? payload.folderSync : undefined;
           const input = {
             name,
             instanceTarget: instanceTargetId,
             projectId,
             projectName,
             syncFolder: String(payload.syncFolder || '').trim(),
-            folderSync: Boolean(payload.folderSync),
+            folderSync,
             customNodesPath: String(payload.customNodesPath || '').trim() || undefined,
             description: String(payload.description || '').trim() || undefined,
           };
