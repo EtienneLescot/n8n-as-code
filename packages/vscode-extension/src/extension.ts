@@ -283,8 +283,16 @@ export async function activate(context: vscode.ExtensionContext) {
             ConfigurationWebview.createOrShow(context, requireConfigurationController());
         }),
 
+        registerTelemetryCommand('n8n.migrateWorkspaceConfiguration', async () => {
+            await migrateWorkspaceConfiguration(context);
+        }),
+
         registerTelemetryCommand('n8n.migrateLegacyWorkspace', async () => {
-            await migrateLegacyWorkspaceConfig(context);
+            await migrateWorkspaceConfiguration(context);
+        }),
+
+        registerTelemetryCommand('n8n.migrateGlobalInstancesToEnvironments', async () => {
+            await migrateWorkspaceConfiguration(context);
         }),
 
         registerTelemetryCommand('n8n.switchInstance', async (args?: SwitchInstanceCommandArgs) => {
@@ -815,7 +823,7 @@ async function resolveWorkflowForAgentWorkbench(arg: any): Promise<AgentWorkbenc
         ],
         {
             title: `Open Agent Workbench${workflows.length ? ` (${workflows.length})` : ''}`,
-            placeHolder: 'Start new workflow chat or select an existing workflow',
+            placeHolder: 'Start new workflow chat or select an external-instance workflow',
             ignoreFocusOut: true,
             matchOnDescription: true,
             matchOnDetail: true,
@@ -1062,13 +1070,13 @@ async function resolveWorkflowWebviewTarget(workflow: IWorkflowStatus): Promise<
             const proxyUrl = await proxyService.start(n8nBaseUrl);
             const workflowUrl = new URL(`/workflow/${encodeURIComponent(workflow.id)}`, n8nBaseUrl.endsWith('/') ? n8nBaseUrl : `${n8nBaseUrl}/`);
             workflowUrl.searchParams.set('_n8nacBridge', String(Date.now()));
-            if (environment.targetKind === 'global-ref') {
+            if (environment.sourceKind === 'managed-instance') {
                 const openTarget = await facade.resolveWorkflowWebviewOpen({
                     workflowId: workflow.id,
                     proxyBaseUrl: proxyUrl,
                     workspaceRoot,
                     workflowUrl: workflowUrl.toString(),
-                    instanceId: environment.globalInstanceId,
+                    instanceId: environment.managedInstanceId,
                 });
                 if (openTarget.routePath && openTarget.autoLoginPageHtml) {
                     proxyService.registerHtmlRoute(openTarget.routePath, openTarget.autoLoginPageHtml);
@@ -1078,7 +1086,7 @@ async function resolveWorkflowWebviewTarget(workflow: IWorkflowStatus): Promise<
                 }
                 return { url: openTarget.url, targetUrl: openTarget.targetUrl };
             }
-            outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} in embedded workspace environment ${environment.environmentName}.`);
+            outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} in external-instance workspace environment ${environment.environmentName}.`);
             return { url: `${proxyUrl}/workflow/${encodeURIComponent(workflow.id)}?${workflowUrl.searchParams.toString()}`, targetUrl: workflowUrl.toString() };
         }
     }
@@ -1126,7 +1134,7 @@ function requireConfigurationController(): N8nConfigurationController {
     return configurationController;
 }
 
-async function migrateLegacyWorkspaceConfig(context: vscode.ExtensionContext): Promise<void> {
+async function migrateWorkspaceConfiguration(context: vscode.ExtensionContext): Promise<void> {
     const workspaceRoot = getWorkspaceRoot();
     if (!workspaceRoot) {
         vscode.window.showWarningMessage(NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION).then((selection) => {
@@ -1135,34 +1143,50 @@ async function migrateLegacyWorkspaceConfig(context: vscode.ExtensionContext): P
         return;
     }
 
-    const configService = new ConfigService(workspaceRoot);
-    const plan = configService.detectLegacyWorkspaceConfig();
-    if (!plan) {
-        await vscode.window.showInformationMessage('No legacy n8n-as-code workspace config detected.');
-        await requireConfigurationController().refresh('migrate-legacy-not-needed', { force: true });
+    const initialConfigService = new ConfigService(workspaceRoot);
+    const legacyPlan = initialConfigService.detectLegacyWorkspaceConfig();
+    const globalPlan = initialConfigService.detectGlobalInstancesMigration();
+    if (!legacyPlan && !globalPlan) {
+        await vscode.window.showInformationMessage('No migration required.');
+        await requireConfigurationController().refresh('migration-not-needed', { force: true });
         return;
     }
 
     const confirmation = await vscode.window.showWarningMessage(
-        'Migrate legacy n8n-as-code config? A backup will be created before changing n8nac-config.json.',
+        'Migration required. This will update the workspace configuration.',
         { modal: true },
-        'Migrate workspace',
+        'Run migration',
     );
-    if (confirmation !== 'Migrate workspace') return;
+    if (confirmation !== 'Run migration') return;
 
-    const legacySettings = await readLegacyN8nSettingsForMigration(context);
-    const result = configService.migrateLegacyWorkspaceConfig({ write: true });
-    if (result.status === 'migrated') {
-        const environmentHost = String(configService.resolveEnvironment().host || '').trim().replace(/\/$/, '');
-        const migratedInstance = result.instances.find((instance) => String(instance.host || '').trim().replace(/\/$/, '') === environmentHost);
-        preserveMigratedLegacyApiKey(configService, legacySettings, migratedInstance?.id);
+    let backupPath = '';
+    let migratedEnvironmentCount = 0;
+
+    if (legacyPlan) {
+        const legacySettings = await readLegacyN8nSettingsForMigration(context);
+        const legacyResult = initialConfigService.migrateLegacyWorkspaceConfig({ write: true });
+        if (legacyResult.status === 'migrated') {
+            backupPath = legacyResult.backupPath;
+            const environmentHost = String(initialConfigService.resolveEnvironment().host || '').trim().replace(/\/$/, '');
+            const migratedInstance = legacyResult.instances.find((instance) => String(instance.host || '').trim().replace(/\/$/, '') === environmentHost);
+            preserveMigratedLegacyApiKey(initialConfigService, legacySettings, migratedInstance?.id);
+        }
     }
-    await requireConfigurationController().refresh('migrate-legacy-workspace-command', { force: true });
+
+    const currentConfigService = new ConfigService(workspaceRoot);
+    const currentGlobalPlan = currentConfigService.detectGlobalInstancesMigration();
+    if (currentGlobalPlan) {
+        const globalResult = currentConfigService.migrateGlobalInstancesToEnvironments({ write: true });
+        if (globalResult.status === 'migrated') {
+            migratedEnvironmentCount = globalResult.migratedEnvironmentIds.length;
+        }
+    }
+
+    await requireConfigurationController().refresh('migrate-workspace-configuration-command', { force: true });
     await determineInitialState(context);
     updateContextKeys();
-    if (result.status === 'migrated') {
-        await vscode.window.showInformationMessage(`Workspace migrated. Backup: ${result.backupPath}`);
-    }
+    const suffix = backupPath ? ` Backup: ${backupPath}` : migratedEnvironmentCount ? ` ${migratedEnvironmentCount} environment${migratedEnvironmentCount === 1 ? '' : 's'} created.` : '';
+    await vscode.window.showInformationMessage(`Migration complete.${suffix}`);
 }
 
 async function readLegacyN8nSettingsForMigration(context: vscode.ExtensionContext): Promise<{ host: string; apiKey: string }> {
@@ -1191,7 +1215,7 @@ function preserveMigratedLegacyApiKey(configService: ConfigService, settings: { 
     if (settings.host && settings.host !== environmentHost) return;
     configService.saveLocalConfig({ host: environmentHost }, {
         instanceId,
-        instanceName: environment.activeInstanceName || environment.instanceTargetName,
+        instanceName: environment.activeInstanceName || environment.environmentTargetName,
         createNew: !instanceId,
         setActive: false,
         apiKey: settings.apiKey,
@@ -1397,12 +1421,12 @@ function toInstanceQuickPickItem(
 }
 
 function toEnvironmentQuickPickItem(
-    environment: { id: string; name: string; instanceTargetId: string; projectName?: string; syncFolder?: string },
+    environment: { id: string; name: string; environmentTargetId: string; projectName?: string; syncFolder?: string },
     activeEnvironmentId?: string,
 ): EnvironmentQuickPickItem {
     return {
         label: environment.name,
-        description: environment.projectName || environment.instanceTargetId,
+        description: environment.projectName || environment.environmentTargetId,
         detail: environment.syncFolder || (environment.id === activeEnvironmentId ? 'Currently active' : ''),
         picked: environment.id === activeEnvironmentId,
         environmentId: environment.id,
@@ -2108,9 +2132,9 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         projectName: projectName!,
         environmentId: environment?.environmentId,
         environmentName: environment?.environmentName,
-        instanceTargetId: environment?.instanceTargetId,
-        instanceTargetName: environment?.instanceTargetName,
-        targetKind: environment?.targetKind,
+        environmentTargetId: environment?.environmentTargetId,
+        environmentTargetName: environment?.environmentTargetName,
+        sourceKind: environment?.sourceKind,
     });
 
     // Create CliApi — the thin facade that all command handlers use.

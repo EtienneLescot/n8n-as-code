@@ -66,8 +66,8 @@
         "icon": "$(settings-gear)"
       },
       {
-        "command": "n8n.migrateLegacyWorkspace",
-        "title": "n8n: Migrate Legacy Workspace Config",
+        "command": "n8n.migrateWorkspaceConfiguration",
+        "title": "n8n: Run Required Migration",
         "icon": "$(repo-sync)"
       },
       {

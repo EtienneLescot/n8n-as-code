@@ -47,7 +47,7 @@ export class BaseCommand {
             const effectiveContext = this.activeInstanceId
                 ? (() => { try { return this.configService.getEffectiveContext(this.activeInstanceId); } catch { return undefined; } })()
                 : undefined;
-            const canPrepareRuntime = resolvedEnvironment.targetKind === 'global-ref'
+            const canPrepareRuntime = resolvedEnvironment.sourceKind === 'managed-instance'
                 && (!host || !apiKey || effectiveContext?.instance.mode === 'managed-local-docker');
             if (!host || !apiKey) {
                 if (!canPrepareRuntime) {
@@ -144,11 +144,11 @@ export class BaseCommand {
             return this.instanceIdentifier;
         }
 
-        if (this.activeEnvironment?.targetKind === 'embedded' && this.activeEnvironment.instanceIdentifier) {
+        if (this.activeEnvironment?.sourceKind === 'external-instance' && this.activeEnvironment.instanceIdentifier) {
             this.instanceIdentifier = this.activeEnvironment.instanceIdentifier;
             return this.instanceIdentifier;
         }
-        if (this.activeEnvironment?.targetKind === 'embedded') {
+        if (this.activeEnvironment?.sourceKind === 'external-instance') {
             this.exitWithError(`Environment "${this.activeEnvironment.environmentName}" needs a resolvable instance identifier before sync can run`);
         }
         this.instanceIdentifier = await this.configService.getOrCreateInstanceIdentifier(this.config.host, this.activeInstanceId);
@@ -193,9 +193,9 @@ export class BaseCommand {
             folderSync: localConfig.folderSync ?? false,
             environmentId: this.activeEnvironment?.environmentId,
             environmentName: this.activeEnvironment?.environmentName,
-            instanceTargetId: this.activeEnvironment?.instanceTargetId,
-            instanceTargetName: this.activeEnvironment?.instanceTargetName,
-            targetKind: this.activeEnvironment?.targetKind,
+            environmentTargetId: this.activeEnvironment?.environmentTargetId,
+            environmentTargetName: this.activeEnvironment?.environmentTargetName,
+            sourceKind: this.activeEnvironment?.sourceKind,
         };
     }
 

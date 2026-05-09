@@ -31,57 +31,50 @@ export interface IInstanceProfile extends ILocalConfig {
     verification?: IInstanceVerification;
 }
 
-export interface IWorkspaceEmbeddedInstance {
-    mode: 'existing';
-    baseUrl: string;
-    name?: string;
+export interface IManagedEnvironmentTarget {
+    id: string;
+    name: string;
+    kind: 'managed-instance';
+    managedInstanceId: string;
+    description?: string;
+    managedInstanceName?: string;
+    url?: string;
+    instanceName?: string;
+    apiKeyAvailable?: boolean;
+    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+    accessStatus?: EnvironmentAccessStatus;
+}
+
+export interface IExternalEnvironmentTarget {
+    id: string;
+    name: string;
+    kind: 'external-instance';
+    url: string;
     instanceIdentifier?: string;
     verification?: IInstanceVerification;
-}
-
-export interface IWorkspaceGlobalInstanceTarget {
-    id: string;
-    name: string;
-    kind: 'global-ref';
-    instanceRef: string;
     description?: string;
-    globalInstanceId?: string;
-    instanceName?: string;
-    baseUrl?: string;
     apiKeyAvailable?: boolean;
     credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
     accessStatus?: EnvironmentAccessStatus;
 }
 
-export interface IWorkspaceEmbeddedInstanceTarget {
-    id: string;
-    name: string;
-    kind: 'embedded';
-    instance: IWorkspaceEmbeddedInstance;
-    description?: string;
-    baseUrl?: string;
-    apiKeyAvailable?: boolean;
-    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
-    accessStatus?: EnvironmentAccessStatus;
-}
-
-export type IWorkspaceInstanceTarget = IWorkspaceGlobalInstanceTarget | IWorkspaceEmbeddedInstanceTarget;
+export type IEnvironmentTarget = IManagedEnvironmentTarget | IExternalEnvironmentTarget;
 
 export interface IWorkspaceEnvironment {
     id: string;
     name: string;
-    instanceTargetId: string;
+    environmentTargetId: string;
     projectId?: string;
     projectName?: string;
     syncFolder: string;
     folderSync?: boolean;
     customNodesPath?: string;
     description?: string;
-    targetKind?: 'global-ref' | 'embedded';
-    instanceTargetName?: string;
-    globalInstanceId?: string;
+    sourceKind?: 'managed-instance' | 'external-instance';
+    environmentTargetName?: string;
+    managedInstanceId?: string;
     instanceName?: string;
-    baseUrl?: string;
+    url?: string;
     workflowDir?: string;
     apiKeyAvailable?: boolean;
     credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
@@ -100,7 +93,7 @@ export type EnvironmentAccessStatus =
 export interface IPersistedWorkspaceConfigV4 {
     version: 4;
     activeEnvironmentId?: string;
-    instanceTargets: IWorkspaceInstanceTarget[];
+    environmentTargets: IEnvironmentTarget[];
     environments: IWorkspaceEnvironment[];
 }
 
@@ -110,27 +103,27 @@ export interface IWorkspaceConfig extends ILocalConfig {
     instances: IInstanceProfile[];
     activeEnvironmentId?: string;
     activeEnvironment?: IWorkspaceEnvironment;
-    instanceTargets?: IWorkspaceInstanceTarget[];
+    environmentTargets?: IEnvironmentTarget[];
     environments?: IWorkspaceEnvironment[];
-    targetKind?: 'global-ref' | 'embedded';
-    instanceTargetId?: string;
-    instanceTargetName?: string;
+    sourceKind?: 'managed-instance' | 'external-instance';
+    environmentTargetId?: string;
+    environmentTargetName?: string;
     apiKeyAvailable?: boolean;
     credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
 }
 
 export interface IResolvedWorkspaceEnvironment extends ILocalConfig {
     environment: IWorkspaceEnvironment;
-    instanceTarget: IWorkspaceInstanceTarget;
-    instance: IInstanceProfile | IWorkspaceEmbeddedInstance;
+    environmentTarget: IEnvironmentTarget;
+    instance: IInstanceProfile | IExternalEnvironmentTarget;
     environmentId: string;
     environmentName: string;
-    instanceTargetId: string;
-    instanceTargetName: string;
+    environmentTargetId: string;
+    environmentTargetName: string;
     activeInstanceId?: string;
     activeInstanceName: string;
-    targetKind: 'global-ref' | 'embedded';
-    globalInstanceId?: string;
+    sourceKind: 'managed-instance' | 'external-instance';
+    managedInstanceId?: string;
     host: string;
     apiKey?: string;
     apiKeySource: 'env' | 'workspace-local' | 'global' | 'missing';
@@ -141,7 +134,7 @@ export interface IResolvedWorkspaceEnvironment extends ILocalConfig {
     workflowDir?: string;
     sources: {
         environment: 'explicit' | 'workspace-default' | 'legacy' | 'global-fallback';
-        instance: 'global-ref' | 'embedded';
+        instance: 'managed-instance' | 'external-instance';
         project: 'environment' | 'instance-default' | 'missing';
         syncFolder: 'environment';
     };
@@ -169,35 +162,35 @@ export type ILegacyWorkspaceMigrationResult =
     | { status: 'dry-run'; plan: ILegacyWorkspaceMigrationPlan }
     | { status: 'migrated'; plan: ILegacyWorkspaceMigrationPlan; backupPath: string; instances: IInstanceProfile[] };
 
-export interface IGlobalInstanceWorkspaceMigrationInstance {
+export interface IGlobalInstancesMigrationInstance {
     id: string;
     name: string;
-    mode: 'existing' | 'managed-local-docker';
-    baseUrl?: string;
+    mode: 'external-instance' | 'managed-instance';
+    url?: string;
     projectId?: string;
     projectName?: string;
     apiKeyAvailable: boolean;
 }
 
-export interface IGlobalInstanceWorkspaceMigrationPlan {
+export interface IGlobalInstancesMigrationPlan {
     status: 'global-instances-detected';
     configPath: string;
     activeInstanceId?: string;
-    instances: IGlobalInstanceWorkspaceMigrationInstance[];
+    instances: IGlobalInstancesMigrationInstance[];
     warnings: string[];
 }
 
-export type IGlobalInstanceWorkspaceMigrationResult =
+export type IGlobalInstancesMigrationResult =
     | { status: 'not-needed'; configPath: string }
-    | { status: 'dry-run'; plan: IGlobalInstanceWorkspaceMigrationPlan }
-    | { status: 'migrated'; plan: IGlobalInstanceWorkspaceMigrationPlan; migratedEnvironmentIds: string[]; deletedGlobalInstanceIds: string[] };
+    | { status: 'dry-run'; plan: IGlobalInstancesMigrationPlan }
+    | { status: 'migrated'; plan: IGlobalInstancesMigrationPlan; migratedEnvironmentIds: string[]; deletedGlobalInstanceIds: string[] };
 
 export interface IPreviousWorkspaceUpgradePlan {
     status: 'upgrade-available';
     configPath: string;
     activeInstanceId?: string;
     activeInstanceName?: string;
-    targetKind?: 'global-ref' | 'embedded';
+    sourceKind?: 'managed-instance' | 'external-instance';
     workspace: Partial<ILocalConfig>;
     warnings: string[];
 }
@@ -258,20 +251,20 @@ export class ConfigService {
         if (persisted.version === 4) {
             const instances = this.listInstances();
             const effective = tryResolve(() => this.resolveEnvironment());
-            const instanceTargets = persisted.instanceTargets.map((target) => this.instanceTargetToSnapshot(target));
+            const environmentTargets = persisted.environmentTargets.map((target) => this.environmentTargetToSnapshot(target));
             const environments = persisted.environments.map((environment) => this.environmentToSnapshot(environment));
             return {
                 version: 4,
                 activeEnvironmentId: persisted.activeEnvironmentId,
                 activeInstanceId: effective?.activeInstanceId,
                 activeEnvironment: effective?.environment,
-                instanceTargets,
+                environmentTargets,
                 environments,
                 instances,
                 ...(effective ? this.environmentToLocalConfig(effective) : {}),
-                targetKind: effective?.targetKind,
-                instanceTargetId: effective?.instanceTargetId,
-                instanceTargetName: effective?.instanceTargetName,
+                sourceKind: effective?.sourceKind,
+                environmentTargetId: effective?.environmentTargetId,
+                environmentTargetName: effective?.environmentTargetName,
                 apiKeyAvailable: effective?.apiKeyAvailable,
                 credentialSource: effective?.apiKeySource,
             };
@@ -303,67 +296,63 @@ export class ConfigService {
         };
     }
 
-    listInstanceTargets(): IWorkspaceInstanceTarget[] {
-        return this.ensureV4WorkspaceConfig().instanceTargets;
+    listInstanceTargets(): IEnvironmentTarget[] {
+        return this.ensureV4WorkspaceConfig().environmentTargets;
     }
 
     listEnvironments(): IWorkspaceEnvironment[] {
         return this.ensureV4WorkspaceConfig().environments;
     }
 
-    addInstanceTarget(input: { name: string; instanceRef?: string; baseUrl?: string; id?: string; description?: string }): IWorkspaceInstanceTarget {
+    addInstanceTarget(input: { name: string; managedInstanceId?: string; url?: string; id?: string; description?: string }): IEnvironmentTarget {
         const name = cleanRequired(input.name, 'Instance target name');
-        const hasRef = Boolean(input.instanceRef?.trim());
-        const hasBaseUrl = Boolean(input.baseUrl?.trim());
+        const hasRef = Boolean(input.managedInstanceId?.trim());
+        const hasBaseUrl = Boolean(input.url?.trim());
         if (hasRef === hasBaseUrl) {
             throw new Error('Provide exactly one of --instance-ref or --base-url.');
         }
 
         const config = this.ensureV4WorkspaceConfig();
         const id = this.uniqueWorkspaceId(input.id || this.slugId(name), [
-            ...config.instanceTargets.map((target) => target.id),
+            ...config.environmentTargets.map((target) => target.id),
             ...config.environments.map((environment) => environment.id),
         ]);
-        this.assertUniqueName(name, config.instanceTargets, 'instance target');
+        this.assertUniqueName(name, config.environmentTargets, 'instance target');
 
-        const target: IWorkspaceInstanceTarget = hasRef
+        const target: IEnvironmentTarget = hasRef
             ? {
                 id,
                 name,
-                kind: 'global-ref',
-                instanceRef: this.resolveExistingGlobalInstanceRef(input.instanceRef),
+                kind: 'managed-instance',
+                managedInstanceId: this.resolveExistingGlobalInstanceRef(input.managedInstanceId),
                 description: input.description,
             }
             : {
                 id,
                 name,
-                kind: 'embedded',
-                instance: {
-                    mode: 'existing',
-                    baseUrl: cleanRequired(input.baseUrl, 'Base URL'),
-                    name,
-                },
+                kind: 'external-instance',
+                url: cleanRequired(input.url, 'Base URL'),
                 description: input.description,
             };
 
         const next = {
             ...config,
-            instanceTargets: [...config.instanceTargets, target],
+            environmentTargets: [...config.environmentTargets, target],
         };
         this.writeWorkspaceConfigV4(next);
         return target;
     }
 
-    ensureEmbeddedInstanceTarget(input: { name: string; baseUrl: string; id?: string; description?: string }): IWorkspaceInstanceTarget {
-        const baseUrl = cleanRequired(input.baseUrl, 'Base URL');
-        const normalizedBaseUrl = this.normalizeHost(baseUrl);
+    ensureEmbeddedInstanceTarget(input: { name: string; url: string; id?: string; description?: string }): IEnvironmentTarget {
+        const url = cleanRequired(input.url, 'Base URL');
+        const normalizedBaseUrl = this.normalizeHost(url);
         const config = this.ensureV4WorkspaceConfig();
-        const existing = config.instanceTargets.find((target) => {
-            return target.kind === 'embedded' && this.normalizeHost(target.instance.baseUrl) === normalizedBaseUrl;
+        const externalInstance = config.environmentTargets.find((target) => {
+            return target.kind === 'external-instance' && this.normalizeHost(target.url) === normalizedBaseUrl;
         });
-        if (existing) return existing;
+        if (externalInstance) return externalInstance;
 
-        const existingNames = new Set(config.instanceTargets.map((target) => target.name.toLowerCase()));
+        const existingNames = new Set(config.environmentTargets.map((target) => target.name.toLowerCase()));
         const baseName = cleanRequired(input.name, 'Instance name');
         let name = baseName;
         let counter = 2;
@@ -375,61 +364,57 @@ export class ConfigService {
         return this.addInstanceTarget({
             name,
             id: input.id,
-            baseUrl,
+            url,
             description: input.description,
         });
     }
 
-    updateInstanceTarget(nameOrId: string, patch: { name?: string; instanceRef?: string; baseUrl?: string; description?: string }): IWorkspaceInstanceTarget {
+    updateInstanceTarget(nameOrId: string, patch: { name?: string; managedInstanceId?: string; url?: string; description?: string }): IEnvironmentTarget {
         const config = this.ensureV4WorkspaceConfig();
         const target = this.findInstanceTarget(config, nameOrId);
         const nextName = cleanOptional(patch.name) || target.name;
         if (nextName.toLowerCase() !== target.name.toLowerCase()) {
-            this.assertUniqueName(nextName, config.instanceTargets.filter((item) => item.id !== target.id), 'instance target');
+            this.assertUniqueName(nextName, config.environmentTargets.filter((item) => item.id !== target.id), 'instance target');
         }
 
-        const nextTarget: IWorkspaceInstanceTarget = target.kind === 'global-ref'
+        const nextTarget: IEnvironmentTarget = target.kind === 'managed-instance'
             ? stripUndefined({
                 ...target,
                 name: nextName,
-                instanceRef: patch.instanceRef ? this.resolveExistingGlobalInstanceRef(patch.instanceRef) : target.instanceRef,
+                managedInstanceId: patch.managedInstanceId ? this.resolveExistingGlobalInstanceRef(patch.managedInstanceId) : target.managedInstanceId,
                 description: patch.description ?? target.description,
             })
             : stripUndefined({
                 ...target,
                 name: nextName,
-                instance: stripUndefined({
-                    ...target.instance,
-                    baseUrl: cleanOptional(patch.baseUrl) || target.instance.baseUrl,
-                    name: nextName,
-                }),
+                url: cleanOptional(patch.url) || target.url,
                 description: patch.description ?? target.description,
             });
 
         this.writeWorkspaceConfigV4({
             ...config,
-            instanceTargets: config.instanceTargets.map((item) => item.id === target.id ? nextTarget : item),
+            environmentTargets: config.environmentTargets.map((item) => item.id === target.id ? nextTarget : item),
         });
         return nextTarget;
     }
 
-    removeInstanceTarget(nameOrId: string): IWorkspaceInstanceTarget {
+    removeInstanceTarget(nameOrId: string): IEnvironmentTarget {
         const config = this.ensureV4WorkspaceConfig();
         const target = this.findInstanceTarget(config, nameOrId);
-        const usedBy = config.environments.filter((environment) => environment.instanceTargetId === target.id);
+        const usedBy = config.environments.filter((environment) => environment.environmentTargetId === target.id);
         if (usedBy.length > 0) {
             throw new Error(`Workspace instance target "${target.name}" is used by environment(s): ${usedBy.map((environment) => environment.name).join(', ')}.`);
         }
         this.writeWorkspaceConfigV4({
             ...config,
-            instanceTargets: config.instanceTargets.filter((item) => item.id !== target.id),
+            environmentTargets: config.environmentTargets.filter((item) => item.id !== target.id),
         });
         return target;
     }
 
     addEnvironment(input: {
         name: string;
-        instanceTarget: string;
+        environmentTarget: string;
         projectId?: string;
         projectName?: string;
         syncFolder: string;
@@ -440,9 +425,9 @@ export class ConfigService {
     }): IWorkspaceEnvironment {
         const config = this.ensureV4WorkspaceConfig();
         const name = cleanRequired(input.name, 'Environment name');
-        const target = this.findInstanceTarget(config, input.instanceTarget);
+        const target = this.findInstanceTarget(config, input.environmentTarget);
         const id = this.uniqueWorkspaceId(input.id || this.slugId(name), [
-            ...config.instanceTargets.map((item) => item.id),
+            ...config.environmentTargets.map((item) => item.id),
             ...config.environments.map((item) => item.id),
         ]);
         this.assertUniqueName(name, config.environments, 'environment');
@@ -450,7 +435,7 @@ export class ConfigService {
         const environment: IWorkspaceEnvironment = {
             id,
             name,
-            instanceTargetId: target.id,
+            environmentTargetId: target.id,
             projectId: cleanOptional(input.projectId),
             projectName: cleanOptional(input.projectName),
             syncFolder: cleanRequired(input.syncFolder, 'Sync folder'),
@@ -467,10 +452,10 @@ export class ConfigService {
         return environment;
     }
 
-    updateEnvironment(nameOrId: string, patch: Partial<Pick<IWorkspaceEnvironment, 'name' | 'projectId' | 'projectName' | 'syncFolder' | 'folderSync' | 'customNodesPath' | 'description'>> & { instanceTarget?: string }): IWorkspaceEnvironment {
+    updateEnvironment(nameOrId: string, patch: Partial<Pick<IWorkspaceEnvironment, 'name' | 'projectId' | 'projectName' | 'syncFolder' | 'folderSync' | 'customNodesPath' | 'description'>> & { environmentTarget?: string }): IWorkspaceEnvironment {
         const config = this.ensureV4WorkspaceConfig();
         const environment = this.findEnvironment(config, nameOrId);
-        const target = patch.instanceTarget ? this.findInstanceTarget(config, patch.instanceTarget) : undefined;
+        const target = patch.environmentTarget ? this.findInstanceTarget(config, patch.environmentTarget) : undefined;
         const nextName = cleanOptional(patch.name) || environment.name;
         if (nextName.toLowerCase() !== environment.name.toLowerCase()) {
             this.assertUniqueName(nextName, config.environments.filter((item) => item.id !== environment.id), 'environment');
@@ -478,7 +463,7 @@ export class ConfigService {
         const nextEnvironment: IWorkspaceEnvironment = stripUndefined({
             ...environment,
             name: nextName,
-            instanceTargetId: target?.id || environment.instanceTargetId,
+            environmentTargetId: target?.id || environment.environmentTargetId,
             projectId: patch.projectId !== undefined ? cleanOptional(patch.projectId) : environment.projectId,
             projectName: patch.projectName !== undefined ? cleanOptional(patch.projectName) : environment.projectName,
             syncFolder: patch.syncFolder !== undefined ? cleanRequired(patch.syncFolder, 'Sync folder') : environment.syncFolder,
@@ -523,7 +508,7 @@ export class ConfigService {
         return this.findEnvironment(this.ensureV4WorkspaceConfig(), nameOrId);
     }
 
-    getInstanceTarget(nameOrId: string): IWorkspaceInstanceTarget {
+    getInstanceTarget(nameOrId: string): IEnvironmentTarget {
         return this.findInstanceTarget(this.ensureV4WorkspaceConfig(), nameOrId);
     }
 
@@ -538,13 +523,13 @@ export class ConfigService {
             : config.activeEnvironmentId
                 ? this.findEnvironment(config, config.activeEnvironmentId)
                 : config.environments[0];
-        const target = this.findInstanceTarget(config, environment.instanceTargetId);
+        const target = this.findInstanceTarget(config, environment.environmentTargetId);
         return this.resolveEnvironmentFromTarget(environment, target, environmentNameOrId ? 'explicit' : config.activeEnvironmentId ? 'workspace-default' : persisted.version === 4 ? 'workspace-default' : 'legacy');
     }
 
     async prepareEnvironment(environmentNameOrId?: string): Promise<IResolvedWorkspaceEnvironment> {
         const resolved = this.resolveEnvironment(environmentNameOrId);
-        if (resolved.targetKind === 'embedded') {
+        if (resolved.sourceKind === 'external-instance') {
             if (resolved.apiKey && !resolved.instanceIdentifier) {
                 const instanceIdentifier = await this.resolveInstanceIdentifier(resolved.host, resolved.apiKey).catch(() => undefined);
                 return {
@@ -557,7 +542,7 @@ export class ConfigService {
         }
 
         const prepared = await this.runtime.prepareEffectiveContext({
-            instanceId: resolved.globalInstanceId,
+            instanceId: resolved.managedInstanceId,
             syncFolderDefault: 'global',
             consumer: 'cli',
             autoStart: true,
@@ -615,7 +600,7 @@ export class ConfigService {
 
     getActiveInstance(): IInstanceProfile | undefined {
         const effective = tryResolve(() => this.resolveEnvironment());
-        if (effective?.targetKind === 'global-ref' && effective.activeInstanceId) {
+        if (effective?.sourceKind === 'managed-instance' && effective.activeInstanceId) {
             return this.getInstanceConfig(effective.activeInstanceId);
         }
         const legacy = tryResolve(() => this.resolveWorkspaceContext());
@@ -969,20 +954,20 @@ export class ConfigService {
     upsertRemoteInstancePreset(input: { host: string; apiKey?: string; name?: string }): IInstanceProfile {
         const host = cleanRequired(input.host, 'n8n URL');
         const normalized = this.normalizeHost(host);
-        const existing = this.manager.listInstances().find((candidate) => {
+        const externalInstance = this.manager.listInstances().find((candidate) => {
             return candidate.mode !== 'managed-local-docker'
                 && (this.normalizeHost(candidate.baseUrl || '') === normalized || this.normalizeHost(candidate.tunnelPublicUrl || '') === normalized);
         });
         const instanceIdentifier = input.apiKey ? this.resolveInstanceIdentifierFromApiKey(input.apiKey) : undefined;
         const saved = this.manager.upsertInstance({
-            id: existing?.id,
-            name: input.name || existing?.name || host,
+            id: externalInstance?.id,
+            name: input.name || externalInstance?.name || host,
             mode: 'existing',
             baseUrl: host,
             apiKey: input.apiKey,
-            instanceIdentifier: instanceIdentifier || existing?.instanceIdentifier,
-            defaultProject: existing?.defaultProject,
-            verification: existing?.verification,
+            instanceIdentifier: instanceIdentifier || externalInstance?.instanceIdentifier,
+            defaultProject: externalInstance?.defaultProject,
+            verification: externalInstance?.verification,
         }, { setActive: false });
         return this.toInstanceProfile(saved);
     }
@@ -1052,7 +1037,7 @@ export class ConfigService {
                 : undefined,
             instances.some((instance) => instance.hasApiKey)
                 ? 'Embedded API keys found: --write will move them into the local n8n-manager secret store.'
-                : 'No embedded API keys found: you may need to run n8n-manager auth set after migration.',
+                : 'No externalInstance API keys found: you may need to run n8n-manager auth set after migration.',
         ].filter(Boolean) as string[];
 
         return {
@@ -1106,7 +1091,7 @@ export class ConfigService {
             const usedIds: string[] = [];
             const targetNames = new Set<string>();
             const environmentNames = new Set<string>();
-            const instanceTargets: IWorkspaceInstanceTarget[] = [];
+            const environmentTargets: IEnvironmentTarget[] = [];
             const environments: IWorkspaceEnvironment[] = [];
 
             for (const { legacy, profile } of migratedPairs) {
@@ -1120,22 +1105,18 @@ export class ConfigService {
                 usedIds.push(environmentId);
                 const syncFolder = legacy.syncFolder || plan.workspace.syncFolder || 'workflows';
 
-                instanceTargets.push({
+                environmentTargets.push({
                     id: targetId,
                     name: targetName,
-                    kind: 'embedded',
-                    instance: stripUndefined({
-                        mode: 'existing' as const,
-                        baseUrl: cleanRequired(profile.host || legacy.host, 'Legacy instance URL'),
-                        name: profile.name || legacy.name,
-                        instanceIdentifier: profile.instanceIdentifier || legacy.instanceIdentifier,
-                        verification: legacy.verification,
-                    }),
+                    kind: 'external-instance',
+                    url: cleanRequired(profile.host || legacy.host, 'Legacy instance URL'),
+                    instanceIdentifier: profile.instanceIdentifier || legacy.instanceIdentifier,
+                    verification: legacy.verification,
                 });
                 environments.push(stripUndefined({
                     id: environmentId,
                     name: environmentName,
-                    instanceTargetId: targetId,
+                    environmentTargetId: targetId,
                     projectId: legacy.projectId || plan.workspace.projectId,
                     projectName: legacy.projectName || plan.workspace.projectName,
                     syncFolder,
@@ -1149,7 +1130,7 @@ export class ConfigService {
             this.writeWorkspaceConfigV4({
                 version: 4,
                 activeEnvironmentId,
-                instanceTargets,
+                environmentTargets,
                 environments,
             });
         } else {
@@ -1166,16 +1147,27 @@ export class ConfigService {
         return { status: 'migrated', plan, backupPath, instances: migratedInstances };
     }
 
-    detectGlobalInstanceWorkspaceMigration(): IGlobalInstanceWorkspaceMigrationPlan | undefined {
+    detectGlobalInstancesMigration(): IGlobalInstancesMigrationPlan | undefined {
         const configPath = this.getInstanceConfigPath();
         const global = this.manager.getGlobalConfig();
+        const workspace = this.readWorkspaceConfigFileSafe();
+        const environmentTargetIds = new Set(workspace.environments.map((environment) => environment.environmentTargetId));
         const instances = global.instances
-            .filter((instance) => (instance.mode === 'existing' && instance.baseUrl) || instance.mode === 'managed-local-docker')
+            .filter((instance) => {
+                if (instance.mode === 'existing' && instance.baseUrl) return true;
+                if (instance.mode !== 'managed-local-docker') return false;
+                const migratedTarget = workspace.environmentTargets.find((target) => {
+                    return target.kind === 'managed-instance'
+                        && target.managedInstanceId === instance.id
+                        && environmentTargetIds.has(target.id);
+                });
+                return !migratedTarget;
+            })
             .map((instance) => stripUndefined({
                 id: instance.id,
                 name: instance.name || instance.baseUrl || instance.id,
-                mode: instance.mode as 'existing' | 'managed-local-docker',
-                baseUrl: instance.baseUrl || '',
+                mode: instance.mode === 'managed-local-docker' ? 'managed-instance' as const : 'external-instance' as const,
+                url: instance.baseUrl || '',
                 projectId: instance.defaultProject?.id,
                 projectName: instance.defaultProject?.name,
                 apiKeyAvailable: Boolean(this.manager.getApiKey(instance.id)),
@@ -1188,27 +1180,27 @@ export class ConfigService {
             activeInstanceId: global.activeInstanceId,
             instances,
             warnings: [
-                'Global existing n8n instances belong to the previous v2 workspace model.',
-                'Migration will copy existing instances into this workspace as environments, move API keys to workspace target secrets, then remove the old non-managed global instance entries.',
-                'Managed local instances will be added to this workspace as global-ref environments and will stay global.',
+                'Global n8n instances belong to the previous v2 workspace model.',
+                'Migration will copy external instances into this workspace as environments, move API keys to workspace target secrets, then remove the old external global instance entries.',
+                'Managed instances will be added to this workspace as environments and will stay global.',
             ],
         };
     }
 
-    migrateGlobalInstancesToWorkspace(options: { write?: boolean } = {}): IGlobalInstanceWorkspaceMigrationResult {
-        const plan = this.detectGlobalInstanceWorkspaceMigration();
+    migrateGlobalInstancesToEnvironments(options: { write?: boolean } = {}): IGlobalInstancesMigrationResult {
+        const plan = this.detectGlobalInstancesMigration();
         const configPath = this.getInstanceConfigPath();
         if (!plan) return { status: 'not-needed', configPath };
         if (!options.write) return { status: 'dry-run', plan };
 
         const current = this.readWorkspaceConfigFileSafe();
         const usedIds = [
-            ...current.instanceTargets.map((item) => item.id),
+            ...current.environmentTargets.map((item) => item.id),
             ...current.environments.map((item) => item.id),
         ];
-        const targetNames = new Set(current.instanceTargets.map((item) => item.name));
+        const targetNames = new Set(current.environmentTargets.map((item) => item.name));
         const environmentNames = new Set(current.environments.map((item) => item.name));
-        const instanceTargets = [...current.instanceTargets];
+        const environmentTargets = [...current.environmentTargets];
         const environments = [...current.environments];
         const migratedEnvironmentIds: string[] = [];
         const deletedGlobalInstanceIds: string[] = [];
@@ -1218,21 +1210,21 @@ export class ConfigService {
             const instance = this.manager.getInstance(item.id);
             if (!instance) continue;
             if (instance.mode === 'managed-local-docker') {
-                const existingTarget = instanceTargets.find((target) => target.kind === 'global-ref' && target.instanceRef === instance.id);
+                const existingTarget = environmentTargets.find((target) => target.kind === 'managed-instance' && target.managedInstanceId === instance.id);
                 let targetId = existingTarget?.id;
                 if (!targetId) {
                     const targetName = this.uniqueDisplayName(instance.name || instance.id, targetNames);
                     targetId = this.uniqueWorkspaceId(instance.id, usedIds);
                     usedIds.push(targetId);
-                    instanceTargets.push({
+                    environmentTargets.push({
                         id: targetId,
                         name: targetName,
-                        kind: 'global-ref',
-                        instanceRef: instance.id,
+                        kind: 'managed-instance',
+                        managedInstanceId: instance.id,
                     });
                 }
 
-                let existingEnvironment = environments.find((environment) => environment.instanceTargetId === targetId);
+                let existingEnvironment = environments.find((environment) => environment.environmentTargetId === targetId);
                 if (!existingEnvironment) {
                     const environmentName = this.uniqueDisplayName(instance.name || instance.id, environmentNames);
                     const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
@@ -1240,7 +1232,7 @@ export class ConfigService {
                     existingEnvironment = stripUndefined({
                         id: environmentId,
                         name: environmentName,
-                        instanceTargetId: targetId,
+                        environmentTargetId: targetId,
                         projectId: instance.defaultProject?.id || 'personal',
                         projectName: instance.defaultProject?.name || 'Personal',
                         syncFolder: `workflows/${this.slugId(environmentName)}`,
@@ -1255,29 +1247,25 @@ export class ConfigService {
             if (instance.mode !== 'existing' || !instance.baseUrl) continue;
             const apiKey = this.manager.getApiKey(instance.id);
             const normalizedBaseUrl = this.normalizeHost(instance.baseUrl);
-            const existingTargetIndex = instanceTargets.findIndex((target) => {
-                if (target.kind === 'global-ref') return target.instanceRef === instance.id;
-                return this.normalizeHost(target.instance.baseUrl) === normalizedBaseUrl;
+            const existingTargetIndex = environmentTargets.findIndex((target) => {
+                if (target.kind === 'managed-instance') return target.managedInstanceId === instance.id;
+                return this.normalizeHost(target.url) === normalizedBaseUrl;
             });
             if (existingTargetIndex >= 0) {
-                const existingTarget = instanceTargets[existingTargetIndex];
-                if (existingTarget.kind === 'global-ref') {
-                    instanceTargets[existingTargetIndex] = {
+                const existingTarget = environmentTargets[existingTargetIndex];
+                if (existingTarget.kind === 'managed-instance') {
+                    environmentTargets[existingTargetIndex] = {
                         id: existingTarget.id,
                         name: existingTarget.name,
-                        kind: 'embedded',
-                        instance: stripUndefined({
-                            mode: 'existing' as const,
-                            baseUrl: instance.baseUrl,
-                            name: instance.name,
-                            instanceIdentifier: instance.instanceIdentifier,
-                            verification: instance.verification,
-                        }),
+                        kind: 'external-instance',
+                        url: instance.baseUrl,
+                        instanceIdentifier: instance.instanceIdentifier,
+                        verification: instance.verification,
                         description: existingTarget.description,
                     };
                 }
                 if (apiKey) this.manager.saveApiKey(existingTarget.id, apiKey);
-                let existingEnvironment = environments.find((environment) => environment.instanceTargetId === existingTarget.id);
+                let existingEnvironment = environments.find((environment) => environment.environmentTargetId === existingTarget.id);
                 if (!existingEnvironment) {
                     const environmentName = this.uniqueDisplayName(instance.name || instance.baseUrl || instance.id, environmentNames);
                     const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
@@ -1285,7 +1273,7 @@ export class ConfigService {
                     existingEnvironment = stripUndefined({
                         id: environmentId,
                         name: environmentName,
-                        instanceTargetId: existingTarget.id,
+                        environmentTargetId: existingTarget.id,
                         projectId: instance.defaultProject?.id || 'personal',
                         projectName: instance.defaultProject?.name || 'Personal',
                         syncFolder: `workflows/${this.slugId(environmentName)}`,
@@ -1308,22 +1296,18 @@ export class ConfigService {
                 ? 'workflows'
                 : `workflows/${this.slugId(environmentName)}`;
 
-            instanceTargets.push({
+            environmentTargets.push({
                 id: targetId,
                 name: targetName,
-                kind: 'embedded',
-                instance: stripUndefined({
-                    mode: 'existing' as const,
-                    baseUrl: instance.baseUrl,
-                    name: instance.name,
-                    instanceIdentifier: instance.instanceIdentifier,
-                    verification: instance.verification,
-                }),
+                kind: 'external-instance',
+                url: instance.baseUrl,
+                instanceIdentifier: instance.instanceIdentifier,
+                verification: instance.verification,
             });
             environments.push(stripUndefined({
                 id: environmentId,
                 name: environmentName,
-                instanceTargetId: targetId,
+                environmentTargetId: targetId,
                 projectId,
                 projectName,
                 syncFolder,
@@ -1342,7 +1326,7 @@ export class ConfigService {
         this.writeWorkspaceConfigV4(stripUndefined({
             version: 4 as const,
             activeEnvironmentId,
-            instanceTargets,
+            environmentTargets,
             environments,
         }));
 
@@ -1398,7 +1382,7 @@ export class ConfigService {
     }
 
     private hasRootLegacyInstance(raw: Record<string, unknown>): boolean {
-        return Boolean(asString(raw.host) || asString(raw.baseUrl));
+        return Boolean(asString(raw.host) || asString(raw.url) || asString(raw.baseUrl));
     }
 
     private toLegacyInstance(candidate: unknown, root: Record<string, unknown>, index: number, useRootActiveInstanceId: boolean): ILegacyWorkspaceMigrationInstance | undefined {
@@ -1407,7 +1391,7 @@ export class ConfigService {
         }
         const value = candidate as Record<string, unknown>;
         const id = asString(value.id) || (useRootActiveInstanceId ? asString(root.activeInstanceId) : undefined) || `legacy-${index + 1}`;
-        const host = asString(value.host) || asString(value.baseUrl) || asString(root.host) || asString(root.baseUrl);
+        const host = asString(value.host) || asString(value.url) || asString(value.baseUrl) || asString(root.host) || asString(root.url) || asString(root.baseUrl);
         const name = asString(value.name) || host || id;
         return stripUndefined({
             id,
@@ -1496,7 +1480,7 @@ export class ConfigService {
         try {
             return this.ensureV4WorkspaceConfig();
         } catch {
-            return { version: 4, instanceTargets: [], environments: [] };
+            return { version: 4, environmentTargets: [], environments: [] };
         }
     }
 
@@ -1519,22 +1503,23 @@ export class ConfigService {
     }
 
     private sanitizeV4Config(raw: any): IPersistedWorkspaceConfigV4 {
-        if (!Array.isArray(raw.instanceTargets)) {
-            throw new Error('Invalid v4 workspace config: instanceTargets must be an array.');
+        const rawTargets = Array.isArray(raw.environmentTargets) ? raw.environmentTargets : raw.instanceTargets;
+        if (!Array.isArray(rawTargets)) {
+            throw new Error('Invalid v4 workspace config: environmentTargets must be an array.');
         }
         if (!Array.isArray(raw.environments)) {
             throw new Error('Invalid v4 workspace config: environments must be an array.');
         }
-        const rawInstanceTargets = raw.instanceTargets as unknown[];
+        const rawInstanceTargets = rawTargets as unknown[];
         const rawEnvironments = raw.environments as unknown[];
-        const instanceTargets = rawInstanceTargets.map((target, index) => this.sanitizeInstanceTarget(target, index));
+        const environmentTargets = rawInstanceTargets.map((target, index) => this.sanitizeInstanceTarget(target, index));
         const environments = rawEnvironments.map((environment, index) => this.sanitizeEnvironment(environment, index));
-        this.assertUniqueIdsAndNames(instanceTargets, 'instance target');
+        this.assertUniqueIdsAndNames(environmentTargets, 'instance target');
         this.assertUniqueIdsAndNames(environments, 'environment');
-        const targetIds = new Set(instanceTargets.map((target) => target.id));
+        const targetIds = new Set(environmentTargets.map((target) => target.id));
         for (const environment of environments) {
-            if (!targetIds.has(environment.instanceTargetId)) {
-                throw new Error(`Invalid v4 workspace config: environment "${environment.name}" references unknown instance target "${environment.instanceTargetId}".`);
+            if (!targetIds.has(environment.environmentTargetId)) {
+                throw new Error(`Invalid v4 workspace config: environment "${environment.name}" references unknown instance target "${environment.environmentTargetId}".`);
             }
         }
         if (typeof raw.activeEnvironmentId === 'string' && raw.activeEnvironmentId && !environments.some((environment) => environment.id === raw.activeEnvironmentId)) {
@@ -1543,12 +1528,12 @@ export class ConfigService {
         return stripUndefined({
             version: 4 as const,
             activeEnvironmentId: typeof raw.activeEnvironmentId === 'string' ? raw.activeEnvironmentId : undefined,
-            instanceTargets,
+            environmentTargets,
             environments,
         });
     }
 
-    private sanitizeInstanceTarget(target: any, index: number): IWorkspaceInstanceTarget {
+    private sanitizeInstanceTarget(target: any, index: number): IEnvironmentTarget {
         if (!target || typeof target !== 'object') {
             throw new Error(`Invalid v4 workspace config: instance target at index ${index} must be an object.`);
         }
@@ -1557,33 +1542,27 @@ export class ConfigService {
         if (!id || !name) {
             throw new Error(`Invalid v4 workspace config: instance target at index ${index} needs id and name.`);
         }
-        if (target.kind === 'global-ref') {
-            if (target.instance) throw new Error(`Invalid v4 workspace config: global-ref target "${name}" must not embed instance details.`);
-            const instanceRef = cleanOptional(target.instanceRef);
-            if (!instanceRef) throw new Error(`Invalid v4 workspace config: global-ref target "${name}" needs instanceRef.`);
-            return stripUndefined({ id, name, kind: 'global-ref' as const, instanceRef, description: cleanOptional(target.description) });
+        const kind = target.kind === 'global-ref' ? 'managed-instance' : target.kind === 'embedded' ? 'external-instance' : target.kind;
+        if (kind === 'managed-instance') {
+            if (target.instance) throw new Error(`Invalid v4 workspace config: managedInstance target "${name}" must not embed instance details.`);
+            const managedInstanceId = cleanOptional(target.managedInstanceId) || cleanOptional(target.instanceRef);
+            if (!managedInstanceId) throw new Error(`Invalid v4 workspace config: managedInstance target "${name}" needs managedInstanceId.`);
+            return stripUndefined({ id, name, kind: 'managed-instance' as const, managedInstanceId, description: cleanOptional(target.description) });
         }
-        if (target.kind === 'embedded') {
-            if (target.instanceRef) throw new Error(`Invalid v4 workspace config: embedded target "${name}" must not define instanceRef.`);
+        if (kind === 'external-instance') {
+            if (target.managedInstanceId) throw new Error(`Invalid v4 workspace config: externalInstance target "${name}" must not define managedInstanceId.`);
             if (target.instance?.apiKey || target.instance?.token || target.instance?.password || target.apiKey || target.token || target.password) {
-                throw new Error(`Invalid v4 workspace config: embedded target "${name}" must not contain secrets.`);
+                throw new Error(`Invalid v4 workspace config: externalInstance target "${name}" must not contain secrets.`);
             }
-            if (target.instance?.mode && target.instance.mode !== 'existing') {
-                throw new Error(`Invalid v4 workspace config: embedded target "${name}" must use mode "existing".`);
-            }
-            const baseUrl = cleanOptional(target.instance?.baseUrl);
-            if (!baseUrl) throw new Error(`Invalid v4 workspace config: embedded target "${name}" needs instance.baseUrl.`);
+            const url = cleanOptional(target.url) || cleanOptional(target.instance?.url) || cleanOptional(target.instance?.baseUrl);
+            if (!url) throw new Error(`Invalid v4 workspace config: externalInstance target "${name}" needs url.`);
             return stripUndefined({
                 id,
                 name,
-                kind: 'embedded' as const,
-                instance: stripUndefined({
-                    mode: 'existing' as const,
-                    baseUrl,
-                    name: cleanOptional(target.instance?.name),
-                    instanceIdentifier: this.canonicalInstanceIdentifier(target.instance?.instanceIdentifier),
-                    verification: target.instance?.verification,
-                }),
+                kind: 'external-instance' as const,
+                url,
+                instanceIdentifier: this.canonicalInstanceIdentifier(target.instanceIdentifier || target.instance?.instanceIdentifier),
+                verification: target.verification || target.instance?.verification,
                 description: cleanOptional(target.description),
             });
         }
@@ -1606,9 +1585,9 @@ export class ConfigService {
         const folders = new Map<string, IWorkspaceEnvironment>();
         for (const environment of environments) {
             const folder = this.normalizeWorkspacePathKey(environment.syncFolder);
-            const existing = folders.get(folder);
-            if (existing) {
-                throw new Error(`Invalid v4 workspace config: environments "${existing.name}" and "${environment.name}" share sync folder "${environment.syncFolder}". Each environment needs a dedicated sync folder.`);
+            const externalInstance = folders.get(folder);
+            if (externalInstance) {
+                throw new Error(`Invalid v4 workspace config: environments "${externalInstance.name}" and "${environment.name}" share sync folder "${environment.syncFolder}". Each environment needs a dedicated sync folder.`);
             }
             folders.set(folder, environment);
         }
@@ -1624,15 +1603,15 @@ export class ConfigService {
         }
         const id = cleanOptional(environment.id);
         const name = cleanOptional(environment.name) || id;
-        const instanceTargetId = cleanOptional(environment.instanceTargetId);
+        const environmentTargetId = cleanOptional(environment.environmentTargetId) || cleanOptional(environment.instanceTargetId);
         const syncFolder = cleanOptional(environment.syncFolder);
-        if (!id || !name || !instanceTargetId || !syncFolder) {
-            throw new Error(`Invalid v4 workspace config: environment at index ${index} needs id, name, instanceTargetId, and syncFolder.`);
+        if (!id || !name || !environmentTargetId || !syncFolder) {
+            throw new Error(`Invalid v4 workspace config: environment at index ${index} needs id, name, environmentTargetId, and syncFolder.`);
         }
         return stripUndefined({
             id,
             name,
-            instanceTargetId,
+            environmentTargetId,
             projectId: cleanOptional(environment.projectId),
             projectName: cleanOptional(environment.projectName),
             syncFolder,
@@ -1652,15 +1631,15 @@ export class ConfigService {
             || overrides.folderSync !== undefined
             || overrides.customNodesPath
         );
-        const instanceRef = hasWorkspaceOverrides ? (overrides.activeInstanceId || this.manager.getGlobalConfig().activeInstanceId) : undefined;
-        const instanceTargets: IWorkspaceInstanceTarget[] = instanceRef
-            ? [{ id: 'default-instance', name: 'Default Instance', kind: 'global-ref', instanceRef }]
+        const managedInstanceId = hasWorkspaceOverrides ? (overrides.activeInstanceId || this.manager.getGlobalConfig().activeInstanceId) : undefined;
+        const environmentTargets: IEnvironmentTarget[] = managedInstanceId
+            ? [{ id: 'default-instance', name: 'Default Instance', kind: 'managed-instance', managedInstanceId }]
             : [];
-        const environments: IWorkspaceEnvironment[] = instanceRef
+        const environments: IWorkspaceEnvironment[] = managedInstanceId
             ? [stripUndefined({
                 id: 'default',
                 name: 'Default',
-                instanceTargetId: 'default-instance',
+                environmentTargetId: 'default-instance',
                 projectId: overrides.projectId,
                 projectName: overrides.projectName,
                 syncFolder: overrides.syncFolder || 'workflows',
@@ -1671,7 +1650,7 @@ export class ConfigService {
         return {
             version: 4,
             activeEnvironmentId: environments[0]?.id,
-            instanceTargets,
+            environmentTargets,
             environments,
         };
     }
@@ -1693,21 +1672,21 @@ export class ConfigService {
         throw new Error(`Unknown workspace environment: ${key}`);
     }
 
-    private findInstanceTarget(config: IPersistedWorkspaceConfigV4, nameOrId: string): IWorkspaceInstanceTarget {
+    private findInstanceTarget(config: IPersistedWorkspaceConfigV4, nameOrId: string): IEnvironmentTarget {
         const key = cleanRequired(nameOrId, 'Instance target');
-        const byId = config.instanceTargets.find((target) => target.id === key);
+        const byId = config.environmentTargets.find((target) => target.id === key);
         if (byId) return byId;
-        const matches = config.instanceTargets.filter((target) => target.name.toLowerCase() === key.toLowerCase());
+        const matches = config.environmentTargets.filter((target) => target.name.toLowerCase() === key.toLowerCase());
         if (matches.length === 1) return matches[0];
         if (matches.length > 1) throw new Error(`Ambiguous instance target name: ${key}`);
         throw new Error(`Unknown workspace instance target: ${key}`);
     }
 
-    private resolveEnvironmentFromTarget(environment: IWorkspaceEnvironment, target: IWorkspaceInstanceTarget, source: IResolvedWorkspaceEnvironment['sources']['environment']): IResolvedWorkspaceEnvironment {
+    private resolveEnvironmentFromTarget(environment: IWorkspaceEnvironment, target: IEnvironmentTarget, source: IResolvedWorkspaceEnvironment['sources']['environment']): IResolvedWorkspaceEnvironment {
         const syncFolder = this.resolveWorkspacePath(environment.syncFolder);
-        if (target.kind === 'global-ref') {
-            const instance = this.manager.getInstance(target.instanceRef);
-            if (!instance) throw new Error(`Workspace environment "${environment.name}" references missing global n8n-manager instance: ${target.instanceRef}`);
+        if (target.kind === 'managed-instance') {
+            const instance = this.manager.getInstance(target.managedInstanceId);
+            if (!instance) throw new Error(`Workspace environment "${environment.name}" references missing global n8n-manager instance: ${target.managedInstanceId}`);
             const host = instance.tunnelPublicUrl || instance.baseUrl || '';
             const envApiKey = this.readEnvApiKey(environment, target);
             const globalApiKey = this.manager.getApiKey(instance.id);
@@ -1717,15 +1696,15 @@ export class ConfigService {
             const instanceIdentifier = this.canonicalInstanceIdentifier(instance.instanceIdentifier);
             return {
                 environment,
-                instanceTarget: target,
+                environmentTarget: target,
                 environmentId: environment.id,
                 environmentName: environment.name,
-                instanceTargetId: target.id,
-                instanceTargetName: target.name,
+                environmentTargetId: target.id,
+                environmentTargetName: target.name,
                 activeInstanceId: instance.id,
                 activeInstanceName: instance.name,
-                targetKind: 'global-ref',
-                globalInstanceId: instance.id,
+                sourceKind: 'managed-instance',
+                managedInstanceId: instance.id,
                 instance: this.toInstanceProfile(instance),
                 host,
                 apiKey,
@@ -1741,34 +1720,34 @@ export class ConfigService {
                 customNodesPath: environment.customNodesPath,
                 sources: {
                     environment: source,
-                    instance: 'global-ref',
+                    instance: 'managed-instance',
                     project: environment.projectId || environment.projectName ? 'environment' : instance.defaultProject ? 'instance-default' : 'missing',
                     syncFolder: 'environment',
                 },
             };
         }
 
-        const host = target.instance.baseUrl;
+        const host = target.url;
         const envApiKey = this.readEnvApiKey(environment, target);
         const workspaceApiKey = this.manager.getApiKey(target.id);
         const globalApiKey = this.getApiKey(host);
         const apiKey = envApiKey || workspaceApiKey || globalApiKey;
-        const instanceIdentifier = this.canonicalInstanceIdentifier(target.instance.instanceIdentifier);
+        const instanceIdentifier = this.canonicalInstanceIdentifier(target.instanceIdentifier);
         return {
             environment,
-            instanceTarget: target,
+            environmentTarget: target,
             environmentId: environment.id,
             environmentName: environment.name,
-            instanceTargetId: target.id,
-            instanceTargetName: target.name,
+            environmentTargetId: target.id,
+            environmentTargetName: target.name,
             activeInstanceName: target.name,
-            targetKind: 'embedded',
-            instance: target.instance,
+            sourceKind: 'external-instance',
+            instance: target,
             host,
             apiKey,
             apiKeySource: envApiKey ? 'env' : workspaceApiKey ? 'workspace-local' : globalApiKey ? 'global' : 'missing',
             apiKeyAvailable: Boolean(apiKey),
-            accessStatus: this.deriveAccessStatus({ host, apiKey, projectId: environment.projectId, projectName: environment.projectName, verification: target.instance.verification }),
+            accessStatus: this.deriveAccessStatus({ host, apiKey, projectId: environment.projectId, projectName: environment.projectName, verification: target.verification }),
             syncFolder,
             projectId: environment.projectId,
             projectName: environment.projectName,
@@ -1778,14 +1757,14 @@ export class ConfigService {
             customNodesPath: environment.customNodesPath,
             sources: {
                 environment: source,
-                instance: 'embedded',
+                instance: 'external-instance',
                 project: environment.projectId || environment.projectName ? 'environment' : 'missing',
                 syncFolder: 'environment',
             },
         };
     }
 
-    private readEnvApiKey(environment: IWorkspaceEnvironment, target: IWorkspaceInstanceTarget): string | undefined {
+    private readEnvApiKey(environment: IWorkspaceEnvironment, target: IEnvironmentTarget): string | undefined {
         const candidates = [
             `N8NAC_ENV_${envVarSlug(environment.id)}_API_KEY`,
             `N8NAC_ENV_${envVarSlug(environment.name)}_API_KEY`,
@@ -1799,7 +1778,7 @@ export class ConfigService {
         return undefined;
     }
 
-    private readTargetEnvApiKey(target: IWorkspaceInstanceTarget): string | undefined {
+    private readTargetEnvApiKey(target: IEnvironmentTarget): string | undefined {
         const candidates = [
             `N8NAC_TARGET_${envVarSlug(target.id)}_API_KEY`,
             `N8NAC_TARGET_${envVarSlug(target.name)}_API_KEY`,
@@ -1811,8 +1790,8 @@ export class ConfigService {
         return undefined;
     }
 
-    private resolveExistingGlobalInstanceRef(instanceRef: unknown): string {
-        const cleaned = cleanRequired(instanceRef, 'Global instance reference');
+    private resolveExistingGlobalInstanceRef(managedInstanceId: unknown): string {
+        const cleaned = cleanRequired(managedInstanceId, 'Global instance reference');
         const instance = this.manager.getInstance(cleaned);
         if (!instance) {
             throw new Error(`Unknown global n8n-manager instance: ${cleaned}`);
@@ -1845,11 +1824,11 @@ export class ConfigService {
         }
         return stripUndefined({
             ...environment,
-            targetKind: resolved.targetKind,
-            instanceTargetName: resolved.instanceTargetName,
-            globalInstanceId: resolved.globalInstanceId,
+            sourceKind: resolved.sourceKind,
+            environmentTargetName: resolved.environmentTargetName,
+            managedInstanceId: resolved.managedInstanceId,
             instanceName: resolved.activeInstanceName,
-            baseUrl: resolved.targetKind === 'embedded' ? resolved.host : undefined,
+            url: resolved.sourceKind === 'external-instance' ? resolved.host : undefined,
             workflowDir: resolved.workflowDir,
             apiKeyAvailable: resolved.apiKeyAvailable,
             credentialSource: resolved.apiKeySource,
@@ -1857,13 +1836,13 @@ export class ConfigService {
         });
     }
 
-    private instanceTargetToSnapshot(target: IWorkspaceInstanceTarget): IWorkspaceInstanceTarget {
-        if (target.kind === 'global-ref') {
-            const instance = this.manager.getInstance(target.instanceRef);
+    private environmentTargetToSnapshot(target: IEnvironmentTarget): IEnvironmentTarget {
+        if (target.kind === 'managed-instance') {
+            const instance = this.manager.getInstance(target.managedInstanceId);
             if (!instance) {
                 return stripUndefined({
                     ...target,
-                    globalInstanceId: target.instanceRef,
+                    managedInstanceId: target.managedInstanceId,
                     apiKeyAvailable: false,
                     credentialSource: 'missing' as const,
                     accessStatus: 'runtime-unavailable' as const,
@@ -1875,26 +1854,26 @@ export class ConfigService {
             const apiKey = envApiKey || globalApiKey;
             return stripUndefined({
                 ...target,
-                globalInstanceId: instance.id,
+                managedInstanceId: instance.id,
                 instanceName: instance.name,
-                baseUrl: host,
+                url: host,
                 apiKeyAvailable: Boolean(apiKey),
                 credentialSource: envApiKey ? 'env' as const : globalApiKey ? 'global' as const : 'missing' as const,
                 accessStatus: this.deriveAccessStatus({ host, apiKey, verification: envApiKey ? undefined : instance.verification }),
             });
         }
 
-        const host = target.instance.baseUrl;
+        const host = target.url;
         const envApiKey = this.readTargetEnvApiKey(target);
         const workspaceApiKey = this.manager.getApiKey(target.id);
         const globalApiKey = this.getApiKey(host);
         const apiKey = envApiKey || workspaceApiKey || globalApiKey;
         return stripUndefined({
             ...target,
-            baseUrl: host,
+            url: host,
             apiKeyAvailable: Boolean(apiKey),
             credentialSource: envApiKey ? 'env' as const : workspaceApiKey ? 'workspace-local' as const : globalApiKey ? 'global' as const : 'missing' as const,
-            accessStatus: this.deriveAccessStatus({ host, apiKey, verification: target.instance.verification }),
+            accessStatus: this.deriveAccessStatus({ host, apiKey, verification: target.verification }),
         });
     }
 
@@ -1908,8 +1887,8 @@ export class ConfigService {
 
     private environmentToInstanceProfile(environment: IResolvedWorkspaceEnvironment): IInstanceProfile {
         return stripUndefined({
-            id: environment.activeInstanceId || environment.instanceTargetId,
-            name: environment.activeInstanceName || environment.instanceTargetName,
+            id: environment.activeInstanceId || environment.environmentTargetId,
+            name: environment.activeInstanceName || environment.environmentTargetName,
             host: environment.host,
             syncFolder: environment.syncFolder,
             projectId: environment.projectId,
@@ -1925,15 +1904,15 @@ export class ConfigService {
         if (!environment) return undefined;
         return {
             instance: {
-                id: environment.activeInstanceId || environment.instanceTargetId,
-                name: environment.activeInstanceName || environment.instanceTargetName,
-                mode: environment.targetKind === 'embedded' ? 'existing' : 'existing',
+                id: environment.activeInstanceId || environment.environmentTargetId,
+                name: environment.activeInstanceName || environment.environmentTargetName,
+                mode: 'existing',
                 baseUrl: environment.host,
                 instanceIdentifier: environment.instanceIdentifier,
                 defaultProject: environment.projectId && environment.projectName ? { id: environment.projectId, name: environment.projectName } : undefined,
             } as GlobalN8nInstance,
-            activeInstanceId: environment.activeInstanceId || environment.instanceTargetId,
-            activeInstanceName: environment.activeInstanceName || environment.instanceTargetName,
+            activeInstanceId: environment.activeInstanceId || environment.environmentTargetId,
+            activeInstanceName: environment.activeInstanceName || environment.environmentTargetName,
             apiBaseUrl: environment.host,
             host: environment.host,
             baseUrl: environment.host,
@@ -1946,12 +1925,12 @@ export class ConfigService {
             customNodesPath: environment.customNodesPath,
             environmentId: environment.environmentId,
             environmentName: environment.environmentName,
-            instanceTargetId: environment.instanceTargetId,
-            instanceTargetName: environment.instanceTargetName,
-            targetKind: environment.targetKind,
+            environmentTargetId: environment.environmentTargetId,
+            environmentTargetName: environment.environmentTargetName,
+            sourceKind: environment.sourceKind,
             apiKeySource: environment.apiKeySource,
             sources: {
-                instance: environment.targetKind === 'global-ref' ? 'workspace' : 'explicit',
+                instance: environment.sourceKind === 'managed-instance' ? 'workspace' : 'explicit',
                 syncFolder: 'workspace',
                 project: environment.projectId || environment.projectName ? 'workspace' : 'missing',
             },

@@ -150,9 +150,9 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
 
     // Root level items
     if (!element) {
-      const legacyMigrationItems = this.getLegacyMigrationItems();
-      if (legacyMigrationItems) {
-        return legacyMigrationItems;
+      const migrationItems = this.getMigrationItems();
+      if (migrationItems.length) {
+        return migrationItems;
       }
 
       switch (this.extensionState) {
@@ -223,50 +223,38 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
     return [new LoadingItem('Initializing n8n...')];
   }
 
-  private getLegacyMigrationItems(): BaseTreeItem[] | undefined {
+  private getMigrationItems(): BaseTreeItem[] {
     const workspaceRoot = getWorkspaceRoot();
-    if (!workspaceRoot) return undefined;
+    if (!workspaceRoot) return [];
 
     try {
-      const plan = new ConfigService(workspaceRoot).detectLegacyWorkspaceConfig();
-      if (!plan) return undefined;
-
-      const version = plan.version ? `v${plan.version}` : 'legacy';
-      const instanceCount = plan.instances.length;
-      const items: BaseTreeItem[] = [];
+      const configService = new ConfigService(workspaceRoot);
+      const legacyPlan = configService.detectLegacyWorkspaceConfig();
+      const globalPlan = configService.detectGlobalInstancesMigration();
+      if (!legacyPlan && !globalPlan) return [];
 
       const title = new InfoItem(
-        'Legacy n8n-as-code config detected',
         'Migration required',
+        '',
         new vscode.ThemeIcon('warning', new vscode.ThemeColor('notificationsWarningIcon.foreground'))
       );
-      title.tooltip = `This workspace uses an old ${version} config at ${plan.configPath}.`;
-      items.push(title);
+      title.tooltip = 'Run the migration to update this workspace configuration.';
 
-      items.push(new InfoItem(
-        'Migrate to n8n environments',
-        `${instanceCount} instance${instanceCount === 1 ? '' : 's'} detected`,
-        new vscode.ThemeIcon('info')
-      ));
-
-      const migrate = new InfoItem('Migrate workspace', '', new vscode.ThemeIcon('arrow-right'));
-      migrate.tooltip = 'Create a backup, then convert this workspace to n8n environments.';
+      const migrate = new InfoItem('Run migration', '', new vscode.ThemeIcon('arrow-right'));
+      migrate.tooltip = 'Run required workspace migrations.';
       migrate.command = {
-        command: 'n8n.migrateLegacyWorkspace',
-        title: 'Migrate Workspace'
+        command: 'n8n.migrateWorkspaceConfiguration',
+        title: 'Run Migration'
       };
-      items.push(migrate);
 
       const configure = new InfoItem('Open n8n environments', '', new vscode.ThemeIcon('settings-gear'));
       configure.command = {
         command: 'n8n.configure',
         title: 'Open n8n Environments'
       };
-      items.push(configure);
-
-      return items;
+      return [title, migrate, configure];
     } catch {
-      return undefined;
+      return [];
     }
   }
 

@@ -38,7 +38,7 @@ export interface N8nConfigurationSnapshot {
     instanceCount: number;
     warnings: string[];
   };
-  globalInstanceMigration?: {
+  globalInstancesMigration?: {
     configPath: string;
     activeInstanceId?: string;
     instanceCount: number;
@@ -132,7 +132,7 @@ export class N8nConfigurationController implements vscode.Disposable {
     try {
       let global = await facade.getGlobalConfig();
       const legacyPlan = configService?.detectLegacyWorkspaceConfig();
-      const globalInstancePlan = configService?.detectGlobalInstanceWorkspaceMigration();
+      const globalInstancesMigrationPlan = configService?.detectGlobalInstancesMigration();
       if (legacyPlan) {
         return this.buildSnapshot({
           workspaceRoot,
@@ -147,11 +147,11 @@ export class N8nConfigurationController implements vscode.Disposable {
             instanceCount: legacyPlan.instances.length,
             warnings: legacyPlan.warnings,
           },
-          globalInstanceMigration: globalInstancePlan ? {
-            configPath: globalInstancePlan.configPath,
-            activeInstanceId: globalInstancePlan.activeInstanceId,
-            instanceCount: globalInstancePlan.instances.length,
-            warnings: globalInstancePlan.warnings,
+          globalInstancesMigration: globalInstancesMigrationPlan ? {
+            configPath: globalInstancesMigrationPlan.configPath,
+            activeInstanceId: globalInstancesMigrationPlan.activeInstanceId,
+            instanceCount: globalInstancesMigrationPlan.instances.length,
+            warnings: globalInstancesMigrationPlan.warnings,
           } : undefined,
         });
       }
@@ -201,11 +201,11 @@ export class N8nConfigurationController implements vscode.Disposable {
         diagnostics: prepared?.diagnostics,
         hasWorkspaceConfig,
         hasValidConnection,
-        globalInstanceMigration: globalInstancePlan ? {
-          configPath: globalInstancePlan.configPath,
-          activeInstanceId: globalInstancePlan.activeInstanceId,
-          instanceCount: globalInstancePlan.instances.length,
-          warnings: globalInstancePlan.warnings,
+        globalInstancesMigration: globalInstancesMigrationPlan ? {
+          configPath: globalInstancesMigrationPlan.configPath,
+          activeInstanceId: globalInstancesMigrationPlan.activeInstanceId,
+          instanceCount: globalInstancesMigrationPlan.instances.length,
+          warnings: globalInstancesMigrationPlan.warnings,
         } : undefined,
       });
     } catch (error: any) {
@@ -239,7 +239,7 @@ export class N8nConfigurationController implements vscode.Disposable {
     hasValidConnection: boolean;
     error?: string;
     legacyMigration?: N8nConfigurationSnapshot['legacyMigration'];
-    globalInstanceMigration?: N8nConfigurationSnapshot['globalInstanceMigration'];
+    globalInstancesMigration?: N8nConfigurationSnapshot['globalInstancesMigration'];
   }): N8nConfigurationSnapshot {
     const workspace = input.workspace as any;
     const effective = input.effective as any;
@@ -252,9 +252,9 @@ export class N8nConfigurationController implements vscode.Disposable {
       activeEnvironmentId: workspace?.activeEnvironmentId || '',
       environmentId: effective?.environmentId || workspace?.activeEnvironment?.id || '',
       environmentName: effective?.environmentName || workspace?.activeEnvironment?.name || '',
-      instanceTargetId: effective?.instanceTargetId || workspace?.instanceTargetId || '',
-      instanceTargetName: effective?.instanceTargetName || workspace?.instanceTargetName || '',
-      targetKind: effective?.targetKind || workspace?.targetKind || '',
+      environmentTargetId: effective?.environmentTargetId || workspace?.environmentTargetId || '',
+      environmentTargetName: effective?.environmentTargetName || workspace?.environmentTargetName || '',
+      sourceKind: effective?.sourceKind || workspace?.sourceKind || '',
       credentialSource: effective?.apiKeySource || workspace?.credentialSource || '',
       credentialFingerprint,
       activeInstanceId: input.effective?.activeInstanceId || '',
@@ -278,10 +278,10 @@ export class N8nConfigurationController implements vscode.Disposable {
         activeInstanceId: input.legacyMigration.activeInstanceId || '',
         instanceCount: input.legacyMigration.instanceCount,
       } : undefined,
-      globalInstanceMigration: input.globalInstanceMigration ? {
-        configPath: input.globalInstanceMigration.configPath,
-        activeInstanceId: input.globalInstanceMigration.activeInstanceId || '',
-        instanceCount: input.globalInstanceMigration.instanceCount,
+      globalInstancesMigration: input.globalInstancesMigration ? {
+        configPath: input.globalInstancesMigration.configPath,
+        activeInstanceId: input.globalInstancesMigration.activeInstanceId || '',
+        instanceCount: input.globalInstancesMigration.instanceCount,
       } : undefined,
     });
 
@@ -295,7 +295,7 @@ export class N8nConfigurationController implements vscode.Disposable {
           id: instance.id,
           name: instance.name,
           mode: instance.mode,
-          baseUrl: instance.baseUrl || '',
+          url: instance.baseUrl || '',
           tunnelPublicUrl: instance.tunnelPublicUrl || '',
           apiKeyAvailable: Boolean(instance.apiKeyAvailable),
           defaultProjectId: instance.defaultProject?.id || '',
@@ -313,7 +313,7 @@ export class N8nConfigurationController implements vscode.Disposable {
       signature,
       runtimeSignature,
       legacyMigration: input.legacyMigration,
-      globalInstanceMigration: input.globalInstanceMigration,
+      globalInstancesMigration: input.globalInstancesMigration,
     };
   }
 
