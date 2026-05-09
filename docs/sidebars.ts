@@ -51,6 +51,11 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'doc',
+          id: 'usage/commands',
+          label: 'Commands',
+        },
+        {
+          type: 'doc',
           id: 'usage/cli',
           label: 'CLI',
         },

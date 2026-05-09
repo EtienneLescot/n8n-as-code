@@ -46,6 +46,8 @@ npm uninstall -g @n8n-as-code/cli
 | Instances Managées | `n8n-manager` | Local managed instances and tunnels |
 | Compat Cachée | `instance-target`, `target`, `setup`, old `workspace` mutations | Compatibility only |
 
+For a compact overview, see the [Command Glossary](/docs/usage/commands).
+
 ## Quick Start
 
 ### Existing n8n URL
