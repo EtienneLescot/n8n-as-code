@@ -5,7 +5,7 @@ description: Use when the user explicitly wants to create, edit, validate, sync,
 
 # n8n Architect
 
-Use this skill for workflow engineering. Use the `n8n-manager` skill for instance, auth, runtime, tunnel, project-default, credential infrastructure, or workflow presentation work.
+Use this skill for workflow engineering and workspace environments. Use the `n8n-manager` skill only for local managed instances and tunnels.
 
 ## Context Root Protocol
 
@@ -13,42 +13,43 @@ Use this skill for workflow engineering. Use the `n8n-manager` skill for instanc
 - {{N8NAC_CONTEXT_ROOT_HINT}}
 - Before any n8n work, first run `{{N8NAC_CMD}} update-ai` from the context root, then read `AGENTS.md`. `update-ai` is designed to create or refresh the n8n-as-code block without destroying existing user or agent instructions.
 - Use the exact `n8nac command` and `n8n-manager command` listed in `AGENTS.md`. Those context-root commands override the portable examples in this skill.
-- Run every `{{N8NAC_CMD}} workspace ...`, `{{N8NAC_CMD}} list`, `pull`, `push`, `validate`, `test`, and `update-ai` command from the context root unless the user explicitly gives another context root.
+- Run every `{{N8NAC_CMD}} env ...`, `{{N8NAC_CMD}} workspace ...`, `{{N8NAC_CMD}} list`, `pull`, `push`, `validate`, `test`, and `update-ai` command from the context root unless the user explicitly gives another context root.
 - `AGENTS.md` is bootstrap context only, not a source of configuration truth.
-- Do not infer instance, project, sync folder, or workflow directory from `AGENTS.md`.
+- Do not infer environment, project, sync folder, or workflow directory from `AGENTS.md`.
 - Before n8n work, resolve the effective context from the backend:
 
 ```bash
-{{N8NAC_CMD}} workspace status --json
+{{N8NAC_CMD}} env status --json
 ```
 
 - Use the returned `workflowDir` for workflow files. Do not reconstruct it from `syncFolder`, `instanceIdentifier`, or `projectName`.
-- Never write `n8nac-config.json` by hand. Use `{{N8NAC_CMD}} workspace ...` commands.
+- Never write `n8nac-config.json` by hand. Use `{{N8NAC_CMD}} env ...` commands for workspace environments.
 
 ## Bootstrap Order
 
 1. `cd` to the context root.
 2. Run `{{N8NAC_CMD}} update-ai`, then read `AGENTS.md`.
-3. Run `{{N8NAC_CMD}} workspace status --json`.
-4. If the context root is not ready, inspect instances with `{{N8N_MANAGER_CMD}} instances list`.
-5. Reuse an existing instance when suitable.
-6. If no suitable instance exists, stop and ask the user whether they want to reuse/configure an existing instance, create a managed local n8n instance, or connect an existing/remote n8n instance. Do not create infrastructure by default. If the user chooses a managed local instance, ask separately whether they want a public tunnel.
-7. Ask for host/API key only for an explicitly remote or existing n8n instance.
-8. Configure context-root overrides with:
+3. Run `{{N8NAC_CMD}} env status --json`.
+4. If the context root is not ready, inspect managed local instances with `{{N8N_MANAGER_CMD}} instance list`.
+5. Reuse an existing environment or managed local instance when suitable.
+6. If no suitable environment exists, stop and ask the user whether they want to connect a remote n8n URL or create/reuse a managed local n8n instance. Do not create infrastructure by default. If the user chooses a managed local instance, ask separately whether they want a public tunnel.
+7. Ask for host/API key only for an explicitly remote n8n environment.
+8. Configure the environment with:
 
 ```bash
-{{N8NAC_CMD}} workspace pin-instance --instance-id <id>
-{{N8NAC_CMD}} workspace set-sync-folder workflows
-{{N8NAC_CMD}} workspace set-project --project-id <id> --project-name <name>
+{{N8NAC_CMD}} env add <name> --base-url <url> --sync-folder workflows/<name>
+{{N8NAC_CMD}} env auth set <name> --api-key-stdin
+{{N8NAC_CMD}} env use <name>
 ```
 
-For self-hosted n8n instances where the projects API is unavailable or returns 401/403, do not keep retrying project discovery. Use the standard personal project override unless the user gave another project:
+For a managed local instance:
 
 ```bash
-{{N8NAC_CMD}} workspace set-project --project-id personal --project-name Personal
+{{N8NAC_CMD}} env add Local --managed-instance <id> --sync-folder workflows/local
+{{N8NAC_CMD}} env use Local
 ```
 
-9. Run `{{N8NAC_CMD}} update-ai` after changing context-root overrides when the facade does not do it automatically.
+9. Run `{{N8NAC_CMD}} update-ai` after changing environments when the facade does not do it automatically.
 
 ## Sync Discipline
 
@@ -63,7 +64,7 @@ For self-hosted n8n instances where the projects API is unavailable or returns 4
 ```
 
 - `push` requires the full workflow file path, either absolute or context-root-relative. Do not pass a bare filename.
-- For a new workflow, create the file inside the `workflowDir` returned by `workspace status --json`, then confirm it with `{{N8NAC_CMD}} list --local`.
+- For a new workflow, create the file inside the `workflowDir` returned by `env status --json`, then confirm it with `{{N8NAC_CMD}} list --local`.
 - If push/pull reports a conflict, use explicit resolution commands. Do not overwrite remote changes blindly.
 - `pull` and conflict resolution operate on a single workflow ID.
 - `list` is the lightweight command that covers all workflows at once.
@@ -357,7 +358,7 @@ When a workflow is blocked by missing credentials, resolve the credential gap wi
 
 For most workflow tasks:
 
-1. Resolve context with `workspace status --json`.
+1. Resolve context with `env status --json`.
 2. Read `workflowDir` from the backend response.
 3. Inspect existing workflows with `list`.
 4. Pull before editing an existing workflow.
@@ -373,7 +374,7 @@ For most workflow tasks:
 
 - Explain concrete actions and command results, not generic capability.
 - When the user asks for an URL or visual inspection of a workflow, run `presentWorkflowResult` instead of composing a URL manually.
-- If setup is missing, use `n8n-manager` for instance/auth/runtime and `n8nac workspace ...` for context-root overrides.
-- Do not ask for host/API key until existing n8n-manager instances have been inspected.
+- If setup is missing, use `n8nac env ...` for workspace environments and `n8n-manager` only for managed local instances.
+- Do not ask for host/API key unless the user chooses a remote n8n environment.
 - Do not tell the user to run setup commands when you can run non-interactive commands yourself.
 - Stop after two repeated failures with the same diagnostic and report the backend error clearly.

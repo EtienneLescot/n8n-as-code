@@ -6,9 +6,9 @@ This package powers the shared n8n ontology behind `n8n-as-code`: searchable nod
 
 > **⚠️ BREAKING CHANGE (v0.16.0)**: Workflows are now generated and documented in **TypeScript format** (`.workflow.ts`) instead of JSON for better AI compatibility and readability.
 
-> **BREAKING CHANGE (v2.0.0)**: Generated agent context now assumes the split runtime model: use `n8n-manager` for global instance/auth/runtime/project state and `n8nac workspace` for workspace overrides. Legacy workspace-local instance libraries are no longer treated as the runtime source of truth.
+> **BREAKING CHANGE (v2.0.0)**: Generated agent context now assumes the environment model: use `n8nac env` for workspace environments, `n8nac workspace` for migration/status/upgrade, and `n8n-manager` for local managed instances. Legacy workspace-local instance libraries are no longer treated as the source of truth.
 
-Runtime documentation: [n8n-manager guide](https://n8nascode.dev/docs/usage/n8n-manager/) · [CLI workspace commands](https://n8nascode.dev/docs/usage/cli/#workspace) · [Skills guide](https://n8nascode.dev/docs/usage/skills/)
+Documentation: [CLI guide](https://n8nascode.dev/docs/usage/cli/) · [n8n-manager guide](https://n8nascode.dev/docs/usage/n8n-manager/) · [Skills guide](https://n8nascode.dev/docs/usage/skills/)
 
 > **📌 Internal Library** — This package is not meant to be used directly. Public access is via [`n8nac`](https://www.npmjs.com/package/n8nac): `npx n8nac skills <command>`.
 

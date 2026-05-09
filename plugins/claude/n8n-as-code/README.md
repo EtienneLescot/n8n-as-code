@@ -2,19 +2,16 @@
 
 Slim Claude Code plugin package for `n8n-as-code`.
 
-This directory is the actual plugin root used by the marketplace entry, so Claude Code installs only the plugin files instead of copying the whole monorepo.
+This directory is the install payload used by the marketplace entry, so Claude Code installs only the plugin files instead of copying the full monorepo.
 
-> **Status:** Beta / Pending Review  
-> Until the official Claude Code listing is approved, the recommended install path is the repo-hosted alternative marketplace:
->
-> ```text
-> /plugin marketplace add https://github.com/EtienneLescot/n8n-as-code
-> /plugin install n8n-as-code@n8nac-marketplace
-> ```
->
-> Use the full HTTPS URL here because the `owner/repo` shorthand may trigger an SSH clone in Claude Code, which fails if GitHub SSH keys are not configured.
->
-> This folder remains the install payload behind that marketplace entry.
+## Install
+
+```text
+/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code
+/plugin install n8n-as-code@n8nac-marketplace
+```
+
+Use the full HTTPS URL because the `owner/repo` shorthand may trigger SSH cloning.
 
 ## Included
 
@@ -23,40 +20,51 @@ This directory is the actual plugin root used by the marketplace entry, so Claud
 - `skills/n8n-architect/SKILL.md`
 - `skills/n8n-architect/README.md`
 
+## Command Model
+
+| Group | Command | Purpose |
+|---|---|---|
+| Usage Principal | `n8nac env` | Workspace environments |
+| Maintenance Workspace | `n8nac workspace` | Status, migration, upgrade |
+| Instances Managées | `n8n-manager` | Local managed instances and tunnels |
+
 ## After Install
 
-Initialize your workspace with:
+Ask Claude to initialize n8n-as-code in the workspace. Manual equivalent:
 
 ```bash
-n8n-manager instances list
-# Reuse an instance, create a managed local instance, or add remote auth through n8n-manager.
-npx --yes n8nac workspace status --json
-npx --yes n8nac workspace set-sync-folder workflows
-npx --yes n8nac update-ai
+n8nac env add Dev --base-url <url> --sync-folder workflows/dev
+n8nac env auth set Dev --api-key-stdin
+n8nac env use Dev
+n8nac update-ai
 ```
 
-`AGENTS.md` is a lightweight context-root bootstrap. It points agents to the local `.agents/skills` copies and to `n8nac workspace status --json`, which resolves effective state through the backend.
+For a managed local instance:
 
-Runtime state is split in v2: `n8n-manager` stores global instances and API keys, while `n8nac-config.json` stores workspace overrides. To pin the workspace to a specific global instance, run `n8n-manager instances list` and `npx --yes n8nac workspace pin-instance --instance-id <instanceId>`.
+```bash
+n8n-manager instance list
+n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+```
+
+`AGENTS.md` is a lightweight context-root bootstrap. It points agents to local `.agents/skills` copies and to `n8nac env status`.
 
 ## Prerelease Marketplace
-
-To test the prerelease plugin from the `next` branch, add the marketplace with the branch suffix and use matching npm prerelease tags for any manual commands:
 
 ```text
 /plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#next
 /plugin install n8n-as-code@n8nac-marketplace
 ```
 
+Manual prerelease commands should use matching npm tags:
+
 ```bash
-npx --yes @n8n-as-code/n8n-manager@next instances list
-npx --yes n8nac@next workspace status --json
-npx --yes n8nac@next update-ai
+npx --yes n8nac@next env list
+npx --yes @n8n-as-code/n8n-manager@next instance list
 ```
 
-The prerelease plugin payload is stamped so its bundled skills call `n8nac@next` and `@n8n-as-code/n8n-manager@next`; the commands above are only needed when you run setup manually.
+## MCP
 
-For Claude Desktop or other MCP clients, use:
+For Claude Desktop or other MCP clients:
 
 ```json
 {
@@ -71,7 +79,7 @@ For Claude Desktop or other MCP clients, use:
 
 Full documentation: https://n8nascode.dev/docs/usage/claude-plugin/
 
-Runtime documentation: https://n8nascode.dev/docs/usage/n8n-manager/
+n8n-manager documentation: https://n8nascode.dev/docs/usage/n8n-manager/
 
 ## Source Repository
 

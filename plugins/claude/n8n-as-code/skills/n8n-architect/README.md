@@ -8,13 +8,12 @@ Turns Claude into a specialized n8n workflow engineer using the `n8nac` CLI and 
 
 ## Recommended Claude Code setup
 
-After installing the plugin, configure the target workspace with the two CLI responsibilities: `n8n-manager` owns n8n instance/auth/project state, and `n8nac workspace` owns local workspace overrides. `update-ai` refreshes the generated context later:
+After installing the plugin, configure the target workspace with an n8n environment. `n8nac env` owns workspace context, `n8nac workspace` owns status/migration/upgrade, and `n8n-manager` owns only local managed instances. `update-ai` refreshes the generated context later:
 
 ```bash
-n8n-manager auth set --url <your-n8n-url> --api-key-stdin
-n8n-manager projects list
-n8n-manager projects select <project-id-or-name>
-npx --yes n8nac workspace set-sync-folder workflows
+npx --yes n8nac env add Dev --base-url <your-n8n-url> --sync-folder workflows/dev
+npx --yes n8nac env auth set Dev --api-key-stdin
+npx --yes n8nac env use Dev
 npx --yes n8nac update-ai
 ```
 

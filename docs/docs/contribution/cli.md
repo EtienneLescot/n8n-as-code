@@ -250,13 +250,13 @@ n8nac --help
 ```
 
 ### Testing with Local n8n
-1. Start a local n8n instance
-2. Get API key from n8n settings
-3. Configure runtime and workspace:
+1. Start a local n8n instance.
+2. Get an API key from n8n settings.
+3. Configure a workspace environment:
 ```bash
-n8n-manager auth set --url <url> --api-key-stdin
-n8n-manager projects select <project-id-or-name>
-n8nac workspace set-sync-folder workflows
+n8nac env add Dev --base-url <url> --sync-folder workflows/dev
+n8nac env auth set Dev --api-key-stdin
+n8nac env use Dev
 ```
 
 ## 🔧 Adding New Commands
@@ -330,10 +330,22 @@ beforeEach(() => {
   mockFs({
     'workflows': {},
     'n8nac-config.json': JSON.stringify({
-      version: 3,
-      projectId: 'personal',
-      projectName: 'Personal',
-      syncFolder: 'workflows'
+      version: 4,
+      activeEnvironmentId: 'dev',
+      environments: [{
+        id: 'dev',
+        name: 'Dev',
+        instanceTargetId: 'dev',
+        projectId: 'personal',
+        projectName: 'Personal',
+        syncFolder: 'workflows/dev'
+      }],
+      instanceTargets: [{
+        id: 'dev',
+        name: 'Dev',
+        kind: 'embedded',
+        instance: { mode: 'existing', baseUrl: 'http://test.n8n' }
+      }]
     })
   });
   
@@ -407,8 +419,9 @@ curl -H "X-N8N-API-KEY: your-key" https://your-n8n.com/api/v1/workflows
 ```
 
 #### Configuration Not Found
-1. Check current directory for `n8nac-config.json`
-2. Run `n8nac workspace set-sync-folder workflows` to create config
+1. Check current directory for `n8nac-config.json`.
+2. Run `n8nac env add Dev --base-url <url> --sync-folder workflows/dev` to create an environment.
+3. Run `n8nac env auth set Dev --api-key-stdin` to store the local API key.
 
 #### Sync Conflicts
 1. Review conflict details in output

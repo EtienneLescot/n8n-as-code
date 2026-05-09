@@ -1,33 +1,34 @@
 ---
 name: n8n-manager
-description: Use when the user needs n8n instance, runtime, tunnel, auth, project, credential, or workflow presentation management through n8n-manager.
+description: Use when the user needs local managed n8n instances, Docker lifecycle, tunnels, or machine-local instance operations through n8n-manager.
 ---
 
 # n8n Manager
 
-Use this skill for global n8n instance management. `n8n-manager` is the source of truth for instances, runtime state, tunnels, API keys, managed owner credentials, default projects, and workflow presentation links.
+Use this skill for **instances managées**: local managed n8n instances, Docker lifecycle, tunnels, and machine-local operations. Workspace environments are owned by `n8nac env`.
 
 ## Responsibility Boundary
 
 - Generated context root hint: not embedded. Use the shell launch directory or the workspace path explicitly given by the user.
 - If `n8nac` is available, first run `npx --yes n8nac update-ai` from the context root, then read `AGENTS.md`. `update-ai` is designed to create or refresh the n8n-as-code block without destroying existing user or agent instructions.
 - Use the exact `n8n-manager command` and `n8nac command` listed in `AGENTS.md` when present. Those context-root commands override the portable examples in this skill.
-- Use `npx --yes @n8n-as-code/n8n-manager` for global instance, auth, runtime, tunnel, project-default, credential, and workflow-presentation operations.
-- Use `npx --yes n8nac workspace ...` only for context-root overrides such as pinned instance, sync folder, and project override.
+- Use `npx --yes @n8n-as-code/n8n-manager` for local managed instance and tunnel operations.
+- Use `npx --yes n8nac env ...` for workspace environments, remote URLs, local API-key binding, active environment, projects, and sync folders.
+- Use `npx --yes n8nac workspace ...` only for status, migration, or upgrade.
 - Use `npx --yes n8nac` workflow commands only after the effective context is ready.
 - Never edit `n8nac-config.json`, `~/.n8n-manager`, or n8n-manager secret files by hand.
 
 ## Core Commands
 
-Inspect existing instances before changing state:
+Inspect existing managed instances before changing local machine state:
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager instances list
-npx --yes @n8n-as-code/n8n-manager instances --help
+npx --yes @n8n-as-code/n8n-manager instance list
+npx --yes @n8n-as-code/n8n-manager instance --help
 npx --yes @n8n-as-code/n8n-manager config get
 ```
 
-Do not invent n8n-manager subcommands. In particular, `instances create` and `--type local` are not valid. Use `instances add --mode ...` exactly as documented by `instances --help`.
+Do not invent n8n-manager subcommands. Use `npx --yes @n8n-as-code/n8n-manager <subcommand> --help` when unsure.
 
 ## Unconfigured Context Root
 
@@ -35,9 +36,9 @@ When the context root is not configured and no suitable existing instance is ava
 
 Present these choices clearly:
 
-- use an existing n8n-manager instance if one is available;
-- create a new managed local Docker n8n instance;
-- connect an existing or remote n8n instance with user-provided credentials.
+- use an existing managed local instance if one is available;
+- create a new managed local n8n instance;
+- configure a remote n8n URL as a workspace environment through `n8nac env`.
 
 If the user chooses a managed local Docker instance, ask the tunnel question separately:
 
@@ -50,53 +51,45 @@ Do not enable, refresh, or start a public tunnel unless the user explicitly requ
 
 Only run these commands after the user has explicitly chosen the corresponding option.
 
-Managed local Docker without public tunnel:
+Managed local instance without public tunnel:
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager instances add --name <name> --mode managed-local-docker
-npx --yes @n8n-as-code/n8n-manager instances setup <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances start <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances status <id-or-name>
+npx --yes @n8n-as-code/n8n-manager instance create
+npx --yes @n8n-as-code/n8n-manager instance start <id>
+npx --yes @n8n-as-code/n8n-manager instance list
 ```
 
-Managed local Docker with public tunnel:
+Managed local instance with public tunnel:
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager instances add --name <name> --mode managed-local-docker --tunnel
-npx --yes @n8n-as-code/n8n-manager instances setup <id-or-name> --tunnel
-npx --yes @n8n-as-code/n8n-manager instances start <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances tunnel status <id-or-name>
+npx --yes @n8n-as-code/n8n-manager instance create
+npx --yes @n8n-as-code/n8n-manager instance start <id>
+npx --yes @n8n-as-code/n8n-manager tunnel start <id>
 ```
 
-Remote or existing instances require user-provided credentials. Prefer stdin for API keys:
+Remote or existing n8n URLs are workspace environments. Prefer stdin for API keys:
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager auth set --url <url> --api-key-stdin --name <name>
-npx --yes @n8n-as-code/n8n-manager auth test --instance <id-or-name>
+npx --yes n8nac env add <name> --base-url <url> --sync-folder workflows/<name>
+npx --yes n8nac env auth set <name> --api-key-stdin
+npx --yes n8nac env use <name>
 ```
 
-Project selection is instance-level unless the context root explicitly needs a workspace override:
+Attach a managed local instance to the workspace with `n8nac env`:
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager projects list --instance <id-or-name>
-npx --yes @n8n-as-code/n8n-manager projects select <project-id-or-name> --instance <id-or-name>
+npx --yes n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+npx --yes n8nac env use Local
 ```
 
-Self-hosted n8n may not expose the projects API or may return 401/403. In that case, do not retry project discovery. Use the n8n-architect workspace override path with the standard personal project unless the user gave another project:
+Instance and tunnel operations are per managed local instance:
 
 ```bash
-npx --yes n8nac workspace set-project --project-id personal --project-name Personal
-```
-
-Runtime and tunnel operations are per instance:
-
-```bash
-npx --yes @n8n-as-code/n8n-manager instances start <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances stop <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances restart <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances tunnel status <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances tunnel start <id-or-name>
-npx --yes @n8n-as-code/n8n-manager instances tunnel refresh <id-or-name>
+npx --yes @n8n-as-code/n8n-manager instance start <id>
+npx --yes @n8n-as-code/n8n-manager instance stop <id>
+npx --yes @n8n-as-code/n8n-manager instance remove <id>
+npx --yes @n8n-as-code/n8n-manager tunnel start <id>
+npx --yes @n8n-as-code/n8n-manager tunnel stop <id>
 ```
 
 Present workflow results after creating, modifying, pushing, or running a workflow:
@@ -107,10 +100,10 @@ npx --yes @n8n-as-code/n8n-manager presentWorkflowResult --workflow-id <workflow
 
 ## Guardrails
 
-- Do not ask for host/API key before checking `instances list`.
+- Do not ask for host/API key before checking whether the task is about a remote environment or a managed local instance.
 - Do not ask for host/API key when the user wants a managed local Docker instance.
 - Do not print API keys back to the user.
-- Do not delete runtime data unless the user explicitly asks for destructive deletion.
+- Do not delete local instance data unless the user explicitly asks for destructive deletion.
 - If Docker is unavailable or the daemon is stopped, report the backend diagnostic and stop. Do not loop.
 - If a command fails repeatedly, stop after two attempts and explain the backend diagnostic.
 - For workflow credentials, inspect the required credential type before asking for secret values.

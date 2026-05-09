@@ -6,32 +6,36 @@ description: Understand the n8n-as-code monorepo architecture, component interac
 
 # Architecture Overview
 
-n8n-as-code is a monorepo built with a modular architecture that separates workflow intelligence from user-facing facades.
+n8n-as-code is a monorepo built with a modular architecture that separates workspace environments, workflow intelligence, and local managed instances.
 
 The public brand can stay unified as `n8n-as-code` / `n8nac`, but internally there are three concerns:
 
-1. **n8n runtime manager**: independent `n8n-manager` repo for n8n instances, auth/API keys, managed Docker runtime, tunnels, n8n projects, n8n credentials, and runtime diagnostics.
-2. **n8n-as-code workspace manager**: workspace-local concerns owned by this repo: sync folder, workspace project override, AI context files, local workflow directory conventions, caches, and generated helper files.
-3. **Workflow engine/commands**: workflow representation, generation, validation, schemas, templates, node knowledge, and commands that read/write workflows through a prepared n8n context.
+1. **Workspace environments**: `n8nac env` owns the repository-level source of truth: environment name, n8n endpoint or managed-instance reference, project, sync folder, and active environment.
+2. **Instances managées**: the independent `n8n-manager` repo owns local managed instances, Docker lifecycle, tunnels, and machine-local state.
+3. **Workflow engine/commands**: workflow representation, generation, validation, schemas, templates, node knowledge, and commands that read/write workflows through a resolved environment.
 
 The dependency rule is:
 
 - `n8n-manager` must not depend on `n8n-as-code` or on workspace layout.
-- Workspace management must not create, repair, or authenticate n8n instances.
-- Workflow commands may compose both contexts: the effective n8n context from `n8n-manager`, and the local workspace context from `n8n-as-code`.
-- User-facing and agent-facing tooling should treat `n8n-manager` and `n8nac` as two distinct CLIs, not as one meta-CLI.
+- Workspace environments must remain commit-safe and must not store API keys.
+- Local managed instance state must remain machine-local.
+- Workflow commands resolve through `n8nac env`, not through direct instance targeting.
+- User-facing and agent-facing tooling should treat `n8n-manager` and `n8nac` as distinct CLIs.
 
 In practice:
 
 ```txt
 n8n-manager
-  instances/auth/runtime/tunnel/projects/credentials
+  local managed instances, Docker lifecycle, tunnels
+
+n8nac env
+  workspace environments, active environment, local auth binding
 
 n8nac workspace
-  workspace status, sync folder override, workspace project override, AI context
+  status, migration, upgrade
 
 n8nac workflow commands
-  list/pull/push/sync/test/workflow/execution using a prepared n8n context
+  list/pull/push/sync/test/workflow/execution using a resolved environment
 ```
 
 For local end-to-end development across the separate repos, use the meta-workspace documented in [Local Dev Workspace](./local-dev-workspace.md). It preserves the published `npx --yes n8nac` default while letting dev runs override the command through one resolver.
