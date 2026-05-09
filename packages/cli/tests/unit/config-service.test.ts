@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import { ConfigService } from '../../src/services/config-service.js';
 
 describe('ConfigService', () => {
     let previousManagerHome: string | undefined;
+    let previousXdgConfigHome: string | undefined;
     let previousN8nApiKey: string | undefined;
     let previousTargetApiKey: string | undefined;
     let managerHome: string;
@@ -13,11 +14,13 @@ describe('ConfigService', () => {
 
     beforeEach(() => {
         previousManagerHome = process.env.N8N_MANAGER_HOME;
+        previousXdgConfigHome = process.env.XDG_CONFIG_HOME;
         previousN8nApiKey = process.env.N8N_API_KEY;
         previousTargetApiKey = process.env.N8NAC_TARGET_PRODUCTION_N8N_API_KEY;
         managerHome = mkdtempSync(path.join(tmpdir(), 'n8nac-manager-home-'));
         workspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-workspace-'));
         process.env.N8N_MANAGER_HOME = managerHome;
+        process.env.XDG_CONFIG_HOME = managerHome;
         delete process.env.N8N_API_KEY;
         delete process.env.N8NAC_TARGET_PRODUCTION_N8N_API_KEY;
     });
@@ -32,6 +35,11 @@ describe('ConfigService', () => {
             delete process.env.N8N_API_KEY;
         } else {
             process.env.N8N_API_KEY = previousN8nApiKey;
+        }
+        if (previousXdgConfigHome === undefined) {
+            delete process.env.XDG_CONFIG_HOME;
+        } else {
+            process.env.XDG_CONFIG_HOME = previousXdgConfigHome;
         }
         if (previousTargetApiKey === undefined) {
             delete process.env.N8NAC_TARGET_PRODUCTION_N8N_API_KEY;
@@ -364,7 +372,7 @@ describe('ConfigService', () => {
                 name: 'Staging',
             }),
         ]));
-        expect(new Set(workspaceConfig.environments?.map((env) => env.syncFolder)).size).toBe(2);
+        expect(new Set(workspaceConfig.environments?.map((env) => env.syncFolder)).size).toBe(1);
     });
 
     it('migrates each configured v2 instance to its own environment and keeps the active instance pinned', () => {
@@ -411,19 +419,74 @@ describe('ConfigService', () => {
                 id: 'instance-ce718986',
                 name: 'etiennel.app.n8n.cloud · Etienne Lescot',
                 projectId: 'sD2aDWI5bIJF3Km3',
-                syncFolder: 'workflows/etiennel_cloud_etienne_l/personal',
+                syncFolder: 'workflows',
             }),
             expect.objectContaining({
                 id: 'instance-86ea2ff2',
                 name: 'localhost · Etienne Lescot',
                 projectId: 'personal',
-                syncFolder: 'workflows/local_5678_etienne_l/personal',
+                syncFolder: 'workflows',
             }),
         ]));
         expect(configService.resolveEnvironment()).toMatchObject({
             environmentId: 'instance-86ea2ff2',
             host: 'http://localhost:5678',
         });
+    });
+
+    it('migrates legacy v1 credentials from the n8nac conf store', () => {
+        const legacyStoreDir = path.join(managerHome, 'n8nac-nodejs');
+        mkdirSync(legacyStoreDir, { recursive: true });
+        writeFileSync(path.join(legacyStoreDir, 'credentials.json'), JSON.stringify({
+            hosts: {
+                'https://prod.example.test': 'prod-host-key',
+            },
+            instanceProfiles: {
+                'instance-2': 'staging-profile-key',
+            },
+        }, null, 2));
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 2,
+            activeInstanceId: 'instance-2',
+            instances: [{
+                id: 'instance-1',
+                name: 'Production',
+                host: 'https://prod.example.test',
+                syncFolder: 'workflows',
+                workflowDir: 'workflows/prod/personal',
+            }, {
+                id: 'instance-2',
+                name: 'Staging',
+                host: 'https://staging.example.test',
+                syncFolder: 'workflows',
+                workflowDir: 'workflows/staging/personal',
+            }],
+        }, null, 2));
+
+        const configService = new ConfigService(workspaceRoot);
+        const migrated = configService.migrateLegacyWorkspaceConfig({ write: true });
+
+        expect(migrated.status).toBe('migrated');
+        expect(configService.getApiKey('https://prod.example.test', 'instance-1')).toBe('prod-host-key');
+        expect(configService.getApiKey('https://staging.example.test', 'instance-2')).toBe('staging-profile-key');
+        expect(configService.getWorkspaceConfig().activeEnvironmentId).toBe('instance-2');
+    });
+
+    it('resolves a host API key even when an older matching profile has no secret', () => {
+        const configService = new ConfigService(workspaceRoot);
+        configService.saveLocalConfig({ host: 'https://prod.example.test' }, {
+            instanceId: 'without-key',
+            instanceName: 'Without key',
+            setActive: false,
+        });
+        configService.saveLocalConfig({ host: 'https://prod.example.test' }, {
+            instanceId: 'with-key',
+            instanceName: 'With key',
+            setActive: false,
+            apiKey: 'stored-key',
+        });
+
+        expect(configService.getApiKey('https://prod.example.test')).toBe('stored-key');
     });
 
     it('does not synthesize an invalid instance from an empty legacy instances array', () => {
@@ -667,7 +730,7 @@ describe('ConfigService', () => {
         expect(() => configService.pinWorkspaceInstance('anything')).toThrow(/v4 environments/);
     });
 
-    it('rejects environments that share the same sync folder', () => {
+    it('allows environments to share the same sync root folder', () => {
         const configService = new ConfigService(workspaceRoot);
         const target = configService.addInstanceTarget({ name: 'Target', baseUrl: 'https://target.example.test' });
         configService.addEnvironment({
@@ -684,7 +747,7 @@ describe('ConfigService', () => {
             projectId: 'cgi',
             projectName: 'CGI',
             syncFolder: './workflows/shared',
-        })).toThrow(/dedicated sync folder/);
+        })).not.toThrow();
     });
 
     it('rejects clearing required environment sync folder on update', () => {

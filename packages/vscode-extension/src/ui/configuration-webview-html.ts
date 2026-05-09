@@ -97,6 +97,7 @@ export function getConfigurationHtml(nonce: string): string {
       gap: 10px;
     }
     .toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+    .toolbar.nowrap { flex-wrap: nowrap; align-items: center; }
     .instances { display: grid; gap: 10px; }
     .providers { display: grid; gap: 10px; }
     .provider-row {
@@ -233,6 +234,11 @@ export function getConfigurationHtml(nonce: string): string {
       height: 16px;
       fill: currentColor;
     }
+    button.icon-button.danger {
+      border-color: color-mix(in srgb, var(--vscode-errorForeground) 45%, var(--border));
+      color: var(--vscode-errorForeground);
+      background: transparent;
+    }
     button:disabled { opacity: .55; cursor: not-allowed; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .full { grid-column: 1 / -1; }
@@ -244,6 +250,7 @@ export function getConfigurationHtml(nonce: string): string {
       padding: 16px;
       background: color-mix(in srgb, var(--vscode-editor-background) 72%, transparent);
     }
+    .modal-backdrop.modal-over-environment { z-index: 20; }
     .hidden { display: none !important; }
     .modal {
       width: min(680px, 100%);
@@ -272,6 +279,15 @@ export function getConfigurationHtml(nonce: string): string {
       padding: 10px;
       white-space: pre-wrap;
     }
+    #saved {
+      display: block;
+      visibility: hidden;
+      min-height: 18px;
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+    }
+    #saved.visible { visibility: visible; }
     .message.error { color: var(--vscode-errorForeground); }
     .message.ok { color: var(--vscode-testing-iconPassed, var(--vscode-foreground)); }
     .message.warning { display: block; color: var(--vscode-editorWarning-foreground, var(--vscode-foreground)); }
@@ -489,7 +505,7 @@ export function getConfigurationHtml(nonce: string): string {
           <h2 id="environmentModalTitle">n8n environment</h2>
           <p class="muted">Create one workspace environment from an instance, project, and sync folder.</p>
         </div>
-        <div class="toolbar">
+        <div class="toolbar nowrap">
           <button id="manageInstancesFromEnvironment" class="secondary"><span aria-hidden="true">+</span> Create local instance</button>
           <button id="closeEnvironmentModal" class="secondary icon-button" aria-label="Close environment form">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.72 3 3 3.72 7.28 8 3 12.28l.72.72L8 8.72 12.28 13l.72-.72L8.72 8 13 3.72 12.28 3 8 7.28 3.72 3z" /></svg>
@@ -498,38 +514,39 @@ export function getConfigurationHtml(nonce: string): string {
       </div>
       <div class="modal-body">
         <div class="form-grid">
-          <label class="full">
+          <label class="full environment-step-connection">
             Environment name
             <input id="environmentName" type="text" placeholder="Dev" />
           </label>
-          <label class="full">
+          <label id="environmentInstanceField" class="full environment-step-connection">
             Instance
             <select id="environmentInstance"></select>
           </label>
-          <label id="environmentRemoteUrlField" class="full">
+          <label id="environmentRemoteUrlField" class="full environment-step-connection">
             URL
             <input id="environmentRemoteUrl" type="text" placeholder="https://my-instance.app.n8n.cloud" />
           </label>
-          <label id="environmentApiKeyField" class="full">
-            API key locale
+          <label id="environmentApiKeyField" class="full environment-step-connection">
+            API key
             <input id="environmentApiKey" type="password" placeholder="Leave empty if already stored locally" />
           </label>
-          <p id="environmentConnectionStatus" class="form-note full hidden"></p>
-          <div id="environmentProjectRow" class="field-row full">
+          <p id="environmentConnectionStatus" class="form-note full environment-step-connection hidden"></p>
+          <button id="loadEnvironmentProjects" class="secondary full environment-step-connection" type="button">Next</button>
+          <div id="environmentProjectRow" class="field-row full environment-step-settings">
           <label>
             Project
             <select id="environmentProject"></select>
           </label>
-            <button id="loadEnvironmentProjects" class="secondary" type="button">Load projects</button>
           </div>
-          <label id="environmentSyncField" class="full">
-            Sync folder
-            <select id="environmentSync"></select>
+          <label id="environmentSyncField" class="full environment-step-settings">
+            Sync root folder
+            <input id="environmentSync" type="text" placeholder="workflows" />
           </label>
         </div>
       </div>
       <div class="modal-foot">
         <button id="cancelEnvironmentModal" class="secondary">Cancel</button>
+        <button id="environmentBack" class="secondary" type="button">Back</button>
         <button id="saveEnvironment">Save environment</button>
       </div>
     </div>
@@ -619,6 +636,7 @@ export function getConfigurationHtml(nonce: string): string {
       closeEnvironmentModal: document.getElementById('closeEnvironmentModal'),
       cancelEnvironmentModal: document.getElementById('cancelEnvironmentModal'),
       environmentName: document.getElementById('environmentName'),
+      environmentInstanceField: document.getElementById('environmentInstanceField'),
       environmentInstance: document.getElementById('environmentInstance'),
       environmentRemoteUrlField: document.getElementById('environmentRemoteUrlField'),
       environmentRemoteUrl: document.getElementById('environmentRemoteUrl'),
@@ -631,6 +649,7 @@ export function getConfigurationHtml(nonce: string): string {
       environmentSyncField: document.getElementById('environmentSyncField'),
       environmentSync: document.getElementById('environmentSync'),
       manageInstancesFromEnvironment: document.getElementById('manageInstancesFromEnvironment'),
+      environmentBack: document.getElementById('environmentBack'),
       saveEnvironment: document.getElementById('saveEnvironment'),
       error: document.getElementById('error'),
       saved: document.getElementById('saved'),
@@ -676,6 +695,8 @@ export function getConfigurationHtml(nonce: string): string {
     let latestEnvironmentProjectRequestId = 0;
     let environmentConnectionReady = false;
     let environmentProjectsAvailable = false;
+    let environmentFormStep = 'connection';
+    let environmentValidating = false;
     let editingInstanceId = '';
     let editingTargetId = '';
     let editingEnvironmentId = '';
@@ -689,8 +710,8 @@ export function getConfigurationHtml(nonce: string): string {
     }
     function showSaved(message) {
       els.saved.textContent = message || 'Saved.';
-      els.saved.style.display = 'block';
-      setTimeout(() => { els.saved.style.display = 'none'; }, 1300);
+      els.saved.classList.add('visible');
+      setTimeout(() => { els.saved.classList.remove('visible'); }, 1300);
     }
     function normalizeHost(host) {
       const trimmed = String(host || '').trim();
@@ -719,6 +740,14 @@ export function getConfigurationHtml(nonce: string): string {
     }
     function slug(value) {
       return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'env';
+    }
+    function syncRootFromFolder(value) {
+      let normalized = String(value || '').trim().split('\\\\').join('/');
+      while (normalized.endsWith('/')) normalized = normalized.slice(0, -1);
+      if (!normalized) return 'workflows';
+      const parts = normalized.split('/').filter(Boolean);
+      if (parts.length <= 2) return normalized;
+      return parts.slice(0, -2).join('/') || 'workflows';
     }
     function projectOptionLabel(project) {
       const label = String(project.displayName || project.name || '').trim();
@@ -763,24 +792,46 @@ export function getConfigurationHtml(nonce: string): string {
     function isFallbackPersonalProjectList(projectList) {
       return projectList.length === 1 && projectList[0]?.id === 'personal' && projectList[0]?.type === 'personal';
     }
+    function environmentConnectionCandidate() {
+      const selected = selectedEnvironmentInstance();
+      const typedHost = normalizeHost(els.environmentRemoteUrl.value);
+      const selectedHost = normalizeHost(selected.baseUrl || '');
+      const host = typedHost || selectedHost;
+      const typedApiKey = els.environmentApiKey.value.trim();
+      const typedHostReplacesStored = Boolean(typedHost && selectedHost && typedHost !== selectedHost);
+      const needsApiKey = selected.mode === 'remote' && (
+        selected.source === 'manual' || typedHostReplacesStored || (!selected.apiKeyAvailable && !typedApiKey)
+      );
+      const canValidate = selected.mode === 'managed' || Boolean(host && (!needsApiKey || typedApiKey));
+      const shouldSendTypedCredentials = selected.source === 'manual' || Boolean(typedHost || typedApiKey);
+      return { selected, typedHost, selectedHost, host, typedApiKey, needsApiKey, canValidate, shouldSendTypedCredentials };
+    }
     function setEnvironmentConnectionState(connected, message, options = {}) {
       environmentConnectionReady = connected;
       environmentProjectsAvailable = Boolean(options.projectsAvailable);
+      environmentValidating = Boolean(options.validating);
+      environmentFormStep = options.step || (connected && options.advance ? 'settings' : connected ? environmentFormStep : 'connection');
+      const isSettingsStep = environmentFormStep === 'settings';
+      const selected = selectedEnvironmentInstance();
+      const isManaged = selected.mode === 'managed';
+      document.querySelectorAll('.environment-step-connection').forEach((el) => el.classList.toggle('hidden', isSettingsStep));
+      document.querySelectorAll('.environment-step-settings').forEach((el) => el.classList.toggle('hidden', !isSettingsStep));
+      els.environmentInstanceField.classList.toggle('hidden', isSettingsStep || Boolean(editingEnvironmentId));
+      els.environmentRemoteUrlField.classList.toggle('hidden', isSettingsStep || isManaged);
+      els.environmentApiKeyField.classList.toggle('hidden', isSettingsStep || isManaged);
       const hasMessage = Boolean(message);
       els.environmentConnectionStatus.classList.toggle('hidden', !hasMessage);
       els.environmentConnectionStatus.classList.toggle('error', !connected && hasMessage);
       els.environmentConnectionStatus.classList.toggle('warning', connected && hasMessage);
       els.environmentConnectionStatus.textContent = message || '';
-      els.environmentProjectRow.classList.toggle('hidden', !connected || !environmentProjectsAvailable);
+      els.environmentProjectRow.classList.toggle('hidden', !isSettingsStep || !connected || !environmentProjectsAvailable);
       els.environmentProject.disabled = !connected || !environmentProjectsAvailable;
-      els.loadEnvironmentProjects.disabled = !(connected || options.canValidate);
+      els.loadEnvironmentProjects.textContent = environmentValidating ? 'Validating...' : 'Next';
+      els.loadEnvironmentProjects.disabled = environmentValidating || !environmentConnectionCandidate().canValidate;
       els.environmentSync.disabled = !connected;
-      els.saveEnvironment.disabled = !connected;
-    }
-    function selectedInstanceNeedsApiKey(selected) {
-      if (selected.source === 'manual') return !els.environmentApiKey.value.trim();
-      if (selected.mode === 'managed') return false;
-      return !selected.apiKeyAvailable;
+      els.environmentBack.classList.toggle('hidden', !isSettingsStep);
+      els.saveEnvironment.classList.toggle('hidden', !isSettingsStep);
+      els.saveEnvironment.disabled = !isSettingsStep || !connected;
     }
     function environmentInstanceChoices() {
       const choices = [{
@@ -882,6 +933,7 @@ export function getConfigurationHtml(nonce: string): string {
       if (status === 'project-inaccessible') return badge('Project inaccessible', 'error');
       if (status === 'insufficient-workflow-permissions') return badge('Insufficient permissions', 'error');
       if (status === 'runtime-unavailable') return badge('Runtime unavailable', 'error');
+      if (item?.apiKeyAvailable) return badge('Access configured', 'ready');
       return badge('Access unknown', 'warning');
     }
     function credentialBadge(item) {
@@ -1127,7 +1179,11 @@ export function getConfigurationHtml(nonce: string): string {
       for (const env of environments()) {
         const row = document.createElement('div');
         const active = env.id === state.workspace?.activeEnvironmentId;
-        row.className = 'instance-row' + (active ? ' selected' : '');
+        row.className = 'instance-row selectable' + (active ? ' selected' : '');
+        row.title = active ? 'Selected for workspace' : 'Select for workspace';
+        row.addEventListener('click', () => {
+          if (!active) post('pinEnvironment', { environmentId: env.id });
+        });
         const main = document.createElement('div');
         main.className = 'instance-main';
         const top = document.createElement('div');
@@ -1153,9 +1209,18 @@ export function getConfigurationHtml(nonce: string): string {
         top.append(identity, status);
         const actions = document.createElement('div');
         actions.className = 'toolbar';
-        actions.append(button('Edit', 'secondary compact', () => editEnvironment(env)));
-        if (!active) actions.append(button('Pin', 'secondary compact', () => post('pinEnvironment', { environmentId: env.id })));
-        actions.append(button('Remove', 'danger compact', () => post('deleteEnvironment', { environmentId: env.id })));
+        actions.append(iconButton(
+          'Edit environment',
+          'secondary icon-button compact',
+          '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.3 1.3a1 1 0 0 1 1.4 0l2 2a1 1 0 0 1 0 1.4l-7.9 7.9-3.4.7.7-3.4 7.2-7.2zM10.6 3 3.8 9.8l-.3 1.5 1.5-.3L11.8 4.2 10.6 3z"/></svg>',
+          () => editEnvironment(env),
+        ));
+        actions.append(iconButton(
+          'Remove environment',
+          'danger icon-button compact',
+          '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2h4l1 1h3v1H2V3h3l1-1zm-2 3h8l-.6 8.2a1 1 0 0 1-1 .8H5.6a1 1 0 0 1-1-.8L4 5z"/></svg>',
+          () => post('deleteEnvironment', { environmentId: env.id }),
+        ));
         main.append(top, actions);
         row.append(main);
         els.environmentList.appendChild(row);
@@ -1246,6 +1311,18 @@ export function getConfigurationHtml(nonce: string): string {
       });
       return el;
     }
+    function iconButton(label, cls, svg, onClick) {
+      const el = document.createElement('button');
+      el.className = cls || 'icon-button';
+      el.setAttribute('aria-label', label);
+      el.title = label;
+      el.innerHTML = svg;
+      el.addEventListener('click', (event) => {
+        event.stopPropagation();
+        onClick(event);
+      });
+      return el;
+    }
     function renderProjects(selectedId, selectedName) {
       els.workspaceProject.innerHTML = '';
       const normalized = normalizeProjectSelection(workspaceProjects, selectedId, selectedName);
@@ -1297,47 +1374,27 @@ export function getConfigurationHtml(nonce: string): string {
       els.environmentProject.value = normalized.value || '';
     }
     function renderEnvironmentSyncOptions(selectedValue) {
-      const current = selectedValue || els.environmentSync.value;
-      const generated = 'workflows/' + slug(els.environmentName.value || 'env');
-      const options = [current, generated, 'workflows', state.global?.defaultSyncFolder, state.effective?.syncFolder]
-        .concat(environments().map((env) => env.syncFolder))
-        .filter(Boolean);
-      const unique = [...new Set(options)];
-      els.environmentSync.innerHTML = '';
-      for (const value of unique) {
-        const opt = document.createElement('option');
-        opt.value = value;
-        opt.textContent = value;
-        els.environmentSync.appendChild(opt);
-      }
-      els.environmentSync.value = current || generated;
+      els.environmentSync.value = syncRootFromFolder(selectedValue || els.environmentSync.value || state.global?.defaultSyncFolder || state.effective?.syncFolder || 'workflows');
+    }
+    function resetEnvironmentConnection() {
+      setEnvironmentConnectionState(false, '', { step: 'connection' });
+    }
+    function syncEnvironmentRemoteUrlFromSelection() {
+      const selected = selectedEnvironmentInstance();
+      els.environmentRemoteUrl.placeholder = 'https://my-instance.app.n8n.cloud';
+      els.environmentRemoteUrl.value = selected.baseUrl || '';
     }
     function renderEnvironmentInstanceFields() {
       const selected = selectedEnvironmentInstance();
       if (selected.source === 'action' && selected.id === 'create-local') {
         els.environmentInstance.value = 'manual:remote';
-        closeEnvironmentModal();
-        openManagedInstancesModal();
-        openModal(undefined);
+        openModal(undefined, { overEnvironment: true });
         return;
       }
       const isManaged = selected.mode === 'managed';
-      els.environmentRemoteUrlField.classList.toggle('hidden', isManaged);
-      els.environmentApiKeyField.classList.toggle('hidden', isManaged);
-      if (!isManaged && selected.baseUrl) {
-        els.environmentRemoteUrl.value = selected.baseUrl;
-      }
-      if (selected.source === 'manual' && !normalizeHost(els.environmentRemoteUrl.value)) {
-        setEnvironmentConnectionState(false, 'Enter an n8n URL and API key before selecting project or sync settings.');
-        return;
-      }
-      if (selectedInstanceNeedsApiKey(selected)) {
-        setEnvironmentConnectionState(false, 'Missing local API key. Add an API key to validate this instance before selecting project or sync settings.');
-        return;
-      }
-      setEnvironmentConnectionState(false, 'Validate the n8n connection before selecting project or sync settings.', { canValidate: true });
+      resetEnvironmentConnection();
     }
-    function openModal(instance) {
+    function openModal(instance, options = {}) {
       editingInstanceId = instance?.id || '';
       els.modalTitle.textContent = editingInstanceId ? 'Edit local instance' : 'Create local instance';
       els.modalName.value = instance?.name || '';
@@ -1346,10 +1403,12 @@ export function getConfigurationHtml(nonce: string): string {
       els.modalApiKey.value = '';
       els.modalTunnel.value = instance ? (instance.publicUrlEnabled || instance.tunnelPublicUrl || instance.tunnelTargetUrl ? 'yes' : 'no') : 'yes';
       renderModalFields();
+      els.modal.classList.toggle('modal-over-environment', Boolean(options.overEnvironment));
       els.modal.classList.remove('hidden');
     }
     function closeModal() {
       editingInstanceId = '';
+      els.modal.classList.remove('modal-over-environment');
       els.modal.classList.add('hidden');
     }
     function openManagedInstancesModal() {
@@ -1377,14 +1436,15 @@ export function getConfigurationHtml(nonce: string): string {
       renderEnvironmentControls();
       els.environmentInstance.value = instanceChoice || (env?.instanceTargetId ? 'target:' + env.instanceTargetId : els.environmentInstance.options[0]?.value || '');
       els.environmentInstance.disabled = Boolean(editingEnvironmentId);
-      const selected = selectedEnvironmentInstance();
-      els.environmentRemoteUrl.value = selected.baseUrl || '';
+      syncEnvironmentRemoteUrlFromSelection();
       els.environmentApiKey.value = '';
       renderEnvironmentInstanceFields();
       renderEnvironmentProjectOptions(env?.projectId || state.effective?.projectId || 'personal', env?.projectName || state.effective?.projectName || '');
       renderEnvironmentSyncOptions(env?.syncFolder || (els.environmentName.value ? 'workflows/' + slug(els.environmentName.value) : 'workflows/dev'));
       els.environmentModal.classList.remove('hidden');
-      if (selected.mode !== 'managed') loadEnvironmentProjects(env);
+      if (editingEnvironmentId && selectedEnvironmentInstance().mode === 'remote') {
+        post('loadEnvironmentEditCredentials', { environmentId: editingEnvironmentId });
+      }
     }
     function closeEnvironmentModal() {
       clearEnvironmentForm();
@@ -1402,6 +1462,7 @@ export function getConfigurationHtml(nonce: string): string {
       els.environmentName.value = '';
       els.environmentInstance.disabled = false;
       els.environmentInstance.value = els.environmentInstance.options[0]?.value || '';
+      syncEnvironmentRemoteUrlFromSelection();
       els.environmentRemoteUrl.value = '';
       els.environmentApiKey.value = '';
       renderEnvironmentInstanceFields();
@@ -1409,26 +1470,27 @@ export function getConfigurationHtml(nonce: string): string {
       renderEnvironmentSyncOptions('workflows/dev');
     }
     function loadEnvironmentProjects(env) {
-      const selected = selectedEnvironmentInstance();
-      if (selected.source === 'manual' && !normalizeHost(els.environmentRemoteUrl.value)) {
-        setEnvironmentConnectionState(false, 'Enter an n8n URL and API key before validating the connection.');
+      const candidate = environmentConnectionCandidate();
+      const selected = candidate.selected;
+      if (selected.mode === 'managed') {
+        setEnvironmentConnectionState(true, '', { projectsAvailable: false, step: 'settings' });
         return;
       }
-      if (selectedInstanceNeedsApiKey(selected)) {
-        setEnvironmentConnectionState(false, 'Missing local API key. Add an API key to validate this instance.');
+      if (!candidate.canValidate) {
+        setEnvironmentConnectionState(false, '', { step: 'connection' });
         return;
       }
       const requestId = ++projectRequestSeq;
       latestEnvironmentProjectRequestId = requestId;
       els.loadEnvironmentProjects.disabled = true;
-      setEnvironmentConnectionState(false, 'Validating n8n connection...', { canValidate: false });
+      setEnvironmentConnectionState(false, 'Validating n8n connection...', { validating: true, step: 'connection' });
       post('loadProjects', {
         scope: 'environment',
         requestId,
-        instanceId: selected.source === 'global' ? selected.id : '',
-        instanceTargetId: selected.source === 'target' ? selected.id : '',
-        host: selected.source === 'manual' ? normalizeHost(els.environmentRemoteUrl.value) : '',
-        apiKey: selected.source === 'manual' ? els.environmentApiKey.value : '',
+        instanceId: !candidate.shouldSendTypedCredentials && selected.source === 'global' ? selected.id : '',
+        instanceTargetId: !candidate.shouldSendTypedCredentials && selected.source === 'target' ? selected.id : '',
+        host: candidate.shouldSendTypedCredentials ? candidate.host : '',
+        apiKey: candidate.shouldSendTypedCredentials ? candidate.typedApiKey : '',
         environmentId: editingEnvironmentId || '',
         projectId: env?.projectId || els.environmentProject.value || '',
         projectName: env?.projectName || els.environmentProject.selectedOptions[0]?.dataset.projectName || '',
@@ -1519,7 +1581,10 @@ export function getConfigurationHtml(nonce: string): string {
     els.providerSelectModel.addEventListener('click', () => post('selectProviderModel', { provider: providers().find((provider) => provider.selected)?.id || 'openai' }));
     els.openManagedInstances.addEventListener('click', openManagedInstancesModal);
     els.closeManagedInstances.addEventListener('click', closeManagedInstancesModal);
-    els.addInstance.addEventListener('click', () => openModal(undefined));
+    els.addInstance.addEventListener('click', () => {
+      closeManagedInstancesModal();
+      openModal(undefined);
+    });
     els.addEnvironment.addEventListener('click', () => editEnvironment(undefined));
     els.closeModal.addEventListener('click', closeModal);
     els.cancelModal.addEventListener('click', closeModal);
@@ -1538,20 +1603,24 @@ export function getConfigurationHtml(nonce: string): string {
     els.copyCredentialPassword.addEventListener('click', () => copyText(credentialValues.password));
     els.modalMode.addEventListener('change', renderModalFields);
     els.environmentName.addEventListener('input', () => renderEnvironmentSyncOptions(els.environmentSync.value));
-    els.environmentRemoteUrl.addEventListener('input', renderEnvironmentInstanceFields);
-    els.environmentApiKey.addEventListener('input', renderEnvironmentInstanceFields);
+    els.environmentRemoteUrl.addEventListener('input', () => {
+      renderEnvironmentInstanceFields();
+    });
+    els.environmentApiKey.addEventListener('input', () => {
+      renderEnvironmentInstanceFields();
+    });
     els.environmentInstance.addEventListener('change', () => {
       if (selectedEnvironmentInstance().source === 'action') {
         renderEnvironmentInstanceFields();
         return;
       }
+      syncEnvironmentRemoteUrlFromSelection();
       renderEnvironmentInstanceFields();
-      loadEnvironmentProjects(undefined);
     });
     els.loadEnvironmentProjects.addEventListener('click', () => loadEnvironmentProjects(undefined));
+    els.environmentBack.addEventListener('click', () => setEnvironmentConnectionState(false, '', { step: 'connection' }));
     els.manageInstancesFromEnvironment.addEventListener('click', () => {
-      closeEnvironmentModal();
-      openManagedInstancesModal();
+      openModal(undefined, { overEnvironment: true });
     });
     els.targetKind.addEventListener('change', renderTargetKindFields);
     els.saveTarget.addEventListener('click', () => {
@@ -1576,8 +1645,8 @@ export function getConfigurationHtml(nonce: string): string {
         instanceId: selected.source === 'global' ? selected.id : '',
         baseUrl: selected.mode === 'remote' ? normalizeHost(els.environmentRemoteUrl.value || selected.baseUrl) : '',
         apiKey: selected.mode === 'remote' ? els.environmentApiKey.value : '',
-        projectId: selected.mode === 'managed' || !environmentProjectsAvailable ? '' : els.environmentProject.value,
-        projectName: selected.mode === 'managed' || !environmentProjectsAvailable ? '' : selectedProject?.dataset.projectName || selectedProject?.textContent || els.environmentProject.value,
+        projectId: selected.mode === 'managed' ? '' : els.environmentProject.value,
+        projectName: selected.mode === 'managed' ? '' : selectedProject?.dataset.projectName || selectedProject?.textContent || els.environmentProject.value,
         syncFolder: els.environmentSync.value,
       });
       closeEnvironmentModal();
@@ -1643,11 +1712,7 @@ export function getConfigurationHtml(nonce: string): string {
           environmentProjects = loadedProjects;
           const projectsAvailable = !isFallbackPersonalProjectList(loadedProjects);
           renderEnvironmentProjectOptions(projectsAvailable ? (message.selectedProjectId || els.environmentProject.value || 'personal') : '', projectsAvailable ? (message.selectedProjectName || '') : '');
-          setEnvironmentConnectionState(
-            true,
-            projectsAvailable ? '' : 'Connection validated. Projects API is unavailable, so the instance default project will be used.',
-            { projectsAvailable }
-          );
+          setEnvironmentConnectionState(true, '', { projectsAvailable, step: 'settings' });
         } else {
           if (requestId && requestId !== latestWorkspaceProjectRequestId) return;
           workspaceProjects = loadedProjects;
@@ -1662,11 +1727,16 @@ export function getConfigurationHtml(nonce: string): string {
         showSaved();
       } else if (message.type === 'managedCredentials') {
         openCredentialsModal(message.credentials);
+      } else if (message.type === 'environmentEditCredentials') {
+        if (message.environmentId !== editingEnvironmentId || els.environmentModal.classList.contains('hidden')) return;
+        els.environmentRemoteUrl.value = message.host || els.environmentRemoteUrl.value;
+        els.environmentApiKey.value = message.apiKey || '';
+        setEnvironmentConnectionState(false, '', { step: 'connection' });
       } else if (message.type === 'error') {
         els.loadProjects.disabled = false;
         els.loadEnvironmentProjects.disabled = false;
         if (!els.environmentModal.classList.contains('hidden')) {
-          setEnvironmentConnectionState(false, message.message || 'Connection failed. Check the URL and API key.', { canValidate: true });
+          setEnvironmentConnectionState(false, message.message || 'Connection failed. Check the URL and API key.', { step: 'connection' });
         }
         showError(message.message || 'Unexpected error');
       } else if (message.type === 'instanceDeleted') {
