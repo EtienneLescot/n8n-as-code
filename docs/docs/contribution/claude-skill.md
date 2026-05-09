@@ -20,11 +20,11 @@ This page documents the standard agent skills distributed by `n8n-as-code`.
 
 ## Architecture
 
-`n8n-manager` owns instance, runtime, tunnel, auth, project, credential, and workflow presentation management.
+`n8n-manager` owns local managed instances, Docker lifecycle, tunnels, and machine-local operations.
 
-`n8n-architect` owns context-root workflow authoring, sync, schema lookup, validation, push/pull, and workflow testing discipline.
+`n8n-architect` owns workspace environments, context-root workflow authoring, sync, schema lookup, validation, push/pull, and workflow testing discipline.
 
-`AGENTS.md` is generated in the context root by `n8nac update-ai`, but it is only a bootstrap file. It points agents to `.agents/skills` and tells them to resolve effective state with `n8nac workspace status --json`. It must not duplicate effective instance, project, or sync-folder state.
+`AGENTS.md` is generated in the context root by `n8nac update-ai`, but it is only a bootstrap file. It points agents to `.agents/skills` and tells them to resolve effective state with `n8nac env status --json`. It must not duplicate environment, project, or sync-folder state.
 
 ## Build Output
 

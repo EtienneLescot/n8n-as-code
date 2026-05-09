@@ -1,53 +1,58 @@
 ---
 sidebar_position: 1
 title: Usage
-description: Guides for using n8n-as-code V2 with the VS Code/Cursor Agent, n8n-manager, CLI, Claude, and OpenClaw.
+description: Guides for using n8n-as-code with n8n environments, VS Code, CLI, n8n-manager, Claude, and OpenClaw.
 ---
 
 # Usage
 
-n8n-as-code V2 gives you multiple surfaces for the same workflow loop: grounded n8n knowledge, explicit local sync, real runtime context through `n8n-manager`, and AI agents that can work from your current workflow.
+n8n-as-code uses one workflow model across all surfaces: workspace environments, explicit sync, local AI context, and managed local instances when you need them.
+
+## Command Groups
+
+| Group | Command | Purpose |
+|---|---|---|
+| Usage Principal | `n8nac env` | Workspace environments and active sync context |
+| Maintenance Workspace | `n8nac workspace` | Status, migration, upgrade |
+| Instances Managées | `n8n-manager` | Local managed instances, Docker, tunnels |
+| Compat Cachée | old `target`, `setup`, and workspace mutation commands | Compatibility only |
 
 ## VS Code / Cursor Extension
 
-The recommended experience. Install the extension and use the VS Code-specific workflow UI: integrated Agent Workbench, n8n sidebar, and embedded n8n canvas.
+The recommended experience. It provides the n8n sidebar, embedded canvas, explicit sync controls, `n8n environments`, and the integrated Agent Workbench.
 
-- Agent Workbench with current workflow, selected node, instance, project, and workspace context.
-- n8n sidebar with local and remote workflow status.
-- Split view with source file and n8n canvas side by side.
-- Explicit pull, push, fetch, and conflict resolution controls.
-- Runtime actions for credentials, activation, supported executions, and inspection through `n8n-manager`.
-
-[**VS Code Extension Guide**](/docs/usage/vscode-extension)
-
-## n8n-manager
-
-The runtime foundation used by V2 surfaces. It owns n8n instances, API keys, managed local runtimes, tunnels, project selection, credential readiness, deployment, execution, and inspection.
-
-Use this guide when you need to understand where instances are stored, how projects are selected, how credentials are prepared, or how runtime execution works.
-
-[**n8n-manager Guide**](/docs/usage/n8n-manager)
+[VS Code Extension Guide](/docs/usage/vscode-extension)
 
 ## CLI
 
-The terminal interface for direct workflow operations, scripts, and CI.
+Use the CLI for scripts, CI, and direct terminal workflows:
 
-- explicit Git-like sync between local files and n8n
-- workflow validation and format conversion
-- AI context generation for local agents
-- manager-backed credential provisioning, activation, execution, and inspection
+```bash
+n8nac env add Dev --base-url <url> --sync-folder workflows/dev
+n8nac env auth set Dev --api-key-stdin
+n8nac env use Dev
+n8nac list
+n8nac pull <workflow-id>
+n8nac push workflows/dev/my-workflow.workflow.ts --verify
+```
 
-[**CLI Guide**](/docs/usage/cli)
+[CLI Guide](/docs/usage/cli)
+
+## n8n-manager
+
+Use `n8n-manager` for local managed instances only: create, start, stop, remove, and expose through tunnels.
+
+[n8n-manager Guide](/docs/usage/n8n-manager)
 
 ## Claude Plugin
 
-Use the same n8n skills in Claude Code or connect Claude Desktop through MCP. This is useful when you want Claude to create, edit, or debug workflows while staying grounded in bundled n8n schemas and docs.
+Use the same n8n skills in Claude Code or connect Claude Desktop through MCP.
 
-[**Claude Plugin Guide**](/docs/usage/claude-plugin)
+[Claude Plugin Guide](/docs/usage/claude-plugin)
 
 ## Generic Agent Skills
 
-Install the portable n8n-as-code skills from the repository skills directory for agents such as OpenCode, Codex, Hermes, or any other skill-capable coding agent:
+Install the portable skills from:
 
 ```text
 https://github.com/EtienneLescot/n8n-as-code/tree/main/skills
@@ -55,30 +60,16 @@ https://github.com/EtienneLescot/n8n-as-code/tree/main/skills
 
 If your agent asks for explicit skill paths, use `skills/n8n-manager` and `skills/n8n-architect`.
 
-Once installed, ask the agent to initialize n8n-as-code in the workspace. The agent can generate `AGENTS.md`, materialize `.agents/skills`, configure workspace context, and use `n8nac skills` behind the scenes.
-
-[**Skills Reference**](/docs/usage/skills)
+[Skills Reference](/docs/usage/skills)
 
 ## OpenClaw Plugin
 
-Install the OpenClaw plugin for portable n8n skills, workspace setup, and natural-language workflow changes inside OpenClaw.
+Install the OpenClaw plugin for portable n8n skills, workspace setup, and natural-language workflow work.
 
-[**OpenClaw Plugin Guide**](/docs/usage/openclaw)
+[OpenClaw Plugin Guide](/docs/usage/openclaw)
 
 ## TypeScript Workflows
 
-An optional decorator-based format that makes workflow files easier to read, diff, and edit with agents. It works alongside standard n8n JSON workflows and can be converted in either direction.
+An optional decorator-based format that is easier for humans and agents to read, diff, and edit.
 
-[**TypeScript Workflows Guide**](/docs/usage/typescript-workflows)
-
-## Typical Tasks
-
-| Need | Best entry point |
-|---|---|
-| Build or edit workflows with live editor context | [VS Code Extension](/docs/usage/vscode-extension) |
-| Manage instances, API keys, projects, credentials, and executions | [n8n-manager](/docs/usage/n8n-manager) |
-| Script sync, validation, conversion, or CI/CD flows | [CLI Guide](/docs/usage/cli) |
-| Ask Claude to create, update, or debug workflows | [Claude Plugin](/docs/usage/claude-plugin) |
-| Use n8n skills in a generic coding agent | [Skills Reference](/docs/usage/skills) |
-| Use n8n skills inside OpenClaw | [OpenClaw Plugin](/docs/usage/openclaw) |
-| Work in a more AI-readable source format | [TypeScript Workflows](/docs/usage/typescript-workflows) |
+[TypeScript Workflows Guide](/docs/usage/typescript-workflows)

@@ -1,184 +1,95 @@
 ---
 sidebar_position: 2
 title: Claude Plugin
-description: Use Claude to create, edit, and fix n8n workflows through the n8n-as-code plugin for Claude Code, Claude Desktop, and the Claude API.
+description: Use Claude to create, edit, and fix n8n workflows through the n8n-as-code plugin.
 ---
 
 # Claude Plugin
 
-The n8n-as-code plugin turns Claude into an n8n workflow expert. Ask for what you want in plain language — Claude handles node lookup, file editing, and sync behind the scenes.
+The n8n-as-code plugin gives Claude the same workflow model as the CLI and VS Code extension: workspace environments through `n8nac env`, workspace maintenance through `n8nac workspace`, and local managed instances through `n8n-manager`.
 
-## What You Can Do
-
-Once installed, just talk to Claude:
-
-- *"Create a workflow that watches Typeform responses and sends them to Slack"*
-- *"Add a Google Sheets node to the onboarding workflow"*
-- *"Fix the error in the invoice workflow"*
-- *"Update the AI agent workflow to use a memory node"*
-
-Claude will:
-- Guide you through setup if the workspace isn't initialized yet
-- Pull the current workflow before editing
-- Look up exact node schemas to avoid hallucinated parameters
-- Edit the workflow file safely
-- Push the result back to n8n
-
-You stay at the level of intent. The technical details are handled for you.
-
-## Installation
-
-### Claude Code (Recommended)
-
-Two commands in Claude Code:
+## Install
 
 ```text
 /plugin marketplace add https://github.com/EtienneLescot/n8n-as-code
 /plugin install n8n-as-code@n8nac-marketplace
 ```
 
-For prerelease testing from the `next` branch, add the marketplace with a branch suffix:
+Use the full HTTPS URL because the `owner/repo` shorthand can trigger SSH cloning.
+
+For prerelease testing:
 
 ```text
 /plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#next
 /plugin install n8n-as-code@n8nac-marketplace
 ```
 
-When you debug prerelease commands manually, use matching npm dist-tags:
+Manual prerelease commands should use matching npm tags:
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager@next instances list
-npx --yes n8nac@next workspace status --json
+npx --yes n8nac@next env list
+npx --yes @n8n-as-code/n8n-manager@next instance list
 ```
 
-The prerelease plugin skills are stamped to use those `@next` commands automatically.
+## Initialize A Workspace
 
-Then open your project in Claude Code and ask Claude to initialize n8n-as-code in the workspace. The installed skills guide Claude through the setup: selecting or creating the runtime context, choosing the sync folder, generating `AGENTS.md`, and materializing local copies of the portable skills:
+Ask Claude to initialize n8n-as-code in the workspace. The installed skills guide it through:
+
+- creating or selecting an n8n environment
+- storing remote API keys locally
+- creating or selecting managed local instances when needed
+- generating `AGENTS.md`
+- materializing `.agents/skills/n8n-manager` and `.agents/skills/n8n-architect`
+
+Manual equivalent:
+
+```bash
+n8nac env add Dev --base-url <url> --sync-folder workflows/dev
+n8nac env auth set Dev --api-key-stdin
+n8nac env use Dev
+n8nac update-ai
+```
+
+## Claude Desktop MCP
+
+Use the local MCP server for node search, schema lookup, examples, and validation.
+
+```json
+{
+  "mcpServers": {
+    "n8n-as-code": {
+      "command": "npx",
+      "args": ["--yes", "n8nac", "skills", "mcp"],
+      "env": {
+        "N8N_AS_CODE_PROJECT_DIR": "/absolute/path/to/your/n8n-project"
+      }
+    }
+  }
+}
+```
+
+## What Claude Uses
 
 ```text
-.agents/skills/n8n-manager/SKILL.md
-.agents/skills/n8n-architect/SKILL.md
-```
-
-Restart Claude Code if needed, then start asking for workflow changes.
-
-:::note
-The official Claude Code marketplace listing is pending review. The install path above uses an alternative marketplace hosted in the GitHub repository — it works the same way.
-
-Use the full HTTPS GitHub URL for `/plugin marketplace add`. The `owner/repo` shorthand can trigger an SSH clone and fail on machines without GitHub SSH keys configured.
-:::
-
-### Claude Desktop (MCP)
-
-Use the local MCP server to give Claude Desktop access to the n8n knowledge base.
-
-1. **Add the server to your Claude Desktop config** (`claude_desktop_config.json`):
-
-   ```json
-   {
-     "mcpServers": {
-       "n8n-as-code": {
-         "command": "npx",
-         "args": ["--yes", "n8nac", "skills", "mcp"],
-         "env": {
-           "N8N_AS_CODE_PROJECT_DIR": "/absolute/path/to/your/n8n-project"
-         }
-       }
-     }
-   }
-   ```
-
-   `N8N_AS_CODE_PROJECT_DIR` is optional but recommended — it tells the server where to find your `n8nac-config.json`.
-
-2. **Use an initialized project**. Initialize it through Claude Code, the VS Code extension, or another agent with the n8n-as-code skills installed. The generated workspace context should include `AGENTS.md`, `.agents/skills`, and `n8nac-config.json` when you need live n8n context.
-
-3. **Restart Claude Desktop** to reload the MCP server.
-
-The MCP server provides offline tools for node search, schema lookup, community workflow examples, and workflow validation.
-
-### Claude API
-
-For programmatic usage with the [skills beta](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills/use-skills-with-the-claude-api):
-
-```typescript
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-const response = await client.messages.create({
-  model: 'claude-3-7-sonnet-20250219',
-  max_tokens: 4096,
-  betas: [
-    'code-execution-2025-08-25',
-    'skills-2025-10-02',
-    'files-api-2025-04-14'
-  ],
-  container: {
-    type: 'code_execution_2025_01',
-    skills: ['n8n-architect']
-  },
-  messages: [{
-    role: 'user',
-    content: 'Create a workflow with an HTTP Request node'
-  }]
-});
-```
-
-### Claude.ai (Web)
-
-Upload the skill manually:
-
-1. Go to [claude.ai/settings/features](https://claude.ai/settings/features)
-2. Find "Custom Skills" → "Upload Skill"
-3. Upload the `n8n-manager` and `n8n-architect` skill zips (build instructions in [Contribution → Claude Adapter](/docs/contribution/claude-skill))
-
-## Multi-Agent Setups (BMAD / GSD)
-
-If you use Claude Code with planning and coding agent handoffs:
-
-1. Install the plugin
-2. Ask Claude to initialize n8n-as-code in the workspace if it has not been initialized yet
-3. Point any handoff file (e.g. `CLAUDE.md`) at `AGENTS.md` and the local skills:
-
-   ```md
-   # Claude Code Project Instructions
-
-   For any n8n task in this repository:
-   1. Read `./AGENTS.md` before planning, coding, or reviewing.
-   2. Load or read `./.agents/skills/n8n-manager/SKILL.md`.
-   3. Load or read `./.agents/skills/n8n-architect/SKILL.md`.
-   4. Resolve effective state with `n8nac workspace status --json`.
-   ```
-
-`AGENTS.md` is not a configuration source of truth. It is a context-root bootstrap that tells agents where the skills are and how to resolve effective state from the backend.
-
-## How It Works
-
-```
-User: "Add a Slack notification step to the lead intake workflow"
-         ↓
-Claude loads the n8n-architect skill
-         ↓
-Checks `AGENTS.md`, loads local skills, and resolves `n8nac workspace status --json`
-         ↓
-Runs: n8nac list / pull / skills search / node-info
-         ↓
-Edits the local .workflow.ts file with schema-backed config
-         ↓
-Validates and pushes the workflow back to n8n
+User asks for a workflow change
+Claude reads AGENTS.md and local skills
+Claude resolves n8nac env status
+Claude pulls or creates workflow files
+Claude uses n8n node schemas and docs
+Claude edits and validates the workflow
+Claude pushes when asked
 ```
 
 ## Security
 
-- Runs 100% locally — no external servers
-- Uses `n8n-manager` for instance/auth/runtime work and `n8nac` for context-root/workflow work
-- Open-source and auditable
-- See [Privacy Policy](/docs/usage/claude-plugin-privacy) for the full data handling details
+- Skills run locally.
+- Workspace environment config can be committed when it contains no secrets.
+- Remote API keys stay local.
+- Managed local instance state stays in `n8n-manager` storage.
 
 ## Related
 
-- [Getting Started](/docs/getting-started) — initial setup
-- [OpenClaw Plugin](/docs/usage/openclaw) — same AI experience inside OpenClaw
-- [CLI Reference](/docs/usage/cli) — the commands Claude uses behind the scenes
+- [Getting Started](/docs/getting-started)
+- [CLI Reference](/docs/usage/cli)
+- [n8n-manager](/docs/usage/n8n-manager)
+- [OpenClaw Plugin](/docs/usage/openclaw)

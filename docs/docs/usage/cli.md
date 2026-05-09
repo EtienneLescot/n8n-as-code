@@ -1,764 +1,314 @@
 ---
 sidebar_label: CLI
 title: CLI Guide
-description: Learn how to use the n8nac CLI for automation, scripting, and CI/CD integration.
+description: Use n8nac for workspace environments, explicit workflow sync, validation, AI context, and automation.
 ---
 
 # CLI Guide
 
-The n8nac CLI (`n8nac`) provides command-line access to all n8nac functionality. It's perfect for automation, scripting, and CI/CD integration.
+`n8nac` is the terminal interface for n8n-as-code. It owns workspace environments, workflow sync, validation, AI context, and automation.
 
-This page is intentionally command-heavy and serves as the detailed reference for terminal users, scripts, and other power-user workflows.
+Local managed instances, Docker lifecycle, and tunnels belong to `n8n-manager`.
 
-## 📦 Installation
+## Install
 
-### Global Installation
+```bash
+npx --yes n8nac <command>
+```
+
+Optional global install:
+
 ```bash
 npm install -g n8nac
 ```
 
-### Project Installation
-```bash
-npm install --save-dev n8nac
-```
-
-### Verify Installation
-```bash
-n8nac --version
-```
-
-### Updating
+For prerelease work, keep the CLI and manager on matching tags:
 
 ```bash
-npm update -g n8nac
-```
-
-To confirm the new version is active:
-
-```bash
-n8nac --version
+npx --yes n8nac@next <command>
+npx --yes @n8n-as-code/n8n-manager@next <command>
 ```
 
 :::note Migrating from `@n8n-as-code/cli`
-The CLI was previously published as `@n8n-as-code/cli`. That package is no longer maintained. The current package is **`n8nac`** (published on npm as `n8nac`).
-
-If you have both installed at the same time, the old package can shadow the new one and hide commands added in recent releases. Remove it with:
+The old package name was `@n8n-as-code/cli`. Remove it if `n8nac --help` shows an outdated command list.
 
 ```bash
 npm uninstall -g @n8n-as-code/cli
-# or, if installed as a project dependency
-npm uninstall @n8n-as-code/cli
 ```
-
-After removing it, `n8nac --help` should show the full, up-to-date command list.
 :::
 
-## 🚀 Quick Start
+## Command Groups
 
-### Configure Runtime and Workspace
+| Group | Command | Purpose |
+|---|---|---|
+| Usage Principal | `n8nac env` | Workspace environments |
+| Maintenance Workspace | `n8nac workspace` | Status, migration, upgrade |
+| Instances Managées | `n8n-manager` | Local managed instances and tunnels |
+| Compat Cachée | `instance-target`, `target`, `setup`, old `workspace` mutations | Compatibility only |
+
+## Quick Start
+
+### Existing n8n URL
+
 ```bash
-n8n-manager auth set --url <url> --api-key-stdin
-n8n-manager projects select <project-id-or-name>
-n8nac workspace set-sync-folder workflows
+n8nac env add Dev --base-url https://n8n.example.com --sync-folder workflows/dev
+n8nac env auth set Dev --api-key-stdin
+n8nac env use Dev
 n8nac update-ai
 ```
 
-This sequence:
-1. Saves global n8n instance/auth/project state in `n8n-manager`
-2. Creates or updates the local `n8nac-config.json` workspace overrides
-3. Generates the AI context used by agents
-
-### Download a Workflow from n8n
-```bash
-n8nac pull <workflowId>
-```
-
-This command:
-1. Fetches the specified workflow from n8n
-2. Saves it to the local `workflows` directory
-3. Refuses to overwrite if a conflict is detected (use `n8nac resolve` in that case)
-
-### Upload a Local Workflow to n8n
-```bash
-n8nac push workflows/instance/project/workflow.workflow.ts
-```
-
-This command:
-1. Uploads the specified workflow to n8n
-2. Uses Optimistic Concurrency Control — rejected if the remote was modified since last pull
-3. Suggests `n8nac resolve` if a conflict is detected
-
-:::tip How `push` resolves the file
-Pass the local workflow path you want to upload, for example `workflows/instance/project/workflow.workflow.ts`.
-Use the path that matches your active sync folder and project layout in the workspace.
-:::
-
-### Complete the Runtime Loop Without Leaving the CLI
-
-The CLI now covers the most painful post-push steps that used to force users back into the n8n UI:
-
-1. Choose the facade runtime mode with `setup`
-2. Detect missing credentials with `workflow credential-required`
-3. Inspect shared credential recipes with `credentials recipes`
-4. Prepare credential readiness with `credentials ensure` or `credentials starter-kit`
-5. Use low-level n8n credential commands with `credential schema` / `credential create` when you need exact API control
-6. Activate the workflow with `workflow activate`
-7. Inspect how to run it with `test-plan`
-8. Execute it with `test`
-9. Debug the actual server-side execution with `execution list` and `execution get`
-
-This is a major quality-of-life improvement for agent-driven development: the agent can now provision credentials, run the workflow, and inspect the failing execution directly through n8n's API.
-
-The exact commands for each step are documented below in the command reference, so high-level readers can understand the workflow without having to parse a wall of terminal examples first.
-
-## 📋 Command Reference
-
-### Runtime Setup
-Global n8n instance, auth, runtime, and project state belongs to `n8n-manager`.
+### Managed local instance
 
 ```bash
-n8n-manager auth set --url <url> --api-key <key> --name <name>
-n8n-manager instances list
-n8n-manager instances select <id-or-name>
-n8n-manager instances delete <id-or-name>
-n8n-manager projects list
-n8n-manager projects select <project-id-or-name>
+n8n-manager instance list
+n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+n8nac env use Local
+n8nac update-ai
 ```
 
-See the [n8n-manager guide](/docs/usage/n8n-manager) for the full runtime model, storage locations, and managed local runtime commands.
-
-### `workspace`
-Manage explicit workspace overrides over the global n8n-manager defaults. These commands write `n8nac-config.json` in the current workspace; they do not create n8n instances or store API keys.
+### First workflow loop
 
 ```bash
-n8nac workspace status --json
-n8nac workspace pin-instance --instance-id <instanceId>
-n8nac workspace clear-instance
-n8nac workspace set-sync-folder workflows
-n8nac workspace clear-sync-folder
-n8nac workspace set-project --project-id <id> --project-name <name>
-n8nac workspace clear-project
+n8nac list
+n8nac pull <workflow-id>
+n8nac push workflows/dev/my-workflow.workflow.ts --verify
 ```
 
-The workspace config stores project selection, optional pinned instance, optional sync folder override, and workflow-related settings. It does not store the global instance library or API keys.
+## `env`
 
-| Command | What it changes |
-|---|---|
-| `n8nac workspace status --json` | Prints the effective instance, project, sync folder, and where each value came from |
-| `n8nac workspace pin-instance --instance-id <instanceId>` | Pins this repository to an existing global `n8n-manager` instance |
-| `n8nac workspace clear-instance` | Removes the local instance pin so the workspace falls back to the global active instance |
-| `n8nac workspace set-sync-folder workflows` | Stores the repository-local sync folder override |
-| `n8nac workspace clear-sync-folder` | Falls back to the global/default sync folder behavior |
-| `n8nac workspace set-project --project-id <id> --project-name <name>` | Stores a workspace-specific n8n project override |
-| `n8nac workspace clear-project` | Falls back to the selected instance's default project |
-
-Use this when each repository should keep its own runtime target while sharing the same machine-level `n8n-manager` instance registry:
+Use `env` for normal workspace configuration.
 
 ```bash
-n8n-manager instances list
-n8nac workspace pin-instance --instance-id <instanceId>
-n8nac workspace set-sync-folder workflows
-n8nac workspace status --json
+n8nac env list
+n8nac env status
+n8nac env add Dev --base-url <url> --sync-folder workflows/dev
+n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+n8nac env use Dev
+n8nac env auth set Dev --api-key-stdin
+n8nac env remove Dev
 ```
 
-Effective context is resolved in this order: explicit command options, workspace overrides, then global `n8n-manager` defaults.
+### Remote environments
 
-### `setup`
-Choose how the `n8nac` facade should use n8n runtime capabilities.
+Remote environments store the URL in `n8nac-config.json`, but the API key stays local.
 
 ```bash
-n8nac setup-modes
-n8nac setup --mode generation-only
-n8nac setup --mode connect-existing --host https://n8n.example.com --api-key-stdin
+n8nac env add Staging --base-url https://staging.example.com --sync-folder workflows/staging
+n8nac env auth set Staging --api-key-stdin
 ```
 
-Supported modes:
+### Managed local environments
 
-- `managed-local`: ask `n8n-manager` to own local runtime setup and starter credential readiness.
-- `connect-existing`: use an existing n8n URL/API key for runtime operations.
-- `generation-only`: keep workflow generation and validation available without runtime actions.
-
-### `switch`
-Switch to a different n8n project.
+Managed local environments reference a local `n8n-manager` instance.
 
 ```bash
-n8nac switch
+n8n-manager instance list
+n8nac env add Local --managed-instance <id> --sync-folder workflows/local
 ```
 
-After switching projects, use `n8nac list` to see the workflows in the new project, then `n8nac pull <workflowId>` for each workflow you want to download.
+The workspace does not copy Docker paths, tunnel state, logs, or local secrets.
+
+## `workspace`
+
+Use `workspace` for inspection and explicit migrations/upgrades only.
+
+```bash
+n8nac workspace status
+n8nac workspace migrate
+n8nac workspace migrate --write
+n8nac workspace upgrade
+n8nac workspace upgrade --write
+```
+
+`migrate` is for legacy V1/V2 configs. `upgrade` is for previous V3/`next` configs. Both should be run without `--write` first.
+
+## Sync Commands
 
 ### `list`
-Display all workflows with their current sync status.
 
-**Description:**
-Shows a color-coded table of all workflows with their sync status, helping you understand the current state of your workflow synchronization. Supports filtering to show only local or remote workflows.
-
-**Options:**
-- `--local`: Show only workflows that exist locally (including `EXIST_ONLY_LOCALLY`, `TRACKED`, `CONFLICT`)
-- `--remote` / `--distant`: Show only workflows that exist remotely (including `EXIST_ONLY_REMOTELY`, `TRACKED`, `CONFLICT`)
-- `--search <query>`: Case-insensitive partial match on workflow name, workflow ID, or local filename
-- `--sort <status|name>`: Keep the default sync-oriented ordering or force alphabetical sorting
-- `--limit <n>`: Return only the first `n` matching workflows after filtering/sorting
-- `--include-archived`: Include archived workflows in the output (by default only non-archived workflows are shown)
-- `--only-archived`: Show only archived workflows
-- `--raw`: Output raw JSON for scripting/automation
-
-**Example:**
 ```bash
-n8nac list                       # Show all non-archived workflows
-n8nac list --include-archived    # Show all workflows including archived
-n8nac list --only-archived      # Show only archived workflows
-n8nac list --local              # Show only local workflows
-n8nac list --remote            # Show only remote workflows
-n8nac list --search billing     # Find workflows by partial name, ID, or filename
-n8nac list --sort name         # Sort alphabetically
-n8nac list --raw               # Output raw JSON
+n8nac list
+n8nac list --local
+n8nac list --remote
+n8nac list --search billing
+n8nac list --sort name
+n8nac list --raw
 ```
 
-**Output:**
-- Status indicators with icons (✔ Tracked, 💥 Conflicts, + Local Only, - Remote Only)
-- Workflow ID, name, and local path
-- Summary statistics showing counts by status
+Status values:
+
+| Status | Meaning |
+|---|---|
+| `TRACKED` | Local and remote workflow exist and are aligned |
+| `CONFLICT` | Both sides changed since the last synced base |
+| `EXIST_ONLY_LOCALLY` | Local workflow has not been pushed |
+| `EXIST_ONLY_REMOTELY` | Remote workflow has not been pulled |
 
 ### `find`
-Search workflows quickly using the same case-insensitive partial matching used by `list --search`.
 
-**Description:**
-Optimized for large installations where you already know part of the workflow name, ID, or filename and want search-oriented results immediately.
-
-**Options:**
-- `<query>` (**required**): Search text
-- `--local`: Limit results to workflows with a local file
-- `--remote` / `--distant`: Limit results to workflows known remotely
-- `--sort <status|name>`: Sort search results by sync status or alphabetically (defaults to `name`)
-- `--limit <n>`: Return only the first `n` matching workflows
-- `--include-archived`: Include archived workflows in search results
-- `--only-archived`: Show only archived workflows
-- `--raw`: Output the filtered result set as JSON
-
-**Example:**
 ```bash
 n8nac find billing
 n8nac find wf-123 --raw
 n8nac find importer --limit 10
-n8nac find archived-workflow --only-archived
 ```
-
-**Status Types:**
-- `TRACKED` - Both local and remote exist (in sync)
-- `CONFLICT` - Both local and remote modified since last sync
-- `EXIST_ONLY_LOCALLY` - New local workflow not yet pushed
-- `EXIST_ONLY_REMOTELY` - Remote workflow not yet pulled locally
 
 ### `pull`
-Download a specific workflow from n8n to the local directory.
 
-**Description:**
-Downloads a single workflow from your configured n8n instance. Detects and blocks on conflicts — use `n8nac resolve` when a conflict is reported.
-
-**Options:**
-- `<workflowId>` (**required**): The ID of the workflow to pull
-
-**Example:**
 ```bash
-n8nac pull abc123
+n8nac pull <workflow-id>
 ```
 
-**Behavior:**
-1. Fetches the latest remote state for the workflow
-2. Checks for conflict (`CONFLICT`) — aborts with instructions if detected (use `n8nac resolve`)
-3. Downloads and writes the workflow file on success
+Pull downloads one workflow and refuses to overwrite when a conflict is detected.
 
 ### `push`
-Upload a local workflow to n8n.
 
-**Description:**
-Uploads a single workflow from local to your n8n instance. Uses Optimistic Concurrency Control (OCC) — the push is rejected if the remote was modified since the last pull.
-
-**Options:**
-- `<path>` (**required**): The local workflow path to upload
-
-**Example:**
 ```bash
-n8nac push workflows/instance/project/workflow.workflow.ts
+n8nac push workflows/dev/my-workflow.workflow.ts
+n8nac push workflows/dev/my-workflow.workflow.ts --verify
 ```
 
-**Behavior:**
-1. Resolves the effective local file path from `n8nac-config.json`
-2. Finds the tracked workflow ID for that filename when one exists
-3. Checks for conflict — if remote was modified since last sync, aborts with instructions
-4. Uploads the local workflow on success
-5. Reports the `n8nac resolve` commands to use if a conflict is detected
+Push uploads one local workflow and uses optimistic concurrency checks.
 
 ### `resolve`
-Force-resolve a sync conflict for a specific workflow.
 
-**Description:**
-When `n8nac pull` or `n8nac push` reports a conflict, use this command to choose which version wins. No merging — one side overwrites the other.
-
-**Options:**
-- `<workflowId>` (**required**): The ID of the conflicting workflow
-- `--mode <keep-current|keep-incoming>` (**required**): Resolution strategy
-  - `keep-current`: Keep the **local** version (force-push it to n8n)
-  - `keep-incoming`: Keep the **remote** version (force-pull it locally)
-
-**Example:**
 ```bash
-n8nac resolve abc123 --mode keep-current   # Force-push local
-n8nac resolve abc123 --mode keep-incoming  # Force-pull remote
+n8nac resolve <workflow-id> --mode keep-current
+n8nac resolve <workflow-id> --mode keep-incoming
 ```
 
-### `verify`
-Fetch a workflow from n8n and validate its nodes against the local schema.
+- `keep-current`: keep the local version and force-push it.
+- `keep-incoming`: keep the remote version and force-pull it.
 
-**Description:**
-After pushing a workflow, verify that n8n has accepted it correctly. This catches runtime errors that local validation misses, such as invalid `typeVersion`, invalid `operation` values, and missing required parameters.
+## Runtime Facade Commands
 
-**Arguments:**
-- `<workflowId>` (**required**): The ID of the workflow to verify
+These commands operate through the active environment and n8n API.
 
-**Example:**
 ```bash
-n8nac verify abc123
+n8nac verify <workflow-id>
+n8nac workflow credential-required <workflow-id> --json
+n8nac workflow activate <workflow-id>
+n8nac test-plan <workflow-id> --json
+n8nac test <workflow-id> --data '{"foo":"bar"}'
+n8nac execution list --workflow-id <workflow-id> --limit 5 --json
+n8nac execution get <execution-id> --include-data --json
 ```
 
-**What it detects:**
-- Invalid `typeVersion` (e.g., schema only has version 2.2 but workflow uses 1.6)
-- Invalid `operation` values (e.g., 'post' vs 'create')
-- Missing required parameters
-- Unknown node types
-
-**Tip:** Use `n8nac push <path> --verify` to push and verify in one step.
-
-### `update-ai`
-Update AI Context (`AGENTS.md` and local portable skills).
-
-**Description:**
-Regenerates context files that help AI coding assistants (GitHub Copilot, Cursor, Cline, Windsurf…) find the standard n8n skills and resolve effective state through the backend. `AGENTS.md` is a bootstrap file, not a configuration source of truth.
-
-**Example:**
-```bash
-n8nac update-ai
-```
-
-**Creates / updates:**
-- `AGENTS.md`: lightweight context-root bootstrap
-- `.agents/skills/n8n-manager/SKILL.md`: portable instance/runtime/auth guidance
-- `.agents/skills/n8n-architect/SKILL.md`: portable workflow authoring and sync guidance
-
-### `workflow`
-Workflow lifecycle and credential inspection helpers.
-
-#### `workflow credential-required`
-List the credentials referenced by a workflow and whether matching credentials already exist.
+Credential readiness:
 
 ```bash
-n8nac workflow credential-required <workflowId> --json
-```
-
-This is the entry point for provisioning after a push. Exit code `1` means at least one credential is missing. Exit code `0` means everything referenced by the workflow is already present.
-
-#### `workflow activate`
-Activate a workflow once credentials are provisioned.
-
-```bash
-n8nac workflow activate <workflowId>
-```
-
-### `credential`
-Inspect and create credentials from the CLI.
-
-Use this singular command group for low-level n8n API credential operations. For facade-level credential readiness shared with the extension, MCP, OpenClaw, Claude Code, and YAGR integrations, prefer the plural `credentials` command group.
-
-#### `credential schema`
-Return the JSON schema for a credential type.
-
-```bash
-n8nac credential schema openAiApi
-```
-
-Use this before creating any credential type you have not seen before.
-
-#### `credential create`
-Create a credential from a JSON file.
-
-```bash
-n8nac credential create --type openAiApi --name "My OpenAI" --file cred.json --json
-```
-
-Prefer `--file` over `--data` so secrets do not end up in shell history.
-
-#### `credential list`
-List existing credentials without exposing secret values.
-
-```bash
-n8nac credential list --json
-```
-
-### `credentials`
-Manage facade-level credential readiness through `n8n-manager`.
-
-#### `credentials recipes`
-List shared credential recipes.
-
-```bash
-n8nac credentials recipes --json
-```
-
-#### `credentials starter-kits`
-List starter kits.
-
-```bash
+n8nac credentials recipes
 n8nac credentials starter-kits
-```
-
-#### `credentials inventory`
-Show local credential readiness status.
-
-```bash
 n8nac credentials inventory --json
-```
-
-#### `credentials ensure`
-Create or mark a credential from a shared recipe.
-
-```bash
 n8nac credentials ensure http-bearer --value token=... --json
-```
-
-#### `credentials starter-kit`
-Bootstrap a starter kit.
-
-```bash
-n8nac credentials starter-kit ai-workflows --json
-```
-
-#### `credentials test`
-Test a credential by n8n credential ID or recipe ID.
-
-```bash
 n8nac credentials test http-bearer --json
-```
-
-#### `credentials delete`
-Delete a credential by n8n credential ID or recipe ID, and remove matching local readiness inventory.
-
-```bash
 n8nac credentials delete http-bearer --json
 ```
 
-### `test-plan`
-Inspect how a workflow can be executed over HTTP.
+Low-level credential API helpers:
 
 ```bash
-n8nac test-plan <workflowId> --json
+n8nac credential schema openAiApi
+n8nac credential create --type openAiApi --name "My OpenAI" --file cred.json --json
+n8nac credential list --json
 ```
 
-This returns:
-- the detected trigger type
-- the test and production URLs
-- an inferred payload
-- request hints for GET/HEAD webhooks
+Prefer `--file` over inline secret values so secrets do not end up in shell history.
 
-### `test`
-Execute a webhook/chat/form workflow over HTTP.
+## AI Context And Skills
 
 ```bash
-n8nac test <workflowId> --data '{"foo":"bar"}'
-n8nac test <workflowId> --query '{"chatInput":"hello"}'
-n8nac test <workflowId> --prod --query '{"chatInput":"hello"}'
+n8nac update-ai
+n8nac skills search "google sheets"
+n8nac skills node-info googleSheets
+n8nac skills validate workflows/dev/my-workflow.workflow.ts
 ```
 
-Notes:
-- For `GET` and `HEAD` webhooks, prefer `--query <json>`.
-- `--data` still maps to query parameters for `GET` and `HEAD` requests for backward compatibility.
-- `test` distinguishes setup/config gaps from fixable wiring errors.
+`update-ai` refreshes local context files for agents, including `AGENTS.md`, VS Code agent files, portable skills, snippets, and schemas.
 
-### `execution`
-Inspect workflow executions directly from the n8n server.
-
-#### `execution list`
-List recent executions, optionally filtered by workflow.
+## Conversion
 
 ```bash
-n8nac execution list --workflow-id <workflowId> --limit 5 --json
+n8nac convert workflow.json --format typescript
+n8nac convert workflow.workflow.ts --format json
+n8nac convert-batch workflows/ --format typescript
 ```
 
-#### `execution get`
-Fetch one execution, optionally including the run data.
+## Workspace Config
 
-```bash
-n8nac execution get <executionId> --include-data --json
-```
-
-Use this immediately after a 2xx webhook call if the workflow still seems broken. A successful HTTP response only means n8n accepted the trigger; the execution may still fail later inside the workflow.
-
-### `convert`
-Convert a single workflow file between JSON and TypeScript formats.
-
-**Description:**
-Converts a `.json` workflow export to a `.workflow.ts` file (or vice-versa). The target format is auto-detected from the source extension unless `--format` is provided.
-
-**Arguments:**
-- `<file>` (**required**): Path to the source file
-
-**Options:**
-- `-o, --output <path>`: Output file path (auto-generated if omitted)
-- `-f, --force`: Overwrite output file if it already exists
-- `--format <json|typescript>`: Override the auto-detected target format
-
-**Example:**
-```bash
-n8nac convert my-workflow.json                         # JSON → TypeScript
-n8nac convert my-workflow.workflow.ts                  # TypeScript → JSON
-n8nac convert my-workflow.json -o out.workflow.ts -f   # JSON → TS, force overwrite
-```
-
-### `convert-batch`
-Batch-convert all workflow files in a directory.
-
-**Description:**
-Converts every workflow file in the specified directory to the target format.
-
-**Arguments:**
-- `<directory>` (**required**): Path to the directory containing workflow files
-
-**Options:**
-- `--format <json|typescript>` (**required**): Target format for all files
-- `-f, --force`: Overwrite existing output files
-
-**Example:**
-```bash
-n8nac convert-batch ./workflows --format typescript    # Convert all JSON to TS
-n8nac convert-batch ./workflows --format json          # Convert all TS to JSON
-```
-
-## ⚙️ Configuration
-
-### Configuration File
-The CLI uses a minimal workspace configuration file (`n8nac-config.json`) with the following structure:
+Current config is environment-based and safe to commit when it contains no secrets:
 
 ```json
 {
-  "version": 3,
-  "activeInstanceId": "optional-workspace-pin",
-  "syncFolder": "workflows",
-  "projectId": "your-project-id",
-  "projectName": "Personal",
-  "folderSync": false
+  "version": 4,
+  "activeEnvironmentId": "dev",
+  "environments": [
+    {
+      "id": "dev",
+      "name": "Dev",
+      "instanceTargetId": "dev",
+      "projectId": "personal",
+      "projectName": "Personal",
+      "syncFolder": "workflows/dev"
+    }
+  ],
+  "instanceTargets": [
+    {
+      "id": "dev",
+      "name": "Dev",
+      "kind": "embedded",
+      "instance": {
+        "mode": "existing",
+        "baseUrl": "https://n8n.example.com"
+      }
+    }
+  ]
 }
 ```
 
-The source of truth for instances and API keys is n8n-manager under `~/.n8n-manager`. The workspace file only stores explicit project and sync context overrides.
+API keys are stored locally with `n8nac env auth set <env> --api-key-stdin`.
 
-**Note:** API keys are stored by n8n-manager and scoped by global instance ID, not in this file.
+## Scripting Example
 
-## 🔄 Workflow Management
-
-### Git-like Sync Workflow
-```bash
-# 1. Configure n8n through n8n-manager
-n8n-manager auth set --url <url> --api-key <key> --name <name>
-n8n-manager projects select <project-id-or-name>
-
-# 2. Configure workspace-local sync
-n8nac workspace set-sync-folder workflows
-
-# Optional: switch the global active n8n-manager instance
-n8n-manager instances select <id-or-name>
-
-# 3. List all workflows to see their sync status (lightweight, covers all workflows)
-n8nac list
-
-# 4. Pull a specific workflow (single workflow, by ID)
-n8nac pull abc123
-
-# 4. Edit workflow files locally
-#    (edit workflows/*.workflow.ts files)
-
-# 5. Push local changes to n8n (single workflow, by path)
-n8nac push workflows/instance/project/workflow.workflow.ts
-```
-
-### Git-like Development Pattern
-```bash
-# See current status of all workflows
-n8nac list
-
-# Pull a specific workflow from remote (single workflow)
-n8nac pull abc123
-
-# ... edit workflow ...
-
-# Push local changes back to n8n (single workflow)
-n8nac push workflows/instance/project/workflow.workflow.ts
-
-# Resolve a conflict (if push/pull is blocked) (single workflow)
-n8nac resolve abc123 --mode keep-current   # keep local
-n8nac resolve abc123 --mode keep-incoming  # keep remote
-
-# View local-only or remote-only workflows
-n8nac list --local           # Show only local workflows
-n8nac list --remote          # Show only remote workflows
-```
-
-## 📊 Scripting Examples
-
-### Backup Script
 ```bash
 #!/bin/bash
-# backup-workflows.sh
+set -euo pipefail
 
-# Set date for backup folder
-BACKUP_DATE=$(date +%Y-%m-%d)
-BACKUP_DIR="backups/$BACKUP_DATE"
-
-# Create backup directory
-mkdir -p "$BACKUP_DIR"
-
-# Copy workflows to backup directory
-cp -r workflows/* "$BACKUP_DIR/" 2>/dev/null || true
-
-# Or pull fresh copy to backup directory
-# (Run in a separate folder if you want backups isolated)
-# cd "$BACKUP_DIR" && n8nac workspace set-sync-folder workflows && n8nac pull <workflowId>
-
-# Compress backup
-tar -czf "$BACKUP_DIR.tar.gz" "$BACKUP_DIR"
-
-echo "Backup created: $BACKUP_DIR.tar.gz"
+printf '%s' "$STAGING_N8N_API_KEY" | n8nac env auth set Staging --api-key-stdin
+n8nac env use Staging
+n8nac list --raw
+n8nac push workflows/staging/my-workflow.workflow.ts --verify
 ```
 
-### CI/CD Integration
-```bash
-#!/bin/bash
-# ci-sync.sh
+For multiple remote environments, create one environment per target and switch with `n8nac env use <name>`.
 
-# Set environment variables for target instance
-export N8N_HOST="https://staging.n8n.example.com"
-export N8N_API_KEY="$STAGING_API_KEY"
+## Compatibility Commands
 
-# Configure runtime and workspace
-n8n-manager auth set --url "$N8N_HOST" --api-key "$N8N_API_KEY"
-n8nac workspace set-sync-folder workflows
-
-# List workflows and pull specific ones from staging
-n8nac list
-n8nac pull <workflowId>
-
-# (Make any necessary transformations)
-
-# Push to production if approved
-if [ "$DEPLOY_TO_PROD" = "true" ]; then
-  export N8N_HOST="https://prod.n8n.example.com"
-  export N8N_API_KEY="$PROD_API_KEY"
-  n8n-manager auth set --url "$N8N_HOST" --api-key "$N8N_API_KEY"
-  n8nac push workflows/instance/project/workflow.workflow.ts
-fi
-```
-
-### Batch Operations
-```bash
-#!/bin/bash
-# batch-update.sh
-
-# Update all workflows with a new tag
-for workflow in workflows/*.json; do
-  echo "Updating $workflow"
-  
-  # Add metadata using jq
-  jq '.metadata.tags += ["automated"]' "$workflow" > "$workflow.tmp"
-  mv "$workflow.tmp" "$workflow"
-done
-
-# Push changes to n8n
-n8nac push workflows/instance/project/workflow.workflow.ts
-```
-
-## 🎯 Best Practices
-
-### Project Structure
-```
-my-project/
-├── n8nac-config.json                # Project configuration
-├── workflows/                # Workflow storage
-│   └── instance_identifier/  # Organized by instance
-│       └── project_slug/      # Organized by project
-│           └── workflow1.json
-├── scripts/                  # Automation scripts
-│   └── backup.sh
-└── README.md
-```
-
-### Version Control
-- Commit workflow JSON files to Git for version history
-- Use `.gitignore` to exclude sensitive data
-- Tag releases with workflow versions
-- Review changes using Git diff before pushing to n8n
-
-### Security
-- Never commit API keys or credentials to version control
-- Use environment variables or secret managers for sensitive data
-- Rotate API keys regularly
-- Store API keys in system credential store (handled automatically by CLI)
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-**Connection Errors**
-```bash
-# Check connectivity to n8n instance
-curl -I https://n8n.example.com
-
-# Verify configuration
-cat n8nac-config.json
-
-# Reconfigure connection
-n8n-manager auth set --url <url> --api-key-stdin
-```
-
-**File Permission Issues**
-```bash
-# Check file permissions
-ls -la workflows/
-
-# Fix permissions if needed
-chmod -R 755 workflows/
-```
-
-**Sync Issues**
-```bash
-# Check workflow status
-n8nac list
-
-# Pull a specific workflow
-n8nac pull <workflowId>
-
-# Push local changes for a specific workflow file
-n8nac push workflows/instance/project/workflow.workflow.ts
-
-# Resolve a conflict
-n8nac resolve <workflowId> --mode keep-current
-```
-
-### Debug Mode
-Enable debug logging for detailed output:
+These commands may remain callable for old scripts, but new docs and workflows should not use them as primary setup:
 
 ```bash
-# Debug pull operation
-DEBUG=n8n-as-code:* n8nac pull <workflowId>
-
-# Debug specific operations
-DEBUG=axios,n8n-as-code:* n8nac push workflows/instance/project/workflow.workflow.ts
+n8nac instance-target ...
+n8nac target ...
+n8nac setup ...
+n8nac setup-modes ...
+n8nac workspace pin-instance ...
+n8nac workspace set-sync-folder ...
+n8nac workspace set-project ...
 ```
 
-## 📚 Next Steps
+## Troubleshooting
 
-- [VS Code Extension Guide](/docs/usage/vscode-extension): Visual editing experience with git-like sync
-- [Getting Started](/docs/getting-started): Complete setup guide
-- [Contribution Guide](/docs/contribution): Understand the architecture and development
+Check the active context:
 
----
+```bash
+n8nac env list
+n8nac env status
+n8nac workspace status
+```
 
-*The CLI provides powerful automation capabilities for managing n8n workflows as code. Use it for scripting, CI/CD integration, and headless workflow management.*
+Refresh a remote API key:
+
+```bash
+n8nac env auth set <environment> --api-key-stdin
+```
+
+See [Troubleshooting](/docs/troubleshooting) for more fixes.

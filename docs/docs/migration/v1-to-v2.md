@@ -1,101 +1,71 @@
 ---
 sidebar_position: 1
-title: V1 to V2 Migration
-description: Upgrade an existing n8n-as-code workspace to the V2 manager-backed configuration model.
+title: Legacy Migration
+description: Migrate legacy n8n-as-code workspace config to n8n environments.
 ---
 
-# V1 to V2 Migration
+# Legacy Migration
 
-V2 changes how n8n-as-code stores runtime configuration. The workflow files stay in your repository, but instances and API keys move to `n8n-manager` so the CLI, VS Code extension, MCP, and agent integrations all use the same local runtime state.
+Current n8n-as-code workspaces use **n8n environments** as the source of truth.
 
-## What Changed
+Legacy V1/V2 configs can contain old workspace instance data or API keys. Migrate them explicitly; n8n-as-code does not rewrite the workspace automatically on open.
 
-| V1 behavior | V2 behavior |
-|:---|:---|
-| Workspace config could contain instance details and API keys | `n8n-manager` stores global instances and API keys outside the repository |
-| The VS Code extension owned most setup state itself | VS Code delegates auth, instances, projects, tunnels, and runtime state to `n8n-manager` |
-| Generated AI context focused on `AGENTS.md` and portable skills | `update-ai` also generates VS Code/Copilot workspace agents in `.github/agents/*.agent.md` |
-| Project setup was mostly per-surface | CLI, VS Code, and agents resolve the same effective workspace context |
+## Commands
 
-## Recommended Upgrade
-
-Run the migration command from the root of each workflow repository:
+Dry run:
 
 ```bash
-n8nac workspace migrate-v1
+n8nac workspace migrate
 ```
 
-The default mode is a dry run. It reports detected legacy instances, workspace overrides, and whether embedded API keys are present without changing files.
-
-When the output looks correct, apply it:
+Apply:
 
 ```bash
-n8nac workspace migrate-v1 --write
-n8nac workspace status --json
-n8nac update-ai
+n8nac workspace migrate --write
 ```
 
-`--write` creates a timestamped backup next to the original file before replacing `n8nac-config.json` with V2 workspace overrides.
-
-## What Gets Migrated
-
-- Legacy instance name, ID, and URL become local `n8n-manager` instances.
-- Embedded API keys, if present, move into the local `n8n-manager` secret store.
-- Sync folder, project ID, project name, custom nodes path, and folder sync become workspace overrides in `n8nac-config.json`.
-- The active or pinned instance remains pinned for that workspace when possible.
-
-The migrated `n8nac-config.json` should not contain API keys or embedded instance arrays.
-
-## If No API Key Is Found
-
-Some legacy setups did not store the API key in `n8nac-config.json`. After migration, re-authenticate explicitly:
+Then verify:
 
 ```bash
-n8n-manager auth set --url <n8n-url> --api-key-stdin --name <name>
-n8n-manager instances list
-n8nac workspace pin-instance --instance-id <instance-id>
-n8nac workspace status --json
+n8nac env list
+n8nac workspace status
 ```
 
-## Instance IDs
+## What Changes
 
-In V2, the instance ID is a local `n8n-manager` record ID. It identifies your local connection profile, not the shared n8n server itself.
+| Legacy config | New model |
+|---|---|
+| Direct instance fields in workspace config | Workspace environment in `n8nac-config.json` |
+| Embedded URL | Environment target URL |
+| Embedded API key | Local API key storage |
+| Sync folder | Environment sync folder |
+| Old active instance | Active environment |
 
-Two developers can connect to the same n8n URL and have different local instance IDs. That is expected. Commit only workspace-safe overrides; do not commit `~/.n8n-manager` or any repo-local manager store.
+The migrated `n8nac-config.json` should be safe to commit when it contains no secrets.
 
-When communicating with teammates, use human-friendly values first:
+## API Keys
 
-- n8n URL
-- project name
-- sync folder
-- workspace name
-
-Use the instance ID only for local commands such as `n8nac workspace pin-instance --instance-id <id>`.
-
-## VS Code Agents
-
-After migration, refresh generated AI context:
+If the migration cannot recover an API key, set it locally after migration:
 
 ```bash
-n8nac update-ai
+n8nac env auth set <environment> --api-key-stdin
 ```
 
-This creates:
+## Backups
 
-- `AGENTS.md` for repository-level bootstrap instructions.
-- `.github/agents/n8n-manager.agent.md` and `.github/agents/n8n-architect.agent.md` for VS Code/GitHub Copilot-compatible workspace agents.
-- `.agents/skills/.../SKILL.md` as portable fallbacks for agent runtimes that understand skills but not VS Code workspace agents.
+`--write` creates a backup next to the original config before replacing `n8nac-config.json`.
 
-## Rollback
+Do not commit backup files if they contain API keys.
 
-The migration command creates a backup such as:
+## Previous V3 / next Configs
 
-```text
-n8nac-config.v1-backup-20260508-105500.json
+For previous V3 or `next` configs, use upgrade instead of legacy migration:
+
+```bash
+n8nac workspace upgrade
+n8nac workspace upgrade --write
 ```
 
-To inspect or restore manually, compare that file with the new `n8nac-config.json`. Do not commit API keys from the backup.
+## V1 Packages
 
-## Future Breaking Changes
-
-For future major changes, read the release notes before upgrading and run the documented migration command first. Major configuration moves should always provide a dry-run path, a backup, and a verification command.
+If you still need the V1 product line, pin all commands to `n8nac@v1` and install the legacy VSIX from GitHub Releases instead of Marketplace/Open VSX.

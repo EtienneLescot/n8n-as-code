@@ -42,7 +42,7 @@ Generated `AGENTS.md` and skill prompts resolve the `n8nac` command in this orde
 
 This keeps production and extension behavior safe while making local dev reproducible.
 
-The helper repository is optional for normal package work in this repo, but it is the recommended path for end-to-end facade/runtime testing across `n8n-as-code` and `n8n-manager`.
+The helper repository is optional for normal package work in this repo, but it is the recommended path for end-to-end facade testing across `n8n-as-code` and `n8n-manager`.
 
 ## Local AI Context Test
 

@@ -41,7 +41,7 @@ For end-to-end work across `n8n-as-code` and `n8n-manager`, the optional helper 
 | **@n8n-as-code/transformer** | npm | TypeScript workflow decorators and conversion |
 | **@n8n-as-code/telemetry** | npm | Privacy-first telemetry primitives shared across facades |
 | **@n8n-as-code/workflow-core** | npm | Workflow intelligence contracts and public authoring API |
-| **@n8n-as-code/manager-adapter** | npm | Adapter from n8n-as-code surfaces to n8n-manager runtime packages |
+| **@n8n-as-code/manager-adapter** | npm | Adapter from n8n-as-code surfaces to n8n-manager packages |
 | **@n8n-as-code/mcp** | npm | Dedicated MCP server for n8n-as-code tools |
 | **@n8n-as-code/n8nac** | npm | OpenClaw plugin package |
 | **n8n-as-code** (VS Code Extension) | VS Code Marketplace / Open VSX | Editor integration |
@@ -93,7 +93,7 @@ The project uses a custom commit-driven release flow with independent package ve
 
 ## Dependency Alignment
 
-Dependency alignment is automated and enforced locally and in CI. This is required because the repo publishes independent packages that depend on each other and also consumes external `n8n-manager` runtime packages.
+Dependency alignment is automated and enforced locally and in CI. This is required because the repo publishes independent packages that depend on each other and also consumes external `n8n-manager` packages.
 
 ### Local Commands
 
@@ -101,7 +101,7 @@ Dependency alignment is automated and enforced locally and in CI. This is requir
 # Rewrite package manifests so dependency specs are aligned
 npm run sync:deps
 
-# Update published n8n-manager runtime packages to their latest npm versions
+# Update published n8n-manager packages to their latest npm versions
 npm run update:n8n-manager
 
 # Verify package manifests without modifying files
@@ -116,14 +116,14 @@ npm run check-versions
 - Workspace package dependencies are pinned to the exact current local package version.
 - `npm run update:n8n-manager` upgrades published `@n8n-as-code/n8n-manager*` packages and `@n8n-as-code/n8n-credentials-manager` to the latest npm version while preserving each manifest's `^` or `~` prefix.
 - The `@n8n-as-code/n8n-manager*` dependency family is kept consistent wherever the same package appears.
-- `@n8n-as-code/n8n-credentials-manager` is grouped with the n8n-manager runtime dependencies.
+- `@n8n-as-code/n8n-credentials-manager` is grouped with the n8n-manager dependencies.
 - Dependency sync updates only package manifest dependency specs. Release versions and changelogs remain owned by `scripts/release/workspace-release.mjs`.
 
 ### Enforcement Points
 
 - `lefthook` runs `node scripts/sync-dependencies.mjs --write --stage` during pre-commit when package manifests or release dependency automation change.
 - CI runs `npm run check:deps` after installation and before build/test.
-- Dependabot groups n8n-manager runtime package updates so one external update can be propagated consistently across all manifests.
+- Dependabot groups n8n-manager package updates so one external update can be propagated consistently across all manifests.
 
 If dependency alignment fails, run `npm run sync:deps`, review the manifest diff, and commit the updated package files with the original change. If new `n8n-manager` releases are available, use `npm run update:n8n-manager` first.
 

@@ -1,73 +1,41 @@
 ---
 sidebar_position: 7
 title: OpenClaw Plugin
-description: Install the n8n-as-code OpenClaw plugin, bootstrap the workspace, and use OpenClaw with the same n8nac workflow model as the CLI and Claude plugin.
+description: Install the n8n-as-code OpenClaw plugin and use the same n8n environments model as the CLI and VS Code extension.
 ---
 
 # OpenClaw Plugin
 
 The `@n8n-as-code/n8nac` package gives OpenClaw the same portable `n8n-manager` and `n8n-architect` skills used by Claude, Cursor, VS Code workspaces, and generic coding agents.
 
-It is the right entry point when you want OpenClaw to:
-
-- bootstrap an n8n workspace for you
-- materialize `AGENTS.md` and `.agents/skills` in the OpenClaw context root
-- run workflow operations through the shared `n8n-manager` and `n8nac` shell commands
-
-## What It Adds
-
-Once installed, the plugin gives OpenClaw:
-
-- bundled `n8n-manager` and `n8n-architect` skills
-- an `openclaw n8nac:setup` wizard for host, API key, project selection, and workspace context
-- lightweight prompt grounding that points to the generated `AGENTS.md` and skills
-- an OpenClaw-native workspace rooted at `~/.openclaw/n8nac/`
-
 ## Install
-
-Install the published plugin package:
 
 ```bash
 openclaw plugins install @n8n-as-code/n8nac
-```
-
-:::note Existing installs
-If you previously installed `@n8n-as-code/openclaw-plugin`, uninstall the old package first and then install `@n8n-as-code/n8nac` so OpenClaw stores the plugin under the canonical `n8nac` ID without repeated mismatch warnings.
-:::
-
-Then run the setup wizard:
-
-```bash
 openclaw n8nac:setup
-```
-
-When setup completes, restart the gateway so the plugin and generated AI context are active:
-
-```bash
 openclaw gateway restart
 ```
 
-## Setup Flow
+If you previously installed `@n8n-as-code/openclaw-plugin`, uninstall the old package first:
 
-The setup wizard walks through the same core setup as the other facades:
+```bash
+openclaw plugins uninstall n8nac
+openclaw plugins install @n8n-as-code/n8nac
+```
 
-1. Save the n8n host and API key through `n8n-manager auth set`.
-2. Select the active n8n project through `n8n-manager projects select`.
-3. Configure workspace-local sync through `n8nac workspace set-sync-folder`.
-4. Materialize the generated agent context and local skills.
-5. Point OpenClaw at the initialized workspace in `~/.openclaw/n8nac/`.
+## Model
 
-Once the workspace exists, agents can inspect and switch global n8n-manager instances through the shared backend facade instead of rewriting `n8nac-config.json` by hand.
+OpenClaw uses the same command split as every other surface:
 
-After that, you can ask for workflow work in plain language, for example:
+| Group | Command | Purpose |
+|---|---|---|
+| Usage Principal | `n8nac env` | Workspace environments |
+| Maintenance Workspace | `n8nac workspace` | Status, migration, upgrade |
+| Instances Managées | `n8n-manager` | Local managed instances and tunnels |
 
-- `Create an n8n workflow that sends a Slack message when a GitHub issue is opened`
-- `Pull workflow 42 and add retry handling before the HTTP Request node`
-- `What operations does the Google Sheets node support?`
+## Workspace
 
-## Workspace Layout
-
-The plugin keeps its working files under:
+OpenClaw stores its working files under:
 
 ```text
 ~/.openclaw/n8nac/
@@ -77,43 +45,39 @@ The plugin keeps its working files under:
   workflows/
 ```
 
-- `n8nac-config.json` stores workspace project/sync overrides only
-- `AGENTS.md` is a lightweight bootstrap, not a configuration source of truth
-- `.agents/skills/` contains the portable `n8n-manager` and `n8n-architect` skills
-- `workflows/` holds the local `.workflow.ts` files you pull and edit
+`n8nac-config.json` stores workspace environments. API keys and managed local instance state stay outside the committed workspace.
 
-## Commands
-
-### OpenClaw Commands
-
-| Command | Description |
-|---|---|
-| `openclaw n8nac:setup` | Interactive setup wizard |
-| `openclaw n8nac:status` | Check workspace and connection state |
-| `openclaw gateway restart` | Reload the plugin after setup or local changes |
-
-### Agent CLI Flow
-
-Agents use the same shell commands as other facades behind the scenes:
+## Manual Equivalent
 
 ```bash
-n8n-manager instances list
-n8n-manager instances select <instanceId>
-n8n-manager projects list
-n8n-manager projects select <project-id-or-name>
-npx --yes n8nac workspace set-sync-folder workflows
-npx --yes n8nac list
-npx --yes n8nac pull <workflow-id>
-npx --yes n8nac push <file>
+n8nac env add Dev --base-url <url> --sync-folder workflows/dev
+n8nac env auth set Dev --api-key-stdin
+n8nac env use Dev
+n8nac update-ai
 ```
 
-That keeps OpenClaw aligned with the CLI, VS Code extension, and Claude plugin instead of inventing a separate sync path.
+For a managed local instance:
+
+```bash
+n8n-manager instance list
+n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+```
+
+## Agent CLI Flow
+
+Agents use normal shell commands:
+
+```bash
+n8nac env status
+n8nac list
+n8nac pull <workflow-id>
+n8nac push <path-to-workflow.workflow.ts> --verify
+n8nac skills node-info <node-name>
+```
 
 ## Troubleshooting
 
-See the [OpenClaw section](/docs/troubleshooting#openclaw-plugin) in the Troubleshooting guide.
-
-To reset the workspace and start over:
+Reset and start over:
 
 ```bash
 rm -rf ~/.openclaw/n8nac

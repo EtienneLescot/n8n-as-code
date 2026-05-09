@@ -8,9 +8,9 @@ The `@n8n-as-code/mcp` package is a dedicated [Model Context Protocol](https://m
 
 It gives AI assistants offline access to the full n8n node catalogue, community workflow examples, and workflow validation without requiring a live n8n instance.
 
-Live runtime state is still managed by the normal v2 split model: `n8n-manager` stores global instances and API keys, while `n8nac-config.json` stores workspace overrides such as pinned instance, selected project, and sync folder. Initialize the workspace with `n8n-manager` and `n8nac workspace` commands when you want an MCP-backed assistant to reason from the same local context as the CLI or editor.
+Live workspace context uses the normal environments model: `n8nac-config.json` stores workspace environments, remote API keys stay local, and `n8n-manager` owns only managed local instances and tunnels. Initialize the workspace with `n8nac env` when you want an MCP-backed assistant to reason from the same local context as the CLI or editor.
 
-See the [n8n-manager guide](/docs/usage/n8n-manager) and [CLI workspace commands](/docs/usage/cli#workspace) for setup details.
+See the [CLI guide](/docs/usage/cli) and [n8n-manager guide](/docs/usage/n8n-manager) for setup details.
 
 ## What the MCP server provides
 
