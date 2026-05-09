@@ -1154,7 +1154,7 @@ export class ConfigService {
         const environmentTargetIds = new Set(workspace.environments.map((environment) => environment.environmentTargetId));
         const instances = global.instances
             .filter((instance) => {
-                if (instance.mode === 'existing' && instance.baseUrl) return true;
+                if (this.getGlobalExternalInstanceUrl(instance)) return true;
                 if (instance.mode !== 'managed-local-docker') return false;
                 const migratedTarget = workspace.environmentTargets.find((target) => {
                     return target.kind === 'managed-instance'
@@ -1165,9 +1165,9 @@ export class ConfigService {
             })
             .map((instance) => stripUndefined({
                 id: instance.id,
-                name: instance.name || instance.baseUrl || instance.id,
+                name: instance.name || this.getGlobalExternalInstanceUrl(instance) || instance.id,
                 mode: instance.mode === 'managed-local-docker' ? 'managed-instance' as const : 'external-instance' as const,
-                url: instance.baseUrl || '',
+                url: this.getGlobalExternalInstanceUrl(instance) || '',
                 projectId: instance.defaultProject?.id,
                 projectName: instance.defaultProject?.name,
                 apiKeyAvailable: Boolean(this.manager.getApiKey(instance.id)),
@@ -1244,9 +1244,10 @@ export class ConfigService {
                 continue;
             }
 
-            if (instance.mode !== 'existing' || !instance.baseUrl) continue;
+            const externalUrl = this.getGlobalExternalInstanceUrl(instance);
+            if (!externalUrl) continue;
             const apiKey = this.manager.getApiKey(instance.id);
-            const normalizedBaseUrl = this.normalizeHost(instance.baseUrl);
+            const normalizedBaseUrl = this.normalizeHost(externalUrl);
             const existingTargetIndex = environmentTargets.findIndex((target) => {
                 if (target.kind === 'managed-instance') return target.managedInstanceId === instance.id;
                 return this.normalizeHost(target.url) === normalizedBaseUrl;
@@ -1258,7 +1259,7 @@ export class ConfigService {
                         id: existingTarget.id,
                         name: existingTarget.name,
                         kind: 'external-instance',
-                        url: instance.baseUrl,
+                        url: externalUrl,
                         instanceIdentifier: instance.instanceIdentifier,
                         verification: instance.verification,
                         description: existingTarget.description,
@@ -1267,7 +1268,7 @@ export class ConfigService {
                 if (apiKey) this.manager.saveApiKey(existingTarget.id, apiKey);
                 let existingEnvironment = environments.find((environment) => environment.environmentTargetId === existingTarget.id);
                 if (!existingEnvironment) {
-                    const environmentName = this.uniqueDisplayName(instance.name || instance.baseUrl || instance.id, environmentNames);
+                    const environmentName = this.uniqueDisplayName(instance.name || externalUrl || instance.id, environmentNames);
                     const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
                     usedIds.push(environmentId);
                     existingEnvironment = stripUndefined({
@@ -1284,8 +1285,8 @@ export class ConfigService {
                 if (instance.id === plan.activeInstanceId) activeMigratedEnvironmentId = existingEnvironment.id;
                 continue;
             }
-            const targetName = this.uniqueDisplayName(instance.name || instance.baseUrl || instance.id, targetNames);
-            const environmentName = this.uniqueDisplayName(instance.name || instance.baseUrl || instance.id, environmentNames);
+            const targetName = this.uniqueDisplayName(instance.name || externalUrl || instance.id, targetNames);
+            const environmentName = this.uniqueDisplayName(instance.name || externalUrl || instance.id, environmentNames);
             const targetId = this.uniqueWorkspaceId(`${instance.id}-instance`, usedIds);
             usedIds.push(targetId);
             const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
@@ -1300,7 +1301,7 @@ export class ConfigService {
                 id: targetId,
                 name: targetName,
                 kind: 'external-instance',
-                url: instance.baseUrl,
+                url: externalUrl,
                 instanceIdentifier: instance.instanceIdentifier,
                 verification: instance.verification,
             });
@@ -1332,7 +1333,7 @@ export class ConfigService {
 
         for (const item of plan.instances) {
             const instance = this.manager.getInstance(item.id);
-            if (instance?.mode === 'existing') {
+            if (instance && this.getGlobalExternalInstanceUrl(instance)) {
                 this.manager.deleteInstance(item.id);
                 deletedGlobalInstanceIds.push(item.id);
             }
@@ -2116,6 +2117,14 @@ export class ConfigService {
         } catch {
             return host.replace(/\/$/, '');
         }
+    }
+
+    private getGlobalExternalInstanceUrl(instance: GlobalN8nInstance): string | undefined {
+        if (instance.mode === 'managed-local-docker' || instance.mode === 'generation-only') return undefined;
+        const mode = String(instance.mode);
+        if (mode !== 'existing' && mode !== 'external-instance') return undefined;
+        const compatibilityUrl = (instance as GlobalN8nInstance & { url?: string }).url;
+        return cleanOptional(instance.baseUrl) || cleanOptional(compatibilityUrl);
     }
 
     private resolveStoredBaseUrl(current: GlobalN8nInstance | undefined, requestedHost?: string): string | undefined {
