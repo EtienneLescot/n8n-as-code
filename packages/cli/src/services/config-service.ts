@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import Conf from 'conf';
 import {
     N8nConfigurationService,
     N8nRuntimeOrchestrator,
@@ -434,8 +435,6 @@ export class ConfigService {
             customNodesPath: input.customNodesPath,
             description: input.description,
         };
-        this.assertUniqueEnvironmentSyncFolders([...config.environments, environment]);
-
         const next = {
             ...config,
             activeEnvironmentId: config.activeEnvironmentId || environment.id,
@@ -464,10 +463,6 @@ export class ConfigService {
             customNodesPath: patch.customNodesPath ?? environment.customNodesPath,
             description: patch.description ?? environment.description,
         });
-        this.assertUniqueEnvironmentSyncFolders([
-            ...config.environments.filter((item) => item.id !== environment.id),
-            nextEnvironment,
-        ]);
         const next = {
             ...config,
             environments: config.environments.map((item) => item.id === environment.id ? nextEnvironment : item),
@@ -907,8 +902,15 @@ export class ConfigService {
             return this.manager.getApiKey(instanceId);
         }
         const normalized = this.normalizeHost(host);
-        const instance = this.manager.listInstances().find((candidate) => this.normalizeHost(candidate.baseUrl || '') === normalized || this.normalizeHost(candidate.tunnelPublicUrl || '') === normalized);
-        return instance ? this.manager.getApiKey(instance.id) : undefined;
+        const instances = this.manager.listInstances().filter((candidate) => {
+            return this.normalizeHost(candidate.baseUrl || '') === normalized
+                || this.normalizeHost(candidate.tunnelPublicUrl || '') === normalized;
+        });
+        for (const instance of instances) {
+            const apiKey = this.manager.getApiKey(instance.id);
+            if (apiKey) return apiKey;
+        }
+        return undefined;
     }
 
     saveApiKey(host: string, apiKey: string, instanceId?: string): void {
@@ -1048,8 +1050,7 @@ export class ConfigService {
         const migratedPairs: Array<{ legacy: ILegacyWorkspaceMigrationInstance; profile: IInstanceProfile }> = [];
         for (const legacyInstance of plan.instances) {
             const apiKey = this.readLegacyApiKey(legacyInstance.id, rawLegacyConfig)
-                || this.manager.getApiKey(legacyInstance.id)
-                || (legacyInstance.host ? this.getApiKey(legacyInstance.host) : undefined);
+                || this.readLegacyStoredApiKey(legacyInstance.id, legacyInstance.host);
             const saved = this.saveLocalConfig({
                 host: legacyInstance.host,
                 syncFolder: legacyInstance.syncFolder || plan.workspace.syncFolder,
@@ -1072,7 +1073,6 @@ export class ConfigService {
             const usedIds: string[] = [];
             const targetNames = new Set<string>();
             const environmentNames = new Set<string>();
-            const syncFolders = new Set<string>();
             const instanceTargets: IWorkspaceInstanceTarget[] = [];
             const environments: IWorkspaceEnvironment[] = [];
 
@@ -1085,7 +1085,7 @@ export class ConfigService {
                 usedIds.push(targetId);
                 const environmentId = this.uniqueWorkspaceId(singleInstanceMigration ? 'default' : profile.id || legacy.id || environmentName, usedIds);
                 usedIds.push(environmentId);
-                const syncFolder = this.uniqueLegacyEnvironmentSyncFolder(legacy, plan.workspace, profile, environmentName, syncFolders);
+                const syncFolder = legacy.syncFolder || plan.workspace.syncFolder || 'workflows';
 
                 instanceTargets.push({
                     id: targetId,
@@ -1222,6 +1222,25 @@ export class ConfigService {
         return asString(root.apiKey);
     }
 
+    private readLegacyStoredApiKey(instanceId: string, host?: string): string | undefined {
+        try {
+            const store = new Conf<Record<string, unknown>>({
+                projectName: 'n8nac',
+                configName: 'credentials',
+                configFileMode: 0o600,
+            });
+            const instanceProfiles = store.get('instanceProfiles') as Record<string, unknown> | undefined;
+            const instanceApiKey = asString(instanceProfiles?.[instanceId]);
+            if (instanceApiKey) return instanceApiKey;
+
+            if (!host) return undefined;
+            const hosts = store.get('hosts') as Record<string, unknown> | undefined;
+            return asString(hosts?.[this.normalizeHost(host)]);
+        } catch {
+            return undefined;
+        }
+    }
+
     private syntheticLegacyIndex(instanceId: string): number | undefined {
         const match = instanceId.match(/^legacy-(\d+)$/);
         if (!match) return undefined;
@@ -1280,7 +1299,6 @@ export class ConfigService {
         const environments = rawEnvironments.map((environment, index) => this.sanitizeEnvironment(environment, index));
         this.assertUniqueIdsAndNames(instanceTargets, 'instance target');
         this.assertUniqueIdsAndNames(environments, 'environment');
-        this.assertUniqueEnvironmentSyncFolders(environments);
         const targetIds = new Set(instanceTargets.map((target) => target.id));
         for (const environment of environments) {
             if (!targetIds.has(environment.instanceTargetId)) {
@@ -1724,34 +1742,6 @@ export class ConfigService {
         }
         existingNames.add(name.toLowerCase());
         return name;
-    }
-
-    private uniqueLegacyEnvironmentSyncFolder(
-        legacy: ILegacyWorkspaceMigrationInstance,
-        workspace: Partial<ILocalConfig>,
-        profile: IInstanceProfile,
-        environmentName: string,
-        existingFolders: Set<string>,
-    ): string {
-        const baseSyncFolder = legacy.syncFolder || workspace.syncFolder || 'workflows';
-        let syncFolder = legacy.workflowDir
-            || this.buildWorkflowDir(baseSyncFolder, legacy.instanceIdentifier || profile.instanceIdentifier, legacy.projectName || workspace.projectName)
-            || baseSyncFolder;
-        let key = this.normalizeWorkspacePathKey(syncFolder);
-        if (!existingFolders.has(key)) {
-            existingFolders.add(key);
-            return syncFolder;
-        }
-
-        const base = syncFolder;
-        let counter = 2;
-        do {
-            syncFolder = path.join(base, this.slugId(environmentName) + (counter === 2 ? '' : `-${counter}`));
-            key = this.normalizeWorkspacePathKey(syncFolder);
-            counter += 1;
-        } while (existingFolders.has(key));
-        existingFolders.add(key);
-        return syncFolder;
     }
 
     private assertUniqueName<T extends { id: string; name: string }>(name: string, items: T[], label: string): void {

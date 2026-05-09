@@ -1150,7 +1150,7 @@ async function migrateLegacyWorkspaceConfig(context: vscode.ExtensionContext): P
     );
     if (confirmation !== 'Migrate workspace') return;
 
-    const legacySettings = readLegacyN8nSettingsForMigration();
+    const legacySettings = await readLegacyN8nSettingsForMigration(context);
     const result = configService.migrateLegacyWorkspaceConfig({ write: true });
     if (result.status === 'migrated') {
         const environmentHost = String(configService.resolveEnvironment().host || '').trim().replace(/\/$/, '');
@@ -1165,12 +1165,22 @@ async function migrateLegacyWorkspaceConfig(context: vscode.ExtensionContext): P
     }
 }
 
-function readLegacyN8nSettingsForMigration(): { host: string; apiKey: string } {
+async function readLegacyN8nSettingsForMigration(context: vscode.ExtensionContext): Promise<{ host: string; apiKey: string }> {
     const config = vscode.workspace.getConfiguration('n8n');
+    const configuredApiKey = String(config.get<string>('apiKey') || '').trim();
     return {
         host: String(config.get<string>('host') || '').trim().replace(/\/$/, ''),
-        apiKey: String(config.get<string>('apiKey') || '').trim(),
+        apiKey: configuredApiKey || await readLegacySecretApiKeyForMigration(context),
     };
+}
+
+async function readLegacySecretApiKeyForMigration(context: vscode.ExtensionContext): Promise<string> {
+    const candidates = ['n8n.apiKey', 'apiKey', 'n8n-as-code.apiKey', 'n8nAsCode.apiKey', 'n8nApiKey'];
+    for (const key of candidates) {
+        const value = (await context.secrets.get(key))?.trim();
+        if (value) return value;
+    }
+    return '';
 }
 
 function preserveMigratedLegacyApiKey(configService: ConfigService, settings: { host: string; apiKey: string }, instanceId?: string): void {

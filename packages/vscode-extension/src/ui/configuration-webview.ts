@@ -67,6 +67,11 @@ function normalizeHost(host: string): string {
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
 }
 
+function normalizeSyncRoot(syncRoot: string): string {
+  const trimmed = String(syncRoot || '').trim().replace(/\\/g, '/').replace(/\/+$/g, '');
+  return trimmed || 'workflows';
+}
+
 function envVarSlug(value: string): string {
   return value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
@@ -83,12 +88,23 @@ function readWorkspaceTargetApiKey(targetId: string, targetName: string): string
   return undefined;
 }
 
-function readLegacyN8nSettings(): { host: string; apiKey: string } {
+async function readLegacyN8nSettings(context: vscode.ExtensionContext): Promise<{ host: string; apiKey: string }> {
   const config = vscode.workspace.getConfiguration('n8n');
+  const configuredApiKey = String(config.get<string>('apiKey') || '').trim();
+  const apiKey = configuredApiKey || await readLegacySecretApiKey(context);
   return {
     host: normalizeHost(String(config.get<string>('host') || '')),
-    apiKey: String(config.get<string>('apiKey') || '').trim(),
+    apiKey,
   };
+}
+
+async function readLegacySecretApiKey(context: vscode.ExtensionContext): Promise<string> {
+  const candidates = ['n8n.apiKey', 'apiKey', 'n8n-as-code.apiKey', 'n8nAsCode.apiKey', 'n8nApiKey'];
+  for (const key of candidates) {
+    const value = (await context.secrets.get(key))?.trim();
+    if (value) return value;
+  }
+  return '';
 }
 
 function preserveMigratedLegacyApiKey(configService: ConfigService, settings: { host: string; apiKey: string }, instanceId?: string): void {
@@ -244,7 +260,7 @@ export class ConfigurationWebview {
             this._panel.webview.postMessage({ type: 'cancelled' });
             return;
           }
-          const legacySettings = readLegacyN8nSettings();
+          const legacySettings = await readLegacyN8nSettings(this._context);
           const result = configService.migrateLegacyWorkspaceConfig({ write: true });
           if (result.status === 'migrated') {
             const environmentHost = normalizeHost(configService.resolveEnvironment().host || '');
@@ -280,7 +296,7 @@ export class ConfigurationWebview {
           const apiKey = String(payload.apiKey || '').trim();
           if (host) {
             if (!apiKey) {
-              if (scope === 'environment') throw new Error('Missing local API key. Add an API key before selecting project or sync settings.');
+              if (scope === 'environment') throw new Error('Missing API key. Add an API key before selecting project or sync settings.');
               postProjectsLoaded([PERSONAL_PROJECT], 'personal');
               return;
             }
@@ -296,7 +312,7 @@ export class ConfigurationWebview {
             const target = configService.getInstanceTarget(instanceTargetId || environment?.instanceTargetId || '');
             if (environmentId && !targetChanged) {
               const environment = await configService.prepareEnvironment(environmentId);
-              if (!environment.apiKey) throw new Error(`Environment "${environment.environmentName}" needs a local API key before projects can be loaded.`);
+              if (!environment.apiKey) throw new Error(`Environment "${environment.environmentName}" needs an API key before projects can be loaded.`);
               postProjectsLoaded(await loadProjectsFromApi(environment.host, environment.apiKey));
               return;
             }
@@ -304,7 +320,7 @@ export class ConfigurationWebview {
             if (target.kind === 'embedded') {
               const apiKey = readWorkspaceTargetApiKey(target.id, target.name) || configService.getApiKey(target.instance.baseUrl);
               if (!apiKey) {
-                if (scope === 'environment') throw new Error('Missing local API key. Add an API key before selecting project or sync settings.');
+                if (scope === 'environment') throw new Error('Missing API key. Add an API key before selecting project or sync settings.');
                 postProjectsLoaded([PERSONAL_PROJECT], 'personal');
                 return;
               }
@@ -320,6 +336,20 @@ export class ConfigurationWebview {
             autoStart: true,
           })).map(toUiProject);
           postProjectsLoaded(uiProjects);
+          return;
+        }
+
+        case 'loadEnvironmentEditCredentials': {
+          if (!workspaceRoot) throw new Error('Open a workspace before editing workspace environments.');
+          const environmentId = String(payload.environmentId || '').trim();
+          if (!environmentId) throw new Error('Environment is required.');
+          const environment = new ConfigService(workspaceRoot).resolveEnvironment(environmentId);
+          this._panel.webview.postMessage({
+            type: 'environmentEditCredentials',
+            environmentId,
+            host: normalizeHost(environment.host || ''),
+            apiKey: environment.apiKey || '',
+          });
           return;
         }
 
@@ -375,15 +405,31 @@ export class ConfigurationWebview {
           const configService = new ConfigService(workspaceRoot);
           const environmentId = String(payload.environmentId || '').trim();
           let instanceTargetId = String(payload.instanceTargetId || '').trim();
+          let currentEnvironmentTargetUrl = '';
           if (environmentId) {
-            instanceTargetId = configService.getEnvironment(environmentId).instanceTargetId;
+            const existingEnvironment = configService.getEnvironment(environmentId);
+            instanceTargetId = existingEnvironment.instanceTargetId;
+            const existingTarget = configService.getInstanceTarget(instanceTargetId);
+            if (existingTarget.kind === 'embedded') {
+              currentEnvironmentTargetUrl = normalizeHost(existingTarget.instance.baseUrl);
+            } else {
+              const instance = (await facade.listInstances()).find((item) => item.id === existingTarget.instanceRef);
+              currentEnvironmentTargetUrl = normalizeHost(instance?.tunnelPublicUrl || instance?.baseUrl || '');
+            }
           }
           const instanceId = String(payload.instanceId || '').trim();
           const baseUrl = normalizeHost(String(payload.baseUrl || ''));
           const apiKey = String(payload.apiKey || '').trim();
           const name = String(payload.name || '').trim();
           const projectId = String(payload.projectId || '').trim();
-          const projectName = String(payload.projectName || '').trim();
+          const projectName = String(payload.projectName || '').trim() || 'Personal';
+          if (environmentId && baseUrl && baseUrl !== currentEnvironmentTargetUrl) {
+            if (!apiKey) throw new Error('API key is required when replacing the environment URL.');
+            instanceTargetId = this.ensureEmbeddedWorkspaceTarget(configService, {
+              name: name || baseUrl,
+              baseUrl,
+            });
+          }
           if (!instanceTargetId && instanceId) {
             const instance = (await facade.listInstances()).find((item) => item.id === instanceId);
             if (!instance) throw new Error(`Unknown n8n instance preset: ${instanceId}`);
@@ -438,13 +484,14 @@ export class ConfigurationWebview {
               apiKey,
             });
           }
+          const syncFolder = normalizeSyncRoot(String(payload.syncFolder || '').trim());
           const folderSync = typeof payload.folderSync === 'boolean' ? payload.folderSync : undefined;
           const input = {
             name,
             instanceTarget: instanceTargetId,
             projectId,
             projectName,
-            syncFolder: String(payload.syncFolder || '').trim(),
+            syncFolder,
             folderSync,
             customNodesPath: String(payload.customNodesPath || '').trim() || undefined,
             description: String(payload.description || '').trim() || undefined,
@@ -455,7 +502,8 @@ export class ConfigurationWebview {
             configService.addEnvironment(input);
           }
           await clearLegacyWorkspaceSettings();
-          await this._configurationController.refresh('webview-save-environment', { force: true });
+          const snapshot = await this._configurationController.refresh('webview-save-environment', { force: true });
+          await this.postInitialState(snapshot);
           this._panel.webview.postMessage({ type: 'saved' });
           return;
         }
