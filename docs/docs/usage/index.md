@@ -17,6 +17,8 @@ n8n-as-code uses one workflow model across all surfaces: workspace environments,
 | Instances Managées | `n8n-manager` | Local managed instances, Docker, tunnels |
 | Compat Cachée | old `target`, `setup`, and workspace mutation commands | Compatibility only |
 
+[Command Glossary](/docs/usage/commands)
+
 ## VS Code / Cursor Extension
 
 The recommended experience. It provides the n8n sidebar, embedded canvas, explicit sync controls, `n8n environments`, and the integrated Agent Workbench.
