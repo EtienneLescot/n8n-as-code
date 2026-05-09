@@ -236,6 +236,7 @@ export class ConfigurationWebview {
       const payload = message as Record<string, unknown>;
       const workspaceRoot = getWorkspaceRoot();
       const facade = createN8nManagerFacade({ workspaceRoot });
+      const globalFacade = createN8nManagerFacade({});
 
       switch (payload.type) {
         case 'refreshState':
@@ -416,7 +417,7 @@ export class ConfigurationWebview {
             if (existingTarget.kind === 'embedded') {
               currentEnvironmentTargetUrl = normalizeHost(existingTarget.instance.baseUrl);
             } else {
-              const instance = (await facade.listInstances()).find((item) => item.id === existingTarget.instanceRef);
+              const instance = (await globalFacade.listInstances()).find((item) => item.id === existingTarget.instanceRef);
               currentEnvironmentTargetUrl = normalizeHost(instance?.tunnelPublicUrl || instance?.baseUrl || '');
             }
           }
@@ -434,7 +435,7 @@ export class ConfigurationWebview {
             });
           }
           if (!instanceTargetId && instanceId) {
-            const instance = (await facade.listInstances()).find((item) => item.id === instanceId);
+            const instance = (await globalFacade.listInstances()).find((item) => item.id === instanceId);
             if (!instance) throw new Error(`Unknown n8n instance preset: ${instanceId}`);
             if (instance.mode === 'managed-local-docker') {
               const existingTarget = configService.listInstanceTargets().find((target) => target.kind === 'global-ref' && target.instanceRef === instanceId);
@@ -452,7 +453,7 @@ export class ConfigurationWebview {
             }
           }
           if (!instanceTargetId && baseUrl) {
-            const existingPreset = (await facade.listInstances()).find((instance) => normalizeHost(instance.tunnelPublicUrl || instance.baseUrl || '') === baseUrl && instance.mode !== 'managed-local-docker');
+            const existingPreset = (await globalFacade.listInstances()).find((instance) => normalizeHost(instance.tunnelPublicUrl || instance.baseUrl || '') === baseUrl && instance.mode !== 'managed-local-docker');
             configService.saveLocalConfig({ host: baseUrl }, {
               instanceId: existingPreset?.id,
               instanceName: existingPreset?.name || name || baseUrl,
@@ -468,7 +469,7 @@ export class ConfigurationWebview {
           if (!environmentId && instanceTargetId && baseUrl) {
             const selectedTarget = configService.getInstanceTarget(instanceTargetId);
             const targetInstance = selectedTarget.kind === 'global-ref'
-              ? (await facade.listInstances()).find((instance) => instance.id === selectedTarget.instanceRef)
+              ? (await globalFacade.listInstances()).find((instance) => instance.id === selectedTarget.instanceRef)
               : undefined;
             if (selectedTarget.kind === 'global-ref' && targetInstance?.mode !== 'managed-local-docker') {
               instanceTargetId = this.ensureEmbeddedWorkspaceTarget(configService, {
@@ -478,7 +479,7 @@ export class ConfigurationWebview {
             }
           }
           if (instanceTargetId && baseUrl && apiKey) {
-            const existingPreset = (await facade.listInstances()).find((instance) => normalizeHost(instance.tunnelPublicUrl || instance.baseUrl || '') === baseUrl && instance.mode !== 'managed-local-docker');
+            const existingPreset = (await globalFacade.listInstances()).find((instance) => normalizeHost(instance.tunnelPublicUrl || instance.baseUrl || '') === baseUrl && instance.mode !== 'managed-local-docker');
             configService.saveLocalConfig({ host: baseUrl }, {
               instanceId: existingPreset?.id,
               instanceName: existingPreset?.name || name || baseUrl,
@@ -543,7 +544,7 @@ export class ConfigurationWebview {
         }
 
         case 'saveGlobalInstance':
-          const warnings = await this.saveGlobalInstance(payload, facade);
+          const warnings = await this.saveGlobalInstance(payload, globalFacade);
           await this._configurationController.refresh('webview-save-global-instance', { force: true });
           this._panel.webview.postMessage({ type: 'saved' });
           if (warnings.length) {
@@ -554,7 +555,7 @@ export class ConfigurationWebview {
         case 'setGlobalActiveInstance': {
           const instanceId = String(payload.instanceId || '').trim();
           if (!instanceId) throw new Error('Instance is required.');
-          await facade.setGlobalActiveInstance(instanceId);
+          await globalFacade.setGlobalActiveInstance(instanceId);
           await this._configurationController.refresh('webview-set-global-active', { force: true });
           this._panel.webview.postMessage({ type: 'saved' });
           return;
@@ -571,9 +572,9 @@ export class ConfigurationWebview {
             title: `${actionLabel} n8n instance`,
             cancellable: false,
           }, async () => {
-            if (action === 'start') await facade.startInstance(instanceId);
-            if (action === 'stop') await facade.stopInstance(instanceId);
-            if (action === 'restart') await facade.restartInstance(instanceId);
+            if (action === 'start') await globalFacade.startInstance(instanceId);
+            if (action === 'stop') await globalFacade.stopInstance(instanceId);
+            if (action === 'restart') await globalFacade.restartInstance(instanceId);
           });
           await this._configurationController.refresh(`webview-${action}-instance`, { force: true });
           this._panel.webview.postMessage({ type: 'saved' });
@@ -587,8 +588,7 @@ export class ConfigurationWebview {
             location: vscode.ProgressLocation.Notification,
             title: 'Refreshing public URL',
             cancellable: false,
-          }, () => facade.resolveInstanceAccess({
-            workspaceRoot,
+          }, () => globalFacade.resolveInstanceAccess({
             instanceId,
             syncFolderDefault: 'workspace',
             consumer: 'vscode',
@@ -606,7 +606,7 @@ export class ConfigurationWebview {
         case 'showManagedCredentials': {
           const instanceId = String(payload.instanceId || '').trim();
           if (!instanceId) throw new Error('Instance is required.');
-          const credentials = await facade.getManagedOwnerCredentials(instanceId);
+          const credentials = await globalFacade.getManagedOwnerCredentials(instanceId);
           if (!credentials) throw new Error('Managed owner credentials are not available for this instance.');
           this._panel.webview.postMessage({ type: 'managedCredentials', credentials });
           return;
@@ -666,8 +666,9 @@ export class ConfigurationWebview {
             this._panel.webview.postMessage({ type: 'cancelled' });
             return;
           }
-          const workspaceOverrides = workspaceRoot ? await facade.readWorkspaceOverrides(workspaceRoot) : undefined;
-          await facade.deleteInstance(instanceId);
+          const workspaceConfig = workspaceRoot ? new ConfigService(workspaceRoot).getWorkspaceConfig() : undefined;
+          const workspaceOverrides = workspaceRoot && workspaceConfig?.version !== 4 ? await facade.readWorkspaceOverrides(workspaceRoot) : undefined;
+          await globalFacade.deleteInstance(instanceId);
           if (workspaceRoot && workspaceOverrides?.activeInstanceId === instanceId) {
             await facade.writeWorkspaceOverrides({
               ...workspaceOverrides,
