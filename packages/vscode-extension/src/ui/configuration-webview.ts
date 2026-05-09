@@ -328,8 +328,11 @@ export class ConfigurationWebview {
               return;
             }
           }
-          const uiProjects = (await facade.listProjects({
-            workspaceRoot,
+          const projectFacade = scope === 'environment' && instanceId
+            ? createN8nManagerFacade({})
+            : facade;
+          const uiProjects = (await projectFacade.listProjects({
+            workspaceRoot: scope === 'environment' && instanceId ? undefined : workspaceRoot,
             instanceId,
             syncFolderDefault: 'workspace',
             consumer: 'vscode',
@@ -805,15 +808,15 @@ export class ConfigurationWebview {
       ?? await this._configurationController.refresh('webview-open', { force: true });
     const workspaceRoot = getWorkspaceRoot();
     const facade = createN8nManagerFacade({ workspaceRoot });
+    const instanceFacade = createN8nManagerFacade({});
     const globalConfig = currentSnapshot.global;
     const workspaceOverrides = currentSnapshot.workspace;
     const effectiveContext = currentSnapshot.effective;
     const instances = await Promise.all(globalConfig.instances.map(async (instance) => {
       try {
-        const runtime = await facade.status({ instanceId: instance.id });
-        const access = await facade.resolveInstanceAccess({
+        const runtime = await instanceFacade.status({ instanceId: instance.id });
+        const access = await instanceFacade.resolveInstanceAccess({
           instanceId: instance.id,
-          workspaceRoot,
           mode: 'observe',
         });
         const displayUrl = access.authUrl || access.publicN8nUrl || (access.publicUrlEnabled ? '' : access.apiBaseUrl || '');
