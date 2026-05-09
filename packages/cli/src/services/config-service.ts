@@ -167,6 +167,21 @@ export type ILegacyWorkspaceMigrationResult =
     | { status: 'dry-run'; plan: ILegacyWorkspaceMigrationPlan }
     | { status: 'migrated'; plan: ILegacyWorkspaceMigrationPlan; backupPath: string; instances: IInstanceProfile[] };
 
+export interface IPreviousWorkspaceUpgradePlan {
+    status: 'upgrade-available';
+    configPath: string;
+    activeInstanceId?: string;
+    activeInstanceName?: string;
+    targetKind?: 'global-ref' | 'embedded';
+    workspace: Partial<ILocalConfig>;
+    warnings: string[];
+}
+
+export type IPreviousWorkspaceUpgradeResult =
+    | { status: 'not-needed'; configPath: string }
+    | { status: 'dry-run'; plan: IPreviousWorkspaceUpgradePlan }
+    | { status: 'upgraded'; plan: IPreviousWorkspaceUpgradePlan; backupPath: string; config: IPersistedWorkspaceConfigV4 };
+
 export interface IInstanceVerificationClient {
     getCurrentUser(): Promise<{ id?: string; email?: string; firstName?: string; lastName?: string } | null>;
 }
