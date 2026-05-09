@@ -67,9 +67,9 @@ export interface ISyncConfig {
     folderSync?: boolean;
     environmentId?: string;
     environmentName?: string;
-    instanceTargetId?: string;
-    instanceTargetName?: string;
-    targetKind?: 'global-ref' | 'embedded';
+    environmentTargetId?: string;
+    environmentTargetName?: string;
+    sourceKind?: 'managed-instance' | 'external-instance';
 }
 
 // ── Execution / Test types ────────────────────────────────────────────────────

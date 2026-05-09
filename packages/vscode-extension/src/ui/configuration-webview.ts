@@ -39,8 +39,8 @@ function dedupeUiProjects(projects: UiProject[]): UiProject[] {
   const byId = new Map<string, UiProject>();
   for (const project of projects) {
     if (!project.id) continue;
-    const existing = byId.get(project.id);
-    if (!existing || (!existing.name && project.name) || existing.id === 'personal') {
+    const externalInstance = byId.get(project.id);
+    if (!externalInstance || (!externalInstance.name && project.name) || externalInstance.id === 'personal') {
       byId.set(project.id, project);
     }
   }
@@ -115,7 +115,7 @@ function preserveMigratedLegacyApiKey(configService: ConfigService, settings: { 
   if (settings.host && normalizeHost(settings.host) !== environmentHost) return;
   configService.saveLocalConfig({ host: environmentHost }, {
     instanceId,
-    instanceName: environment.activeInstanceName || environment.instanceTargetName,
+    instanceName: environment.activeInstanceName || environment.environmentTargetName,
     createNew: !instanceId,
     setActive: false,
     apiKey: settings.apiKey,
@@ -243,67 +243,11 @@ export class ConfigurationWebview {
           await this._configurationController.refresh('webview-refresh', { force: true });
           return;
 
-        case 'migrateLegacyWorkspaceConfig': {
-          if (!workspaceRoot) throw new Error('Open a workspace before migrating legacy n8n-as-code config.');
-          const configService = new ConfigService(workspaceRoot);
-          const plan = configService.detectLegacyWorkspaceConfig();
-          if (!plan) {
-            this._panel.webview.postMessage({ type: 'saved' });
-            await this._configurationController.refresh('webview-migrate-legacy-not-needed', { force: true });
-            return;
-          }
-          const confirmation = await vscode.window.showWarningMessage(
-            'Migrate legacy n8n-as-code config? A backup will be created before changing n8nac-config.json.',
-            { modal: true },
-            'Migrate workspace',
-          );
-          if (confirmation !== 'Migrate workspace') {
-            this._panel.webview.postMessage({ type: 'cancelled' });
-            return;
-          }
-          const legacySettings = await readLegacyN8nSettings(this._context);
-          const result = configService.migrateLegacyWorkspaceConfig({ write: true });
-          if (result.status === 'migrated') {
-            const environmentHost = normalizeHost(configService.resolveEnvironment().host || '');
-            const migratedInstance = result.instances.find((instance) => normalizeHost(instance.host || '') === environmentHost);
-            preserveMigratedLegacyApiKey(configService, legacySettings, migratedInstance?.id);
-          }
-          await clearLegacyWorkspaceSettings();
-          await this._configurationController.refresh('webview-migrate-legacy', { force: true });
-          this._panel.webview.postMessage({
-            type: 'legacyMigrationCompleted',
-            backupPath: result.status === 'migrated' ? result.backupPath : '',
-          });
-          return;
-        }
-
-        case 'migrateGlobalInstancesToWorkspace': {
-          if (!workspaceRoot) throw new Error('Open a workspace before migrating global n8n instances.');
-          const configService = new ConfigService(workspaceRoot);
-          const plan = configService.detectGlobalInstanceWorkspaceMigration();
-          if (!plan) {
-            this._panel.webview.postMessage({ type: 'saved' });
-            await this._configurationController.refresh('webview-global-instance-migration-not-needed', { force: true });
-            return;
-          }
-          const confirmation = await vscode.window.showWarningMessage(
-            `Migrate ${plan.instances.length} global n8n instance${plan.instances.length === 1 ? '' : 's'} into this workspace? Old non-managed global instance entries will be removed after migration.`,
-            { modal: true },
-            'Migrate global instances',
-          );
-          if (confirmation !== 'Migrate global instances') {
-            this._panel.webview.postMessage({ type: 'cancelled' });
-            return;
-          }
-          const result = configService.migrateGlobalInstancesToWorkspace({ write: true });
-          await clearLegacyWorkspaceSettings();
-          const snapshot = await this._configurationController.refresh('webview-migrate-global-instances', { force: true });
-          await this.postInitialState(snapshot);
-          this._panel.webview.postMessage({
-            type: 'globalInstanceMigrationCompleted',
-            migratedCount: result.status === 'migrated' ? result.migratedEnvironmentIds.length : 0,
-            deletedCount: result.status === 'migrated' ? result.deletedGlobalInstanceIds.length : 0,
-          });
+        case 'migrateWorkspaceConfiguration':
+        case 'migrateLegacyWorkspaceConfig':
+        case 'migrateGlobalInstancesToEnvironments': {
+          if (!workspaceRoot) throw new Error('Open a workspace before running migration.');
+          await this.migrateWorkspaceConfiguration(workspaceRoot);
           return;
         }
 
@@ -334,28 +278,28 @@ export class ConfigurationWebview {
             postProjectsLoaded(await loadProjectsFromApi(host, apiKey));
             return;
           }
-          const instanceTargetId = String(payload.instanceTargetId || '').trim();
-          if (!instanceId && workspaceRoot && instanceTargetId) {
+          const environmentTargetId = String(payload.environmentTargetId || '').trim();
+          if (!instanceId && workspaceRoot && environmentTargetId) {
             const configService = new ConfigService(workspaceRoot);
             const environmentId = String(payload.environmentId || '').trim();
             const environment = environmentId ? configService.getEnvironment(environmentId) : undefined;
-            const targetChanged = Boolean(environment && instanceTargetId && environment.instanceTargetId !== instanceTargetId);
-            const target = configService.getInstanceTarget(instanceTargetId || environment?.instanceTargetId || '');
+            const targetChanged = Boolean(environment && environmentTargetId && environment.environmentTargetId !== environmentTargetId);
+            const target = configService.getInstanceTarget(environmentTargetId || environment?.environmentTargetId || '');
             if (environmentId && !targetChanged) {
               const environment = await configService.prepareEnvironment(environmentId);
               if (!environment.apiKey) throw new Error(`Environment "${environment.environmentName}" needs an API key before projects can be loaded.`);
               postProjectsLoaded(await loadProjectsFromApi(environment.host, environment.apiKey));
               return;
             }
-            if (target.kind === 'global-ref') instanceId = target.instanceRef;
-            if (target.kind === 'embedded') {
-              const apiKey = readWorkspaceTargetApiKey(target.id, target.name) || configService.getWorkspaceTargetApiKey(target.id) || configService.getApiKey(target.instance.baseUrl);
+            if (target.kind === 'managed-instance') instanceId = target.managedInstanceId;
+            if (target.kind === 'external-instance') {
+              const apiKey = readWorkspaceTargetApiKey(target.id, target.name) || configService.getWorkspaceTargetApiKey(target.id) || configService.getApiKey(target.url);
               if (!apiKey) {
                 if (scope === 'environment') throw new Error('Missing API key. Add an API key before selecting project or sync settings.');
                 postProjectsLoaded([PERSONAL_PROJECT], 'personal');
                 return;
               }
-              postProjectsLoaded(await loadProjectsFromApi(target.instance.baseUrl, apiKey));
+              postProjectsLoaded(await loadProjectsFromApi(target.url, apiKey));
               return;
             }
           }
@@ -391,16 +335,16 @@ export class ConfigurationWebview {
           if (!workspaceRoot) throw new Error('Open a workspace before saving workspace instance targets.');
           const configService = new ConfigService(workspaceRoot);
           const targetId = String(payload.targetId || '').trim();
-          const requestedKind = String(payload.targetKind || '').trim();
+          const requestedKind = String(payload.sourceKind || '').trim();
           const input = {
             name: String(payload.name || '').trim(),
-            instanceRef: String(payload.instanceRef || '').trim() || undefined,
-            baseUrl: normalizeHost(String(payload.baseUrl || '')) || undefined,
+            managedInstanceId: String(payload.managedInstanceId || '').trim() || undefined,
+            url: normalizeHost(String(payload.url || '')) || undefined,
             description: String(payload.description || '').trim() || undefined,
           };
           if (targetId) {
-            const existing = configService.getInstanceTarget(targetId);
-            if (requestedKind && requestedKind !== existing.kind) {
+            const externalInstance = configService.getInstanceTarget(targetId);
+            if (requestedKind && requestedKind !== externalInstance.kind) {
               throw new Error('Changing an instance target type is not supported. Create a new target instead.');
             }
             configService.updateInstanceTarget(targetId, input);
@@ -438,81 +382,81 @@ export class ConfigurationWebview {
           if (!workspaceRoot) throw new Error('Open a workspace before saving workspace environments.');
           const configService = new ConfigService(workspaceRoot);
           const environmentId = String(payload.environmentId || '').trim();
-          let instanceTargetId = String(payload.instanceTargetId || '').trim();
+          let environmentTargetId = String(payload.environmentTargetId || '').trim();
           let currentEnvironmentTargetUrl = '';
           if (environmentId) {
             const existingEnvironment = configService.getEnvironment(environmentId);
-            instanceTargetId = existingEnvironment.instanceTargetId;
-            const existingTarget = configService.getInstanceTarget(instanceTargetId);
-            if (existingTarget.kind === 'embedded') {
-              currentEnvironmentTargetUrl = normalizeHost(existingTarget.instance.baseUrl);
+            environmentTargetId = existingEnvironment.environmentTargetId;
+            const existingTarget = configService.getInstanceTarget(environmentTargetId);
+            if (existingTarget.kind === 'external-instance') {
+              currentEnvironmentTargetUrl = normalizeHost(existingTarget.url);
             } else {
-              const instance = (await globalFacade.listInstances()).find((item) => item.id === existingTarget.instanceRef);
+              const instance = (await globalFacade.listInstances()).find((item) => item.id === existingTarget.managedInstanceId);
               currentEnvironmentTargetUrl = normalizeHost(instance?.tunnelPublicUrl || instance?.baseUrl || '');
             }
           }
           const instanceId = String(payload.instanceId || '').trim();
-          const baseUrl = normalizeHost(String(payload.baseUrl || ''));
+          const url = normalizeHost(String(payload.url || ''));
           const apiKey = String(payload.apiKey || '').trim();
           const name = String(payload.name || '').trim();
           const projectId = String(payload.projectId || '').trim();
           const projectName = String(payload.projectName || '').trim() || 'Personal';
-          if (environmentId && baseUrl && baseUrl !== currentEnvironmentTargetUrl) {
+          if (environmentId && url && url !== currentEnvironmentTargetUrl) {
             if (!apiKey) throw new Error('API key is required when replacing the environment URL.');
-            instanceTargetId = this.ensureEmbeddedWorkspaceTarget(configService, {
-              name: name || baseUrl,
-              baseUrl,
+            environmentTargetId = this.ensureEmbeddedWorkspaceTarget(configService, {
+              name: name || url,
+              url,
             });
           }
-          if (!instanceTargetId && instanceId) {
+          if (!environmentTargetId && instanceId) {
             const instance = (await globalFacade.listInstances()).find((item) => item.id === instanceId);
             if (!instance) throw new Error(`Unknown n8n instance preset: ${instanceId}`);
             if (instance.mode === 'managed-local-docker') {
-              const existingTarget = configService.listInstanceTargets().find((target) => target.kind === 'global-ref' && target.instanceRef === instanceId);
-              instanceTargetId = existingTarget?.id || configService.addInstanceTarget({
+              const existingTarget = configService.listInstanceTargets().find((target) => target.kind === 'managed-instance' && target.managedInstanceId === instanceId);
+              environmentTargetId = existingTarget?.id || configService.addInstanceTarget({
                 name: instance.name || instanceId,
-                instanceRef: instanceId,
+                managedInstanceId: instanceId,
               }).id;
             } else {
-              const targetUrl = normalizeHost(instance.tunnelPublicUrl || instance.baseUrl || baseUrl);
+              const targetUrl = normalizeHost(instance.tunnelPublicUrl || instance.baseUrl || url);
               if (!targetUrl) throw new Error('Remote n8n URL is required for this environment.');
-              instanceTargetId = this.ensureEmbeddedWorkspaceTarget(configService, {
+              environmentTargetId = this.ensureEmbeddedWorkspaceTarget(configService, {
                 name: instance.name || name || targetUrl,
-                baseUrl: targetUrl,
+                url: targetUrl,
               });
             }
           }
-          if (!instanceTargetId && baseUrl) {
-            const existingPreset = (await globalFacade.listInstances()).find((instance) => normalizeHost(instance.tunnelPublicUrl || instance.baseUrl || '') === baseUrl && instance.mode !== 'managed-local-docker');
-            configService.saveLocalConfig({ host: baseUrl }, {
+          if (!environmentTargetId && url) {
+            const existingPreset = (await globalFacade.listInstances()).find((instance) => normalizeHost(instance.tunnelPublicUrl || instance.baseUrl || '') === url && instance.mode !== 'managed-local-docker');
+            configService.saveLocalConfig({ host: url }, {
               instanceId: existingPreset?.id,
-              instanceName: existingPreset?.name || name || baseUrl,
+              instanceName: existingPreset?.name || name || url,
               createNew: !existingPreset,
               setActive: false,
               apiKey: apiKey || undefined,
             });
-            instanceTargetId = this.ensureEmbeddedWorkspaceTarget(configService, {
-              name: name || existingPreset?.name || baseUrl,
-              baseUrl,
+            environmentTargetId = this.ensureEmbeddedWorkspaceTarget(configService, {
+              name: name || existingPreset?.name || url,
+              url,
             });
           }
-          if (!environmentId && instanceTargetId && baseUrl) {
-            const selectedTarget = configService.getInstanceTarget(instanceTargetId);
-            const targetInstance = selectedTarget.kind === 'global-ref'
-              ? (await globalFacade.listInstances()).find((instance) => instance.id === selectedTarget.instanceRef)
+          if (!environmentId && environmentTargetId && url) {
+            const selectedTarget = configService.getInstanceTarget(environmentTargetId);
+            const targetInstance = selectedTarget.kind === 'managed-instance'
+              ? (await globalFacade.listInstances()).find((instance) => instance.id === selectedTarget.managedInstanceId)
               : undefined;
-            if (selectedTarget.kind === 'global-ref' && targetInstance?.mode !== 'managed-local-docker') {
-              instanceTargetId = this.ensureEmbeddedWorkspaceTarget(configService, {
-                name: selectedTarget.name || name || baseUrl,
-                baseUrl,
+            if (selectedTarget.kind === 'managed-instance' && targetInstance?.mode !== 'managed-local-docker') {
+              environmentTargetId = this.ensureEmbeddedWorkspaceTarget(configService, {
+                name: selectedTarget.name || name || url,
+                url,
               });
             }
           }
-          if (instanceTargetId && baseUrl && apiKey) {
-            const existingPreset = (await globalFacade.listInstances()).find((instance) => normalizeHost(instance.tunnelPublicUrl || instance.baseUrl || '') === baseUrl && instance.mode !== 'managed-local-docker');
-            configService.saveLocalConfig({ host: baseUrl }, {
+          if (environmentTargetId && url && apiKey) {
+            const existingPreset = (await globalFacade.listInstances()).find((instance) => normalizeHost(instance.tunnelPublicUrl || instance.baseUrl || '') === url && instance.mode !== 'managed-local-docker');
+            configService.saveLocalConfig({ host: url }, {
               instanceId: existingPreset?.id,
-              instanceName: existingPreset?.name || name || baseUrl,
+              instanceName: existingPreset?.name || name || url,
               createNew: !existingPreset,
               setActive: false,
               apiKey,
@@ -522,7 +466,7 @@ export class ConfigurationWebview {
           const folderSync = typeof payload.folderSync === 'boolean' ? payload.folderSync : undefined;
           const input = {
             name,
-            instanceTarget: instanceTargetId,
+            environmentTarget: environmentTargetId,
             projectId,
             projectName,
             syncFolder,
@@ -758,22 +702,78 @@ export class ConfigurationWebview {
     }
   }
 
-  private ensureEmbeddedWorkspaceTarget(configService: ConfigService, input: { name: string; baseUrl: string }): string {
-    const baseUrl = normalizeHost(input.baseUrl);
-    const existing = configService.listInstanceTargets().find((target) => {
-      return target.kind === 'embedded' && normalizeHost(target.instance.baseUrl) === baseUrl;
+  private async migrateWorkspaceConfiguration(workspaceRoot: string): Promise<void> {
+    const initialConfigService = new ConfigService(workspaceRoot);
+    const legacyPlan = initialConfigService.detectLegacyWorkspaceConfig();
+    const globalPlan = initialConfigService.detectGlobalInstancesMigration();
+    if (!legacyPlan && !globalPlan) {
+      this._panel.webview.postMessage({ type: 'saved' });
+      await this._configurationController.refresh('webview-migration-not-needed', { force: true });
+      return;
+    }
+
+    const confirmation = await vscode.window.showWarningMessage(
+      'Migration required. This will update the workspace configuration.',
+      { modal: true },
+      'Run migration',
+    );
+    if (confirmation !== 'Run migration') {
+      this._panel.webview.postMessage({ type: 'cancelled' });
+      return;
+    }
+
+    let backupPath = '';
+    let migratedCount = 0;
+    let deletedCount = 0;
+
+    if (legacyPlan) {
+      const legacySettings = await readLegacyN8nSettings(this._context);
+      const legacyResult = initialConfigService.migrateLegacyWorkspaceConfig({ write: true });
+      if (legacyResult.status === 'migrated') {
+        backupPath = legacyResult.backupPath;
+        const environmentHost = normalizeHost(initialConfigService.resolveEnvironment().host || '');
+        const migratedInstance = legacyResult.instances.find((instance) => normalizeHost(instance.host || '') === environmentHost);
+        preserveMigratedLegacyApiKey(initialConfigService, legacySettings, migratedInstance?.id);
+      }
+    }
+
+    const currentConfigService = new ConfigService(workspaceRoot);
+    const currentGlobalPlan = currentConfigService.detectGlobalInstancesMigration();
+    if (currentGlobalPlan) {
+      const globalResult = currentConfigService.migrateGlobalInstancesToEnvironments({ write: true });
+      if (globalResult.status === 'migrated') {
+        migratedCount = globalResult.migratedEnvironmentIds.length;
+        deletedCount = globalResult.deletedGlobalInstanceIds.length;
+      }
+    }
+
+    await clearLegacyWorkspaceSettings();
+    const snapshot = await this._configurationController.refresh('webview-run-migration', { force: true });
+    await this.postInitialState(snapshot);
+    this._panel.webview.postMessage({
+      type: 'migrationCompleted',
+      backupPath,
+      migratedCount,
+      deletedCount,
     });
-    if (existing) return existing.id;
+  }
+
+  private ensureEmbeddedWorkspaceTarget(configService: ConfigService, input: { name: string; url: string }): string {
+    const url = normalizeHost(input.url);
+    const externalInstance = configService.listInstanceTargets().find((target) => {
+      return target.kind === 'external-instance' && normalizeHost(target.url) === url;
+    });
+    if (externalInstance) return externalInstance.id;
 
     const existingNames = new Set(configService.listInstanceTargets().map((target) => target.name.toLowerCase()));
-    const baseName = input.name || baseUrl;
+    const baseName = input.name || url;
     let name = baseName;
     let counter = 2;
     while (existingNames.has(name.toLowerCase())) {
       name = `${baseName} ${counter}`;
       counter += 1;
     }
-    return configService.addInstanceTarget({ name, baseUrl }).id;
+    return configService.addInstanceTarget({ name, url }).id;
   }
 
   private async saveGlobalInstance(
@@ -815,7 +815,7 @@ export class ConfigurationWebview {
     }
 
     if (mode === 'existing' && !instanceId && (!host || !apiKey)) {
-      throw new Error('Host and API key are required for a new existing n8n instance.');
+      throw new Error('Host and API key are required for a new externalInstance n8n instance.');
     }
 
     const identifierResolution = host && apiKey
@@ -899,7 +899,7 @@ export class ConfigurationWebview {
       },
       workspace: workspaceOverrides,
       legacyMigration: currentSnapshot.legacyMigration,
-      globalInstanceMigration: currentSnapshot.globalInstanceMigration,
+      globalInstancesMigration: currentSnapshot.globalInstancesMigration,
       effective: effectiveContext ? {
         activeInstanceId: effectiveContext.activeInstanceId,
         activeInstanceName: effectiveContext.activeInstanceName,

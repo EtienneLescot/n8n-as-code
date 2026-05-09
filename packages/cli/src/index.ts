@@ -66,11 +66,11 @@ async function ensureManagedLocalTarget(configService: ConfigService, instanceId
     if (instance.mode !== 'managed-local-docker') {
         throw new Error(`Instance "${instance.name || instance.id}" is not managed locally. Use --base-url for remote n8n environments.`);
     }
-    const existing = configService.listInstanceTargets().find((target) => target.kind === 'global-ref' && target.instanceRef === instance.id);
-    if (existing) return existing;
+    const externalInstance = configService.listInstanceTargets().find((target) => target.kind === 'managed-instance' && target.managedInstanceId === instance.id);
+    if (externalInstance) return externalInstance;
     return configService.addInstanceTarget({
         name: instance.name || instance.id,
-        instanceRef: instance.id,
+        managedInstanceId: instance.id,
     });
 }
 
@@ -539,11 +539,11 @@ hideCommand(workspaceProgram.command('clear-project'))
         printJsonOrText(options, workspaceConfig, chalk.green('✔ Workspace project override cleared.'));
     });
 
-const instanceTargetProgram = hideCommand(program.command('instance-target')
+const environmentTargetProgram = hideCommand(program.command('instance-target')
     .alias('target')
     .description('Compatibility: manage low-level workspace targets used by environments'));
 
-instanceTargetProgram.command('list')
+environmentTargetProgram.command('list')
     .description('List workspace instance targets')
     .option('--json', 'Output targets as JSON')
     .action((options) => {
@@ -553,24 +553,26 @@ instanceTargetProgram.command('list')
             options,
             targets,
             targets.length
-                ? targets.map((target) => `${target.id}\t${target.name}\t${target.kind}\t${target.kind === 'global-ref' ? target.instanceRef : target.instance.baseUrl}`).join('\n')
+                ? targets.map((target) => `${target.id}\t${target.name}\t${target.kind}\t${target.kind === 'managed-instance' ? target.managedInstanceId : target.url}`).join('\n')
                 : 'No workspace instance targets configured.',
         );
     });
 
-instanceTargetProgram.command('add')
+environmentTargetProgram.command('add')
     .description('Compatibility: add a low-level workspace target. Prefer `n8nac env add --base-url ...`.')
     .argument('<name>', 'Target display name')
     .option('--id <id>', 'Stable target ID')
     .option('--instance-ref <id>', 'Global n8n-manager instance ID to reference')
-    .option('--base-url <url>', 'Public existing n8n URL to embed without secrets')
+    .option('--base-url <url>', 'Public externalInstance n8n URL to embed without secrets')
     .option('--description <text>', 'Target description')
     .option('--json', 'Output target as JSON')
     .action(async (name, options) => {
         const configService = new ConfigService();
-        if (options.instanceRef) {
-            const instance = (await createManagerFacadeFromOptions({}).listInstances()).find((item) => item.id === options.instanceRef);
-            if (!instance) throw new Error(`Unknown managed local n8n instance: ${options.instanceRef}`);
+        const managedInstanceId = options.managedInstanceId || options.instanceRef;
+        const url = options.url || options.baseUrl;
+        if (managedInstanceId) {
+            const instance = (await createManagerFacadeFromOptions({}).listInstances()).find((item) => item.id === managedInstanceId);
+            if (!instance) throw new Error(`Unknown managed local n8n instance: ${managedInstanceId}`);
             if (instance.mode !== 'managed-local-docker') {
                 throw new Error(`Instance "${instance.name || instance.id}" is not managed locally. Prefer \`n8nac env add <name> --base-url <url> --sync-folder <path>\` for remote n8n environments.`);
             }
@@ -578,19 +580,19 @@ instanceTargetProgram.command('add')
         const target = configService.addInstanceTarget({
             name,
             id: options.id,
-            instanceRef: options.instanceRef,
-            baseUrl: options.baseUrl,
+            managedInstanceId,
+            url,
             description: options.description,
         });
         printJsonOrText(options, target, chalk.green(`✔ Workspace instance target added: ${target.name}`));
     });
 
-instanceTargetProgram.command('update')
+environmentTargetProgram.command('update')
     .description('Update a workspace instance target')
     .argument('<name-or-id>', 'Target name or ID')
     .option('--name <name>', 'New display name')
-    .option('--instance-ref <id>', 'New global n8n-manager instance reference for global-ref targets')
-    .option('--base-url <url>', 'New public URL for embedded targets')
+    .option('--instance-ref <id>', 'New global n8n-manager instance reference for managedInstance targets')
+    .option('--base-url <url>', 'New public URL for externalInstance targets')
     .option('--description <text>', 'New description')
     .option('--json', 'Output target as JSON')
     .action((nameOrId, options) => {
@@ -599,7 +601,7 @@ instanceTargetProgram.command('update')
         printJsonOrText(options, target, chalk.green(`✔ Workspace instance target updated: ${target.name}`));
     });
 
-instanceTargetProgram.command('remove')
+environmentTargetProgram.command('remove')
     .alias('rm')
     .description('Remove an unused workspace instance target')
     .argument('<name-or-id>', 'Target name or ID')
@@ -632,7 +634,7 @@ environmentProgram.command('list')
                     environment.id === config.activeEnvironmentId ? '*' : ' ',
                     environment.id,
                     environment.name,
-                    environment.resolved?.instanceTargetName || environment.instanceTargetId,
+                    environment.resolved?.environmentTargetName || environment.environmentTargetId,
                     environment.projectName || environment.projectId || '(no project)',
                     environment.syncFolder,
                 ].join('\t')).join('\n')
@@ -643,9 +645,9 @@ environmentProgram.command('list')
 environmentProgram.command('add')
     .description('Add an n8n workspace environment')
     .argument('<name>', 'Environment display name')
-    .option('--base-url <url>', 'Remote existing n8n URL to store in this workspace environment')
+    .option('--base-url <url>', 'Remote n8n URL to store in this workspace environment')
     .option('--managed-instance <id>', 'Local managed n8n instance ID to reference')
-    .option('--instance-target <name-or-id>', 'Compatibility: existing workspace target name or ID')
+    .option('--instance-target <name-or-id>', 'Compatibility: workspace target name or ID')
     .option('--api-key <key>', 'Store a local API key for --base-url without committing it')
     .option('--api-key-stdin', 'Read the local API key for --base-url from stdin')
     .option('--project-id <id>', 'n8n project ID')
@@ -659,39 +661,41 @@ environmentProgram.command('add')
     .action(async (name, options) => {
         await hydrateApiKeyFromStdin(options);
         const configService = new ConfigService();
-        const selectors = [options.instanceTarget, options.baseUrl, options.managedInstance].filter(Boolean);
+        const environmentTargetOption = options.environmentTarget || options.instanceTarget;
+        const urlOption = options.url || options.baseUrl;
+        const selectors = [environmentTargetOption, urlOption, options.managedInstance].filter(Boolean);
         if (selectors.length !== 1) {
             throw new Error('Provide exactly one of --base-url, --managed-instance, or --instance-target.');
         }
         if ((options.projectId && !options.projectName) || (!options.projectId && options.projectName)) {
             throw new Error('Provide both --project-id and --project-name, or omit both.');
         }
-        let instanceTarget = options.instanceTarget;
-        if (options.baseUrl) {
+        let environmentTarget = environmentTargetOption;
+        if (urlOption) {
             const target = configService.ensureEmbeddedInstanceTarget({
                 name,
-                baseUrl: options.baseUrl,
+                url: urlOption,
             });
-            instanceTarget = target.id;
+            environmentTarget = target.id;
             configService.upsertRemoteInstancePreset({
-                host: options.baseUrl,
+                host: urlOption,
                 apiKey: options.apiKey,
                 name,
             });
         }
         if (options.managedInstance) {
             const target = await ensureManagedLocalTarget(configService, options.managedInstance);
-            instanceTarget = target.id;
+            environmentTarget = target.id;
         }
-        if (!instanceTarget) {
+        if (!environmentTarget) {
             throw new Error('Unable to resolve an instance for this environment.');
         }
         const environment = configService.addEnvironment({
             name,
             id: options.id,
-            instanceTarget,
-            projectId: options.projectId || (options.baseUrl ? 'personal' : undefined),
-            projectName: options.projectName || (options.baseUrl ? 'Personal' : undefined),
+            environmentTarget,
+            projectId: options.projectId || (urlOption ? 'personal' : undefined),
+            projectName: options.projectName || (urlOption ? 'Personal' : undefined),
             syncFolder: options.syncFolder,
             folderSync: Boolean(options.folderSync),
             customNodesPath: options.customNodesPath,
@@ -704,7 +708,7 @@ environmentProgram.command('update')
     .description('Update a workspace environment')
     .argument('<name-or-id>', 'Environment name or ID')
     .option('--name <name>', 'New display name')
-    .option('--base-url <url>', 'Move this environment to a remote existing n8n URL')
+    .option('--base-url <url>', 'Move this environment to a remote n8n URL')
     .option('--managed-instance <id>', 'Move this environment to a local managed n8n instance')
     .option('--instance-target <name-or-id>', 'Workspace instance target name or ID')
     .option('--api-key <key>', 'Store a local API key for --base-url without committing it')
@@ -720,30 +724,32 @@ environmentProgram.command('update')
     .action(async (nameOrId, options) => {
         await hydrateApiKeyFromStdin(options);
         const configService = new ConfigService();
-        const selectors = [options.instanceTarget, options.baseUrl, options.managedInstance].filter(Boolean);
+        const environmentTargetOption = options.environmentTarget || options.instanceTarget;
+        const urlOption = options.url || options.baseUrl;
+        const selectors = [environmentTargetOption, urlOption, options.managedInstance].filter(Boolean);
         if (selectors.length > 1) {
             throw new Error('Provide at most one of --base-url, --managed-instance, or --instance-target.');
         }
-        let instanceTarget = options.instanceTarget;
-        if (options.baseUrl) {
+        let environmentTarget = environmentTargetOption;
+        if (urlOption) {
             const target = configService.ensureEmbeddedInstanceTarget({
                 name: options.name || nameOrId,
-                baseUrl: options.baseUrl,
+                url: urlOption,
             });
-            instanceTarget = target.id;
+            environmentTarget = target.id;
             configService.upsertRemoteInstancePreset({
-                host: options.baseUrl,
+                host: urlOption,
                 apiKey: options.apiKey,
                 name: options.name || nameOrId,
             });
         }
         if (options.managedInstance) {
             const target = await ensureManagedLocalTarget(configService, options.managedInstance);
-            instanceTarget = target.id;
+            environmentTarget = target.id;
         }
         const patch = {
             name: options.name,
-            instanceTarget,
+            environmentTarget,
             projectId: options.projectId,
             projectName: options.projectName,
             syncFolder: options.syncFolder,
@@ -797,7 +803,7 @@ environmentAuthProgram.command('set')
         configService.upsertRemoteInstancePreset({
             host: environment.host,
             apiKey: options.apiKey,
-            name: environment.instanceTargetName || environment.environmentName,
+            name: environment.environmentTargetName || environment.environmentName,
         });
         const resolved = configService.resolveEnvironment(nameOrId);
         printJsonOrText(
@@ -819,8 +825,8 @@ environmentProgram.command('status')
             redactResolvedEnvironment(environment),
             [
                 chalk.cyan(`\nWorkspace environment: ${environment.environmentName}\n`),
-                `Target  : ${chalk.bold(`${environment.instanceTargetName} (${environment.targetKind})`)}`,
-                `Instance: ${chalk.bold(environment.activeInstanceName || environment.globalInstanceId || '(embedded)')}`,
+                `Target  : ${chalk.bold(`${environment.environmentTargetName} (${environment.sourceKind})`)}`,
+                `Instance: ${chalk.bold(environment.activeInstanceName || environment.managedInstanceId || '(externalInstance)')}`,
                 `Host    : ${chalk.bold(environment.host)}`,
                 `Project : ${chalk.bold(environment.projectName || environment.projectId || '(none)')}`,
                 `Sync    : ${chalk.bold(environment.workflowDir || environment.syncFolder)}`,

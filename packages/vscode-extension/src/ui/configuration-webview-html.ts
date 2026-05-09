@@ -348,17 +348,17 @@ export function getConfigurationHtml(nonce: string): string {
               </div>
             </div>
             <div id="legacyMigrationNotice" class="message warning hidden">
-              <strong>Legacy n8n-as-code config detected.</strong>
+              <strong>Migration required.</strong>
               <div id="legacyMigrationText" class="muted"></div>
               <div class="toolbar">
-                <button id="migrateLegacyWorkspace" type="button">Migrate workspace</button>
+                <button id="migrateLegacyWorkspace" type="button">Run migration</button>
               </div>
             </div>
-            <div id="globalInstanceMigrationNotice" class="message warning hidden">
+            <div id="globalInstancesMigrationNotice" class="message warning hidden">
               <strong>Global n8n instances detected.</strong>
-              <div id="globalInstanceMigrationText" class="muted"></div>
+              <div id="globalInstancesMigrationText" class="muted"></div>
               <div class="toolbar">
-                <button id="migrateGlobalInstances" type="button">Migrate global instances</button>
+                <button id="migrateGlobalInstances" type="button">Migrate as environments</button>
               </div>
             </div>
             <div id="environmentList" class="instances"></div>
@@ -384,12 +384,12 @@ export function getConfigurationHtml(nonce: string): string {
               <button id="clearWorkspaceSettings" class="secondary">Clear folder/project</button>
             </div>
               <h3>Workspace instance targets</h3>
-              <p class="muted">Targets are tracked workspace endpoints. Global refs point to machine-owned n8n-manager instances; embedded targets store only a public URL.</p>
+              <p class="muted">Targets are tracked workspace endpoints. Global refs point to machine-owned n8n-manager instances; external-instance targets store only a public URL.</p>
               <div id="targetList" class="instances"></div>
               <input id="targetName" type="text" />
-              <select id="targetKind">
-                <option value="global-ref">Global n8n-manager instance</option>
-                <option value="embedded">Embedded public URL</option>
+              <select id="sourceKind">
+                <option value="managed-instance">Global n8n-manager instance</option>
+                <option value="external-instance">Embedded public URL</option>
               </select>
               <select id="targetGlobalInstance"></select>
               <input id="targetBaseUrl" type="text" />
@@ -423,7 +423,7 @@ export function getConfigurationHtml(nonce: string): string {
         <section class="panel">
           <div>
             <h2>About n8n-as-code</h2>
-            <p class="muted">Edit and sync n8n workflows from VS Code with embedded agent assistance.</p>
+            <p class="muted">Edit and sync n8n workflows from VS Code with external-instance agent assistance.</p>
           </div>
           <div id="aboutGrid" class="about-grid"></div>
         </section>
@@ -487,7 +487,7 @@ export function getConfigurationHtml(nonce: string): string {
           </label>
           <label id="modalApiKeyField" class="full">
             API key
-            <input id="modalApiKey" type="password" placeholder="Leave empty to keep existing key" />
+            <input id="modalApiKey" type="password" placeholder="Leave empty to keep external-instance key" />
           </label>
           <label id="modalTunnelField" class="full">
             Access
@@ -629,7 +629,7 @@ export function getConfigurationHtml(nonce: string): string {
       legacyWorkspaceActions: document.getElementById('legacyWorkspaceActions'),
       targetList: document.getElementById('targetList'),
       targetName: document.getElementById('targetName'),
-      targetKind: document.getElementById('targetKind'),
+      sourceKind: document.getElementById('sourceKind'),
       targetGlobalInstance: document.getElementById('targetGlobalInstance'),
       targetBaseUrl: document.getElementById('targetBaseUrl'),
       saveTarget: document.getElementById('saveTarget'),
@@ -637,8 +637,8 @@ export function getConfigurationHtml(nonce: string): string {
       legacyMigrationNotice: document.getElementById('legacyMigrationNotice'),
       legacyMigrationText: document.getElementById('legacyMigrationText'),
       migrateLegacyWorkspace: document.getElementById('migrateLegacyWorkspace'),
-      globalInstanceMigrationNotice: document.getElementById('globalInstanceMigrationNotice'),
-      globalInstanceMigrationText: document.getElementById('globalInstanceMigrationText'),
+      globalInstancesMigrationNotice: document.getElementById('globalInstancesMigrationNotice'),
+      globalInstancesMigrationText: document.getElementById('globalInstancesMigrationText'),
       migrateGlobalInstances: document.getElementById('migrateGlobalInstances'),
       environmentList: document.getElementById('environmentList'),
       environmentModal: document.getElementById('environmentModal'),
@@ -740,7 +740,7 @@ export function getConfigurationHtml(nonce: string): string {
       return state.providers || [];
     }
     function targets() {
-      return state.workspace?.instanceTargets || [];
+      return state.workspace?.environmentTargets || [];
     }
     function environments() {
       return state.workspace?.environments || [];
@@ -776,8 +776,8 @@ export function getConfigurationHtml(nonce: string): string {
       const byId = new Map();
       for (const project of projectList.length ? projectList : [PERSONAL_PROJECT]) {
         if (!project?.id) continue;
-        const existing = byId.get(project.id);
-        if (!existing || (!existing.name && project.name) || existing.id === 'personal') {
+        const existingProject = byId.get(project.id);
+        if (!existingProject || (!existingProject.name && project.name) || existingProject.id === 'personal') {
           byId.set(project.id, project);
         }
       }
@@ -805,7 +805,7 @@ export function getConfigurationHtml(nonce: string): string {
     function environmentConnectionCandidate() {
       const selected = selectedEnvironmentInstance();
       const typedHost = normalizeHost(els.environmentRemoteUrl.value);
-      const selectedHost = normalizeHost(selected.baseUrl || '');
+      const selectedHost = normalizeHost(selected.url || '');
       const host = typedHost || selectedHost;
       const typedApiKey = els.environmentApiKey.value.trim();
       const typedHostReplacesStored = Boolean(typedHost && selectedHost && typedHost !== selectedHost);
@@ -854,19 +854,19 @@ export function getConfigurationHtml(nonce: string): string {
         apiKeyAvailable: false,
         accessStatus: 'manual',
       }];
-      const embeddedUrls = new Set();
+      const externalInstanceUrls = new Set();
       for (const target of targets()) {
-        if (target.kind === 'embedded' && target.instance?.baseUrl) embeddedUrls.add(normalizeHost(target.instance.baseUrl));
-        const linkedInstance = target.kind === 'global-ref' ? instanceById(target.instanceRef) : undefined;
-        const isManagedTarget = target.kind === 'global-ref' && linkedInstance?.mode === 'managed-local-docker';
+        if (target.kind === 'external-instance' && target.url) externalInstanceUrls.add(normalizeHost(target.url));
+        const linkedInstance = target.kind === 'managed-instance' ? instanceById(target.managedInstanceId) : undefined;
+        const isManagedTarget = target.kind === 'managed-instance' && linkedInstance?.mode === 'managed-local-docker';
         choices.push({
           value: 'target:' + target.id,
           source: 'target',
           id: target.id,
           mode: isManagedTarget ? 'managed' : 'remote',
-          baseUrl: target.kind === 'embedded' ? target.instance?.baseUrl : linkedInstance?.baseUrl || linkedInstance?.host || '',
+          url: target.kind === 'external-instance' ? target.url : linkedInstance?.baseUrl || linkedInstance?.host || '',
           label: target.instanceName || target.name || target.id,
-          detail: isManagedTarget ? 'managed local instance' : target.kind === 'embedded' ? target.instance?.baseUrl : linkedInstance?.baseUrl || 'local instance missing',
+          detail: isManagedTarget ? 'managed local instance' : target.kind === 'external-instance' ? target.url : linkedInstance?.baseUrl || 'local instance missing',
           apiKeyAvailable: Boolean(target.apiKeyAvailable),
           accessStatus: target.accessStatus || (target.apiKeyAvailable ? 'unknown' : 'missing-api-key'),
         });
@@ -884,16 +884,16 @@ export function getConfigurationHtml(nonce: string): string {
         });
       }
       for (const instance of remoteInstances()) {
-        const baseUrl = normalizeHost(instance.host || instance.baseUrl || '');
-        if (!baseUrl || embeddedUrls.has(baseUrl)) continue;
+        const url = normalizeHost(instance.host || instance.baseUrl || '');
+        if (!url || externalInstanceUrls.has(url)) continue;
         choices.push({
           value: 'global:' + instance.id,
           source: 'global',
           id: instance.id,
           mode: 'remote',
-          baseUrl,
+          url,
           label: instance.name || instance.id,
-          detail: baseUrl,
+          detail: url,
           apiKeyAvailable: Boolean(instance.apiKeyAvailable),
           accessStatus: instance.accessStatus || (instance.apiKeyAvailable ? 'unknown' : 'missing-api-key'),
         });
@@ -914,12 +914,14 @@ export function getConfigurationHtml(nonce: string): string {
         source: option?.dataset.source || '',
         id: option?.dataset.id || '',
         mode: option?.dataset.mode || '',
-        baseUrl: option?.dataset.baseUrl || '',
+        url: option?.dataset.url || '',
         apiKeyAvailable: option?.dataset.apiKeyAvailable === 'true',
         accessStatus: option?.dataset.accessStatus || '',
       };
     }
     function modeLabel(mode) {
+      if (mode === 'managed-instance') return 'Managed instance';
+      if (mode === 'external-instance') return 'Existing n8n instance';
       if (mode === 'managed-local-docker') return 'Managed instance';
       if (mode === 'existing') return 'Existing n8n instance';
       return mode || '';
@@ -985,19 +987,14 @@ export function getConfigurationHtml(nonce: string): string {
       els.openManagedInstances.classList.toggle('hidden', tab !== 'n8n-instances');
     }
     function renderLegacyMigrationNotice() {
-      const legacy = state.legacyMigration;
-      els.legacyMigrationNotice.classList.toggle('hidden', !legacy);
-      els.addEnvironment.disabled = Boolean(legacy);
-      if (!legacy) return;
-      const version = legacy.version ? 'v' + legacy.version : 'legacy';
-      els.legacyMigrationText.textContent = 'This workspace uses an old ' + version + ' config at ' + legacy.configPath + '. Migration creates a backup, then converts it to n8n environments.';
+      const migrationRequired = Boolean(state.legacyMigration || state.globalInstancesMigration);
+      els.legacyMigrationNotice.classList.toggle('hidden', !migrationRequired);
+      els.addEnvironment.disabled = migrationRequired;
+      if (!migrationRequired) return;
+      els.legacyMigrationText.textContent = '';
     }
     function renderGlobalInstanceMigrationNotice() {
-      const migration = state.globalInstanceMigration;
-      els.globalInstanceMigrationNotice.classList.toggle('hidden', !migration);
-      if (!migration) return;
-      const count = Number(migration.instanceCount || 0);
-      els.globalInstanceMigrationText.textContent = 'We detected ' + count + ' global n8n instance' + (count === 1 ? '' : 's') + ' from the previous v2 workspace model. Migrate them into this workspace? Existing instance entries will be removed after migration; managed local instances will be referenced by workspace environments and stay global.';
+      els.globalInstancesMigrationNotice.classList.add('hidden');
     }
     function renderInstanceList() {
       els.instanceList.innerHTML = '';
@@ -1068,7 +1065,7 @@ export function getConfigurationHtml(nonce: string): string {
         actions.className = 'toolbar';
         const edit = button('Edit', 'secondary compact', () => openModal(instance));
         const addEnvironment = button('Add environment', 'secondary compact', () => {
-          const existingTarget = targets().find((target) => target.kind === 'global-ref' && target.instanceRef === instance.id);
+          const existingTarget = targets().find((target) => target.kind === 'managed-instance' && target.managedInstanceId === instance.id);
           editEnvironment(undefined, existingTarget ? 'target:' + existingTarget.id : 'global:' + instance.id);
         });
         const del = button('Delete', 'danger compact', () => {
@@ -1106,11 +1103,11 @@ export function getConfigurationHtml(nonce: string): string {
       renderTargetKindFields();
     }
     function renderTargetKindFields() {
-      const embedded = els.targetKind.value === 'embedded';
+      const isExternalInstance = els.sourceKind.value === 'external-instance';
       const globalField = els.targetGlobalInstance.closest('label');
-      const baseUrlField = els.targetBaseUrl.closest('label');
-      if (globalField) globalField.style.display = embedded ? 'none' : 'grid';
-      if (baseUrlField) baseUrlField.style.display = embedded ? 'grid' : 'none';
+      const urlField = els.targetBaseUrl.closest('label');
+      if (globalField) globalField.style.display = isExternalInstance ? 'none' : 'grid';
+      if (urlField) urlField.style.display = isExternalInstance ? 'grid' : 'none';
     }
     function renderTargetList() {
       els.targetList.innerHTML = '';
@@ -1135,11 +1132,11 @@ export function getConfigurationHtml(nonce: string): string {
         title.textContent = target.name || target.id;
         const detail = document.createElement('div');
         detail.className = 'instance-mode';
-        detail.textContent = target.kind === 'global-ref' ? 'Global ref: ' + target.instanceRef : 'Embedded URL: ' + target.instance?.baseUrl;
+        detail.textContent = target.kind === 'managed-instance' ? 'Managed instance: ' + target.managedInstanceId : 'URL: ' + target.url;
         identity.append(title, detail);
         const status = document.createElement('div');
         status.className = 'instance-status';
-        status.appendChild(badge(target.kind, target.kind === 'embedded' ? 'warning' : 'ready'));
+        status.appendChild(badge(target.kind, target.kind === 'external-instance' ? 'warning' : 'ready'));
         status.appendChild(accessBadge(target));
         const targetCredential = credentialBadge(target);
         if (targetCredential) status.appendChild(targetCredential);
@@ -1170,7 +1167,7 @@ export function getConfigurationHtml(nonce: string): string {
         opt.dataset.source = choice.source;
         opt.dataset.id = choice.id;
         opt.dataset.mode = choice.mode || '';
-        opt.dataset.baseUrl = choice.baseUrl || '';
+        opt.dataset.url = choice.url || '';
         opt.dataset.apiKeyAvailable = choice.apiKeyAvailable ? 'true' : 'false';
         opt.dataset.accessStatus = choice.accessStatus || '';
         opt.textContent = choice.detail ? choice.label + ' (' + choice.detail + ')' : choice.label;
@@ -1211,10 +1208,10 @@ export function getConfigurationHtml(nonce: string): string {
         const title = document.createElement('div');
         title.className = 'instance-title';
         title.textContent = env.name || env.id;
-        const target = targets().find((item) => item.id === env.instanceTargetId);
+        const target = targets().find((item) => item.id === env.environmentTargetId);
         const detail = document.createElement('div');
         detail.className = 'instance-mode';
-        const instanceLabel = env.instanceName || target?.instanceName || target?.name || env.instanceTargetId;
+        const instanceLabel = env.instanceName || target?.instanceName || target?.name || env.environmentTargetId;
         const projectLabel = env.projectName || env.projectId || 'Default project';
         detail.textContent = '(' + [instanceLabel, projectLabel].filter(Boolean).join(' - ') + ')';
         identity.append(title, detail);
@@ -1285,8 +1282,8 @@ export function getConfigurationHtml(nonce: string): string {
         detail.className = 'provider-detail';
         const model = provider.selected && provider.model ? ' · Model: ' + provider.model : provider.defaultModel ? ' · Default: ' + provider.defaultModel : '';
         const reasoning = provider.selected && provider.reasoningEffort ? ' · Reasoning: ' + provider.reasoningEffort : '';
-        const baseUrl = provider.id === 'openai-compatible' && provider.baseUrl ? ' · ' + provider.baseUrl : '';
-        detail.textContent = provider.description + model + reasoning + baseUrl;
+        const url = provider.id === 'openai-compatible' && provider.url ? ' · ' + provider.url : '';
+        detail.textContent = provider.description + model + reasoning + url;
         main.append(title, detail);
         const actions = document.createElement('div');
         actions.className = 'provider-actions';
@@ -1400,7 +1397,7 @@ export function getConfigurationHtml(nonce: string): string {
     function syncEnvironmentRemoteUrlFromSelection() {
       const selected = selectedEnvironmentInstance();
       els.environmentRemoteUrl.placeholder = 'https://my-instance.app.n8n.cloud';
-      els.environmentRemoteUrl.value = selected.baseUrl || '';
+      els.environmentRemoteUrl.value = selected.url || '';
     }
     function renderEnvironmentInstanceFields() {
       const selected = selectedEnvironmentInstance();
@@ -1442,9 +1439,9 @@ export function getConfigurationHtml(nonce: string): string {
     function editTarget(target) {
       editingTargetId = target?.id || '';
       els.targetName.value = target?.name || '';
-      els.targetKind.value = target?.kind || 'global-ref';
-      els.targetGlobalInstance.value = target?.instanceRef || '';
-      els.targetBaseUrl.value = target?.instance?.baseUrl || '';
+      els.sourceKind.value = target?.kind || 'managed-instance';
+      els.targetGlobalInstance.value = target?.managedInstanceId || '';
+      els.targetBaseUrl.value = target?.url || '';
       renderTargetKindFields();
     }
     function editEnvironment(env, instanceChoice) {
@@ -1452,7 +1449,7 @@ export function getConfigurationHtml(nonce: string): string {
       els.environmentModalTitle.textContent = editingEnvironmentId ? 'Edit environment' : 'Add environment';
       els.environmentName.value = env?.name || 'Dev';
       renderEnvironmentControls();
-      els.environmentInstance.value = instanceChoice || (env?.instanceTargetId ? 'target:' + env.instanceTargetId : els.environmentInstance.options[0]?.value || '');
+      els.environmentInstance.value = instanceChoice || (env?.environmentTargetId ? 'target:' + env.environmentTargetId : els.environmentInstance.options[0]?.value || '');
       els.environmentInstance.disabled = Boolean(editingEnvironmentId);
       syncEnvironmentRemoteUrlFromSelection();
       els.environmentApiKey.value = '';
@@ -1472,7 +1469,7 @@ export function getConfigurationHtml(nonce: string): string {
       editingTargetId = '';
       els.targetName.value = '';
       els.targetBaseUrl.value = '';
-      els.targetKind.value = 'global-ref';
+      els.sourceKind.value = 'managed-instance';
       renderTargetKindFields();
     }
     function clearEnvironmentForm() {
@@ -1502,7 +1499,7 @@ export function getConfigurationHtml(nonce: string): string {
         scope: 'environment',
         requestId,
         instanceId: !candidate.shouldSendTypedCredentials && selected.source === 'global' ? selected.id : '',
-        instanceTargetId: !candidate.shouldSendTypedCredentials && selected.source === 'target' ? selected.id : '',
+        environmentTargetId: !candidate.shouldSendTypedCredentials && selected.source === 'target' ? selected.id : '',
         host: candidate.shouldSendTypedCredentials ? candidate.host : '',
         apiKey: candidate.shouldSendTypedCredentials ? candidate.typedApiKey : '',
         environmentId: editingEnvironmentId || '',
@@ -1590,8 +1587,8 @@ export function getConfigurationHtml(nonce: string): string {
       vscode.postMessage({ type, ...payload });
     }
     els.refresh.addEventListener('click', () => post('refreshState'));
-    els.migrateLegacyWorkspace.addEventListener('click', () => post('migrateLegacyWorkspaceConfig'));
-    els.migrateGlobalInstances.addEventListener('click', () => post('migrateGlobalInstancesToWorkspace'));
+    els.migrateLegacyWorkspace.addEventListener('click', () => post('migrateWorkspaceConfiguration'));
+    els.migrateGlobalInstances.addEventListener('click', () => post('migrateWorkspaceConfiguration'));
     els.tabButtons.forEach((tabButton) => tabButton.addEventListener('click', () => setActiveTab(tabButton.dataset.tab)));
     els.providerSelectModel.addEventListener('click', () => post('selectProviderModel', { provider: providers().find((provider) => provider.selected)?.id || 'openai' }));
     els.openManagedInstances.addEventListener('click', openManagedInstancesModal);
@@ -1637,15 +1634,15 @@ export function getConfigurationHtml(nonce: string): string {
     els.manageInstancesFromEnvironment.addEventListener('click', () => {
       openModal(undefined, { overEnvironment: true });
     });
-    els.targetKind.addEventListener('change', renderTargetKindFields);
+    els.sourceKind.addEventListener('change', renderTargetKindFields);
     els.saveTarget.addEventListener('click', () => {
-      const embedded = els.targetKind.value === 'embedded';
+      const isExternalInstance = els.sourceKind.value === 'external-instance';
       post('saveInstanceTarget', {
         targetId: editingTargetId,
-        targetKind: els.targetKind.value,
+        sourceKind: els.sourceKind.value,
         name: els.targetName.value,
-        instanceRef: embedded ? '' : els.targetGlobalInstance.value,
-        baseUrl: embedded ? normalizeHost(els.targetBaseUrl.value) : '',
+        managedInstanceId: isExternalInstance ? '' : els.targetGlobalInstance.value,
+        url: isExternalInstance ? normalizeHost(els.targetBaseUrl.value) : '',
       });
       clearTargetForm();
     });
@@ -1656,9 +1653,9 @@ export function getConfigurationHtml(nonce: string): string {
       post('saveEnvironment', {
         environmentId: editingEnvironmentId,
         name: els.environmentName.value,
-        instanceTargetId: selected.source === 'target' ? selected.id : '',
+        environmentTargetId: selected.source === 'target' ? selected.id : '',
         instanceId: selected.source === 'global' ? selected.id : '',
-        baseUrl: selected.mode === 'remote' ? normalizeHost(els.environmentRemoteUrl.value || selected.baseUrl) : '',
+        url: selected.mode === 'remote' ? normalizeHost(els.environmentRemoteUrl.value || selected.url) : '',
         apiKey: selected.mode === 'remote' ? els.environmentApiKey.value : '',
         projectId: els.environmentProject.value,
         projectName: selectedProject?.dataset.projectName || selectedProject?.textContent || els.environmentProject.value,
@@ -1686,7 +1683,7 @@ export function getConfigurationHtml(nonce: string): string {
         scope: 'workspace',
         requestId,
         instanceId: state.workspace?.version === 4 ? '' : currentWorkspaceInstanceId() || state.global?.activeInstanceId || '',
-        instanceTargetId: '',
+        environmentTargetId: '',
         environmentId: editingEnvironmentId || '',
         projectId: state.workspace?.projectId || state.effective?.projectId || '',
         projectName: state.workspace?.projectName || state.effective?.projectName || '',
@@ -1706,7 +1703,7 @@ export function getConfigurationHtml(nonce: string): string {
           global: message.global || { instances: [] },
           workspace: message.workspace || {},
           legacyMigration: message.legacyMigration,
-          globalInstanceMigration: message.globalInstanceMigration,
+          globalInstancesMigration: message.globalInstancesMigration,
           effective: message.effective,
           providers: message.providers || [],
           about: message.about || {},
@@ -1738,9 +1735,18 @@ export function getConfigurationHtml(nonce: string): string {
       } else if (message.type === 'saved') {
         showSaved();
       } else if (message.type === 'legacyMigrationCompleted') {
+        state.legacyMigration = undefined;
+        render();
         showSaved(message.backupPath ? 'Workspace migrated. Backup: ' + message.backupPath : 'Workspace migrated.');
-      } else if (message.type === 'globalInstanceMigrationCompleted') {
+      } else if (message.type === 'globalInstancesMigrationCompleted') {
+        state.globalInstancesMigration = undefined;
+        render();
         showSaved('Global instances migrated.');
+      } else if (message.type === 'migrationCompleted') {
+        state.legacyMigration = undefined;
+        state.globalInstancesMigration = undefined;
+        render();
+        showSaved(message.backupPath ? 'Migration complete. Backup: ' + message.backupPath : 'Migration complete.');
       } else if (message.type === 'copied') {
         showSaved();
       } else if (message.type === 'managedCredentials') {

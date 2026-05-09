@@ -15,8 +15,8 @@ export interface ResolvedN8nWorkspaceConfig {
   activeInstanceName: string;
   environmentId?: string;
   environmentName?: string;
-  instanceTargetId?: string;
-  instanceTargetName?: string;
+  environmentTargetId?: string;
+  environmentTargetName?: string;
 }
 
 function readString(value: unknown): string {
@@ -54,11 +54,11 @@ export function getResolvedN8nConfig(workspaceRoot = getWorkspaceRoot()): Resolv
       projectId: environment.projectId || '',
       projectName: environment.projectName || '',
       activeInstanceId: environment.activeInstanceId || '',
-      activeInstanceName: environment.activeInstanceName || environment.instanceTargetName || '',
+      activeInstanceName: environment.activeInstanceName || environment.environmentTargetName || '',
       environmentId: environment.environmentId,
       environmentName: environment.environmentName,
-      instanceTargetId: environment.instanceTargetId,
-      instanceTargetName: environment.instanceTargetName,
+      environmentTargetId: environment.environmentTargetId,
+      environmentTargetName: environment.environmentTargetName,
     };
   }
   const activeInstance = workspaceRoot && configService ? configService.getActiveInstance() : undefined;
@@ -133,7 +133,7 @@ export function isFolderPreviouslyInitialized(workspaceRoot: string): boolean {
 }
 
 /**
- * Check for existing AI context files
+ * Check for external-instance AI context files
  */
 export function hasAIContextFiles(workspaceRoot: string): boolean {
   if (!workspaceRoot) {
@@ -173,7 +173,7 @@ export function determineInitialState(workspaceRoot?: string): {
   const isPreviouslyInitialized = isFolderPreviouslyInitialized(workspaceRoot);
 
   if (isPreviouslyInitialized && hasValidConfig) {
-    // Auto-load existing configuration
+    // Auto-load external-instance configuration
     return {
       state: 'initialized',
       hasValidConfig: true,
@@ -219,7 +219,7 @@ export function doesSyncDirectoryExist(): boolean {
 }
 
 /**
- * Get the canonical instance identifier from existing configuration.
+ * Get the canonical instance identifier from external-instance configuration.
  */
 export function getExistingInstanceIdentifier(workspaceRoot: string): string | undefined {
   const identifier = readUnifiedWorkspaceConfig(workspaceRoot).instanceIdentifier;
