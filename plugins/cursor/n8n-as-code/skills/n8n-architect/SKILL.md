@@ -29,22 +29,21 @@ npx --yes n8nac env status --json
 
 ## Workspace Readiness
 
-Always run migration dry-run before workspace status during readiness checks. The dry-run is safe and reports whether legacy workspace configuration or global instances need migration:
+Use the unified migration preflight before resolving the effective environment. The dry-run is safe and reports whether any workspace migration is required:
 
 ```bash
 npx --yes n8nac workspace migrate --json
-npx --yes n8nac workspace status --json
+npx --yes n8nac env status --json
 ```
 
 - Treat `workspace migrate --json` as the source of migration need.
-- Treat `workspace status --json` as the source of effective workspace readiness only after migration is not required or has been applied.
+- Treat `env status --json` as the source of effective workspace readiness only after migration is not required or has been applied.
 - Do not infer readiness from raw files, generated agent docs, or directory names.
-- If migration is required, do not edit config files by hand.
-- Never chain readiness commands as `workspace status --json && workspace migrate --json`; legacy configs can make status stop before the migration dry-run runs.
+- If migration is required, do not edit config files by hand or continue with environment/workflow work until it has been applied or explicitly deferred by the user.
 
 ## Migration
 
-Migration is a single user-facing action even when multiple internal migration phases are needed.
+Migration is one user-facing command. Do not reason about internal migration phases directly; summarize the report `operations` array when explaining what will change.
 
 1. Run the dry-run first:
 
@@ -52,21 +51,19 @@ Migration is a single user-facing action even when multiple internal migration p
 npx --yes n8nac workspace migrate --json
 ```
 
-2. If the dry-run reports `status: "dry-run"` or otherwise indicates pending changes, stop immediately. Explain that migration is required and ask for explicit confirmation before applying it. Do not continue to workflow creation, environment setup, or `workspace migrate --write` in the same turn unless the user already explicitly asked to apply migration.
+2. If the dry-run reports `status: "dry-run"`, `required: true`, or otherwise indicates pending changes, stop and ask once before applying it. Do not run `workspace migrate --write` unless the user already directly requested applying migration.
 3. After confirmation, apply migration and re-check readiness:
 
 ```bash
 npx --yes n8nac workspace migrate --write
-npx --yes n8nac workspace status --json
 npx --yes n8nac workspace migrate --json
+npx --yes n8nac env status --json
 ```
 
 - Do not run `workspace migrate --write` without explicit confirmation unless the user already directly requested applying migration.
-- Do not say "let me apply this migration" or apply migration proactively after a dry-run. Confirmation must come from the user.
-- When reporting a dry-run, summarize the unified `operations` list. Mention each operation separately, then ask for exactly one confirmation for the combined migration.
-- If an operation has `id: "global-instances"`, explicitly say that global/v2 instances also need migration, and list the affected instance names and whether each is managed or external.
-- Do not ask separately for legacy migration and global/v2 migration. `npx --yes n8nac workspace migrate --write` applies the whole migration path in one operation.
-- Do not run `env list`, `env status`, workflow commands, or setup commands while `workspace migrate --json` still reports `status: "dry-run"`.
+- When reporting a dry-run, summarize the unified `operations` list and ask for exactly one confirmation for `npx --yes n8nac workspace migrate --write`.
+- Do not ask separately for different operation types. `npx --yes n8nac workspace migrate --write` applies the required migration as one operation.
+- Do not run environment, workflow, or setup commands while `workspace migrate --json` still reports migration required.
 - Managed local instances remain machine-global runtime resources.
 - Workspace environments remain workspace-scoped and are managed through `npx --yes n8nac env ...`.
 
@@ -74,15 +71,14 @@ npx --yes n8nac workspace migrate --json
 
 1. `cd` to the context root.
 2. Run `npx --yes n8nac update-ai`, then read `AGENTS.md`.
-3. Run `npx --yes n8nac workspace migrate --json` first.
-4. If migration is required, stop immediately and ask for confirmation before `npx --yes n8nac workspace migrate --write` unless the user already requested applying migration.
-5. Run `npx --yes n8nac workspace status --json` after migration is not required or has been applied.
-6. Run `npx --yes n8nac env status --json`.
-7. If the context root is not ready, inspect managed local instances with `npx --yes @n8n-as-code/n8n-manager instance list`.
-8. Reuse an existing environment or managed local instance when suitable.
-9. If no suitable environment exists, stop and ask the user whether they want to connect a remote n8n URL or create/reuse a managed local n8n instance. Do not create infrastructure by default. If the user chooses a managed local instance, ask separately whether they want a public tunnel.
-10. Ask for host/API key only for an explicitly remote n8n environment.
-11. Configure the environment with:
+3. Run `npx --yes n8nac workspace migrate --json`.
+4. If migration is required, stop and ask for confirmation before `npx --yes n8nac workspace migrate --write` unless the user already requested applying migration.
+5. Run `npx --yes n8nac env status --json` after migration is not required or has been applied.
+6. If the context root is not ready, inspect managed local instances with `npx --yes @n8n-as-code/n8n-manager instance list`.
+7. Reuse an existing environment or managed local instance when suitable.
+8. If no suitable environment exists, stop and ask the user whether they want to connect a remote n8n URL or create/reuse a managed local n8n instance. Do not create infrastructure by default. If the user chooses a managed local instance, ask separately whether they want a public tunnel.
+9. Ask for host/API key only for an explicitly remote n8n environment.
+10. Configure the environment with:
 
 ```bash
 npx --yes n8nac env add <name> --base-url <url> --sync-folder workflows/<name>
@@ -97,7 +93,7 @@ npx --yes n8nac env add Local --managed-instance <id> --sync-folder workflows/lo
 npx --yes n8nac env use Local
 ```
 
-12. Run `npx --yes n8nac update-ai` after changing environments when the facade does not do it automatically.
+11. Run `npx --yes n8nac update-ai` after changing environments when the facade does not do it automatically.
 
 ## Environments
 

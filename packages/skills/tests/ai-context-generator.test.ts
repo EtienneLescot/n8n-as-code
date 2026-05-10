@@ -188,7 +188,8 @@ describe('AiContextGenerator', () => {
         test('n8n-architect skill contains workflow and schema-first guidance', () => {
             const content = generator.getAgentSkillContent('n8n-architect');
 
-            expect(content).toContain('workspace status --json');
+            expect(content).toContain('workspace migrate --json');
+            expect(content).toContain('env status --json');
             expect(content).toContain('workflowDir');
             expect(content).toContain('node-info <nodeName>');
             expect(content).toContain('ai_tool: [this.Tool.output]');
