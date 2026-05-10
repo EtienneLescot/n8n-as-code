@@ -1334,10 +1334,19 @@ program.command('mcp')
         });
     });
 
-// workflow - Lifecycle management (activate / deactivate / credential-required)
+// workflow - Lifecycle management (present / activate / deactivate / credential-required)
 const workflowCmd = program
     .command('workflow')
-    .description('Workflow lifecycle management (activate, deactivate, inspect credentials)');
+    .description('Workflow lifecycle management (present, activate, deactivate, inspect credentials)');
+
+workflowCmd
+    .command('present')
+    .argument('<workflowId>', 'Workflow ID to present')
+    .description('Resolve a user-facing workflow URL from the active n8nac environment')
+    .option('--json', 'Output as JSON for agent/script consumption')
+    .action(async (workflowId, options) => {
+        await new WorkflowCommand().present(workflowId, { json: options.json });
+    });
 
 workflowCmd
     .command('activate')
