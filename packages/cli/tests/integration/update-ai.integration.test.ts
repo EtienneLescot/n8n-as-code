@@ -130,7 +130,7 @@ describe('CLI update-ai integration', () => {
         });
     });
 
-    it('places n8n-manager command guidance in the architect skill, not AGENTS.md', () => {
+    it('uses n8nac workflow presentation and keeps n8n-manager guidance limited', () => {
         const workspaceDir = createTempDir('n8nac-update-ai-manager-tools-');
         const managerCmd = 'node /tmp/n8n-manager.js';
         runUpdateAi(workspaceDir, ['--manager-cmd', managerCmd]);
@@ -139,8 +139,10 @@ describe('CLI update-ai integration', () => {
         const architectAgent = fs.readFileSync(path.join(workspaceDir, '.github/agents/n8n-architect.agent.md'), 'utf8');
         const architectSkill = fs.readFileSync(path.join(workspaceDir, '.agents/skills/n8n-architect/SKILL.md'), 'utf8');
         expect(agentsContent).not.toContain('<!-- n8n-manager-agent-tools-start -->');
-        expect(architectAgent).toContain(`${managerCmd} presentWorkflowResult --workflow-id <workflowId> --workspace-root <contextRoot>`);
-        expect(architectSkill).toContain(`${managerCmd} presentWorkflowResult --workflow-id <workflowId> --workspace-root <contextRoot>`);
+        expect(architectAgent).toContain(`node ${cliEntry} workflow present <workflowId> --json`);
+        expect(architectSkill).toContain(`node ${cliEntry} workflow present <workflowId> --json`);
+        expect(architectAgent).toContain(`Do not call \`${managerCmd} presentWorkflowResult\``);
+        expect(architectSkill).toContain(`Do not call \`${managerCmd} presentWorkflowResult\``);
         expect(fs.existsSync(path.join(workspaceDir, '.github/agents/n8n-manager.agent.md'))).toBe(false);
         expect(fs.existsSync(path.join(workspaceDir, '.agents/skills/n8n-manager/SKILL.md'))).toBe(false);
     });

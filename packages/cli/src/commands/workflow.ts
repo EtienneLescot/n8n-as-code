@@ -4,6 +4,47 @@ import { BaseCommand } from './base.js';
 
 export class WorkflowCommand extends BaseCommand {
     /**
+     * n8nac workflow present <id>
+     * Resolve a user-facing workflow URL using the active n8nac environment.
+     */
+    async present(workflowId: string, options: { json?: boolean } = {}): Promise<void> {
+        let workflow;
+        try {
+            await this.prepareRuntimeContext();
+            workflow = await this.client.getWorkflow(workflowId);
+        } catch (error) {
+            this.exitWithError(`Failed to present workflow ${workflowId}`, error);
+        }
+
+        if (!workflow) {
+            this.exitWithError(`Workflow ${workflowId} not found`);
+        }
+
+        const baseUrl = String(this.config.host || '').replace(/\/+$/, '');
+        if (!baseUrl) {
+            this.exitWithError(`Unable to resolve a public URL for workflow ${workflowId}`);
+        }
+
+        const url = `${baseUrl}/workflow/${encodeURIComponent(workflowId)}`;
+        const payload = {
+            workflowId,
+            workflowName: workflow.name,
+            url,
+            baseUrl,
+            environmentId: this.activeEnvironment?.environmentId,
+            environmentName: this.activeEnvironment?.environmentName,
+        };
+
+        if (options.json) {
+            console.log(JSON.stringify(payload, null, 2));
+            return;
+        }
+
+        console.log(chalk.green(`Workflow: ${workflow.name || workflowId}`));
+        console.log(url);
+    }
+
+    /**
      * n8nac workflow activate <id>
      * Activate (publish) a workflow so it can be triggered and executed.
      */

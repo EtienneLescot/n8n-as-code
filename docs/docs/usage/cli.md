@@ -187,6 +187,7 @@ These commands operate through the active environment and n8n API.
 
 ```bash
 n8nac verify <workflow-id>
+n8nac workflow present <workflow-id> --json
 n8nac workflow credential-required <workflow-id> --json
 n8nac workflow activate <workflow-id>
 n8nac test-plan <workflow-id> --json

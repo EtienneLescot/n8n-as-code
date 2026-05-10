@@ -143,3 +143,46 @@ describe('WorkflowCommand activation helpers', () => {
         );
     });
 });
+
+describe('WorkflowCommand.present()', () => {
+    let cmd: WorkflowCommand;
+    let logSpy: ReturnType<typeof vi.spyOn>;
+    let errorSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+            throw new Error(`process.exit:${code ?? 0}`);
+        }) as never);
+        cmd = makeCommand();
+    });
+
+    it('prints a workflow presentation payload as JSON', async () => {
+        vi.spyOn(cmd['client'], 'getWorkflow').mockResolvedValue({
+            id: 'wf-1',
+            name: 'Demo Workflow',
+            active: false,
+            nodes: [],
+            connections: {},
+        } as any);
+
+        await cmd.present('wf-1', { json: true });
+
+        const parsed = JSON.parse(String(logSpy.mock.calls[0]?.[0]));
+        expect(parsed).toMatchObject({
+            workflowId: 'wf-1',
+            workflowName: 'Demo Workflow',
+            baseUrl: 'https://n8n.test',
+            url: 'https://n8n.test/workflow/wf-1',
+        });
+    });
+
+    it('fails clearly when the workflow cannot be found', async () => {
+        vi.spyOn(cmd['client'], 'getWorkflow').mockResolvedValue(null);
+
+        await expect(cmd.present('missing', { json: true })).rejects.toThrow('process.exit:1');
+        expect(errorSpy).toHaveBeenCalledWith('❌ Workflow missing not found');
+    });
+});

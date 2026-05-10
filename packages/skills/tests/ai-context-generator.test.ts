@@ -180,7 +180,8 @@ describe('AiContextGenerator', () => {
             expect(content).toContain('Managed Local Runtime');
             expect(content).toContain('--api-key-stdin');
             expect(content).toContain('Do not ask for host/API key when the user wants a managed local Docker instance.');
-            expect(content).toContain('presentWorkflowResult');
+            expect(content).toContain('workflow present <workflowId> --json');
+            expect(content).toContain('Do not call `npx --yes @n8n-as-code/n8n-manager presentWorkflowResult`');
             expect(content).not.toContain('{{N8N_MANAGER_CMD}}');
         });
 
@@ -198,7 +199,7 @@ describe('AiContextGenerator', () => {
             expect(content).toContain('Operating Loop');
             expect(content).toContain('Workflow Presentation Contract');
             expect(content).toContain('Do not manually construct n8n workflow URLs');
-            expect(content).toContain('presentWorkflowResult');
+            expect(content).toContain('workflow present <workflowId> --json');
             expect(content).not.toContain('{{N8NAC_CMD}}');
         });
 

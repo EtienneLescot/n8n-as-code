@@ -52,7 +52,7 @@ Migration is a single user-facing action even when multiple internal migration p
 npx --yes n8nac workspace migrate --json
 ```
 
-2. If the dry-run reports `status: "dry-run"` or otherwise indicates pending changes, explain that migration is required and ask for explicit confirmation before applying it.
+2. If the dry-run reports `status: "dry-run"` or otherwise indicates pending changes, stop immediately. Explain that migration is required and ask for explicit confirmation before applying it. Do not continue to workflow creation, environment setup, or `workspace migrate --write` in the same turn unless the user already explicitly asked to apply migration.
 3. After confirmation, apply migration and re-check readiness:
 
 ```bash
@@ -62,6 +62,7 @@ npx --yes n8nac workspace migrate --json
 ```
 
 - Do not run `workspace migrate --write` without explicit confirmation unless the user already directly requested applying migration.
+- Do not say "let me apply this migration" or apply migration proactively after a dry-run. Confirmation must come from the user.
 - Managed local instances remain machine-global runtime resources.
 - Workspace environments remain workspace-scoped and are managed through `npx --yes n8nac env ...`.
 
@@ -70,7 +71,7 @@ npx --yes n8nac workspace migrate --json
 1. `cd` to the context root.
 2. Run `npx --yes n8nac update-ai`, then read `AGENTS.md`.
 3. Run `npx --yes n8nac workspace migrate --json` first.
-4. If migration is required, ask for confirmation before `npx --yes n8nac workspace migrate --write` unless the user already requested applying migration.
+4. If migration is required, stop immediately and ask for confirmation before `npx --yes n8nac workspace migrate --write` unless the user already requested applying migration.
 5. Run `npx --yes n8nac workspace status --json` after migration is not required or has been applied.
 6. Run `npx --yes n8nac env status --json`.
 7. If the context root is not ready, inspect managed local instances with `npx --yes @n8n-as-code/n8n-manager instance list`.
@@ -405,7 +406,7 @@ npx --yes n8nac test <workflowId> --prod
 
 ## Workflow Presentation Contract
 
-`presentWorkflowResult` is the standard way to show a workflow to the user. It is part of the workflow authoring loop, even though the command lives in n8n-manager.
+`npx --yes n8nac workflow present` is the standard way to show a workflow to the user. It is v4-environment aware and part of the workflow authoring loop.
 
 Run it whenever one of these is true:
 
@@ -415,16 +416,17 @@ Run it whenever one of these is true:
 - the user asks to show, open, present, display, or give the URL/link for a workflow.
 
 ```bash
-npx --yes @n8n-as-code/n8n-manager presentWorkflowResult --workflow-id <workflowId> --workspace-root <contextRoot>
+npx --yes n8nac workflow present <workflowId> --json
 ```
 
 Rules:
 
 - Do not manually construct n8n workflow URLs.
 - Do not return an internal local n8n URL when a presentation URL is available.
-- Use the `url` returned by `presentWorkflowResult` as the user-facing URL.
+- Use the `url` returned by `workflow present --json` as the user-facing URL.
 - If you do not know the workflow ID, run `npx --yes n8nac list` first and select the matching workflow.
-- If `presentWorkflowResult` fails, report the backend diagnostic and then provide the best direct n8n URL only as a fallback.
+- Do not call `npx --yes @n8n-as-code/n8n-manager presentWorkflowResult`; it is a legacy runtime command and is not workspace-environment aware.
+- If `workflow present` fails, report the backend diagnostic and then provide the best direct n8n URL only as a fallback.
 - Do this before the final response when the task created, changed, pushed, ran, or explicitly asks to show a workflow.
 
 ### Testability Protocol
@@ -497,12 +499,12 @@ For most workflow tasks:
 8. Push with `--verify`.
 9. Test if the workflow is HTTP-triggered.
 10. Inspect executions when behavior is unclear.
-11. Present the final workflow link with `presentWorkflowResult`.
+11. Present the final workflow link with `npx --yes n8nac workflow present <workflowId> --json`.
 
 ## Response Discipline
 
 - Explain concrete actions and command results, not generic capability.
-- When the user asks for an URL or visual inspection of a workflow, run `presentWorkflowResult` instead of composing a URL manually.
+- When the user asks for an URL or visual inspection of a workflow, run `npx --yes n8nac workflow present <workflowId> --json` instead of composing a URL manually.
 - If setup is missing, use `n8nac env ...` for workspace environments and `n8n-manager` only for managed local instances.
 - Do not ask for host/API key unless the user chooses a remote n8n environment.
 - Do not tell the user to run setup commands when you can run non-interactive commands yourself.

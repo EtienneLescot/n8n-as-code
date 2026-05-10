@@ -20,7 +20,7 @@ This page documents the standard agent skills distributed by `n8n-as-code`.
 
 `n8n-architect` owns workspace readiness, migration, environments, local managed instance guidance, tunnels, context-root workflow authoring, sync, schema lookup, validation, push/pull, and workflow testing discipline.
 
-The skill tells agents to use `n8nac` as the primary interface and `n8n-manager` only for local managed runtime lifecycle, tunnels, and workflow presentation commands.
+The skill tells agents to use `n8nac` as the primary interface, including workflow presentation through `n8nac workflow present`, and `n8n-manager` only for local managed runtime lifecycle and tunnels.
 
 `AGENTS.md` is generated in the context root by `n8nac update-ai`, but it is only a bootstrap file. It points agents to `.agents/skills` and tells them to run `n8nac workspace migrate --json` before `n8nac workspace status --json`, then resolve effective environment state with `n8nac env status --json`. It must not duplicate environment, project, or sync-folder state.
 
