@@ -22,7 +22,7 @@ This page documents the standard agent skills distributed by `n8n-as-code`.
 
 The skill tells agents to use `n8nac` as the primary interface and `n8n-manager` only for local managed runtime lifecycle, tunnels, and workflow presentation commands.
 
-`AGENTS.md` is generated in the context root by `n8nac update-ai`, but it is only a bootstrap file. It points agents to `.agents/skills` and tells them to resolve effective state with `n8nac workspace status --json`, `n8nac workspace migrate --json`, and `n8nac env status --json`. It must not duplicate environment, project, or sync-folder state.
+`AGENTS.md` is generated in the context root by `n8nac update-ai`, but it is only a bootstrap file. It points agents to `.agents/skills` and tells them to run `n8nac workspace migrate --json` before `n8nac workspace status --json`, then resolve effective environment state with `n8nac env status --json`. It must not duplicate environment, project, or sync-folder state.
 
 ## Build Output
 

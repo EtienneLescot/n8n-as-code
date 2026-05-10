@@ -33,6 +33,19 @@ function runUpdateAi(workspaceDir: string, extraArgs: string[] = [], envOverride
     });
 }
 
+function runCli(workspaceDir: string, args: string[], envOverrides: NodeJS.ProcessEnv = {}): string {
+    return execFileSync('node', [cliEntry, ...args], {
+        cwd: workspaceDir,
+        env: {
+            ...baseEnv,
+            N8N_MANAGER_HOME: createTempDir('n8nac-cli-manager-home-'),
+            ...envOverrides,
+        },
+        stdio: 'pipe',
+        encoding: 'utf8',
+    });
+}
+
 beforeAll(() => {
     execFileSync('npm', ['run', 'build', '--workspace=packages/cli'], {
         cwd: repoRoot,
@@ -66,6 +79,7 @@ describe('CLI update-ai integration', () => {
         expect(agentsContent).toContain('Do not infer configuration from this file');
         expect(agentsContent).toContain(`node ${cliEntry} workspace status --json`);
         expect(agentsContent).toContain(`node ${cliEntry} workspace migrate --json`);
+        expect(agentsContent.indexOf(`node ${cliEntry} workspace migrate --json`)).toBeLessThan(agentsContent.indexOf(`node ${cliEntry} workspace status --json`));
         expect(agentsContent).toContain('.github/agents/n8n-architect.agent.md');
         expect(agentsContent).toContain('.agents/skills/n8n-architect/SKILL.md');
         expect(agentsContent).not.toContain('.github/agents/n8n-manager.agent.md');
@@ -74,6 +88,8 @@ describe('CLI update-ai integration', () => {
         expect(agentsContent).not.toContain('Active project');
         expect(architectSkill).toContain(`node ${cliEntry} workspace status --json`);
         expect(architectSkill).toContain(`node ${cliEntry} workspace migrate --json`);
+        expect(architectSkill).toContain('Never chain readiness commands as');
+        expect(architectSkill.indexOf(`node ${cliEntry} workspace migrate --json`)).toBeLessThan(architectSkill.indexOf(`node ${cliEntry} workspace status --json`));
         expect(architectSkill).toContain(`node ${cliEntry} env add Local --managed-instance <id> --sync-folder workflows/local`);
         expect(architectSkill).toContain('Managed Local Runtime');
         expect(architectSkill).toContain('--api-key-stdin');
@@ -86,6 +102,32 @@ describe('CLI update-ai integration', () => {
 
         const agentsContent = fs.readFileSync(path.join(workspaceDir, 'AGENTS.md'), 'utf8');
         expect(agentsContent).toContain(`<!-- n8nac-version: ${cliVersion} -->`);
+    });
+
+    it('reports migration-required from workspace status for legacy configs', () => {
+        const workspaceDir = createTempDir('n8nac-status-legacy-workspace-');
+        fs.writeFileSync(path.join(workspaceDir, 'n8nac-config.json'), JSON.stringify({
+            version: 2,
+            activeInstanceId: 'legacy-prod',
+            instances: [{
+                id: 'legacy-prod',
+                name: 'Legacy Prod',
+                host: 'https://legacy.example.test',
+            }],
+        }, null, 2));
+
+        const output = runCli(workspaceDir, ['workspace', 'status', '--json']);
+        const payload = JSON.parse(output);
+
+        expect(payload).toMatchObject({
+            status: 'migration-required',
+            nextCommand: 'n8nac workspace migrate --json',
+            applyCommand: 'n8nac workspace migrate --write',
+        });
+        expect(payload.migration.legacyMigration.instances[0]).toMatchObject({
+            id: 'legacy-prod',
+            name: 'Legacy Prod',
+        });
     });
 
     it('places n8n-manager command guidance in the architect skill, not AGENTS.md', () => {

@@ -29,17 +29,18 @@ Use `{{N8NAC_CMD}}` as the primary interface. Use `{{N8N_MANAGER_CMD}}` only for
 
 ## Workspace Readiness
 
-Always run workspace status and migration dry-run together during readiness checks. The dry-run is safe and reports whether legacy workspace configuration or global instances need migration:
+Always run migration dry-run before workspace status during readiness checks. The dry-run is safe and reports whether legacy workspace configuration or global instances need migration:
 
 ```bash
-{{N8NAC_CMD}} workspace status --json
 {{N8NAC_CMD}} workspace migrate --json
+{{N8NAC_CMD}} workspace status --json
 ```
 
-- Treat `workspace status --json` as the source of effective workspace readiness.
 - Treat `workspace migrate --json` as the source of migration need.
+- Treat `workspace status --json` as the source of effective workspace readiness only after migration is not required or has been applied.
 - Do not infer readiness from raw files, generated agent docs, or directory names.
 - If migration is required, do not edit config files by hand.
+- Never chain readiness commands as `workspace status --json && workspace migrate --json`; legacy configs can make status stop before the migration dry-run runs.
 
 ## Migration
 
@@ -68,14 +69,15 @@ Migration is a single user-facing action even when multiple internal migration p
 
 1. `cd` to the context root.
 2. Run `{{N8NAC_CMD}} update-ai`, then read `AGENTS.md`.
-3. Run `{{N8NAC_CMD}} workspace status --json` and `{{N8NAC_CMD}} workspace migrate --json`.
+3. Run `{{N8NAC_CMD}} workspace migrate --json` first.
 4. If migration is required, ask for confirmation before `{{N8NAC_CMD}} workspace migrate --write` unless the user already requested applying migration.
-5. Run `{{N8NAC_CMD}} env status --json`.
-6. If the context root is not ready, inspect managed local instances with `{{N8N_MANAGER_CMD}} instance list`.
-7. Reuse an existing environment or managed local instance when suitable.
-8. If no suitable environment exists, stop and ask the user whether they want to connect a remote n8n URL or create/reuse a managed local n8n instance. Do not create infrastructure by default. If the user chooses a managed local instance, ask separately whether they want a public tunnel.
-9. Ask for host/API key only for an explicitly remote n8n environment.
-10. Configure the environment with:
+5. Run `{{N8NAC_CMD}} workspace status --json` after migration is not required or has been applied.
+6. Run `{{N8NAC_CMD}} env status --json`.
+7. If the context root is not ready, inspect managed local instances with `{{N8N_MANAGER_CMD}} instance list`.
+8. Reuse an existing environment or managed local instance when suitable.
+9. If no suitable environment exists, stop and ask the user whether they want to connect a remote n8n URL or create/reuse a managed local n8n instance. Do not create infrastructure by default. If the user chooses a managed local instance, ask separately whether they want a public tunnel.
+10. Ask for host/API key only for an explicitly remote n8n environment.
+11. Configure the environment with:
 
 ```bash
 {{N8NAC_CMD}} env add <name> --base-url <url> --sync-folder workflows/<name>
@@ -90,7 +92,7 @@ For a managed local instance:
 {{N8NAC_CMD}} env use Local
 ```
 
-11. Run `{{N8NAC_CMD}} update-ai` after changing environments when the facade does not do it automatically.
+12. Run `{{N8NAC_CMD}} update-ai` after changing environments when the facade does not do it automatically.
 
 ## Environments
 

@@ -475,6 +475,27 @@ workspaceProgram.command('status')
     .action((options) => {
         const configService = new ConfigService();
         const selectedEnvironment = process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
+        const migrationPlan = configService.detectWorkspaceMigration();
+        if (migrationPlan) {
+            const payload = {
+                status: 'migration-required' as const,
+                configPath: migrationPlan.configPath,
+                migration: migrationPlan,
+                nextCommand: 'n8nac workspace migrate --json',
+                applyCommand: 'n8nac workspace migrate --write',
+            };
+            printJsonOrText(
+                options,
+                payload,
+                [
+                    chalk.yellow('n8n workspace migration required.'),
+                    `Config: ${migrationPlan.configPath}`,
+                    'Run `n8nac workspace migrate --json` to inspect it.',
+                    'After confirmation, run `n8nac workspace migrate --write` to apply it.',
+                ].join('\n'),
+            );
+            return;
+        }
         const workspaceConfig = configService.getWorkspaceConfig();
         const resolvedEnvironment = selectedEnvironment
             ? (() => { try { return configService.resolveEnvironment(selectedEnvironment); } catch { return undefined; } })()

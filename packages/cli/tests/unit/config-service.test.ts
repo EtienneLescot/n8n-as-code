@@ -223,7 +223,7 @@ describe('ConfigService', () => {
 
         const configService = new ConfigService(workspaceRoot);
 
-        expect(() => configService.getWorkspaceConfig()).toThrow(/Unsupported legacy n8n workspace config/);
+        expect(() => configService.getWorkspaceConfig()).toThrow(/n8nac workspace migrate --json/);
     });
 
     it('migrates legacy workspace configs into manager storage with a backup', () => {
