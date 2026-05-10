@@ -1,21 +1,21 @@
 ---
 sidebar_position: 1
-title: Legacy Migration
-description: Migrate legacy n8n-as-code workspace config to n8n environments.
+title: Workspace Migration
+description: Migrate legacy n8n-as-code workspace and instance config to n8n environments.
 ---
 
-# Legacy Migration
+# Workspace Migration
 
 Current n8n-as-code workspaces use **n8n environments** as the source of truth.
 
-Legacy V1/V2 configs can contain old workspace instance data or API keys. Migrate them explicitly; n8n-as-code does not rewrite the workspace automatically on open.
+Legacy V1/V2 configs can contain old workspace instance data, global instance references, or API keys. Migrate them explicitly; n8n-as-code does not rewrite the workspace automatically on open.
 
 ## Commands
 
 Dry run:
 
 ```bash
-n8nac workspace migrate
+n8nac workspace migrate --json
 ```
 
 Apply:
@@ -27,16 +27,19 @@ n8nac workspace migrate --write
 Then verify:
 
 ```bash
-n8nac env list
-n8nac workspace status
+n8nac workspace migrate --json
+n8nac env status --json
 ```
+
+The dry-run and verification output use a single migration report. Review the `operations` array to see what will change, then apply everything with one `--write` command when you are ready. Do not run separate migration commands for legacy workspace data and global instance data.
 
 ## What Changes
 
 | Legacy config | New model |
 |---|---|
 | Direct instance fields in workspace config | Workspace environment in `n8nac-config.json` |
-| Embedded URL | Environment target URL |
+| Embedded URL | `external-instance` environment target URL |
+| Global managed instance reference | `managed-instance` environment target reference |
 | Embedded API key | Local API key storage |
 | Sync folder | Environment sync folder |
 | Old active instance | Active environment |
@@ -53,13 +56,13 @@ n8nac env auth set <environment> --api-key-stdin
 
 ## Backups
 
-`--write` creates a backup next to the original config before replacing `n8nac-config.json`.
+`--write` applies the full migration atomically and creates a backup next to the original config before replacing `n8nac-config.json`.
 
 Do not commit backup files if they contain API keys.
 
 ## Previous V3 / next Configs
 
-For previous V3 or `next` configs, use upgrade instead of legacy migration:
+For previous V3 or `next` configs, use upgrade instead of workspace migration:
 
 ```bash
 n8nac workspace upgrade

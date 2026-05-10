@@ -71,11 +71,13 @@ The extension detects old config models but does not rewrite them automatically 
 Use explicit actions:
 
 ```bash
+n8nac workspace migrate --json
 n8nac workspace migrate --write
 n8nac workspace upgrade --write
 ```
 
-- `migrate` is for legacy V1/V2 configs.
+- `migrate --json` is the dry-run for legacy V1/V2 configs and reports one unified `operations` list.
+- `migrate --write` applies the required migration as one operation.
 - `upgrade` is for previous V3/`next` configs.
 - Both create backups before writing.
 

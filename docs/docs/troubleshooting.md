@@ -76,8 +76,12 @@ n8nac env use Local
 Use the explicit button in the extension or run:
 
 ```bash
+n8nac workspace migrate --json
 n8nac workspace migrate --write
+n8nac env status --json
 ```
+
+Review the dry-run `operations` list before applying. `workspace migrate --write` applies all required migration operations together.
 
 For previous V3/`next` configs:
 
