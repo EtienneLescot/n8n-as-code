@@ -20,6 +20,20 @@ Use this skill for **instances managées**: local managed n8n instances, Docker 
 
 ## Core Commands
 
+When checking workspace readiness, run the workspace status and migration dry-run together. The dry-run is safe and reports whether legacy workspace config or global instances need migration:
+
+```bash
+npx --yes n8nac workspace status --json
+npx --yes n8nac workspace migrate --json
+```
+
+If `workspace migrate --json` reports `status: "dry-run"`, explain that migration is required and ask for explicit confirmation before applying it. After confirmation, run:
+
+```bash
+npx --yes n8nac workspace migrate --write
+npx --yes n8nac workspace status --json
+```
+
 Inspect existing managed instances before changing local machine state:
 
 ```bash

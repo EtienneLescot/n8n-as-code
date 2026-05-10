@@ -23,4 +23,7 @@ export {
     type IWorkspaceEnvironment,
     type IPersistedWorkspaceConfigV4,
     type IResolvedWorkspaceEnvironment,
+    type IWorkspaceMigrationPlan,
+    type IWorkspaceMigrationResult,
+    type IWorkspaceMigrationOptions,
 } from './services/config-service.js';

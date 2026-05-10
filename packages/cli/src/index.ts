@@ -19,7 +19,7 @@ import { createRequire } from 'module';
 import { parsePositiveIntegerOption } from './utils/option-parsers.js';
 import { spawn } from 'child_process';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
-import { ConfigService, type ILegacyWorkspaceMigrationResult } from './services/config-service.js';
+import { ConfigService, type ILegacyWorkspaceMigrationResult, type IWorkspaceMigrationResult } from './services/config-service.js';
 import {
     N8N_FACADE_SETUP_MODES,
     isN8nFacadeSetupMode,
@@ -132,6 +132,41 @@ function formatLegacyMigrationResult(result: ILegacyWorkspaceMigrationResult): s
         ...workspaceLines,
         '',
         'Notes:',
+        ...plan.warnings.map((warning) => `- ${warning}`),
+        '',
+        ...footer,
+    ].filter(Boolean).join('\n');
+}
+
+function formatWorkspaceMigrationResult(result: IWorkspaceMigrationResult): string {
+    if (result.status === 'not-needed') {
+        return chalk.green(`No n8n workspace migration required at ${result.configPath}.`);
+    }
+
+    const plan = result.plan;
+    const legacyCount = plan.legacyMigration?.instances.length || 0;
+    const globalCount = plan.globalInstancesMigration?.instances.length || 0;
+    const header = result.status === 'dry-run'
+        ? chalk.yellow('n8n workspace migration required. No files changed.')
+        : chalk.green('n8n workspace migration completed.');
+    const footer = result.status === 'dry-run'
+        ? ['Run `n8nac workspace migrate --write` to apply the migration.']
+        : [
+            result.backupPath ? `Backup: ${result.backupPath}` : undefined,
+            `Migrated environments: ${result.migratedEnvironmentIds.length}`,
+            `Removed global external instances: ${result.deletedGlobalInstanceIds.length}`,
+            'Run `n8nac workspace status --json` to verify the resolved context.',
+        ].filter(Boolean) as string[];
+
+    return [
+        header,
+        `Config: ${plan.configPath}`,
+        '',
+        'Detected:',
+        `- Legacy workspace config: ${legacyCount ? `${legacyCount} instance${legacyCount === 1 ? '' : 's'}` : 'none'}`,
+        `- Global instances: ${globalCount ? `${globalCount} instance${globalCount === 1 ? '' : 's'}` : 'none'}`,
+        plan.warnings.length ? '' : undefined,
+        plan.warnings.length ? 'Notes:' : undefined,
         ...plan.warnings.map((warning) => `- ${warning}`),
         '',
         ...footer,
@@ -456,6 +491,16 @@ workspaceProgram.command('status')
                 '',
             ].filter(Boolean).join('\n'),
         );
+    });
+
+workspaceProgram.command('migrate')
+    .description('Inspect or run required workspace migrations')
+    .option('--write', 'Apply the migration. Without this flag, the command only reports what would change.')
+    .option('--json', 'Output migration result as JSON')
+    .action((options) => {
+        const configService = new ConfigService();
+        const result = configService.migrateWorkspaceConfiguration({ write: Boolean(options.write) });
+        printJsonOrText(options, result, formatWorkspaceMigrationResult(result));
     });
 
 workspaceProgram.command('migrate-v1')

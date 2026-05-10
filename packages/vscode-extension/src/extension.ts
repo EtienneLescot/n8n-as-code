@@ -1143,10 +1143,9 @@ async function migrateWorkspaceConfiguration(context: vscode.ExtensionContext): 
         return;
     }
 
-    const initialConfigService = new ConfigService(workspaceRoot);
-    const legacyPlan = initialConfigService.detectLegacyWorkspaceConfig();
-    const globalPlan = initialConfigService.detectGlobalInstancesMigration();
-    if (!legacyPlan && !globalPlan) {
+    const configService = new ConfigService(workspaceRoot);
+    const plan = configService.detectWorkspaceMigration();
+    if (!plan) {
         await vscode.window.showInformationMessage('No migration required.');
         await requireConfigurationController().refresh('migration-not-needed', { force: true });
         return;
@@ -1159,32 +1158,17 @@ async function migrateWorkspaceConfiguration(context: vscode.ExtensionContext): 
     );
     if (confirmation !== 'Run migration') return;
 
-    let backupPath = '';
-    let migratedEnvironmentCount = 0;
-
-    if (legacyPlan) {
-        const legacySettings = await readLegacyN8nSettingsForMigration(context);
-        const legacyResult = initialConfigService.migrateLegacyWorkspaceConfig({ write: true });
-        if (legacyResult.status === 'migrated') {
-            backupPath = legacyResult.backupPath;
-            const environmentHost = String(initialConfigService.resolveEnvironment().host || '').trim().replace(/\/$/, '');
-            const migratedInstance = legacyResult.instances.find((instance) => String(instance.host || '').trim().replace(/\/$/, '') === environmentHost);
-            preserveMigratedLegacyApiKey(initialConfigService, legacySettings, migratedInstance?.id);
-        }
-    }
-
-    const currentConfigService = new ConfigService(workspaceRoot);
-    const currentGlobalPlan = currentConfigService.detectGlobalInstancesMigration();
-    if (currentGlobalPlan) {
-        const globalResult = currentConfigService.migrateGlobalInstancesToEnvironments({ write: true });
-        if (globalResult.status === 'migrated') {
-            migratedEnvironmentCount = globalResult.migratedEnvironmentIds.length;
-        }
-    }
+    const legacySettings = plan.legacyMigration ? await readLegacyN8nSettingsForMigration(context) : undefined;
+    const result = configService.migrateWorkspaceConfiguration({
+        write: true,
+        legacyApiKeyFallback: legacySettings,
+    });
 
     await requireConfigurationController().refresh('migrate-workspace-configuration-command', { force: true });
     await determineInitialState(context);
     updateContextKeys();
+    const backupPath = result.status === 'migrated' ? result.backupPath : '';
+    const migratedEnvironmentCount = result.status === 'migrated' ? result.migratedEnvironmentIds.length : 0;
     const suffix = backupPath ? ` Backup: ${backupPath}` : migratedEnvironmentCount ? ` ${migratedEnvironmentCount} environment${migratedEnvironmentCount === 1 ? '' : 's'} created.` : '';
     await vscode.window.showInformationMessage(`Migration complete.${suffix}`);
 }
@@ -1205,21 +1189,6 @@ async function readLegacySecretApiKeyForMigration(context: vscode.ExtensionConte
         if (value) return value;
     }
     return '';
-}
-
-function preserveMigratedLegacyApiKey(configService: ConfigService, settings: { host: string; apiKey: string }, instanceId?: string): void {
-    if (!settings.apiKey) return;
-    const environment = configService.resolveEnvironment();
-    const environmentHost = String(environment.host || '').trim().replace(/\/$/, '');
-    if (!environmentHost) return;
-    if (settings.host && settings.host !== environmentHost) return;
-    configService.saveLocalConfig({ host: environmentHost }, {
-        instanceId,
-        instanceName: environment.activeInstanceName || environment.environmentTargetName,
-        createNew: !instanceId,
-        setActive: false,
-        apiKey: settings.apiKey,
-    });
 }
 
 function requireAgentRuntimeController(): AgentRuntimeController {
