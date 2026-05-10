@@ -471,6 +471,41 @@ describe('ConfigService', () => {
         ]));
     });
 
+    it('detects unmarked managed global instances as migration candidates', () => {
+        const configService = new ConfigService(workspaceRoot);
+        (configService as any).manager.upsertInstance({
+            id: 'managed-old',
+            name: 'Managed Old',
+            mode: 'managed-local-docker',
+            baseUrl: 'http://127.0.0.1:5678',
+        }, { setActive: false });
+
+        const plan = configService.detectWorkspaceMigration();
+
+        expect(plan?.globalInstancesMigration?.instances).toEqual([
+            expect.objectContaining({
+                id: 'managed-old',
+                mode: 'managed-instance',
+            }),
+        ]);
+    });
+
+    it('does not detect marked managed global instances as migration candidates', () => {
+        const configService = new ConfigService(workspaceRoot);
+        (configService as any).manager.upsertInstance({
+            id: 'managed-new',
+            name: 'Managed New',
+            mode: 'managed-local-docker',
+            baseUrl: 'http://127.0.0.1:5678',
+            metadata: {
+                containerName: 'managed-new',
+                n8nacWorkspaceEnvironmentModel: 'v4',
+            },
+        }, { setActive: false });
+
+        expect(configService.detectWorkspaceMigration()).toBeUndefined();
+    });
+
     it('rolls back combined workspace migration when any migration phase remains pending', () => {
         const configService = new ConfigService(workspaceRoot);
         (configService as any).manager.upsertInstance({
