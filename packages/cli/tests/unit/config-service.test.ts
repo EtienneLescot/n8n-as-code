@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
@@ -432,6 +432,73 @@ describe('ConfigService', () => {
             environmentId: 'instance-86ea2ff2',
             host: 'http://localhost:5678',
         });
+    });
+
+    it('runs legacy and global instance migration as one combined workspace migration', () => {
+        const configService = new ConfigService(workspaceRoot);
+        (configService as any).manager.upsertInstance({
+            id: 'global-external',
+            name: 'Global External',
+            mode: 'existing',
+            baseUrl: 'https://global.example.test',
+        }, { setActive: false });
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 2,
+            activeInstanceId: 'legacy-prod',
+            instances: [{
+                id: 'legacy-prod',
+                name: 'Legacy Prod',
+                host: 'https://legacy.example.test',
+            }],
+        }, null, 2));
+
+        const dryRun = configService.migrateWorkspaceConfiguration();
+
+        expect(dryRun.status).toBe('dry-run');
+        expect(dryRun.status === 'dry-run' ? dryRun.plan.legacyMigration?.instances.map((item) => item.id) : []).toEqual(['legacy-prod']);
+        expect(dryRun.status === 'dry-run' ? dryRun.plan.globalInstancesMigration?.instances.map((item) => item.id) : []).toEqual(['global-external']);
+
+        const migrated = configService.migrateWorkspaceConfiguration({ write: true });
+        const persisted = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-config.json'), 'utf8'));
+
+        expect(migrated.status).toBe('migrated');
+        expect(configService.detectWorkspaceMigration()).toBeUndefined();
+        expect((configService as any).manager.getInstance('global-external')).toBeUndefined();
+        expect(persisted.version).toBe(4);
+        expect(persisted.environments).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: 'default', name: 'Default' }),
+            expect.objectContaining({ id: 'global-external', name: 'Global External' }),
+        ]));
+    });
+
+    it('rolls back combined workspace migration when any migration phase remains pending', () => {
+        const configService = new ConfigService(workspaceRoot);
+        (configService as any).manager.upsertInstance({
+            id: 'global-external',
+            name: 'Global External',
+            mode: 'existing',
+            baseUrl: 'https://global.example.test',
+        }, { setActive: false });
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 2,
+            activeInstanceId: 'legacy-prod',
+            instances: [{
+                id: 'legacy-prod',
+                name: 'Legacy Prod',
+                host: 'https://legacy.example.test',
+            }],
+        }, null, 2));
+        vi.spyOn(configService as any, 'migrateGlobalInstancesToEnvironments').mockReturnValue({
+            status: 'not-needed',
+            configPath: path.join(workspaceRoot, 'n8nac-config.json'),
+        });
+
+        expect(() => configService.migrateWorkspaceConfiguration({ write: true })).toThrow(/did not complete atomically/);
+
+        const restored = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-config.json'), 'utf8'));
+        expect(restored.version).toBe(2);
+        expect((configService as any).manager.getInstance('legacy-prod')).toBeUndefined();
+        expect((configService as any).manager.getInstance('global-external')).toBeDefined();
     });
 
     it('migrates legacy v1 credentials from the n8nac conf store', () => {

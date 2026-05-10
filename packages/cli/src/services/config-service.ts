@@ -211,6 +211,38 @@ export interface IWorkspaceMigrationOptions {
     legacyApiKeyFallback?: { host?: string; apiKey?: string };
 }
 
+export interface IWorkspaceMigrationReportInstance {
+    id: string;
+    name: string;
+    kind: 'legacy-workspace-instance' | 'managed-instance' | 'external-instance';
+    url?: string;
+    projectId?: string;
+    projectName?: string;
+    apiKeyAvailable?: boolean;
+}
+
+export interface IWorkspaceMigrationReportOperation {
+    id: 'legacy-workspace-config' | 'global-instances';
+    label: string;
+    description: string;
+    instanceCount: number;
+    instances: IWorkspaceMigrationReportInstance[];
+    warnings: string[];
+}
+
+export interface IWorkspaceMigrationReport {
+    status: IWorkspaceMigrationResult['status'];
+    configPath: string;
+    required: boolean;
+    operations: IWorkspaceMigrationReportOperation[];
+    warnings: string[];
+    nextCommand?: string;
+    applyCommand?: string;
+    backupPath?: string;
+    migratedEnvironmentIds?: string[];
+    deletedGlobalInstanceIds?: string[];
+}
+
 export interface IPreviousWorkspaceUpgradePlan {
     status: 'upgrade-available';
     configPath: string;
@@ -1196,33 +1228,122 @@ export class ConfigService {
         if (!initialPlan) return { status: 'not-needed', configPath };
         if (!options.write) return { status: 'dry-run', plan: initialPlan };
 
-        let legacyMigration: Extract<ILegacyWorkspaceMigrationResult, { status: 'migrated' }> | undefined;
-        if (initialPlan.legacyMigration) {
-            const legacyResult = this.migrateLegacyWorkspaceConfig({ write: true });
-            if (legacyResult.status === 'migrated') {
-                legacyMigration = legacyResult;
-                this.preserveWorkspaceMigrationApiKeyFallback(options.legacyApiKeyFallback, legacyResult.instances);
+        const snapshot = this.createWorkspaceMigrationSnapshot();
+        try {
+            let legacyMigration: Extract<ILegacyWorkspaceMigrationResult, { status: 'migrated' }> | undefined;
+            if (initialPlan.legacyMigration) {
+                const legacyResult = this.migrateLegacyWorkspaceConfig({ write: true });
+                if (legacyResult.status === 'migrated') {
+                    legacyMigration = legacyResult;
+                    this.preserveWorkspaceMigrationApiKeyFallback(options.legacyApiKeyFallback, legacyResult.instances);
+                }
             }
-        }
 
-        const currentGlobalPlan = this.detectGlobalInstancesMigration();
-        let globalInstancesMigration: Extract<IGlobalInstancesMigrationResult, { status: 'migrated' }> | undefined;
-        if (currentGlobalPlan) {
-            const globalResult = this.migrateGlobalInstancesToEnvironments({ write: true });
-            if (globalResult.status === 'migrated') {
-                globalInstancesMigration = globalResult;
+            const currentGlobalPlan = this.detectGlobalInstancesMigration();
+            let globalInstancesMigration: Extract<IGlobalInstancesMigrationResult, { status: 'migrated' }> | undefined;
+            if (currentGlobalPlan) {
+                const globalResult = this.migrateGlobalInstancesToEnvironments({ write: true });
+                if (globalResult.status === 'migrated') {
+                    globalInstancesMigration = globalResult;
+                }
             }
+
+            const remainingPlan = this.detectWorkspaceMigration();
+            if (remainingPlan) {
+                throw new Error(this.formatIncompleteWorkspaceMigrationError(remainingPlan));
+            }
+
+            return {
+                status: 'migrated',
+                plan: initialPlan,
+                legacyMigration,
+                globalInstancesMigration,
+                backupPath: legacyMigration?.backupPath,
+                migratedEnvironmentIds: globalInstancesMigration?.migratedEnvironmentIds || [],
+                deletedGlobalInstanceIds: globalInstancesMigration?.deletedGlobalInstanceIds || [],
+            };
+        } catch (error) {
+            this.restoreWorkspaceMigrationSnapshot(snapshot);
+            throw error;
+        }
+    }
+
+    toWorkspaceMigrationReport(result: IWorkspaceMigrationResult): IWorkspaceMigrationReport {
+        if (result.status === 'not-needed') {
+            return {
+                status: result.status,
+                configPath: result.configPath,
+                required: false,
+                operations: [],
+                warnings: [],
+            };
         }
 
         return {
-            status: 'migrated',
-            plan: initialPlan,
-            legacyMigration,
-            globalInstancesMigration,
-            backupPath: legacyMigration?.backupPath,
-            migratedEnvironmentIds: globalInstancesMigration?.migratedEnvironmentIds || [],
-            deletedGlobalInstanceIds: globalInstancesMigration?.deletedGlobalInstanceIds || [],
+            status: result.status,
+            configPath: result.plan.configPath,
+            required: result.status === 'dry-run',
+            operations: this.workspaceMigrationPlanToOperations(result.plan),
+            warnings: result.plan.warnings,
+            nextCommand: result.status === 'dry-run' ? 'n8nac workspace migrate --json' : undefined,
+            applyCommand: result.status === 'dry-run' ? 'n8nac workspace migrate --write' : undefined,
+            backupPath: result.status === 'migrated' ? result.backupPath : undefined,
+            migratedEnvironmentIds: result.status === 'migrated' ? result.migratedEnvironmentIds : undefined,
+            deletedGlobalInstanceIds: result.status === 'migrated' ? result.deletedGlobalInstanceIds : undefined,
         };
+    }
+
+    workspaceMigrationPlanToReport(plan: IWorkspaceMigrationPlan): IWorkspaceMigrationReport {
+        return {
+            status: 'dry-run',
+            configPath: plan.configPath,
+            required: true,
+            operations: this.workspaceMigrationPlanToOperations(plan),
+            warnings: plan.warnings,
+            nextCommand: 'n8nac workspace migrate --json',
+            applyCommand: 'n8nac workspace migrate --write',
+        };
+    }
+
+    private workspaceMigrationPlanToOperations(plan: IWorkspaceMigrationPlan): IWorkspaceMigrationReportOperation[] {
+        const operations: IWorkspaceMigrationReportOperation[] = [];
+        if (plan.legacyMigration) {
+            operations.push({
+                id: 'legacy-workspace-config',
+                label: 'Legacy workspace config',
+                description: 'Convert legacy n8nac workspace config into workspace environments and local n8n-manager secrets.',
+                instanceCount: plan.legacyMigration.instances.length,
+                instances: plan.legacyMigration.instances.map((instance) => stripUndefined({
+                    id: instance.id,
+                    name: instance.name,
+                    kind: 'legacy-workspace-instance' as const,
+                    url: instance.host,
+                    projectId: instance.projectId,
+                    projectName: instance.projectName,
+                    apiKeyAvailable: instance.hasApiKey,
+                })),
+                warnings: plan.legacyMigration.warnings,
+            });
+        }
+        if (plan.globalInstancesMigration) {
+            operations.push({
+                id: 'global-instances',
+                label: 'Global/v2 instances',
+                description: 'Attach managed instances to this workspace and copy external global instances into workspace environments.',
+                instanceCount: plan.globalInstancesMigration.instances.length,
+                instances: plan.globalInstancesMigration.instances.map((instance) => stripUndefined({
+                    id: instance.id,
+                    name: instance.name,
+                    kind: instance.mode,
+                    url: instance.url,
+                    projectId: instance.projectId,
+                    projectName: instance.projectName,
+                    apiKeyAvailable: instance.apiKeyAvailable,
+                })),
+                warnings: plan.globalInstancesMigration.warnings,
+            });
+        }
+        return operations;
     }
 
     detectGlobalInstancesMigration(): IGlobalInstancesMigrationPlan | undefined {
@@ -1540,6 +1661,41 @@ export class ConfigService {
         const backupPath = path.join(path.dirname(configPath), `n8nac-config.v1-backup-${timestamp}.json`);
         fs.copyFileSync(configPath, backupPath);
         return backupPath;
+    }
+
+    private createWorkspaceMigrationSnapshot(): Array<{ path: string; content?: Buffer }> {
+        const managerPaths = this.manager as unknown as { instancesPath?: string; secretsPath?: string };
+        const paths = [
+            this.getInstanceConfigPath(),
+            managerPaths.instancesPath,
+            managerPaths.secretsPath,
+        ].filter((value): value is string => Boolean(value));
+        return paths.map((filePath) => ({
+            path: filePath,
+            content: fs.existsSync(filePath) ? fs.readFileSync(filePath) : undefined,
+        }));
+    }
+
+    private restoreWorkspaceMigrationSnapshot(snapshot: Array<{ path: string; content?: Buffer }>): void {
+        for (const entry of snapshot) {
+            if (entry.content === undefined) {
+                fs.rmSync(entry.path, { force: true });
+                continue;
+            }
+            fs.mkdirSync(path.dirname(entry.path), { recursive: true });
+            fs.writeFileSync(entry.path, entry.content);
+        }
+    }
+
+    private formatIncompleteWorkspaceMigrationError(plan: IWorkspaceMigrationPlan): string {
+        const legacyCount = plan.legacyMigration?.instances.length || 0;
+        const globalCount = plan.globalInstancesMigration?.instances.length || 0;
+        return [
+            'Workspace migration did not complete atomically; all migration file changes were rolled back.',
+            `Remaining legacy migration items: ${legacyCount}`,
+            `Remaining global/v2 migration items: ${globalCount}`,
+            'Run `n8nac workspace migrate --json` to inspect the remaining plan before retrying.',
+        ].join(' ');
     }
 
     private readWorkspaceConfigFile(): { version: 3 } | IPersistedWorkspaceConfigV4 {
