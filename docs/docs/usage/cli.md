@@ -42,7 +42,7 @@ npm uninstall -g @n8n-as-code/cli
 | Group | Command | Purpose |
 |---|---|---|
 | Usage Principal | `n8nac env` | Workspace environments |
-| Maintenance Workspace | `n8nac workspace` | Status, migration, upgrade |
+| Maintenance Workspace | `n8nac workspace` | Readiness, unified migration, upgrade |
 | Instances Managées | `n8n-manager` | Local managed instances and tunnels |
 | Compat Cachée | `instance-target`, `target`, `setup`, old `workspace` mutations | Compatibility only |
 
@@ -116,13 +116,13 @@ Use `workspace` for inspection and explicit migrations/upgrades only.
 
 ```bash
 n8nac workspace status
-n8nac workspace migrate
+n8nac workspace migrate --json
 n8nac workspace migrate --write
 n8nac workspace upgrade
 n8nac workspace upgrade --write
 ```
 
-`migrate` is for legacy V1/V2 configs. `upgrade` is for previous V3/`next` configs. Both should be run without `--write` first.
+`migrate --json` is the dry-run for legacy V1/V2 configs and reports one unified `operations` list. `migrate --write` applies all required migration operations together. `upgrade` is for previous V3/`next` configs and should be run without `--write` first.
 
 ## Sync Commands
 
@@ -248,21 +248,18 @@ Current config is environment-based and safe to commit when it contains no secre
     {
       "id": "dev",
       "name": "Dev",
-      "instanceTargetId": "dev",
+      "environmentTargetId": "dev",
       "projectId": "personal",
       "projectName": "Personal",
       "syncFolder": "workflows/dev"
     }
   ],
-  "instanceTargets": [
+  "environmentTargets": [
     {
       "id": "dev",
       "name": "Dev",
-      "kind": "embedded",
-      "instance": {
-        "mode": "existing",
-        "baseUrl": "https://n8n.example.com"
-      }
+      "kind": "external-instance",
+      "url": "https://n8n.example.com"
     }
   ]
 }
@@ -305,7 +302,7 @@ Check the active context:
 ```bash
 n8nac env list
 n8nac env status
-n8nac workspace status
+n8nac workspace migrate --json
 ```
 
 Refresh a remote API key:

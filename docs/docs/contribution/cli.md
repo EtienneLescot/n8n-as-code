@@ -335,16 +335,16 @@ beforeEach(() => {
       environments: [{
         id: 'dev',
         name: 'Dev',
-        instanceTargetId: 'dev',
+        environmentTargetId: 'dev',
         projectId: 'personal',
         projectName: 'Personal',
         syncFolder: 'workflows/dev'
       }],
-      instanceTargets: [{
+      environmentTargets: [{
         id: 'dev',
         name: 'Dev',
-        kind: 'embedded',
-        instance: { mode: 'existing', baseUrl: 'http://test.n8n' }
+        kind: 'external-instance',
+        url: 'http://test.n8n'
       }]
     })
   });

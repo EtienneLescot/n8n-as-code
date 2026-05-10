@@ -13,7 +13,7 @@ Use this page when you need to choose the right command family.
 | Need | Use |
 |---|---|
 | Configure how this repository connects to n8n | `n8nac env` |
-| Inspect or migrate workspace config | `n8nac workspace` |
+| Inspect readiness or migrate workspace config | `n8nac workspace` |
 | Create, start, stop, or tunnel a local managed instance | `n8n-manager` |
 | Maintain old scripts only | compat hidden commands |
 
@@ -41,17 +41,17 @@ Use it for:
 
 ## Maintenance Workspace
 
-`n8nac workspace` is for status, migration, and upgrade.
+`n8nac workspace` is for readiness, unified migration, and upgrade.
 
 ```bash
 n8nac workspace status
-n8nac workspace migrate
+n8nac workspace migrate --json
 n8nac workspace migrate --write
 n8nac workspace upgrade
 n8nac workspace upgrade --write
 ```
 
-Use `migrate` for legacy V1/V2 configs. Use `upgrade` for previous V3 or `next` configs.
+Use `migrate --json` as the dry-run for legacy V1/V2 configs. It reports one `operations` list and `migrate --write` applies all required migration operations together. Use `upgrade` for previous V3 or `next` configs.
 
 ## Instances Managées
 

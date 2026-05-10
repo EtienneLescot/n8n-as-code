@@ -24,7 +24,7 @@ Use the full HTTPS URL because the `owner/repo` shorthand may trigger SSH clonin
 | Group | Command | Purpose |
 |---|---|---|
 | Usage Principal | `n8nac env` | Workspace environments |
-| Maintenance Workspace | `n8nac workspace` | Status, migration, upgrade |
+| Maintenance Workspace | `n8nac workspace` | Readiness, unified migration, upgrade |
 | Managed Local Runtime | `n8n-manager` | Local managed instances and tunnels only |
 
 ## After Install

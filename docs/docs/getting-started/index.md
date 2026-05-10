@@ -20,7 +20,7 @@ This guide gets you from an empty workspace to an agent-assisted n8n workflow lo
 | Group | Command | Use it for |
 |---|---|---|
 | Usage Principal | `n8nac env` | Workspace environments |
-| Maintenance Workspace | `n8nac workspace` | Status, migration, upgrade |
+| Maintenance Workspace | `n8nac workspace` | Readiness, unified migration, upgrade |
 | Instances Managées | `n8n-manager` | Local managed instances and tunnels |
 
 An environment stores the workspace-safe context: n8n endpoint, project, sync folder, and active selection. API keys stay local.
@@ -81,8 +81,10 @@ Existing repositories are not rewritten automatically on open.
 Legacy V1/V2 config:
 
 ```bash
-n8nac workspace migrate
+n8nac workspace migrate --json
 n8nac workspace migrate --write
+n8nac workspace migrate --json
+n8nac env status --json
 ```
 
 Previous V3/`next` config:
@@ -92,7 +94,7 @@ n8nac workspace upgrade
 n8nac workspace upgrade --write
 ```
 
-Run the dry-run form first. The `--write` form creates a backup before updating `n8nac-config.json`.
+Run the JSON dry-run first and review the unified `operations` list. The `--write` form applies the migration atomically and creates a backup before updating `n8nac-config.json`.
 
 ## What Gets Created
 

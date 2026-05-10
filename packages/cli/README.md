@@ -36,7 +36,7 @@ Full documentation: [CLI guide](https://n8nascode.dev/docs/usage/cli/) · [n8n-m
 | Group | Command | Purpose |
 |---|---|---|
 | Usage Principal | `n8nac env` | Workspace environments: n8n URL or managed instance, project, sync folder, active environment |
-| Maintenance Workspace | `n8nac workspace` | Status, migration, upgrade |
+| Maintenance Workspace | `n8nac workspace` | Readiness, unified migration, upgrade |
 | Instances Managées | `n8n-manager` | Local managed instances, Docker lifecycle, tunnels, local secrets |
 | Compat Cachée | `instance-target`, `target`, `setup`, old `workspace` mutations | Compatibility only |
 
@@ -79,8 +79,10 @@ Removing an environment does not delete remote workflows, local workflow files, 
 Legacy V1/V2 config:
 
 ```bash
-n8nac workspace migrate
+n8nac workspace migrate --json
 n8nac workspace migrate --write
+n8nac workspace migrate --json
+n8nac env status --json
 ```
 
 Previous V3/`next` config model:
@@ -90,7 +92,7 @@ n8nac workspace upgrade
 n8nac workspace upgrade --write
 ```
 
-Dry-run first, then apply with `--write`. Applied migrations create a backup before replacing `n8nac-config.json`.
+Dry-run with `--json` first, then apply with `--write` after reviewing the unified `operations` list. Applied migrations create a backup before replacing `n8nac-config.json`.
 
 ## Sync Commands
 
@@ -157,21 +159,18 @@ Current workspace config is environment-based:
     {
       "id": "dev",
       "name": "Dev",
-      "instanceTargetId": "dev",
+      "environmentTargetId": "dev",
       "projectId": "personal",
       "projectName": "Personal",
       "syncFolder": "workflows/dev"
     }
   ],
-  "instanceTargets": [
+  "environmentTargets": [
     {
       "id": "dev",
       "name": "Dev",
-      "kind": "embedded",
-      "instance": {
-        "mode": "existing",
-        "baseUrl": "https://n8n.example.com"
-      }
+      "kind": "external-instance",
+      "url": "https://n8n.example.com"
     }
   ]
 }

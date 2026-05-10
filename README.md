@@ -29,7 +29,7 @@
 
 ---
 
-> **Using V1?** V2+ uses workspace environments. Start with the [migration guide](https://n8nascode.dev/docs/migration/v1-to-v2/) and run `n8nac workspace migrate --write` from the repository root. V1 users can keep using the legacy branch and packages: [V1 branch](https://github.com/EtienneLescot/n8n-as-code/tree/v1) · CLI: `npx --yes n8nac@v1 <command>` · Claude Code: `/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#v1`.
+> **Using V1?** V2+ uses workspace environments. Start with the [migration guide](https://n8nascode.dev/docs/migration/v1-to-v2/) and run `n8nac workspace migrate --json` from the repository root before applying with `n8nac workspace migrate --write`. V1 users can keep using the legacy branch and packages: [V1 branch](https://github.com/EtienneLescot/n8n-as-code/tree/v1) · CLI: `npx --yes n8nac@v1 <command>` · Claude Code: `/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#v1`.
 
 > **n8n version compatibility** — The node schema bundled with n8n-as-code is built against the latest stable release of n8n. Keep your n8n instance up to date for best generation and validation results.
 
@@ -44,7 +44,7 @@ n8n-as-code has three user-facing command groups:
 | Group | Command | Owns |
 |---|---|---|
 | **Usage Principal** | `n8nac env` | Workspace environments: URL or managed instance, project, sync folder, active environment |
-| **Maintenance Workspace** | `n8nac workspace` | Status, legacy migration, previous config upgrade |
+| **Maintenance Workspace** | `n8nac workspace` | Readiness, unified migration, previous config upgrade |
 | **Instances Managées** | `n8n-manager` | Local managed instances, Docker lifecycle, tunnels, machine-local state |
 
 The repository source of truth is `n8nac-config.json`. It stores workspace environments and is safe to commit when it contains no secrets.
@@ -136,13 +136,13 @@ Use `n8nac env` for everything that describes how this repository connects to n8
 
 ```bash
 n8nac workspace status
-n8nac workspace migrate
+n8nac workspace migrate --json
 n8nac workspace migrate --write
 n8nac workspace upgrade
 n8nac workspace upgrade --write
 ```
 
-Use `workspace migrate` for legacy V1/V2 configs. Use `workspace upgrade` for previous V3/`next` configs that need the environment model.
+Use `workspace migrate --json` as the migration dry-run. It reports one unified `operations` list for legacy workspace and global instance changes; apply all required operations together with `workspace migrate --write`. Use `workspace upgrade` for previous V3/`next` configs that need the environment model.
 
 ### Instances Managées: `n8n-manager`
 
@@ -245,7 +245,7 @@ n8nac convert-batch workflows/ --format typescript
 
 - **VS Code/Cursor extension**: visual workflow workspace and integrated Agent Workbench.
 - **`n8nac env`**: repository-level environment source of truth.
-- **`n8nac workspace`**: status, migrations, and upgrades.
+- **`n8nac workspace`**: readiness, unified migrations, and upgrades.
 - **`n8n-manager`**: local managed instances, Docker lifecycle, tunnels, and machine-local secrets.
 - **Skills and MCP**: grounded n8n knowledge for agents.
 

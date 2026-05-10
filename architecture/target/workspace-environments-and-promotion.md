@@ -1,6 +1,6 @@
 # Target Architecture: Workspace Environments And Workflow Promotion
 
-- **Status**: Product and technical specification
+- **Status**: Historical pre-unification specification. Current implementation uses `environmentTargets`, `environmentTargetId`, `external-instance`, `managed-instance`, and the unified `n8nac workspace migrate` report.
 - **Scope**: n8nac workspace environment model, explicit environment targeting, and workflow promotion between environments
 - **Decision**: Replace direct instance targeting in the n8nac product model with workspace environments. An environment is created by attaching an existing instance target, one n8n project, and one sync folder. Instance targets can be global n8n-manager references or workspace-tracked non-secret public descriptors. Do not keep `--instance` as a product concept in this spec.
 

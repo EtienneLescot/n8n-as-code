@@ -15,7 +15,7 @@ It is not the workspace source of truth. Workspace environments belong to `n8nac
 | Concern | Owner |
 |---|---|
 | Workspace environments | `n8nac env` |
-| Status, migration, upgrade | `n8nac workspace` |
+| Readiness, unified migration, upgrade | `n8nac workspace` |
 | Local managed instances | `n8n-manager` |
 | Docker start/stop/remove | `n8n-manager` |
 | Tunnels for local instances | `n8n-manager` |
