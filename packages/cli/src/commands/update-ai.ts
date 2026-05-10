@@ -210,7 +210,7 @@ export class UpdateAiCommand {
                 console.log(chalk.green('\n✨ AI Context Updated Successfully!'));
                 console.log(chalk.gray('   ✔ AGENTS.md: Lightweight context-root bootstrap'));
                 console.log(chalk.gray('   ✔ .github/agents: VS Code/Copilot workspace agents'));
-                console.log(chalk.gray('   ✔ .agents/skills: Portable n8n-manager and n8n-architect skill fallbacks'));
+                console.log(chalk.gray('   ✔ .agents/skills: Portable n8n-architect skill fallback'));
                 console.log(chalk.gray('   ✔ n8n-workflows.d.ts: TypeScript stubs (per instance)'));
                 console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/skills)\n'));
             } else if (updatedCount > 0 || existsSync(join(projectRoot, 'AGENTS.md'))) {

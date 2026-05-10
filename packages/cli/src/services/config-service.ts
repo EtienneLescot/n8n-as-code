@@ -270,7 +270,7 @@ export class ConfigService {
         if (legacyPlan) {
             throw new Error(
                 `Unsupported legacy n8n workspace config at ${legacyPlan.configPath}. ` +
-                'Run `n8nac workspace migrate-v1` to inspect it, then `n8nac workspace migrate-v1 --write` to migrate it.'
+                'Run `n8nac workspace migrate --json` to inspect it, then `n8nac workspace migrate --write` to migrate it after confirmation.'
             );
         }
         const persisted = this.readWorkspaceConfigFile();

@@ -43,6 +43,7 @@ describe('AiContextGenerator', () => {
             expect(agentsContent).toContain('n8nac backend resolution remains the only source');
             expect(agentsContent).toContain('workspace status --json');
             expect(agentsContent).toContain('workspace migrate --json');
+            expect(agentsContent.indexOf('workspace migrate --json')).toBeLessThan(agentsContent.indexOf('workspace status --json'));
             expect(agentsContent).toContain('npx --yes @n8n-as-code/n8n-manager');
             expect(agentsContent).toContain('Use the returned `workflowDir` exactly as provided.');
             expect(agentsContent).toContain('<!-- n8n-as-code-end -->');
@@ -56,6 +57,8 @@ describe('AiContextGenerator', () => {
             const architectSkill = fs.readFileSync(path.join(tempDir, '.agents/skills/n8n-architect/SKILL.md'), 'utf-8');
 
             expect(agentsContent).toContain('npx --yes n8nac@next workspace status --json');
+            expect(agentsContent).toContain('npx --yes n8nac@next workspace migrate --json');
+            expect(agentsContent.indexOf('npx --yes n8nac@next workspace migrate --json')).toBeLessThan(agentsContent.indexOf('npx --yes n8nac@next workspace status --json'));
             expect(agentsContent).toContain('npx --yes @n8n-as-code/n8n-manager@next ...');
             expect(architectAgent).toContain('npx --yes @n8n-as-code/n8n-manager@next instance list');
             expect(architectSkill).toContain('npx --yes @n8n-as-code/n8n-manager@next instance list');
