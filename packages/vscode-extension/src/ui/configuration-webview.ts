@@ -6,6 +6,7 @@ import type { N8nConfigurationController, N8nConfigurationSnapshot } from '../se
 import { YagrProviderService, normalizeYagrProviderId, type YagrModelProvider } from '../services/yagr-provider-service.js';
 import { getConfigurationHtml } from './configuration-webview-html.js';
 import { getCanonicalProjectName, getProjectDetail, getProjectDisplayLabel } from '../utils/project-display.js';
+import { runWorkspaceMigrationFromVscode } from '../services/workspace-migration-runner.js';
 
 type UiProject = {
   id: string;
@@ -86,25 +87,6 @@ function readWorkspaceTargetApiKey(targetId: string, targetName: string): string
     if (value) return value;
   }
   return undefined;
-}
-
-async function readLegacyN8nSettings(context: vscode.ExtensionContext): Promise<{ host: string; apiKey: string }> {
-  const config = vscode.workspace.getConfiguration('n8n');
-  const configuredApiKey = String(config.get<string>('apiKey') || '').trim();
-  const apiKey = configuredApiKey || await readLegacySecretApiKey(context);
-  return {
-    host: normalizeHost(String(config.get<string>('host') || '')),
-    apiKey,
-  };
-}
-
-async function readLegacySecretApiKey(context: vscode.ExtensionContext): Promise<string> {
-  const candidates = ['n8n.apiKey', 'apiKey', 'n8n-as-code.apiKey', 'n8nAsCode.apiKey', 'n8nApiKey'];
-  for (const key of candidates) {
-    const value = (await context.secrets.get(key))?.trim();
-    if (value) return value;
-  }
-  return '';
 }
 
 async function clearLegacyWorkspaceSettings(): Promise<string[]> {
@@ -688,38 +670,25 @@ export class ConfigurationWebview {
   }
 
   private async migrateWorkspaceConfiguration(workspaceRoot: string): Promise<void> {
-    const configService = new ConfigService(workspaceRoot);
-    const plan = configService.detectWorkspaceMigration();
-    if (!plan) {
+    const result = await runWorkspaceMigrationFromVscode(this._context, workspaceRoot);
+    if (result.outcome === 'not-needed') {
       this._panel.webview.postMessage({ type: 'saved' });
       await this._configurationController.refresh('webview-migration-not-needed', { force: true });
       return;
     }
 
-    const confirmation = await vscode.window.showWarningMessage(
-      'Migration required. This will update the workspace configuration.',
-      { modal: true },
-      'Run migration',
-    );
-    if (confirmation !== 'Run migration') {
+    if (result.outcome === 'cancelled') {
       this._panel.webview.postMessage({ type: 'cancelled' });
       return;
     }
 
-    const legacySettings = plan.legacyMigration ? await readLegacyN8nSettings(this._context) : undefined;
-    const result = configService.migrateWorkspaceConfiguration({
-      write: true,
-      legacyApiKeyFallback: legacySettings,
-    });
-
-    await clearLegacyWorkspaceSettings();
     const snapshot = await this._configurationController.refresh('webview-run-migration', { force: true });
     await this.postInitialState(snapshot);
     this._panel.webview.postMessage({
       type: 'migrationCompleted',
-      backupPath: result.status === 'migrated' ? result.backupPath || '' : '',
-      migratedCount: result.status === 'migrated' ? result.migratedEnvironmentIds.length : 0,
-      deletedCount: result.status === 'migrated' ? result.deletedGlobalInstanceIds.length : 0,
+      backupPath: result.report.backupPath || '',
+      migratedCount: result.report.migratedEnvironmentIds?.length || 0,
+      deletedCount: result.report.deletedGlobalInstanceIds?.length || 0,
     });
   }
 
@@ -863,8 +832,7 @@ export class ConfigurationWebview {
         instances,
       },
       workspace: workspaceOverrides,
-      legacyMigration: currentSnapshot.legacyMigration,
-      globalInstancesMigration: currentSnapshot.globalInstancesMigration,
+      migration: currentSnapshot.migration,
       effective: effectiveContext ? {
         activeInstanceId: effectiveContext.activeInstanceId,
         activeInstanceName: effectiveContext.activeInstanceName,

@@ -347,18 +347,11 @@ export function getConfigurationHtml(nonce: string): string {
                 <button id="addEnvironment" class="icon-button" type="button" aria-label="Add environment">+</button>
               </div>
             </div>
-            <div id="legacyMigrationNotice" class="message warning hidden">
+            <div id="migrationNotice" class="message warning hidden">
               <strong>Migration required.</strong>
-              <div id="legacyMigrationText" class="muted"></div>
+              <div id="migrationText" class="muted"></div>
               <div class="toolbar">
-                <button id="migrateLegacyWorkspace" type="button">Run migration</button>
-              </div>
-            </div>
-            <div id="globalInstancesMigrationNotice" class="message warning hidden">
-              <strong>Global n8n instances detected.</strong>
-              <div id="globalInstancesMigrationText" class="muted"></div>
-              <div class="toolbar">
-                <button id="migrateGlobalInstances" type="button">Migrate as environments</button>
+                <button id="migrateWorkspace" type="button">Run migration</button>
               </div>
             </div>
             <div id="environmentList" class="instances"></div>
@@ -634,12 +627,9 @@ export function getConfigurationHtml(nonce: string): string {
       targetBaseUrl: document.getElementById('targetBaseUrl'),
       saveTarget: document.getElementById('saveTarget'),
       addEnvironment: document.getElementById('addEnvironment'),
-      legacyMigrationNotice: document.getElementById('legacyMigrationNotice'),
-      legacyMigrationText: document.getElementById('legacyMigrationText'),
-      migrateLegacyWorkspace: document.getElementById('migrateLegacyWorkspace'),
-      globalInstancesMigrationNotice: document.getElementById('globalInstancesMigrationNotice'),
-      globalInstancesMigrationText: document.getElementById('globalInstancesMigrationText'),
-      migrateGlobalInstances: document.getElementById('migrateGlobalInstances'),
+      migrationNotice: document.getElementById('migrationNotice'),
+      migrationText: document.getElementById('migrationText'),
+      migrateWorkspace: document.getElementById('migrateWorkspace'),
       environmentList: document.getElementById('environmentList'),
       environmentModal: document.getElementById('environmentModal'),
       environmentModalTitle: document.getElementById('environmentModalTitle'),
@@ -696,7 +686,7 @@ export function getConfigurationHtml(nonce: string): string {
       aboutGrid: document.getElementById('aboutGrid'),
     };
 
-    let state = { global: { instances: [] }, workspace: {}, effective: undefined, providers: [], about: {} };
+    let state = { global: { instances: [] }, workspace: {}, migration: undefined, effective: undefined, providers: [], about: {} };
     const PERSONAL_PROJECT = { id: 'personal', name: 'Personal', type: 'personal' };
     let workspaceProjects = [PERSONAL_PROJECT];
     let environmentProjects = [PERSONAL_PROJECT];
@@ -969,8 +959,7 @@ export function getConfigurationHtml(nonce: string): string {
       renderTargetControls();
       renderTargetList();
       renderEnvironmentControls();
-      renderLegacyMigrationNotice();
-      renderGlobalInstanceMigrationNotice();
+      renderMigrationNotice();
       renderEnvironmentList();
       renderInstanceList();
       renderProjects(workspace.projectId || effective?.projectId || 'personal', workspace.projectName || effective?.projectName || '');
@@ -986,15 +975,15 @@ export function getConfigurationHtml(nonce: string): string {
       }
       els.openManagedInstances.classList.toggle('hidden', tab !== 'n8n-instances');
     }
-    function renderLegacyMigrationNotice() {
-      const migrationRequired = Boolean(state.legacyMigration || state.globalInstancesMigration);
-      els.legacyMigrationNotice.classList.toggle('hidden', !migrationRequired);
+    function renderMigrationNotice() {
+      const migrationRequired = Boolean(state.migration?.required);
+      els.migrationNotice.classList.toggle('hidden', !migrationRequired);
       els.addEnvironment.disabled = migrationRequired;
       if (!migrationRequired) return;
-      els.legacyMigrationText.textContent = '';
-    }
-    function renderGlobalInstanceMigrationNotice() {
-      els.globalInstancesMigrationNotice.classList.add('hidden');
+      const operations = (state.migration?.operations || []).map((operation) => operation.label + ' (' + operation.instanceCount + ')');
+      els.migrationText.textContent = operations.length
+        ? 'Run the unified workspace migration before editing environments: ' + operations.join(', ') + '.'
+        : 'Run the unified workspace migration before editing environments.';
     }
     function renderInstanceList() {
       els.instanceList.innerHTML = '';
@@ -1177,7 +1166,7 @@ export function getConfigurationHtml(nonce: string): string {
     }
     function renderEnvironmentList() {
       els.environmentList.innerHTML = '';
-      if (state.legacyMigration) {
+      if (state.migration?.required) {
         const empty = document.createElement('p');
         empty.className = 'muted';
         empty.textContent = 'Migrate this workspace before creating or editing n8n environments.';
@@ -1587,8 +1576,7 @@ export function getConfigurationHtml(nonce: string): string {
       vscode.postMessage({ type, ...payload });
     }
     els.refresh.addEventListener('click', () => post('refreshState'));
-    els.migrateLegacyWorkspace.addEventListener('click', () => post('migrateWorkspaceConfiguration'));
-    els.migrateGlobalInstances.addEventListener('click', () => post('migrateWorkspaceConfiguration'));
+    els.migrateWorkspace.addEventListener('click', () => post('migrateWorkspaceConfiguration'));
     els.tabButtons.forEach((tabButton) => tabButton.addEventListener('click', () => setActiveTab(tabButton.dataset.tab)));
     els.providerSelectModel.addEventListener('click', () => post('selectProviderModel', { provider: providers().find((provider) => provider.selected)?.id || 'openai' }));
     els.openManagedInstances.addEventListener('click', openManagedInstancesModal);
@@ -1702,8 +1690,7 @@ export function getConfigurationHtml(nonce: string): string {
         state = {
           global: message.global || { instances: [] },
           workspace: message.workspace || {},
-          legacyMigration: message.legacyMigration,
-          globalInstancesMigration: message.globalInstancesMigration,
+          migration: message.migration,
           effective: message.effective,
           providers: message.providers || [],
           about: message.about || {},
@@ -1734,17 +1721,8 @@ export function getConfigurationHtml(nonce: string): string {
         }
       } else if (message.type === 'saved') {
         showSaved();
-      } else if (message.type === 'legacyMigrationCompleted') {
-        state.legacyMigration = undefined;
-        render();
-        showSaved(message.backupPath ? 'Workspace migrated. Backup: ' + message.backupPath : 'Workspace migrated.');
-      } else if (message.type === 'globalInstancesMigrationCompleted') {
-        state.globalInstancesMigration = undefined;
-        render();
-        showSaved('Global instances migrated.');
       } else if (message.type === 'migrationCompleted') {
-        state.legacyMigration = undefined;
-        state.globalInstancesMigration = undefined;
+        state.migration = undefined;
         render();
         showSaved(message.backupPath ? 'Migration complete. Backup: ' + message.backupPath : 'Migration complete.');
       } else if (message.type === 'copied') {

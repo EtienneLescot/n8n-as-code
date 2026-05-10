@@ -35,6 +35,7 @@ import {
     N8nConfigurationController,
     type N8nConfigurationChangeEvent,
 } from './services/n8n-configuration-controller.js';
+import { runWorkspaceMigrationFromVscode } from './services/workspace-migration-runner.js';
 import { workflowWebviewRegistry } from './services/workflow-webview-registry.js';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
 import { createTelemetryClient, type TelemetryClient } from '@n8n-as-code/telemetry';
@@ -1143,52 +1144,21 @@ async function migrateWorkspaceConfiguration(context: vscode.ExtensionContext): 
         return;
     }
 
-    const configService = new ConfigService(workspaceRoot);
-    const plan = configService.detectWorkspaceMigration();
-    if (!plan) {
+    const result = await runWorkspaceMigrationFromVscode(context, workspaceRoot);
+    if (result.outcome === 'not-needed') {
         await vscode.window.showInformationMessage('No migration required.');
         await requireConfigurationController().refresh('migration-not-needed', { force: true });
         return;
     }
-
-    const confirmation = await vscode.window.showWarningMessage(
-        'Migration required. This will update the workspace configuration.',
-        { modal: true },
-        'Run migration',
-    );
-    if (confirmation !== 'Run migration') return;
-
-    const legacySettings = plan.legacyMigration ? await readLegacyN8nSettingsForMigration(context) : undefined;
-    const result = configService.migrateWorkspaceConfiguration({
-        write: true,
-        legacyApiKeyFallback: legacySettings,
-    });
+    if (result.outcome === 'cancelled') return;
 
     await requireConfigurationController().refresh('migrate-workspace-configuration-command', { force: true });
     await determineInitialState(context);
     updateContextKeys();
-    const backupPath = result.status === 'migrated' ? result.backupPath : '';
-    const migratedEnvironmentCount = result.status === 'migrated' ? result.migratedEnvironmentIds.length : 0;
+    const backupPath = result.report.backupPath || '';
+    const migratedEnvironmentCount = result.report.migratedEnvironmentIds?.length || 0;
     const suffix = backupPath ? ` Backup: ${backupPath}` : migratedEnvironmentCount ? ` ${migratedEnvironmentCount} environment${migratedEnvironmentCount === 1 ? '' : 's'} created.` : '';
     await vscode.window.showInformationMessage(`Migration complete.${suffix}`);
-}
-
-async function readLegacyN8nSettingsForMigration(context: vscode.ExtensionContext): Promise<{ host: string; apiKey: string }> {
-    const config = vscode.workspace.getConfiguration('n8n');
-    const configuredApiKey = String(config.get<string>('apiKey') || '').trim();
-    return {
-        host: String(config.get<string>('host') || '').trim().replace(/\/$/, ''),
-        apiKey: configuredApiKey || await readLegacySecretApiKeyForMigration(context),
-    };
-}
-
-async function readLegacySecretApiKeyForMigration(context: vscode.ExtensionContext): Promise<string> {
-    const candidates = ['n8n.apiKey', 'apiKey', 'n8n-as-code.apiKey', 'n8nAsCode.apiKey', 'n8nApiKey'];
-    for (const key of candidates) {
-        const value = (await context.secrets.get(key))?.trim();
-        if (value) return value;
-    }
-    return '';
 }
 
 function requireAgentRuntimeController(): AgentRuntimeController {

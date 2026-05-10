@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Store } from '@reduxjs/toolkit';
-import { ConfigService, IWorkflowStatus, SyncManager, WorkflowSyncStatus } from 'n8nac';
+import { ConfigService, IWorkflowStatus, SyncManager, WorkspaceMigrationFacade, WorkflowSyncStatus } from 'n8nac';
 import { ExtensionState } from '../types.js';
 import { getWorkspaceRoot, validateN8nConfig } from '../utils/state-detection.js';
 
@@ -229,9 +229,8 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
 
     try {
       const configService = new ConfigService(workspaceRoot);
-      const legacyPlan = configService.detectLegacyWorkspaceConfig();
-      const globalPlan = configService.detectGlobalInstancesMigration();
-      if (!legacyPlan && !globalPlan) return [];
+      const migration = new WorkspaceMigrationFacade({ configService }).inspect();
+      if (!migration) return [];
 
       const title = new InfoItem(
         'Migration required',

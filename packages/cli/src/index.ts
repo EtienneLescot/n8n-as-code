@@ -19,7 +19,8 @@ import { createRequire } from 'module';
 import { parsePositiveIntegerOption } from './utils/option-parsers.js';
 import { spawn } from 'child_process';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
-import { ConfigService, type ILegacyWorkspaceMigrationResult, type IWorkspaceMigrationResult } from './services/config-service.js';
+import { ConfigService, type ILegacyWorkspaceMigrationResult, type IWorkspaceMigrationReport } from './services/config-service.js';
+import { WorkspaceMigrationFacade } from './services/workspace-migration-facade.js';
 import {
     N8N_FACADE_SETUP_MODES,
     isN8nFacadeSetupMode,
@@ -138,21 +139,20 @@ function formatLegacyMigrationResult(result: ILegacyWorkspaceMigrationResult): s
     ].filter(Boolean).join('\n');
 }
 
-function formatWorkspaceMigrationResult(result: IWorkspaceMigrationResult): string {
-    if (result.status === 'not-needed') {
-        return chalk.green(`No n8n workspace migration required at ${result.configPath}.`);
+function formatWorkspaceMigrationReport(report: IWorkspaceMigrationReport): string {
+    if (report.status === 'not-needed') {
+        return chalk.green(`No n8n workspace migration required at ${report.configPath}.`);
     }
 
-    const report = new ConfigService().toWorkspaceMigrationReport(result);
-    const header = result.status === 'dry-run'
+    const header = report.status === 'dry-run'
         ? chalk.yellow('n8n workspace migration required. No files changed.')
         : chalk.green('n8n workspace migration completed.');
-    const footer = result.status === 'dry-run'
+    const footer = report.status === 'dry-run'
         ? ['Run `n8nac workspace migrate --write` to apply the migration.']
         : [
-            result.backupPath ? `Backup: ${result.backupPath}` : undefined,
-            `Migrated environments: ${result.migratedEnvironmentIds.length}`,
-            `Removed global external instances: ${result.deletedGlobalInstanceIds.length}`,
+            report.backupPath ? `Backup: ${report.backupPath}` : undefined,
+            `Migrated environments: ${report.migratedEnvironmentIds?.length || 0}`,
+            `Removed global external instances: ${report.deletedGlobalInstanceIds?.length || 0}`,
             'Run `n8nac workspace status --json` to verify the resolved context.',
         ].filter(Boolean) as string[];
 
@@ -177,15 +177,14 @@ function redactResolvedEnvironment<T extends { apiKey?: string } | undefined>(en
 }
 
 function abortIfWorkspaceMigrationRequired(configService: ConfigService, options: { json?: boolean } = {}): void {
-    const migrationPlan = configService.detectWorkspaceMigration();
-    if (!migrationPlan) return;
-    const payload = configService.workspaceMigrationPlanToReport(migrationPlan);
+    const payload = new WorkspaceMigrationFacade({ configService }).inspect();
+    if (!payload) return;
     printJsonOrText(
         options,
         payload,
         [
             chalk.yellow('n8n workspace migration required before environment commands can run.'),
-            `Config: ${migrationPlan.configPath}`,
+            `Config: ${payload.configPath}`,
             'Run `n8nac workspace migrate --json` to inspect it.',
             'After explicit confirmation, run `n8nac workspace migrate --write` to apply it.',
         ].join('\n'),
@@ -489,15 +488,14 @@ workspaceProgram.command('status')
     .action((options) => {
         const configService = new ConfigService();
         const selectedEnvironment = process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
-        const migrationPlan = configService.detectWorkspaceMigration();
-        if (migrationPlan) {
-            const payload = configService.workspaceMigrationPlanToReport(migrationPlan);
+        const migration = new WorkspaceMigrationFacade({ configService }).inspect();
+        if (migration) {
             printJsonOrText(
                 options,
-                payload,
+                migration,
                 [
                     chalk.yellow('n8n workspace migration required.'),
-                    `Config: ${migrationPlan.configPath}`,
+                    `Config: ${migration.configPath}`,
                     'Run `n8nac workspace migrate --json` to inspect it.',
                     'After confirmation, run `n8nac workspace migrate --write` to apply it.',
                 ].join('\n'),
@@ -526,10 +524,9 @@ workspaceProgram.command('migrate')
     .description('Inspect or run required workspace migrations')
     .option('--write', 'Apply the migration. Without this flag, the command only reports what would change.')
     .option('--json', 'Output migration result as JSON')
-    .action((options) => {
-        const configService = new ConfigService();
-        const result = configService.migrateWorkspaceConfiguration({ write: Boolean(options.write) });
-        printJsonOrText(options, configService.toWorkspaceMigrationReport(result), formatWorkspaceMigrationResult(result));
+    .action(async (options) => {
+        const report = await new WorkspaceMigrationFacade().migrate({ write: Boolean(options.write) });
+        printJsonOrText(options, report, formatWorkspaceMigrationReport(report));
     });
 
 workspaceProgram.command('migrate-v1')
