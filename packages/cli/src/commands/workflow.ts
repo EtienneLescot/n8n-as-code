@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
 
 import { BaseCommand } from './base.js';
 
@@ -25,12 +26,15 @@ export class WorkflowCommand extends BaseCommand {
             this.exitWithError(`Unable to resolve a public URL for workflow ${workflowId}`);
         }
 
-        const url = `${baseUrl}/workflow/${encodeURIComponent(workflowId)}`;
+        const presentation = await this.resolvePresentationUrl(workflowId, baseUrl);
         const payload = {
             workflowId,
             workflowName: workflow.name,
-            url,
+            url: presentation.url,
             baseUrl,
+            publicBaseUrl: presentation.publicBaseUrl,
+            authUrl: presentation.authUrl,
+            urlSource: presentation.urlSource,
             environmentId: this.activeEnvironment?.environmentId,
             environmentName: this.activeEnvironment?.environmentName,
         };
@@ -41,7 +45,51 @@ export class WorkflowCommand extends BaseCommand {
         }
 
         console.log(chalk.green(`Workflow: ${workflow.name || workflowId}`));
-        console.log(url);
+        console.log(presentation.url);
+    }
+
+    private async resolvePresentationUrl(workflowId: string, baseUrl: string): Promise<{
+        url: string;
+        publicBaseUrl?: string;
+        authUrl?: string;
+        urlSource: 'auth-bridge' | 'public-tunnel' | 'base-url';
+    }> {
+        const targetPath = `/workflow/${encodeURIComponent(workflowId)}`;
+        const fallbackUrl = `${baseUrl}${targetPath}`;
+        const managedInstanceId = this.activeEnvironment?.sourceKind === 'managed-instance'
+            ? this.activeEnvironment.managedInstanceId || this.activeInstanceId
+            : undefined;
+        if (!managedInstanceId) {
+            return { url: fallbackUrl, urlSource: 'base-url' };
+        }
+
+        try {
+            const access = await createN8nManagerFacade({ workspaceRoot: process.cwd() }).resolveInstanceAccess({
+                instanceId: managedInstanceId,
+                mode: 'observe',
+                consumer: 'cli',
+                targetPath,
+            });
+            if (access.authUrl) {
+                return {
+                    url: access.authUrl,
+                    authUrl: access.authUrl,
+                    publicBaseUrl: access.publicN8nUrl,
+                    urlSource: 'auth-bridge',
+                };
+            }
+            if (access.publicN8nUrl) {
+                return {
+                    url: `${access.publicN8nUrl.replace(/\/+$/, '')}${targetPath}`,
+                    publicBaseUrl: access.publicN8nUrl,
+                    urlSource: 'public-tunnel',
+                };
+            }
+        } catch {
+            // Presentation should still work for managed instances without tunnel metadata.
+        }
+
+        return { url: fallbackUrl, urlSource: 'base-url' };
     }
 
     /**

@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkflowCommand } from '../../src/commands/workflow.js';
 
+const managerMock = vi.hoisted(() => ({
+    resolveInstanceAccess: vi.fn(),
+}));
+
+vi.mock('@n8n-as-code/manager-adapter', () => ({
+    createN8nManagerFacade: () => managerMock,
+}));
+
 vi.mock('chalk', () => {
     const identity = (s: string) => s;
     const proxy: any = new Proxy(identity, {
@@ -26,6 +34,7 @@ describe('WorkflowCommand.credentialRequired()', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        managerMock.resolveInstanceAccess.mockReset();
         logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
         errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
         vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
@@ -176,6 +185,56 @@ describe('WorkflowCommand.present()', () => {
             workflowName: 'Demo Workflow',
             baseUrl: 'https://n8n.test',
             url: 'https://n8n.test/workflow/wf-1',
+            urlSource: 'base-url',
+        });
+    });
+
+    it('prefers managed auth bridge URL when available', async () => {
+        vi.spyOn(cmd['client'], 'getWorkflow').mockResolvedValue({
+            id: 'wf-managed',
+            name: 'Managed Demo',
+            active: false,
+            nodes: [],
+            connections: {},
+        } as any);
+        (cmd as any).activeEnvironment = {
+            sourceKind: 'managed-instance',
+            managedInstanceId: 'managed-1',
+            environmentId: 'env-managed',
+            environmentName: 'Managed',
+        };
+        (cmd as any).activeInstanceId = 'managed-1';
+        managerMock.resolveInstanceAccess.mockResolvedValue({
+            instanceId: 'managed-1',
+            instanceName: 'Managed',
+            apiBaseUrl: 'http://127.0.0.1:5682',
+            publicN8nUrl: 'https://public.example.test',
+            authUrl: 'https://bridge.example.test/open?token=abc',
+            publicUrlEnabled: true,
+            runtimeStatus: 'ready',
+            ready: true,
+            warnings: [],
+        });
+
+        await cmd.present('wf-managed', { json: true });
+
+        expect(managerMock.resolveInstanceAccess).toHaveBeenCalledWith({
+            instanceId: 'managed-1',
+            mode: 'observe',
+            consumer: 'cli',
+            targetPath: '/workflow/wf-managed',
+        });
+        const parsed = JSON.parse(String(logSpy.mock.calls[0]?.[0]));
+        expect(parsed).toMatchObject({
+            workflowId: 'wf-managed',
+            workflowName: 'Managed Demo',
+            baseUrl: 'https://n8n.test',
+            url: 'https://bridge.example.test/open?token=abc',
+            authUrl: 'https://bridge.example.test/open?token=abc',
+            publicBaseUrl: 'https://public.example.test',
+            urlSource: 'auth-bridge',
+            environmentId: 'env-managed',
+            environmentName: 'Managed',
         });
     });
 
