@@ -143,9 +143,7 @@ function formatWorkspaceMigrationResult(result: IWorkspaceMigrationResult): stri
         return chalk.green(`No n8n workspace migration required at ${result.configPath}.`);
     }
 
-    const plan = result.plan;
-    const legacyCount = plan.legacyMigration?.instances.length || 0;
-    const globalCount = plan.globalInstancesMigration?.instances.length || 0;
+    const report = new ConfigService().toWorkspaceMigrationReport(result);
     const header = result.status === 'dry-run'
         ? chalk.yellow('n8n workspace migration required. No files changed.')
         : chalk.green('n8n workspace migration completed.');
@@ -160,14 +158,13 @@ function formatWorkspaceMigrationResult(result: IWorkspaceMigrationResult): stri
 
     return [
         header,
-        `Config: ${plan.configPath}`,
+        `Config: ${report.configPath}`,
         '',
-        'Detected:',
-        `- Legacy workspace config: ${legacyCount ? `${legacyCount} instance${legacyCount === 1 ? '' : 's'}` : 'none'}`,
-        `- Global instances: ${globalCount ? `${globalCount} instance${globalCount === 1 ? '' : 's'}` : 'none'}`,
-        plan.warnings.length ? '' : undefined,
-        plan.warnings.length ? 'Notes:' : undefined,
-        ...plan.warnings.map((warning) => `- ${warning}`),
+        'Migration operations:',
+        ...report.operations.map((operation) => `- ${operation.label}: ${operation.instanceCount} instance${operation.instanceCount === 1 ? '' : 's'}`),
+        report.warnings.length ? '' : undefined,
+        report.warnings.length ? 'Notes:' : undefined,
+        ...report.warnings.map((warning) => `- ${warning}`),
         '',
         ...footer,
     ].filter(Boolean).join('\n');
@@ -177,6 +174,23 @@ function redactResolvedEnvironment<T extends { apiKey?: string } | undefined>(en
     if (!environment) return environment;
     const { apiKey: _apiKey, ...safeEnvironment } = environment;
     return safeEnvironment as T;
+}
+
+function abortIfWorkspaceMigrationRequired(configService: ConfigService, options: { json?: boolean } = {}): void {
+    const migrationPlan = configService.detectWorkspaceMigration();
+    if (!migrationPlan) return;
+    const payload = configService.workspaceMigrationPlanToReport(migrationPlan);
+    printJsonOrText(
+        options,
+        payload,
+        [
+            chalk.yellow('n8n workspace migration required before environment commands can run.'),
+            `Config: ${migrationPlan.configPath}`,
+            'Run `n8nac workspace migrate --json` to inspect it.',
+            'After explicit confirmation, run `n8nac workspace migrate --write` to apply it.',
+        ].join('\n'),
+    );
+    process.exit(1);
 }
 
 /**
@@ -477,13 +491,7 @@ workspaceProgram.command('status')
         const selectedEnvironment = process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
         const migrationPlan = configService.detectWorkspaceMigration();
         if (migrationPlan) {
-            const payload = {
-                status: 'migration-required' as const,
-                configPath: migrationPlan.configPath,
-                migration: migrationPlan,
-                nextCommand: 'n8nac workspace migrate --json',
-                applyCommand: 'n8nac workspace migrate --write',
-            };
+            const payload = configService.workspaceMigrationPlanToReport(migrationPlan);
             printJsonOrText(
                 options,
                 payload,
@@ -521,7 +529,7 @@ workspaceProgram.command('migrate')
     .action((options) => {
         const configService = new ConfigService();
         const result = configService.migrateWorkspaceConfiguration({ write: Boolean(options.write) });
-        printJsonOrText(options, result, formatWorkspaceMigrationResult(result));
+        printJsonOrText(options, configService.toWorkspaceMigrationReport(result), formatWorkspaceMigrationResult(result));
     });
 
 workspaceProgram.command('migrate-v1')
@@ -687,6 +695,7 @@ environmentProgram.command('list')
     .option('--json', 'Output environments as JSON')
     .action((options) => {
         const configService = new ConfigService();
+        abortIfWorkspaceMigrationRequired(configService, options);
         const config = configService.getWorkspaceConfig();
         const environments = configService.listEnvironments().map((environment) => {
             const resolved = (() => { try { return configService.resolveEnvironment(environment.id); } catch { return undefined; } })();
@@ -727,6 +736,7 @@ environmentProgram.command('add')
     .action(async (name, options) => {
         await hydrateApiKeyFromStdin(options);
         const configService = new ConfigService();
+        abortIfWorkspaceMigrationRequired(configService, options);
         const environmentTargetOption = options.environmentTarget || options.instanceTarget;
         const urlOption = options.url || options.baseUrl;
         const selectors = [environmentTargetOption, urlOption, options.managedInstance].filter(Boolean);
@@ -790,6 +800,7 @@ environmentProgram.command('update')
     .action(async (nameOrId, options) => {
         await hydrateApiKeyFromStdin(options);
         const configService = new ConfigService();
+        abortIfWorkspaceMigrationRequired(configService, options);
         const environmentTargetOption = options.environmentTarget || options.instanceTarget;
         const urlOption = options.url || options.baseUrl;
         const selectors = [environmentTargetOption, urlOption, options.managedInstance].filter(Boolean);
@@ -834,6 +845,7 @@ environmentProgram.command('pin')
     .option('--json', 'Output environment as JSON')
     .action((nameOrId, options) => {
         const configService = new ConfigService();
+        abortIfWorkspaceMigrationRequired(configService, options);
         const environment = configService.pinEnvironment(nameOrId);
         printJsonOrText(options, environment, chalk.green(`✔ Workspace environment pinned: ${environment.name}`));
     });
@@ -846,6 +858,7 @@ environmentProgram.command('remove')
     .option('--json', 'Output removed environment as JSON')
     .action((nameOrId, options) => {
         const configService = new ConfigService();
+        abortIfWorkspaceMigrationRequired(configService, options);
         const environment = configService.removeEnvironment(nameOrId, { force: Boolean(options.force) });
         printJsonOrText(options, environment, chalk.green(`✔ Workspace environment removed: ${environment.name}`));
     });
@@ -865,6 +878,7 @@ environmentAuthProgram.command('set')
             throw new Error('Provide --api-key or --api-key-stdin.');
         }
         const configService = new ConfigService();
+        abortIfWorkspaceMigrationRequired(configService, options);
         const environment = configService.resolveEnvironment(nameOrId);
         configService.upsertRemoteInstancePreset({
             host: environment.host,
@@ -885,6 +899,7 @@ environmentProgram.command('status')
     .option('--json', 'Output resolved environment as JSON')
     .action((nameOrId, options) => {
         const configService = new ConfigService();
+        abortIfWorkspaceMigrationRequired(configService, options);
         const environment = configService.resolveEnvironment(nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined);
         printJsonOrText(
             options,

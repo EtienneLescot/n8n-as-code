@@ -26,4 +26,7 @@ export {
     type IWorkspaceMigrationPlan,
     type IWorkspaceMigrationResult,
     type IWorkspaceMigrationOptions,
+    type IWorkspaceMigrationReport,
+    type IWorkspaceMigrationReportOperation,
+    type IWorkspaceMigrationReportInstance,
 } from './services/config-service.js';

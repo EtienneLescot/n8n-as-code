@@ -46,6 +46,29 @@ function runCli(workspaceDir: string, args: string[], envOverrides: NodeJS.Proce
     });
 }
 
+function runCliFailure(workspaceDir: string, args: string[], envOverrides: NodeJS.ProcessEnv = {}): { status: number | null; stdout: string; stderr: string } {
+    try {
+        execFileSync('node', [cliEntry, ...args], {
+            cwd: workspaceDir,
+            env: {
+                ...baseEnv,
+                N8N_MANAGER_HOME: createTempDir('n8nac-cli-manager-home-'),
+                ...envOverrides,
+            },
+            stdio: 'pipe',
+            encoding: 'utf8',
+        });
+        throw new Error('Expected command to fail.');
+    } catch (error: any) {
+        if (error.message === 'Expected command to fail.') throw error;
+        return {
+            status: typeof error.status === 'number' ? error.status : null,
+            stdout: String(error.stdout || ''),
+            stderr: String(error.stderr || ''),
+        };
+    }
+}
+
 beforeAll(() => {
     execFileSync('npm', ['run', 'build', '--workspace=packages/cli'], {
         cwd: repoRoot,
@@ -104,7 +127,7 @@ describe('CLI update-ai integration', () => {
         expect(agentsContent).toContain(`<!-- n8nac-version: ${cliVersion} -->`);
     });
 
-    it('reports migration-required from workspace status for legacy configs', () => {
+    it('reports a unified migration dry-run from workspace status for legacy configs', () => {
         const workspaceDir = createTempDir('n8nac-status-legacy-workspace-');
         fs.writeFileSync(path.join(workspaceDir, 'n8nac-config.json'), JSON.stringify({
             version: 2,
@@ -120,13 +143,45 @@ describe('CLI update-ai integration', () => {
         const payload = JSON.parse(output);
 
         expect(payload).toMatchObject({
-            status: 'migration-required',
+            status: 'dry-run',
+            required: true,
             nextCommand: 'n8nac workspace migrate --json',
             applyCommand: 'n8nac workspace migrate --write',
         });
-        expect(payload.migration.legacyMigration.instances[0]).toMatchObject({
+        expect(payload).not.toHaveProperty('migration');
+        expect(payload.operations[0]).toMatchObject({
+            id: 'legacy-workspace-config',
+            label: 'Legacy workspace config',
+            instanceCount: 1,
+        });
+        expect(payload.operations[0].instances[0]).toMatchObject({
             id: 'legacy-prod',
             name: 'Legacy Prod',
+            kind: 'legacy-workspace-instance',
+        });
+    });
+
+    it('blocks environment commands while workspace migration is pending', () => {
+        const workspaceDir = createTempDir('n8nac-env-blocked-legacy-workspace-');
+        fs.writeFileSync(path.join(workspaceDir, 'n8nac-config.json'), JSON.stringify({
+            version: 2,
+            activeInstanceId: 'legacy-prod',
+            instances: [{
+                id: 'legacy-prod',
+                name: 'Legacy Prod',
+                host: 'https://legacy.example.test',
+            }],
+        }, null, 2));
+
+        const result = runCliFailure(workspaceDir, ['env', 'list', '--json']);
+        const payload = JSON.parse(result.stdout);
+
+        expect(result.status).toBe(1);
+        expect(payload).toMatchObject({
+            status: 'dry-run',
+            required: true,
+            nextCommand: 'n8nac workspace migrate --json',
+            applyCommand: 'n8nac workspace migrate --write',
         });
     });
 

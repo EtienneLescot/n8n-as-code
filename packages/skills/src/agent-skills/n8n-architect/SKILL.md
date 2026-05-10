@@ -63,6 +63,10 @@ Migration is a single user-facing action even when multiple internal migration p
 
 - Do not run `workspace migrate --write` without explicit confirmation unless the user already directly requested applying migration.
 - Do not say "let me apply this migration" or apply migration proactively after a dry-run. Confirmation must come from the user.
+- When reporting a dry-run, summarize the unified `operations` list. Mention each operation separately, then ask for exactly one confirmation for the combined migration.
+- If an operation has `id: "global-instances"`, explicitly say that global/v2 instances also need migration, and list the affected instance names and whether each is managed or external.
+- Do not ask separately for legacy migration and global/v2 migration. `{{N8NAC_CMD}} workspace migrate --write` applies the whole migration path in one operation.
+- Do not run `env list`, `env status`, workflow commands, or setup commands while `workspace migrate --json` still reports `status: "dry-run"`.
 - Managed local instances remain machine-global runtime resources.
 - Workspace environments remain workspace-scoped and are managed through `{{N8NAC_CMD}} env ...`.
 
