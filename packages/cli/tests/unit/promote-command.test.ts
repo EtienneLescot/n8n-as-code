@@ -59,10 +59,10 @@ export class PromotedWorkflow {}
             }, { instanceId: 'prod-instance', instanceName: 'Prod', apiKey: 'prod-key', setActive: false });
 
             const configService = new ConfigService(workspaceRoot);
-            const devTarget = configService.addInstanceTarget({ name: 'Dev Target', instanceRef: 'dev-instance' });
-            const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', instanceRef: 'prod-instance' });
-            configService.addEnvironment({ name: 'Dev', instanceTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
-            configService.addEnvironment({ name: 'Prod', instanceTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
+            const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
+            const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
 
             const sourceDir = path.join(workspaceRoot, 'workflows/dev/n8n_1111111111/personal');
             const targetDir = path.join(workspaceRoot, 'workflows/prod/n8n_2222222222/personal');
@@ -105,10 +105,10 @@ export class PromotedWorkflow {}
             }, { instanceId: 'prod-instance', instanceName: 'Prod', apiKey: 'prod-key', setActive: false });
 
             const configService = new ConfigService(workspaceRoot);
-            const devTarget = configService.addInstanceTarget({ name: 'Dev Target', instanceRef: 'dev-instance' });
-            const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', instanceRef: 'prod-instance' });
-            configService.addEnvironment({ name: 'Dev', instanceTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
-            configService.addEnvironment({ name: 'Prod', instanceTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
+            const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
+            const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
 
             const sourceDir = path.join(workspaceRoot, 'workflows/dev/n8n_1111111111/personal');
             const targetDir = path.join(workspaceRoot, 'workflows/prod/n8n_2222222222/personal');

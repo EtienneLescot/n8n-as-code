@@ -257,19 +257,16 @@ describe('ConfigService', () => {
             projectId: 'project-1',
             projectName: 'Main',
             syncFolder: path.join(workspaceRoot, 'flows'),
-            instanceTargets: [expect.objectContaining({
+            environmentTargets: [expect.objectContaining({
                 id: 'default-instance',
                 name: 'Production',
-                kind: 'embedded',
-                instance: expect.objectContaining({
-                    mode: 'existing',
-                    baseUrl: 'https://prod.example.test',
-                }),
+                kind: 'external-instance',
+                url: 'https://prod.example.test',
             })],
             environments: [expect.objectContaining({
                 id: 'default',
                 name: 'Default',
-                instanceTargetId: 'default-instance',
+                environmentTargetId: 'default-instance',
                 syncFolder: 'flows',
                 projectId: 'project-1',
                 projectName: 'Main',
@@ -313,7 +310,7 @@ describe('ConfigService', () => {
         expect(migrated.status).toBe('migrated');
         expect(configService.resolveEnvironment()).toMatchObject({
             environmentId: 'default',
-            targetKind: 'embedded',
+            sourceKind: 'external-instance',
             host: 'https://prod.example.test',
         });
         expect(configService.getWorkspaceConfig().activeEnvironmentId).toBe('default');
@@ -356,12 +353,12 @@ describe('ConfigService', () => {
         expect(configService.getApiKey('https://staging.example.test', 'legacy-2')).toBe('staging-key');
         expect(configService.resolveEnvironment()).toMatchObject({
             environmentId: 'legacy-1',
-            targetKind: 'embedded',
+            sourceKind: 'external-instance',
             host: 'https://prod.example.test',
         });
         const workspaceConfig = configService.getWorkspaceConfig();
         expect(workspaceConfig.activeEnvironmentId).toBe('legacy-1');
-        expect(workspaceConfig.instanceTargets).toHaveLength(2);
+        expect(workspaceConfig.environmentTargets).toHaveLength(2);
         expect(workspaceConfig.environments).toEqual(expect.arrayContaining([
             expect.objectContaining({
                 id: 'legacy-1',
@@ -411,7 +408,7 @@ describe('ConfigService', () => {
 
         expect(migrated.status).toBe('migrated');
         const workspaceConfig = configService.getWorkspaceConfig();
-        expect(workspaceConfig.instanceTargets).toHaveLength(2);
+        expect(workspaceConfig.environmentTargets).toHaveLength(2);
         expect(workspaceConfig.environments).toHaveLength(2);
         expect(workspaceConfig.activeEnvironmentId).toBe('instance-86ea2ff2');
         expect(workspaceConfig.environments).toEqual(expect.arrayContaining([
@@ -653,11 +650,11 @@ describe('ConfigService', () => {
 
         const target = configService.addInstanceTarget({
             name: 'Dev Target',
-            instanceRef: 'dev-instance',
+            managedInstanceId: 'dev-instance',
         });
         const environment = configService.addEnvironment({
             name: 'Dev',
-            instanceTarget: target.id,
+            environmentTarget: target.id,
             projectId: 'personal',
             projectName: 'Personal',
             syncFolder: 'workflows/dev',
@@ -667,14 +664,14 @@ describe('ConfigService', () => {
         expect(configService.getWorkspaceConfig()).toMatchObject({
             version: 4,
             activeEnvironmentId: environment.id,
-            instanceTargets: expect.arrayContaining([expect.objectContaining({ id: target.id, name: 'Dev Target', kind: 'global-ref', instanceRef: 'dev-instance' })]),
-            environments: expect.arrayContaining([expect.objectContaining({ id: environment.id, name: 'Dev', instanceTargetId: target.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' })]),
+            environmentTargets: expect.arrayContaining([expect.objectContaining({ id: target.id, name: 'Dev Target', kind: 'managed-instance', managedInstanceId: 'dev-instance' })]),
+            environments: expect.arrayContaining([expect.objectContaining({ id: environment.id, name: 'Dev', environmentTargetId: target.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' })]),
         });
         expect(configService.resolveEnvironment('Dev')).toMatchObject({
             environmentId: environment.id,
             environmentName: 'Dev',
-            instanceTargetId: target.id,
-            targetKind: 'global-ref',
+            environmentTargetId: target.id,
+            sourceKind: 'managed-instance',
             host: 'https://dev.example.test',
             apiKey: 'dev-key',
             projectId: 'personal',
@@ -688,12 +685,12 @@ describe('ConfigService', () => {
 
         const target = configService.addInstanceTarget({
             name: 'Production n8n',
-            baseUrl: 'https://prod.example.test',
+            url: 'https://prod.example.test',
         });
         process.env.N8NAC_TARGET_PRODUCTION_N8N_API_KEY = 'embedded-key';
         configService.addEnvironment({
             name: 'Prod',
-            instanceTarget: target.id,
+            environmentTarget: target.id,
             projectId: 'cgi',
             projectName: 'CGI',
             syncFolder: 'workflows/prod',
@@ -701,7 +698,7 @@ describe('ConfigService', () => {
 
         const resolved = configService.resolveEnvironment('Prod');
         expect(resolved).toMatchObject({
-            targetKind: 'embedded',
+            sourceKind: 'external-instance',
             host: 'https://prod.example.test',
             apiKey: 'embedded-key',
             apiKeySource: 'env',
@@ -713,10 +710,10 @@ describe('ConfigService', () => {
 
     it('keeps v4 workspace config when saving global instances and rejects legacy workspace fields', () => {
         const configService = new ConfigService(workspaceRoot);
-        const target = configService.addInstanceTarget({ name: 'Target', baseUrl: 'https://target.example.test' });
+        const target = configService.addInstanceTarget({ name: 'Target', url: 'https://target.example.test' });
         configService.addEnvironment({
             name: 'Dev',
-            instanceTarget: target.id,
+            environmentTarget: target.id,
             projectId: 'personal',
             projectName: 'Personal',
             syncFolder: 'workflows/dev',
@@ -730,7 +727,7 @@ describe('ConfigService', () => {
         const raw = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-config.json'), 'utf8'));
         expect(raw).toMatchObject({
             version: 4,
-            instanceTargets: expect.arrayContaining([expect.objectContaining({ id: target.id })]),
+            environmentTargets: expect.arrayContaining([expect.objectContaining({ id: target.id })]),
             environments: expect.arrayContaining([expect.objectContaining({ name: 'Dev', syncFolder: 'workflows/dev' })]),
         });
         expect(() => configService.saveLocalConfig({
@@ -741,10 +738,10 @@ describe('ConfigService', () => {
 
     it('exposes per-environment access status in v4 workspace snapshots', () => {
         const configService = new ConfigService(workspaceRoot);
-        const target = configService.addInstanceTarget({ name: 'Target', baseUrl: 'https://target.example.test' });
+        const target = configService.addInstanceTarget({ name: 'Target', url: 'https://target.example.test' });
         configService.addEnvironment({
             name: 'Dev',
-            instanceTarget: target.id,
+            environmentTarget: target.id,
             projectId: 'personal',
             projectName: 'Personal',
             syncFolder: 'workflows/dev',
@@ -752,15 +749,15 @@ describe('ConfigService', () => {
 
         expect(configService.getWorkspaceConfig().environments?.[0]).toMatchObject({
             name: 'Dev',
-            targetKind: 'embedded',
+            sourceKind: 'external-instance',
             apiKeyAvailable: false,
             credentialSource: 'missing',
             accessStatus: 'missing-api-key',
         });
-        expect(configService.getWorkspaceConfig().instanceTargets?.[0]).toMatchObject({
+        expect(configService.getWorkspaceConfig().environmentTargets?.[0]).toMatchObject({
             name: 'Target',
-            kind: 'embedded',
-            baseUrl: 'https://target.example.test',
+            kind: 'external-instance',
+            url: 'https://target.example.test',
             apiKeyAvailable: false,
             credentialSource: 'missing',
             accessStatus: 'missing-api-key',
@@ -775,10 +772,10 @@ describe('ConfigService', () => {
             apiKey: 'dev-key',
         });
 
-        const target = configService.addInstanceTarget({ name: 'Dev Target', instanceRef: 'dev-instance' });
+        const target = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
         configService.addEnvironment({
             name: 'Dev',
-            instanceTarget: target.id,
+            environmentTarget: target.id,
             projectId: 'personal',
             projectName: 'Personal',
             syncFolder: 'workflows/dev',
@@ -792,7 +789,7 @@ describe('ConfigService', () => {
 
         expect(() => configService.addInstanceTarget({
             name: 'Missing Target',
-            instanceRef: 'missing-instance',
+            managedInstanceId: 'missing-instance',
         })).toThrow(/Unknown global n8n-manager instance/);
     });
 
@@ -801,11 +798,11 @@ describe('ConfigService', () => {
         const configService = new ConfigService(workspaceRoot);
         const target = configService.addInstanceTarget({
             name: 'Production n8n',
-            baseUrl: 'https://prod.example.test',
+            url: 'https://prod.example.test',
         });
         configService.addEnvironment({
             name: 'Prod',
-            instanceTarget: target.id,
+            environmentTarget: target.id,
             projectId: 'cgi',
             projectName: 'CGI',
             syncFolder: 'workflows/prod',
@@ -818,10 +815,10 @@ describe('ConfigService', () => {
 
     it('rejects legacy singleton workspace writes for v4 environment configs', () => {
         const configService = new ConfigService(workspaceRoot);
-        const target = configService.addInstanceTarget({ name: 'Target', baseUrl: 'https://target.example.test' });
+        const target = configService.addInstanceTarget({ name: 'Target', url: 'https://target.example.test' });
         configService.addEnvironment({
             name: 'Dev',
-            instanceTarget: target.id,
+            environmentTarget: target.id,
             projectId: 'personal',
             projectName: 'Personal',
             syncFolder: 'workflows/dev',
@@ -834,10 +831,10 @@ describe('ConfigService', () => {
 
     it('allows environments to share the same sync root folder', () => {
         const configService = new ConfigService(workspaceRoot);
-        const target = configService.addInstanceTarget({ name: 'Target', baseUrl: 'https://target.example.test' });
+        const target = configService.addInstanceTarget({ name: 'Target', url: 'https://target.example.test' });
         configService.addEnvironment({
             name: 'Dev',
-            instanceTarget: target.id,
+            environmentTarget: target.id,
             projectId: 'personal',
             projectName: 'Personal',
             syncFolder: 'workflows/shared',
@@ -845,7 +842,7 @@ describe('ConfigService', () => {
 
         expect(() => configService.addEnvironment({
             name: 'Prod',
-            instanceTarget: target.id,
+            environmentTarget: target.id,
             projectId: 'cgi',
             projectName: 'CGI',
             syncFolder: './workflows/shared',
@@ -854,10 +851,10 @@ describe('ConfigService', () => {
 
     it('rejects clearing required environment sync folder on update', () => {
         const configService = new ConfigService(workspaceRoot);
-        const target = configService.addInstanceTarget({ name: 'Target', baseUrl: 'https://target.example.test' });
+        const target = configService.addInstanceTarget({ name: 'Target', url: 'https://target.example.test' });
         configService.addEnvironment({
             name: 'Dev',
-            instanceTarget: target.id,
+            environmentTarget: target.id,
             projectId: 'personal',
             projectName: 'Personal',
             syncFolder: 'workflows/dev',
@@ -868,17 +865,17 @@ describe('ConfigService', () => {
 
     it('does not auto-pin another environment when removing the active environment', () => {
         const configService = new ConfigService(workspaceRoot);
-        const target = configService.addInstanceTarget({ name: 'Target', baseUrl: 'https://target.example.test' });
+        const target = configService.addInstanceTarget({ name: 'Target', url: 'https://target.example.test' });
         configService.addEnvironment({
             name: 'Dev',
-            instanceTarget: target.id,
+            environmentTarget: target.id,
             projectId: 'personal',
             projectName: 'Personal',
             syncFolder: 'workflows/dev',
         });
         configService.addEnvironment({
             name: 'Prod',
-            instanceTarget: target.id,
+            environmentTarget: target.id,
             projectId: 'cgi',
             projectName: 'CGI',
             syncFolder: 'workflows/prod',
@@ -897,30 +894,30 @@ describe('ConfigService', () => {
         writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
             version: 4,
             activeEnvironmentId: 'dev',
-            instanceTargets: [{
+            environmentTargets: [{
                 id: 'target',
                 name: 'Target',
-                kind: 'embedded',
-                instanceRef: 'global-instance',
-                instance: { mode: 'existing', baseUrl: 'https://target.example.test' },
+                kind: 'external-instance',
+                url: 'https://target.example.test',
+                managedInstanceId: 'global-instance',
             }],
             environments: [{
                 id: 'dev',
                 name: 'Dev',
-                instanceTargetId: 'target',
+                environmentTargetId: 'target',
                 projectId: 'personal',
                 projectName: 'Personal',
                 syncFolder: 'workflows/dev',
             }],
         }));
 
-        expect(() => new ConfigService(workspaceRoot).getWorkspaceConfig()).toThrow(/must not define instanceRef/);
+        expect(() => new ConfigService(workspaceRoot).getWorkspaceConfig()).toThrow(/must not define managedInstanceId/);
     });
 
     it('rejects malformed v4 entries instead of silently dropping them', () => {
         writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
             version: 4,
-            instanceTargets: [{ name: 'Missing ID', kind: 'embedded', instance: { mode: 'existing', baseUrl: 'https://target.example.test' } }],
+            environmentTargets: [{ name: 'Missing ID', kind: 'external-instance', url: 'https://target.example.test' }],
             environments: [],
         }));
 
@@ -928,10 +925,10 @@ describe('ConfigService', () => {
 
         writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
             version: 4,
-            instanceTargets: [{ id: 'target', name: 'Target', kind: 'embedded', instance: { mode: 'existing', baseUrl: 'https://target.example.test' } }],
-            environments: [{ id: 'dev', name: 'Dev', instanceTargetId: 'target' }],
+            environmentTargets: [{ id: 'target', name: 'Target', kind: 'external-instance', url: 'https://target.example.test' }],
+            environments: [{ id: 'dev', name: 'Dev', environmentTargetId: 'target' }],
         }));
 
-        expect(() => new ConfigService(workspaceRoot).getWorkspaceConfig()).toThrow(/needs id, name, instanceTargetId, and syncFolder/);
+        expect(() => new ConfigService(workspaceRoot).getWorkspaceConfig()).toThrow(/needs id, name, environmentTargetId, and syncFolder/);
     });
 });
