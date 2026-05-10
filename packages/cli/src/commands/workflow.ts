@@ -56,18 +56,23 @@ export class WorkflowCommand extends BaseCommand {
     }> {
         const targetPath = `/workflow/${encodeURIComponent(workflowId)}`;
         const fallbackUrl = `${baseUrl}${targetPath}`;
-        const managedInstanceId = this.activeEnvironment?.sourceKind === 'managed-instance'
+        const presentationInstanceId = this.activeEnvironment?.sourceKind === 'managed-instance'
             ? this.activeEnvironment.managedInstanceId || this.activeInstanceId
-            : undefined;
-        if (!managedInstanceId) {
+            : this.activeEnvironment
+            ? undefined
+            : this.activeInstanceId;
+        if (!presentationInstanceId) {
             return { url: fallbackUrl, urlSource: 'base-url' };
         }
 
         try {
-            const access = await createN8nManagerFacade({ workspaceRoot: process.cwd() }).resolveInstanceAccess({
-                instanceId: managedInstanceId,
-                mode: 'observe',
-                consumer: 'cli',
+            // ConfigService already resolved the active n8nac environment. The manager
+            // is only the SSOT for global managed runtime access/tunnels, so do not pass
+            // a workspace v4 config back into the manager here.
+            const access = await createN8nManagerFacade({}).resolveInstanceAccess({
+                instanceId: presentationInstanceId,
+                mode: 'reconcile',
+                consumer: 'agent',
                 targetPath,
             });
             if (access.authUrl) {
