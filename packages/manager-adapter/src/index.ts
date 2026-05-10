@@ -46,6 +46,8 @@ import {
   type N8nFacadeSetupMode,
 } from '@n8n-as-code/workflow-core';
 
+const N8NAC_WORKSPACE_ENVIRONMENT_MODEL = 'v4';
+
 export interface N8nManagerFacadeOptions {
   n8nHost?: string;
   n8nApiKey?: string;
@@ -175,8 +177,12 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
         apiKey: options.n8nApiKey ?? privateInstance?.apiKey,
         setActive: true,
       });
+      if (mode.managerMode === 'managed-local-docker') {
+        markManagedInstanceAsWorkspaceEnvironmentModel(configuration, lifecycleInstance.id);
+      }
       if (mode.managerMode === 'managed-local-docker' && input.tunnel && instance.tunnelPublicUrl) {
         const status = await runtime.ensureTunnel(instance.id);
+        markManagedInstanceAsWorkspaceEnvironmentModel(configuration, instance.id);
         return {
           ...instance,
           warnings: (status as { warnings?: string[] }).warnings,
@@ -285,6 +291,21 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
     testCredential: async (credentialIdOrRecipeId) => (await createCredentialsManager()).testCredential(credentialIdOrRecipeId),
     bootstrapStarterKit: async (starterKitId, inputs) => (await createCredentialsManager()).bootstrapStarterKit(starterKitId, inputs),
   };
+}
+
+function markManagedInstanceAsWorkspaceEnvironmentModel(
+  configuration: N8nConfigurationService,
+  instanceId: string,
+): void {
+  const current = configuration.getInstance(instanceId);
+  if (!current || current.mode !== 'managed-local-docker') return;
+  configuration.upsertInstance({
+    id: current.id,
+    metadata: {
+      ...(current.metadata ?? {}),
+      n8nacWorkspaceEnvironmentModel: N8NAC_WORKSPACE_ENVIRONMENT_MODEL,
+    },
+  }, { setActive: false });
 }
 
 export function resolveN8nManagerConfigurationPaths(): {

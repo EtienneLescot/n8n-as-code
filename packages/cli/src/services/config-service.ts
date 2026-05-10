@@ -1360,7 +1360,8 @@ export class ConfigService {
                         && target.managedInstanceId === instance.id
                         && environmentTargetIds.has(target.id);
                 });
-                return !migratedTarget;
+                return !migratedTarget
+                    && instance.metadata?.n8nacWorkspaceEnvironmentModel !== 'v4';
             })
             .map((instance) => stripUndefined({
                 id: instance.id,
