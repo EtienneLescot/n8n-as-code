@@ -133,9 +133,12 @@ describe('CLI workspace integration', () => {
         expect(stripAnsi(legacyOutput)).toContain("unknown command 'instance'");
 
         const workspaceStatus = JSON.parse(runCli(workspaceDir, homeDir, ['workspace', 'status', '--json']));
-        expect(workspaceStatus.activeInstanceId).toBe('test');
-        expect(workspaceStatus.projectId).toBe('project-test');
-        expect(workspaceStatus.workflowDir).toContain(path.join('workflows-test', 'user-test', 'test_project'));
+        expect(workspaceStatus).toMatchObject({
+            status: 'dry-run',
+            required: true,
+            nextCommand: 'n8nac workspace migrate --json',
+            applyCommand: 'n8nac workspace migrate --write',
+        });
 
         const workspaceConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         expect(workspaceConfig.activeInstanceId).toBe('test');
@@ -164,13 +167,10 @@ describe('CLI workspace integration', () => {
         expect(workspaceConfig).toMatchObject({
             version: 4,
             activeEnvironmentId: created.id,
-            environments: [expect.objectContaining({ id: created.id, instanceTargetId: expect.any(String) })],
-            instanceTargets: [expect.objectContaining({
-                kind: 'embedded',
-                instance: expect.objectContaining({
-                    mode: 'existing',
-                    baseUrl: 'https://dev.example.com',
-                }),
+            environments: [expect.objectContaining({ id: created.id, environmentTargetId: expect.any(String) })],
+            environmentTargets: [expect.objectContaining({
+                kind: 'external-instance',
+                url: 'https://dev.example.com',
             })],
         });
         expect(JSON.stringify(workspaceConfig)).not.toContain('apiKey');

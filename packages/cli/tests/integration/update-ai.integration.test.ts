@@ -109,10 +109,10 @@ describe('CLI update-ai integration', () => {
         expect(agentsContent).not.toContain('.agents/skills/n8n-manager/SKILL.md');
         expect(agentsContent).not.toContain('Effective instance');
         expect(agentsContent).not.toContain('Active project');
-        expect(architectSkill).toContain(`node ${cliEntry} workspace status --json`);
+        expect(architectSkill).toContain(`node ${cliEntry} env status --json`);
         expect(architectSkill).toContain(`node ${cliEntry} workspace migrate --json`);
-        expect(architectSkill).toContain('Never chain readiness commands as');
-        expect(architectSkill.indexOf(`node ${cliEntry} workspace migrate --json`)).toBeLessThan(architectSkill.indexOf(`node ${cliEntry} workspace status --json`));
+        expect(architectSkill).toContain('Do not run environment, workflow, or setup commands while `workspace migrate --json` still reports migration required.');
+        expect(architectSkill).toContain(`node ${cliEntry} workspace migrate --json\nnode ${cliEntry} env status --json`);
         expect(architectSkill).toContain(`node ${cliEntry} env add Local --managed-instance <id> --sync-folder workflows/local`);
         expect(architectSkill).toContain('Managed Local Runtime');
         expect(architectSkill).toContain('--api-key-stdin');
