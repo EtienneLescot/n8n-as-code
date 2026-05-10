@@ -107,21 +107,6 @@ async function readLegacySecretApiKey(context: vscode.ExtensionContext): Promise
   return '';
 }
 
-function preserveMigratedLegacyApiKey(configService: ConfigService, settings: { host: string; apiKey: string }, instanceId?: string): void {
-  if (!settings.apiKey) return;
-  const environment = configService.resolveEnvironment();
-  const environmentHost = normalizeHost(environment.host || '');
-  if (!environmentHost) return;
-  if (settings.host && normalizeHost(settings.host) !== environmentHost) return;
-  configService.saveLocalConfig({ host: environmentHost }, {
-    instanceId,
-    instanceName: environment.activeInstanceName || environment.environmentTargetName,
-    createNew: !instanceId,
-    setActive: false,
-    apiKey: settings.apiKey,
-  });
-}
-
 async function clearLegacyWorkspaceSettings(): Promise<string[]> {
   const config = vscode.workspace.getConfiguration('n8n');
   const keys: Array<'host' | 'apiKey' | 'syncFolder' | 'projectId' | 'projectName'> = [
@@ -703,10 +688,9 @@ export class ConfigurationWebview {
   }
 
   private async migrateWorkspaceConfiguration(workspaceRoot: string): Promise<void> {
-    const initialConfigService = new ConfigService(workspaceRoot);
-    const legacyPlan = initialConfigService.detectLegacyWorkspaceConfig();
-    const globalPlan = initialConfigService.detectGlobalInstancesMigration();
-    if (!legacyPlan && !globalPlan) {
+    const configService = new ConfigService(workspaceRoot);
+    const plan = configService.detectWorkspaceMigration();
+    if (!plan) {
       this._panel.webview.postMessage({ type: 'saved' });
       await this._configurationController.refresh('webview-migration-not-needed', { force: true });
       return;
@@ -722,39 +706,20 @@ export class ConfigurationWebview {
       return;
     }
 
-    let backupPath = '';
-    let migratedCount = 0;
-    let deletedCount = 0;
-
-    if (legacyPlan) {
-      const legacySettings = await readLegacyN8nSettings(this._context);
-      const legacyResult = initialConfigService.migrateLegacyWorkspaceConfig({ write: true });
-      if (legacyResult.status === 'migrated') {
-        backupPath = legacyResult.backupPath;
-        const environmentHost = normalizeHost(initialConfigService.resolveEnvironment().host || '');
-        const migratedInstance = legacyResult.instances.find((instance) => normalizeHost(instance.host || '') === environmentHost);
-        preserveMigratedLegacyApiKey(initialConfigService, legacySettings, migratedInstance?.id);
-      }
-    }
-
-    const currentConfigService = new ConfigService(workspaceRoot);
-    const currentGlobalPlan = currentConfigService.detectGlobalInstancesMigration();
-    if (currentGlobalPlan) {
-      const globalResult = currentConfigService.migrateGlobalInstancesToEnvironments({ write: true });
-      if (globalResult.status === 'migrated') {
-        migratedCount = globalResult.migratedEnvironmentIds.length;
-        deletedCount = globalResult.deletedGlobalInstanceIds.length;
-      }
-    }
+    const legacySettings = plan.legacyMigration ? await readLegacyN8nSettings(this._context) : undefined;
+    const result = configService.migrateWorkspaceConfiguration({
+      write: true,
+      legacyApiKeyFallback: legacySettings,
+    });
 
     await clearLegacyWorkspaceSettings();
     const snapshot = await this._configurationController.refresh('webview-run-migration', { force: true });
     await this.postInitialState(snapshot);
     this._panel.webview.postMessage({
       type: 'migrationCompleted',
-      backupPath,
-      migratedCount,
-      deletedCount,
+      backupPath: result.status === 'migrated' ? result.backupPath || '' : '',
+      migratedCount: result.status === 'migrated' ? result.migratedEnvironmentIds.length : 0,
+      deletedCount: result.status === 'migrated' ? result.deletedGlobalInstanceIds.length : 0,
     });
   }
 

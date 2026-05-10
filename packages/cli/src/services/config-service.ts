@@ -185,6 +185,32 @@ export type IGlobalInstancesMigrationResult =
     | { status: 'dry-run'; plan: IGlobalInstancesMigrationPlan }
     | { status: 'migrated'; plan: IGlobalInstancesMigrationPlan; migratedEnvironmentIds: string[]; deletedGlobalInstanceIds: string[] };
 
+export interface IWorkspaceMigrationPlan {
+    status: 'migration-required';
+    configPath: string;
+    legacyMigration?: ILegacyWorkspaceMigrationPlan;
+    globalInstancesMigration?: IGlobalInstancesMigrationPlan;
+    warnings: string[];
+}
+
+export type IWorkspaceMigrationResult =
+    | { status: 'not-needed'; configPath: string }
+    | { status: 'dry-run'; plan: IWorkspaceMigrationPlan }
+    | {
+        status: 'migrated';
+        plan: IWorkspaceMigrationPlan;
+        legacyMigration?: Extract<ILegacyWorkspaceMigrationResult, { status: 'migrated' }>;
+        globalInstancesMigration?: Extract<IGlobalInstancesMigrationResult, { status: 'migrated' }>;
+        backupPath?: string;
+        migratedEnvironmentIds: string[];
+        deletedGlobalInstanceIds: string[];
+    };
+
+export interface IWorkspaceMigrationOptions {
+    write?: boolean;
+    legacyApiKeyFallback?: { host?: string; apiKey?: string };
+}
+
 export interface IPreviousWorkspaceUpgradePlan {
     status: 'upgrade-available';
     configPath: string;
@@ -1145,6 +1171,58 @@ export class ConfigService {
         }
 
         return { status: 'migrated', plan, backupPath, instances: migratedInstances };
+    }
+
+    detectWorkspaceMigration(): IWorkspaceMigrationPlan | undefined {
+        const configPath = this.getInstanceConfigPath();
+        const legacyMigration = this.detectLegacyWorkspaceConfig();
+        const globalInstancesMigration = this.detectGlobalInstancesMigration();
+        if (!legacyMigration && !globalInstancesMigration) return undefined;
+        return {
+            status: 'migration-required',
+            configPath,
+            legacyMigration,
+            globalInstancesMigration,
+            warnings: [
+                ...(legacyMigration?.warnings || []),
+                ...(globalInstancesMigration?.warnings || []),
+            ],
+        };
+    }
+
+    migrateWorkspaceConfiguration(options: IWorkspaceMigrationOptions = {}): IWorkspaceMigrationResult {
+        const initialPlan = this.detectWorkspaceMigration();
+        const configPath = this.getInstanceConfigPath();
+        if (!initialPlan) return { status: 'not-needed', configPath };
+        if (!options.write) return { status: 'dry-run', plan: initialPlan };
+
+        let legacyMigration: Extract<ILegacyWorkspaceMigrationResult, { status: 'migrated' }> | undefined;
+        if (initialPlan.legacyMigration) {
+            const legacyResult = this.migrateLegacyWorkspaceConfig({ write: true });
+            if (legacyResult.status === 'migrated') {
+                legacyMigration = legacyResult;
+                this.preserveWorkspaceMigrationApiKeyFallback(options.legacyApiKeyFallback, legacyResult.instances);
+            }
+        }
+
+        const currentGlobalPlan = this.detectGlobalInstancesMigration();
+        let globalInstancesMigration: Extract<IGlobalInstancesMigrationResult, { status: 'migrated' }> | undefined;
+        if (currentGlobalPlan) {
+            const globalResult = this.migrateGlobalInstancesToEnvironments({ write: true });
+            if (globalResult.status === 'migrated') {
+                globalInstancesMigration = globalResult;
+            }
+        }
+
+        return {
+            status: 'migrated',
+            plan: initialPlan,
+            legacyMigration,
+            globalInstancesMigration,
+            backupPath: legacyMigration?.backupPath,
+            migratedEnvironmentIds: globalInstancesMigration?.migratedEnvironmentIds || [],
+            deletedGlobalInstanceIds: globalInstancesMigration?.deletedGlobalInstanceIds || [],
+        };
     }
 
     detectGlobalInstancesMigration(): IGlobalInstancesMigrationPlan | undefined {
@@ -2125,6 +2203,23 @@ export class ConfigService {
         if (mode !== 'existing' && mode !== 'external-instance') return undefined;
         const compatibilityUrl = (instance as GlobalN8nInstance & { url?: string }).url;
         return cleanOptional(instance.baseUrl) || cleanOptional(compatibilityUrl);
+    }
+
+    private preserveWorkspaceMigrationApiKeyFallback(fallback: IWorkspaceMigrationOptions['legacyApiKeyFallback'], migratedInstances: IInstanceProfile[]): void {
+        const apiKey = fallback?.apiKey?.trim();
+        if (!apiKey) return;
+        const environment = this.resolveEnvironment();
+        const environmentHost = this.normalizeHost(environment.host || '');
+        if (!environmentHost) return;
+        if (fallback?.host && this.normalizeHost(fallback.host) !== environmentHost) return;
+        const migratedInstance = migratedInstances.find((instance) => this.normalizeHost(instance.host || '') === environmentHost);
+        this.saveLocalConfig({ host: environmentHost }, {
+            instanceId: migratedInstance?.id,
+            instanceName: environment.activeInstanceName || environment.environmentTargetName,
+            createNew: !migratedInstance?.id,
+            setActive: false,
+            apiKey,
+        });
     }
 
     private resolveStoredBaseUrl(current: GlobalN8nInstance | undefined, requestedHost?: string): string | undefined {
