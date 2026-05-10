@@ -2,11 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkflowCommand } from '../../src/commands/workflow.js';
 
 const managerMock = vi.hoisted(() => ({
+    createN8nManagerFacade: vi.fn(),
     resolveInstanceAccess: vi.fn(),
 }));
 
 vi.mock('@n8n-as-code/manager-adapter', () => ({
-    createN8nManagerFacade: () => managerMock,
+    createN8nManagerFacade: (options?: unknown) => {
+        managerMock.createN8nManagerFacade(options);
+        return { resolveInstanceAccess: managerMock.resolveInstanceAccess };
+    },
 }));
 
 vi.mock('chalk', () => {
@@ -34,6 +38,7 @@ describe('WorkflowCommand.credentialRequired()', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        managerMock.createN8nManagerFacade.mockReset();
         managerMock.resolveInstanceAccess.mockReset();
         logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
         errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -218,10 +223,11 @@ describe('WorkflowCommand.present()', () => {
 
         await cmd.present('wf-managed', { json: true });
 
+        expect(managerMock.createN8nManagerFacade).toHaveBeenCalledWith({});
         expect(managerMock.resolveInstanceAccess).toHaveBeenCalledWith({
             instanceId: 'managed-1',
-            mode: 'observe',
-            consumer: 'cli',
+            mode: 'reconcile',
+            consumer: 'agent',
             targetPath: '/workflow/wf-managed',
         });
         const parsed = JSON.parse(String(logSpy.mock.calls[0]?.[0]));
@@ -235,6 +241,36 @@ describe('WorkflowCommand.present()', () => {
             urlSource: 'auth-bridge',
             environmentId: 'env-managed',
             environmentName: 'Managed',
+        });
+    });
+
+    it('does not ask the manager for presentation access on external environments', async () => {
+        vi.spyOn(cmd['client'], 'getWorkflow').mockResolvedValue({
+            id: 'wf-external',
+            name: 'External Demo',
+            active: false,
+            nodes: [],
+            connections: {},
+        } as any);
+        (cmd as any).activeEnvironment = {
+            sourceKind: 'external-instance',
+            environmentId: 'env-external',
+            environmentName: 'External',
+        };
+        (cmd as any).activeInstanceId = 'external-1';
+
+        await cmd.present('wf-external', { json: true });
+
+        expect(managerMock.createN8nManagerFacade).not.toHaveBeenCalled();
+        expect(managerMock.resolveInstanceAccess).not.toHaveBeenCalled();
+        const parsed = JSON.parse(String(logSpy.mock.calls[0]?.[0]));
+        expect(parsed).toMatchObject({
+            workflowId: 'wf-external',
+            workflowName: 'External Demo',
+            url: 'https://n8n.test/workflow/wf-external',
+            urlSource: 'base-url',
+            environmentId: 'env-external',
+            environmentName: 'External',
         });
     });
 
