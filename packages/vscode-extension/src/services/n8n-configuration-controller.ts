@@ -6,7 +6,7 @@ import {
   createN8nManagerFacade,
   resolveN8nManagerConfigurationPaths,
 } from '@n8n-as-code/manager-adapter';
-import { ConfigService, isCanonicalUserInstanceIdentifier, resolveInstanceIdentifier, type IWorkspaceConfig } from 'n8nac';
+import { ConfigService, WorkspaceMigrationFacade, isCanonicalUserInstanceIdentifier, resolveInstanceIdentifier, type IWorkspaceConfig, type IWorkspaceMigrationReport } from 'n8nac';
 
 type N8nManagerFacade = ReturnType<typeof createN8nManagerFacade>;
 type N8nGlobalConfig = Awaited<ReturnType<N8nManagerFacade['getGlobalConfig']>>;
@@ -31,19 +31,7 @@ export interface N8nConfigurationSnapshot {
   signature: string;
   runtimeSignature: string;
   error?: string;
-  legacyMigration?: {
-    configPath: string;
-    version?: number;
-    activeInstanceId?: string;
-    instanceCount: number;
-    warnings: string[];
-  };
-  globalInstancesMigration?: {
-    configPath: string;
-    activeInstanceId?: string;
-    instanceCount: number;
-    warnings: string[];
-  };
+  migration?: IWorkspaceMigrationReport;
 }
 
 export interface N8nConfigurationChangeEvent {
@@ -131,28 +119,15 @@ export class N8nConfigurationController implements vscode.Disposable {
 
     try {
       let global = await facade.getGlobalConfig();
-      const legacyPlan = configService?.detectLegacyWorkspaceConfig();
-      const globalInstancesMigrationPlan = configService?.detectGlobalInstancesMigration();
-      if (legacyPlan) {
+      const migration = configService ? new WorkspaceMigrationFacade({ configService }).inspect() : undefined;
+      if (migration?.operations.some((operation) => operation.id === 'legacy-workspace-config')) {
         return this.buildSnapshot({
           workspaceRoot,
           global,
           workspace: { version: 3 as const },
           hasWorkspaceConfig,
           hasValidConnection: false,
-          legacyMigration: {
-            configPath: legacyPlan.configPath,
-            version: legacyPlan.version,
-            activeInstanceId: legacyPlan.activeInstanceId,
-            instanceCount: legacyPlan.instances.length,
-            warnings: legacyPlan.warnings,
-          },
-          globalInstancesMigration: globalInstancesMigrationPlan ? {
-            configPath: globalInstancesMigrationPlan.configPath,
-            activeInstanceId: globalInstancesMigrationPlan.activeInstanceId,
-            instanceCount: globalInstancesMigrationPlan.instances.length,
-            warnings: globalInstancesMigrationPlan.warnings,
-          } : undefined,
+          migration,
         });
       }
       const workspace = workspaceRoot && configService ? configService.getWorkspaceConfig() : { version: 3 as const };
@@ -201,12 +176,7 @@ export class N8nConfigurationController implements vscode.Disposable {
         diagnostics: prepared?.diagnostics,
         hasWorkspaceConfig,
         hasValidConnection,
-        globalInstancesMigration: globalInstancesMigrationPlan ? {
-          configPath: globalInstancesMigrationPlan.configPath,
-          activeInstanceId: globalInstancesMigrationPlan.activeInstanceId,
-          instanceCount: globalInstancesMigrationPlan.instances.length,
-          warnings: globalInstancesMigrationPlan.warnings,
-        } : undefined,
+        migration,
       });
     } catch (error: any) {
       const global = await facade.getGlobalConfig().catch(() => ({
@@ -238,8 +208,7 @@ export class N8nConfigurationController implements vscode.Disposable {
     hasWorkspaceConfig: boolean;
     hasValidConnection: boolean;
     error?: string;
-    legacyMigration?: N8nConfigurationSnapshot['legacyMigration'];
-    globalInstancesMigration?: N8nConfigurationSnapshot['globalInstancesMigration'];
+    migration?: N8nConfigurationSnapshot['migration'];
   }): N8nConfigurationSnapshot {
     const workspace = input.workspace as any;
     const effective = input.effective as any;
@@ -272,16 +241,14 @@ export class N8nConfigurationController implements vscode.Disposable {
       tunnelPublicUrl: input.runtime?.tunnel?.publicUrl || '',
       tunnelRunning: Boolean(input.runtime?.tunnel?.running),
       error: input.error || '',
-      legacyMigration: input.legacyMigration ? {
-        configPath: input.legacyMigration.configPath,
-        version: input.legacyMigration.version || '',
-        activeInstanceId: input.legacyMigration.activeInstanceId || '',
-        instanceCount: input.legacyMigration.instanceCount,
-      } : undefined,
-      globalInstancesMigration: input.globalInstancesMigration ? {
-        configPath: input.globalInstancesMigration.configPath,
-        activeInstanceId: input.globalInstancesMigration.activeInstanceId || '',
-        instanceCount: input.globalInstancesMigration.instanceCount,
+      migration: input.migration ? {
+        status: input.migration.status,
+        configPath: input.migration.configPath,
+        required: input.migration.required,
+        operations: input.migration.operations.map((operation) => ({
+          id: operation.id,
+          instanceCount: operation.instanceCount,
+        })),
       } : undefined,
     });
 
@@ -312,8 +279,7 @@ export class N8nConfigurationController implements vscode.Disposable {
       effective: this.sanitizeEffectiveContext(input.effective),
       signature,
       runtimeSignature,
-      legacyMigration: input.legacyMigration,
-      globalInstancesMigration: input.globalInstancesMigration,
+      migration: input.migration,
     };
   }
 

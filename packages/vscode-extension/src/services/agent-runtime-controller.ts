@@ -1511,7 +1511,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         if (relative && /(^|\/)(node_modules|dist|out|\.git|\.kilo|\.yagr)(\/|$)/.test(relative)) {
             return;
         }
-        let entries: fs.Dirent[];
+        let entries: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
         try {
             entries = await fs.promises.readdir(directory, { withFileTypes: true });
         } catch {
