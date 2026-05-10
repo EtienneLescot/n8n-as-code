@@ -25,7 +25,7 @@ export class AiContextGenerator {
   }
 
   getAgentSkillContent(
-    skillName: 'n8n-manager' | 'n8n-architect',
+    skillName: 'n8n-architect',
     distTag?: string,
     options: { cliCommandOverride?: string; managerCommandOverride?: string } = {},
     projectRoot?: string,
@@ -71,8 +71,14 @@ export class AiContextGenerator {
     this.injectOrUpdate(path.join(projectRoot, 'AGENTS.md'), agentsContent, true);
 
     // 2. VS Code/Copilot workspace agents plus portable skills for other agent runtimes.
+    this.removeLegacySplitSkillArtifacts(projectRoot);
     this.materializeWorkspaceAgents(projectRoot, distTag, options);
     this.materializeAgentSkills(projectRoot, distTag, options);
+  }
+
+  private removeLegacySplitSkillArtifacts(projectRoot: string): void {
+    fs.rmSync(path.join(projectRoot, '.github', 'agents', 'n8n-manager.agent.md'), { force: true });
+    fs.rmSync(path.join(projectRoot, '.agents', 'skills', 'n8n-manager'), { recursive: true, force: true });
   }
 
   private materializeWorkspaceAgents(
@@ -81,7 +87,7 @@ export class AiContextGenerator {
     options: { cliCommandOverride?: string; managerCommandOverride?: string } = {},
   ): void {
     const agentsRoot = path.join(projectRoot, '.github', 'agents');
-    const agentNames = ['n8n-manager', 'n8n-architect'] as const;
+    const agentNames = ['n8n-architect'] as const;
     fs.mkdirSync(agentsRoot, { recursive: true });
     for (const agentName of agentNames) {
       fs.writeFileSync(
@@ -97,7 +103,7 @@ export class AiContextGenerator {
     options: { cliCommandOverride?: string; managerCommandOverride?: string } = {},
   ): void {
     const skillsRoot = path.join(projectRoot, '.agents', 'skills');
-    const skillNames = ['n8n-manager', 'n8n-architect'] as const;
+    const skillNames = ['n8n-architect'] as const;
     for (const skillName of skillNames) {
       const content = this.getAgentSkillContent(skillName, distTag, options, projectRoot);
       const skillDir = path.join(skillsRoot, skillName);
@@ -110,14 +116,13 @@ export class AiContextGenerator {
   }
 
   private getWorkspaceAgentContent(
-    agentName: 'n8n-manager' | 'n8n-architect',
+    agentName: 'n8n-architect',
     distTag?: string,
     options: { cliCommandOverride?: string; managerCommandOverride?: string } = {},
     projectRoot?: string,
   ): string {
     return this.getAgentSkillContent(agentName, distTag, options, projectRoot)
-      .replaceAll('Use this skill', 'Use this workspace agent')
-      .replaceAll('`n8n-manager` skill', '`n8n-manager` workspace agent');
+      .replaceAll('Use this skill', 'Use this workspace agent');
   }
 
   private injectOrUpdate(filePath: string, content: string, isMarkdownFile: boolean = false): void {
@@ -174,19 +179,17 @@ export class AiContextGenerator {
       ``,
       `---`,
       ``,
-      `## Required Local Agents`,
+      `## Required Local Agent`,
       ``,
-      `VS Code and GitHub Copilot-compatible agents are generated here:`,
+      `A VS Code and GitHub Copilot-compatible agent is generated here:`,
       ``,
-      `- \`.github/agents/n8n-manager.agent.md\``,
       `- \`.github/agents/n8n-architect.agent.md\``,
       ``,
-      `Portable skill fallbacks are also generated for runtimes that do not read \`.github/agents\`:`,
+      `A portable skill fallback is also generated for runtimes that do not read \`.github/agents\`:`,
       ``,
-      `- \`.agents/skills/n8n-manager/SKILL.md\``,
       `- \`.agents/skills/n8n-architect/SKILL.md\``,
       ``,
-      `If your agent runtime supports workspace agents, use the \`.github/agents/*.agent.md\` files. If it supports skills instead, load the skill files. Otherwise, treat the files as mandatory instructions.`,
+      `If your agent runtime supports workspace agents, use the \`.github/agents/*.agent.md\` file. If it supports skills instead, load the skill file. Otherwise, treat these files as mandatory instructions.`,
       ``,
       `---`,
       ``,
@@ -194,16 +197,17 @@ export class AiContextGenerator {
       ``,
       `Do not infer configuration from this file. It intentionally avoids storing the effective instance, project, sync folder, or workflow directory.`,
       ``,
-      `n8n-manager plus n8nac backend resolution remains the only source of effective state.`,
-      `- Global n8n state and secrets live in \`n8n-manager\`.`,
-      `- Context-root overrides live in \`n8nac-config.json\`.`,
+      `n8nac backend resolution remains the only source of effective workspace state.`,
+      `- Workspace environments live in \`n8nac-config.json\` and are managed by \`${cliCmd} env ...\`.`,
+      `- Managed local runtime state and secrets live in n8n-manager storage and are managed by \`${managerCmd} ...\`.`,
       `- The effective context is resolved by the backend.`,
       ``,
-      `Before any n8n workflow command, run:`,
+      `Before any n8n workflow command, run workspace status and migration dry-run together:`,
       ``,
       `\`\`\`bash`,
       `cd ${contextRoot}`,
       `${cliCmd} workspace status --json`,
+      `${cliCmd} workspace migrate --json`,
       `\`\`\``,
       ``,
       `Use the returned \`workflowDir\` exactly as provided. Do not reconstruct paths from raw config files.`,
@@ -212,12 +216,13 @@ export class AiContextGenerator {
       ``,
       `## Safe Commands`,
       ``,
-      `- Instance/runtime/auth/project work: \`${managerCmd} ...\``,
-      `- Context-root overrides: \`${cliCmd} workspace ...\``,
+      `- Primary workspace, environment, sync, validation, push, and pull work: \`${cliCmd} ...\``,
+      `- Local managed runtime lifecycle and tunnels only: \`${managerCmd} ...\``,
+      `- Workspace status and migration: \`${cliCmd} workspace ...\``,
       `- Workflow sync and validation: \`${cliCmd} ...\``,
       `- Node knowledge and schema lookup: \`${skillsCmd} ...\``,
       ``,
-      `Never write \`n8nac-config.json\` or n8n-manager secret files by hand.`,
+      `Never write \`n8nac-config.json\`, \`~/.n8n-manager\`, or n8n-manager secret files by hand.`,
     ].join('\n');
   }
 

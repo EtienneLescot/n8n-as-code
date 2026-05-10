@@ -101,19 +101,19 @@ npx --yes n8nac push workflows/dev/my-workflow.workflow.ts --verify
 /plugin install n8n-as-code@n8nac-marketplace
 ```
 
-Then ask Claude to initialize n8n-as-code in the workspace. The skills use the same `n8nac env`, `n8nac workspace`, and `n8n-manager` command split.
+Then ask Claude to initialize n8n-as-code in the workspace. The `n8n-architect` skill uses `n8nac` as the primary interface and `n8n-manager` only for local managed instances, tunnels, and workflow presentation.
 
 [Claude setup docs](https://n8nascode.dev/docs/usage/claude-plugin/)
 
 ### Generic Agent Skills
 
-Install the skills from the repository skills directory:
+Install the skill from the repository skills directory:
 
 ```text
 https://github.com/EtienneLescot/n8n-as-code/tree/main/skills
 ```
 
-If your agent asks for explicit skill paths, use `skills/n8n-manager` and `skills/n8n-architect`.
+If your agent asks for an explicit skill path, use `skills/n8n-architect`.
 
 [Skills reference](https://n8nascode.dev/docs/usage/skills/)
 

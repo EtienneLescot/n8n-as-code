@@ -2064,8 +2064,7 @@ The extension must pass the selected environment ID/name to the same environment
 Relevant files:
 
 - `skills/n8n-architect/SKILL.md`
-- `skills/n8n-manager/SKILL.md`
-- `packages/skills/src/agent-skills/n8n-manager/SKILL.md`
+- `packages/skills/src/agent-skills/n8n-architect/SKILL.md`
 - `packages/skills/src/services/ai-context-generator.ts`
 - plugin copies under `plugins/*/n8n-as-code/skills/*`
 

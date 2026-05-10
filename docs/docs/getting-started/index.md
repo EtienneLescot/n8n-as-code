@@ -126,7 +126,7 @@ your-project/
 https://github.com/EtienneLescot/n8n-as-code/tree/main/skills
 ```
 
-Use `skills/n8n-manager` and `skills/n8n-architect` if explicit paths are required.
+Use `skills/n8n-architect` if an explicit path is required.
 
 ### OpenClaw
 

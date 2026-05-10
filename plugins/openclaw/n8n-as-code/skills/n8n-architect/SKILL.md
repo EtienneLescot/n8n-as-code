@@ -5,7 +5,9 @@ description: Use when the user explicitly wants to create, edit, validate, sync,
 
 # n8n Architect
 
-Use this skill for workflow engineering and workspace environments. Use the `n8n-manager` skill only for local managed instances and tunnels.
+Use this skill for all n8n-as-code work: workspace readiness, migration, environments, managed local instances, tunnels, workflow authoring, validation, sync, push, and pull.
+
+Use `npx --yes n8nac` as the primary interface. Use `npx --yes @n8n-as-code/n8n-manager` only for local managed runtime lifecycle, tunnels, and workflow presentation commands that are explicitly exposed by n8n-manager.
 
 ## Context Root Protocol
 
@@ -23,18 +25,57 @@ npx --yes n8nac env status --json
 ```
 
 - Use the returned `workflowDir` for workflow files. Do not reconstruct it from `syncFolder`, `instanceIdentifier`, or `projectName`.
-- Never write `n8nac-config.json` by hand. Use `npx --yes n8nac env ...` commands for workspace environments.
+- Never write `n8nac-config.json`, `~/.n8n-manager`, or n8n-manager secret files by hand.
+
+## Workspace Readiness
+
+Always run workspace status and migration dry-run together during readiness checks. The dry-run is safe and reports whether legacy workspace configuration or global instances need migration:
+
+```bash
+npx --yes n8nac workspace status --json
+npx --yes n8nac workspace migrate --json
+```
+
+- Treat `workspace status --json` as the source of effective workspace readiness.
+- Treat `workspace migrate --json` as the source of migration need.
+- Do not infer readiness from raw files, generated agent docs, or directory names.
+- If migration is required, do not edit config files by hand.
+
+## Migration
+
+Migration is a single user-facing action even when multiple internal migration phases are needed.
+
+1. Run the dry-run first:
+
+```bash
+npx --yes n8nac workspace migrate --json
+```
+
+2. If the dry-run reports `status: "dry-run"` or otherwise indicates pending changes, explain that migration is required and ask for explicit confirmation before applying it.
+3. After confirmation, apply migration and re-check readiness:
+
+```bash
+npx --yes n8nac workspace migrate --write
+npx --yes n8nac workspace status --json
+npx --yes n8nac workspace migrate --json
+```
+
+- Do not run `workspace migrate --write` without explicit confirmation unless the user already directly requested applying migration.
+- Managed local instances remain machine-global runtime resources.
+- Workspace environments remain workspace-scoped and are managed through `npx --yes n8nac env ...`.
 
 ## Bootstrap Order
 
 1. `cd` to the context root.
 2. Run `npx --yes n8nac update-ai`, then read `AGENTS.md`.
-3. Run `npx --yes n8nac env status --json`.
-4. If the context root is not ready, inspect managed local instances with `npx --yes @n8n-as-code/n8n-manager instance list`.
-5. Reuse an existing environment or managed local instance when suitable.
-6. If no suitable environment exists, stop and ask the user whether they want to connect a remote n8n URL or create/reuse a managed local n8n instance. Do not create infrastructure by default. If the user chooses a managed local instance, ask separately whether they want a public tunnel.
-7. Ask for host/API key only for an explicitly remote n8n environment.
-8. Configure the environment with:
+3. Run `npx --yes n8nac workspace status --json` and `npx --yes n8nac workspace migrate --json`.
+4. If migration is required, ask for confirmation before `npx --yes n8nac workspace migrate --write` unless the user already requested applying migration.
+5. Run `npx --yes n8nac env status --json`.
+6. If the context root is not ready, inspect managed local instances with `npx --yes @n8n-as-code/n8n-manager instance list`.
+7. Reuse an existing environment or managed local instance when suitable.
+8. If no suitable environment exists, stop and ask the user whether they want to connect a remote n8n URL or create/reuse a managed local n8n instance. Do not create infrastructure by default. If the user chooses a managed local instance, ask separately whether they want a public tunnel.
+9. Ask for host/API key only for an explicitly remote n8n environment.
+10. Configure the environment with:
 
 ```bash
 npx --yes n8nac env add <name> --base-url <url> --sync-folder workflows/<name>
@@ -49,7 +90,93 @@ npx --yes n8nac env add Local --managed-instance <id> --sync-folder workflows/lo
 npx --yes n8nac env use Local
 ```
 
-9. Run `npx --yes n8nac update-ai` after changing environments when the facade does not do it automatically.
+11. Run `npx --yes n8nac update-ai` after changing environments when the facade does not do it automatically.
+
+## Environments
+
+Use `npx --yes n8nac env ...` for workspace environments, remote URLs, active environment, API-key binding, projects, and sync folders.
+
+```bash
+npx --yes n8nac env status --json
+npx --yes n8nac env list
+npx --yes n8nac env add <name> --base-url <url> --sync-folder workflows/<name>
+npx --yes n8nac env auth set <name> --api-key-stdin
+npx --yes n8nac env use <name>
+```
+
+- Prefer `--api-key-stdin` for API keys.
+- Do not pass secrets inline in shell arguments.
+- Do not ask for host/API key when the user wants a managed local Docker instance.
+- Do not print API keys or credential secret values back to the user.
+- If a command or flag is unfamiliar, run `npx --yes n8nac env --help` or `npx --yes n8nac env <subcommand> --help`.
+
+Attach a managed local instance to the workspace with `npx --yes n8nac env ...`:
+
+```bash
+npx --yes n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+npx --yes n8nac env use Local
+```
+
+## Managed Local Runtime
+
+Use `npx --yes @n8n-as-code/n8n-manager` only for local managed instance lifecycle, tunnels, and workflow presentation commands that are part of the local runtime layer.
+
+Inspect existing managed instances before changing local machine state:
+
+```bash
+npx --yes @n8n-as-code/n8n-manager instance list
+npx --yes @n8n-as-code/n8n-manager instance --help
+npx --yes @n8n-as-code/n8n-manager config get
+```
+
+Do not invent n8n-manager subcommands. Use `npx --yes @n8n-as-code/n8n-manager <subcommand> --help` when unsure.
+
+When the context root is not configured and no suitable existing instance is available, stop and ask the user to choose. Do not create infrastructure by default.
+
+Present these choices clearly:
+
+- use an existing managed local instance if one is available;
+- create a new managed local n8n instance;
+- configure a remote n8n URL as a workspace environment through `npx --yes n8nac env`.
+
+If the user chooses a managed local Docker instance, ask the tunnel question separately:
+
+- without public tunnel: local n8n only, suitable for normal UI/API workflow work;
+- with public tunnel: exposes the instance through a public URL, useful for webhooks/forms/chat triggers and remote callbacks.
+
+Do not enable, refresh, or start a public tunnel unless the user explicitly requested public access, webhook testing, or approved the tunnel option. If public access is not needed, create/start the managed instance without `--tunnel`.
+
+Only run these commands after the user has explicitly chosen the corresponding option.
+
+Managed local instance without public tunnel:
+
+```bash
+npx --yes @n8n-as-code/n8n-manager instance create
+npx --yes @n8n-as-code/n8n-manager instance start <id>
+npx --yes @n8n-as-code/n8n-manager instance list
+```
+
+Managed local instance with public tunnel:
+
+```bash
+npx --yes @n8n-as-code/n8n-manager instance create
+npx --yes @n8n-as-code/n8n-manager instance start <id>
+npx --yes @n8n-as-code/n8n-manager tunnel start <id>
+```
+
+Instance and tunnel operations are per managed local instance:
+
+```bash
+npx --yes @n8n-as-code/n8n-manager instance start <id>
+npx --yes @n8n-as-code/n8n-manager instance stop <id>
+npx --yes @n8n-as-code/n8n-manager instance remove <id>
+npx --yes @n8n-as-code/n8n-manager tunnel start <id>
+npx --yes @n8n-as-code/n8n-manager tunnel stop <id>
+```
+
+- Do not delete local instance data unless the user explicitly asks for destructive deletion.
+- If Docker is unavailable or the daemon is stopped, report the backend diagnostic and stop. Do not loop.
+- If a command fails repeatedly, stop after two attempts and explain the backend diagnostic.
 
 ## Sync Discipline
 

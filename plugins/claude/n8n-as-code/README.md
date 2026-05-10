@@ -16,7 +16,6 @@ Use the full HTTPS URL because the `owner/repo` shorthand may trigger SSH clonin
 ## Included
 
 - `.claude-plugin/plugin.json`
-- `skills/n8n-manager/SKILL.md`
 - `skills/n8n-architect/SKILL.md`
 - `skills/n8n-architect/README.md`
 
@@ -26,7 +25,7 @@ Use the full HTTPS URL because the `owner/repo` shorthand may trigger SSH clonin
 |---|---|---|
 | Usage Principal | `n8nac env` | Workspace environments |
 | Maintenance Workspace | `n8nac workspace` | Status, migration, upgrade |
-| Instances Managées | `n8n-manager` | Local managed instances and tunnels |
+| Managed Local Runtime | `n8n-manager` | Local managed instances and tunnels only |
 
 ## After Install
 

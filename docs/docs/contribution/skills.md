@@ -82,14 +82,13 @@ The package registers the `n8nac skills` subcommand tree consumed by the CLI pac
 
 ### `AiContextGenerator`
 
-`AiContextGenerator` materializes the canonical skills and lightweight context-root bootstrap reused across AI surfaces. Its responsibilities now include:
+`AiContextGenerator` materializes the canonical skill and lightweight context-root bootstrap reused across AI surfaces. Its responsibilities now include:
 
 - Generating and updating `AGENTS.md`
-- Generating `.agents/skills/n8n-manager/SKILL.md`
 - Generating `.agents/skills/n8n-architect/SKILL.md`
-- Applying local dev command overrides to those generated files
+- Applying local dev command overrides to the generated files
 
-The canonical skill content lives in `packages/skills/src/agent-skills/`. `AGENTS.md` is not the source of truth for effective config.
+The canonical skill content lives in `packages/skills/src/agent-skills/n8n-architect/SKILL.md`. `AGENTS.md` is not the source of truth for effective config.
 
 ### `SnippetGenerator`
 
@@ -106,17 +105,15 @@ The build copies generated indexes into `dist/assets/`, including technical sche
 `n8nac skills update-ai` generates or refreshes:
 
 - `AGENTS.md`
-- `.agents/skills/n8n-manager/SKILL.md`
 - `.agents/skills/n8n-architect/SKILL.md`
 
 `AGENTS.md` is updated in-place using markers so user-authored content outside the managed block is preserved.
 
 ### Agent skill adapter artifacts
 
-The same package mirrors the canonical skills under `packages/skills/dist/adapters/agent-skills/`, including:
+The same package mirrors the canonical skill under `packages/skills/dist/adapters/agent-skills/`, including:
 
 - `n8n-architect/SKILL.md`
-- `n8n-manager/SKILL.md`
 
 The build script also mirrors generated skill files into the plugin distribution trees under `plugins/claude/...`, `plugins/openclaw/...`, and `plugins/cursor/...`.
 

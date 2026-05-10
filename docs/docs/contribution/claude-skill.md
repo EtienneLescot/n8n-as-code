@@ -11,24 +11,22 @@ This page documents the standard agent skills distributed by `n8n-as-code`.
 ## Package Overview
 
 - **Source package**: `packages/skills/`
-- **Canonical skills**:
-  - `packages/skills/src/agent-skills/n8n-manager/SKILL.md`
-  - `packages/skills/src/agent-skills/n8n-architect/SKILL.md`
+- **Canonical skill**: `packages/skills/src/agent-skills/n8n-architect/SKILL.md`
 - **Build script**: `packages/skills/scripts/build-skill-adapters.js`
 - **Purpose**: Package shared n8n instructions as portable skills for Claude, OpenClaw, Cursor, VS Code-generated workspaces, and generic agents.
-- **Source of truth**: the canonical `src/agent-skills/*/SKILL.md` files.
+- **Source of truth**: the canonical `src/agent-skills/n8n-architect/SKILL.md` file.
 
 ## Architecture
 
-`n8n-manager` owns local managed instances, Docker lifecycle, tunnels, and machine-local operations.
+`n8n-architect` owns workspace readiness, migration, environments, local managed instance guidance, tunnels, context-root workflow authoring, sync, schema lookup, validation, push/pull, and workflow testing discipline.
 
-`n8n-architect` owns workspace environments, context-root workflow authoring, sync, schema lookup, validation, push/pull, and workflow testing discipline.
+The skill tells agents to use `n8nac` as the primary interface and `n8n-manager` only for local managed runtime lifecycle, tunnels, and workflow presentation commands.
 
-`AGENTS.md` is generated in the context root by `n8nac update-ai`, but it is only a bootstrap file. It points agents to `.agents/skills` and tells them to resolve effective state with `n8nac env status --json`. It must not duplicate environment, project, or sync-folder state.
+`AGENTS.md` is generated in the context root by `n8nac update-ai`, but it is only a bootstrap file. It points agents to `.agents/skills` and tells them to resolve effective state with `n8nac workspace status --json`, `n8nac workspace migrate --json`, and `n8nac env status --json`. It must not duplicate environment, project, or sync-folder state.
 
 ## Build Output
 
-The adapter build mirrors the two canonical skills into:
+The adapter build mirrors the canonical skill into:
 
 ```text
 packages/skills/dist/adapters/agent-skills/
@@ -37,7 +35,7 @@ plugins/openclaw/n8n-as-code/skills/
 plugins/cursor/n8n-as-code/skills/
 ```
 
-The package build also copies canonical skills into:
+The package build also copies the canonical skill into:
 
 ```text
 packages/skills/dist/agent-skills/
@@ -46,7 +44,6 @@ packages/skills/dist/agent-skills/
 At runtime, `n8nac update-ai` materializes context-root copies:
 
 ```text
-.agents/skills/n8n-manager/SKILL.md
 .agents/skills/n8n-architect/SKILL.md
 ```
 
@@ -58,7 +55,7 @@ npm run build
 npm run build:adapters
 ```
 
-Change the canonical `SKILL.md` files first. Do not hand-edit generated plugin copies except to inspect build output.
+Change the canonical `SKILL.md` file first. Do not hand-edit generated plugin copies except to inspect build output.
 
 ## Local Verification
 

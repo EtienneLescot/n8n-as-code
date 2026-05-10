@@ -30,7 +30,7 @@ Install the portable skills from the repository skills directory when you use a 
 https://github.com/EtienneLescot/n8n-as-code/tree/main/skills
 ```
 
-If your agent asks for explicit skill paths, use `skills/n8n-manager` and `skills/n8n-architect`.
+If your agent asks for an explicit skill path, use `skills/n8n-architect`.
 
 The same skill content is also packaged on npm as [`@n8n-as-code/skills`](https://www.npmjs.com/package/@n8n-as-code/skills) for `n8nac` and runtime usage.
 
