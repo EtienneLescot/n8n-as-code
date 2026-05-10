@@ -60,7 +60,7 @@ Install the portable skills from:
 https://github.com/EtienneLescot/n8n-as-code/tree/main/skills
 ```
 
-If your agent asks for explicit skill paths, use `skills/n8n-manager` and `skills/n8n-architect`.
+If your agent asks for an explicit skill path, use `skills/n8n-architect`.
 
 [Skills Reference](/docs/usage/skills)
 

@@ -39,7 +39,7 @@ Ask Claude to initialize n8n-as-code in the workspace. The installed skills guid
 - storing remote API keys locally
 - creating or selecting managed local instances when needed
 - generating `AGENTS.md`
-- materializing `.agents/skills/n8n-manager` and `.agents/skills/n8n-architect`
+- materializing `.agents/skills/n8n-architect`
 
 Manual equivalent:
 
