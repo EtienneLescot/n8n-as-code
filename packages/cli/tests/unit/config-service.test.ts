@@ -680,6 +680,43 @@ describe('ConfigService', () => {
         });
     });
 
+    it('prefers managed base URL over public tunnel URL for API resolution', () => {
+        const configService = new ConfigService(workspaceRoot);
+        (configService as any).manager.upsertInstance({
+            id: 'managed-dev',
+            name: 'Managed Dev',
+            mode: 'managed-local-docker',
+            baseUrl: 'http://127.0.0.1:5678',
+            tunnelPublicUrl: 'https://stale.trycloudflare.com',
+            defaultProject: { id: 'personal', name: 'Personal' },
+            metadata: {
+                n8nacWorkspaceEnvironmentModel: 'v4',
+            },
+        }, { setActive: false });
+
+        const target = configService.addInstanceTarget({
+            name: 'Managed Target',
+            managedInstanceId: 'managed-dev',
+        });
+        const environment = configService.addEnvironment({
+            name: 'Managed',
+            environmentTarget: target.id,
+            syncFolder: 'workflows/managed',
+        });
+        configService.pinEnvironment(environment.id);
+
+        expect(configService.resolveEnvironment('Managed')).toMatchObject({
+            sourceKind: 'managed-instance',
+            host: 'http://127.0.0.1:5678',
+            projectId: 'personal',
+            projectName: 'Personal',
+        });
+        expect(configService.getEffectiveContext()).toMatchObject({
+            apiBaseUrl: 'http://127.0.0.1:5678',
+            host: 'http://127.0.0.1:5678',
+        });
+    });
+
     it('resolves embedded v4 targets without storing secrets in workspace config', () => {
         const configService = new ConfigService(workspaceRoot);
 

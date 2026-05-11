@@ -1946,7 +1946,7 @@ export class ConfigService {
         if (target.kind === 'managed-instance') {
             const instance = this.manager.getInstance(target.managedInstanceId);
             if (!instance) throw new Error(`Workspace environment "${environment.name}" references missing global n8n-manager instance: ${target.managedInstanceId}`);
-            const host = instance.tunnelPublicUrl || instance.baseUrl || '';
+            const host = instance.baseUrl || instance.tunnelPublicUrl || '';
             const envApiKey = this.readEnvApiKey(environment, target);
             const globalApiKey = this.manager.getApiKey(instance.id);
             const apiKey = envApiKey || globalApiKey;
@@ -2107,7 +2107,7 @@ export class ConfigService {
                     accessStatus: 'runtime-unavailable' as const,
                 });
             }
-            const host = instance.tunnelPublicUrl || instance.baseUrl || '';
+            const host = instance.baseUrl || instance.tunnelPublicUrl || '';
             const envApiKey = this.readTargetEnvApiKey(target);
             const globalApiKey = this.manager.getApiKey(instance.id);
             const apiKey = envApiKey || globalApiKey;
@@ -2295,7 +2295,7 @@ export class ConfigService {
         return {
             id: instance.id,
             name: instance.name,
-            host: instance.tunnelPublicUrl || instance.baseUrl,
+            host: instance.baseUrl || instance.tunnelPublicUrl,
             syncFolder: overrides?.syncFolder,
             projectId: overrides?.projectId || instance.defaultProject?.id,
             projectName: overrides?.projectName || instance.defaultProject?.name,

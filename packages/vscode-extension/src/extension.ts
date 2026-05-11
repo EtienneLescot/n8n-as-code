@@ -600,22 +600,13 @@ export async function activate(context: vscode.ExtensionContext) {
                 if (!options?.silent) await showNoWorkspaceError();
                 return;
             }
-            if (!syncManager) {
-                if (!options?.silent) vscode.window.showWarningMessage('n8n: Not initialized.');
-                return;
-            }
-            const { host, apiKey } = getN8nConfig();
-            if (!host || !apiKey) {
-                if (!options?.silent) vscode.window.showErrorMessage('n8n: Host/API Key missing.');
-                return;
-            }
-            const client = new N8nApiClient({ host, apiKey });
             const rootPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+            const connection = resolveAiContextConnection(rootPath);
             const runInit = (progress?: vscode.Progress<{ message?: string }>) => generateAiContextForWorkspace(
                 context,
-                client,
+                connection.client,
                 rootPath,
-                { silent: options?.silent, progress, host }
+                { silent: options?.silent, progress, host: connection.host }
             );
             try {
                 if (options?.silent) {
@@ -1861,22 +1852,17 @@ async function assertN8nApiAccess(client: N8nApiClient, host: string): Promise<v
 
 async function generateAiContextForWorkspace(
     context: vscode.ExtensionContext,
-    client: N8nApiClient,
+    client: N8nApiClient | undefined,
     workspaceRoot: string,
     options: {
         host?: string;
         progress?: vscode.Progress<{ message?: string }>;
         silent?: boolean;
-        skipApiValidation?: boolean;
         versionHint?: string;
     } = {},
 ): Promise<string> {
-    if (!options.skipApiValidation && options.host) {
-        options.progress?.report({ message: 'Checking n8n API access...' });
-        await assertN8nApiAccess(client, options.host);
-    }
-
-    const version = options.versionHint || (await client.getHealth()).version;
+    const version = options.versionHint
+        || await resolveAiContextVersion(context, client, options.host, options.silent);
     options.progress?.report({ message: 'Generating AGENTS.md...' });
 
     const distTag = (typeof __N8NAC_VERSION__ !== 'undefined' && __N8NAC_VERSION__ === 'next') ? 'next' : undefined;
@@ -1894,6 +1880,52 @@ async function generateAiContextForWorkspace(
     }
 
     return version;
+}
+
+function resolveAiContextConnection(workspaceRoot: string): { client?: N8nApiClient; host?: string } {
+    const fromEffectiveContext = (() => {
+        try {
+            const effective = new ConfigService(workspaceRoot).getEffectiveContext();
+            const host = effective?.apiBaseUrl || effective?.host || effective?.baseUrl || '';
+            const apiKey = effective?.apiKey || '';
+            return { host, apiKey };
+        } catch {
+            return undefined;
+        }
+    })();
+
+    const credentials = fromEffectiveContext?.host || fromEffectiveContext?.apiKey
+        ? fromEffectiveContext
+        : getN8nConfig();
+    const host = credentials?.host || '';
+    const apiKey = credentials?.apiKey || '';
+    return {
+        host,
+        client: host && apiKey ? new N8nApiClient({ host, apiKey }) : undefined,
+    };
+}
+
+async function resolveAiContextVersion(
+    context: vscode.ExtensionContext,
+    client: N8nApiClient | undefined,
+    host?: string,
+    silent?: boolean,
+): Promise<string> {
+    if (client) {
+        try {
+            return (await client.getHealth()).version;
+        } catch (error: any) {
+            const message = host
+                ? `Could not fetch n8n version from "${host}"; generating AI context with fallback version.`
+                : 'Could not fetch n8n version; generating AI context with fallback version.';
+            outputChannel.appendLine(`[n8n] ${message} ${error?.message || error}`);
+            if (!silent) {
+                vscode.window.showWarningMessage(`n8n: ${message}`);
+            }
+        }
+    }
+
+    return context.workspaceState.get<string>('n8n.lastInitVersion') || 'Unknown';
 }
 
 function resolveAiContextCliCommandOverride(context: vscode.ExtensionContext, workspaceRoot: string): string | undefined {
@@ -1939,7 +1971,7 @@ async function updateAiContextAfterSyncInitialization(
     workspaceRoot: string,
     versionHint?: string,
 ): Promise<void> {
-    const currentVersion = versionHint || (await client.getHealth()).version;
+    const currentVersion = versionHint || await resolveAiContextVersion(context, client, undefined, true);
     const lastVersion = context.workspaceState.get<string>('n8n.lastInitVersion');
     const missingAgentsFile = !fs.existsSync(path.join(workspaceRoot, 'AGENTS.md'));
     const needsUpdate = missingAgentsFile || Boolean(currentVersion && lastVersion && currentVersion !== lastVersion);
@@ -1953,7 +1985,6 @@ async function updateAiContextAfterSyncInitialization(
         outputChannel.appendLine('[n8n] Updating AI context after sync initialization...');
         await generateAiContextForWorkspace(context, client, workspaceRoot, {
             silent: true,
-            skipApiValidation: true,
             versionHint: currentVersion,
         });
     } catch (error: any) {
