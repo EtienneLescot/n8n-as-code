@@ -870,18 +870,20 @@ environmentAuthProgram.command('set')
     .option('--api-key-stdin', 'Read the n8n API key from stdin')
     .option('--json', 'Output resolved environment as JSON')
     .action(async (nameOrId, options) => {
-        await hydrateApiKeyFromStdin(options);
-        if (!options.apiKey) {
+        if (!options.apiKey && !options.apiKeyStdin) {
             throw new Error('Provide --api-key or --api-key-stdin.');
         }
         const configService = new ConfigService();
         abortIfWorkspaceMigrationRequired(configService, options);
         const environment = configService.resolveEnvironment(nameOrId);
-        configService.upsertRemoteInstancePreset({
-            host: environment.host,
-            apiKey: options.apiKey,
-            name: environment.environmentTargetName || environment.environmentName,
-        });
+        if (environment.sourceKind === 'managed-instance') {
+            throw new Error(`Environment "${environment.environmentName}" uses managed instance "${environment.managedInstanceId}". Configure credentials through the managed n8n instance instead.`);
+        }
+        await hydrateApiKeyFromStdin(options);
+        if (!options.apiKey) {
+            throw new Error('Provide --api-key or --api-key-stdin.');
+        }
+        configService.saveWorkspaceTargetApiKey(environment.environmentTargetId, options.apiKey);
         const resolved = configService.resolveEnvironment(nameOrId);
         printJsonOrText(
             options,

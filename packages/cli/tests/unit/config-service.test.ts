@@ -369,7 +369,7 @@ describe('ConfigService', () => {
                 name: 'Staging',
             }),
         ]));
-        expect(new Set(workspaceConfig.environments?.map((env) => env.syncFolder)).size).toBe(1);
+        expect(workspaceConfig.environments?.map((env) => env.syncFolder)).toEqual(expect.arrayContaining(['workflows', 'workflows/staging']));
     });
 
     it('migrates each configured v2 instance to its own environment and keeps the active instance pinned', () => {
@@ -422,7 +422,7 @@ describe('ConfigService', () => {
                 id: 'instance-86ea2ff2',
                 name: 'localhost · Etienne Lescot',
                 projectId: 'personal',
-                syncFolder: 'workflows',
+                syncFolder: 'workflows/localhost-etienne-lescot',
             }),
         ]));
         expect(configService.resolveEnvironment()).toMatchObject({
@@ -829,7 +829,7 @@ describe('ConfigService', () => {
         expect(() => configService.pinWorkspaceInstance('anything')).toThrow(/v4 environments/);
     });
 
-    it('allows environments to share the same sync root folder', () => {
+    it('rejects environments that share the same sync root folder', () => {
         const configService = new ConfigService(workspaceRoot);
         const target = configService.addInstanceTarget({ name: 'Target', url: 'https://target.example.test' });
         configService.addEnvironment({
@@ -846,7 +846,19 @@ describe('ConfigService', () => {
             projectId: 'cgi',
             projectName: 'CGI',
             syncFolder: './workflows/shared',
-        })).not.toThrow();
+        })).toThrow(/share sync folder/);
+
+        configService.addEnvironment({
+            name: 'Prod',
+            environmentTarget: target.id,
+            projectId: 'cgi',
+            projectName: 'CGI',
+            syncFolder: 'workflows/prod',
+        });
+
+        expect(() => configService.updateEnvironment('Prod', {
+            syncFolder: './workflows/shared',
+        })).toThrow(/share sync folder/);
     });
 
     it('rejects clearing required environment sync folder on update', () => {
@@ -930,5 +942,23 @@ describe('ConfigService', () => {
         }));
 
         expect(() => new ConfigService(workspaceRoot).getWorkspaceConfig()).toThrow(/needs id, name, environmentTargetId, and syncFolder/);
+
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 4,
+            environmentTargets: [{ id: 'target', name: 'Target', kind: 'external-instance', url: 'https://target.example.test' }],
+            environments: [{
+                id: 'dev',
+                name: 'Dev',
+                environmentTargetId: 'target',
+                syncFolder: 'workflows/shared',
+            }, {
+                id: 'prod',
+                name: 'Prod',
+                environmentTargetId: 'target',
+                syncFolder: './workflows/shared',
+            }],
+        }));
+
+        expect(() => new ConfigService(workspaceRoot).getWorkspaceConfig()).toThrow(/share sync folder/);
     });
 });

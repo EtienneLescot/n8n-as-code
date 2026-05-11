@@ -175,4 +175,76 @@ describe('CLI workspace integration', () => {
         });
         expect(JSON.stringify(workspaceConfig)).not.toContain('apiKey');
     });
+
+    it('stores env auth locally for external workspace targets', () => {
+        const workspaceDir = createTempDir('n8nac-cli-external-auth-workspace-');
+        const homeDir = createTempDir('n8nac-cli-external-auth-home-');
+
+        fs.writeFileSync(path.join(workspaceDir, 'n8nac-config.json'), JSON.stringify({
+            version: 4,
+            activeEnvironmentId: 'dev',
+            environmentTargets: [{
+                id: 'dev-target',
+                name: 'Dev Target',
+                kind: 'external-instance',
+                url: 'https://dev.example.com',
+            }],
+            environments: [{
+                id: 'dev',
+                name: 'Dev',
+                environmentTargetId: 'dev-target',
+                syncFolder: 'workflows/dev',
+            }],
+        }, null, 2));
+
+        const authOutput = runCli(workspaceDir, homeDir, ['env', 'auth', 'set', 'Dev', '--api-key', 'dev-key', '--json']);
+        const authenticated = JSON.parse(authOutput);
+        expect(authenticated).toMatchObject({
+            environmentName: 'Dev',
+            sourceKind: 'external-instance',
+            apiKeyAvailable: true,
+            apiKeySource: 'workspace-local',
+        });
+        expect(authOutput).not.toContain('dev-key');
+    });
+
+    it('rejects env auth set for managed environments', () => {
+        const workspaceDir = createTempDir('n8nac-cli-managed-auth-workspace-');
+        const homeDir = createTempDir('n8nac-cli-managed-auth-home-');
+        const managerHome = path.join(homeDir, '.n8n-manager');
+
+        fs.mkdirSync(managerHome, { recursive: true });
+        fs.writeFileSync(path.join(managerHome, 'instances.json'), JSON.stringify({
+            version: 1,
+            activeInstanceId: 'managed-dev',
+            instances: [{
+                id: 'managed-dev',
+                name: 'Managed Dev',
+                mode: 'managed-local-docker',
+                baseUrl: 'http://127.0.0.1:5678',
+            }],
+        }, null, 2));
+        fs.writeFileSync(path.join(workspaceDir, 'n8nac-config.json'), JSON.stringify({
+            version: 4,
+            activeEnvironmentId: 'dev',
+            environmentTargets: [{
+                id: 'managed-dev-target',
+                name: 'Managed Dev Target',
+                kind: 'managed-instance',
+                managedInstanceId: 'managed-dev',
+            }],
+            environments: [{
+                id: 'dev',
+                name: 'Dev',
+                environmentTargetId: 'managed-dev-target',
+                syncFolder: 'workflows/dev',
+            }],
+        }, null, 2));
+
+        const output = runCliExpectFailure(workspaceDir, homeDir, ['env', 'auth', 'set', 'Dev', '--api-key', 'managed-key']);
+        expect(stripAnsi(output)).toContain('uses managed instance "managed-dev"');
+
+        const stdinOutput = runCliExpectFailure(workspaceDir, homeDir, ['env', 'auth', 'set', 'Dev', '--api-key-stdin']);
+        expect(stripAnsi(stdinOutput)).toContain('uses managed instance "managed-dev"');
+    });
 });

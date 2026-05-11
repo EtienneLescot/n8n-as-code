@@ -1161,7 +1161,7 @@ export class ConfigService {
                 usedIds.push(targetId);
                 const environmentId = this.uniqueWorkspaceId(singleInstanceMigration ? 'default' : profile.id || legacy.id || environmentName, usedIds);
                 usedIds.push(environmentId);
-                const syncFolder = legacy.syncFolder || plan.workspace.syncFolder || 'workflows';
+                const syncFolder = this.uniqueEnvironmentSyncFolder(legacy.syncFolder || plan.workspace.syncFolder || 'workflows', environments, environmentName);
 
                 environmentTargets.push({
                     id: targetId,
@@ -1429,13 +1429,14 @@ export class ConfigService {
                     const environmentName = this.uniqueDisplayName(instance.name || instance.id, environmentNames);
                     const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
                     usedIds.push(environmentId);
+                    const syncFolder = this.uniqueEnvironmentSyncFolder(`workflows/${this.slugId(environmentName)}`, environments, environmentName);
                     existingEnvironment = stripUndefined({
                         id: environmentId,
                         name: environmentName,
                         environmentTargetId: targetId,
                         projectId: instance.defaultProject?.id || 'personal',
                         projectName: instance.defaultProject?.name || 'Personal',
-                        syncFolder: `workflows/${this.slugId(environmentName)}`,
+                        syncFolder,
                     });
                     environments.push(existingEnvironment);
                     migratedEnvironmentIds.push(environmentId);
@@ -1471,13 +1472,14 @@ export class ConfigService {
                     const environmentName = this.uniqueDisplayName(instance.name || externalUrl || instance.id, environmentNames);
                     const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
                     usedIds.push(environmentId);
+                    const syncFolder = this.uniqueEnvironmentSyncFolder(`workflows/${this.slugId(environmentName)}`, environments, environmentName);
                     existingEnvironment = stripUndefined({
                         id: environmentId,
                         name: environmentName,
                         environmentTargetId: existingTarget.id,
                         projectId: instance.defaultProject?.id || 'personal',
                         projectName: instance.defaultProject?.name || 'Personal',
-                        syncFolder: `workflows/${this.slugId(environmentName)}`,
+                        syncFolder,
                     });
                     environments.push(existingEnvironment);
                     migratedEnvironmentIds.push(environmentId);
@@ -1493,9 +1495,10 @@ export class ConfigService {
             usedIds.push(environmentId);
             const projectId = instance.defaultProject?.id || 'personal';
             const projectName = instance.defaultProject?.name || 'Personal';
-            const syncFolder = environments.length === 0 && plan.instances.length === 1
+            const preferredSyncFolder = environments.length === 0 && plan.instances.length === 1
                 ? 'workflows'
                 : `workflows/${this.slugId(environmentName)}`;
+            const syncFolder = this.uniqueEnvironmentSyncFolder(preferredSyncFolder, environments, environmentName);
 
             environmentTargets.push({
                 id: targetId,
@@ -1752,6 +1755,7 @@ export class ConfigService {
         const environments = rawEnvironments.map((environment, index) => this.sanitizeEnvironment(environment, index));
         this.assertUniqueIdsAndNames(environmentTargets, 'instance target');
         this.assertUniqueIdsAndNames(environments, 'environment');
+        this.assertUniqueEnvironmentSyncFolders(environments);
         const targetIds = new Set(environmentTargets.map((target) => target.id));
         for (const environment of environments) {
             if (!targetIds.has(environment.environmentTargetId)) {
@@ -1831,6 +1835,25 @@ export class ConfigService {
 
     private normalizeWorkspacePathKey(value: string): string {
         return path.normalize(this.resolveWorkspacePath(value));
+    }
+
+    private uniqueEnvironmentSyncFolder(baseFolder: string, environments: IWorkspaceEnvironment[], suffix: string): string {
+        const folder = cleanRequired(baseFolder, 'Sync folder');
+        if (!this.hasEnvironmentSyncFolder(folder, environments)) return folder;
+
+        const slug = this.slugId(suffix);
+        let candidate = path.join(folder, slug);
+        let counter = 2;
+        while (this.hasEnvironmentSyncFolder(candidate, environments)) {
+            candidate = path.join(folder, `${slug}-${counter}`);
+            counter += 1;
+        }
+        return candidate;
+    }
+
+    private hasEnvironmentSyncFolder(folder: string, environments: IWorkspaceEnvironment[]): boolean {
+        const normalized = this.normalizeWorkspacePathKey(folder);
+        return environments.some((environment) => this.normalizeWorkspacePathKey(environment.syncFolder) === normalized);
     }
 
     private sanitizeEnvironment(environment: any, index: number): IWorkspaceEnvironment {
