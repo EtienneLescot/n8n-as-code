@@ -1,5 +1,11 @@
 # @n8n-as-code/cli
 
+## [2.1.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.1.1...n8nac@v2.1.2) (2026-05-11)
+
+### Bug Fixes
+
+* **auth:** improve API key management for workspace targets ([822604c](https://github.com/EtienneLescot/n8n-as-code/commit/822604ca7d20fdde71515126a0e311ed9d3294b4))
+
 ## [2.1.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.1.0...n8nac@v2.1.1) (2026-05-11)
 
 ### Dependencies
