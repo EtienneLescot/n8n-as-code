@@ -1,5 +1,17 @@
 # n8n-as-code
 
+## [2.4.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.4.0...n8n-as-code@v2.4.1) (2026-05-11)
+
+### Bug Fixes
+
+* **ui:** refine credential validation logic in configuration webview ([c935d5e](https://github.com/EtienneLescot/n8n-as-code/commit/c935d5efbf6d13d50bd813cc45c7e0e6f47eb4ec))
+* **auth:** improve API key management for workspace targets ([822604c](https://github.com/EtienneLescot/n8n-as-code/commit/822604ca7d20fdde71515126a0e311ed9d3294b4))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * n8nac bumped from 2.1.1 to 2.1.2
+
 ## [2.4.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.2.0...n8n-as-code@v2.4.0) (2026-05-11)
 
 ### Features
