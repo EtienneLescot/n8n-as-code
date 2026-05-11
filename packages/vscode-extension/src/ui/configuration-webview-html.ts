@@ -153,6 +153,7 @@ export function getConfigurationHtml(nonce: string): string {
     .instance-url { color: var(--vscode-textLink-foreground); text-decoration: none; overflow-wrap: anywhere; }
     .instance-url:hover { text-decoration: underline; }
     .instance-subtle { color: var(--muted); font-size: 12px; }
+    .instance-warning { color: var(--vscode-editorWarning-foreground, var(--vscode-foreground)); font-size: 12px; overflow-wrap: anywhere; }
     .instance-foot { display: flex; justify-content: space-between; gap: 10px; align-items: center; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); padding-top: 10px; }
     .instance-hint { color: var(--muted); font-size: 12px; }
     .inline-action {
@@ -944,6 +945,24 @@ export function getConfigurationHtml(nonce: string): string {
       if (item?.credentialSource === 'global') return badge('API key: global', 'ready');
       return undefined;
     }
+    function managedEnvironmentWarning(env, target) {
+      if (target?.kind !== 'managed-instance') return undefined;
+      const instance = instanceById(target.managedInstanceId);
+      if (!instance) return { label: 'Managed instance missing', message: 'The linked managed instance is not available.' };
+      if (instance.runtimeBlockedMessage) return { label: 'Managed instance issue', message: instance.runtimeBlockedMessage };
+      if (instance.runtimeWarnings?.length) return { label: 'Managed instance warning', message: instance.runtimeWarnings[0] };
+      if (instance.publicUrlEnabled && !instance.tunnelPublicUrl && !instance.authBridgePublicUrl) {
+        return { label: 'Public URL pending', message: 'The managed instance public URL is still pending.' };
+      }
+      if (instance.publicUrlEnabled && instance.tunnelRunning === false) {
+        return { label: 'Public tunnel stopped', message: 'The managed instance public tunnel is not running.' };
+      }
+      if (instance.runtimeStatus === 'starting') return { label: 'Instance starting', message: 'The managed instance is still starting.' };
+      if (instance.runtimeStatus === 'stopped') return { label: 'Instance stopped', message: 'The managed instance is stopped.' };
+      if (instance.runtimeStatus === 'unhealthy') return { label: 'Instance unhealthy', message: 'The managed instance is unhealthy.' };
+      if (instance.runtimeStatus === 'unknown') return { label: 'Status unknown', message: 'Managed instance status is unavailable.' };
+      return undefined;
+    }
     function render() {
       const workspace = state.workspace || {};
       const effective = state.effective;
@@ -1208,6 +1227,8 @@ export function getConfigurationHtml(nonce: string): string {
         status.className = 'instance-status';
         if (active) status.appendChild(badge('Default', 'active'));
         status.appendChild(accessBadge(env));
+        const managedWarning = managedEnvironmentWarning(env, target);
+        if (managedWarning) status.appendChild(badge(managedWarning.label, 'warning'));
         const envCredential = credentialBadge(env);
         if (envCredential) status.appendChild(envCredential);
         top.append(identity, status);
@@ -1225,7 +1246,14 @@ export function getConfigurationHtml(nonce: string): string {
           '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2h4l1 1h3v1H2V3h3l1-1zm-2 3h8l-.6 8.2a1 1 0 0 1-1 .8H5.6a1 1 0 0 1-1-.8L4 5z"/></svg>',
           () => post('deleteEnvironment', { environmentId: env.id }),
         ));
-        main.append(top, actions);
+        if (managedWarning) {
+          const warning = document.createElement('div');
+          warning.className = 'instance-warning';
+          warning.textContent = managedWarning.message;
+          main.append(top, warning, actions);
+        } else {
+          main.append(top, actions);
+        }
         row.append(main);
         els.environmentList.appendChild(row);
       }
