@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { createHash } from 'crypto';
 
 // Injected at build time by esbuild (see esbuild.config.js)
 declare const __N8NAC_VERSION__: string;
@@ -34,6 +35,7 @@ import {
 import {
     N8nConfigurationController,
     type N8nConfigurationChangeEvent,
+    type N8nConfigurationSnapshot,
 } from './services/n8n-configuration-controller.js';
 import { runWorkspaceMigrationFromVscode } from './services/workspace-migration-runner.js';
 import { workflowWebviewRegistry } from './services/workflow-webview-registry.js';
@@ -104,6 +106,8 @@ let yagrProviderService: YagrProviderService | undefined;
 let suppressNextConfigurationReaction = false;
 let failedAutoInitRuntimeSignature: string | undefined;
 let failedAutoInitConnectionKey: string | undefined;
+let aiContextFreshnessTimer: NodeJS.Timeout | undefined;
+let aiContextFreshnessInFlight: Promise<void> | undefined;
 
 const statusBar = new StatusBar();
 const proxyService = new ProxyService();
@@ -116,6 +120,18 @@ let telemetryClient: TelemetryClient | undefined;
 
 const conflictStore = new Map<string, string>();
 const processedSyncEventIds = new Set<string>();
+
+const AI_CONTEXT_METADATA_RELATIVE_PATH = path.join('.n8nac', 'ai-context.json');
+const AI_CONTEXT_SIGNATURE_SCHEMA_VERSION = 1;
+
+type AiContextMetadata = {
+    schemaVersion: number;
+    signature: string;
+    n8nacVersion?: string;
+    n8nVersion?: string;
+    generatedAt?: string;
+    reason?: string;
+};
 
 async function processSyncEventJournal(journalUri: vscode.Uri, source: string, markOnly = false): Promise<void> {
     if (!fs.existsSync(journalUri.fsPath)) return;
@@ -267,6 +283,7 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         configurationController,
         configurationController.onDidChangeSnapshot((event) => {
+            scheduleEnsureAiContextFresh(context, `snapshot:${event.reason}`, event.snapshot);
             void handleConfigurationSnapshotChanged(context, event);
         }),
     );
@@ -601,22 +618,16 @@ export async function activate(context: vscode.ExtensionContext) {
                 return;
             }
             const rootPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-            const connection = resolveAiContextConnection(rootPath);
-            const runInit = (progress?: vscode.Progress<{ message?: string }>) => generateAiContextForWorkspace(
-                context,
-                connection.client,
-                rootPath,
-                { silent: options?.silent, progress, host: connection.host }
-            );
             try {
                 if (options?.silent) {
-                    await runInit();
+                    await ensureAiContextFresh(context, 'manual-silent', { force: true });
                 } else {
                     await vscode.window.withProgress({
                         location: vscode.ProgressLocation.Notification,
                         title: 'n8n: Initializing AI Context...',
                         cancellable: false
-                    }, runInit);
+                    }, (progress) => ensureAiContextFresh(context, 'manual', { force: true, progress }));
+                    vscode.window.showInformationMessage('✨ n8n AI Context Updated!');
                 }
             } catch (error: any) {
                 if (options?.silent) {
@@ -691,6 +702,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // ── Backend configuration snapshot initialization ────────────────────────
     configurationController.start();
+    scheduleEnsureAiContextFresh(context, 'startup');
 
     // ── Settings change listener ───────────────────────────────────────────
     context.subscriptions.push(
@@ -1850,6 +1862,175 @@ async function assertN8nApiAccess(client: N8nApiClient, host: string): Promise<v
     }
 }
 
+function scheduleEnsureAiContextFresh(
+    context: vscode.ExtensionContext,
+    reason: string,
+    snapshot?: N8nConfigurationSnapshot,
+    versionHint?: string,
+): void {
+    if (aiContextFreshnessTimer) {
+        clearTimeout(aiContextFreshnessTimer);
+    }
+    aiContextFreshnessTimer = setTimeout(() => {
+        aiContextFreshnessTimer = undefined;
+        void ensureAiContextFresh(context, reason, { snapshot, versionHint }).catch((error: any) => {
+            outputChannel.appendLine(`[n8n] AI context freshness check failed: ${error?.message || error}`);
+        });
+    }, 500);
+}
+
+async function ensureAiContextFresh(
+    context: vscode.ExtensionContext,
+    reason: string,
+    options: {
+        force?: boolean;
+        progress?: vscode.Progress<{ message?: string }>;
+        snapshot?: N8nConfigurationSnapshot;
+        versionHint?: string;
+    } = {},
+): Promise<void> {
+    if (aiContextFreshnessInFlight) {
+        await aiContextFreshnessInFlight;
+        if (!options.force) return;
+    }
+
+    aiContextFreshnessInFlight = doEnsureAiContextFresh(context, reason, options);
+    try {
+        await aiContextFreshnessInFlight;
+    } finally {
+        aiContextFreshnessInFlight = undefined;
+    }
+}
+
+async function doEnsureAiContextFresh(
+    context: vscode.ExtensionContext,
+    reason: string,
+    options: {
+        force?: boolean;
+        progress?: vscode.Progress<{ message?: string }>;
+        snapshot?: N8nConfigurationSnapshot;
+        versionHint?: string;
+    },
+): Promise<void> {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) return;
+
+    const connection = resolveAiContextConnection(workspaceRoot);
+    const metadata = readAiContextMetadata(workspaceRoot);
+    const candidateVersion = options.versionHint
+        || context.workspaceState.get<string>('n8n.lastInitVersion')
+        || metadata?.n8nVersion
+        || 'Unknown';
+    let signature = buildAiContextSignature(workspaceRoot, options.snapshot, candidateVersion);
+    const agentsVersion = readAgentsMdVersion(workspaceRoot);
+    const currentCliVersion = getCurrentCliVersion();
+    const agentsPath = path.join(workspaceRoot, 'AGENTS.md');
+    const missingAgentsFile = !fs.existsSync(agentsPath);
+    const stampIsStale = Boolean(currentCliVersion && agentsVersion !== currentCliVersion);
+    let needsUpdate = options.force
+        || missingAgentsFile
+        || stampIsStale
+        || metadata?.schemaVersion !== AI_CONTEXT_SIGNATURE_SCHEMA_VERSION
+        || metadata?.signature !== signature;
+
+    if (!needsUpdate) {
+        outputChannel.appendLine(`[n8n] AI context is fresh (${reason}).`);
+        return;
+    }
+
+    const version = options.versionHint || await resolveAiContextVersion(context, connection.client, connection.host, true);
+    signature = buildAiContextSignature(workspaceRoot, options.snapshot, version);
+    if (!options.force && metadata?.signature === signature && !missingAgentsFile && !stampIsStale) {
+        outputChannel.appendLine(`[n8n] AI context is fresh (${reason}).`);
+        return;
+    }
+
+    outputChannel.appendLine(`[n8n] Ensuring AI context is fresh (${reason})...`);
+    await generateAiContextForWorkspace(context, connection.client, workspaceRoot, {
+        silent: true,
+        progress: options.progress,
+        host: connection.host,
+        versionHint: version,
+    });
+    writeAiContextMetadata(workspaceRoot, {
+        schemaVersion: AI_CONTEXT_SIGNATURE_SCHEMA_VERSION,
+        signature,
+        n8nacVersion: currentCliVersion,
+        n8nVersion: version,
+        generatedAt: new Date().toISOString(),
+        reason,
+    });
+}
+
+function buildAiContextSignature(
+    workspaceRoot: string,
+    snapshot: N8nConfigurationSnapshot | undefined,
+    n8nVersion: string,
+): string {
+    const resolved = (() => {
+        try {
+            return getResolvedN8nConfig(workspaceRoot);
+        } catch {
+            return undefined;
+        }
+    })();
+    const workspaceConfigHash = (() => {
+        try {
+            const configPath = path.join(workspaceRoot, 'n8nac-config.json');
+            return fs.existsSync(configPath)
+                ? createHash('sha256').update(fs.readFileSync(configPath)).digest('hex')
+                : '';
+        } catch {
+            return '';
+        }
+    })();
+    const workspaceSnapshot = snapshot?.workspace as { activeEnvironmentId?: string } | undefined;
+    const payload = {
+        schemaVersion: AI_CONTEXT_SIGNATURE_SCHEMA_VERSION,
+        n8nacVersion: getCurrentCliVersion(),
+        n8nVersion,
+        runtimeSignature: snapshot?.runtimeSignature || '',
+        workspaceConfigHash,
+        activeEnvironmentId: workspaceSnapshot?.activeEnvironmentId || resolved?.environmentId || '',
+        environmentTargetId: resolved?.environmentTargetId || '',
+        syncFolder: resolved?.syncFolder || '',
+        projectId: resolved?.projectId || '',
+        projectName: resolved?.projectName || '',
+    };
+    return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+function getCurrentCliVersion(): string | undefined {
+    return (typeof __N8NAC_CLI_SEMVER__ !== 'undefined' && __N8NAC_CLI_SEMVER__)
+        ? __N8NAC_CLI_SEMVER__
+        : undefined;
+}
+
+function readAgentsMdVersion(workspaceRoot: string): string | undefined {
+    try {
+        const content = fs.readFileSync(path.join(workspaceRoot, 'AGENTS.md'), 'utf8');
+        return content.match(/<!--\s*n8nac-version:\s*([^\s>]+)\s*-->/)?.[1];
+    } catch {
+        return undefined;
+    }
+}
+
+function readAiContextMetadata(workspaceRoot: string): AiContextMetadata | undefined {
+    try {
+        const metadataPath = path.join(workspaceRoot, AI_CONTEXT_METADATA_RELATIVE_PATH);
+        if (!fs.existsSync(metadataPath)) return undefined;
+        return JSON.parse(fs.readFileSync(metadataPath, 'utf8')) as AiContextMetadata;
+    } catch {
+        return undefined;
+    }
+}
+
+function writeAiContextMetadata(workspaceRoot: string, metadata: AiContextMetadata): void {
+    const metadataPath = path.join(workspaceRoot, AI_CONTEXT_METADATA_RELATIVE_PATH);
+    fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
+    fs.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
+}
+
 async function generateAiContextForWorkspace(
     context: vscode.ExtensionContext,
     client: N8nApiClient | undefined,
@@ -1873,7 +2054,6 @@ async function generateAiContextForWorkspace(
         managerCommandOverride: resolveAiContextManagerCommandOverride(context),
     });
     await context.workspaceState.update('n8n.lastInitVersion', version);
-    enhancedTreeProvider.setAIContextInfo(version, false);
 
     if (!options.silent) {
         vscode.window.showInformationMessage(`✨ n8n AI Context Initialized! (v${version})`);
@@ -1968,25 +2148,11 @@ function quoteShellArg(value: string): string {
 async function updateAiContextAfterSyncInitialization(
     context: vscode.ExtensionContext,
     client: N8nApiClient,
-    workspaceRoot: string,
     versionHint?: string,
 ): Promise<void> {
     const currentVersion = versionHint || await resolveAiContextVersion(context, client, undefined, true);
-    const lastVersion = context.workspaceState.get<string>('n8n.lastInitVersion');
-    const missingAgentsFile = !fs.existsSync(path.join(workspaceRoot, 'AGENTS.md'));
-    const needsUpdate = missingAgentsFile || Boolean(currentVersion && lastVersion && currentVersion !== lastVersion);
-
-    enhancedTreeProvider.setAIContextInfo(currentVersion, needsUpdate);
-    if (!needsUpdate) {
-        return;
-    }
-
     try {
-        outputChannel.appendLine('[n8n] Updating AI context after sync initialization...');
-        await generateAiContextForWorkspace(context, client, workspaceRoot, {
-            silent: true,
-            versionHint: currentVersion,
-        });
+        await ensureAiContextFresh(context, 'sync-initialized', { versionHint: currentVersion });
     } catch (error: any) {
         outputChannel.appendLine(`[n8n] Failed to auto-generate AI context: ${error.message}`);
     }
@@ -2232,7 +2398,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         runtimeDisposables.push({ dispose: () => clearInterval(journalPollingInterval) });
     }
 
-    await updateAiContextAfterSyncInitialization(context, client, workspaceRoot, health.version);
+    await updateAiContextAfterSyncInitialization(context, client, health.version);
 }
 
 async function reinitializeSyncManager(

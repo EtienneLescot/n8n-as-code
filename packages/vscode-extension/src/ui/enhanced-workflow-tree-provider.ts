@@ -9,7 +9,6 @@ import { store, RootState, selectAllWorkflows, selectConflicts } from '../servic
 import { BaseTreeItem } from './tree-items/base-tree-item.js';
 import { LoadingItem } from './tree-items/loading-item.js';
 import { ErrorItem } from './tree-items/error-item.js';
-import { AIActionItem } from './tree-items/ai-action-item.js';
 import { WorkflowItem } from './tree-items/workflow-item.js';
 import { InfoItem } from './tree-items/info-item.js';
 import { ActionItem, ActionItemType } from './tree-items/action-item.js';
@@ -24,9 +23,6 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
   private syncManager: SyncManager | undefined;
   private extensionState: ExtensionState = ExtensionState.UNINITIALIZED;
   private initializationError: string | undefined;
-
-  private aiLastVersion: string | undefined;
-  private aiNeedsUpdate: boolean = false;
 
   // Cache management
   private cachedTreeItems: BaseTreeItem[] | null = null;
@@ -83,15 +79,6 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
   setSyncManager(manager: SyncManager | undefined): void {
     this.syncManager = manager;
     this.invalidateCache();
-    this.refresh();
-  }
-
-  /**
-   * Update AI context information
-   */
-  setAIContextInfo(lastVersion?: string, needsUpdate: boolean = false): void {
-    this.aiLastVersion = lastVersion;
-    this.aiNeedsUpdate = needsUpdate;
     this.refresh();
   }
 
@@ -317,12 +304,6 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
         'Create workflows in n8n or sync',
         new vscode.ThemeIcon('info')
       ));
-    }
-
-    // Add AI action button
-    if (this.syncManager) {
-      const aiAction = new AIActionItem(this.aiLastVersion, this.aiNeedsUpdate);
-      items.push(aiAction);
     }
 
     this.cachedTreeItems = items;
