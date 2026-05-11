@@ -1,5 +1,21 @@
 # n8n-as-code
 
+## [2.4.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.2.0...n8n-as-code@v2.4.0) (2026-05-11)
+
+### Features
+
+* **vscode:** add project management to configuration webview ([f198d1d](https://github.com/EtienneLescot/n8n-as-code/commit/f198d1d50ec048540da4bc300a5d383ae894bd6f))
+
+### Bug Fixes
+
+* **vscode:** clear remote URL fields for managed environments ([bb90796](https://github.com/EtienneLescot/n8n-as-code/commit/bb90796f108e9b268ae105d4e5abd3e065eae3aa))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.1.0 to 2.1.1
+    * n8nac bumped from 2.1.0 to 2.1.1
+
 ## [2.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.0.3...n8n-as-code@v2.2.0) (2026-05-11)
 
 ### Features

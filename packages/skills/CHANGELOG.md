@@ -1,5 +1,11 @@
 # @n8n-as-code/skills
 
+## [2.1.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.1.0...@n8n-as-code/skills@v2.1.1) (2026-05-11)
+
+### Bug Fixes
+
+* **release:** improve vscode prerelease sequence calculation ([2168ae8](https://github.com/EtienneLescot/n8n-as-code/commit/2168ae8f3722facd9f590f983bf7a969e40d4fc6))
+
 ## [2.1.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.0.1...@n8n-as-code/skills@v2.1.0) (2026-05-11)
 
 ### Features
