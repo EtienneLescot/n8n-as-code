@@ -1,5 +1,11 @@
 # n8n-as-code
 
+## [2.2.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.2.0...n8n-as-code@v2.2.1) (2026-05-11)
+
+### Bug Fixes
+
+* **vscode:** clear remote URL fields for managed environments ([bb90796](https://github.com/EtienneLescot/n8n-as-code/commit/bb90796f108e9b268ae105d4e5abd3e065eae3aa))
+
 ## [2.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.0.3...n8n-as-code@v2.2.0) (2026-05-11)
 
 ### Features
