@@ -276,7 +276,9 @@ export function createN8nManagerFacade(options: N8nManagerFacadeOptions = {}): N
     },
     resolveWorkflowWebviewOpen: async (input) => resolveWorkflowWebviewOpen({
       ...input,
-      workspaceRoot: input.workspaceRoot ?? options.workspaceRoot,
+      // Explicit instance opens do not need workspace overrides. This keeps v4
+      // environment workspaces out of the v3-only n8n-manager override reader.
+      workspaceRoot: input.instanceId ? undefined : input.workspaceRoot ?? options.workspaceRoot,
     }, configuration),
     listSetupModes: () => N8N_FACADE_SETUP_MODES,
     listCredentialRecipes: async () => (await createCredentialsManager()).listRecipes(),
