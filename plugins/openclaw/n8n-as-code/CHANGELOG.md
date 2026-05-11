@@ -1,5 +1,25 @@
 # @n8n-as-code/n8nac
 
+## [2.1.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2.0.0...@n8n-as-code/n8nac@v2.1.0) (2026-05-11)
+
+### Features
+
+* **cli:** add workflow present command and update agent skill guidance ([70d4425](https://github.com/EtienneLescot/n8n-as-code/commit/70d44259e967295830606c4bf82cb71026a66b1d))
+* **cli:** add workspace migration command and improve migration orchestration ([603aa59](https://github.com/EtienneLescot/n8n-as-code/commit/603aa59b675e4aa29badac372b24c0f234ac44fe))
+
+### Bug Fixes
+
+* **cli:** unify workspace migration reporting and enforce atomicity ([0e3e07f](https://github.com/EtienneLescot/n8n-as-code/commit/0e3e07f2e44eeb54c2de154dc7a91a1e58ee790f))
+* **cli:** enforce migration-first workflow for workspace readiness ([cc11e37](https://github.com/EtienneLescot/n8n-as-code/commit/cc11e37b4e02f9f91f506ce38f2c16d8034af14c))
+* **skills:** consolidate agent skills into n8n-architect ([6212c2f](https://github.com/EtienneLescot/n8n-as-code/commit/6212c2f5cb6f76d64cfb5141d39306aef16ac086))
+
+### Documentation
+
+* update documentation for unified workspace migration and readiness ([e078a79](https://github.com/EtienneLescot/n8n-as-code/commit/e078a79a550a7f5121a25e6d07b36079619f3c4d))
+* **skills:** update n8n-architect guidance for unified migration and env status ([1be0695](https://github.com/EtienneLescot/n8n-as-code/commit/1be06951d30a0b67673cfe11e2794103018e286d))
+* align docs and skills with environments ([267e9c2](https://github.com/EtienneLescot/n8n-as-code/commit/267e9c2980b08cb9f6a90b7c15e2b62717d6ee9c))
+* update documentation for v2 split runtime and workspace model ([b8a4125](https://github.com/EtienneLescot/n8n-as-code/commit/b8a41256ea28d16382607a744c1f92fd3bac5824))
+
 ## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2026.5.0...@n8n-as-code/n8nac@v2.0.0) (2026-05-06)
 
 ### ⚠ BREAKING CHANGES

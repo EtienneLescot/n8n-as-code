@@ -1,5 +1,12 @@
 # @n8n-as-code/manager-adapter
 
+## [2.0.3](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/manager-adapter@v2.0.2...@n8n-as-code/manager-adapter@v2.0.3) (2026-05-11)
+
+### Bug Fixes
+
+* **manager-adapter:** prevent workspace root override for explicit instance opens ([f48646a](https://github.com/EtienneLescot/n8n-as-code/commit/f48646ad152e780018675bce04ed5d6aeaee9bfe))
+* **cli:** exclude already migrated v4 environments from migration detection ([0e0ac13](https://github.com/EtienneLescot/n8n-as-code/commit/0e0ac130cb88c2853a395e4e34cb288f8d6fb38a))
+
 ## [2.0.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/manager-adapter@v2.0.1...@n8n-as-code/manager-adapter@v2.0.2) (2026-05-06)
 
 ### Bug Fixes

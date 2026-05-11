@@ -1,5 +1,43 @@
 # n8n-as-code
 
+## [2.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.0.3...n8n-as-code@v2.2.0) (2026-05-11)
+
+### Features
+
+* **vscode:** implement automated AI context freshness management ([5aa9e98](https://github.com/EtienneLescot/n8n-as-code/commit/5aa9e9868fdd71e1d3fa94a809152bcc616ecd15))
+* **ui:** add managed instance status warnings to configuration webview ([ab34ca8](https://github.com/EtienneLescot/n8n-as-code/commit/ab34ca86f271ce8707d9dbd94747b7bfbfa3b0b5))
+* **vscode:** implement workspace migration facade and runner ([94f695e](https://github.com/EtienneLescot/n8n-as-code/commit/94f695eb764c46caedb4c448127d4cd8cd34c563))
+* **cli:** add workspace migration command and improve migration orchestration ([603aa59](https://github.com/EtienneLescot/n8n-as-code/commit/603aa59b675e4aa29badac372b24c0f234ac44fe))
+* **ui:** implement migration for global n8n instances to workspace ([a8d6026](https://github.com/EtienneLescot/n8n-as-code/commit/a8d6026827f43079b7719d0ddd0b9b26615d950c))
+* **ui:** update configuration webview to support environment-specific project loading ([009e75e](https://github.com/EtienneLescot/n8n-as-code/commit/009e75ea6c9987bf7c69271cbbf520be4a9855e2))
+* **cli,vscode:** implement environment-centric configuration and legacy migration ([92f6c34](https://github.com/EtienneLescot/n8n-as-code/commit/92f6c34ac1ba972cd2bb77a307e220f9a10ed183))
+* wire workspace environments into cli and vscode ([e9f1066](https://github.com/EtienneLescot/n8n-as-code/commit/e9f1066a384618d4a5d7c06308c54f3fe7dd008c))
+
+### Bug Fixes
+
+* **cli:** prioritize baseUrl over tunnelPublicUrl for instance resolution ([aee2f0a](https://github.com/EtienneLescot/n8n-as-code/commit/aee2f0a32f4d9f591d7af5095e7c91bc27cc2f4f))
+* **config:** rename instance targets to environment targets and update terminology ([c33d024](https://github.com/EtienneLescot/n8n-as-code/commit/c33d024158b8d4d584bf5e8ab04500b54ae072e5))
+* **ui:** decouple instance lookups from workspace root ([92219a6](https://github.com/EtienneLescot/n8n-as-code/commit/92219a6b10491efd71832c6e7f2d765ae1175c02))
+* **config:** refine migration logic and improve credential retrieval ([389a2a9](https://github.com/EtienneLescot/n8n-as-code/commit/389a2a90d0dcf6e316f37710cfccfd2fd7c921dd))
+* **cli,vscode:** transition from instance-based to environment-centric configuration ([788c956](https://github.com/EtienneLescot/n8n-as-code/commit/788c956c8fe5cfda5d8f1789c673493b833c1ea5))
+* **vscode:** align workspace environments with v4 targeting ([96d31c5](https://github.com/EtienneLescot/n8n-as-code/commit/96d31c532b87e18ff8f4a447fd53df57c786beea))
+* close workspace environment review gaps ([c01cf7c](https://github.com/EtienneLescot/n8n-as-code/commit/c01cf7c6fe8370e1fef1c38205242791ed85ce3a))
+* **cli:** add v1 migration path ([ff0c979](https://github.com/EtienneLescot/n8n-as-code/commit/ff0c97938b3df307dff75814187bad98dca0b2e1))
+
+### Documentation
+
+* update documentation for unified workspace migration and readiness ([e078a79](https://github.com/EtienneLescot/n8n-as-code/commit/e078a79a550a7f5121a25e6d07b36079619f3c4d))
+* align docs and skills with environments ([267e9c2](https://github.com/EtienneLescot/n8n-as-code/commit/267e9c2980b08cb9f6a90b7c15e2b62717d6ee9c))
+* clarify v1 legacy extension install ([49ad824](https://github.com/EtienneLescot/n8n-as-code/commit/49ad8244b4a29525b96445cdea2b34a2eedb25a8))
+* update documentation for v2 split runtime and workspace model ([b8a4125](https://github.com/EtienneLescot/n8n-as-code/commit/b8a41256ea28d16382607a744c1f92fd3bac5824))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/manager-adapter bumped from 2.0.2 to 2.0.3
+    * @n8n-as-code/skills bumped from 2.0.1 to 2.1.0
+    * n8nac bumped from 2.0.3 to 2.1.0
+
 ## [2.0.3](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.0.2...n8n-as-code@v2.0.3) (2026-05-06)
 
 ### Bug Fixes
