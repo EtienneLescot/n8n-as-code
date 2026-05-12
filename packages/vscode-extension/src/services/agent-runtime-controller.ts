@@ -328,6 +328,7 @@ function normalizeAgentProviderId(provider: string | undefined): string | undefi
     const normalized = provider?.trim().toLowerCase();
     if (!normalized) return undefined;
     if (normalized === 'claude') return 'anthropic';
+    if (normalized === 'anthropic-proxy') return 'anthropic';
     if (normalized === 'gemini') return 'google';
     return YAGR_MODEL_PROVIDERS.includes(normalized) ? normalized : undefined;
 }

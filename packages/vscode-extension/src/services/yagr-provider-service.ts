@@ -186,6 +186,7 @@ export function normalizeYagrProviderId(provider?: string): YagrModelProvider | 
     const normalized = provider?.trim().toLowerCase();
     if (!normalized) return undefined;
     if (normalized === 'claude') return 'anthropic';
+    if (normalized === 'anthropic-proxy') return 'anthropic';
     if (normalized === 'gemini') return 'google';
     return normalized in YAGR_PROVIDER_DEFINITIONS ? normalized as YagrModelProvider : undefined;
 }

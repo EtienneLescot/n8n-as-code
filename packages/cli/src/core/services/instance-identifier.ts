@@ -41,12 +41,23 @@ export async function resolveN8nIdentity(
     }
 
     const instanceIdentity = await client.getInstanceIdentity?.().catch(() => null);
-    const instanceSeed = instanceIdentity?.id || options.instanceSeed || credentials.host;
+    const normalizedHost = normalizeHostSeed(credentials.host);
+    const instanceSeed = instanceIdentity?.id || options.instanceSeed || normalizedHost;
 
     return {
         instanceIdentifier: createCanonicalInstanceIdentifier(instanceSeed),
         instanceUserIdentifier: createInstanceUserIdentifier(user),
     };
+}
+
+function normalizeHostSeed(host?: string): string | undefined {
+    const trimmed = host?.trim();
+    if (!trimmed) return undefined;
+    try {
+        return new URL(trimmed).origin.toLowerCase();
+    } catch {
+        return trimmed.replace(/\/+$/, '').toLowerCase();
+    }
 }
 
 export async function resolveInstanceIdentifier(

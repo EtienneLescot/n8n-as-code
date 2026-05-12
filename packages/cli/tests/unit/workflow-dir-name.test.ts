@@ -42,6 +42,26 @@ describe('workflow directory names', () => {
         ]));
     });
 
+    it('rejects blank required identity fields', () => {
+        const cases = [
+            { field: 'environmentId', value: '' },
+            { field: 'environmentId', value: '   ' },
+            { field: 'instanceIdentifier', value: '' },
+            { field: 'instanceIdentifier', value: '   ' },
+            { field: 'instanceUserIdentifier', value: '' },
+            { field: 'instanceUserIdentifier', value: '   ' },
+            { field: 'projectId', value: '' },
+            { field: 'projectId', value: '   ' },
+        ] as const;
+
+        for (const testCase of cases) {
+            expect(() => serializeWorkflowDirIdentityV1({
+                ...identity,
+                [testCase.field]: testCase.value,
+            })).toThrow();
+        }
+    });
+
     it('keeps the v1 wordlists at the expected minimum size', () => {
         expect(WORKFLOW_DIR_NAME_ADJECTIVES.length).toBeGreaterThanOrEqual(128);
         expect(WORKFLOW_DIR_NAME_NOUNS.length).toBeGreaterThanOrEqual(256);
