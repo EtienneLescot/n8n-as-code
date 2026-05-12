@@ -61,7 +61,7 @@ function App() {
       <Tab id="about" label="About" active={activeTab} />
     </aside>
     <main className="page">
-      {notice ? <div className={`inline-message ${notice.tone === 'error' ? 'error' : ''}`}>{notice.message}</div> : null}
+      {notice ? <div className={`inline-message notice ${notice.tone === 'error' ? 'error' : ''}`}>{notice.message}</div> : null}
       {activeTab === 'environments' ? <EnvironmentsTab /> : null}
       {activeTab === 'managed-instances' ? <ManagedInstancesTab /> : null}
       {activeTab === 'agent-providers' ? <AgentProvidersTab /> : null}
@@ -97,22 +97,31 @@ function EnvironmentsTab() {
 
 function EnvironmentCard({ env }: { env: any }) {
   const dispatch = useAppDispatch();
+  const activeEnvironmentId = useSelector((state: RootState) => workspace(state).activeEnvironmentId || '');
   const allTargets = useSelector(targets);
   const allInstances = useSelector(instances);
   const jobs = useSelector((state: RootState) => state.jobs);
   const target = allTargets.find((item) => item.id === env.environmentTargetId);
   const access = environmentAccessBadge(env.accessStatus || target?.accessStatus);
   const managed = environmentManagedInstanceStatus(env, target, allInstances, jobs);
-  return <article className="card">
+  const isActive = env.id === activeEnvironmentId;
+  const setActive = () => { if (!isActive) post({ type: 'pinEnvironment', environmentId: env.id }); };
+  return <article className={`card clickable ${isActive ? 'active' : ''}`} role="button" tabIndex={0} aria-label={`${isActive ? 'Active environment' : 'Set active environment'}: ${env.name}`} onClick={setActive} onKeyDown={(event) => {
+    if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar' || event.code === 'Space') {
+      event.preventDefault();
+      setActive();
+    }
+  }}>
+    {isActive ? <span className="active-corner" title="Active environment" aria-label="Active environment">✓</span> : null}
     <div className="card-top">
       <div><h2>{env.name}</h2><p className="subtle">{env.syncFolder || 'workflows'}{env.projectName ? ` · ${env.projectName}` : ''}</p></div>
-      <div className="row">{access ? <span className={`badge ${access.tone}`}>{access.label}</span> : null}</div>
+      <div className="row">{isActive ? <span className="badge active">Active</span> : null}{access ? <span className={`badge ${access.tone}`}>{access.label}</span> : null}</div>
     </div>
     <p className="subtle">{target?.name || env.environmentTargetName || env.url || 'No instance target'}</p>
-    <div className="row">
-      {managed ? <button className={`badge button ${managed.tone}`} aria-label={`Open managed instance ${managed.label}`} onClick={() => dispatch(actions.modalOpened({ kind: 'managed-detail', instanceId: env.managedInstanceId || target?.managedInstanceId }))}>Managed instance: {managed.label}</button> : <span className="badge">Connected instance</span>}
+    <div className="row" onClick={(event) => event.stopPropagation()}>
+      {managed ? <button className={`badge button ${managed.tone}`} aria-label={`Open managed instance details: ${managed.label}`} onClick={() => dispatch(actions.modalOpened({ kind: 'managed-detail', instanceId: env.managedInstanceId || target?.managedInstanceId }))}>Managed instance: {managed.label}</button> : <span className="badge">Connected instance</span>}
       <button className="secondary" onClick={() => { dispatch(actions.environmentDraftOpened({ id: env.id, environment: env })); dispatch(actions.modalOpened({ kind: 'environment', environmentId: env.id })); }}>Edit</button>
-      <button className="secondary" onClick={() => post({ type: 'pinEnvironment', environmentId: env.id })}>Set default</button>
+      {!isActive ? <button className="secondary" onClick={() => post({ type: 'pinEnvironment', environmentId: env.id })}>Set active</button> : null}
       <button className="secondary danger" onClick={() => post({ type: 'deleteEnvironment', environmentId: env.id })}>Delete</button>
     </div>
   </article>;

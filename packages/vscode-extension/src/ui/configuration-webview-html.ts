@@ -27,15 +27,19 @@ export function getConfigurationHtml(nonce: string, scriptUri: string): string {
     .subtle { font-size: 12px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-items: stretch; }
     .panel, .card, .modal-card { border: 1px solid var(--border); background: var(--soft); border-radius: 10px; padding: 14px; display: grid; gap: 12px; }
-    .card { background: var(--vscode-editor-background); border-radius: 14px; height: 100%; grid-template-rows: auto auto 1fr; }
+    .card { background: var(--vscode-editor-background); border-radius: 14px; height: 100%; grid-template-rows: auto auto 1fr; position: relative; }
     .card > .row:last-child { align-self: end; }
     .card.clickable { cursor: pointer; text-align: left; color: inherit; width: 100%; }
     .card.clickable:hover, .card.clickable:focus-visible { border-color: var(--vscode-focusBorder, var(--accent)); outline: 1px solid var(--vscode-focusBorder, var(--accent)); }
+    .card.active { border-color: var(--vscode-focusBorder, var(--accent)); box-shadow: inset 4px 0 0 var(--vscode-focusBorder, var(--accent)); background: color-mix(in srgb, var(--vscode-button-background) 8%, var(--vscode-editor-background)); }
+    .active-corner { position: absolute; top: 8px; left: 8px; width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center; color: var(--vscode-button-foreground); background: var(--accent); font-size: 11px; font-weight: 800; }
+    .card.active .card-top { padding-left: 20px; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .stack { display: grid; gap: 10px; }
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .badge { border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; font-size: 11px; color: var(--muted); background: transparent; min-height: 22px; }
-    .badge.button { cursor: pointer; }
+    .badge.button { cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+    .badge.button::after { content: '↗'; font-size: 10px; opacity: .85; }
     .badge.ready, .badge.started { color: var(--vscode-testing-iconPassed, var(--vscode-foreground)); border-color: color-mix(in srgb, var(--vscode-testing-iconPassed, var(--vscode-foreground)) 55%, var(--border)); }
     .badge.warning, .badge.installing { color: var(--vscode-editorWarning-foreground, var(--vscode-foreground)); border-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, var(--vscode-foreground)) 55%, var(--border)); }
     .badge.error, .badge.failed { color: var(--vscode-errorForeground); border-color: color-mix(in srgb, var(--vscode-errorForeground) 55%, var(--border)); }
@@ -49,6 +53,7 @@ export function getConfigurationHtml(nonce: string, scriptUri: string): string {
     button.danger { background: var(--vscode-errorForeground); color: var(--vscode-editor-background); }
     button.link { min-height: 0; padding: 0; border: 0; background: transparent; color: var(--vscode-textLink-foreground); }
     button:disabled { opacity: .55; cursor: not-allowed; }
+    .notice { justify-self: start; width: auto; max-width: min(520px, 100%); }
     .inline-message { border: 1px solid var(--border); border-radius: 8px; padding: 10px; color: var(--muted); background: color-mix(in srgb, var(--vscode-input-background) 84%, transparent); }
     .inline-message.warning { color: var(--vscode-editorWarning-foreground, var(--vscode-foreground)); }
     .inline-message.error { color: var(--vscode-errorForeground); }
