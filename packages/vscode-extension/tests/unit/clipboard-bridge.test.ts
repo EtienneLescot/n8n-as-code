@@ -144,6 +144,27 @@ test('ProxyService: registered HTML routes are normalized by pathname', () => {
     );
 });
 
+test('ProxyService: redirects use configured public proxy base URL', () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const service = new ProxyService();
+    (service as any).target = 'http://n8n.internal:5678';
+    (service as any).port = 25444;
+    service.setPublicBaseUrl('https://code.example.test/proxy/25444/');
+
+    assert.equal(
+        (service as any).rewriteProxyLocation('http://n8n.internal:5678/workflow/wf-1'),
+        'https://code.example.test/proxy/25444/workflow/wf-1',
+    );
+    assert.equal(
+        (service as any).rewriteProxyLocation('/signin'),
+        'https://code.example.test/proxy/25444/signin',
+    );
+    assert.equal(
+        (service as any).rewriteProxyLocation('https://other.example.test/path'),
+        'https://other.example.test/path',
+    );
+});
+
 // ── 3 : parent webview HTML — grant token & rate-limit markers ──────────────
 // buildWebviewHtml is a pure function (no vscode dependency) that generates
 // the parent-webview HTML. We assert on the security-relevant parts of the

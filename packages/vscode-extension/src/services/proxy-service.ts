@@ -11,6 +11,7 @@ export class ProxyService {
     private wsServer: WebSocketServer | undefined;
     private port: number = 0;
     private target: string = '';
+    private publicBaseUrl: string | undefined;
     private outputChannel: vscode.OutputChannel | undefined;
     private secrets: vscode.SecretStorage | undefined;
 
@@ -29,6 +30,26 @@ export class ProxyService {
 
     public registerHtmlRoute(routePath: string, html: string): void {
         this.htmlRoutes.set(this.normalizeRoutePath(routePath), html);
+    }
+
+    public setPublicBaseUrl(publicBaseUrl: string | undefined): void {
+        const trimmed = publicBaseUrl?.trim();
+        this.publicBaseUrl = trimmed ? trimmed.replace(/\/$/, '') : undefined;
+    }
+
+    private getProxyBaseUrl(): string {
+        return this.publicBaseUrl || `http://localhost:${this.port}`;
+    }
+
+    private rewriteProxyLocation(location: string): string {
+        const proxyBaseUrl = this.getProxyBaseUrl();
+        if (location.startsWith(this.target)) {
+            return `${proxyBaseUrl}${location.slice(this.target.length)}`;
+        }
+        if (location.startsWith('/')) {
+            return `${proxyBaseUrl}${location}`;
+        }
+        return location;
     }
 
     /**
@@ -125,6 +146,7 @@ export class ProxyService {
         // Reset state
         this.cookieJar.clear();
         this.htmlRoutes.clear();
+        this.setPublicBaseUrl(undefined);
         this.target = normalizedTarget;
         this.port = stablePort;
 
@@ -159,14 +181,7 @@ export class ProxyService {
 
             // Rewrite Location header for redirects
             if (proxyRes.headers['location']) {
-                const location = proxyRes.headers['location'];
-                const newLocation = location.startsWith(this.target)
-                    ? location.replace(this.target, `http://localhost:${this.port}`)
-                    : location.startsWith('/')
-                        ? `http://localhost:${this.port}${location}`
-                        : location;
-
-                proxyRes.headers['location'] = newLocation;
+                proxyRes.headers['location'] = this.rewriteProxyLocation(proxyRes.headers['location']);
             }
 
             // CRITICAL: Capture and Fix cookies for iframe/webview context

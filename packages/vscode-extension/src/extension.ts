@@ -1071,27 +1071,30 @@ async function resolveWorkflowWebviewTarget(workflow: IWorkflowStatus): Promise<
         if (workspaceConfig.version === 4) {
             const environment = await configService.prepareEnvironment();
             const n8nBaseUrl = environment.host;
-            const proxyUrl = await proxyService.start(n8nBaseUrl);
+            const proxyUrls = await startWorkflowProxy(n8nBaseUrl);
             const workflowUrl = new URL(`/workflow/${encodeURIComponent(workflow.id)}`, n8nBaseUrl.endsWith('/') ? n8nBaseUrl : `${n8nBaseUrl}/`);
             workflowUrl.searchParams.set('_n8nacBridge', String(Date.now()));
             if (environment.sourceKind === 'managed-instance') {
                 const openTarget = await facade.resolveWorkflowWebviewOpen({
                     workflowId: workflow.id,
-                    proxyBaseUrl: proxyUrl,
+                    proxyBaseUrl: proxyUrls.localBaseUrl,
                     workspaceRoot,
                     workflowUrl: workflowUrl.toString(),
                     instanceId: environment.managedInstanceId,
                 });
                 if (openTarget.routePath && openTarget.autoLoginPageHtml) {
-                    proxyService.registerHtmlRoute(openTarget.routePath, openTarget.autoLoginPageHtml);
+                    proxyService.registerHtmlRoute(openTarget.routePath, externalizeProxyHtml(openTarget.autoLoginPageHtml, proxyUrls));
                     outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} in environment ${environment.environmentName} through managed auto-login route.`);
                 } else {
                     outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} in environment ${environment.environmentName} through direct route.`);
                 }
-                return { url: openTarget.url, targetUrl: openTarget.targetUrl };
+                return {
+                    url: externalizeProxyUrl(openTarget.url, proxyUrls),
+                    targetUrl: externalizeProxyUrl(openTarget.targetUrl, proxyUrls),
+                };
             }
             outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} in external-instance workspace environment ${environment.environmentName}.`);
-            return { url: `${proxyUrl}/workflow/${encodeURIComponent(workflow.id)}?${workflowUrl.searchParams.toString()}`, targetUrl: workflowUrl.toString() };
+            return { url: `${proxyUrls.publicBaseUrl}/workflow/${encodeURIComponent(workflow.id)}?${workflowUrl.searchParams.toString()}`, targetUrl: workflowUrl.toString() };
         }
     }
     const prepared = await facade.prepareEffectiveContext({
@@ -1105,24 +1108,71 @@ async function resolveWorkflowWebviewTarget(workflow: IWorkflowStatus): Promise<
     }
     const effective = prepared.context;
     const n8nBaseUrl = effective.apiBaseUrl ?? effective.host;
-    const proxyUrl = await proxyService.start(n8nBaseUrl);
+    const proxyUrls = await startWorkflowProxy(n8nBaseUrl);
     const workflowUrl = new URL(`/workflow/${encodeURIComponent(workflow.id)}`, n8nBaseUrl.endsWith('/') ? n8nBaseUrl : `${n8nBaseUrl}/`);
     workflowUrl.searchParams.set('_n8nacBridge', String(Date.now()));
     const openTarget = await facade.resolveWorkflowWebviewOpen({
         workflowId: workflow.id,
-        proxyBaseUrl: proxyUrl,
+        proxyBaseUrl: proxyUrls.localBaseUrl,
         workspaceRoot,
         workflowUrl: workflowUrl.toString(),
     });
 
     if (openTarget.routePath && openTarget.autoLoginPageHtml) {
-        proxyService.registerHtmlRoute(openTarget.routePath, openTarget.autoLoginPageHtml);
+        proxyService.registerHtmlRoute(openTarget.routePath, externalizeProxyHtml(openTarget.autoLoginPageHtml, proxyUrls));
         outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} through managed auto-login webview route.`);
     } else {
         outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} through direct webview route.`);
     }
 
-    return { url: openTarget.url, targetUrl: openTarget.targetUrl };
+    return {
+        url: externalizeProxyUrl(openTarget.url, proxyUrls),
+        targetUrl: externalizeProxyUrl(openTarget.targetUrl, proxyUrls),
+    };
+}
+
+type WorkflowProxyUrls = {
+    localBaseUrl: string;
+    publicBaseUrl: string;
+};
+
+async function startWorkflowProxy(n8nBaseUrl: string): Promise<WorkflowProxyUrls> {
+    const localProxyUrl = await proxyService.start(n8nBaseUrl);
+    const publicProxyUrl = await resolveWebviewProxyBaseUrl(localProxyUrl);
+    proxyService.setPublicBaseUrl(publicProxyUrl);
+    return {
+        localBaseUrl: localProxyUrl.replace(/\/$/, ''),
+        publicBaseUrl: publicProxyUrl,
+    };
+}
+
+function externalizeProxyUrl(url: string, proxyUrls: WorkflowProxyUrls): string {
+    if (proxyUrls.publicBaseUrl === proxyUrls.localBaseUrl || !url.startsWith(proxyUrls.localBaseUrl)) {
+        return url;
+    }
+    return `${proxyUrls.publicBaseUrl}${url.slice(proxyUrls.localBaseUrl.length)}`;
+}
+
+function externalizeProxyHtml(html: string, proxyUrls: WorkflowProxyUrls): string {
+    if (proxyUrls.publicBaseUrl === proxyUrls.localBaseUrl) {
+        return html;
+    }
+    return html.split(proxyUrls.localBaseUrl).join(proxyUrls.publicBaseUrl);
+}
+
+async function resolveWebviewProxyBaseUrl(localProxyUrl: string): Promise<string> {
+    const normalizedLocalProxyUrl = localProxyUrl.replace(/\/$/, '');
+    try {
+        const externalUri = await vscode.env.asExternalUri(vscode.Uri.parse(normalizedLocalProxyUrl));
+        const externalProxyUrl = externalUri.toString(true).replace(/\/$/, '');
+        if (externalProxyUrl !== normalizedLocalProxyUrl) {
+            outputChannel.appendLine(`[n8n] Exposed workflow proxy for webview: ${externalProxyUrl}`);
+        }
+        return externalProxyUrl;
+    } catch (error: any) {
+        outputChannel.appendLine(`[n8n] Failed to resolve external workflow proxy URL; using local URL. ${error?.message || String(error)}`);
+        return normalizedLocalProxyUrl;
+    }
 }
 
 function updateContextKeys() {
