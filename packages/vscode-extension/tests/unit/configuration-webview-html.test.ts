@@ -1,19 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert';
 
-test('Configuration webview HTML: embedded script parses', () => {
+test('Configuration webview HTML: renders bundled React shell with CSP nonce', () => {
     const { getConfigurationHtml } = require('../../src/ui/configuration-webview-html.js');
-    const html: string = getConfigurationHtml('nonce');
-    const script = html.match(/<script[^>]*>([\s\S]*)<\/script>/)?.[1];
+    const html: string = getConfigurationHtml('nonce', 'vscode-resource://settings-webview.js');
 
-    assert.ok(script, 'Must render an embedded webview script');
-    assert.doesNotThrow(() => new Function(script));
-    assert.ok(script.includes("split('\\\\').join('/')"), 'Must preserve backslash normalization in generated JavaScript');
-    assert.ok(script.includes("selected.mode === 'managed' ? '' : normalizeHost(els.environmentRemoteUrl.value)"), 'Managed environment selection must not be treated as typed remote URL');
-    assert.ok(script.includes("selected.mode === 'managed' ? '' : selected.url || ''"), 'Managed environment selection must keep the remote URL input empty');
-    assert.ok(script.includes("url: isManagedTarget ? '' : target.kind === 'external-instance'"), 'Managed environment targets must not expose a remote URL candidate');
-    assert.ok(script.includes("Stored API key will be reused"), 'Stored external API keys must be represented clearly in the environment form');
-    assert.ok(script.includes("apiKey: selected.mode === 'remote' && !environmentApiKeyMasked ? els.environmentApiKey.value : ''"), 'Masked stored API keys must not be submitted as literal password text');
-    assert.ok(script.includes('const storedApiKeyAvailable = environmentApiKeyMasked || selected.apiKeyAvailable'), 'Masked API keys must count as available credentials');
-    assert.ok(script.includes("const shouldSendTypedCredentials = selected.source === 'manual' || typedHostReplacesStored || Boolean(typedApiKey)"), 'Prefilled target URLs must not force manual credential submission');
+    assert.ok(html.includes("script-src 'nonce-nonce'"), 'CSP must require the generated nonce');
+    assert.ok(html.includes('<div id="root"></div>'), 'React root must be present');
+    assert.ok(html.includes('<script nonce="nonce" src="vscode-resource://settings-webview.js"></script>'), 'Bundled webview script must be loaded with nonce');
+    assert.ok(!html.includes('external instance'), 'Shell must not expose legacy external instance copy');
+    assert.ok(!html.includes('existing instance'), 'Shell must not expose legacy existing instance copy');
 });

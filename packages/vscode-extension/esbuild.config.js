@@ -283,4 +283,13 @@ const localOpenBridgeBuild = esbuild.build({
     plugins: [preserveManagerCoreEntrypointResolution]
 });
 
-Promise.all([extensionBuild, localOpenBridgeBuild]).catch(() => process.exit(1));
+const settingsWebviewBuild = esbuild.build({
+    entryPoints: ['./src/ui/settings-webview/app.tsx'],
+    bundle: true,
+    outfile: 'out/settings-webview.js',
+    format: 'iife',
+    platform: 'browser',
+    target: ['es2022'],
+});
+
+Promise.all([extensionBuild, localOpenBridgeBuild, settingsWebviewBuild]).catch(() => process.exit(1));

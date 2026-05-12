@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { randomUUID } from 'crypto';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
 import { ConfigService, resolveInstanceIdentifier } from 'n8nac';
 import { getWorkspaceRoot } from '../utils/state-detection.js';
@@ -7,6 +8,18 @@ import { YagrProviderService, normalizeYagrProviderId, type YagrModelProvider } 
 import { getConfigurationHtml } from './configuration-webview-html.js';
 import { runWorkspaceMigrationFromVscode } from '../services/workspace-migration-runner.js';
 import { loadProjectsForConfigurationWebview } from './configuration-webview-projects.js';
+
+type ManagedSetupJob = {
+  instanceId: string;
+  instanceName?: string;
+  status: 'installing' | 'succeeded' | 'failed' | 'cancelling' | 'cancelled';
+  message?: string;
+  error?: string;
+  returnToEnvironmentForm?: boolean;
+  cancellationRequested?: boolean;
+  startedAt: number;
+  completedAt?: number;
+};
 
 function normalizeHost(host: string): string {
   const trimmed = (host || '').trim();
@@ -62,6 +75,7 @@ export class ConfigurationWebview {
   private readonly _disposables: vscode.Disposable[] = [];
   private _stateVersion = 0;
   private _initialTab: string | undefined;
+  private readonly _managedSetupJobs = new Map<string, ManagedSetupJob>();
 
   private constructor(
     panel: vscode.WebviewPanel,
@@ -148,11 +162,37 @@ export class ConfigurationWebview {
         }
 
         case 'loadProjects': {
-          this._panel.webview.postMessage(await loadProjectsForConfigurationWebview(payload, {
-            workspaceRoot,
-            workspaceFacade: facade,
-            globalFacade,
-          }));
+          try {
+            const result = await loadProjectsForConfigurationWebview(payload, {
+              workspaceRoot,
+              workspaceFacade: facade,
+              globalFacade,
+            });
+            this._panel.webview.postMessage({ ...result, draftId: payload.draftId });
+          } catch (error: any) {
+            this._panel.webview.postMessage({
+              type: 'projectsError',
+              draftId: payload.draftId,
+              message: error?.message || 'Unable to load projects.',
+            });
+          }
+          return;
+        }
+
+        case 'createManagedInstance': {
+          await this.createManagedInstance(payload, globalFacade);
+          return;
+        }
+
+        case 'cancelManagedInstanceSetup': {
+          const instanceId = String(payload.instanceId || '').trim();
+          if (!instanceId) throw new Error('Instance is required.');
+          const job = this._managedSetupJobs.get(instanceId);
+          if (!job || !['installing', 'cancelling'].includes(job.status)) return;
+          job.status = 'cancelling';
+          job.cancellationRequested = true;
+          job.message = 'Cancellation requested. Waiting for setup to stop safely.';
+          await this.postSetupJob(job);
           return;
         }
 
@@ -629,6 +669,114 @@ export class ConfigurationWebview {
     return [];
   }
 
+  private hasActiveManagedSetup(): boolean {
+    return [...this._managedSetupJobs.values()].some((job) => job.status === 'installing' || job.status === 'cancelling');
+  }
+
+  private async createManagedInstance(
+    payload: Record<string, unknown>,
+    facade: ReturnType<typeof createN8nManagerFacade>,
+  ): Promise<void> {
+    if (this.hasActiveManagedSetup()) {
+      throw new Error('Another managed instance is installing. Wait for it to finish or cancel it.');
+    }
+
+    const instanceId = String(payload.instanceId || '').trim() || `managed-${randomUUID().slice(0, 8)}`;
+    const instanceName = String(payload.instanceName || '').trim() || 'managed';
+    const tunnel = Boolean(payload.tunnel);
+    const setActive = Boolean(payload.setActive);
+    const returnToEnvironmentForm = Boolean(payload.returnToEnvironmentForm);
+
+    await facade.upsertInstance({
+      id: instanceId,
+      name: instanceName,
+      mode: 'managed-local-docker',
+      publicUrlEnabled: tunnel,
+    } as any, { setActive });
+
+    const job: ManagedSetupJob = {
+      instanceId,
+      instanceName,
+      status: 'installing',
+      message: 'Managed instance is installing.',
+      returnToEnvironmentForm,
+      startedAt: Date.now(),
+    };
+    this._managedSetupJobs.set(instanceId, job);
+
+    const snapshot = await this._configurationController.refresh('webview-create-managed-placeholder', { force: true });
+    await this.postInitialState(snapshot);
+    this._panel.webview.postMessage({ type: 'managedInstanceCreated', instanceId, instanceName, returnToEnvironmentForm });
+    void this.runManagedSetupJob(job, { tunnel, setActive });
+  }
+
+  private async runManagedSetupJob(job: ManagedSetupJob, options: { tunnel: boolean; setActive: boolean }): Promise<void> {
+    const facade = createN8nManagerFacade({});
+    const previousActive = options.setActive ? undefined : await facade.getGlobalActiveInstance().catch(() => undefined);
+    try {
+      await this.postSetupJob(job);
+      const instance = await facade.setup({
+        mode: 'managed-local',
+        instanceId: job.instanceId,
+        instanceName: job.instanceName,
+        tunnel: options.tunnel,
+      });
+
+      if (job.cancellationRequested) {
+        job.status = 'cancelled';
+        job.message = 'Setup was cancelled.';
+        job.completedAt = Date.now();
+        await facade.deleteInstance(job.instanceId).catch(() => undefined);
+        await this._configurationController.refresh('webview-managed-setup-cancelled', { force: true });
+        await this.postSetupJob(job);
+        return;
+      }
+
+      if (job.instanceName) {
+        await facade.upsertInstance({
+          id: instance.id,
+          name: job.instanceName,
+          publicUrlEnabled: options.tunnel,
+        } as any, { setActive: options.setActive });
+      }
+      if (!options.setActive && previousActive?.id && previousActive.id !== instance.id) {
+        await facade.setGlobalActiveInstance(previousActive.id).catch(() => undefined);
+      }
+      job.status = 'succeeded';
+      job.message = 'Managed instance is ready.';
+      job.completedAt = Date.now();
+      const snapshot = await this._configurationController.refresh('webview-managed-setup-succeeded', { force: true });
+      await this.postInitialState(snapshot);
+      await this.postSetupJob(job);
+      if (Array.isArray((instance as any).warnings) && (instance as any).warnings.length) {
+        this._panel.webview.postMessage({ type: 'error', message: (instance as any).warnings.join('\n') });
+      }
+    } catch (error: any) {
+      job.status = job.cancellationRequested ? 'cancelled' : 'failed';
+      job.error = error?.message || 'Managed instance setup failed.';
+      job.message = job.status === 'cancelled' ? 'Setup was cancelled.' : job.error;
+      job.completedAt = Date.now();
+      await facade.upsertInstance({
+        id: job.instanceId,
+        name: job.instanceName,
+        mode: 'managed-local-docker',
+        publicUrlEnabled: options.tunnel,
+      } as any, { setActive: options.setActive }).catch(() => undefined);
+      await this._configurationController.refresh('webview-managed-setup-failed', { force: true }).catch(() => undefined);
+      await this.postSetupJob(job);
+    }
+  }
+
+  private async postSetupJob(job: ManagedSetupJob): Promise<void> {
+    this._panel.webview.postMessage({ type: 'setupJob', job: this.serializeSetupJob(job) });
+    await this.postInitialState().catch(() => undefined);
+  }
+
+  private serializeSetupJob(job: ManagedSetupJob): Omit<ManagedSetupJob, 'cancellationRequested'> {
+    const { cancellationRequested: _cancellationRequested, ...serialized } = job;
+    return serialized;
+  }
+
   private async postInitialState(snapshot?: N8nConfigurationSnapshot): Promise<void> {
     const stateVersion = ++this._stateVersion;
     const currentSnapshot = snapshot ?? this._configurationController.getSnapshot()
@@ -707,6 +855,7 @@ export class ConfigurationWebview {
         sources: effectiveContext.sources,
       } : undefined,
       providers: await this._providerService.listProviderConnectionStates(),
+      setupJobs: Object.fromEntries([...this._managedSetupJobs.entries()].map(([id, job]) => [id, this.serializeSetupJob(job)])),
       about: {
         extensionVersion: String(this._context.extension.packageJSON?.version || ''),
         cliVersion: String(this._context.extension.packageJSON?.dependencies?.n8nac || ''),
@@ -719,6 +868,7 @@ export class ConfigurationWebview {
   }
 
   private getHtmlForWebview(): string {
-    return getConfigurationHtml(getNonce());
+    const scriptUri = this._panel.webview.asWebviewUri(vscode.Uri.joinPath(this._context.extensionUri, 'out', 'settings-webview.js'));
+    return getConfigurationHtml(getNonce(), scriptUri.toString());
   }
 }
