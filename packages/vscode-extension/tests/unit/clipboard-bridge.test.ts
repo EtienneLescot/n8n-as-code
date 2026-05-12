@@ -184,8 +184,20 @@ test('ProxyService: redirects match target base paths on URL boundaries', () => 
         'https://code.example.test/proxy/25444/workflow/wf-1?x=1#node',
     );
     assert.equal(
+        (service as any).rewriteProxyLocation('/base/workflow/wf-1?x=1#node'),
+        'https://code.example.test/proxy/25444/workflow/wf-1?x=1#node',
+    );
+    assert.equal(
+        (service as any).rewriteProxyLocation('/base?x=1'),
+        'https://code.example.test/proxy/25444?x=1',
+    );
+    assert.equal(
         (service as any).rewriteProxyLocation('https://n8n.example.test/baseline/workflow/wf-1'),
         'https://n8n.example.test/baseline/workflow/wf-1',
+    );
+    assert.equal(
+        (service as any).rewriteProxyLocation('/baseline/workflow/wf-1'),
+        'https://code.example.test/proxy/25444/baseline/workflow/wf-1',
     );
 });
 

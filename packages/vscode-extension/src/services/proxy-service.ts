@@ -43,23 +43,26 @@ export class ProxyService {
 
     private rewriteProxyLocation(location: string): string {
         const proxyBaseUrl = this.getProxyBaseUrl();
-        if (location.startsWith('/') && !location.startsWith('//')) {
-            return `${proxyBaseUrl}${location}`;
-        }
-
         try {
-            const locationUrl = new URL(location);
             const targetUrl = new URL(this.target);
+            const targetBasePath = this.trimTrailingSlash(targetUrl.pathname);
+
+            if (location.startsWith('/') && !location.startsWith('//')) {
+                const locationUrl = new URL(location, targetUrl.origin);
+                const remainingPath = this.stripTargetBasePath(locationUrl.pathname, targetBasePath);
+                return `${proxyBaseUrl}${remainingPath}${locationUrl.search}${locationUrl.hash}`;
+            }
+
+            const locationUrl = new URL(location);
             if (locationUrl.origin !== targetUrl.origin) {
                 return location;
             }
 
-            const targetBasePath = this.trimTrailingSlash(targetUrl.pathname);
             if (!this.urlPathMatchesBase(locationUrl.pathname, targetBasePath)) {
                 return location;
             }
 
-            const remainingPath = targetBasePath ? locationUrl.pathname.slice(targetBasePath.length) : locationUrl.pathname === '/' ? '' : locationUrl.pathname;
+            const remainingPath = this.stripTargetBasePath(locationUrl.pathname, targetBasePath);
             return `${proxyBaseUrl}${remainingPath}${locationUrl.search}${locationUrl.hash}`;
         } catch {
             return location;
@@ -73,6 +76,16 @@ export class ProxyService {
 
     private urlPathMatchesBase(pathname: string, basePath: string): boolean {
         return !basePath || pathname === basePath || pathname.startsWith(`${basePath}/`);
+    }
+
+    private stripTargetBasePath(pathname: string, basePath: string): string {
+        if (!this.urlPathMatchesBase(pathname, basePath)) {
+            return pathname;
+        }
+        if (!basePath) {
+            return pathname === '/' ? '' : pathname;
+        }
+        return pathname.slice(basePath.length);
     }
 
     /**
