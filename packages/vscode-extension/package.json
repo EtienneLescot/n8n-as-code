@@ -335,7 +335,6 @@
             "mistral",
             "openrouter",
             "openai-oauth",
-            "anthropic-proxy",
             "copilot-proxy",
             "minimax",
             "minimax-token-plan",

@@ -8,7 +8,6 @@ export type YagrModelProvider =
     | 'mistral'
     | 'openrouter'
     | 'openai-oauth'
-    | 'anthropic-proxy'
     | 'copilot-proxy'
     | 'minimax'
     | 'minimax-token-plan'
@@ -134,16 +133,6 @@ export const YAGR_PROVIDER_DEFINITIONS: Record<YagrModelProvider, YagrProviderDe
         requiresApiKey: false,
         authKind: 'oauth-device',
         envKeys: [],
-        canDiscoverModels: true,
-    },
-    'anthropic-proxy': {
-        id: 'anthropic-proxy',
-        label: 'Claude Account',
-        description: 'Claude setup-token',
-        defaultModel: 'claude-haiku-4-5',
-        requiresApiKey: false,
-        authKind: 'setup-token',
-        envKeys: ['YAGR_ANTHROPIC_SETUP_TOKEN'],
         canDiscoverModels: true,
     },
     'copilot-proxy': {
@@ -401,7 +390,7 @@ export class YagrProviderService {
             return [];
         }
 
-        if (provider === 'anthropic' || provider === 'anthropic-proxy') {
+        if (provider === 'anthropic') {
             return this.fetchJsonModels('https://api.anthropic.com/v1/models', { 'x-api-key': apiKey || '', 'anthropic-version': '2023-06-01' });
         }
         if (provider === 'google') {

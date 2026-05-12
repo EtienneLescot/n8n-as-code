@@ -303,7 +303,6 @@ const YAGR_MODEL_PROVIDERS = Object.freeze([
     'mistral',
     'openrouter',
     'openai-oauth',
-    'anthropic-proxy',
     'copilot-proxy',
     'minimax',
     'minimax-token-plan',
@@ -317,7 +316,6 @@ const YAGR_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     mistral: 'Mistral API',
     openrouter: 'OpenRouter API',
     'openai-oauth': 'OpenAI ChatGPT OAuth',
-    'anthropic-proxy': 'Claude Account',
     'copilot-proxy': 'GitHub Copilot OAuth',
     minimax: 'MiniMax API',
     'minimax-token-plan': 'MiniMax Token Plan',
@@ -983,7 +981,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                 temperature: 0,
             };
         }
-        if (providerRegistry.providerRequiresApiKey(normalizedProvider) && !apiKey && normalizedProvider !== 'openai-oauth' && normalizedProvider !== 'copilot-proxy' && normalizedProvider !== 'anthropic-proxy') {
+        if (providerRegistry.providerRequiresApiKey(normalizedProvider) && !apiKey && normalizedProvider !== 'openai-oauth' && normalizedProvider !== 'copilot-proxy') {
             return {
                 ready: false,
                 reason: `Missing API key for ${providerRegistry.getProviderDisplayName(normalizedProvider)}. Open Settings > Agent Providers to connect it.`,
