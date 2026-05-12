@@ -291,7 +291,27 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'agent.session.new') {
-            await this.postWorkbenchState(await this._agentRuntime.createSession(this.buildWorkbenchInput()));
+            const workflow = this.sanitizeWorkflowContext(payload.workflow);
+            const input = workflow
+                ? {
+                    ...this.buildWorkbenchInput(),
+                    workflowId: workflow.id,
+                    workflowName: workflow.name,
+                    workflowFilename: workflow.filename,
+                    workflowFilePath: workflow.filePath,
+                    nodeContext: undefined,
+                    nodeContexts: undefined,
+                }
+                : {
+                    ...this.buildWorkbenchInput(),
+                    workflowId: undefined,
+                    workflowName: undefined,
+                    workflowFilename: undefined,
+                    workflowFilePath: undefined,
+                    nodeContext: undefined,
+                    nodeContexts: undefined,
+                };
+            await this.postWorkbenchState(await this._agentRuntime.createSession(input));
             return;
         }
 

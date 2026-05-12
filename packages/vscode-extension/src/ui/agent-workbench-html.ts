@@ -378,6 +378,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             text-decoration: underline;
         }
         .header-actions {
+            position: relative;
             display: flex;
             gap: 8px;
             align-items: center;
@@ -612,6 +613,13 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             right: 0;
             width: 220px;
         }
+        .inline-popover.new-session {
+            left: auto;
+            right: 0;
+            top: calc(100% + 8px);
+            bottom: auto;
+            width: min(340px, calc(100vw - 28px));
+        }
         .inline-popover-head {
             display: flex;
             justify-content: space-between;
@@ -662,6 +670,11 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         .inline-popover-foot {
             padding: 7px 10px;
             border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+        }
+        .inline-divider {
+            height: 1px;
+            margin: 4px 6px;
+            background: color-mix(in srgb, var(--border) 72%, transparent);
         }
         .inline-link {
             width: auto;
@@ -958,6 +971,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                         <button id="checkpoint-open" class="ghost small icon-button" type="button" title="Checkpoints" aria-label="Checkpoints">${checkpointIcon}</button>
                         <button id="history-open" class="ghost small icon-button" type="button" title="Conversation history" aria-label="Conversation history">${historyIcon}</button>
                         <button id="new-session-header" class="ghost small icon-button" type="button" title="New conversation" aria-label="New conversation">${newConversationIcon}</button>
+                        <div id="new-session-menu" class="inline-popover new-session" role="menu" aria-label="Start new conversation"></div>
                     </div>
                 </div>
             </header>
@@ -1052,6 +1066,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         let providerMenuProvider = '';
         let modelSearchQuery = '';
         let reasoningMenuOpen = false;
+        let newSessionMenuOpen = false;
         let autoScrollFeed = true;
 
         const OP_ICONS = {
@@ -1092,6 +1107,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const contextMeterFill = document.getElementById('context-meter-fill');
         const newSessionButton = document.getElementById('new-session');
         const newSessionHeaderButton = document.getElementById('new-session-header');
+        const newSessionMenu = document.getElementById('new-session-menu');
         const checkpointOpenButton = document.getElementById('checkpoint-open');
         const checkpointCloseButton = document.getElementById('checkpoint-close');
         const checkpointOverlay = document.getElementById('checkpoint-overlay');
@@ -1407,8 +1423,67 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         function closeInlineMenus() {
             providerMenuOpen = false;
             reasoningMenuOpen = false;
+            newSessionMenuOpen = false;
             if (providerMenu) providerMenu.classList.remove('open');
             if (reasoningMenu) reasoningMenu.classList.remove('open');
+            if (newSessionMenu) newSessionMenu.classList.remove('open');
+        }
+
+        function workflowKey(workflow) {
+            return workflow && (workflow.id || workflow.filename || workflow.name || '');
+        }
+
+        function renderNewSessionMenu() {
+            if (!newSessionMenu || !state) return;
+            newSessionMenu.innerHTML = '';
+
+            const head = document.createElement('div');
+            head.className = 'inline-popover-head';
+            head.innerHTML = '<strong>New conversation</strong><span>Select context</span>';
+            newSessionMenu.appendChild(head);
+
+            const list = document.createElement('div');
+            list.className = 'inline-popover-list';
+            if (currentWorkflowContext) {
+                const current = inlineOption('This workflow', currentWorkflowContext.name || 'Current workflow', 'Current', 'workflow');
+                current.addEventListener('click', () => startNewSession(currentWorkflowContext));
+                list.appendChild(current);
+            }
+
+            const blank = inlineOption('New workflow', 'Start without workflow context', '', 'workflow');
+            blank.addEventListener('click', () => startNewSession(null));
+            list.appendChild(blank);
+
+            const workflows = Array.isArray(state.availableWorkflows) ? state.availableWorkflows : [];
+            if (workflows.length) {
+                const divider = document.createElement('div');
+                divider.className = 'inline-divider';
+                list.appendChild(divider);
+            }
+            const currentKey = workflowKey(currentWorkflowContext);
+            for (const workflow of workflows) {
+                const key = workflowKey(workflow);
+                if (currentKey && key && key === currentKey) continue;
+                const label = workflow.name || workflow.id || workflow.filename || 'Workflow';
+                const detail = [workflow.filename, workflow.id].filter(Boolean).join(' · ') || 'Existing workflow';
+                const option = inlineOption(label, detail, '', 'workflow');
+                option.addEventListener('click', () => startNewSession(workflow));
+                list.appendChild(option);
+            }
+
+            newSessionMenu.appendChild(list);
+            newSessionMenu.classList.toggle('open', newSessionMenuOpen);
+        }
+
+        function openNewSessionMenu() {
+            closeHistory();
+            closeCheckpointPanel();
+            providerMenuOpen = false;
+            reasoningMenuOpen = false;
+            newSessionMenuOpen = !newSessionMenuOpen;
+            if (providerMenu) providerMenu.classList.remove('open');
+            if (reasoningMenu) reasoningMenu.classList.remove('open');
+            renderNewSessionMenu();
         }
 
         function connectedProviders() {
@@ -1607,6 +1682,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             selectReasoningButton.style.display = state.supportsReasoningEffort ? 'inline-block' : 'none';
             renderProviderMenu();
             renderReasoningMenu();
+            renderNewSessionMenu();
             const usage = state.session && state.session.contextUsage;
             if (!usage || usage.source !== 'api') {
                 contextPill.classList.remove('active');
@@ -2014,6 +2090,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             if (!(target instanceof Node)) return;
             if (providerMenu && (providerMenu.contains(target) || selectModelButton.contains(target))) return;
             if (reasoningMenu && (reasoningMenu.contains(target) || selectReasoningButton.contains(target))) return;
+            if (newSessionMenu && (newSessionMenu.contains(target) || newSessionHeaderButton.contains(target))) return;
             closeInlineMenus();
         }, true);
         on(promptInput, 'input', renderMentionMenu);
@@ -2049,14 +2126,15 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             renderProviderMenu();
             renderReasoningMenu();
         });
-        function startNewSession() {
+        function startNewSession(workflow) {
             closeHistory();
             closeCheckpointPanel();
-            vscode.postMessage({ type: 'agent.session.new' });
+            closeInlineMenus();
+            vscode.postMessage({ type: 'agent.session.new', workflow });
         }
 
-        on(newSessionButton, 'click', startNewSession);
-        on(newSessionHeaderButton, 'click', startNewSession);
+        on(newSessionButton, 'click', openNewSessionMenu);
+        on(newSessionHeaderButton, 'click', openNewSessionMenu);
         on(checkpointSaveButton, 'click', () => {
             if (!state || !state.activeSessionId || isRunning) return;
             vscode.postMessage({ type: 'agent.checkpoint.save', sessionId: state.activeSessionId });
