@@ -24,7 +24,8 @@ Use `{{N8NAC_CMD}}` as the primary interface. Use `{{N8N_MANAGER_CMD}}` only for
 {{N8NAC_CMD}} env status --json
 ```
 
-- Use the returned `workflowDir` for workflow files. Do not reconstruct it from `syncFolder`, `instanceIdentifier`, or `projectName`.
+- Use the returned `workflowDir` for workflow files. Treat it as an opaque backend-derived path that may contain generated or hashed segments.
+- `syncFolder` is only the user-configured sync root, not the workflow directory. Do not reconstruct `workflowDir` from `syncFolder`, environment name/id, `instanceIdentifier`, `instanceUserIdentifier`, `projectId`, or `projectName`.
 - Never write `n8nac-config.json`, `~/.n8n-manager`, or n8n-manager secret files by hand.
 
 ## Workspace Readiness
@@ -81,7 +82,7 @@ Migration is one user-facing command. Do not reason about internal migration pha
 10. Configure the environment with:
 
 ```bash
-{{N8NAC_CMD}} env add <name> --base-url <url> --sync-folder workflows/<name>
+{{N8NAC_CMD}} env add <name> --base-url <url> --sync-folder workflows
 {{N8NAC_CMD}} env auth set <name> --api-key-stdin
 {{N8NAC_CMD}} env use <name>
 ```
@@ -89,7 +90,7 @@ Migration is one user-facing command. Do not reason about internal migration pha
 For a managed local instance:
 
 ```bash
-{{N8NAC_CMD}} env add Local --managed-instance <id> --sync-folder workflows/local
+{{N8NAC_CMD}} env add Local --managed-instance <id> --sync-folder workflows
 {{N8NAC_CMD}} env use Local
 ```
 
@@ -102,7 +103,7 @@ Use `{{N8NAC_CMD}} env ...` for workspace environments, remote URLs, active envi
 ```bash
 {{N8NAC_CMD}} env status --json
 {{N8NAC_CMD}} env list
-{{N8NAC_CMD}} env add <name> --base-url <url> --sync-folder workflows/<name>
+{{N8NAC_CMD}} env add <name> --base-url <url> --sync-folder workflows
 {{N8NAC_CMD}} env auth set <name> --api-key-stdin
 {{N8NAC_CMD}} env use <name>
 ```
@@ -116,7 +117,7 @@ Use `{{N8NAC_CMD}} env ...` for workspace environments, remote URLs, active envi
 Attach a managed local instance to the workspace with `{{N8NAC_CMD}} env ...`:
 
 ```bash
-{{N8NAC_CMD}} env add Local --managed-instance <id> --sync-folder workflows/local
+{{N8NAC_CMD}} env add Local --managed-instance <id> --sync-folder workflows
 {{N8NAC_CMD}} env use Local
 ```
 

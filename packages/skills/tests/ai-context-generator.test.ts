@@ -46,6 +46,11 @@ describe('AiContextGenerator', () => {
             expect(agentsContent.indexOf('workspace migrate --json')).toBeLessThan(agentsContent.indexOf('workspace status --json'));
             expect(agentsContent).toContain('npx --yes @n8n-as-code/n8n-manager');
             expect(agentsContent).toContain('Use the returned `workflowDir` exactly as provided.');
+            expect(agentsContent).toContain('Treat it as an opaque backend-derived path');
+            expect(agentsContent).toContain('`syncFolder` is only the user-configured sync root');
+            expect(agentsContent).toContain('instance user identifier');
+            expect(architectSkillPath && fs.readFileSync(architectSkillPath, 'utf-8')).toContain('--sync-folder workflows');
+            expect(architectSkillPath && fs.readFileSync(architectSkillPath, 'utf-8')).not.toContain('--sync-folder workflows/<name>');
             expect(agentsContent).toContain('<!-- n8n-as-code-end -->');
         });
 

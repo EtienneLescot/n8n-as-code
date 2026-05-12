@@ -24,7 +24,8 @@ Use `npx --yes n8nac` as the primary interface. Use `npx --yes @n8n-as-code/n8n-
 npx --yes n8nac env status --json
 ```
 
-- Use the returned `workflowDir` for workflow files. Do not reconstruct it from `syncFolder`, `instanceIdentifier`, or `projectName`.
+- Use the returned `workflowDir` for workflow files. Treat it as an opaque backend-derived path that may contain generated or hashed segments.
+- `syncFolder` is only the user-configured sync root, not the workflow directory. Do not reconstruct `workflowDir` from `syncFolder`, environment name/id, `instanceIdentifier`, `instanceUserIdentifier`, `projectId`, or `projectName`.
 - Never write `n8nac-config.json`, `~/.n8n-manager`, or n8n-manager secret files by hand.
 
 ## Workspace Readiness
@@ -81,7 +82,7 @@ npx --yes n8nac env status --json
 10. Configure the environment with:
 
 ```bash
-npx --yes n8nac env add <name> --base-url <url> --sync-folder workflows/<name>
+npx --yes n8nac env add <name> --base-url <url> --sync-folder workflows
 npx --yes n8nac env auth set <name> --api-key-stdin
 npx --yes n8nac env use <name>
 ```
@@ -89,7 +90,7 @@ npx --yes n8nac env use <name>
 For a managed local instance:
 
 ```bash
-npx --yes n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+npx --yes n8nac env add Local --managed-instance <id> --sync-folder workflows
 npx --yes n8nac env use Local
 ```
 
@@ -102,7 +103,7 @@ Use `npx --yes n8nac env ...` for workspace environments, remote URLs, active en
 ```bash
 npx --yes n8nac env status --json
 npx --yes n8nac env list
-npx --yes n8nac env add <name> --base-url <url> --sync-folder workflows/<name>
+npx --yes n8nac env add <name> --base-url <url> --sync-folder workflows
 npx --yes n8nac env auth set <name> --api-key-stdin
 npx --yes n8nac env use <name>
 ```
@@ -116,7 +117,7 @@ npx --yes n8nac env use <name>
 Attach a managed local instance to the workspace with `npx --yes n8nac env ...`:
 
 ```bash
-npx --yes n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+npx --yes n8nac env add Local --managed-instance <id> --sync-folder workflows
 npx --yes n8nac env use Local
 ```
 
