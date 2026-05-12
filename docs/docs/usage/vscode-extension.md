@@ -14,7 +14,7 @@ The extension is the recommended n8n-as-code experience. It adds an n8n sidebar,
 2. Open a folder or `.code-workspace`.
 3. Click the **n8n** icon in the Activity Bar.
 4. Run **n8n: Configure**.
-5. In **n8n environments**, choose an instance:
+5. In **n8n environments**, choose an environment target type:
    - `Enter URL and API key` for a remote n8n environment.
    - an existing local managed instance.
    - `Create local instance` to create one locally.
