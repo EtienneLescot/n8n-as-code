@@ -1442,6 +1442,13 @@ export class ConfigService {
                     migratedEnvironmentIds.push(environmentId);
                 }
                 if (instance.id === plan.activeInstanceId) activeMigratedEnvironmentId = existingEnvironment.id;
+                this.manager.upsertInstance({
+                    id: instance.id,
+                    metadata: {
+                        ...(instance.metadata ?? {}),
+                        n8nacWorkspaceEnvironmentModel: 'v4',
+                    },
+                }, { setActive: false });
                 continue;
             }
 

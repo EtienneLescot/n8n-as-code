@@ -23,6 +23,7 @@ export type ProjectsLoadedMessage = {
   type: 'projectsLoaded';
   scope: string;
   requestId: number;
+  requestKey?: string;
   projects: UiProject[];
   selectedProjectId: string;
   selectedProjectName: string;
@@ -106,12 +107,14 @@ export async function loadProjectsForConfigurationWebview(
 ): Promise<ProjectsLoadedMessage> {
   const scope = String(payload.scope || 'workspace');
   const requestId = Number(payload.requestId || 0);
+  const requestKey = String(payload.requestKey || '');
   const selectedProjectId = String(payload.projectId || '');
   const selectedProjectName = String(payload.projectName || '');
   const postProjectsLoaded = (projects: UiProject[], fallbackProjectId = ''): ProjectsLoadedMessage => ({
     type: 'projectsLoaded',
     scope,
     requestId,
+    requestKey,
     projects: dedupeUiProjects(projects),
     selectedProjectId: selectedProjectId || fallbackProjectId,
     selectedProjectName: selectedProjectName || (fallbackProjectId === 'personal' ? 'Personal' : ''),

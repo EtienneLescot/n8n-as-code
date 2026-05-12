@@ -27,12 +27,12 @@ export interface EnvironmentDraft {
   projectsLoading?: boolean;
   projects?: Array<{ id: string; name: string }>;
   projectError?: string;
+  projectRequestKey?: string;
 }
 
 export interface ManagedDraft {
   name: string;
   tunnel: boolean;
-  setActive: boolean;
 }
 
 interface UiState {
@@ -40,6 +40,13 @@ interface UiState {
   modal?: ModalState;
   notice?: { tone: 'info' | 'error'; message: string };
   credentials?: { username: string; password: string };
+  pendingActiveEnvironmentId?: string;
+  lastStateVersion: number;
+}
+
+function stateVersion(payload: any): number {
+  const version = Number(payload?.stateVersion || 0);
+  return Number.isFinite(version) ? version : 0;
 }
 
 interface DraftState {
@@ -51,7 +58,47 @@ const serverSlice = createSlice({
   name: 'server',
   initialState: null as any,
   reducers: {
-    snapshotReceived: (_state, action: PayloadAction<any>) => action.payload || null,
+    snapshotReceived: (state, action: PayloadAction<any>) => {
+      const incomingVersion = stateVersion(action.payload);
+      const currentVersion = stateVersion(state);
+      if (incomingVersion && currentVersion && incomingVersion <= currentVersion) return state;
+      return action.payload || null;
+    },
+    managedInstancePlaceholderReceived: (state, action: PayloadAction<{ instanceId: string; instanceName?: string }>) => {
+      const nextState = state || { global: { instances: [] } };
+      const global = nextState.global || (nextState.global = { instances: [] });
+      const instances = Array.isArray(global.instances) ? global.instances : (global.instances = []);
+      if (instances.some((instance: any) => instance.id === action.payload.instanceId)) return nextState;
+      instances.push({
+        id: action.payload.instanceId,
+        name: action.payload.instanceName || action.payload.instanceId,
+        mode: 'managed-local-docker',
+        publicUrlEnabled: true,
+        runtimeStatus: 'installing',
+      });
+      return nextState;
+    },
+    environmentPinned: (state, action: PayloadAction<string>) => {
+      if (!state?.workspace) return state;
+      state.workspace.activeEnvironmentId = action.payload;
+      return state;
+    },
+    environmentDeleted: (state, action: PayloadAction<string>) => {
+      if (!state?.workspace) return state;
+      const environments = Array.isArray(state.workspace.environments) ? state.workspace.environments : [];
+      state.workspace.environments = environments.filter((environment: any) => environment.id !== action.payload);
+      if (state.workspace.activeEnvironmentId === action.payload) state.workspace.activeEnvironmentId = '';
+      return state;
+    },
+    environmentSaved: (state, action: PayloadAction<any>) => {
+      if (!state?.workspace || !action.payload?.id) return state;
+      const environments = Array.isArray(state.workspace.environments) ? state.workspace.environments : (state.workspace.environments = []);
+      const index = environments.findIndex((environment: any) => environment.id === action.payload.id);
+      if (index >= 0) environments[index] = { ...environments[index], ...action.payload };
+      else environments.push(action.payload);
+      state.workspace.activeEnvironmentId = state.workspace.activeEnvironmentId || action.payload.id;
+      return state;
+    },
   },
 });
 
@@ -68,7 +115,7 @@ const jobsSlice = createSlice({
 
 const uiSlice = createSlice({
   name: 'ui',
-  initialState: { activeTab: 'environments' } as UiState,
+  initialState: { activeTab: 'environments', lastStateVersion: 0 } as UiState,
   reducers: {
     tabSelected: (state, action: PayloadAction<UiState['activeTab']>) => { state.activeTab = action.payload; },
     modalOpened: (state, action: PayloadAction<ModalState>) => {
@@ -77,8 +124,33 @@ const uiSlice = createSlice({
       state.credentials = undefined;
     },
     modalClosed: (state) => { state.modal = undefined; state.credentials = undefined; },
-    noticeShown: (state, action: PayloadAction<UiState['notice']>) => { state.notice = action.payload; },
+    noticeShown: (state, action: PayloadAction<UiState['notice']>) => {
+      state.notice = action.payload;
+      if (action.payload?.tone === 'error') state.pendingActiveEnvironmentId = undefined;
+    },
+    environmentActivationRequested: (state, action: PayloadAction<string>) => { state.pendingActiveEnvironmentId = action.payload; },
     credentialsReceived: (state, action: PayloadAction<{ username: string; password: string }>) => { state.credentials = action.payload; },
+  },
+  extraReducers: (builder) => {
+    builder.addCase(serverSlice.actions.snapshotReceived, (state, action) => {
+      const incomingVersion = stateVersion(action.payload);
+      if (incomingVersion && incomingVersion <= state.lastStateVersion) return;
+      if (incomingVersion) state.lastStateVersion = incomingVersion;
+      const activeEnvironmentId = String(action.payload?.workspace?.activeEnvironmentId || '');
+      if (activeEnvironmentId && activeEnvironmentId === state.pendingActiveEnvironmentId) {
+        state.pendingActiveEnvironmentId = undefined;
+      }
+      const environments = Array.isArray(action.payload?.workspace?.environments) ? action.payload.workspace.environments : [];
+      if (state.pendingActiveEnvironmentId && environments.length && !environments.some((environment: any) => environment?.id === state.pendingActiveEnvironmentId)) {
+        state.pendingActiveEnvironmentId = undefined;
+      }
+    });
+    builder.addCase(serverSlice.actions.environmentPinned, (state, action) => {
+      if (state.pendingActiveEnvironmentId === action.payload) state.pendingActiveEnvironmentId = undefined;
+    });
+    builder.addCase(serverSlice.actions.environmentDeleted, (state, action) => {
+      if (state.pendingActiveEnvironmentId === action.payload) state.pendingActiveEnvironmentId = undefined;
+    });
   },
 });
 
@@ -105,7 +177,7 @@ function blankEnvironmentDraft(id: string, environment?: any): EnvironmentDraft 
 
 const draftsSlice = createSlice({
   name: 'drafts',
-  initialState: { environment: {}, managed: { name: 'managed', tunnel: true, setActive: false } } as DraftState,
+  initialState: { environment: {}, managed: { name: 'managed', tunnel: true } } as DraftState,
   reducers: {
     environmentDraftOpened: (state, action: PayloadAction<{ id: string; environment?: any }>) => {
       const existing = state.environment[action.payload.id];
@@ -115,22 +187,33 @@ const draftsSlice = createSlice({
       const existing = state.environment[action.payload.id] || blankEnvironmentDraft(action.payload.id);
       state.environment[action.payload.id] = { ...existing, ...action.payload.patch, dirty: true };
     },
-    environmentDraftProjectsReceived: (state, action: PayloadAction<{ id: string; projects?: Array<{ id: string; name: string }>; error?: string }>) => {
+    environmentDraftProjectsReceived: (state, action: PayloadAction<{ id: string; requestKey?: string; projects?: Array<{ id: string; name: string }>; selectedProjectId?: string; selectedProjectName?: string; error?: string }>) => {
       const existing = state.environment[action.payload.id];
       if (!existing) return;
+      if (action.payload.requestKey && existing.projectRequestKey && action.payload.requestKey !== existing.projectRequestKey) return;
       existing.projectsLoading = false;
       existing.projects = action.payload.projects || [];
       existing.projectError = action.payload.error;
+      if (action.payload.error) {
+        existing.projectId = 'personal';
+        existing.projectName = 'Personal';
+        return;
+      }
+      const selectedProjectId = action.payload.selectedProjectId || existing.projectId;
+      const selectedProject = existing.projects.find((project) => project.id === selectedProjectId) || existing.projects[0];
+      existing.projectId = selectedProject?.id || 'personal';
+      existing.projectName = action.payload.selectedProjectName || selectedProject?.name || 'Personal';
     },
-    environmentDraftProjectsLoading: (state, action: PayloadAction<{ id: string }>) => {
+    environmentDraftProjectsLoading: (state, action: PayloadAction<{ id: string; requestKey?: string }>) => {
       const existing = state.environment[action.payload.id];
       if (!existing) return;
       existing.projectsLoading = true;
       existing.projectError = undefined;
+      existing.projectRequestKey = action.payload.requestKey;
     },
     environmentDraftClosed: (state, action: PayloadAction<{ id: string }>) => { delete state.environment[action.payload.id]; },
     managedDraftPatched: (state, action: PayloadAction<Partial<ManagedDraft>>) => { state.managed = { ...state.managed, ...action.payload }; },
-    managedDraftReset: (state) => { state.managed = { name: 'managed', tunnel: true, setActive: false }; },
+    managedDraftReset: (state) => { state.managed = { name: 'managed', tunnel: true }; },
     managedInstanceSelectedForEnvironment: (state, action: PayloadAction<{ draftId: string; instanceId: string }>) => {
       const draft = state.environment[action.payload.draftId];
       if (!draft) return;

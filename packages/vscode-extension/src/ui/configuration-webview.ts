@@ -27,6 +27,8 @@ type SetupInstanceRef = Awaited<ReturnType<ReturnType<typeof createN8nManagerFac
   warnings?: string[];
 };
 
+const WORKSPACE_ENVIRONMENT_MODEL_METADATA = { n8nacWorkspaceEnvironmentModel: 'v4' };
+
 function normalizeHost(host: string): string {
   const trimmed = (host || '').trim();
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
@@ -109,6 +111,8 @@ export class ConfigurationWebview {
   private _initialTab: string | undefined;
   private readonly _managedSetupJobs = new Map<string, ManagedSetupJob>();
   private readonly _managedSetupJobCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private _queuedPinEnvironmentId: string | undefined;
+  private _pinEnvironmentTask: Promise<void> | undefined;
 
   private constructor(
     panel: vscode.WebviewPanel,
@@ -210,6 +214,7 @@ export class ConfigurationWebview {
             this._panel.webview.postMessage({
               type: 'projectsError',
               draftId: payload.draftId,
+              requestKey: payload.requestKey,
               message: error?.message || 'Unable to load projects.',
             });
           }
@@ -269,7 +274,7 @@ export class ConfigurationWebview {
           }
           await clearLegacyWorkspaceSettings();
           await this._configurationController.refresh('webview-save-instance-target', { force: true });
-          this._panel.webview.postMessage({ type: 'saved' });
+          this.notifySaved();
           return;
         }
 
@@ -290,7 +295,7 @@ export class ConfigurationWebview {
           }
           configService.removeInstanceTarget(targetId);
           await this._configurationController.refresh('webview-delete-instance-target', { force: true });
-          this._panel.webview.postMessage({ type: 'saved' });
+          this.notifySaved();
           return;
         }
 
@@ -380,15 +385,13 @@ export class ConfigurationWebview {
             customNodesPath: String(payload.customNodesPath || '').trim() || undefined,
             description: String(payload.description || '').trim() || undefined,
           };
-          if (environmentId) {
-            configService.updateEnvironment(environmentId, input);
-          } else {
-            configService.addEnvironment(input);
-          }
+          const savedEnvironment = environmentId
+            ? configService.updateEnvironment(environmentId, input)
+            : configService.addEnvironment(input);
           await clearLegacyWorkspaceSettings();
-          const snapshot = await this._configurationController.refresh('webview-save-environment', { force: true });
-          await this.postInitialState(snapshot);
-          this._panel.webview.postMessage({ type: 'saved' });
+          this._panel.webview.postMessage({ type: 'environmentSaved', environment: savedEnvironment });
+          this.notifySaved();
+          void this._configurationController.refresh('webview-save-environment', { force: true }).catch(() => undefined);
           return;
         }
 
@@ -396,9 +399,7 @@ export class ConfigurationWebview {
           if (!workspaceRoot) throw new Error('Open a workspace before pinning workspace environments.');
           const environmentId = String(payload.environmentId || '').trim();
           if (!environmentId) throw new Error('Environment is required.');
-          new ConfigService(workspaceRoot).pinEnvironment(environmentId);
-          await this._configurationController.refresh('webview-pin-environment', { force: true });
-          this._panel.webview.postMessage({ type: 'saved' });
+          this.queuePinEnvironment(environmentId);
           return;
         }
 
@@ -418,15 +419,16 @@ export class ConfigurationWebview {
             return;
           }
           configService.removeEnvironment(environmentId);
-          await this._configurationController.refresh('webview-delete-environment', { force: true });
-          this._panel.webview.postMessage({ type: 'saved' });
+          this._panel.webview.postMessage({ type: 'environmentDeleted', environmentId });
+          this.notifySaved();
+          void this._configurationController.refresh('webview-delete-environment', { force: true }).catch(() => undefined);
           return;
         }
 
         case 'saveGlobalInstance':
           const warnings = await this.saveGlobalInstance(payload, globalFacade);
           await this._configurationController.refresh('webview-save-global-instance', { force: true });
-          this._panel.webview.postMessage({ type: 'saved' });
+          this.notifySaved();
           if (warnings.length) {
             this._panel.webview.postMessage({ type: 'error', message: warnings.join('\n') });
           }
@@ -437,7 +439,7 @@ export class ConfigurationWebview {
           if (!instanceId) throw new Error('Instance is required.');
           await globalFacade.setGlobalActiveInstance(instanceId);
           await this._configurationController.refresh('webview-set-global-active', { force: true });
-          this._panel.webview.postMessage({ type: 'saved' });
+          this.notifySaved();
           return;
         }
 
@@ -457,7 +459,7 @@ export class ConfigurationWebview {
             if (action === 'restart') await globalFacade.restartInstance(instanceId);
           });
           await this._configurationController.refresh(`webview-${action}-instance`, { force: true });
-          this._panel.webview.postMessage({ type: 'saved' });
+          this.notifySaved();
           return;
         }
 
@@ -476,7 +478,7 @@ export class ConfigurationWebview {
             refreshPublicUrl: true,
           }));
           await this._configurationController.refresh('webview-refresh-public-url', { force: true });
-          this._panel.webview.postMessage({ type: 'saved' });
+          this.notifySaved();
           if (access.warnings.length) {
             this._panel.webview.postMessage({ type: 'error', message: access.warnings.join('\n') });
           }
@@ -529,7 +531,7 @@ export class ConfigurationWebview {
               `n8n-as-code moved legacy VS Code workspace settings (${clearedLegacySettings.join(', ')}) into n8n-manager plus n8nac-config.json workspace overrides.`,
             );
           }
-          this._panel.webview.postMessage({ type: 'saved' });
+          this.notifySaved();
           return;
         }
 
@@ -573,7 +575,7 @@ export class ConfigurationWebview {
           }
           await this.postInitialState();
           this._panel.webview.postMessage({ type: 'activeTab', tab: 'agent-providers' });
-          this._panel.webview.postMessage({ type: 'saved' });
+          this.notifySaved();
           return;
         }
 
@@ -583,7 +585,7 @@ export class ConfigurationWebview {
           await this._providerService.disconnectProvider(provider);
           await this.postInitialState();
           this._panel.webview.postMessage({ type: 'activeTab', tab: 'agent-providers' });
-          this._panel.webview.postMessage({ type: 'saved' });
+          this.notifySaved();
           return;
         }
 
@@ -595,7 +597,7 @@ export class ConfigurationWebview {
           await this._providerService.selectModel(provider as YagrModelProvider);
           await this.postInitialState();
           this._panel.webview.postMessage({ type: 'activeTab', tab: 'agent-providers' });
-          this._panel.webview.postMessage({ type: 'saved' });
+          this.notifySaved();
           return;
         }
       }
@@ -608,10 +610,48 @@ export class ConfigurationWebview {
     }
   }
 
+  private notifySaved(): void {
+    void vscode.window.showInformationMessage('Settings saved.');
+  }
+
+  private queuePinEnvironment(environmentId: string): void {
+    this._queuedPinEnvironmentId = environmentId;
+    if (!this._pinEnvironmentTask) {
+      this._pinEnvironmentTask = this.drainPinEnvironmentQueue()
+        .catch((error) => {
+          this._panel.webview.postMessage({ type: 'error', message: error?.message || 'Unable to pin environment.' });
+        })
+        .finally(() => {
+          this._pinEnvironmentTask = undefined;
+        });
+    }
+  }
+
+  private async drainPinEnvironmentQueue(): Promise<void> {
+    let pinned = false;
+    while (this._queuedPinEnvironmentId) {
+      const environmentId = this._queuedPinEnvironmentId;
+      this._queuedPinEnvironmentId = undefined;
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) throw new Error('Open a workspace before pinning workspace environments.');
+      try {
+        new ConfigService(workspaceRoot).pinEnvironment(environmentId);
+        this._panel.webview.postMessage({ type: 'environmentPinned', environmentId });
+        pinned = true;
+      } catch (error) {
+        if (!this._queuedPinEnvironmentId) throw error;
+      }
+    }
+    if (pinned) {
+      this.notifySaved();
+      void this._configurationController.refresh('webview-pin-environment', { force: true }).catch(() => undefined);
+    }
+  }
+
   private async migrateWorkspaceConfiguration(workspaceRoot: string): Promise<void> {
     const result = await runWorkspaceMigrationFromVscode(this._context, workspaceRoot);
     if (result.outcome === 'not-needed') {
-      this._panel.webview.postMessage({ type: 'saved' });
+      this.notifySaved();
       await this._configurationController.refresh('webview-migration-not-needed', { force: true });
       return;
     }
@@ -721,7 +761,6 @@ export class ConfigurationWebview {
     const instanceId = normalizeManagedInstanceId(payload.instanceId || fallbackManagedInstanceId());
     const instanceName = normalizeManagedInstanceName(payload.instanceName);
     const tunnel = Boolean(payload.tunnel);
-    const setActive = Boolean(payload.setActive);
     const returnToEnvironmentForm = Boolean(payload.returnToEnvironmentForm);
     const returnToEnvironmentDraftId = String(payload.returnToEnvironmentDraftId || '').trim() || undefined;
 
@@ -730,8 +769,9 @@ export class ConfigurationWebview {
       name: instanceName,
       mode: 'managed-local-docker',
       publicUrlEnabled: tunnel,
+      metadata: WORKSPACE_ENVIRONMENT_MODEL_METADATA,
     };
-    await facade.upsertInstance(placeholder, { setActive });
+    await facade.upsertInstance(placeholder, { setActive: false });
 
     const job: ManagedSetupJob = {
       instanceId,
@@ -744,15 +784,14 @@ export class ConfigurationWebview {
     };
     this._managedSetupJobs.set(instanceId, job);
 
-    const snapshot = await this._configurationController.refresh('webview-create-managed-placeholder', { force: true });
-    await this.postInitialState(snapshot);
     this._panel.webview.postMessage({ type: 'managedInstanceCreated', instanceId, instanceName, returnToEnvironmentForm, returnToEnvironmentDraftId });
-    void this.runManagedSetupJob(job, { tunnel, setActive });
+    this._panel.webview.postMessage({ type: 'setupJob', job: this.serializeSetupJob(job) });
+    void this.runManagedSetupJob(job, { tunnel });
   }
 
-  private async runManagedSetupJob(job: ManagedSetupJob, options: { tunnel: boolean; setActive: boolean }): Promise<void> {
+  private async runManagedSetupJob(job: ManagedSetupJob, options: { tunnel: boolean }): Promise<void> {
     const facade = createN8nManagerFacade({});
-    const previousActive = options.setActive ? undefined : await facade.getGlobalActiveInstance().catch(() => undefined);
+    const previousActive = await facade.getGlobalActiveInstance().catch(() => undefined);
     try {
       await this.postSetupJob(job);
       const instance: SetupInstanceRef = await facade.setup({
@@ -777,10 +816,11 @@ export class ConfigurationWebview {
           id: instance.id,
           name: job.instanceName,
           publicUrlEnabled: options.tunnel,
+          metadata: WORKSPACE_ENVIRONMENT_MODEL_METADATA,
         };
-        await facade.upsertInstance(update, { setActive: options.setActive });
+        await facade.upsertInstance(update, { setActive: false });
       }
-      if (!options.setActive && previousActive?.id && previousActive.id !== instance.id) {
+      if (previousActive?.id && previousActive.id !== instance.id) {
         await facade.setGlobalActiveInstance(previousActive.id).catch(() => undefined);
       }
       job.status = 'succeeded';
@@ -802,8 +842,9 @@ export class ConfigurationWebview {
         name: job.instanceName,
         mode: 'managed-local-docker',
         publicUrlEnabled: options.tunnel,
+        metadata: WORKSPACE_ENVIRONMENT_MODEL_METADATA,
       };
-      await facade.upsertInstance(failedPlaceholder, { setActive: options.setActive }).catch(() => undefined);
+      await facade.upsertInstance(failedPlaceholder, { setActive: false }).catch(() => undefined);
       await this._configurationController.refresh('webview-managed-setup-failed', { force: true }).catch(() => undefined);
       await this.postSetupJob(job);
     }
@@ -811,7 +852,6 @@ export class ConfigurationWebview {
 
   private async postSetupJob(job: ManagedSetupJob): Promise<void> {
     this._panel.webview.postMessage({ type: 'setupJob', job: this.serializeSetupJob(job) });
-    await this.postInitialState().catch(() => undefined);
     this.scheduleManagedSetupJobCleanup(job);
   }
 

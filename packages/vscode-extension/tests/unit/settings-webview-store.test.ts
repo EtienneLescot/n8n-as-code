@@ -51,3 +51,100 @@ test('settings webview store clears credentials when switching modals', () => {
 
     assert.strictEqual(store.getState().ui.credentials, undefined);
 });
+
+test('settings webview store ignores stale snapshots by state version', () => {
+    const store = createSettingsWebviewStore();
+    store.dispatch(actions.snapshotReceived({ type: 'init', stateVersion: 2, workspace: { activeEnvironmentId: 'env-2' }, global: { instances: [] } }));
+    store.dispatch(actions.snapshotReceived({ type: 'init', stateVersion: 1, workspace: { activeEnvironmentId: 'env-1' }, global: { instances: [] } }));
+
+    assert.strictEqual(store.getState().server.workspace.activeEnvironmentId, 'env-2');
+});
+
+test('settings webview store keeps pending active environment until matching snapshot arrives', () => {
+    const store = createSettingsWebviewStore();
+    store.dispatch(actions.snapshotReceived({ type: 'init', stateVersion: 1, workspace: { activeEnvironmentId: 'env-1' }, global: { instances: [] } }));
+    store.dispatch(actions.environmentActivationRequested('env-3'));
+    store.dispatch(actions.snapshotReceived({ type: 'init', stateVersion: 2, workspace: { activeEnvironmentId: 'env-2' }, global: { instances: [] } }));
+
+    assert.strictEqual(store.getState().ui.pendingActiveEnvironmentId, 'env-3');
+
+    store.dispatch(actions.snapshotReceived({ type: 'init', stateVersion: 3, workspace: { activeEnvironmentId: 'env-3' }, global: { instances: [] } }));
+
+    assert.strictEqual(store.getState().ui.pendingActiveEnvironmentId, undefined);
+    assert.strictEqual(store.getState().server.workspace.activeEnvironmentId, 'env-3');
+});
+
+test('settings webview store clears pending active environment on errors', () => {
+    const store = createSettingsWebviewStore();
+    store.dispatch(actions.environmentActivationRequested('env-2'));
+    store.dispatch(actions.noticeShown({ tone: 'error', message: 'Pin failed' }));
+
+    assert.strictEqual(store.getState().ui.pendingActiveEnvironmentId, undefined);
+});
+
+test('settings webview store clears pending active environment when it disappears', () => {
+    const store = createSettingsWebviewStore();
+    store.dispatch(actions.environmentActivationRequested('env-2'));
+    store.dispatch(actions.snapshotReceived({
+        type: 'init',
+        stateVersion: 1,
+        workspace: { activeEnvironmentId: 'env-1', environments: [{ id: 'env-1' }] },
+        global: { instances: [] },
+    }));
+
+    assert.strictEqual(store.getState().ui.pendingActiveEnvironmentId, undefined);
+});
+
+test('settings webview store ignores stale project load errors', () => {
+    const store = createSettingsWebviewStore();
+    store.dispatch(actions.environmentDraftOpened({ id: 'new' }));
+    store.dispatch(actions.environmentDraftProjectsLoading({ id: 'new', requestKey: 'new-request' }));
+    store.dispatch(actions.environmentDraftProjectsReceived({ id: 'new', requestKey: 'old-request', error: 'Old failure' }));
+
+    const draft = store.getState().drafts.environment.new;
+    assert.strictEqual(draft.projectsLoading, true);
+    assert.strictEqual(draft.projectError, undefined);
+});
+
+test('settings webview store applies optimistic environment deletion', () => {
+    const store = createSettingsWebviewStore();
+    store.dispatch(actions.snapshotReceived({
+        type: 'init',
+        stateVersion: 1,
+        workspace: { activeEnvironmentId: 'env-2', environments: [{ id: 'env-1' }, { id: 'env-2' }] },
+        global: { instances: [] },
+    }));
+    store.dispatch(actions.environmentDeleted('env-2'));
+
+    assert.deepStrictEqual(store.getState().server.workspace.environments.map((environment: any) => environment.id), ['env-1']);
+    assert.strictEqual(store.getState().server.workspace.activeEnvironmentId, '');
+});
+
+test('settings webview store applies optimistic environment pin', () => {
+    const store = createSettingsWebviewStore();
+    store.dispatch(actions.snapshotReceived({
+        type: 'init',
+        stateVersion: 1,
+        workspace: { activeEnvironmentId: 'env-1', environments: [{ id: 'env-1' }, { id: 'env-2' }] },
+        global: { instances: [] },
+    }));
+    store.dispatch(actions.environmentActivationRequested('env-2'));
+    store.dispatch(actions.environmentPinned('env-2'));
+
+    assert.strictEqual(store.getState().server.workspace.activeEnvironmentId, 'env-2');
+    assert.strictEqual(store.getState().ui.pendingActiveEnvironmentId, undefined);
+});
+
+test('settings webview store applies optimistic environment save', () => {
+    const store = createSettingsWebviewStore();
+    store.dispatch(actions.snapshotReceived({
+        type: 'init',
+        stateVersion: 1,
+        workspace: { activeEnvironmentId: '', environments: [] },
+        global: { instances: [] },
+    }));
+    store.dispatch(actions.environmentSaved({ id: 'dev', name: 'Dev', environmentTargetId: 'managed', syncFolder: 'workflows' }));
+
+    assert.strictEqual(store.getState().server.workspace.activeEnvironmentId, 'dev');
+    assert.deepStrictEqual(store.getState().server.workspace.environments.map((environment: any) => environment.id), ['dev']);
+});

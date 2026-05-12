@@ -503,6 +503,27 @@ describe('ConfigService', () => {
         expect(configService.detectWorkspaceMigration()).toBeUndefined();
     });
 
+    it('marks migrated managed global instances as v4 workspace environment model', () => {
+        const configService = new ConfigService(workspaceRoot);
+        (configService as any).manager.upsertInstance({
+            id: 'managed-old',
+            name: 'Managed Old',
+            mode: 'managed-local-docker',
+            baseUrl: 'http://127.0.0.1:5678',
+            metadata: { containerName: 'managed-old' },
+        }, { setActive: false });
+
+        const migrated = configService.migrateWorkspaceConfiguration({ write: true });
+        const instance = (configService as any).manager.getInstance('managed-old');
+
+        expect(migrated.status).toBe('migrated');
+        expect(instance.metadata).toMatchObject({
+            containerName: 'managed-old',
+            n8nacWorkspaceEnvironmentModel: 'v4',
+        });
+        expect(configService.detectWorkspaceMigration()).toBeUndefined();
+    });
+
     it('rolls back combined workspace migration when any migration phase remains pending', () => {
         const configService = new ConfigService(workspaceRoot);
         (configService as any).manager.upsertInstance({
