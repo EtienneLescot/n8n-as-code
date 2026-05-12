@@ -1,5 +1,36 @@
 # n8n-as-code
 
+## [2.6.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.4.1...n8n-as-code@v2.6.0) (2026-05-12)
+
+### Features
+
+* **sync:** derive opaque environment workflow dirs ([d5c2c6c](https://github.com/EtienneLescot/n8n-as-code/commit/d5c2c6c4948c9c5704506a61e606f40b539a6db1))
+* **vscode:** improve settings webview state management and workspace migration ([2aaffb3](https://github.com/EtienneLescot/n8n-as-code/commit/2aaffb33199f8f810456d1d0e06d1121aa0ac44f))
+* **vscode:** choose context for new agent chats ([b97f11d](https://github.com/EtienneLescot/n8n-as-code/commit/b97f11d4607c7fccb659371304803ea474ce4e5c))
+* **vscode:** migrate settings webview to React ([5a95511](https://github.com/EtienneLescot/n8n-as-code/commit/5a95511cb19d7b0fb8e4b62a9903ff44bebab80a))
+
+### Bug Fixes
+
+* address PR review feedback ([4b05b06](https://github.com/EtienneLescot/n8n-as-code/commit/4b05b06e404ded77286058745c047555c3291bf7))
+* **vscode:** remove Claude Account provider ([a084ed7](https://github.com/EtienneLescot/n8n-as-code/commit/a084ed77d09fa3df0ec612f78d916e27876286bd))
+* **vscode:** normalize root-relative proxy redirects ([5b051fb](https://github.com/EtienneLescot/n8n-as-code/commit/5b051fbc3c771a0d8f131445864434a7a71a8d8c))
+* **vscode:** harden proxy URL matching ([6024fff](https://github.com/EtienneLescot/n8n-as-code/commit/6024fff4f0b9c10e0b0ed57bf82a0fe51a85b16e))
+* **vscode:** expose workflow proxy for remote webviews ([d2b9342](https://github.com/EtienneLescot/n8n-as-code/commit/d2b93427dcc23dd7f2232968d21cb59d4df220c4))
+* **vscode:** keep distinct personal projects selectable ([992fa17](https://github.com/EtienneLescot/n8n-as-code/commit/992fa17a8e38195493ba776c3879a7e257260ff6))
+* **vscode:** tighten agent settings interactions ([a5dab23](https://github.com/EtienneLescot/n8n-as-code/commit/a5dab232b3fd72a89e1272723acfd906dd99de58))
+* **vscode:** enhance workspace validation and webview UI state tracking ([0787ac2](https://github.com/EtienneLescot/n8n-as-code/commit/0787ac25dfadef9f508f02dc88113523267d9bcf))
+* **vscode:** improve environment card active state ([93a596f](https://github.com/EtienneLescot/n8n-as-code/commit/93a596f7ebc4cc502c66cc671527ef2d309b97c7))
+* **vscode:** align environment card heights ([cf94444](https://github.com/EtienneLescot/n8n-as-code/commit/cf94444117790b53dce1340cc3ca2d1d2c4014ec))
+* **vscode:** handle file-only workflow contexts ([fcdbb78](https://github.com/EtienneLescot/n8n-as-code/commit/fcdbb78a792718723d3753c12be032a5c4ca1bc6))
+* **vscode:** preserve workflow context for new agent chats ([8b28fdc](https://github.com/EtienneLescot/n8n-as-code/commit/8b28fdc11ed75ba72cce71adb13e9bef72fea71b))
+* **vscode:** address settings webview review feedback ([4e11af4](https://github.com/EtienneLescot/n8n-as-code/commit/4e11af4b522eba9ccb0fe5d33ef571d13c2f25ff))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.1.1 to 2.1.2
+    * n8nac bumped from 2.1.2 to 2.2.0
+
 ## [2.4.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.4.0...n8n-as-code@v2.4.1) (2026-05-11)
 
 ### Bug Fixes

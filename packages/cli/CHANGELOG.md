@@ -1,5 +1,24 @@
 # @n8n-as-code/cli
 
+## [2.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.1.2...n8nac@v2.2.0) (2026-05-12)
+
+### Features
+
+* **sync:** derive opaque environment workflow dirs ([d5c2c6c](https://github.com/EtienneLescot/n8n-as-code/commit/d5c2c6c4948c9c5704506a61e606f40b539a6db1))
+* **vscode:** improve settings webview state management and workspace migration ([2aaffb3](https://github.com/EtienneLescot/n8n-as-code/commit/2aaffb33199f8f810456d1d0e06d1121aa0ac44f))
+
+### Bug Fixes
+
+* address PR review feedback ([4b05b06](https://github.com/EtienneLescot/n8n-as-code/commit/4b05b06e404ded77286058745c047555c3291bf7))
+* **cli:** improve n8n api client reliability and config type safety ([08d9566](https://github.com/EtienneLescot/n8n-as-code/commit/08d95664ce119cef2f49822bad08477f07aba6fd))
+* **cli:** keep env status read-only ([5f4767f](https://github.com/EtienneLescot/n8n-as-code/commit/5f4767f7a6c1ce77da950efb2a712e77fe74ee31))
+* **vscode:** enhance workspace validation and webview UI state tracking ([0787ac2](https://github.com/EtienneLescot/n8n-as-code/commit/0787ac25dfadef9f508f02dc88113523267d9bcf))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.1.1 to 2.1.2
+
 ## [2.1.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.1.1...n8nac@v2.1.2) (2026-05-11)
 
 ### Bug Fixes
