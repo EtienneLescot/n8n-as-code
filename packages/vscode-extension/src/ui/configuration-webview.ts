@@ -5,7 +5,7 @@ import type { UpsertGlobalN8nInstanceInput } from '@n8n-as-code/n8n-manager-core
 import { ConfigService, resolveInstanceIdentifier } from 'n8nac';
 import { getWorkspaceRoot } from '../utils/state-detection.js';
 import type { N8nConfigurationController, N8nConfigurationSnapshot } from '../services/n8n-configuration-controller.js';
-import { YagrProviderService, normalizeYagrProviderId, type YagrModelProvider } from '../services/yagr-provider-service.js';
+import { YagrProviderService, normalizeYagrProviderId } from '../services/yagr-provider-service.js';
 import { getConfigurationHtml } from './configuration-webview-html.js';
 import { runWorkspaceMigrationFromVscode } from '../services/workspace-migration-runner.js';
 import { loadProjectsForConfigurationWebview } from './configuration-webview-projects.js';
@@ -590,17 +590,6 @@ export class ConfigurationWebview {
           return;
         }
 
-        case 'selectProviderModel': {
-          const provider = normalizeYagrProviderId(String(payload.provider || ''));
-          if (!provider) throw new Error('Unsupported provider.');
-          const config = vscode.workspace.getConfiguration('n8n.agent');
-          await config.update('provider', provider, vscode.ConfigurationTarget.Global);
-          await this._providerService.selectModel(provider as YagrModelProvider);
-          await this.postInitialState();
-          this._panel.webview.postMessage({ type: 'activeTab', tab: 'agent-providers' });
-          this.notifySaved();
-          return;
-        }
       }
     } catch (error: any) {
       this._panel.webview.postMessage({
