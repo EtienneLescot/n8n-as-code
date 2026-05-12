@@ -37,19 +37,19 @@
 
 ---
 
-## The Simple Model
+## What n8n-as-code Gives You
 
-n8n-as-code has three user-facing command groups:
+n8n-as-code turns a repository into a full n8n development workspace:
 
-| Group | Command | Owns |
-|---|---|---|
-| **Primary Usage** | `n8nac env` | Workspace environments: remote n8n URL or local managed instance, project, sync folder, active environment |
-| **Workspace Maintenance** | `n8nac workspace` | Readiness and unified workspace migration |
-| **Managed Local Instances** | `n8n-manager` | Local managed instances, Docker lifecycle, tunnels, machine-local state |
+| Capability | What it means |
+|---|---|
+| **Editor-native workflow work** | Browse, open, edit, validate, and sync n8n workflows from VS Code, Cursor, or the terminal. |
+| **Agent-ready context** | Generate grounded instructions, schemas, examples, and node knowledge so AI agents can work on real n8n workflows safely. |
+| **GitOps-style sync** | Pull and push workflows explicitly, review diffs, resolve conflicts, and keep workflow source in version control. |
+| **TypeScript workflow authoring** | Convert workflows into readable `.workflow.ts` files that are easier for people and agents to edit. |
+| **Live n8n operations** | Verify workflows, inspect credentials, run tests, activate workflows, and inspect executions against a selected n8n environment. |
 
-The repository source of truth is `n8nac-config.json`. It stores workspace environments and is safe to commit when it contains no secrets.
-
-API keys and local managed instance state stay machine-local. They are not committed.
+The repository stores workflow files, generated agent context, and workspace-safe configuration. Secrets and machine-local runtime state stay local.
 
 ## Quick Start
 
