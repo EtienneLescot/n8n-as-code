@@ -9,8 +9,8 @@ export * from './services/resolution-manager.js';
 export * from './services/state-manager.js';
 export * from './services/sync-event-journal.js';
 export * from './services/directory-utils.js';
+export * from './services/workflow-dir-name.js';
 export * from './services/instance-identifier.js';
 export * from './services/workspace-setup-service.js';
 export * from './helpers/index.js';
-
 

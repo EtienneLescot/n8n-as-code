@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFile
 import { tmpdir } from 'os';
 import path from 'path';
 import { ConfigService } from '../../src/services/config-service.js';
+import { createWorkflowDirNameV1 } from '../../src/core/services/workflow-dir-name.js';
 
 describe('ConfigService', () => {
     let previousManagerHome: string | undefined;
@@ -369,7 +370,7 @@ describe('ConfigService', () => {
                 name: 'Staging',
             }),
         ]));
-        expect(workspaceConfig.environments?.map((env) => env.syncFolder)).toEqual(expect.arrayContaining(['workflows', 'workflows/staging']));
+        expect(workspaceConfig.environments?.map((env) => env.syncFolder)).toEqual(['workflows', 'workflows']);
     });
 
     it('migrates each configured v2 instance to its own environment and keeps the active instance pinned', () => {
@@ -422,7 +423,7 @@ describe('ConfigService', () => {
                 id: 'instance-86ea2ff2',
                 name: 'localhost · Etienne Lescot',
                 projectId: 'personal',
-                syncFolder: 'workflows/localhost-etienne-lescot',
+                syncFolder: 'workflows',
             }),
         ]));
         expect(configService.resolveEnvironment()).toMatchObject({
@@ -663,7 +664,7 @@ describe('ConfigService', () => {
 
     it('creates and resolves v4 workspace instance targets and environments', () => {
         const configService = new ConfigService(workspaceRoot);
-        configService.saveLocalConfig({ host: 'https://dev.example.test' }, {
+        configService.saveLocalConfig({ host: 'https://dev.example.test', instanceIdentifier: 'n8n_1234567890' }, {
             instanceId: 'dev-instance',
             instanceName: 'Dev Instance',
             apiKey: 'dev-key',
@@ -678,17 +679,25 @@ describe('ConfigService', () => {
             environmentTarget: target.id,
             projectId: 'personal',
             projectName: 'Personal',
-            syncFolder: 'workflows/dev',
+            syncFolder: 'workflows',
         });
         configService.pinEnvironment(environment.id);
+
+        const resolved = configService.resolveEnvironment('Dev');
+        const expectedWorkflowDir = path.join(workspaceRoot, 'workflows', createWorkflowDirNameV1({
+            environmentId: environment.id,
+            instanceIdentifier: resolved.instanceIdentifier!,
+            instanceUserIdentifier: resolved.instanceUserIdentifier!,
+            projectId: 'personal',
+        }));
 
         expect(configService.getWorkspaceConfig()).toMatchObject({
             version: 4,
             activeEnvironmentId: environment.id,
             environmentTargets: expect.arrayContaining([expect.objectContaining({ id: target.id, name: 'Dev Target', kind: 'managed-instance', managedInstanceId: 'dev-instance' })]),
-            environments: expect.arrayContaining([expect.objectContaining({ id: environment.id, name: 'Dev', environmentTargetId: target.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' })]),
+            environments: expect.arrayContaining([expect.objectContaining({ id: environment.id, name: 'Dev', environmentTargetId: target.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows', workflowDir: expectedWorkflowDir })]),
         });
-        expect(configService.resolveEnvironment('Dev')).toMatchObject({
+        expect(resolved).toMatchObject({
             environmentId: environment.id,
             environmentName: 'Dev',
             environmentTargetId: target.id,
@@ -697,8 +706,12 @@ describe('ConfigService', () => {
             apiKey: 'dev-key',
             projectId: 'personal',
             projectName: 'Personal',
-            syncFolder: path.join(workspaceRoot, 'workflows/dev'),
+            syncFolder: path.join(workspaceRoot, 'workflows'),
+            workflowDir: expectedWorkflowDir,
         });
+        expect(resolved.workflowDir).not.toContain('Dev');
+        expect(resolved.workflowDir).not.toContain('Personal');
+        expect(resolved.workflowDir).not.toContain('n8n_1234567890');
     });
 
     it('prefers managed base URL over public tunnel URL for API resolution', () => {
@@ -887,7 +900,7 @@ describe('ConfigService', () => {
         expect(() => configService.pinWorkspaceInstance('anything')).toThrow(/v4 environments/);
     });
 
-    it('allows environments to share a sync root folder when workflow folders differ', () => {
+    it('allows environments that share the same sync root folder', () => {
         const configService = new ConfigService(workspaceRoot);
         const target = configService.addInstanceTarget({ name: 'Target', url: 'https://target.example.test', instanceIdentifier: 'n8n_1111111111' });
         configService.addEnvironment({
@@ -897,39 +910,20 @@ describe('ConfigService', () => {
             projectName: 'Personal',
             syncFolder: 'workflows',
         });
-        configService.addEnvironment({
+
+        const prod = configService.addEnvironment({
             name: 'Prod',
             environmentTarget: target.id,
             projectId: 'cgi',
             projectName: 'CGI',
-            syncFolder: './workflows',
+            syncFolder: './workflows/shared',
         });
 
-        expect(configService.listEnvironments().map((environment) => environment.syncFolder)).toEqual(['workflows', './workflows']);
-    });
+        expect(prod.syncFolder).toBe('./workflows/shared');
 
-    it('rejects environments that resolve to the same workflow folder', () => {
-        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
-            version: 4,
-            environmentTargets: [{ id: 'target', name: 'Target', kind: 'external-instance', url: 'https://target.example.test', instanceIdentifier: 'n8n_1111111111' }],
-            environments: [{
-                id: 'dev',
-                name: 'Dev',
-                environmentTargetId: 'target',
-                projectId: 'personal',
-                projectName: 'Personal',
-                syncFolder: 'workflows',
-            }, {
-                id: 'prod',
-                name: 'Prod',
-                environmentTargetId: 'target',
-                projectId: 'personal-copy',
-                projectName: 'Personal',
-                syncFolder: './workflows',
-            }],
-        }, null, 2));
-
-        expect(() => new ConfigService(workspaceRoot).getWorkspaceConfig()).toThrow(/same workflow folder/);
+        expect(configService.updateEnvironment('Prod', {
+            syncFolder: 'workflows/shared',
+        }).syncFolder).toBe('workflows/shared');
     });
 
     it('rejects clearing required environment sync folder on update', () => {

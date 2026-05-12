@@ -9,7 +9,7 @@ import {
     type N8nInstanceVerification,
     type N8nInstanceVerificationStatus,
 } from '@n8n-as-code/n8n-manager-core';
-import { N8nApiClient, createInstanceIdentifier, createProjectSlug, isCanonicalUserInstanceIdentifier, resolveInstanceIdentifier } from '../core/index.js';
+import { N8nApiClient, createCanonicalInstanceIdentifier, createInstanceIdentifier, createInstanceUserIdentifier, createProjectSlug, createWorkflowDirNameV1, isCanonicalInstanceIdentifier, isCanonicalInstanceUserIdentifier, isCanonicalUserInstanceIdentifier, resolveInstanceIdentifier, resolveN8nIdentity as resolveN8nIdentityFromApi, type IResolvedN8nIdentity } from '../core/index.js';
 
 export interface ILocalConfig {
     host?: string;
@@ -17,6 +17,7 @@ export interface ILocalConfig {
     projectId?: string;
     projectName?: string;
     instanceIdentifier?: string;
+    instanceUserIdentifier?: string;
     workflowDir?: string;
     customNodesPath?: string;
     folderSync?: boolean;
@@ -40,6 +41,8 @@ export interface IManagedEnvironmentTarget {
     managedInstanceName?: string;
     url?: string;
     instanceName?: string;
+    instanceIdentifier?: string;
+    instanceUserIdentifier?: string;
     apiKeyAvailable?: boolean;
     credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
     accessStatus?: EnvironmentAccessStatus;
@@ -51,6 +54,7 @@ export interface IExternalEnvironmentTarget {
     kind: 'external-instance';
     url: string;
     instanceIdentifier?: string;
+    instanceUserIdentifier?: string;
     verification?: IInstanceVerification;
     description?: string;
     apiKeyAvailable?: boolean;
@@ -76,6 +80,8 @@ export interface IWorkspaceEnvironment {
     instanceName?: string;
     url?: string;
     workflowDir?: string;
+    instanceIdentifier?: string;
+    instanceUserIdentifier?: string;
     apiKeyAvailable?: boolean;
     credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
     accessStatus?: EnvironmentAccessStatus;
@@ -131,6 +137,7 @@ export interface IResolvedWorkspaceEnvironment extends ILocalConfig {
     accessStatus: EnvironmentAccessStatus;
     syncFolder: string;
     instanceIdentifier?: string;
+    instanceUserIdentifier?: string;
     workflowDir?: string;
     sources: {
         environment: 'explicit' | 'workspace-default' | 'legacy' | 'global-fallback';
@@ -287,7 +294,10 @@ export class ConfigService {
 
     getLocalConfig(environmentNameOrId?: string): Partial<ILocalConfig> {
         try {
-            return this.environmentToLocalConfig(this.resolveEnvironment(environmentNameOrId));
+            if (environmentNameOrId || this.isWorkspaceConfigV4()) {
+                return this.environmentToLocalConfig(this.resolveEnvironment(environmentNameOrId));
+            }
+            return this.contextToLocalConfig(this.resolveWorkspaceContext());
         } catch {
             try {
                 return this.contextToLocalConfig(this.resolveWorkspaceContext());
@@ -588,12 +598,21 @@ export class ConfigService {
     async prepareEnvironment(environmentNameOrId?: string): Promise<IResolvedWorkspaceEnvironment> {
         const resolved = this.resolveEnvironment(environmentNameOrId);
         if (resolved.sourceKind === 'external-instance') {
-            if (resolved.apiKey && !resolved.instanceIdentifier) {
-                const instanceIdentifier = await this.resolveInstanceIdentifier(resolved.host, resolved.apiKey).catch(() => undefined);
+            if (resolved.apiKey && (!resolved.instanceIdentifier || !resolved.instanceUserIdentifier)) {
+                const identity = await this.resolveN8nIdentity(resolved.host, resolved.apiKey, undefined, resolved.instanceIdentifier || resolved.environmentTargetId).catch(() => undefined);
+                const instanceIdentifier = identity?.instanceIdentifier || resolved.instanceIdentifier;
+                const instanceUserIdentifier = identity?.instanceUserIdentifier || resolved.instanceUserIdentifier;
                 return {
                     ...resolved,
                     instanceIdentifier,
-                    workflowDir: this.buildWorkflowDir(resolved.syncFolder, instanceIdentifier, resolved.projectName),
+                    instanceUserIdentifier,
+                    workflowDir: this.buildEnvironmentWorkflowDir({
+                        syncFolder: resolved.syncFolder,
+                        environmentId: resolved.environmentId,
+                        instanceIdentifier,
+                        instanceUserIdentifier,
+                        projectId: resolved.projectId,
+                    }),
                 };
             }
             return resolved;
@@ -614,9 +633,16 @@ export class ConfigService {
         const syncFolder = resolved.syncFolder;
         const projectId = resolved.projectId || context.projectId;
         const projectName = resolved.projectName || context.projectName;
-        let instanceIdentifier = this.canonicalInstanceIdentifier(context.instanceIdentifier || resolved.instanceIdentifier);
+        let instanceIdentifier = this.canonicalWorkflowInstanceIdentifier((context as any).n8nInstanceIdentifier)
+            || this.canonicalWorkflowInstanceIdentifier(context.instanceIdentifier)
+            || resolved.instanceIdentifier;
+        let instanceUserIdentifier = this.canonicalInstanceUserIdentifier((context as any).instanceUserIdentifier)
+            || this.readStoredInstanceUserIdentifier(context.instanceIdentifier)
+            || resolved.instanceUserIdentifier;
         if (apiKey && resolved.apiKeySource === 'env') {
-            instanceIdentifier = this.canonicalInstanceIdentifier(await this.resolveInstanceIdentifier(context.host, apiKey).catch(() => undefined)) || instanceIdentifier;
+            const identity = await this.resolveN8nIdentity(context.host, apiKey, undefined, instanceIdentifier || resolved.activeInstanceId || resolved.environmentTargetId).catch(() => undefined);
+            instanceIdentifier = identity?.instanceIdentifier || instanceIdentifier;
+            instanceUserIdentifier = identity?.instanceUserIdentifier || instanceUserIdentifier;
         }
         return {
             ...resolved,
@@ -628,10 +654,17 @@ export class ConfigService {
             activeInstanceId: context.activeInstanceId,
             activeInstanceName: context.activeInstanceName,
             instanceIdentifier,
+            instanceUserIdentifier,
             projectId,
             projectName,
             syncFolder,
-            workflowDir: this.buildWorkflowDir(syncFolder, instanceIdentifier, projectName),
+            workflowDir: this.buildEnvironmentWorkflowDir({
+                syncFolder,
+                environmentId: resolved.environmentId,
+                instanceIdentifier,
+                instanceUserIdentifier,
+                projectId,
+            }),
         };
     }
 
@@ -670,8 +703,10 @@ export class ConfigService {
             const effective = tryResolve(() => this.resolveWorkspaceContext(instanceId));
             return effective ? this.contextToInstanceProfile(effective) : undefined;
         }
-        const environment = tryResolve(() => this.resolveEnvironment());
-        if (environment) return this.environmentToInstanceProfile(environment);
+        if (this.isWorkspaceConfigV4()) {
+            const environment = tryResolve(() => this.resolveEnvironment());
+            if (environment) return this.environmentToInstanceProfile(environment);
+        }
         const effective = tryResolve(() => this.resolveWorkspaceContext());
         return effective ? this.contextToInstanceProfile(effective) : undefined;
     }
@@ -843,12 +878,16 @@ export class ConfigService {
         const verification = input.host && input.apiKey
             ? await this.verifyConnection(input.host, input.apiKey, options.client)
             : undefined;
+        const identity = input.host && input.apiKey
+            ? await this.resolveN8nIdentity(input.host, input.apiKey, options.client).catch(() => undefined)
+            : undefined;
         const instanceIdentifier = input.host && input.apiKey
             ? await this.resolveInstanceIdentifier(input.host, input.apiKey, options.client)
             : this.canonicalInstanceIdentifier(input.instanceIdentifier);
         const profile = this.saveLocalConfig({
             ...input,
             instanceIdentifier,
+            instanceUserIdentifier: identity?.instanceUserIdentifier || input.instanceUserIdentifier,
         }, {
             instanceId: options.createNew ? undefined : options.instanceId,
             instanceName: options.instanceName,
@@ -885,6 +924,7 @@ export class ConfigService {
             this.assertNoLegacyWorkspaceFields(config);
         }
         const current = options.createNew ? undefined : (options.instanceId ? this.manager.getInstance(options.instanceId) : this.manager.getGlobalActiveInstance());
+        const currentAny = current as (GlobalN8nInstance & { instanceUserIdentifier?: string }) | undefined;
         const host = this.resolveStoredBaseUrl(current, config.host);
         const saved = this.manager.upsertInstance({
             id: options.createNew ? undefined : (options.instanceId || current?.id),
@@ -893,9 +933,11 @@ export class ConfigService {
             baseUrl: host,
             apiKey: options.apiKey,
             instanceIdentifier: this.canonicalInstanceIdentifier(config.instanceIdentifier || current?.instanceIdentifier),
+            instanceUserIdentifier: this.canonicalInstanceUserIdentifier(config.instanceUserIdentifier || currentAny?.instanceUserIdentifier)
+                || this.readStoredInstanceUserIdentifier(config.instanceIdentifier || current?.instanceIdentifier),
             verification: options.verification || current?.verification,
             defaultProject: current?.defaultProject,
-        }, {
+        } as any, {
             setActive: options.setActive,
         });
 
@@ -939,13 +981,15 @@ export class ConfigService {
 
         const verification = await this.verifyConnection(instance.host, apiKey);
         const instanceIdentifier = await this.resolveInstanceIdentifier(instance.host, apiKey);
+        const identity = await this.resolveN8nIdentity(instance.host, apiKey).catch(() => undefined);
         const updated = this.manager.upsertInstance({
             id: instance.id,
             name: instance.name,
             baseUrl: instance.host,
             instanceIdentifier,
+            instanceUserIdentifier: identity?.instanceUserIdentifier,
             verification,
-        }, { setActive: instance.id === this.getActiveInstanceId() });
+        } as any, { setActive: instance.id === this.getActiveInstanceId() });
         const profile = this.toInstanceProfile(updated);
 
         if (verification.status === 'verified') {
@@ -984,6 +1028,7 @@ export class ConfigService {
             ? this.manager.getInstance(instanceId)
             : this.manager.listInstances().find((candidate) => this.normalizeHost(candidate.baseUrl || '') === this.normalizeHost(host));
         const instanceIdentifier = this.resolveInstanceIdentifierFromApiKey(apiKey);
+        const instanceUserIdentifier = this.resolveInstanceUserIdentifierFromApiKey(apiKey);
         if (!instanceIdentifier) {
             throw new Error('Unable to resolve the n8n user ID from the API key.');
         }
@@ -992,10 +1037,11 @@ export class ConfigService {
             this.manager.upsertInstance({
                 id: target.id,
                 instanceIdentifier,
-            }, { setActive: false });
+                instanceUserIdentifier,
+            } as any, { setActive: false });
             return;
         }
-        const saved = this.manager.upsertInstance({ baseUrl: host, apiKey, instanceIdentifier }, { setActive: true });
+        const saved = this.manager.upsertInstance({ baseUrl: host, apiKey, instanceIdentifier, instanceUserIdentifier } as any, { setActive: true });
         this.manager.saveApiKey(saved.id, apiKey);
     }
 
@@ -1017,6 +1063,7 @@ export class ConfigService {
                 && (this.normalizeHost(candidate.baseUrl || '') === normalized || this.normalizeHost(candidate.tunnelPublicUrl || '') === normalized);
         });
         const instanceIdentifier = input.apiKey ? this.resolveInstanceIdentifierFromApiKey(input.apiKey) : undefined;
+        const instanceUserIdentifier = input.apiKey ? this.resolveInstanceUserIdentifierFromApiKey(input.apiKey) : undefined;
         const saved = this.manager.upsertInstance({
             id: externalInstance?.id,
             name: input.name || externalInstance?.name || host,
@@ -1024,9 +1071,10 @@ export class ConfigService {
             baseUrl: host,
             apiKey: input.apiKey,
             instanceIdentifier: instanceIdentifier || externalInstance?.instanceIdentifier,
+            instanceUserIdentifier: instanceUserIdentifier || (externalInstance as any)?.instanceUserIdentifier,
             defaultProject: externalInstance?.defaultProject,
             verification: externalInstance?.verification,
-        }, { setActive: false });
+        } as any, { setActive: false });
         return this.toInstanceProfile(saved);
     }
 
@@ -1050,12 +1098,14 @@ export class ConfigService {
             throw new Error('API key not found');
         }
         const identifier = await this.resolveInstanceIdentifier(host, apiKey);
+        const instanceUserIdentifier = this.resolveInstanceUserIdentifierFromApiKey(apiKey) || identifier;
         const saved = this.manager.upsertInstance({
             id: active?.id || instanceId,
             name: active?.name || host,
             baseUrl: active?.baseUrl || host,
             instanceIdentifier: identifier,
-        }, { setActive: true });
+            instanceUserIdentifier,
+        } as any, { setActive: true });
         return saved.instanceIdentifier || identifier;
     }
 
@@ -1161,7 +1211,7 @@ export class ConfigService {
                 usedIds.push(targetId);
                 const environmentId = this.uniqueWorkspaceId(singleInstanceMigration ? 'default' : profile.id || legacy.id || environmentName, usedIds);
                 usedIds.push(environmentId);
-                const syncFolder = this.uniqueEnvironmentSyncFolder(legacy.syncFolder || plan.workspace.syncFolder || 'workflows', environments, environmentName);
+                const syncFolder = legacy.syncFolder || plan.workspace.syncFolder || 'workflows';
 
                 environmentTargets.push({
                     id: targetId,
@@ -1429,7 +1479,7 @@ export class ConfigService {
                     const environmentName = this.uniqueDisplayName(instance.name || instance.id, environmentNames);
                     const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
                     usedIds.push(environmentId);
-                    const syncFolder = this.uniqueEnvironmentSyncFolder(`workflows/${this.slugId(environmentName)}`, environments, environmentName);
+                    const syncFolder = 'workflows';
                     existingEnvironment = stripUndefined({
                         id: environmentId,
                         name: environmentName,
@@ -1479,7 +1529,7 @@ export class ConfigService {
                     const environmentName = this.uniqueDisplayName(instance.name || externalUrl || instance.id, environmentNames);
                     const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
                     usedIds.push(environmentId);
-                    const syncFolder = this.uniqueEnvironmentSyncFolder(`workflows/${this.slugId(environmentName)}`, environments, environmentName);
+                    const syncFolder = 'workflows';
                     existingEnvironment = stripUndefined({
                         id: environmentId,
                         name: environmentName,
@@ -1502,10 +1552,7 @@ export class ConfigService {
             usedIds.push(environmentId);
             const projectId = instance.defaultProject?.id || 'personal';
             const projectName = instance.defaultProject?.name || 'Personal';
-            const preferredSyncFolder = environments.length === 0 && plan.instances.length === 1
-                ? 'workflows'
-                : `workflows/${this.slugId(environmentName)}`;
-            const syncFolder = this.uniqueEnvironmentSyncFolder(preferredSyncFolder, environments, environmentName);
+            const syncFolder = 'workflows';
 
             environmentTargets.push({
                 id: targetId,
@@ -1762,7 +1809,6 @@ export class ConfigService {
         const environments = rawEnvironments.map((environment, index) => this.sanitizeEnvironment(environment, index));
         this.assertUniqueIdsAndNames(environmentTargets, 'instance target');
         this.assertUniqueIdsAndNames(environments, 'environment');
-        this.assertUniqueEnvironmentWorkflowDirs(environments, environmentTargets);
         const targetIds = new Set(environmentTargets.map((target) => target.id));
         for (const environment of environments) {
             if (!targetIds.has(environment.environmentTargetId)) {
@@ -1808,7 +1854,10 @@ export class ConfigService {
                 name,
                 kind: 'external-instance' as const,
                 url,
-                instanceIdentifier: this.canonicalInstanceIdentifier(target.instanceIdentifier || target.instance?.instanceIdentifier),
+                instanceIdentifier: this.canonicalWorkflowInstanceIdentifier(target.instanceIdentifier || target.instance?.instanceIdentifier),
+                instanceUserIdentifier: this.readStoredInstanceUserIdentifier(
+                    target.instanceUserIdentifier || target.instance?.instanceUserIdentifier || target.instanceIdentifier || target.instance?.instanceIdentifier,
+                ),
                 verification: target.verification || target.instance?.verification,
                 description: cleanOptional(target.description),
             });
@@ -1826,49 +1875,6 @@ export class ConfigService {
             if (names.has(name)) throw new Error(`Invalid v4 workspace config: duplicate ${label} name "${item.name}".`);
             names.add(name);
         }
-    }
-
-    private assertUniqueEnvironmentWorkflowDirs(environments: IWorkspaceEnvironment[], targets: IEnvironmentTarget[]): void {
-        const folders = new Map<string, IWorkspaceEnvironment>();
-        for (const environment of environments) {
-            const target = targets.find((item) => item.id === environment.environmentTargetId);
-            if (!target) continue;
-            const instanceIdentifier = target.kind === 'managed-instance'
-                ? this.canonicalInstanceIdentifier(this.manager.getInstance(target.managedInstanceId)?.instanceIdentifier)
-                : this.canonicalInstanceIdentifier(target.instanceIdentifier);
-            const projectName = environment.projectName;
-            const workflowDir = this.buildWorkflowDir(this.resolveWorkspacePath(environment.syncFolder), instanceIdentifier, projectName);
-            if (!workflowDir) continue;
-            const folder = this.normalizeWorkspacePathKey(workflowDir);
-            const externalInstance = folders.get(folder);
-            if (externalInstance) {
-                throw new Error(`Invalid v4 workspace config: environments "${externalInstance.name}" and "${environment.name}" resolve to the same workflow folder "${workflowDir}". Each environment needs a dedicated workflow folder.`);
-            }
-            folders.set(folder, environment);
-        }
-    }
-
-    private normalizeWorkspacePathKey(value: string): string {
-        return path.normalize(this.resolveWorkspacePath(value));
-    }
-
-    private uniqueEnvironmentSyncFolder(baseFolder: string, environments: IWorkspaceEnvironment[], suffix: string): string {
-        const folder = cleanRequired(baseFolder, 'Sync folder');
-        if (!this.hasEnvironmentSyncFolder(folder, environments)) return folder;
-
-        const slug = this.slugId(suffix);
-        let candidate = path.join(folder, slug);
-        let counter = 2;
-        while (this.hasEnvironmentSyncFolder(candidate, environments)) {
-            candidate = path.join(folder, `${slug}-${counter}`);
-            counter += 1;
-        }
-        return candidate;
-    }
-
-    private hasEnvironmentSyncFolder(folder: string, environments: IWorkspaceEnvironment[]): boolean {
-        const normalized = this.normalizeWorkspacePathKey(folder);
-        return environments.some((environment) => this.normalizeWorkspacePathKey(environment.syncFolder) === normalized);
     }
 
     private sanitizeEnvironment(environment: any, index: number): IWorkspaceEnvironment {
@@ -1956,6 +1962,30 @@ export class ConfigService {
         throw new Error(`Unknown workspace instance target: ${key}`);
     }
 
+    private resolveManagedEnvironmentIdentity(instance: GlobalN8nInstance, host: string, apiKey?: string): Pick<IResolvedWorkspaceEnvironment, 'instanceIdentifier' | 'instanceUserIdentifier'> {
+        const instanceAny = instance as GlobalN8nInstance & { instanceUserIdentifier?: string; n8nInstanceIdentifier?: string; n8nInstanceId?: string };
+        const instanceIdentifier = this.canonicalWorkflowInstanceIdentifier(instanceAny.n8nInstanceIdentifier)
+            || this.canonicalWorkflowInstanceIdentifier(instanceAny.instanceIdentifier)
+            || this.readInstanceIdentifierFromSeed(instanceAny.n8nInstanceId || instance.id || host);
+        const instanceUserIdentifier = this.canonicalInstanceUserIdentifier(instanceAny.instanceUserIdentifier)
+            || this.readStoredInstanceUserIdentifier(instance.instanceIdentifier)
+            || this.readInstanceUserIdentifierFromUserId(instance.verification?.userId)
+            || (apiKey ? this.resolveInstanceUserIdentifierFromApiKey(apiKey) : undefined);
+        return stripUndefined({ instanceIdentifier, instanceUserIdentifier });
+    }
+
+    private resolveExternalEnvironmentIdentity(target: IExternalEnvironmentTarget, apiKey?: string): Pick<IResolvedWorkspaceEnvironment, 'instanceIdentifier' | 'instanceUserIdentifier'> {
+        const targetAny = target as IExternalEnvironmentTarget & { n8nInstanceIdentifier?: string; n8nInstanceId?: string };
+        const instanceIdentifier = this.canonicalWorkflowInstanceIdentifier(targetAny.n8nInstanceIdentifier)
+            || this.canonicalWorkflowInstanceIdentifier(target.instanceIdentifier)
+            || this.readInstanceIdentifierFromSeed(targetAny.n8nInstanceId || target.url);
+        const instanceUserIdentifier = this.canonicalInstanceUserIdentifier(target.instanceUserIdentifier)
+            || this.readStoredInstanceUserIdentifier(target.instanceIdentifier)
+            || this.readInstanceUserIdentifierFromUserId(target.verification?.userId)
+            || (apiKey ? this.resolveInstanceUserIdentifierFromApiKey(apiKey) : undefined);
+        return stripUndefined({ instanceIdentifier, instanceUserIdentifier });
+    }
+
     private resolveEnvironmentFromTarget(environment: IWorkspaceEnvironment, target: IEnvironmentTarget, source: IResolvedWorkspaceEnvironment['sources']['environment']): IResolvedWorkspaceEnvironment {
         const syncFolder = this.resolveWorkspacePath(environment.syncFolder);
         if (target.kind === 'managed-instance') {
@@ -1967,7 +1997,7 @@ export class ConfigService {
             const apiKey = envApiKey || globalApiKey;
             const projectId = environment.projectId || instance.defaultProject?.id;
             const projectName = environment.projectName || instance.defaultProject?.name;
-            const instanceIdentifier = this.canonicalInstanceIdentifier(instance.instanceIdentifier);
+            const identity = this.resolveManagedEnvironmentIdentity(instance, host, apiKey);
             return {
                 environment,
                 environmentTarget: target,
@@ -1988,8 +2018,15 @@ export class ConfigService {
                 syncFolder,
                 projectId,
                 projectName,
-                instanceIdentifier,
-                workflowDir: this.buildWorkflowDir(syncFolder, instanceIdentifier, projectName),
+                instanceIdentifier: identity.instanceIdentifier,
+                instanceUserIdentifier: identity.instanceUserIdentifier,
+                workflowDir: this.buildEnvironmentWorkflowDir({
+                    syncFolder,
+                    environmentId: environment.id,
+                    instanceIdentifier: identity.instanceIdentifier,
+                    instanceUserIdentifier: identity.instanceUserIdentifier,
+                    projectId,
+                }),
                 folderSync: environment.folderSync ?? false,
                 customNodesPath: environment.customNodesPath,
                 sources: {
@@ -2006,7 +2043,7 @@ export class ConfigService {
         const workspaceApiKey = this.manager.getApiKey(target.id);
         const globalApiKey = this.getApiKey(host);
         const apiKey = envApiKey || workspaceApiKey || globalApiKey;
-        const instanceIdentifier = this.canonicalInstanceIdentifier(target.instanceIdentifier);
+        const identity = this.resolveExternalEnvironmentIdentity(target, apiKey);
         return {
             environment,
             environmentTarget: target,
@@ -2025,8 +2062,15 @@ export class ConfigService {
             syncFolder,
             projectId: environment.projectId,
             projectName: environment.projectName,
-            instanceIdentifier,
-            workflowDir: this.buildWorkflowDir(syncFolder, instanceIdentifier, environment.projectName),
+            instanceIdentifier: identity.instanceIdentifier,
+            instanceUserIdentifier: identity.instanceUserIdentifier,
+            workflowDir: this.buildEnvironmentWorkflowDir({
+                syncFolder,
+                environmentId: environment.id,
+                instanceIdentifier: identity.instanceIdentifier,
+                instanceUserIdentifier: identity.instanceUserIdentifier,
+                projectId: environment.projectId,
+            }),
             folderSync: environment.folderSync ?? false,
             customNodesPath: environment.customNodesPath,
             sources: {
@@ -2080,6 +2124,7 @@ export class ConfigService {
             projectId: environment.projectId,
             projectName: environment.projectName,
             instanceIdentifier: environment.instanceIdentifier,
+            instanceUserIdentifier: environment.instanceUserIdentifier,
             workflowDir: environment.workflowDir,
             customNodesPath: environment.customNodesPath,
             folderSync: environment.folderSync,
@@ -2104,6 +2149,8 @@ export class ConfigService {
             instanceName: resolved.activeInstanceName,
             url: resolved.sourceKind === 'external-instance' ? resolved.host : undefined,
             workflowDir: resolved.workflowDir,
+            instanceIdentifier: resolved.instanceIdentifier,
+            instanceUserIdentifier: resolved.instanceUserIdentifier,
             apiKeyAvailable: resolved.apiKeyAvailable,
             credentialSource: resolved.apiKeySource,
             accessStatus: resolved.accessStatus,
@@ -2131,6 +2178,8 @@ export class ConfigService {
                 managedInstanceId: instance.id,
                 instanceName: instance.name,
                 url: host,
+                instanceIdentifier: this.resolveManagedEnvironmentIdentity(instance, host, apiKey).instanceIdentifier,
+                instanceUserIdentifier: this.resolveManagedEnvironmentIdentity(instance, host, apiKey).instanceUserIdentifier,
                 apiKeyAvailable: Boolean(apiKey),
                 credentialSource: envApiKey ? 'env' as const : globalApiKey ? 'global' as const : 'missing' as const,
                 accessStatus: this.deriveAccessStatus({ host, apiKey, verification: envApiKey ? undefined : instance.verification }),
@@ -2145,6 +2194,8 @@ export class ConfigService {
         return stripUndefined({
             ...target,
             url: host,
+            instanceIdentifier: this.resolveExternalEnvironmentIdentity(target, apiKey).instanceIdentifier,
+            instanceUserIdentifier: this.resolveExternalEnvironmentIdentity(target, apiKey).instanceUserIdentifier,
             apiKeyAvailable: Boolean(apiKey),
             credentialSource: envApiKey ? 'env' as const : workspaceApiKey ? 'workspace-local' as const : globalApiKey ? 'global' as const : 'missing' as const,
             accessStatus: this.deriveAccessStatus({ host, apiKey, verification: target.verification }),
@@ -2168,6 +2219,7 @@ export class ConfigService {
             projectId: environment.projectId,
             projectName: environment.projectName,
             instanceIdentifier: environment.instanceIdentifier,
+            instanceUserIdentifier: environment.instanceUserIdentifier,
             workflowDir: environment.workflowDir,
             customNodesPath: environment.customNodesPath,
             folderSync: environment.folderSync,
@@ -2183,6 +2235,7 @@ export class ConfigService {
                 mode: 'existing',
                 baseUrl: environment.host,
                 instanceIdentifier: environment.instanceIdentifier,
+                instanceUserIdentifier: environment.instanceUserIdentifier,
                 defaultProject: environment.projectId && environment.projectName ? { id: environment.projectId, name: environment.projectName } : undefined,
             } as GlobalN8nInstance,
             activeInstanceId: environment.activeInstanceId || environment.environmentTargetId,
@@ -2195,6 +2248,8 @@ export class ConfigService {
             projectId: environment.projectId,
             projectName: environment.projectName,
             instanceIdentifier: environment.instanceIdentifier,
+            instanceUserIdentifier: environment.instanceUserIdentifier,
+            workflowDir: environment.workflowDir,
             folderSync: environment.folderSync ?? false,
             customNodesPath: environment.customNodesPath,
             environmentId: environment.environmentId,
@@ -2249,6 +2304,35 @@ export class ConfigService {
         return isCanonicalUserInstanceIdentifier(identifier) ? identifier : undefined;
     }
 
+    private canonicalWorkflowInstanceIdentifier(identifier?: string): string | undefined {
+        return isCanonicalInstanceIdentifier(identifier) ? identifier : undefined;
+    }
+
+    private canonicalInstanceUserIdentifier(identifier?: string): string | undefined {
+        return isCanonicalInstanceUserIdentifier(identifier) ? identifier : undefined;
+    }
+
+    private readInstanceIdentifierFromSeed(seed?: string): string | undefined {
+        try {
+            return seed ? createCanonicalInstanceIdentifier(seed) : undefined;
+        } catch {
+            return undefined;
+        }
+    }
+
+    private readInstanceUserIdentifierFromUserId(userId?: string): string | undefined {
+        try {
+            return userId ? createInstanceUserIdentifier({ id: userId }) : undefined;
+        } catch {
+            return undefined;
+        }
+    }
+
+    private readStoredInstanceUserIdentifier(value?: string): string | undefined {
+        return this.canonicalInstanceUserIdentifier(value)
+            || (isCanonicalUserInstanceIdentifier(value) ? value : undefined);
+    }
+
     private resolveInstanceIdentifierFromApiKey(apiKey: string): string | undefined {
         try {
             const parts = apiKey.split('.');
@@ -2262,11 +2346,31 @@ export class ConfigService {
         }
     }
 
+    private resolveInstanceUserIdentifierFromApiKey(apiKey: string): string | undefined {
+        try {
+            const parts = apiKey.split('.');
+            if (parts.length !== 3) return undefined;
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64url' as BufferEncoding).toString('utf8'));
+            return typeof payload.sub === 'string' && payload.sub
+                ? createInstanceUserIdentifier({ id: payload.sub })
+                : undefined;
+        } catch {
+            return undefined;
+        }
+    }
+
     private async resolveInstanceIdentifier(host: string, apiKey: string, client?: IInstanceVerificationClient): Promise<string> {
         const { identifier } = await resolveInstanceIdentifier({ host, apiKey }, {
             client: client as any,
         });
         return identifier;
+    }
+
+    private async resolveN8nIdentity(host: string, apiKey: string, client?: IInstanceVerificationClient, instanceSeed?: string): Promise<IResolvedN8nIdentity> {
+        return resolveN8nIdentityFromApi({ host, apiKey }, {
+            client: client as any,
+            instanceSeed,
+        });
     }
 
     private writeWorkspaceFields(instanceId: string, config: Partial<ILocalConfig>, setActive: boolean): void {
@@ -2315,6 +2419,8 @@ export class ConfigService {
             projectId: overrides?.projectId || instance.defaultProject?.id,
             projectName: overrides?.projectName || instance.defaultProject?.name,
             instanceIdentifier: this.canonicalInstanceIdentifier(instance.instanceIdentifier),
+            instanceUserIdentifier: this.canonicalInstanceUserIdentifier((instance as GlobalN8nInstance & { instanceUserIdentifier?: string }).instanceUserIdentifier)
+                || this.readStoredInstanceUserIdentifier(instance.instanceIdentifier),
             customNodesPath: overrides?.customNodesPath,
             folderSync: overrides?.folderSync,
             verification: instance.verification,
@@ -2323,6 +2429,8 @@ export class ConfigService {
 
     private contextToInstanceProfile(context: EffectiveN8nContext): IInstanceProfile {
         const instanceIdentifier = context.instanceIdentifier;
+        const instanceUserIdentifier = this.canonicalInstanceUserIdentifier((context as EffectiveN8nContext & { instanceUserIdentifier?: string }).instanceUserIdentifier)
+            || this.readStoredInstanceUserIdentifier(context.instanceIdentifier);
         return {
             ...this.toInstanceProfile(context.instance),
             host: context.host,
@@ -2330,7 +2438,9 @@ export class ConfigService {
             projectId: context.projectId,
             projectName: context.projectName,
             instanceIdentifier,
-            workflowDir: this.buildWorkflowDir(context.syncFolder, instanceIdentifier, context.projectName),
+            instanceUserIdentifier,
+            workflowDir: (context as EffectiveN8nContext & { workflowDir?: string }).workflowDir
+                || this.buildWorkflowDir(context.syncFolder, instanceIdentifier, context.projectName),
             customNodesPath: context.customNodesPath,
             folderSync: context.folderSync,
         };
@@ -2353,6 +2463,7 @@ export class ConfigService {
             projectId: profile.projectId,
             projectName: profile.projectName,
             instanceIdentifier: profile.instanceIdentifier,
+            instanceUserIdentifier: profile.instanceUserIdentifier,
             workflowDir,
             customNodesPath: profile.customNodesPath,
             folderSync: profile.folderSync,
@@ -2434,6 +2545,25 @@ export class ConfigService {
         return syncFolder && instanceIdentifier && projectName
             ? path.join(syncFolder, instanceIdentifier, createProjectSlug(projectName))
             : undefined;
+    }
+
+    private buildEnvironmentWorkflowDir(input: {
+        syncFolder?: string;
+        environmentId?: string;
+        instanceIdentifier?: string;
+        instanceUserIdentifier?: string;
+        projectId?: string;
+    }): string | undefined {
+        if (!input.syncFolder || !input.environmentId || !input.instanceIdentifier || !input.instanceUserIdentifier || !input.projectId) {
+            return undefined;
+        }
+
+        return path.join(input.syncFolder, createWorkflowDirNameV1({
+            environmentId: input.environmentId,
+            instanceIdentifier: input.instanceIdentifier,
+            instanceUserIdentifier: input.instanceUserIdentifier,
+            projectId: input.projectId,
+        }));
     }
 
     private findConfigRoot(startDir: string): string {

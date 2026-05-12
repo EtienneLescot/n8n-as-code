@@ -33,6 +33,10 @@ export class SyncManager extends EventEmitter {
     private async ensureInitialized() {
         if (this.watcher) return;
 
+        if (this.config.environmentId && !this.config.workflowDir) {
+            throw new Error(`Environment "${this.config.environmentName || this.config.environmentId}" is missing a resolved workflowDir. Run \`n8nac env status --json\` and fix its instance, user, and project identity before syncing.`);
+        }
+
         const instanceDir = this.config.workflowDir
             ? path.normalize(this.config.workflowDir)
             : path.join(

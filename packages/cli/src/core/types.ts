@@ -61,6 +61,7 @@ export interface ISyncConfig {
     syncInactive: boolean; // internal default true
     ignoredTags: string[]; // internal default []
     instanceIdentifier?: string; // Optional: auto-generated if not provided
+    instanceUserIdentifier?: string;
     instanceConfigPath?: string; // Optional: explicit path for n8nac-config.json
     projectId: string;           // REQUIRED: Project scope for sync
     projectName: string;         // REQUIRED: Project display name

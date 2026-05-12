@@ -2187,6 +2187,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         host: environment?.host || effective?.apiBaseUrl || effective?.host || '',
         apiKey: environment?.apiKey || effective?.apiKey || '',
         syncFolder: environment?.syncFolder || effective?.syncFolder || 'workflows',
+        workflowDir: environment?.workflowDir || (effective as any)?.workflowDir || '',
         projectId: environment?.projectId || effective?.projectId || '',
         projectName: environment?.projectName || effective?.projectName || '',
     };
@@ -2238,6 +2239,10 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     }
 
     const absDirectory = path.isAbsolute(folder) ? folder : path.resolve(workspaceRoot, folder);
+    const workflowDir = resolvedConfig.workflowDir || '';
+    const absWorkflowDirectory = workflowDir
+        ? path.isAbsolute(workflowDir) ? workflowDir : path.resolve(workspaceRoot, workflowDir)
+        : undefined;
 
     let instanceIdentifier: string;
     try {
@@ -2260,6 +2265,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     // Create SyncManager (the stateful engine: WorkflowStateTracker, events, etc.)
     syncManager = new SyncManager(client, {
         directory: absDirectory,
+        workflowDir: absWorkflowDirectory,
         syncInactive: true,
         ignoredTags: [],
         instanceIdentifier,
@@ -2321,8 +2327,10 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     // 3. Remote polling every 60s: discovers workflows created/deleted on the n8n instance.
     if (vscode.workspace.workspaceFolders?.length) {
         const pattern = path.isAbsolute(folder)
-            ? new vscode.RelativePattern(vscode.Uri.file(absDirectory), '**/*.workflow.ts')
-            : new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], `${folder}/**/*.workflow.ts`);
+            ? new vscode.RelativePattern(vscode.Uri.file(absWorkflowDirectory || absDirectory), '**/*.workflow.ts')
+            : absWorkflowDirectory
+                ? new vscode.RelativePattern(vscode.Uri.file(absWorkflowDirectory), '**/*.workflow.ts')
+                : new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], `${folder}/**/*.workflow.ts`);
         const fileWatcher = vscode.workspace.createFileSystemWatcher(pattern, false, true, false);
         const reloadList = async () => {
             if (!syncManager) return;
@@ -2369,8 +2377,10 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     //    The webview reloads only for new workflow.push success events with remoteChanged=true.
     if (vscode.workspace.workspaceFolders?.length && syncManager) {
         const journalPattern = path.isAbsolute(folder)
-            ? new vscode.RelativePattern(vscode.Uri.file(absDirectory), `**/${SYNC_EVENT_JOURNAL_FILENAME}`)
-            : new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], `${folder}/**/${SYNC_EVENT_JOURNAL_FILENAME}`);
+            ? new vscode.RelativePattern(vscode.Uri.file(absWorkflowDirectory || absDirectory), `**/${SYNC_EVENT_JOURNAL_FILENAME}`)
+            : absWorkflowDirectory
+                ? new vscode.RelativePattern(vscode.Uri.file(absWorkflowDirectory), `**/${SYNC_EVENT_JOURNAL_FILENAME}`)
+                : new vscode.RelativePattern(vscode.workspace.workspaceFolders[0], `${folder}/**/${SYNC_EVENT_JOURNAL_FILENAME}`);
         const journalUri = vscode.Uri.file(await syncManager.getSyncEventJournalPath());
         await processSyncEventJournal(journalUri, 'sync journal seed', true);
 

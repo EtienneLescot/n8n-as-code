@@ -13,6 +13,7 @@ export class BaseCommand {
     protected activeEnvironmentNameOrId?: string;
     protected activeEnvironment?: IResolvedWorkspaceEnvironment;
     protected instanceIdentifier: string | null = null;
+    protected instanceUserIdentifier: string | null = null;
     private runtimePrepared = false;
 
     constructor() {
@@ -30,7 +31,7 @@ export class BaseCommand {
         const requestedInstanceName = process.env.N8NAC_INSTANCE_NAME?.trim() || undefined;
         if (requestedInstanceName) {
             console.error(chalk.red('❌ Direct instance targeting is no longer supported by n8nac.'));
-            console.error(chalk.yellow('Create a workspace environment with `n8nac env add <name> --base-url <url> --sync-folder workflows/<name>`, then use `--env <name>`.'));
+            console.error(chalk.yellow('Create a workspace environment with `n8nac env add <name> --base-url <url> --sync-folder workflows`, then use `--env <name>`.'));
             process.exit(1);
         }
 
@@ -60,6 +61,7 @@ export class BaseCommand {
             directory = resolvedEnvironment.syncFolder || this.configService.resolveWorkspacePath('./workflows');
             folderSync = resolvedEnvironment.folderSync ?? false;
             this.instanceIdentifier = resolvedEnvironment.instanceIdentifier || null;
+            this.instanceUserIdentifier = resolvedEnvironment.instanceUserIdentifier || null;
         } else {
             const localConfig = this.configService.getLocalConfig();
             this.activeInstanceId = this.configService.getActiveInstanceId();
@@ -86,7 +88,7 @@ export class BaseCommand {
             if (!host || !apiKey) {
                 if (!canPrepareManagedRuntime) {
                     console.error(chalk.red('❌ CLI not configured.'));
-                    console.error(chalk.yellow('Create a workspace environment with `n8nac env add <name> --base-url <url> --sync-folder workflows/<name>` and store auth with `n8nac env auth set <name> --api-key-stdin`.'));
+                    console.error(chalk.yellow('Create a workspace environment with `n8nac env add <name> --base-url <url> --sync-folder workflows` and store auth with `n8nac env auth set <name> --api-key-stdin`.'));
                     process.exit(1);
                 }
                 apiKey = '';
@@ -123,15 +125,15 @@ export class BaseCommand {
     }
 
     private tryResolveEnvironment(): IResolvedWorkspaceEnvironment | undefined {
+        if (!this.configService.isWorkspaceConfigV4()) {
+            return undefined;
+        }
         try {
             return this.configService.resolveEnvironment();
         } catch (error: any) {
-            if (this.configService.isWorkspaceConfigV4()) {
-                console.error(chalk.red(`❌ Workspace environment resolution failed: ${error?.message || error}`));
-                console.error(chalk.yellow('Fix the pinned workspace environment with `n8nac env pin <name>` or update the v4 environment config.'));
-                process.exit(1);
-            }
-            return undefined;
+            console.error(chalk.red(`❌ Workspace environment resolution failed: ${error?.message || error}`));
+            console.error(chalk.yellow('Fix the pinned workspace environment with `n8nac env pin <name>` or update the v4 environment config.'));
+            process.exit(1);
         }
     }
 
@@ -163,7 +165,7 @@ export class BaseCommand {
         await this.prepareRuntimeContext();
         const instanceIdentifier = await this.ensureInstanceIdentifier();
         const localConfig = this.activeEnvironmentNameOrId
-            ? this.configService.getLocalConfig(this.activeEnvironmentNameOrId)
+            ? (this.activeEnvironment || this.configService.getLocalConfig(this.activeEnvironmentNameOrId))
             : this.activeInstanceId
             ? (this.configService.getEffectiveInstanceConfig(this.activeInstanceId) ?? this.configService.getLocalConfig())
             : this.configService.getLocalConfig();
@@ -175,7 +177,7 @@ export class BaseCommand {
 
         if (missing.length > 0) {
             console.error(chalk.red(`❌ Missing required project configuration: ${missing.join(', ')}.`));
-            console.error(chalk.yellow('Update the workspace environment with `n8nac env update <name> --project-id personal --project-name Personal --sync-folder workflows/<name>`.'));
+            console.error(chalk.yellow('Update the workspace environment with `n8nac env update <name> --project-id personal --project-name Personal --sync-folder workflows`.'));
             process.exit(1);
         }
 
@@ -187,6 +189,7 @@ export class BaseCommand {
             syncInactive: true,
             ignoredTags: [],
             instanceIdentifier: instanceIdentifier,
+            instanceUserIdentifier: this.activeEnvironment?.instanceUserIdentifier || localConfig.instanceUserIdentifier,
             instanceConfigPath: this.configService.getInstanceConfigPath(),
             projectId: localConfig.projectId,
             projectName: localConfig.projectName,
@@ -218,6 +221,7 @@ export class BaseCommand {
 
             this.activeEnvironment = preparedEnvironment || this.activeEnvironment;
             this.instanceIdentifier = preparedEnvironment?.instanceIdentifier || this.instanceIdentifier;
+            this.instanceUserIdentifier = preparedEnvironment?.instanceUserIdentifier || this.instanceUserIdentifier;
             this.activeInstanceId = context.activeInstanceId;
             this.client = new N8nApiClient({ host: context.host, apiKey: context.apiKey } as IN8nCredentials);
             this.config = {

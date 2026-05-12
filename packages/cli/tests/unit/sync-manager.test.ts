@@ -191,4 +191,21 @@ describe('SyncManager push filename contract', () => {
         expect(fs.existsSync(path.join(workflowDir, 'n8n-workflows.d.ts'))).toBe(true);
         expect(fs.existsSync(path.join(workspaceDir, 'generated-base', 'generated_instance', 'personal'))).toBe(false);
     });
+
+    it('requires resolved workflowDir for environment sync scopes', async () => {
+        const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-sync-manager-'));
+        const manager = new SyncManager(new MockN8nApiClient() as any, {
+            directory: workspaceDir,
+            syncInactive: true,
+            ignoredTags: [],
+            projectId: 'project-1',
+            projectName: 'Personal',
+            instanceIdentifier: 'inst_1111111111',
+            instanceUserIdentifier: 'user_2222222222',
+            environmentId: 'dev',
+            environmentName: 'Dev',
+        });
+
+        await expect(manager.refreshLocalState()).rejects.toThrow(/missing a resolved workflowDir/);
+    });
 });

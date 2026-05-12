@@ -64,8 +64,8 @@ export class PromotedWorkflow {}
             configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
             configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
 
-            const sourceDir = path.join(workspaceRoot, 'workflows/dev/n8n_1111111111/personal');
-            const targetDir = path.join(workspaceRoot, 'workflows/prod/n8n_2222222222/personal');
+            const sourceDir = configService.resolveEnvironment('Dev').workflowDir!;
+            const targetDir = configService.resolveEnvironment('Prod').workflowDir!;
             mkdirSync(sourceDir, { recursive: true });
             mkdirSync(targetDir, { recursive: true });
             const workflow = "@workflow({ name: 'One' })\nexport class One {}\n";
@@ -110,8 +110,8 @@ export class PromotedWorkflow {}
             configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
             configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
 
-            const sourceDir = path.join(workspaceRoot, 'workflows/dev/n8n_1111111111/personal');
-            const targetDir = path.join(workspaceRoot, 'workflows/prod/n8n_2222222222/personal');
+            const sourceDir = configService.resolveEnvironment('Dev').workflowDir!;
+            const targetDir = configService.resolveEnvironment('Prod').workflowDir!;
             mkdirSync(sourceDir, { recursive: true });
             mkdirSync(targetDir, { recursive: true });
             const sourcePath = path.join(sourceDir, 'one.workflow.ts');

@@ -105,6 +105,73 @@ export class N8nApiClient {
         return { id: jwtUserId };
     }
 
+    async getInstanceIdentity(): Promise<{ id?: string } | null> {
+        const candidates: Array<() => Promise<any>> = [
+            async () => (await this.client.get('/rest/settings')).data,
+            async () => (await this.client.get('/api/v1/settings')).data,
+            async () => (await this.client.get('/healthz')).data,
+        ];
+
+        for (const candidate of candidates) {
+            try {
+                const data = await candidate();
+                const id = this.extractInstanceId(data);
+                if (id) return { id };
+            } catch {
+                // Some endpoints are version/license/auth dependent. Try the next source.
+            }
+        }
+
+        try {
+            const baseURL = this.client.defaults.baseURL;
+            const res = await axios.get(`${baseURL}/`, { httpsAgent: this.httpsAgent });
+            const id = this.extractInstanceIdFromHtml(String(res.data || ''));
+            if (id) return { id };
+        } catch {
+            // Fall back to caller-provided seed when no server invariant is available.
+        }
+
+        return null;
+    }
+
+    private extractInstanceId(value: unknown): string | undefined {
+        if (!value || typeof value !== 'object') return undefined;
+        const record = value as Record<string, unknown>;
+        const directCandidates = [
+            record.instanceId,
+            record.instanceID,
+            record.id,
+            record.n8nInstanceId,
+        ];
+        for (const candidate of directCandidates) {
+            if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+        }
+
+        const nestedKeys = ['data', 'settings', 'instance', 'deployment', 'n8nMetadata'];
+        for (const key of nestedKeys) {
+            const nested = this.extractInstanceId(record[key]);
+            if (nested) return nested;
+        }
+        return undefined;
+    }
+
+    private extractInstanceIdFromHtml(html: string): string | undefined {
+        const metaMatches = html.matchAll(/name="n8n:config:[^"]+"\s+content="([^"]+)"/g);
+        for (const match of metaMatches) {
+            try {
+                const decoded = Buffer.from(match[1], 'base64').toString('utf-8');
+                const parsed = JSON.parse(decoded);
+                const id = this.extractInstanceId(parsed);
+                if (id) return id;
+            } catch {
+                // Ignore non-JSON or non-base64 metadata.
+            }
+        }
+
+        const plainMatch = html.match(/"instanceId"\s*:\s*"([^"]+)"/);
+        return plainMatch?.[1];
+    }
+
     private shouldUsePersonalProjectFallback(error: any): boolean {
         const status = error?.response?.status;
         return status === 403 || status === 404;

@@ -485,7 +485,7 @@ workspaceProgram.command('status')
     .alias('get')
     .description('Show the effective n8n workspace context resolved by the backend')
     .option('--json', 'Output effective workspace context as JSON')
-    .action((options) => {
+    .action(async (options) => {
         const configService = new ConfigService();
         const selectedEnvironment = process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
         const migration = new WorkspaceMigrationFacade({ configService }).inspect();
@@ -504,8 +504,10 @@ workspaceProgram.command('status')
         }
         const workspaceConfig = configService.getWorkspaceConfig();
         const resolvedEnvironment = selectedEnvironment
-            ? (() => { try { return configService.resolveEnvironment(selectedEnvironment); } catch { return undefined; } })()
-            : undefined;
+            ? await (async () => { try { return await configService.prepareEnvironment(selectedEnvironment); } catch { return undefined; } })()
+            : workspaceConfig.version === 4
+                ? await (async () => { try { return await configService.prepareEnvironment(); } catch { return undefined; } })()
+                : undefined;
         printJsonOrText(
             options,
             resolvedEnvironment ? { ...workspaceConfig, selectedEnvironment: redactResolvedEnvironment(resolvedEnvironment) } : workspaceConfig,
@@ -514,7 +516,8 @@ workspaceProgram.command('status')
                 workspaceConfig.activeEnvironmentId ? `Env     : ${chalk.bold(resolvedEnvironment?.environmentName || workspaceConfig.activeEnvironment?.name || workspaceConfig.activeEnvironmentId)}` : undefined,
                 `Instance: ${chalk.bold(resolvedEnvironment?.activeInstanceName || workspaceConfig.activeInstanceId || '(none)')}`,
                 `Project : ${chalk.bold(resolvedEnvironment?.projectName || workspaceConfig.projectName || workspaceConfig.projectId || '(none)')}`,
-                `Sync    : ${chalk.bold(resolvedEnvironment?.workflowDir || workspaceConfig.workflowDir || workspaceConfig.syncFolder || '(none)')}`,
+                `Sync root   : ${chalk.bold(resolvedEnvironment?.syncFolder || workspaceConfig.syncFolder || '(none)')}`,
+                `Workflow dir: ${chalk.bold(resolvedEnvironment?.workflowDir || workspaceConfig.workflowDir || '(none)')}`,
                 '',
             ].filter(Boolean).join('\n'),
         );
@@ -645,7 +648,7 @@ environmentTargetProgram.command('add')
             const instance = (await createManagerFacadeFromOptions({}).listInstances()).find((item) => item.id === managedInstanceId);
             if (!instance) throw new Error(`Unknown managed local n8n instance: ${managedInstanceId}`);
             if (instance.mode !== 'managed-local-docker') {
-                throw new Error(`Instance "${instance.name || instance.id}" is not managed locally. Prefer \`n8nac env add <name> --base-url <url> --sync-folder <path>\` for remote n8n environments.`);
+                throw new Error(`Instance "${instance.name || instance.id}" is not managed locally. Prefer \`n8nac env add <name> --base-url <url> --sync-folder workflows\` for remote n8n environments.`);
             }
         }
         const target = configService.addInstanceTarget({
@@ -724,7 +727,7 @@ environmentProgram.command('add')
     .option('--api-key-stdin', 'Read the local API key for --base-url from stdin')
     .option('--project-id <id>', 'n8n project ID')
     .option('--project-name <name>', 'n8n project display name')
-    .requiredOption('--sync-folder <path>', 'Environment sync folder')
+    .option('--sync-folder <path>', 'Environment sync root', 'workflows')
     .option('--id <id>', 'Stable environment ID')
     .option('--folder-sync', 'Enable folder sync for this environment')
     .option('--custom-nodes-path <path>', 'Custom nodes path for this environment')
@@ -784,7 +787,7 @@ environmentProgram.command('update')
     .option('--api-key-stdin', 'Read the local API key for --base-url from stdin')
     .option('--project-id <id>', 'n8n project ID')
     .option('--project-name <name>', 'n8n project display name')
-    .option('--sync-folder <path>', 'Environment sync folder')
+    .option('--sync-folder <path>', 'Environment sync root')
     .option('--folder-sync', 'Enable folder sync for this environment')
     .option('--no-folder-sync', 'Disable folder sync for this environment')
     .option('--custom-nodes-path <path>', 'Custom nodes path for this environment')
@@ -876,7 +879,7 @@ environmentAuthProgram.command('set')
             throw new Error('Provide --api-key or --api-key-stdin.');
         }
         configService.saveWorkspaceTargetApiKey(environment.environmentTargetId, options.apiKey);
-        const resolved = configService.resolveEnvironment(nameOrId);
+        const resolved = await configService.prepareEnvironment(nameOrId);
         printJsonOrText(
             options,
             redactResolvedEnvironment(resolved),
@@ -888,10 +891,10 @@ environmentProgram.command('status')
     .description('Show resolved workspace environment context')
     .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
     .option('--json', 'Output resolved environment as JSON')
-    .action((nameOrId, options) => {
+    .action(async (nameOrId, options) => {
         const configService = new ConfigService();
         abortIfWorkspaceMigrationRequired(configService, options);
-        const environment = configService.resolveEnvironment(nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined);
+        const environment = await configService.prepareEnvironment(nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined);
         printJsonOrText(
             options,
             redactResolvedEnvironment(environment),
@@ -901,7 +904,8 @@ environmentProgram.command('status')
                 `Instance: ${chalk.bold(environment.activeInstanceName || environment.managedInstanceId || '(externalInstance)')}`,
                 `Host    : ${chalk.bold(environment.host)}`,
                 `Project : ${chalk.bold(environment.projectName || environment.projectId || '(none)')}`,
-                `Sync    : ${chalk.bold(environment.workflowDir || environment.syncFolder)}`,
+                `Sync root   : ${chalk.bold(environment.syncFolder)}`,
+                `Workflow dir: ${chalk.bold(environment.workflowDir || '(unresolved)')}`,
                 `API key : ${chalk.bold(environment.apiKeyAvailable ? environment.apiKeySource : 'missing')}`,
                 '',
             ].join('\n'),
