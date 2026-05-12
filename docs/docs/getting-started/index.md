@@ -1,7 +1,7 @@
 ---
 sidebar_position: 1
 title: Getting Started
-description: Set up n8n-as-code with n8n environments, VS Code/Cursor, the CLI, and AI agents.
+description: Set up n8n-as-code with workspace environments, VS Code/Cursor, the CLI, and AI agents.
 ---
 
 # Getting Started
@@ -19,9 +19,9 @@ This guide gets you from an empty workspace to an agent-assisted n8n workflow lo
 
 | Group | Command | Use it for |
 |---|---|---|
-| Usage Principal | `n8nac env` | Workspace environments |
-| Maintenance Workspace | `n8nac workspace` | Readiness, unified migration, upgrade |
-| Instances Managées | `n8n-manager` | Local managed instances and tunnels |
+| Primary Usage | `n8nac env` | Workspace environments |
+| Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
+| Managed Local Instances | `n8n-manager` | Local managed instances and tunnels |
 
 An environment stores the workspace-safe context: n8n endpoint, project, sync folder, and active selection. API keys stay local.
 
@@ -31,7 +31,7 @@ An environment stores the workspace-safe context: n8n endpoint, project, sync fo
 2. Open a folder or `.code-workspace`.
 3. Open the `n8n` view.
 4. Run **n8n: Configure**.
-5. In **n8n environments**, choose `Enter URL and API key` or select a managed local instance.
+5. In **n8n environments**, choose `Enter URL and API key` for a remote n8n environment or select a local managed instance.
 6. Choose the project and sync folder.
 7. Save the environment.
 
@@ -39,7 +39,7 @@ After that, use the sidebar to pull workflows or create a local workflow file, t
 
 ## CLI Setup
 
-### Existing n8n URL
+### Remote n8n environment
 
 ```bash
 n8nac env add Dev --base-url https://n8n.example.com --sync-folder workflows/dev
@@ -48,7 +48,7 @@ n8nac env use Dev
 n8nac update-ai
 ```
 
-### Managed local instance
+### Local managed instance
 
 ```bash
 n8n-manager instance list
@@ -74,24 +74,17 @@ n8nac push workflows/dev/my-workflow.workflow.ts --verify
 
 Sync is explicit. The CLI and extension do not silently overwrite local or remote work.
 
-## Migration And Upgrade
+## Workspace Migration
 
 Existing repositories are not rewritten automatically on open.
 
-Legacy V1/V2 config:
+Inspect and apply required workspace migrations explicitly:
 
 ```bash
 n8nac workspace migrate --json
 n8nac workspace migrate --write
 n8nac workspace migrate --json
 n8nac env status --json
-```
-
-Previous V3/`next` config:
-
-```bash
-n8nac workspace upgrade
-n8nac workspace upgrade --write
 ```
 
 Run the JSON dry-run first and review the unified `operations` list. The `--write` form applies the migration atomically and creates a backup before updating `n8nac-config.json`.
@@ -110,7 +103,7 @@ your-project/
 
 - `n8nac-config.json` stores workspace environments and is safe to commit when it contains no secrets.
 - API keys stay local through `n8nac env auth` or the extension.
-- Managed local instances and tunnel state stay in `n8n-manager` storage.
+- Local managed instances and tunnel state stay in `n8n-manager` storage.
 - `AGENTS.md` gives local coding agents grounded n8n instructions.
 
 ## Agent Skills And Plugins

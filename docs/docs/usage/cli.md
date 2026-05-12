@@ -41,16 +41,16 @@ npm uninstall -g @n8n-as-code/cli
 
 | Group | Command | Purpose |
 |---|---|---|
-| Usage Principal | `n8nac env` | Workspace environments |
-| Maintenance Workspace | `n8nac workspace` | Readiness, unified migration, upgrade |
-| Instances Managées | `n8n-manager` | Local managed instances and tunnels |
-| Compat Cachée | `instance-target`, `target`, `setup`, old `workspace` mutations | Compatibility only |
+| Primary Usage | `n8nac env` | Workspace environments |
+| Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
+| Managed Local Instances | `n8n-manager` | Local managed instances and tunnels |
+| Hidden Compatibility | `instance-target`, `target`, `setup`, old `workspace` mutations | Compatibility only |
 
 For a compact overview, see the [Command Glossary](/docs/usage/commands).
 
 ## Quick Start
 
-### Existing n8n URL
+### Remote n8n environment
 
 ```bash
 n8nac env add Dev --base-url https://n8n.example.com --sync-folder workflows/dev
@@ -59,7 +59,7 @@ n8nac env use Dev
 n8nac update-ai
 ```
 
-### Managed local instance
+### Local managed instance
 
 ```bash
 n8n-manager instance list
@@ -99,9 +99,9 @@ n8nac env add Staging --base-url https://staging.example.com --sync-folder workf
 n8nac env auth set Staging --api-key-stdin
 ```
 
-### Managed local environments
+### Local managed instance environments
 
-Managed local environments reference a local `n8n-manager` instance.
+These workspace environments reference a local `n8n-manager` instance.
 
 ```bash
 n8n-manager instance list
@@ -112,17 +112,15 @@ The workspace does not copy Docker paths, tunnel state, logs, or local secrets.
 
 ## `workspace`
 
-Use `workspace` for inspection and explicit migrations/upgrades only.
+Use `workspace` for inspection and explicit migrations only.
 
 ```bash
 n8nac workspace status
 n8nac workspace migrate --json
 n8nac workspace migrate --write
-n8nac workspace upgrade
-n8nac workspace upgrade --write
 ```
 
-`migrate --json` is the dry-run for legacy V1/V2 configs and reports one unified `operations` list. `migrate --write` applies all required migration operations together. `upgrade` is for previous V3/`next` configs and should be run without `--write` first.
+`migrate --json` is the dry-run for legacy config models and reports one unified `operations` list. `migrate --write` applies all required migration operations together.
 
 ## Sync Commands
 
@@ -266,6 +264,8 @@ Current config is environment-based and safe to commit when it contains no secre
 ```
 
 API keys are stored locally with `n8nac env auth set <env> --api-key-stdin`.
+
+In config examples, `kind: "external-instance"` is the persisted target kind for a remote n8n URL. Prefer the user-facing term "remote n8n environment" outside raw config discussions.
 
 ## Scripting Example
 

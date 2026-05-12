@@ -1,12 +1,12 @@
 ---
 sidebar_position: 1
 title: Workspace Migration
-description: Migrate legacy n8n-as-code workspace and instance config to n8n environments.
+description: Migrate legacy n8n-as-code workspace and instance config to workspace environments.
 ---
 
 # Workspace Migration
 
-Current n8n-as-code workspaces use **n8n environments** as the source of truth.
+Current n8n-as-code workspaces use **workspace environments** as the source of truth.
 
 Legacy V1/V2 configs can contain old workspace instance data, global instance references, or API keys. Migrate them explicitly; n8n-as-code does not rewrite the workspace automatically on open.
 
@@ -38,8 +38,8 @@ The dry-run and verification output use a single migration report. Review the `o
 | Legacy config | New model |
 |---|---|
 | Direct instance fields in workspace config | Workspace environment in `n8nac-config.json` |
-| Embedded URL | `external-instance` environment target URL |
-| Global managed instance reference | `managed-instance` environment target reference |
+| Embedded URL | Remote n8n URL environment target |
+| Global managed instance reference | Local managed instance environment target reference |
 | Embedded API key | Local API key storage |
 | Sync folder | Environment sync folder |
 | Old active instance | Active environment |
@@ -60,14 +60,7 @@ n8nac env auth set <environment> --api-key-stdin
 
 Do not commit backup files if they contain API keys.
 
-## Previous V3 / next Configs
-
-For previous V3 or `next` configs, use upgrade instead of workspace migration:
-
-```bash
-n8nac workspace upgrade
-n8nac workspace upgrade --write
-```
+The persisted config still uses internal target kind literals such as `external-instance` for remote n8n URL targets and `managed-instance` for local managed instance references. User-facing commands and UI describe those as remote n8n environments and local managed instances.
 
 ## V1 Packages
 

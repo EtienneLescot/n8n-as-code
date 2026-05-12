@@ -6,7 +6,7 @@ description: Use n8n-manager for local managed instances, Docker lifecycle, tunn
 
 # n8n-manager
 
-`n8n-manager` owns **instances managées**: local managed n8n instances, Docker lifecycle, tunnels, and machine-local state.
+`n8n-manager` owns **local managed instances**: local managed n8n instances, Docker lifecycle, tunnels, and machine-local state.
 
 It is not the workspace source of truth. Workspace environments belong to `n8nac env`.
 
@@ -15,7 +15,7 @@ It is not the workspace source of truth. Workspace environments belong to `n8nac
 | Concern | Owner |
 |---|---|
 | Workspace environments | `n8nac env` |
-| Readiness, unified migration, upgrade | `n8nac workspace` |
+| Readiness and unified workspace migration | `n8nac workspace` |
 | Local managed instances | `n8n-manager` |
 | Docker start/stop/remove | `n8n-manager` |
 | Tunnels for local instances | `n8n-manager` |
@@ -33,7 +33,7 @@ n8n-manager tunnel start <id>
 n8n-manager tunnel stop <id>
 ```
 
-Then attach a managed local instance to the workspace with `n8nac env`:
+Then attach a local managed instance to the workspace with `n8nac env`:
 
 ```bash
 n8nac env add Local --managed-instance <id> --sync-folder workflows/local
@@ -72,7 +72,7 @@ The URL is workspace-safe. The API key is local.
 In VS Code, use:
 
 - **n8n environments** for workspace configuration
-- **Mes instances managées** for local managed instances only
+- **Managed local instances** for local managed instances only
 
 Adding or removing a workspace environment does not delete a managed local instance.
 

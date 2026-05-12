@@ -29,9 +29,9 @@ OpenClaw uses the same command split as every other surface:
 
 | Group | Command | Purpose |
 |---|---|---|
-| Usage Principal | `n8nac env` | Workspace environments |
-| Maintenance Workspace | `n8nac workspace` | Readiness, unified migration, upgrade |
-| Instances Managées | `n8n-manager` | Local managed instances and tunnels |
+| Primary Usage | `n8nac env` | Workspace environments |
+| Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
+| Managed Local Instances | `n8n-manager` | Local managed instances and tunnels |
 
 ## Workspace
 
@@ -45,7 +45,7 @@ OpenClaw stores its working files under:
   workflows/
 ```
 
-`n8nac-config.json` stores workspace environments. API keys and managed local instance state stay outside the committed workspace.
+`n8nac-config.json` stores workspace environments. API keys and local managed instance state stay outside the committed workspace.
 
 ## Manual Equivalent
 
@@ -56,7 +56,7 @@ n8nac env use Dev
 n8nac update-ai
 ```
 
-For a managed local instance:
+For a local managed instance:
 
 ```bash
 n8n-manager instance list

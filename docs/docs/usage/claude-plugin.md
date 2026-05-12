@@ -37,7 +37,7 @@ Ask Claude to initialize n8n-as-code in the workspace. The installed skills guid
 
 - creating or selecting an n8n environment
 - storing remote API keys locally
-- creating or selecting managed local instances when needed
+- creating or selecting local managed instances when needed
 - generating `AGENTS.md`
 - materializing `.agents/skills/n8n-architect`
 
@@ -85,7 +85,7 @@ Claude pushes when asked
 - Skills run locally.
 - Workspace environment config can be committed when it contains no secrets.
 - Remote API keys stay local.
-- Managed local instance state stays in `n8n-manager` storage.
+- Local managed instance state stays in `n8n-manager` storage.
 
 ## Related
 

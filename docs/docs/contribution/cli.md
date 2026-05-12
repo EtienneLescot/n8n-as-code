@@ -343,7 +343,7 @@ beforeEach(() => {
       environmentTargets: [{
         id: 'dev',
         name: 'Dev',
-        kind: 'external-instance',
+        kind: 'external-instance', // persisted kind for a remote n8n URL target
         url: 'http://test.n8n'
       }]
     })

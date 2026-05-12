@@ -6,9 +6,9 @@ The plugin uses the same model as VS Code, Claude, and the CLI:
 
 | Group | Command | Purpose |
 |---|---|---|
-| Usage Principal | `n8nac env` | Workspace environments |
-| Maintenance Workspace | `n8nac workspace` | Readiness, unified migration, upgrade |
-| Instances Managées | `n8n-manager` | Local managed instances and tunnels |
+| Primary Usage | `n8nac env` | Workspace environments |
+| Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
+| Managed Local Instances | `n8n-manager` | Local managed instances and tunnels |
 
 ## Install
 
@@ -58,7 +58,7 @@ OpenClaw files live in `~/.openclaw/n8nac/`:
   workflows/
 ```
 
-`n8nac-config.json` stores workspace environments. API keys and managed local instance state stay local.
+`n8nac-config.json` stores workspace environments. API keys and local managed instance state stay local.
 
 Manual equivalent:
 
@@ -69,7 +69,7 @@ n8nac env use Dev
 n8nac update-ai
 ```
 
-For a managed local instance:
+For a local managed instance:
 
 ```bash
 n8n-manager instance list

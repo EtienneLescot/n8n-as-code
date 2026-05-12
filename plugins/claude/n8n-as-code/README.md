@@ -23,8 +23,8 @@ Use the full HTTPS URL because the `owner/repo` shorthand may trigger SSH clonin
 
 | Group | Command | Purpose |
 |---|---|---|
-| Usage Principal | `n8nac env` | Workspace environments |
-| Maintenance Workspace | `n8nac workspace` | Readiness, unified migration, upgrade |
+| Primary Usage | `n8nac env` | Workspace environments |
+| Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
 | Managed Local Runtime | `n8n-manager` | Local managed instances and tunnels only |
 
 ## After Install
@@ -38,7 +38,7 @@ n8nac env use Dev
 n8nac update-ai
 ```
 
-For a managed local instance:
+For a local managed instance:
 
 ```bash
 n8n-manager instance list

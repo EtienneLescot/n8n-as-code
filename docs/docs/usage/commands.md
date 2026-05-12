@@ -17,7 +17,7 @@ Use this page when you need to choose the right command family.
 | Create, start, stop, or tunnel a local managed instance | `n8n-manager` |
 | Maintain old scripts only | compat hidden commands |
 
-## Usage Principal
+## Primary Usage
 
 `n8nac env` manages workspace environments.
 
@@ -39,21 +39,19 @@ Use it for:
 - project and sync-folder context
 - active environment selection
 
-## Maintenance Workspace
+## Workspace Maintenance
 
-`n8nac workspace` is for readiness, unified migration, and upgrade.
+`n8nac workspace` is for readiness and unified workspace migration.
 
 ```bash
 n8nac workspace status
 n8nac workspace migrate --json
 n8nac workspace migrate --write
-n8nac workspace upgrade
-n8nac workspace upgrade --write
 ```
 
-Use `migrate --json` as the dry-run for legacy V1/V2 configs. It reports one `operations` list and `migrate --write` applies all required migration operations together. Use `upgrade` for previous V3 or `next` configs.
+Use `migrate --json` as the dry-run for legacy config models. It reports one `operations` list and `migrate --write` applies all required migration operations together.
 
-## Instances Managées
+## Managed Local Instances
 
 `n8n-manager` manages local machine resources.
 
@@ -90,7 +88,7 @@ n8nac skills node-info googleSheets
 n8nac skills validate workflows/dev/my-workflow.workflow.ts
 ```
 
-## Compat Cachée
+## Hidden Compatibility
 
 These commands may remain callable for old scripts, but they are not first-level user flows:
 

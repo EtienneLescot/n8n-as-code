@@ -43,9 +43,9 @@ n8n-as-code has three user-facing command groups:
 
 | Group | Command | Owns |
 |---|---|---|
-| **Usage Principal** | `n8nac env` | Workspace environments: URL or managed instance, project, sync folder, active environment |
-| **Maintenance Workspace** | `n8nac workspace` | Readiness, unified migration, previous config upgrade |
-| **Instances Managées** | `n8n-manager` | Local managed instances, Docker lifecycle, tunnels, machine-local state |
+| **Primary Usage** | `n8nac env` | Workspace environments: remote n8n URL or local managed instance, project, sync folder, active environment |
+| **Workspace Maintenance** | `n8nac workspace` | Readiness and unified workspace migration |
+| **Managed Local Instances** | `n8n-manager` | Local managed instances, Docker lifecycle, tunnels, machine-local state |
 
 The repository source of truth is `n8nac-config.json`. It stores workspace environments and is safe to commit when it contains no secrets.
 
@@ -61,7 +61,7 @@ API keys and local managed instance state stay machine-local. They are not commi
 4. Create or select an `n8n environment`.
 5. Pull or create workflows, then use the integrated Agent Workbench.
 
-The configuration UI uses the same model as the CLI: environments are workspace context, managed instances are local machine resources.
+The configuration UI uses the same model as the CLI: workspace environments are repository context, local managed instances are machine resources.
 
 [VS Code / Cursor guide](https://n8nascode.dev/docs/usage/vscode-extension/)
 
@@ -76,7 +76,7 @@ npx --yes n8nac env use Dev
 npx --yes n8nac update-ai
 ```
 
-Or use a local managed instance:
+Or attach a local managed instance:
 
 ```bash
 n8n-manager instance list
@@ -119,7 +119,7 @@ If your agent asks for an explicit skill path, use `skills/n8n-architect`.
 
 ## Command Groups
 
-### Usage Principal: `n8nac env`
+### Primary Usage: `n8nac env`
 
 ```bash
 n8nac env list
@@ -132,19 +132,17 @@ n8nac env remove Dev
 
 Use `n8nac env` for everything that describes how this repository connects to n8n.
 
-### Maintenance Workspace: `n8nac workspace`
+### Workspace Maintenance: `n8nac workspace`
 
 ```bash
 n8nac workspace status
 n8nac workspace migrate --json
 n8nac workspace migrate --write
-n8nac workspace upgrade
-n8nac workspace upgrade --write
 ```
 
-Use `workspace migrate --json` as the migration dry-run. It reports one unified `operations` list for legacy workspace and global instance changes; apply all required operations together with `workspace migrate --write`. Use `workspace upgrade` for previous V3/`next` configs that need the environment model.
+Use `workspace migrate --json` as the migration dry-run. It reports one unified `operations` list for legacy workspace and global instance changes; apply all required operations together with `workspace migrate --write`.
 
-### Instances Managées: `n8n-manager`
+### Managed Local Instances: `n8n-manager`
 
 ```bash
 n8n-manager instance list
@@ -158,7 +156,7 @@ n8n-manager tunnel stop <id>
 
 Use `n8n-manager` only for local managed instances and machine-local operations. Do not use it as the workspace source of truth.
 
-### Compatibilité Cachée
+### Hidden Compatibility
 
 Older commands can remain callable for compatibility but are not the primary model:
 
@@ -245,7 +243,7 @@ n8nac convert-batch workflows/ --format typescript
 
 - **VS Code/Cursor extension**: visual workflow workspace and integrated Agent Workbench.
 - **`n8nac env`**: repository-level environment source of truth.
-- **`n8nac workspace`**: readiness, unified migrations, and upgrades.
+- **`n8nac workspace`**: readiness and unified workspace migration.
 - **`n8n-manager`**: local managed instances, Docker lifecycle, tunnels, and machine-local secrets.
 - **Skills and MCP**: grounded n8n knowledge for agents.
 

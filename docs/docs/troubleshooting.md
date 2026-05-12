@@ -83,10 +83,11 @@ n8nac env status --json
 
 Review the dry-run `operations` list before applying. `workspace migrate --write` applies all required migration operations together.
 
-For previous V3/`next` configs:
+If the migration banner remains after applying, inspect the remaining migration plan:
 
 ```bash
-n8nac workspace upgrade --write
+n8nac workspace migrate --json
+n8nac workspace migrate --write
 ```
 
 ## Sync Issues
@@ -115,7 +116,7 @@ The remote changed since your last pull. Pull first or resolve the conflict inte
 
 ## Managed Local Instances
 
-Managed instances are local machine resources. They are not created or deleted by `n8nac env remove`.
+Local managed instances are local machine resources. They are not created or deleted by `n8nac env remove`.
 
 ```bash
 n8n-manager instance list
@@ -125,7 +126,7 @@ n8n-manager tunnel start <id>
 n8n-manager tunnel stop <id>
 ```
 
-If a workspace environment references a missing managed instance, recreate it or point the environment to a remote URL:
+If a workspace environment references a missing local managed instance, recreate it or point the environment to a remote n8n URL:
 
 ```bash
 n8nac env update <environment> --base-url <url>

@@ -2,7 +2,7 @@
 
 The VS Code and Cursor workspace for building n8n workflows with an AI agent that has live n8n context.
 
-The extension centers on **n8n environments**: a workspace environment points to an n8n instance, a project, and a sync folder. Local Docker instances and tunnels are managed separately as **instances managées** through `n8n-manager`.
+The extension centers on **workspace environments**: a workspace environment points to a remote n8n URL or local managed instance, a project, and a sync folder. Local Docker instances and tunnels are managed separately through `n8n-manager`.
 
 Published for both the Microsoft Marketplace and Open VSX.
 
@@ -15,7 +15,7 @@ Published for both the Microsoft Marketplace and Open VSX.
 1. Install `n8n-as-code` from the Microsoft Marketplace or Open VSX.
 2. Open a folder or `.code-workspace`.
 3. Open the `n8n` view and run `n8n: Configure`.
-4. Create an `n8n environment` from an existing URL or a managed local instance.
+4. Create a workspace environment from a remote n8n URL or a local managed instance.
 5. Save the workspace environment, pull or create workflows, then use the Agent Workbench.
 
 Marketplace links:
@@ -38,7 +38,7 @@ Documentation links:
 | Managed local instances | `n8n-manager` | local machine store |
 | Docker lifecycle and tunnels | `n8n-manager` | local machine store |
 
-Use the **n8n environments** tab for workspace configuration. Use **Mes instances managées** only for local managed instances.
+Use the **n8n environments** tab for workspace configuration. Use **Managed local instances** only for local managed instances.
 
 ## What You Get
 
@@ -62,9 +62,9 @@ The Agent can use:
 
 ### Managed Local Instances
 
-The extension can surface local managed instances through `n8n-manager`. These are machine-local resources. Adding or removing an environment does not create or delete a Docker instance unless you explicitly use the managed instance controls.
+The extension can surface local managed instances through `n8n-manager`. These are machine-local resources. Adding or removing an environment does not create or delete a Docker instance unless you explicitly use the local instance controls.
 
-## Migration And Upgrade
+## Workspace Migration
 
 The extension detects old config models but does not rewrite them automatically when a workspace opens.
 
@@ -73,13 +73,11 @@ Use explicit actions:
 ```bash
 n8nac workspace migrate --json
 n8nac workspace migrate --write
-n8nac workspace upgrade --write
 ```
 
-- `migrate --json` is the dry-run for legacy V1/V2 configs and reports one unified `operations` list.
+- `migrate --json` is the dry-run for legacy config models and reports one unified `operations` list.
 - `migrate --write` applies the required migration as one operation.
-- `upgrade` is for previous V3/`next` configs.
-- Both create backups before writing.
+- The write step creates a backup before writing.
 
 ## CLI Equivalent
 
@@ -92,7 +90,7 @@ n8nac pull <workflow-id>
 n8nac push workflows/dev/my-workflow.workflow.ts --verify
 ```
 
-For a managed local instance:
+For a local managed instance:
 
 ```bash
 n8n-manager instance list

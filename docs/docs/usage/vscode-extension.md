@@ -15,9 +15,9 @@ The extension is the recommended n8n-as-code experience. It adds an n8n sidebar,
 3. Click the **n8n** icon in the Activity Bar.
 4. Run **n8n: Configure**.
 5. In **n8n environments**, choose an instance:
-   - `Enter URL and API key` for n8n Cloud or self-hosted n8n.
-   - an existing managed local instance.
-   - `Creer une instance local` to create one locally.
+   - `Enter URL and API key` for a remote n8n environment.
+   - an existing local managed instance.
+   - `Create local instance` to create one locally.
 6. Select the project and sync folder.
 7. Save the environment.
 
@@ -27,10 +27,10 @@ The extension is the recommended n8n-as-code experience. It adds an n8n sidebar,
 |---|---|
 | `n8n environments` | Workspace environments stored in `n8nac-config.json` |
 | `Instance` selector | The n8n endpoint used by the environment |
-| `Mes instances managées` | Local managed instances on this machine |
+| `Managed local instances` | Local managed instances on this machine |
 | API key input | Stored locally, not committed |
 
-An environment is workspace context. A managed instance is a local machine resource.
+An environment is workspace context. A local managed instance is a local machine resource.
 
 ## Daily Workflow
 
@@ -55,7 +55,7 @@ The Agent can use:
 - generated `AGENTS.md`
 - bundled n8n schemas, docs, examples, templates, and validation rules
 
-## Migration And Upgrade
+## Workspace Migration
 
 The extension can detect older config models, but it does not rewrite config on workspace open.
 
@@ -64,13 +64,11 @@ Use the explicit button in the UI or the CLI:
 ```bash
 n8nac workspace migrate --json
 n8nac workspace migrate --write
-n8nac workspace upgrade --write
 ```
 
-- `migrate --json` is the dry-run for legacy V1/V2 configs and reports one unified `operations` list.
+- `migrate --json` is the dry-run for legacy config models and reports one unified `operations` list.
 - `migrate --write` applies the required migration as one operation.
-- `upgrade` is for previous V3/`next` configs.
-- Both create a backup before replacing `n8nac-config.json`.
+- The write step creates a backup before replacing `n8nac-config.json`.
 
 ## CLI Equivalent
 
@@ -83,7 +81,7 @@ n8nac pull <workflow-id>
 n8nac push workflows/dev/my-workflow.workflow.ts --verify
 ```
 
-For a managed local instance:
+For a local managed instance:
 
 ```bash
 n8n-manager instance list

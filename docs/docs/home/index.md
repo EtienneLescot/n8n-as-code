@@ -1,7 +1,7 @@
 ---
 sidebar_position: 1
 title: Home
-description: n8n-as-code gives VS Code, Cursor, terminals, and AI agents a single n8n environments model for workflow development.
+description: n8n-as-code gives VS Code, Cursor, terminals, and AI agents a single workspace environments model for workflow development.
 slug: /
 ---
 
@@ -13,9 +13,9 @@ The product model is intentionally small:
 
 | Group | Command | Use it for |
 |---|---|---|
-| Usage Principal | `n8nac env` | Workspace environments: URL or managed instance, project, sync folder, active environment |
-| Maintenance Workspace | `n8nac workspace` | Readiness, unified migration, previous config upgrade |
-| Instances Managées | `n8n-manager` | Local managed instances, Docker lifecycle, tunnels, machine-local state |
+| Primary Usage | `n8nac env` | Workspace environments: remote n8n URL or local managed instance, project, sync folder, active environment |
+| Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
+| Managed Local Instances | `n8n-manager` | Local managed instances, Docker lifecycle, tunnels, machine-local state |
 
 ## How It Works
 

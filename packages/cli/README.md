@@ -35,14 +35,14 @@ Full documentation: [CLI guide](https://n8nascode.dev/docs/usage/cli/) · [n8n-m
 
 | Group | Command | Purpose |
 |---|---|---|
-| Usage Principal | `n8nac env` | Workspace environments: n8n URL or managed instance, project, sync folder, active environment |
-| Maintenance Workspace | `n8nac workspace` | Readiness, unified migration, upgrade |
-| Instances Managées | `n8n-manager` | Local managed instances, Docker lifecycle, tunnels, local secrets |
-| Compat Cachée | `instance-target`, `target`, `setup`, old `workspace` mutations | Compatibility only |
+| Primary Usage | `n8nac env` | Workspace environments: remote n8n URL or local managed instance, project, sync folder, active environment |
+| Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
+| Managed Local Instances | `n8n-manager` | Local managed instances, Docker lifecycle, tunnels, local secrets |
+| Hidden Compatibility | `instance-target`, `target`, `setup`, old `workspace` mutations | Compatibility only |
 
 ## Workspace Environments
 
-Create an environment for an existing n8n URL:
+Create a remote n8n environment for an existing n8n URL:
 
 ```bash
 n8nac env add Dev --base-url https://n8n.example.com --sync-folder workflows/dev
@@ -50,7 +50,7 @@ printf '%s' "$N8N_API_KEY" | n8nac env auth set Dev --api-key-stdin
 n8nac env use Dev
 ```
 
-Create an environment from a local managed instance:
+Attach a workspace environment to a local managed instance:
 
 ```bash
 n8n-manager instance list
@@ -72,24 +72,17 @@ Remove an environment mapping:
 n8nac env remove Dev
 ```
 
-Removing an environment does not delete remote workflows, local workflow files, or local managed instances.
+Removing a workspace environment does not delete remote workflows, local workflow files, or local managed instances.
 
-## Migration And Upgrade
+## Workspace Migration
 
-Legacy V1/V2 config:
+Inspect and apply required workspace migrations explicitly:
 
 ```bash
 n8nac workspace migrate --json
 n8nac workspace migrate --write
 n8nac workspace migrate --json
 n8nac env status --json
-```
-
-Previous V3/`next` config model:
-
-```bash
-n8nac workspace upgrade
-n8nac workspace upgrade --write
 ```
 
 Dry-run with `--json` first, then apply with `--write` after reviewing the unified `operations` list. Applied migrations create a backup before replacing `n8nac-config.json`.
@@ -176,7 +169,7 @@ Current workspace config is environment-based:
 }
 ```
 
-Do not store API keys in this file. Use `n8nac env auth set <env> --api-key-stdin` for remote environments.
+In config examples, `kind: "external-instance"` is the persisted target kind for a remote n8n URL. Do not store API keys in this file. Use `n8nac env auth set <env> --api-key-stdin` for remote n8n environments.
 
 ## Compatibility Commands
 
