@@ -891,10 +891,10 @@ environmentProgram.command('status')
     .description('Show resolved workspace environment context')
     .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
     .option('--json', 'Output resolved environment as JSON')
-    .action(async (nameOrId, options) => {
+    .action((nameOrId, options) => {
         const configService = new ConfigService();
         abortIfWorkspaceMigrationRequired(configService, options);
-        const environment = await configService.prepareEnvironment(nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined);
+        const environment = configService.resolveEnvironment(nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined);
         printJsonOrText(
             options,
             redactResolvedEnvironment(environment),
