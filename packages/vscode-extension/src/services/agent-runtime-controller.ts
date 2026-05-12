@@ -1341,13 +1341,17 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     private getInputWorkflowContext(input: Omit<AgentPromptInput, 'prompt'>): AgentWorkflowContext | undefined {
-        if (!input.workflowId && !input.workflowName && !input.workflowFilename) return undefined;
-        const name = input.workflowName?.trim() || input.workflowId || input.workflowFilename || 'Workflow';
+        const id = input.workflowId?.trim();
+        const workflowName = input.workflowName?.trim();
+        const filename = input.workflowFilename?.trim();
+        const filePath = input.workflowFilePath?.trim();
+        if (!id && !workflowName && !filename && !filePath) return undefined;
+        const name = workflowName || id || filename || (filePath ? path.basename(filePath) : undefined) || 'Workflow';
         return {
-            id: input.workflowId?.trim() || undefined,
+            id: id || undefined,
             name,
-            filename: input.workflowFilename?.trim() || undefined,
-            filePath: input.workflowFilePath?.trim() || undefined,
+            filename: filename || undefined,
+            filePath: filePath || undefined,
         };
     }
 
