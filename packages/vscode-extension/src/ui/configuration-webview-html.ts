@@ -25,9 +25,10 @@ export function getConfigurationHtml(nonce: string, scriptUri: string): string {
     h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
     .muted, .subtle { color: var(--muted); line-height: 1.45; }
     .subtle { font-size: 12px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-items: start; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-items: stretch; }
     .panel, .card, .modal-card { border: 1px solid var(--border); background: var(--soft); border-radius: 10px; padding: 14px; display: grid; gap: 12px; }
-    .card { background: var(--vscode-editor-background); border-radius: 14px; }
+    .card { background: var(--vscode-editor-background); border-radius: 14px; height: 100%; grid-template-rows: auto auto 1fr; }
+    .card > .row:last-child { align-self: end; }
     .card.clickable { cursor: pointer; text-align: left; color: inherit; width: 100%; }
     .card.clickable:hover, .card.clickable:focus-visible { border-color: var(--vscode-focusBorder, var(--accent)); outline: 1px solid var(--vscode-focusBorder, var(--accent)); }
     .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
