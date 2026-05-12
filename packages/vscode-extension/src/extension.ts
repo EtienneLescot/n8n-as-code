@@ -1147,10 +1147,41 @@ async function startWorkflowProxy(n8nBaseUrl: string): Promise<WorkflowProxyUrls
 }
 
 function externalizeProxyUrl(url: string, proxyUrls: WorkflowProxyUrls): string {
-    if (proxyUrls.publicBaseUrl === proxyUrls.localBaseUrl || !url.startsWith(proxyUrls.localBaseUrl)) {
+    if (proxyUrls.publicBaseUrl === proxyUrls.localBaseUrl) {
         return url;
     }
-    return `${proxyUrls.publicBaseUrl}${url.slice(proxyUrls.localBaseUrl.length)}`;
+
+    try {
+        const targetUrl = new URL(url);
+        const localBaseUrl = new URL(proxyUrls.localBaseUrl);
+        if (targetUrl.origin !== localBaseUrl.origin) {
+            return url;
+        }
+
+        const localBasePath = trimTrailingSlash(localBaseUrl.pathname);
+        if (!urlPathMatchesBase(targetUrl.pathname, localBasePath)) {
+            return url;
+        }
+
+        const remainingPath = localBasePath ? targetUrl.pathname.slice(localBasePath.length) : targetUrl.pathname === '/' ? '' : targetUrl.pathname;
+        return buildProxyUrl(proxyUrls.publicBaseUrl, remainingPath, targetUrl.search, targetUrl.hash);
+    } catch {
+        return url;
+    }
+}
+
+function trimTrailingSlash(pathname: string): string {
+    const trimmed = pathname.replace(/\/$/, '');
+    return trimmed === '/' ? '' : trimmed;
+}
+
+function urlPathMatchesBase(pathname: string, basePath: string): boolean {
+    return !basePath || pathname === basePath || pathname.startsWith(`${basePath}/`);
+}
+
+function buildProxyUrl(proxyBaseUrl: string, pathname: string, search = '', hash = ''): string {
+    const path = pathname ? pathname.startsWith('/') ? pathname : `/${pathname}` : '';
+    return `${proxyBaseUrl}${path}${search}${hash}`;
 }
 
 function externalizeProxyHtml(html: string, proxyUrls: WorkflowProxyUrls): string {

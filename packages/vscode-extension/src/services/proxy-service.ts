@@ -43,13 +43,36 @@ export class ProxyService {
 
     private rewriteProxyLocation(location: string): string {
         const proxyBaseUrl = this.getProxyBaseUrl();
-        if (location.startsWith(this.target)) {
-            return `${proxyBaseUrl}${location.slice(this.target.length)}`;
-        }
-        if (location.startsWith('/')) {
+        if (location.startsWith('/') && !location.startsWith('//')) {
             return `${proxyBaseUrl}${location}`;
         }
-        return location;
+
+        try {
+            const locationUrl = new URL(location);
+            const targetUrl = new URL(this.target);
+            if (locationUrl.origin !== targetUrl.origin) {
+                return location;
+            }
+
+            const targetBasePath = this.trimTrailingSlash(targetUrl.pathname);
+            if (!this.urlPathMatchesBase(locationUrl.pathname, targetBasePath)) {
+                return location;
+            }
+
+            const remainingPath = targetBasePath ? locationUrl.pathname.slice(targetBasePath.length) : locationUrl.pathname === '/' ? '' : locationUrl.pathname;
+            return `${proxyBaseUrl}${remainingPath}${locationUrl.search}${locationUrl.hash}`;
+        } catch {
+            return location;
+        }
+    }
+
+    private trimTrailingSlash(pathname: string): string {
+        const trimmed = pathname.replace(/\/$/, '');
+        return trimmed === '/' ? '' : trimmed;
+    }
+
+    private urlPathMatchesBase(pathname: string, basePath: string): boolean {
+        return !basePath || pathname === basePath || pathname.startsWith(`${basePath}/`);
     }
 
     /**

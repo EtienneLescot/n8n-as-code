@@ -163,6 +163,30 @@ test('ProxyService: redirects use configured public proxy base URL', () => {
         (service as any).rewriteProxyLocation('https://other.example.test/path'),
         'https://other.example.test/path',
     );
+    assert.equal(
+        (service as any).rewriteProxyLocation('http://n8n.internal:56789/workflow/wf-1'),
+        'http://n8n.internal:56789/workflow/wf-1',
+    );
+    assert.equal(
+        (service as any).rewriteProxyLocation('//other.example.test/signin'),
+        '//other.example.test/signin',
+    );
+});
+
+test('ProxyService: redirects match target base paths on URL boundaries', () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const service = new ProxyService();
+    (service as any).target = 'https://n8n.example.test/base';
+    service.setPublicBaseUrl('https://code.example.test/proxy/25444');
+
+    assert.equal(
+        (service as any).rewriteProxyLocation('https://n8n.example.test/base/workflow/wf-1?x=1#node'),
+        'https://code.example.test/proxy/25444/workflow/wf-1?x=1#node',
+    );
+    assert.equal(
+        (service as any).rewriteProxyLocation('https://n8n.example.test/baseline/workflow/wf-1'),
+        'https://n8n.example.test/baseline/workflow/wf-1',
+    );
 });
 
 // ── 3 : parent webview HTML — grant token & rate-limit markers ──────────────
