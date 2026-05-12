@@ -41,6 +41,10 @@ interface UiState {
   notice?: { tone: 'info' | 'error'; message: string };
   credentials?: { username: string; password: string };
   pendingActiveEnvironmentId?: string;
+  pendingEnvironmentSaves: Record<string, boolean>;
+  pendingManagedCreate: boolean;
+  pendingInstanceActions: Record<string, string>;
+  pendingProviderActions: Record<string, string>;
   lastStateVersion: number;
 }
 
@@ -99,6 +103,12 @@ const serverSlice = createSlice({
       state.workspace.activeEnvironmentId = state.workspace.activeEnvironmentId || action.payload.id;
       return state;
     },
+    instanceDeleted: (state, action: PayloadAction<string>) => {
+      if (!state?.global) return state;
+      const instances = Array.isArray(state.global.instances) ? state.global.instances : [];
+      state.global.instances = instances.filter((instance: any) => instance.id !== action.payload);
+      return state;
+    },
   },
 });
 
@@ -115,7 +125,7 @@ const jobsSlice = createSlice({
 
 const uiSlice = createSlice({
   name: 'ui',
-  initialState: { activeTab: 'environments', lastStateVersion: 0 } as UiState,
+  initialState: { activeTab: 'environments', lastStateVersion: 0, pendingEnvironmentSaves: {}, pendingManagedCreate: false, pendingInstanceActions: {}, pendingProviderActions: {} } as UiState,
   reducers: {
     tabSelected: (state, action: PayloadAction<UiState['activeTab']>) => { state.activeTab = action.payload; },
     modalOpened: (state, action: PayloadAction<ModalState>) => {
@@ -126,9 +136,21 @@ const uiSlice = createSlice({
     modalClosed: (state) => { state.modal = undefined; state.credentials = undefined; },
     noticeShown: (state, action: PayloadAction<UiState['notice']>) => {
       state.notice = action.payload;
-      if (action.payload?.tone === 'error') state.pendingActiveEnvironmentId = undefined;
+      if (action.payload?.tone === 'error') {
+        state.pendingActiveEnvironmentId = undefined;
+        state.pendingEnvironmentSaves = {};
+        state.pendingManagedCreate = false;
+        state.pendingInstanceActions = {};
+        state.pendingProviderActions = {};
+      }
     },
     environmentActivationRequested: (state, action: PayloadAction<string>) => { state.pendingActiveEnvironmentId = action.payload; },
+    environmentSaveRequested: (state, action: PayloadAction<string>) => { state.pendingEnvironmentSaves[action.payload] = true; },
+    managedCreateRequested: (state) => { state.pendingManagedCreate = true; },
+    instanceActionRequested: (state, action: PayloadAction<{ instanceId: string; action: string }>) => { state.pendingInstanceActions[action.payload.instanceId] = action.payload.action; },
+    instanceActionCompleted: (state, action: PayloadAction<string>) => { delete state.pendingInstanceActions[action.payload]; },
+    providerActionRequested: (state, action: PayloadAction<{ provider: string; action: string }>) => { state.pendingProviderActions[action.payload.provider] = action.payload.action; },
+    providerActionCompleted: (state, action: PayloadAction<string>) => { delete state.pendingProviderActions[action.payload]; },
     credentialsReceived: (state, action: PayloadAction<{ username: string; password: string }>) => { state.credentials = action.payload; },
   },
   extraReducers: (builder) => {
@@ -150,6 +172,14 @@ const uiSlice = createSlice({
     });
     builder.addCase(serverSlice.actions.environmentDeleted, (state, action) => {
       if (state.pendingActiveEnvironmentId === action.payload) state.pendingActiveEnvironmentId = undefined;
+    });
+    builder.addCase(serverSlice.actions.environmentSaved, (state, action) => {
+      delete state.pendingEnvironmentSaves[action.payload?.id || ''];
+      delete state.pendingEnvironmentSaves.new;
+    });
+    builder.addCase(serverSlice.actions.instanceDeleted, (state, action) => {
+      delete state.pendingInstanceActions[action.payload];
+      if (state.modal?.kind === 'managed-detail' && state.modal.instanceId === action.payload) state.modal = undefined;
     });
   },
 });

@@ -148,3 +148,37 @@ test('settings webview store applies optimistic environment save', () => {
     assert.strictEqual(store.getState().server.workspace.activeEnvironmentId, 'dev');
     assert.deepStrictEqual(store.getState().server.workspace.environments.map((environment: any) => environment.id), ['dev']);
 });
+
+test('settings webview store clears pending environment save on success and error', () => {
+    const store = createSettingsWebviewStore();
+    store.dispatch(actions.snapshotReceived({
+        type: 'init',
+        stateVersion: 1,
+        workspace: { activeEnvironmentId: '', environments: [] },
+        global: { instances: [] },
+    }));
+    store.dispatch(actions.environmentSaveRequested('new'));
+    assert.strictEqual(store.getState().ui.pendingEnvironmentSaves.new, true);
+
+    store.dispatch(actions.environmentSaved({ id: 'dev', name: 'Dev', environmentTargetId: 'managed', syncFolder: 'workflows/dev' }));
+    assert.strictEqual(store.getState().ui.pendingEnvironmentSaves.new, undefined);
+
+    store.dispatch(actions.environmentSaveRequested('new'));
+    store.dispatch(actions.noticeShown({ tone: 'error', message: 'Invalid config' }));
+    assert.deepStrictEqual(store.getState().ui.pendingEnvironmentSaves, {});
+});
+
+test('settings webview store removes deleted instance and closes its detail modal', () => {
+    const store = createSettingsWebviewStore();
+    store.dispatch(actions.snapshotReceived({
+        type: 'init',
+        stateVersion: 1,
+        workspace: { environments: [] },
+        global: { instances: [{ id: 'managed-dev', mode: 'managed-local-docker' }] },
+    }));
+    store.dispatch(actions.modalOpened({ kind: 'managed-detail', instanceId: 'managed-dev' }));
+    store.dispatch(actions.instanceDeleted('managed-dev'));
+
+    assert.deepStrictEqual(store.getState().server.global.instances, []);
+    assert.strictEqual(store.getState().ui.modal, undefined);
+});

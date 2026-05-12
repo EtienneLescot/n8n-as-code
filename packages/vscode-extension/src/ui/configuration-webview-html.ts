@@ -68,6 +68,7 @@ export function getConfigurationHtml(nonce: string, scriptUri: string): string {
     .inline-message { border: 1px solid var(--border); border-radius: 8px; padding: 10px; color: var(--muted); background: color-mix(in srgb, var(--vscode-input-background) 84%, transparent); }
     .inline-message.warning { color: var(--vscode-editorWarning-foreground, var(--vscode-foreground)); }
     .inline-message.error { color: var(--vscode-errorForeground); }
+    .error-text { color: var(--vscode-errorForeground); }
     .migration-banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, var(--vscode-foreground)) 55%, var(--border)); }
     .migration-banner h2 { color: var(--vscode-editorWarning-foreground, var(--vscode-foreground)); }
     .modal-backdrop { position: fixed; inset: 0; background: color-mix(in srgb, var(--vscode-editor-background) 62%, black); display: grid; place-items: center; padding: 18px; z-index: 10; }

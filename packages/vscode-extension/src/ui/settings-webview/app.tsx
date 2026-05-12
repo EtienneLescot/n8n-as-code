@@ -32,6 +32,7 @@ function App() {
       if (message.type === 'activeTab') dispatch(actions.tabSelected(normalizeTab(message.tab)));
       if (message.type === 'environmentPinned') dispatch(actions.environmentPinned(String(message.environmentId || '')));
       if (message.type === 'environmentDeleted') dispatch(actions.environmentDeleted(String(message.environmentId || '')));
+      if (message.type === 'instanceDeleted') dispatch(actions.instanceDeleted(String(message.instanceId || '')));
       if (message.type === 'environmentSaved') {
         const savedEnvironment = message.environment || {};
         dispatch(actions.environmentSaved(savedEnvironment));
@@ -216,9 +217,10 @@ function ManagedInstanceCard({ instance }: { instance: any }) {
 
 function AgentProvidersTab() {
   const providers = useSelector((state: RootState) => server(state).providers || []);
-  return <section className="stack"><header><div><h1>Agent providers</h1><p className="muted">AI provider connections used by agent workflows.</p></div></header><div className="stack">{providers.map((provider: any) => {
+  const sortedProviders = [...providers].sort((left: any, right: any) => Number(Boolean(right.connected)) - Number(Boolean(left.connected)) || String(left.label || left.provider || left.id).localeCompare(String(right.label || right.provider || right.id)));
+  return <section className="stack"><header><div><h1>Agent providers</h1><p className="muted">AI provider connections used by agent workflows.</p></div></header><div className="stack">{sortedProviders.map((provider: any) => {
     const providerId = provider.provider || provider.id;
-    return <article className="card" key={providerId}><div className="card-top"><div><h2>{provider.label || providerId}</h2><p className="subtle">{provider.model || provider.reason || ''}</p></div><span className={`badge ${provider.connected ? 'ready' : ''}`}>{provider.connected ? 'Connected' : 'Not connected'}</span></div><div className="row"><button onClick={() => post({ type: 'connectProvider', provider: providerId })}>Connect</button>{provider.connected ? <button className="secondary" onClick={() => post({ type: 'disconnectProvider', provider: providerId })}>Disconnect</button> : null}<button className="secondary" onClick={() => post({ type: 'selectProviderModel', provider: providerId })}>Select model</button></div></article>;
+    return <article className="card" key={providerId}><div className="card-top"><div><h2>{provider.label || providerId}</h2><p className="subtle">{provider.model || provider.reason || ''}</p></div><span className={`badge ${provider.connected ? 'ready' : ''}`}>{provider.connected ? 'Connected' : 'Not connected'}</span></div><div className="row">{provider.connected ? null : <button onClick={() => post({ type: 'connectProvider', provider: providerId })}>Connect</button>}{provider.connected ? <button className="secondary" onClick={() => post({ type: 'disconnectProvider', provider: providerId })}>Disconnect</button> : null}<button className="secondary" onClick={() => post({ type: 'selectProviderModel', provider: providerId })}>Select model</button></div></article>;
   })}</div></section>;
 }
 
@@ -244,18 +246,26 @@ function EnvironmentFormModal({ environmentId }: { environmentId?: string }) {
   const allInstances = useSelector(instances);
   const jobs = useSelector((state: RootState) => state.jobs);
   const activeSetup = useSelector(setupActive);
+  const notice = useSelector((state: RootState) => state.ui.notice);
+  const savePending = useSelector((state: RootState) => Boolean(state.ui.pendingEnvironmentSaves[draftId]));
   const choices = buildEnvironmentInstanceChoices(allTargets, allInstances);
   const selected = choices.find((choice) => choice.value === draft?.instanceChoice);
   const editingEnvironment = Boolean(environmentId);
   const isManaged = selected?.mode === 'managed';
   const status = isManaged ? managedInstanceUiStatus(allInstances.find((instance) => instance.id === selected.instanceId), selected.instanceId ? jobs[selected.instanceId] : undefined) : undefined;
   const patch = (patch: Partial<EnvironmentDraft>) => dispatch(actions.environmentDraftPatched({ id: draftId, patch }));
+  const syncFolderConflict = false;
+  const canContinue = draft && selected && selected.mode !== 'new-managed' && (isManaged || selected?.targetId || selected?.mode !== 'new-connected' || (draft.url && (draft.apiKey || draft.apiKeyAvailable)));
   if (!draft) return null;
-  const canContinue = selected && selected.mode !== 'new-managed' && (isManaged || selected?.targetId || selected?.mode !== 'new-connected' || (draft.url && (draft.apiKey || draft.apiKeyAvailable)));
-  const save = () => post({
-    type: 'saveEnvironment', environmentId, name: draft.name, environmentTargetId: selected?.targetId || draft.environmentTargetId || '', instanceId: selected?.instanceId || draft.instanceId || '', url: isManaged ? '' : draft.url || selected?.url || '', apiKey: isManaged ? '' : draft.apiKey, projectId: isManaged ? 'personal' : draft.projectId || 'personal', projectName: isManaged ? 'Personal' : draft.projectName || 'Personal', syncFolder: draft.syncFolder, folderSync: draft.folderSync, customNodesPath: draft.customNodesPath, description: draft.description,
-  });
+  const save = () => {
+    if (savePending || syncFolderConflict) return;
+    dispatch(actions.environmentSaveRequested(draftId));
+    post({
+      type: 'saveEnvironment', environmentId, name: draft.name, environmentTargetId: selected?.targetId || draft.environmentTargetId || '', instanceId: selected?.instanceId || draft.instanceId || '', url: isManaged ? '' : draft.url || selected?.url || '', apiKey: isManaged ? '' : draft.apiKey, projectId: isManaged ? 'personal' : draft.projectId || 'personal', projectName: isManaged ? 'Personal' : draft.projectName || 'Personal', syncFolder: draft.syncFolder, folderSync: draft.folderSync, customNodesPath: draft.customNodesPath, description: draft.description,
+    });
+  };
   return <Modal title={environmentId ? 'Edit environment' : 'Add environment'} onClose={() => { dispatch(actions.environmentDraftClosed({ id: draftId })); dispatch(actions.modalClosed()); }}>
+    {notice?.tone === 'error' ? <div className="inline-message error">{notice.message}</div> : null}
     <div className="form-grid"><label>Name<input value={draft.name} onChange={(event) => patch({ name: event.target.value })} /></label><label>Instance<select value={draft.instanceChoice} disabled={editingEnvironment} onChange={(event) => { const value = event.target.value; const choice = choices.find((item) => item.value === value); if (choice?.mode === 'new-managed') { dispatch(actions.modalOpened({ kind: 'managed-form', returnToEnvironmentForm: true, returnToEnvironmentDraftId: draftId })); return; } patch({ instanceChoice: value, instanceId: choice?.instanceId, environmentTargetId: choice?.targetId, url: choice?.url || '', projectId: choice?.mode === 'managed' ? 'personal' : '', projectName: choice?.mode === 'managed' ? 'Personal' : '', projects: undefined, projectError: undefined, projectsLoading: false, projectRequestKey: undefined }); }}><optgroup label="Create">{choices.filter((choice) => choice.group === 'Create').map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</optgroup><optgroup label="Saved instances">{choices.filter((choice) => choice.group === 'Saved instances').map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</optgroup></select>{editingEnvironment ? <span className="subtle">Create a new environment to link a different instance.</span> : null}</label></div>
     {selected?.mode === 'new-connected' ? <div className="form-grid"><label>n8n URL<input value={draft.url} onChange={(event) => patch({ url: event.target.value })} /></label><label>API key<input type="password" value={draft.apiKey} onChange={(event) => patch({ apiKey: event.target.value })} placeholder={draft.apiKeyAvailable ? 'Stored API key will be reused' : ''} /></label></div> : null}
     {selected?.mode === 'new-managed' ? <div className="inline-message">Select New managed instance to create a linkable local runtime first.</div> : null}
@@ -263,7 +273,7 @@ function EnvironmentFormModal({ environmentId }: { environmentId?: string }) {
     {canContinue && !isManaged ? <ProjectFields draft={draft} patch={patch} draftId={draftId} selected={selected} /> : null}
     {canContinue ? <div className="form-grid"><label>Sync root folder<input value={draft.syncFolder} onChange={(event) => patch({ syncFolder: event.target.value })} /></label><label>Custom nodes path<input value={draft.customNodesPath} onChange={(event) => patch({ customNodesPath: event.target.value })} /></label></div> : null}
     {canContinue ? <label>Description<textarea value={draft.description} onChange={(event) => patch({ description: event.target.value })} /></label> : null}
-    <div className="toolbar"><button onClick={save} disabled={!draft.name || !canContinue}>Save environment</button>{!isManaged ? <button className="secondary" disabled={activeSetup || editingEnvironment} onClick={() => dispatch(actions.modalOpened({ kind: 'managed-form', returnToEnvironmentForm: true, returnToEnvironmentDraftId: draftId }))}>Create local instance</button> : null}</div>
+    <div className="toolbar"><button onClick={save} disabled={!draft.name || !canContinue || syncFolderConflict || savePending}>{savePending ? 'Saving...' : 'Save environment'}</button>{!isManaged ? <button className="secondary" disabled={activeSetup || editingEnvironment || savePending} onClick={() => dispatch(actions.modalOpened({ kind: 'managed-form', returnToEnvironmentForm: true, returnToEnvironmentDraftId: draftId }))}>Create local instance</button> : null}</div>
   </Modal>;
 }
 

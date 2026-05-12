@@ -1762,7 +1762,7 @@ export class ConfigService {
         const environments = rawEnvironments.map((environment, index) => this.sanitizeEnvironment(environment, index));
         this.assertUniqueIdsAndNames(environmentTargets, 'instance target');
         this.assertUniqueIdsAndNames(environments, 'environment');
-        this.assertUniqueEnvironmentSyncFolders(environments);
+        this.assertUniqueEnvironmentWorkflowDirs(environments, environmentTargets);
         const targetIds = new Set(environmentTargets.map((target) => target.id));
         for (const environment of environments) {
             if (!targetIds.has(environment.environmentTargetId)) {
@@ -1828,13 +1828,21 @@ export class ConfigService {
         }
     }
 
-    private assertUniqueEnvironmentSyncFolders(environments: IWorkspaceEnvironment[]): void {
+    private assertUniqueEnvironmentWorkflowDirs(environments: IWorkspaceEnvironment[], targets: IEnvironmentTarget[]): void {
         const folders = new Map<string, IWorkspaceEnvironment>();
         for (const environment of environments) {
-            const folder = this.normalizeWorkspacePathKey(environment.syncFolder);
+            const target = targets.find((item) => item.id === environment.environmentTargetId);
+            if (!target) continue;
+            const instanceIdentifier = target.kind === 'managed-instance'
+                ? this.canonicalInstanceIdentifier(this.manager.getInstance(target.managedInstanceId)?.instanceIdentifier)
+                : this.canonicalInstanceIdentifier(target.instanceIdentifier);
+            const projectName = environment.projectName;
+            const workflowDir = this.buildWorkflowDir(this.resolveWorkspacePath(environment.syncFolder), instanceIdentifier, projectName);
+            if (!workflowDir) continue;
+            const folder = this.normalizeWorkspacePathKey(workflowDir);
             const externalInstance = folders.get(folder);
             if (externalInstance) {
-                throw new Error(`Invalid v4 workspace config: environments "${externalInstance.name}" and "${environment.name}" share sync folder "${environment.syncFolder}". Each environment needs a dedicated sync folder.`);
+                throw new Error(`Invalid v4 workspace config: environments "${externalInstance.name}" and "${environment.name}" resolve to the same workflow folder "${workflowDir}". Each environment needs a dedicated workflow folder.`);
             }
             folders.set(folder, environment);
         }

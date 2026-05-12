@@ -557,8 +557,9 @@ export class ConfigurationWebview {
               activeInstanceId: undefined,
             }, workspaceRoot);
           }
-          await this._configurationController.refresh('webview-delete-instance', { force: true });
           this._panel.webview.postMessage({ type: 'instanceDeleted', instanceId });
+          this.notifySaved();
+          void this._configurationController.refresh('webview-delete-instance', { force: true }).catch(() => undefined);
           return;
         }
 
@@ -602,11 +603,11 @@ export class ConfigurationWebview {
         }
       }
     } catch (error: any) {
-      await this._configurationController.refresh('webview-error-refresh', { force: true }).catch(() => undefined);
       this._panel.webview.postMessage({
         type: 'error',
         message: error?.message || 'Unexpected error',
       });
+      void this._configurationController.refresh('webview-error-refresh', { force: true }).catch(() => undefined);
     }
   }
 
