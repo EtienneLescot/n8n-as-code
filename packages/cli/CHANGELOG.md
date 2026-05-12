@@ -1,5 +1,20 @@
 # @n8n-as-code/cli
 
+## [2.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.1.2...n8nac@v2.2.0) (2026-05-12)
+
+### Features
+
+* **vscode:** improve settings webview state management and workspace migration ([2aaffb3](https://github.com/EtienneLescot/n8n-as-code/commit/2aaffb33199f8f810456d1d0e06d1121aa0ac44f))
+
+### Bug Fixes
+
+* **vscode:** enhance workspace validation and webview UI state tracking ([0787ac2](https://github.com/EtienneLescot/n8n-as-code/commit/0787ac25dfadef9f508f02dc88113523267d9bcf))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.1.1 to 2.1.2
+
 ## [2.1.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.1.1...n8nac@v2.1.2) (2026-05-11)
 
 ### Bug Fixes
