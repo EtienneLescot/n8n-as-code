@@ -25,7 +25,7 @@ export interface EnvironmentDraft {
   description: string;
   dirty: boolean;
   projectsLoading?: boolean;
-  projects?: Array<{ id: string; name: string }>;
+  projects?: Array<{ id: string; name: string; type?: string; detail?: string; displayName?: string }>;
   projectError?: string;
   projectRequestKey?: string;
 }
@@ -217,7 +217,7 @@ const draftsSlice = createSlice({
       const existing = state.environment[action.payload.id] || blankEnvironmentDraft(action.payload.id);
       state.environment[action.payload.id] = { ...existing, ...action.payload.patch, dirty: true };
     },
-    environmentDraftProjectsReceived: (state, action: PayloadAction<{ id: string; requestKey?: string; projects?: Array<{ id: string; name: string }>; selectedProjectId?: string; selectedProjectName?: string; error?: string }>) => {
+    environmentDraftProjectsReceived: (state, action: PayloadAction<{ id: string; requestKey?: string; projects?: Array<{ id: string; name: string; type?: string; detail?: string; displayName?: string }>; selectedProjectId?: string; selectedProjectName?: string; error?: string }>) => {
       const existing = state.environment[action.payload.id];
       if (!existing) return;
       if (action.payload.requestKey && existing.projectRequestKey && action.payload.requestKey !== existing.projectRequestKey) return;

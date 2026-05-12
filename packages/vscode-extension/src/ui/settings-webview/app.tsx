@@ -293,7 +293,7 @@ function ProjectFields({ draft, patch, draftId, selected }: { draft: Environment
   const selectableProjects = projects.filter((project) => project.id !== 'personal' || projects.length > 1);
   if (selectableProjects.length <= 1 && selectableProjects[0]?.id === 'personal') return null;
   if (!selectableProjects.length) return null;
-  return <div className="form-grid"><label>Project<select value={draft.projectId} onChange={(event) => { const project = projects.find((item) => item.id === event.target.value); patch({ projectId: event.target.value, projectName: project?.name || '' }); }}>{selectableProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label></div>;
+  return <div className="form-grid"><label>Project<select value={draft.projectId} onChange={(event) => { const project = projects.find((item) => item.id === event.target.value); patch({ projectId: event.target.value, projectName: project?.name || '' }); }}>{selectableProjects.map((project) => <option key={project.id} value={project.id}>{project.displayName || project.name}</option>)}</select></label></div>;
 }
 
 function ManagedInstanceFormModal({ returnToEnvironmentForm, returnToEnvironmentDraftId }: { returnToEnvironmentForm?: boolean; returnToEnvironmentDraftId?: string }) {

@@ -59,14 +59,6 @@ function dedupeUiProjects(projects: UiProject[]): UiProject[] {
     }
   }
 
-  const personal = [...byId.values()].filter((project) => project.id === 'personal' || project.type === 'personal');
-  if (personal.length > 1) {
-    const preferred = personal.find((project) => project.id !== 'personal') ?? personal[0];
-    for (const project of personal) {
-      if (project.id !== preferred.id) byId.delete(project.id);
-    }
-  }
-
   return [...byId.values()];
 }
 

@@ -67,3 +67,32 @@ test('loadProjects resolves managed environment targets before stale host payloa
     assert.strictEqual(message.requestId, 7);
     assert.deepStrictEqual(message.projects.map((project) => project.id), ['personal']);
 });
+
+test('loadProjects keeps distinct personal projects selectable', async () => {
+    const workspaceFacade = {
+        async listProjects() {
+            return [
+                { id: 'project-alice', name: 'Alice', type: 'personal' },
+                { id: 'project-bob', name: 'Bob', type: 'personal' },
+            ];
+        },
+    };
+    const globalFacade = {
+        async listProjects() {
+            return [];
+        },
+    };
+
+    const message = await loadProjectsForConfigurationWebview({
+        type: 'loadProjects',
+        scope: 'workspace',
+        requestId: 8,
+    }, {
+        workspaceFacade,
+        globalFacade,
+    });
+
+    assert.deepStrictEqual(message.projects.map((project) => project.id), ['project-alice', 'project-bob']);
+    assert.deepStrictEqual(message.projects.map((project) => project.name), ['Personal', 'Personal']);
+    assert.deepStrictEqual(message.projects.map((project) => project.displayName), ['Personal - Alice', 'Personal - Bob']);
+});
