@@ -1,5 +1,11 @@
 # @n8n-as-code/n8nac
 
+## [2.1.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2.1.0...@n8n-as-code/n8nac@v2.1.1) (2026-05-12)
+
+### Documentation
+
+* **skills:** clarify opaque workflow dirs ([3f7b679](https://github.com/EtienneLescot/n8n-as-code/commit/3f7b67997fdd87ed22c27d7b6626076e545a2bde))
+
 ## [2.1.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2.0.0...@n8n-as-code/n8nac@v2.1.0) (2026-05-11)
 
 ### Features

@@ -1,5 +1,15 @@
 # @n8n-as-code/skills
 
+## [2.1.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.1.1...@n8n-as-code/skills@v2.1.2) (2026-05-12)
+
+### Bug Fixes
+
+* **skills:** rebuild knowledge base for n8n@2.19.5 ([6986d30](https://github.com/EtienneLescot/n8n-as-code/commit/6986d30882859cbbc48aab97d92af149f2af5fb7))
+
+### Documentation
+
+* **skills:** clarify opaque workflow dirs ([3f7b679](https://github.com/EtienneLescot/n8n-as-code/commit/3f7b67997fdd87ed22c27d7b6626076e545a2bde))
+
 ## [2.1.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.1.0...@n8n-as-code/skills@v2.1.1) (2026-05-11)
 
 ### Bug Fixes
