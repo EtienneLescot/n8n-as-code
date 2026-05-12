@@ -395,12 +395,17 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     async createSession(input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
-        const scope = this.getUnattachedSessionScope();
+        const workflow = this.getInputWorkflowContext(input);
+        const scope = workflow ? this.getSessionScope(input) : this.getUnattachedSessionScope();
         const sessions = await this.getSessionRuntime();
-        sessions.service.rotateForScope(scope, {
-            title: this.getDefaultSessionTitle(),
+        const record = sessions.service.rotateForScope(scope, {
+            title: this.getDefaultSessionTitle(workflow?.name),
         });
-        return this.getWorkbenchState({ ...input, workflowId: undefined, workflowName: undefined, workflowFilename: undefined, workflowFilePath: undefined, nodeContext: undefined, nodeContexts: undefined, sessionId: undefined });
+        if (workflow) {
+            this.writeSessionEntries(sessions.service, record.id, this.withWorkflowContext([], workflow));
+            return this.getWorkbenchState({ ...input, sessionId: record.id, nodeContext: undefined, nodeContexts: undefined });
+        }
+        return this.getWorkbenchState({ ...input, workflowId: undefined, workflowName: undefined, workflowFilename: undefined, workflowFilePath: undefined, nodeContext: undefined, nodeContexts: undefined, sessionId: record.id });
     }
 
     async getLatestSessionId(): Promise<string | undefined> {
@@ -1333,6 +1338,17 @@ export class AgentRuntimeController implements vscode.Disposable {
             return { kind: 'vscode-workflow', key: input.workflowId };
         }
         return this.getUnattachedSessionScope();
+    }
+
+    private getInputWorkflowContext(input: Omit<AgentPromptInput, 'prompt'>): AgentWorkflowContext | undefined {
+        if (!input.workflowId && !input.workflowName && !input.workflowFilename) return undefined;
+        const name = input.workflowName?.trim() || input.workflowId || input.workflowFilename || 'Workflow';
+        return {
+            id: input.workflowId?.trim() || undefined,
+            name,
+            filename: input.workflowFilename?.trim() || undefined,
+            filePath: input.workflowFilePath?.trim() || undefined,
+        };
     }
 
     private getUnattachedSessionScope(): DeepAgentSessionScope {
