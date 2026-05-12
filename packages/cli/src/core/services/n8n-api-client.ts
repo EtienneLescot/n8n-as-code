@@ -124,7 +124,11 @@ export class N8nApiClient {
 
         try {
             const baseURL = this.client.defaults.baseURL;
-            const res = await axios.get(`${baseURL}/`, { httpsAgent: this.httpsAgent });
+            const res = await axios.get(`${baseURL}/`, {
+                httpsAgent: this.httpsAgent,
+                timeout: 10_000,
+                responseType: 'text',
+            });
             const id = this.extractInstanceIdFromHtml(String(res.data || ''));
             if (id) return { id };
         } catch {

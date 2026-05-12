@@ -504,7 +504,7 @@ workspaceProgram.command('status')
         }
         const workspaceConfig = configService.getWorkspaceConfig();
         const resolvedEnvironment = selectedEnvironment
-            ? await (async () => { try { return await configService.prepareEnvironment(selectedEnvironment); } catch { return undefined; } })()
+            ? await configService.prepareEnvironment(selectedEnvironment)
             : workspaceConfig.version === 4
                 ? await (async () => { try { return await configService.prepareEnvironment(); } catch { return undefined; } })()
                 : undefined;

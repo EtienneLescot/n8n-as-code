@@ -23,6 +23,7 @@ vi.mock('axios', () => {
     return {
         default: Object.assign(mockAxiosCall, {
             create: mockAxiosCreate,
+            get: mockAxiosCall,
         }),
     };
 });
@@ -64,6 +65,19 @@ describe('N8nApiClient test workflow support', () => {
         await expect(client.assertApiAccess()).rejects.toMatchObject({
             response: { status: 401 },
         });
+    });
+
+    it('uses a bounded text request for HTML instance identity fallback', async () => {
+        mockAxiosGet.mockRejectedValue(new Error('not available'));
+        mockAxiosCall.mockResolvedValueOnce({ data: '<html><script>{"instanceId":"instance-from-html"}</script></html>' });
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        await expect(client.getInstanceIdentity()).resolves.toEqual({ id: 'instance-from-html' });
+
+        expect(mockAxiosCall).toHaveBeenCalledWith('https://n8n.local/', expect.objectContaining({
+            timeout: 10_000,
+            responseType: 'text',
+        }));
     });
 
     it('detects a webhook trigger and uses explicit path and HTTP method', () => {

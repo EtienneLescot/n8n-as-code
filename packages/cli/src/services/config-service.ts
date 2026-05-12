@@ -8,8 +8,14 @@ import {
     type GlobalN8nInstance,
     type N8nInstanceVerification,
     type N8nInstanceVerificationStatus,
+    type UpsertGlobalN8nInstanceInput,
 } from '@n8n-as-code/n8n-manager-core';
 import { N8nApiClient, createCanonicalInstanceIdentifier, createInstanceIdentifier, createInstanceUserIdentifier, createProjectSlug, createWorkflowDirNameV1, isCanonicalInstanceIdentifier, isCanonicalInstanceUserIdentifier, isCanonicalUserInstanceIdentifier, resolveInstanceIdentifier, resolveN8nIdentity as resolveN8nIdentityFromApi, type IResolvedN8nIdentity } from '../core/index.js';
+
+const DEFAULT_SYNC_FOLDER = 'workflows';
+
+type GlobalN8nInstanceWithUserIdentifier = GlobalN8nInstance & { instanceUserIdentifier?: string };
+type UpsertGlobalN8nInstanceInputWithUserIdentifier = UpsertGlobalN8nInstanceInput & { instanceUserIdentifier?: string };
 
 export interface ILocalConfig {
     host?: string;
@@ -923,21 +929,21 @@ export class ConfigService {
         if (workspaceConfigIsV4) {
             this.assertNoLegacyWorkspaceFields(config);
         }
-        const current = options.createNew ? undefined : (options.instanceId ? this.manager.getInstance(options.instanceId) : this.manager.getGlobalActiveInstance());
-        const currentAny = current as (GlobalN8nInstance & { instanceUserIdentifier?: string }) | undefined;
+        const current = (options.createNew ? undefined : (options.instanceId ? this.manager.getInstance(options.instanceId) : this.manager.getGlobalActiveInstance())) as GlobalN8nInstanceWithUserIdentifier | undefined;
         const host = this.resolveStoredBaseUrl(current, config.host);
-        const saved = this.manager.upsertInstance({
+        const input: UpsertGlobalN8nInstanceInputWithUserIdentifier = {
             id: options.createNew ? undefined : (options.instanceId || current?.id),
             name: options.instanceName || current?.name || host,
             mode: current?.mode || 'existing',
             baseUrl: host,
             apiKey: options.apiKey,
             instanceIdentifier: this.canonicalInstanceIdentifier(config.instanceIdentifier || current?.instanceIdentifier),
-            instanceUserIdentifier: this.canonicalInstanceUserIdentifier(config.instanceUserIdentifier || currentAny?.instanceUserIdentifier)
+            instanceUserIdentifier: this.canonicalInstanceUserIdentifier(config.instanceUserIdentifier || current?.instanceUserIdentifier)
                 || this.readStoredInstanceUserIdentifier(config.instanceIdentifier || current?.instanceIdentifier),
             verification: options.verification || current?.verification,
             defaultProject: current?.defaultProject,
-        } as any, {
+        };
+        const saved = this.manager.upsertInstance(input, {
             setActive: options.setActive,
         });
 
@@ -958,7 +964,7 @@ export class ConfigService {
         });
     }
 
-    saveBootstrapState(host: string, syncFolder = 'workflows', options: { instanceId?: string; instanceName?: string; createNew?: boolean } = {}): IInstanceProfile {
+    saveBootstrapState(host: string, syncFolder = DEFAULT_SYNC_FOLDER, options: { instanceId?: string; instanceName?: string; createNew?: boolean } = {}): IInstanceProfile {
         return this.saveLocalConfig({ host, syncFolder }, {
             instanceId: options.instanceId,
             instanceName: options.instanceName,
@@ -982,14 +988,15 @@ export class ConfigService {
         const verification = await this.verifyConnection(instance.host, apiKey);
         const instanceIdentifier = await this.resolveInstanceIdentifier(instance.host, apiKey);
         const identity = await this.resolveN8nIdentity(instance.host, apiKey).catch(() => undefined);
-        const updated = this.manager.upsertInstance({
+        const input: UpsertGlobalN8nInstanceInputWithUserIdentifier = {
             id: instance.id,
             name: instance.name,
             baseUrl: instance.host,
             instanceIdentifier,
             instanceUserIdentifier: identity?.instanceUserIdentifier,
             verification,
-        } as any, { setActive: instance.id === this.getActiveInstanceId() });
+        };
+        const updated = this.manager.upsertInstance(input, { setActive: instance.id === this.getActiveInstanceId() });
         const profile = this.toInstanceProfile(updated);
 
         if (verification.status === 'verified') {
@@ -1034,14 +1041,16 @@ export class ConfigService {
         }
         if (target) {
             this.manager.saveApiKey(target.id, apiKey);
-            this.manager.upsertInstance({
+            const input: UpsertGlobalN8nInstanceInputWithUserIdentifier = {
                 id: target.id,
                 instanceIdentifier,
                 instanceUserIdentifier,
-            } as any, { setActive: false });
+            };
+            this.manager.upsertInstance(input, { setActive: false });
             return;
         }
-        const saved = this.manager.upsertInstance({ baseUrl: host, apiKey, instanceIdentifier, instanceUserIdentifier } as any, { setActive: true });
+        const input: UpsertGlobalN8nInstanceInputWithUserIdentifier = { baseUrl: host, apiKey, instanceIdentifier, instanceUserIdentifier };
+        const saved = this.manager.upsertInstance(input, { setActive: true });
         this.manager.saveApiKey(saved.id, apiKey);
     }
 
@@ -1064,17 +1073,19 @@ export class ConfigService {
         });
         const instanceIdentifier = input.apiKey ? this.resolveInstanceIdentifierFromApiKey(input.apiKey) : undefined;
         const instanceUserIdentifier = input.apiKey ? this.resolveInstanceUserIdentifierFromApiKey(input.apiKey) : undefined;
-        const saved = this.manager.upsertInstance({
+        const externalInstanceWithUserIdentifier = externalInstance as GlobalN8nInstanceWithUserIdentifier | undefined;
+        const upsertInput: UpsertGlobalN8nInstanceInputWithUserIdentifier = {
             id: externalInstance?.id,
             name: input.name || externalInstance?.name || host,
             mode: 'existing',
             baseUrl: host,
             apiKey: input.apiKey,
             instanceIdentifier: instanceIdentifier || externalInstance?.instanceIdentifier,
-            instanceUserIdentifier: instanceUserIdentifier || (externalInstance as any)?.instanceUserIdentifier,
+            instanceUserIdentifier: instanceUserIdentifier || externalInstanceWithUserIdentifier?.instanceUserIdentifier,
             defaultProject: externalInstance?.defaultProject,
             verification: externalInstance?.verification,
-        } as any, { setActive: false });
+        };
+        const saved = this.manager.upsertInstance(upsertInput, { setActive: false });
         return this.toInstanceProfile(saved);
     }
 
@@ -1099,13 +1110,14 @@ export class ConfigService {
         }
         const identifier = await this.resolveInstanceIdentifier(host, apiKey);
         const instanceUserIdentifier = this.resolveInstanceUserIdentifierFromApiKey(apiKey) || identifier;
-        const saved = this.manager.upsertInstance({
+        const input: UpsertGlobalN8nInstanceInputWithUserIdentifier = {
             id: active?.id || instanceId,
             name: active?.name || host,
             baseUrl: active?.baseUrl || host,
             instanceIdentifier: identifier,
             instanceUserIdentifier,
-        } as any, { setActive: true });
+        };
+        const saved = this.manager.upsertInstance(input, { setActive: true });
         return saved.instanceIdentifier || identifier;
     }
 
@@ -1211,7 +1223,7 @@ export class ConfigService {
                 usedIds.push(targetId);
                 const environmentId = this.uniqueWorkspaceId(singleInstanceMigration ? 'default' : profile.id || legacy.id || environmentName, usedIds);
                 usedIds.push(environmentId);
-                const syncFolder = legacy.syncFolder || plan.workspace.syncFolder || 'workflows';
+                const syncFolder = legacy.syncFolder || plan.workspace.syncFolder || DEFAULT_SYNC_FOLDER;
 
                 environmentTargets.push({
                     id: targetId,
@@ -1479,7 +1491,7 @@ export class ConfigService {
                     const environmentName = this.uniqueDisplayName(instance.name || instance.id, environmentNames);
                     const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
                     usedIds.push(environmentId);
-                    const syncFolder = 'workflows';
+                    const syncFolder = DEFAULT_SYNC_FOLDER;
                     existingEnvironment = stripUndefined({
                         id: environmentId,
                         name: environmentName,
@@ -1529,7 +1541,7 @@ export class ConfigService {
                     const environmentName = this.uniqueDisplayName(instance.name || externalUrl || instance.id, environmentNames);
                     const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
                     usedIds.push(environmentId);
-                    const syncFolder = 'workflows';
+                    const syncFolder = DEFAULT_SYNC_FOLDER;
                     existingEnvironment = stripUndefined({
                         id: environmentId,
                         name: environmentName,
@@ -1552,7 +1564,7 @@ export class ConfigService {
             usedIds.push(environmentId);
             const projectId = instance.defaultProject?.id || 'personal';
             const projectName = instance.defaultProject?.name || 'Personal';
-            const syncFolder = 'workflows';
+            const syncFolder = DEFAULT_SYNC_FOLDER;
 
             environmentTargets.push({
                 id: targetId,
@@ -1922,7 +1934,7 @@ export class ConfigService {
                 environmentTargetId: 'default-instance',
                 projectId: overrides.projectId,
                 projectName: overrides.projectName,
-                syncFolder: overrides.syncFolder || 'workflows',
+                syncFolder: overrides.syncFolder || DEFAULT_SYNC_FOLDER,
                 folderSync: overrides.folderSync,
                 customNodesPath: overrides.customNodesPath,
             })]
@@ -2173,13 +2185,14 @@ export class ConfigService {
             const envApiKey = this.readTargetEnvApiKey(target);
             const globalApiKey = this.manager.getApiKey(instance.id);
             const apiKey = envApiKey || globalApiKey;
+            const identity = this.resolveManagedEnvironmentIdentity(instance, host, apiKey);
             return stripUndefined({
                 ...target,
                 managedInstanceId: instance.id,
                 instanceName: instance.name,
                 url: host,
-                instanceIdentifier: this.resolveManagedEnvironmentIdentity(instance, host, apiKey).instanceIdentifier,
-                instanceUserIdentifier: this.resolveManagedEnvironmentIdentity(instance, host, apiKey).instanceUserIdentifier,
+                instanceIdentifier: identity.instanceIdentifier,
+                instanceUserIdentifier: identity.instanceUserIdentifier,
                 apiKeyAvailable: Boolean(apiKey),
                 credentialSource: envApiKey ? 'env' as const : globalApiKey ? 'global' as const : 'missing' as const,
                 accessStatus: this.deriveAccessStatus({ host, apiKey, verification: envApiKey ? undefined : instance.verification }),
@@ -2191,11 +2204,12 @@ export class ConfigService {
         const workspaceApiKey = this.manager.getApiKey(target.id);
         const globalApiKey = this.getApiKey(host);
         const apiKey = envApiKey || workspaceApiKey || globalApiKey;
+        const identity = this.resolveExternalEnvironmentIdentity(target, apiKey);
         return stripUndefined({
             ...target,
             url: host,
-            instanceIdentifier: this.resolveExternalEnvironmentIdentity(target, apiKey).instanceIdentifier,
-            instanceUserIdentifier: this.resolveExternalEnvironmentIdentity(target, apiKey).instanceUserIdentifier,
+            instanceIdentifier: identity.instanceIdentifier,
+            instanceUserIdentifier: identity.instanceUserIdentifier,
             apiKeyAvailable: Boolean(apiKey),
             credentialSource: envApiKey ? 'env' as const : workspaceApiKey ? 'workspace-local' as const : globalApiKey ? 'global' as const : 'missing' as const,
             accessStatus: this.deriveAccessStatus({ host, apiKey, verification: target.verification }),
