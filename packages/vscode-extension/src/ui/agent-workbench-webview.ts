@@ -433,6 +433,7 @@ export class AgentWorkbenchWebview {
         workflowId?: string;
         workflowName?: string;
         workflowFilename?: string;
+        workflowFilePath?: string;
         workspaceRoot?: string;
         nodeContext?: AgentWorkbenchNodeContext;
         nodeContexts?: AgentWorkbenchNodeContext[];
@@ -442,6 +443,7 @@ export class AgentWorkbenchWebview {
             workflowId: this._workflow?.id,
             workflowName: this._workflow?.name,
             workflowFilename: this._workflow?.filename,
+            workflowFilePath: this._workflowFilePath,
             workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
             nodeContext: this._nodeContexts[0],
             nodeContexts: this._nodeContexts,
