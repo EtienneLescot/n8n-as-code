@@ -3,10 +3,10 @@ export function getConfigurationHtml(nonce: string, scriptUri: string): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>n8n Configuration</title>
-  <style>
+  <style nonce="${nonce}">
     :root { --border: var(--vscode-panel-border, var(--vscode-input-border)); --muted: var(--vscode-descriptionForeground); --surface: var(--vscode-editor-background); --soft: color-mix(in srgb, var(--vscode-input-background) 72%, transparent); --accent: var(--vscode-button-background); }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--surface); color: var(--vscode-foreground); font-family: var(--vscode-font-family); }

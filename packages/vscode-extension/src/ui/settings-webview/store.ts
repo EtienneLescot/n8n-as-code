@@ -3,7 +3,7 @@ import type { SetupJobState } from '../settings-view-model.js';
 
 export type ModalState =
   | { kind: 'environment'; environmentId?: string; managedInstanceId?: string }
-  | { kind: 'managed-form'; returnToEnvironmentForm?: boolean }
+  | { kind: 'managed-form'; returnToEnvironmentForm?: boolean; returnToEnvironmentDraftId?: string }
   | { kind: 'managed-detail'; instanceId: string }
   | undefined;
 
@@ -71,7 +71,11 @@ const uiSlice = createSlice({
   initialState: { activeTab: 'environments' } as UiState,
   reducers: {
     tabSelected: (state, action: PayloadAction<UiState['activeTab']>) => { state.activeTab = action.payload; },
-    modalOpened: (state, action: PayloadAction<ModalState>) => { state.modal = action.payload; state.notice = undefined; },
+    modalOpened: (state, action: PayloadAction<ModalState>) => {
+      state.modal = action.payload;
+      state.notice = undefined;
+      state.credentials = undefined;
+    },
     modalClosed: (state) => { state.modal = undefined; state.credentials = undefined; },
     noticeShown: (state, action: PayloadAction<UiState['notice']>) => { state.notice = action.payload; },
     credentialsReceived: (state, action: PayloadAction<{ username: string; password: string }>) => { state.credentials = action.payload; },
@@ -148,14 +152,18 @@ export const actions = {
   ...draftsSlice.actions,
 };
 
-export const store = configureStore({
-  reducer: {
-    server: serverSlice.reducer,
-    jobs: jobsSlice.reducer,
-    ui: uiSlice.reducer,
-    drafts: draftsSlice.reducer,
-  },
-});
+const reducer = {
+  server: serverSlice.reducer,
+  jobs: jobsSlice.reducer,
+  ui: uiSlice.reducer,
+  drafts: draftsSlice.reducer,
+};
+
+export function createSettingsWebviewStore() {
+  return configureStore({ reducer });
+}
+
+export const store = createSettingsWebviewStore();
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

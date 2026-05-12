@@ -34,8 +34,9 @@ function App() {
       if (message.type === 'managedInstanceCreated') {
         dispatch(actions.jobReceived({ instanceId: message.instanceId, instanceName: message.instanceName, status: 'installing', returnToEnvironmentForm: Boolean(message.returnToEnvironmentForm) }));
         if (message.returnToEnvironmentForm) {
-          dispatch(actions.managedInstanceSelectedForEnvironment({ draftId: 'new', instanceId: message.instanceId }));
-          dispatch(actions.modalOpened({ kind: 'environment' }));
+          const returnDraftId = String(message.returnToEnvironmentDraftId || 'new');
+          dispatch(actions.managedInstanceSelectedForEnvironment({ draftId: returnDraftId, instanceId: message.instanceId }));
+          dispatch(actions.modalOpened({ kind: 'environment', environmentId: returnDraftId === 'new' ? undefined : returnDraftId }));
         } else {
           dispatch(actions.tabSelected('managed-instances'));
         }
@@ -142,7 +143,13 @@ function ManagedInstanceCard({ instance }: { instance: any }) {
     return env.managedInstanceId === instance.id || target?.managedInstanceId === instance.id;
   });
   const url = instanceUrl(instance);
-  return <article className="card clickable" role="button" tabIndex={0} onClick={() => dispatch(actions.modalOpened({ kind: 'managed-detail', instanceId: instance.id }))} onKeyDown={(event) => { if (event.key === 'Enter') dispatch(actions.modalOpened({ kind: 'managed-detail', instanceId: instance.id })); }}>
+  const openDetail = () => dispatch(actions.modalOpened({ kind: 'managed-detail', instanceId: instance.id }));
+  return <article className="card clickable" role="button" tabIndex={0} onClick={openDetail} onKeyDown={(event) => {
+    if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar' || event.code === 'Space') {
+      event.preventDefault();
+      openDetail();
+    }
+  }}>
     <div className="card-top"><div><h2>{instance.name || instance.id}</h2><p className="subtle">{url || 'URL pending'}</p></div><span className={`badge ${status.tone}`}>{status.label}</span></div>
     <p className="subtle">{usedBy.length ? `Used by: ${usedBy.map((env) => env.name).join(', ')}` : 'Not used by any environment'}</p>
     <div className="row" onClick={(event) => event.stopPropagation()}>
@@ -171,7 +178,7 @@ function ActiveModal() {
   const modal = useSelector((state: RootState) => state.ui.modal);
   if (!modal) return null;
   if (modal.kind === 'environment') return <EnvironmentFormModal environmentId={modal.environmentId} />;
-  if (modal.kind === 'managed-form') return <ManagedInstanceFormModal returnToEnvironmentForm={modal.returnToEnvironmentForm} />;
+  if (modal.kind === 'managed-form') return <ManagedInstanceFormModal returnToEnvironmentForm={modal.returnToEnvironmentForm} returnToEnvironmentDraftId={modal.returnToEnvironmentDraftId} />;
   if (modal.kind === 'managed-detail') return <ManagedInstanceDetailModal instanceId={modal.instanceId} />;
   return null;
 }
@@ -186,6 +193,7 @@ function EnvironmentFormModal({ environmentId }: { environmentId?: string }) {
   const activeSetup = useSelector(setupActive);
   const choices = buildEnvironmentInstanceChoices(allTargets, allInstances);
   const selected = choices.find((choice) => choice.value === draft?.instanceChoice);
+  const editingEnvironment = Boolean(environmentId);
   const isManaged = selected?.mode === 'managed';
   const status = isManaged ? managedInstanceUiStatus(allInstances.find((instance) => instance.id === selected.instanceId), selected.instanceId ? jobs[selected.instanceId] : undefined) : undefined;
   const patch = (patch: Partial<EnvironmentDraft>) => dispatch(actions.environmentDraftPatched({ id: draftId, patch }));
@@ -194,13 +202,13 @@ function EnvironmentFormModal({ environmentId }: { environmentId?: string }) {
     type: 'saveEnvironment', environmentId, name: draft.name, environmentTargetId: selected?.targetId || draft.environmentTargetId || '', instanceId: selected?.instanceId || draft.instanceId || '', url: isManaged ? '' : draft.url || selected?.url || '', apiKey: isManaged ? '' : draft.apiKey, projectId: isManaged ? 'personal' : draft.projectId, projectName: isManaged ? 'Personal' : draft.projectName, syncFolder: draft.syncFolder, folderSync: draft.folderSync, customNodesPath: draft.customNodesPath, description: draft.description,
   });
   return <Modal title={environmentId ? 'Edit environment' : 'Add environment'} onClose={() => { dispatch(actions.environmentDraftClosed({ id: draftId })); dispatch(actions.modalClosed()); }}>
-    <div className="form-grid"><label>Name<input value={draft.name} onChange={(event) => patch({ name: event.target.value })} /></label><label>Instance<select value={draft.instanceChoice} onChange={(event) => { const value = event.target.value; const choice = choices.find((item) => item.value === value); if (choice?.mode === 'new-managed') { dispatch(actions.modalOpened({ kind: 'managed-form', returnToEnvironmentForm: true })); return; } patch({ instanceChoice: value, instanceId: choice?.instanceId, environmentTargetId: choice?.targetId, url: choice?.url || '', projectId: choice?.mode === 'managed' ? 'personal' : draft.projectId, projectName: choice?.mode === 'managed' ? 'Personal' : draft.projectName }); }}><optgroup label="Create">{choices.filter((choice) => choice.group === 'Create').map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</optgroup><optgroup label="Saved instances">{choices.filter((choice) => choice.group === 'Saved instances').map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</optgroup></select></label></div>
+    <div className="form-grid"><label>Name<input value={draft.name} onChange={(event) => patch({ name: event.target.value })} /></label><label>Instance<select value={draft.instanceChoice} disabled={editingEnvironment} onChange={(event) => { const value = event.target.value; const choice = choices.find((item) => item.value === value); if (choice?.mode === 'new-managed') { dispatch(actions.modalOpened({ kind: 'managed-form', returnToEnvironmentForm: true, returnToEnvironmentDraftId: draftId })); return; } patch({ instanceChoice: value, instanceId: choice?.instanceId, environmentTargetId: choice?.targetId, url: choice?.url || '', projectId: choice?.mode === 'managed' ? 'personal' : draft.projectId, projectName: choice?.mode === 'managed' ? 'Personal' : draft.projectName }); }}><optgroup label="Create">{choices.filter((choice) => choice.group === 'Create').map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</optgroup><optgroup label="Saved instances">{choices.filter((choice) => choice.group === 'Saved instances').map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</optgroup></select>{editingEnvironment ? <span className="subtle">Create a new environment to link a different instance.</span> : null}</label></div>
     {selected?.mode === 'new-connected' ? <div className="form-grid"><label>n8n URL<input value={draft.url} onChange={(event) => patch({ url: event.target.value })} /></label><label>API key<input type="password" value={draft.apiKey} onChange={(event) => patch({ apiKey: event.target.value })} placeholder={draft.apiKeyAvailable ? 'Stored API key will be reused' : ''} /></label></div> : null}
     {selected?.mode === 'new-managed' ? <div className="inline-message">Select New managed instance to create a linkable local runtime first.</div> : null}
     {isManaged ? <div className="inline-message warning">Managed instance is {status?.label.toLowerCase()}. You can finish this environment now; runtime status will update in the background.</div> : <ProjectFields draft={draft} patch={patch} draftId={draftId} selected={selected} />}
     <div className="form-grid"><label>Sync root folder<input value={draft.syncFolder} onChange={(event) => patch({ syncFolder: event.target.value })} /></label><label>Custom nodes path<input value={draft.customNodesPath} onChange={(event) => patch({ customNodesPath: event.target.value })} /></label></div>
     <label>Description<textarea value={draft.description} onChange={(event) => patch({ description: event.target.value })} /></label>
-    <div className="toolbar"><button onClick={save} disabled={!draft.name || (!isManaged && selected?.mode === 'new-connected' && (!draft.url || (!draft.apiKey && !draft.apiKeyAvailable)))}>Save environment</button><button className="secondary" disabled={activeSetup} onClick={() => dispatch(actions.modalOpened({ kind: 'managed-form', returnToEnvironmentForm: true }))}>Create local instance</button></div>
+    <div className="toolbar"><button onClick={save} disabled={!draft.name || (!isManaged && selected?.mode === 'new-connected' && (!draft.url || (!draft.apiKey && !draft.apiKeyAvailable)))}>Save environment</button><button className="secondary" disabled={activeSetup || editingEnvironment} onClick={() => dispatch(actions.modalOpened({ kind: 'managed-form', returnToEnvironmentForm: true, returnToEnvironmentDraftId: draftId }))}>Create local instance</button></div>
   </Modal>;
 }
 
@@ -210,7 +218,7 @@ function ProjectFields({ draft, patch, draftId, selected }: { draft: Environment
   return <div className="stack"><div className="toolbar"><button className="secondary" onClick={load}>{draft.projectsLoading ? 'Loading projects...' : 'Load projects'}</button>{draft.projectError ? <span className="subtle">{draft.projectError}</span> : null}</div><div className="form-grid"><label>Project<select value={draft.projectId} onChange={(event) => { const project = (draft.projects || []).find((item) => item.id === event.target.value); patch({ projectId: event.target.value, projectName: project?.name || '' }); }}><option value="">Select a project</option>{(draft.projects || []).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label>Project name<input value={draft.projectName} onChange={(event) => patch({ projectName: event.target.value })} /></label></div></div>;
 }
 
-function ManagedInstanceFormModal({ returnToEnvironmentForm }: { returnToEnvironmentForm?: boolean }) {
+function ManagedInstanceFormModal({ returnToEnvironmentForm, returnToEnvironmentDraftId }: { returnToEnvironmentForm?: boolean; returnToEnvironmentDraftId?: string }) {
   const dispatch = useAppDispatch();
   const draft = useSelector((state: RootState) => state.drafts.managed);
   const activeSetup = useSelector(setupActive);
@@ -218,7 +226,7 @@ function ManagedInstanceFormModal({ returnToEnvironmentForm }: { returnToEnviron
     {activeSetup ? <div className="inline-message warning">Another managed instance is installing. Wait for it to finish or cancel it.</div> : null}
     <div className="form-grid"><label>Name<input value={draft.name} onChange={(event) => dispatch(actions.managedDraftPatched({ name: event.target.value }))} /></label><label>Public URL<select value={draft.tunnel ? 'public' : 'local'} onChange={(event) => dispatch(actions.managedDraftPatched({ tunnel: event.target.value === 'public' }))}><option value="public">Enable public URL</option><option value="local">Local only</option></select></label></div>
     <label className="row"><input type="checkbox" checked={draft.setActive} onChange={(event) => dispatch(actions.managedDraftPatched({ setActive: event.target.checked }))} /> Set as active global instance</label>
-    <div className="toolbar"><button disabled={activeSetup || !draft.name.trim()} onClick={() => { post({ type: 'createManagedInstance', instanceName: draft.name, tunnel: draft.tunnel, setActive: draft.setActive, returnToEnvironmentForm }); dispatch(actions.managedDraftReset()); if (!returnToEnvironmentForm) dispatch(actions.modalClosed()); }}>Create managed instance</button></div>
+    <div className="toolbar"><button disabled={activeSetup || !draft.name.trim()} onClick={() => { post({ type: 'createManagedInstance', instanceName: draft.name, tunnel: draft.tunnel, setActive: draft.setActive, returnToEnvironmentForm, returnToEnvironmentDraftId }); dispatch(actions.managedDraftReset()); if (!returnToEnvironmentForm) dispatch(actions.modalClosed()); }}>Create managed instance</button></div>
   </Modal>;
 }
 

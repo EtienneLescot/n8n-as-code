@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { randomUUID } from 'crypto';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
+import type { UpsertGlobalN8nInstanceInput } from '@n8n-as-code/n8n-manager-core';
 import { ConfigService, resolveInstanceIdentifier } from 'n8nac';
 import { getWorkspaceRoot } from '../utils/state-detection.js';
 import type { N8nConfigurationController, N8nConfigurationSnapshot } from '../services/n8n-configuration-controller.js';
@@ -16,9 +17,14 @@ type ManagedSetupJob = {
   message?: string;
   error?: string;
   returnToEnvironmentForm?: boolean;
+  returnToEnvironmentDraftId?: string;
   cancellationRequested?: boolean;
   startedAt: number;
   completedAt?: number;
+};
+
+type SetupInstanceRef = Awaited<ReturnType<ReturnType<typeof createN8nManagerFacade>['setup']>> & {
+  warnings?: string[];
 };
 
 function normalizeHost(host: string): string {
@@ -65,6 +71,32 @@ function getNonce(): string {
   return text;
 }
 
+function fallbackManagedInstanceId(): string {
+  return `managed-${randomUUID().slice(0, 8)}`;
+}
+
+function normalizeManagedInstanceId(value: unknown): string {
+  const sanitized = String(value || '')
+    .trim()
+    .replace(/[^A-Za-z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 32);
+  return sanitized && /^[A-Za-z0-9][A-Za-z0-9-]{0,31}$/.test(sanitized)
+    ? sanitized
+    : fallbackManagedInstanceId();
+}
+
+function normalizeManagedInstanceName(value: unknown): string {
+  const sanitized = String(value || '')
+    .trim()
+    .replace(/[^A-Za-z0-9 _-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, 64)
+    .trim();
+  return sanitized || 'managed';
+}
+
 export class ConfigurationWebview {
   public static currentPanel: ConfigurationWebview | undefined;
 
@@ -76,6 +108,7 @@ export class ConfigurationWebview {
   private _stateVersion = 0;
   private _initialTab: string | undefined;
   private readonly _managedSetupJobs = new Map<string, ManagedSetupJob>();
+  private readonly _managedSetupJobCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   private constructor(
     panel: vscode.WebviewPanel,
@@ -90,6 +123,10 @@ export class ConfigurationWebview {
     this._initialTab = initialTab;
 
     this._panel.onDidDispose(() => {
+      for (const timer of this._managedSetupJobCleanupTimers.values()) {
+        clearTimeout(timer);
+      }
+      this._managedSetupJobCleanupTimers.clear();
       for (const disposable of this._disposables) {
         disposable.dispose();
       }
@@ -681,18 +718,20 @@ export class ConfigurationWebview {
       throw new Error('Another managed instance is installing. Wait for it to finish or cancel it.');
     }
 
-    const instanceId = String(payload.instanceId || '').trim() || `managed-${randomUUID().slice(0, 8)}`;
-    const instanceName = String(payload.instanceName || '').trim() || 'managed';
+    const instanceId = normalizeManagedInstanceId(payload.instanceId || fallbackManagedInstanceId());
+    const instanceName = normalizeManagedInstanceName(payload.instanceName);
     const tunnel = Boolean(payload.tunnel);
     const setActive = Boolean(payload.setActive);
     const returnToEnvironmentForm = Boolean(payload.returnToEnvironmentForm);
+    const returnToEnvironmentDraftId = String(payload.returnToEnvironmentDraftId || '').trim() || undefined;
 
-    await facade.upsertInstance({
+    const placeholder: UpsertGlobalN8nInstanceInput = {
       id: instanceId,
       name: instanceName,
       mode: 'managed-local-docker',
       publicUrlEnabled: tunnel,
-    } as any, { setActive });
+    };
+    await facade.upsertInstance(placeholder, { setActive });
 
     const job: ManagedSetupJob = {
       instanceId,
@@ -700,13 +739,14 @@ export class ConfigurationWebview {
       status: 'installing',
       message: 'Managed instance is installing.',
       returnToEnvironmentForm,
+      returnToEnvironmentDraftId,
       startedAt: Date.now(),
     };
     this._managedSetupJobs.set(instanceId, job);
 
     const snapshot = await this._configurationController.refresh('webview-create-managed-placeholder', { force: true });
     await this.postInitialState(snapshot);
-    this._panel.webview.postMessage({ type: 'managedInstanceCreated', instanceId, instanceName, returnToEnvironmentForm });
+    this._panel.webview.postMessage({ type: 'managedInstanceCreated', instanceId, instanceName, returnToEnvironmentForm, returnToEnvironmentDraftId });
     void this.runManagedSetupJob(job, { tunnel, setActive });
   }
 
@@ -715,7 +755,7 @@ export class ConfigurationWebview {
     const previousActive = options.setActive ? undefined : await facade.getGlobalActiveInstance().catch(() => undefined);
     try {
       await this.postSetupJob(job);
-      const instance = await facade.setup({
+      const instance: SetupInstanceRef = await facade.setup({
         mode: 'managed-local',
         instanceId: job.instanceId,
         instanceName: job.instanceName,
@@ -733,11 +773,12 @@ export class ConfigurationWebview {
       }
 
       if (job.instanceName) {
-        await facade.upsertInstance({
+        const update: UpsertGlobalN8nInstanceInput = {
           id: instance.id,
           name: job.instanceName,
           publicUrlEnabled: options.tunnel,
-        } as any, { setActive: options.setActive });
+        };
+        await facade.upsertInstance(update, { setActive: options.setActive });
       }
       if (!options.setActive && previousActive?.id && previousActive.id !== instance.id) {
         await facade.setGlobalActiveInstance(previousActive.id).catch(() => undefined);
@@ -748,20 +789,21 @@ export class ConfigurationWebview {
       const snapshot = await this._configurationController.refresh('webview-managed-setup-succeeded', { force: true });
       await this.postInitialState(snapshot);
       await this.postSetupJob(job);
-      if (Array.isArray((instance as any).warnings) && (instance as any).warnings.length) {
-        this._panel.webview.postMessage({ type: 'error', message: (instance as any).warnings.join('\n') });
+      if (Array.isArray(instance.warnings) && instance.warnings.length) {
+        this._panel.webview.postMessage({ type: 'error', message: instance.warnings.join('\n') });
       }
     } catch (error: any) {
       job.status = job.cancellationRequested ? 'cancelled' : 'failed';
       job.error = error?.message || 'Managed instance setup failed.';
       job.message = job.status === 'cancelled' ? 'Setup was cancelled.' : job.error;
       job.completedAt = Date.now();
-      await facade.upsertInstance({
+      const failedPlaceholder: UpsertGlobalN8nInstanceInput = {
         id: job.instanceId,
         name: job.instanceName,
         mode: 'managed-local-docker',
         publicUrlEnabled: options.tunnel,
-      } as any, { setActive: options.setActive }).catch(() => undefined);
+      };
+      await facade.upsertInstance(failedPlaceholder, { setActive: options.setActive }).catch(() => undefined);
       await this._configurationController.refresh('webview-managed-setup-failed', { force: true }).catch(() => undefined);
       await this.postSetupJob(job);
     }
@@ -770,6 +812,22 @@ export class ConfigurationWebview {
   private async postSetupJob(job: ManagedSetupJob): Promise<void> {
     this._panel.webview.postMessage({ type: 'setupJob', job: this.serializeSetupJob(job) });
     await this.postInitialState().catch(() => undefined);
+    this.scheduleManagedSetupJobCleanup(job);
+  }
+
+  private scheduleManagedSetupJobCleanup(job: ManagedSetupJob): void {
+    if (!job.completedAt || !['succeeded', 'failed', 'cancelled'].includes(job.status)) return;
+    const existingTimer = this._managedSetupJobCleanupTimers.get(job.instanceId);
+    if (existingTimer) clearTimeout(existingTimer);
+    const timer = setTimeout(() => {
+      const current = this._managedSetupJobs.get(job.instanceId);
+      if (current && current.completedAt === job.completedAt && ['succeeded', 'failed', 'cancelled'].includes(current.status)) {
+        this._managedSetupJobs.delete(job.instanceId);
+        void this.postInitialState().catch(() => undefined);
+      }
+      this._managedSetupJobCleanupTimers.delete(job.instanceId);
+    }, 5 * 60 * 1000);
+    this._managedSetupJobCleanupTimers.set(job.instanceId, timer);
   }
 
   private serializeSetupJob(job: ManagedSetupJob): Omit<ManagedSetupJob, 'cancellationRequested'> {
