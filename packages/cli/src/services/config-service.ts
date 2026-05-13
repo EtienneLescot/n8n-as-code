@@ -443,6 +443,31 @@ export class ConfigService {
         });
     }
 
+    ensureManagedInstanceTarget(input: { name: string; managedInstanceId: string; id?: string; description?: string }): IEnvironmentTarget {
+        const managedInstanceId = cleanRequired(input.managedInstanceId, 'Managed instance ID');
+        const config = this.ensureV4WorkspaceConfig();
+        const managedInstance = config.environmentTargets.find((target) => {
+            return target.kind === 'managed-instance' && target.managedInstanceId === managedInstanceId;
+        });
+        if (managedInstance) return managedInstance;
+
+        const existingNames = new Set(config.environmentTargets.map((target) => target.name.toLowerCase()));
+        const baseName = cleanRequired(input.name, 'Instance name');
+        let name = baseName;
+        let counter = 2;
+        while (existingNames.has(name.toLowerCase())) {
+            name = `${baseName} ${counter}`;
+            counter += 1;
+        }
+
+        return this.addInstanceTarget({
+            name,
+            id: input.id,
+            managedInstanceId,
+            description: input.description,
+        });
+    }
+
     updateInstanceTarget(nameOrId: string, patch: { name?: string; managedInstanceId?: string; url?: string; description?: string }): IEnvironmentTarget {
         const config = this.ensureV4WorkspaceConfig();
         const target = this.findInstanceTarget(config, nameOrId);
@@ -1819,7 +1844,7 @@ export class ConfigService {
         const rawEnvironments = raw.environments as unknown[];
         const environmentTargets = rawInstanceTargets.map((target, index) => this.sanitizeInstanceTarget(target, index));
         const environments = rawEnvironments.map((environment, index) => this.sanitizeEnvironment(environment, index));
-        this.assertUniqueIdsAndNames(environmentTargets, 'instance target');
+        this.assertUniqueIds(environmentTargets, 'instance target');
         this.assertUniqueIdsAndNames(environments, 'environment');
         const targetIds = new Set(environmentTargets.map((target) => target.id));
         for (const environment of environments) {
@@ -1878,14 +1903,20 @@ export class ConfigService {
     }
 
     private assertUniqueIdsAndNames<T extends { id: string; name: string }>(items: T[], label: string): void {
-        const ids = new Set<string>();
+        this.assertUniqueIds(items, label);
         const names = new Set<string>();
         for (const item of items) {
-            if (ids.has(item.id)) throw new Error(`Invalid v4 workspace config: duplicate ${label} ID "${item.id}".`);
-            ids.add(item.id);
             const name = item.name.toLowerCase();
             if (names.has(name)) throw new Error(`Invalid v4 workspace config: duplicate ${label} name "${item.name}".`);
             names.add(name);
+        }
+    }
+
+    private assertUniqueIds<T extends { id: string }>(items: T[], label: string): void {
+        const ids = new Set<string>();
+        for (const item of items) {
+            if (ids.has(item.id)) throw new Error(`Invalid v4 workspace config: duplicate ${label} ID "${item.id}".`);
+            ids.add(item.id);
         }
     }
 

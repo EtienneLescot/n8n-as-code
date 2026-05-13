@@ -714,6 +714,71 @@ describe('ConfigService', () => {
         expect(resolved.workflowDir).not.toContain('n8n_1234567890');
     });
 
+    it('reuses managed instance targets and avoids generated name collisions with connected targets', () => {
+        const configService = new ConfigService(workspaceRoot);
+        (configService as any).manager.upsertInstance({
+            id: 'dev-instance',
+            name: 'Development',
+            mode: 'managed-local-docker',
+            baseUrl: 'https://dev.example.test',
+        }, { setActive: false });
+
+        const existingTarget = configService.addInstanceTarget({
+            name: 'Development',
+            url: 'https://connected.example.test',
+        });
+        const target = configService.ensureManagedInstanceTarget({
+            name: 'Development',
+            managedInstanceId: 'dev-instance',
+        });
+        const reused = configService.ensureManagedInstanceTarget({
+            name: 'Development',
+            managedInstanceId: 'dev-instance',
+        });
+
+        expect(target).toMatchObject({ name: 'Development 2', managedInstanceId: 'dev-instance' });
+        expect(reused.id).toBe(target.id);
+        expect(configService.listInstanceTargets()).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: existingTarget.id, name: 'Development', kind: 'external-instance', url: 'https://connected.example.test' }),
+            expect.objectContaining({ id: target.id, name: 'Development 2', managedInstanceId: 'dev-instance' }),
+        ]));
+    });
+
+    it('loads existing configs with duplicate instance target names when environments reference target IDs', () => {
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 4,
+            environmentTargets: [{
+                id: 'development-connected',
+                name: 'Development',
+                kind: 'external-instance',
+                url: 'https://connected.example.test',
+            }, {
+                id: 'development-managed',
+                name: 'Development',
+                kind: 'managed-instance',
+                managedInstanceId: 'dev-instance',
+            }],
+            environments: [{
+                id: 'dev',
+                name: 'dev',
+                environmentTargetId: 'development-managed',
+                syncFolder: 'workflows',
+            }],
+        }));
+
+        (new ConfigService(workspaceRoot) as any).manager.upsertInstance({
+            id: 'dev-instance',
+            name: 'Development',
+            mode: 'managed-local-docker',
+            baseUrl: 'https://dev.example.test',
+        }, { setActive: false });
+
+        const config = new ConfigService(workspaceRoot).getWorkspaceConfig();
+
+        expect(config.environmentTargets?.filter((target) => target.name === 'Development')).toHaveLength(2);
+        expect(config.environments?.[0]).toMatchObject({ environmentTargetId: 'development-managed' });
+    });
+
     it('prefers managed base URL over public tunnel URL for API resolution', () => {
         const configService = new ConfigService(workspaceRoot);
         (configService as any).manager.upsertInstance({

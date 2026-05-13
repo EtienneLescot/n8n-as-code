@@ -333,8 +333,7 @@ export class ConfigurationWebview {
             const instance = (await globalFacade.listInstances()).find((item) => item.id === instanceId);
             if (!instance) throw new Error(`Unknown n8n instance preset: ${instanceId}`);
             if (instance.mode === 'managed-local-docker') {
-              const existingTarget = configService.listInstanceTargets().find((target) => target.kind === 'managed-instance' && target.managedInstanceId === instanceId);
-              environmentTargetId = existingTarget?.id || configService.addInstanceTarget({
+              environmentTargetId = configService.ensureManagedInstanceTarget({
                 name: instance.name || instanceId,
                 managedInstanceId: instanceId,
               }).id;

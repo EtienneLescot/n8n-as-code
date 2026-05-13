@@ -67,9 +67,7 @@ async function ensureManagedLocalTarget(configService: ConfigService, instanceId
     if (instance.mode !== 'managed-local-docker') {
         throw new Error(`Instance "${instance.name || instance.id}" is not managed locally. Use --base-url for remote n8n environments.`);
     }
-    const externalInstance = configService.listInstanceTargets().find((target) => target.kind === 'managed-instance' && target.managedInstanceId === instance.id);
-    if (externalInstance) return externalInstance;
-    return configService.addInstanceTarget({
+    return configService.ensureManagedInstanceTarget({
         name: instance.name || instance.id,
         managedInstanceId: instance.id,
     });
