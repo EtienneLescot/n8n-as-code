@@ -71,6 +71,18 @@ export interface NodeDecoratorMetadata {
 
     /** Milliseconds to wait between retries (used with retryOnFail) */
     waitBetweenTries?: number;
+
+    /** Continue execution even if this node fails (legacy; prefer onError) */
+    continueOnFail?: boolean;
+
+    /** Disable this node (skip during execution) */
+    disabled?: boolean;
+
+    /** Free-form user notes attached to the node */
+    notes?: string;
+
+    /** Whether the notes are also rendered inline on the canvas */
+    notesInFlow?: boolean;
 }
 
 // =====================================================================

@@ -180,6 +180,10 @@ export class TypeScriptParser {
                 ...(metadata.retryOnFail !== undefined && { retryOnFail: metadata.retryOnFail }),
                 ...(metadata.maxTries !== undefined && { maxTries: metadata.maxTries }),
                 ...(metadata.waitBetweenTries !== undefined && { waitBetweenTries: metadata.waitBetweenTries }),
+                ...(metadata.continueOnFail !== undefined && { continueOnFail: metadata.continueOnFail }),
+                ...(metadata.disabled !== undefined && { disabled: metadata.disabled }),
+                ...(metadata.notes !== undefined && { notes: metadata.notes }),
+                ...(metadata.notesInFlow !== undefined && { notesInFlow: metadata.notesInFlow }),
                 parameters
                 // aiDependencies will be added by extractAIDependencies()
             });

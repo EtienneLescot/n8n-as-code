@@ -82,7 +82,11 @@ export interface NodeAST {
     retryOnFail?: boolean;
     maxTries?: number;
     waitBetweenTries?: number;
-    
+    continueOnFail?: boolean;
+    disabled?: boolean;
+    notes?: string;
+    notesInFlow?: boolean;
+
     // Node parameters (property value in TypeScript)
     parameters: Record<string, any>;
     
@@ -190,6 +194,10 @@ export interface N8nNode {
     retryOnFail?: boolean;
     maxTries?: number;
     waitBetweenTries?: number;
+    continueOnFail?: boolean;
+    disabled?: boolean;
+    notes?: string;
+    notesInFlow?: boolean;
 }
 
 /**

@@ -399,6 +399,61 @@ export class AiTestWorkflow {
         expect(rebuiltNode.executeOnce).toBeUndefined();
     });
 
+    it('should preserve continueOnFail / disabled / notes / notesInFlow through full pull→push roundtrip', async () => {
+        const workflowJson = {
+            id: 'wf-roundtrip-extras-1',
+            name: 'Roundtrip Extras Workflow',
+            active: false,
+            nodes: [
+                {
+                    id: 'node-rt-extras-1',
+                    name: 'Annotated Node',
+                    type: 'n8n-nodes-base.set',
+                    typeVersion: 3,
+                    position: [200, 400],
+                    parameters: { mode: 'manual' },
+                    continueOnFail: true,
+                    disabled: true,
+                    notes: 'Legacy node — see RUNBOOK-42',
+                    notesInFlow: true,
+                },
+            ],
+            connections: {},
+            settings: {},
+        };
+
+        // JSON → AST → TypeScript
+        const jsonParser = new JsonToAstParser();
+        const ast1 = jsonParser.parse(workflowJson as any);
+        expect(ast1.nodes[0].continueOnFail).toBe(true);
+        expect(ast1.nodes[0].disabled).toBe(true);
+        expect(ast1.nodes[0].notes).toBe('Legacy node — see RUNBOOK-42');
+        expect(ast1.nodes[0].notesInFlow).toBe(true);
+
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast1, { format: false, commentStyle: 'minimal' });
+        expect(tsCode).toContain('continueOnFail: true');
+        expect(tsCode).toContain('disabled: true');
+        expect(tsCode).toContain('notes: "Legacy node — see RUNBOOK-42"');
+        expect(tsCode).toContain('notesInFlow: true');
+
+        // TypeScript → AST → JSON
+        const tsParser = new TypeScriptParser();
+        const ast2 = await tsParser.parseCode(tsCode);
+        expect(ast2.nodes[0].continueOnFail).toBe(true);
+        expect(ast2.nodes[0].disabled).toBe(true);
+        expect(ast2.nodes[0].notes).toBe('Legacy node — see RUNBOOK-42');
+        expect(ast2.nodes[0].notesInFlow).toBe(true);
+
+        const builder = new WorkflowBuilder();
+        const rebuilt = builder.build(ast2);
+        const rebuiltNode = rebuilt.nodes[0];
+        expect(rebuiltNode.continueOnFail).toBe(true);
+        expect(rebuiltNode.disabled).toBe(true);
+        expect(rebuiltNode.notes).toBe('Legacy node — see RUNBOOK-42');
+        expect(rebuiltNode.notesInFlow).toBe(true);
+    });
+
     it('should emit [alwaysOutput] and [retry] flags in workflow-map for execution-setting nodes', async () => {
         const workflowJson = {
             id: 'wf-flags-1',
