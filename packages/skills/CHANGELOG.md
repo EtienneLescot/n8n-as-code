@@ -1,5 +1,15 @@
 # @n8n-as-code/skills
 
+## [2.1.3](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.1.2...@n8n-as-code/skills@v2.1.3) (2026-05-13)
+
+### Bug Fixes
+
+* **skills:** rebuild knowledge base for n8n@2.20.6 ([0378178](https://github.com/EtienneLescot/n8n-as-code/commit/0378178f7e424091ae6ef310ae8eef9671225c40))
+
+### Documentation
+
+* align environment terminology ([6c79f5b](https://github.com/EtienneLescot/n8n-as-code/commit/6c79f5b57e349d59035dc57a464401f493dd75b7))
+
 ## [2.1.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.1.1...@n8n-as-code/skills@v2.1.2) (2026-05-12)
 
 ### Bug Fixes

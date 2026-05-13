@@ -1,5 +1,11 @@
 # @n8n-as-code/n8nac
 
+## [2.1.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2.1.1...@n8n-as-code/n8nac@v2.1.2) (2026-05-13)
+
+### Documentation
+
+* align environment terminology ([6c79f5b](https://github.com/EtienneLescot/n8n-as-code/commit/6c79f5b57e349d59035dc57a464401f493dd75b7))
+
 ## [2.1.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2.1.0...@n8n-as-code/n8nac@v2.1.1) (2026-05-12)
 
 ### Documentation

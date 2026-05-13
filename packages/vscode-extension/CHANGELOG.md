@@ -1,5 +1,21 @@
 # n8n-as-code
 
+## [2.8.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.6.0...n8n-as-code@v2.8.0) (2026-05-13)
+
+### Features
+
+* **vscode-extension:** implement AI context activation policy ([0ff4622](https://github.com/EtienneLescot/n8n-as-code/commit/0ff4622b4bccb8ae3972be71fe5d1c0b2a455019))
+
+### Documentation
+
+* align environment terminology ([6c79f5b](https://github.com/EtienneLescot/n8n-as-code/commit/6c79f5b57e349d59035dc57a464401f493dd75b7))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.1.2 to 2.1.3
+    * n8nac bumped from 2.2.0 to 2.2.1
+
 ## [2.6.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.4.1...n8n-as-code@v2.6.0) (2026-05-12)
 
 ### Features
