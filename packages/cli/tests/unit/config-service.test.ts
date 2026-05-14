@@ -10,6 +10,8 @@ describe('ConfigService', () => {
     let previousXdgConfigHome: string | undefined;
     let previousN8nApiKey: string | undefined;
     let previousTargetApiKey: string | undefined;
+    let previousTargetDevelopmentApiKey: string | undefined;
+    let previousTargetManagedDevelopmentApiKey: string | undefined;
     let managerHome: string;
     let workspaceRoot: string;
 
@@ -18,12 +20,16 @@ describe('ConfigService', () => {
         previousXdgConfigHome = process.env.XDG_CONFIG_HOME;
         previousN8nApiKey = process.env.N8N_API_KEY;
         previousTargetApiKey = process.env.N8NAC_TARGET_PRODUCTION_N8N_API_KEY;
+        previousTargetDevelopmentApiKey = process.env.N8NAC_TARGET_DEVELOPMENT_API_KEY;
+        previousTargetManagedDevelopmentApiKey = process.env.N8NAC_TARGET_DEVELOPMENT_MANAGED_API_KEY;
         managerHome = mkdtempSync(path.join(tmpdir(), 'n8nac-manager-home-'));
         workspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-workspace-'));
         process.env.N8N_MANAGER_HOME = managerHome;
         process.env.XDG_CONFIG_HOME = managerHome;
         delete process.env.N8N_API_KEY;
         delete process.env.N8NAC_TARGET_PRODUCTION_N8N_API_KEY;
+        delete process.env.N8NAC_TARGET_DEVELOPMENT_API_KEY;
+        delete process.env.N8NAC_TARGET_DEVELOPMENT_MANAGED_API_KEY;
     });
 
     afterEach(() => {
@@ -46,6 +52,16 @@ describe('ConfigService', () => {
             delete process.env.N8NAC_TARGET_PRODUCTION_N8N_API_KEY;
         } else {
             process.env.N8NAC_TARGET_PRODUCTION_N8N_API_KEY = previousTargetApiKey;
+        }
+        if (previousTargetDevelopmentApiKey === undefined) {
+            delete process.env.N8NAC_TARGET_DEVELOPMENT_API_KEY;
+        } else {
+            process.env.N8NAC_TARGET_DEVELOPMENT_API_KEY = previousTargetDevelopmentApiKey;
+        }
+        if (previousTargetManagedDevelopmentApiKey === undefined) {
+            delete process.env.N8NAC_TARGET_DEVELOPMENT_MANAGED_API_KEY;
+        } else {
+            process.env.N8NAC_TARGET_DEVELOPMENT_MANAGED_API_KEY = previousTargetManagedDevelopmentApiKey;
         }
     });
 
@@ -777,6 +793,50 @@ describe('ConfigService', () => {
 
         expect(config.environmentTargets?.filter((target) => target.name === 'Development')).toHaveLength(2);
         expect(config.environments?.[0]).toMatchObject({ environmentTargetId: 'development-managed' });
+    });
+
+    it('ignores name-based target API key variables when instance target names are ambiguous', () => {
+        const configService = new ConfigService(workspaceRoot);
+        (configService as any).manager.upsertInstance({
+            id: 'dev-instance',
+            name: 'Development',
+            mode: 'managed-local-docker',
+            baseUrl: 'https://dev.example.test',
+        }, { setActive: false });
+        (configService as any).manager.saveApiKey('dev-instance', 'managed-key');
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 4,
+            environmentTargets: [{
+                id: 'development-connected',
+                name: 'Development',
+                kind: 'external-instance',
+                url: 'https://connected.example.test',
+            }, {
+                id: 'development-managed',
+                name: 'Development',
+                kind: 'managed-instance',
+                managedInstanceId: 'dev-instance',
+            }],
+            environments: [{
+                id: 'dev',
+                name: 'dev',
+                environmentTargetId: 'development-managed',
+                syncFolder: 'workflows',
+            }],
+        }));
+        process.env.N8NAC_TARGET_DEVELOPMENT_API_KEY = 'ambiguous-key';
+
+        const resolved = new ConfigService(workspaceRoot).resolveEnvironment('dev');
+
+        expect(resolved.apiKey).toBe('managed-key');
+        expect(resolved.apiKeySource).toBe('global');
+
+        process.env.N8NAC_TARGET_DEVELOPMENT_MANAGED_API_KEY = 'id-specific-key';
+
+        const resolvedWithIdKey = new ConfigService(workspaceRoot).resolveEnvironment('dev');
+
+        expect(resolvedWithIdKey.apiKey).toBe('id-specific-key');
+        expect(resolvedWithIdKey.apiKeySource).toBe('env');
     });
 
     it('prefers managed base URL over public tunnel URL for API resolution', () => {

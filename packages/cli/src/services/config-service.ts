@@ -2130,8 +2130,10 @@ export class ConfigService {
             `N8NAC_ENV_${envVarSlug(environment.id)}_API_KEY`,
             `N8NAC_ENV_${envVarSlug(environment.name)}_API_KEY`,
             `N8NAC_TARGET_${envVarSlug(target.id)}_API_KEY`,
-            `N8NAC_TARGET_${envVarSlug(target.name)}_API_KEY`,
         ];
+        if (this.isUniqueInstanceTargetName(target)) {
+            candidates.push(`N8NAC_TARGET_${envVarSlug(target.name)}_API_KEY`);
+        }
         for (const key of candidates) {
             const value = process.env[key]?.trim().replace(/^['"]|['"]$/g, '');
             if (value) return value;
@@ -2142,13 +2144,21 @@ export class ConfigService {
     private readTargetEnvApiKey(target: IEnvironmentTarget): string | undefined {
         const candidates = [
             `N8NAC_TARGET_${envVarSlug(target.id)}_API_KEY`,
-            `N8NAC_TARGET_${envVarSlug(target.name)}_API_KEY`,
         ];
+        if (this.isUniqueInstanceTargetName(target)) {
+            candidates.push(`N8NAC_TARGET_${envVarSlug(target.name)}_API_KEY`);
+        }
         for (const key of candidates) {
             const value = process.env[key]?.trim().replace(/^["']|["']$/g, '');
             if (value) return value;
         }
         return undefined;
+    }
+
+    private isUniqueInstanceTargetName(target: IEnvironmentTarget): boolean {
+        const name = target.name.toLowerCase();
+        const config = this.ensureV4WorkspaceConfig();
+        return config.environmentTargets.filter((item) => item.name.toLowerCase() === name).length === 1;
     }
 
     private resolveExistingGlobalInstanceRef(managedInstanceId: unknown): string {
