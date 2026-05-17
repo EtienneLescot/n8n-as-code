@@ -304,8 +304,24 @@ type AgentProviderRegistryModule = {
 const YAGR_MODEL_PROVIDERS = Object.freeze([
     'anthropic',
     'openai',
+    'azure_openai',
+    'cohere',
     'google',
+    'google-vertexai',
+    'google-vertexai-web',
+    'google-genai',
     'mistral',
+    'mistralai',
+    'ollama',
+    'groq',
+    'bedrock',
+    'aws',
+    'deepseek',
+    'xai',
+    'cerebras',
+    'fireworks',
+    'together',
+    'perplexity',
     'openrouter',
     'openai-oauth',
     'copilot-proxy',
@@ -317,8 +333,24 @@ const YAGR_MODEL_PROVIDERS = Object.freeze([
 const YAGR_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     anthropic: 'Claude API',
     openai: 'OpenAI API',
+    azure_openai: 'Azure OpenAI',
+    cohere: 'Cohere API',
     google: 'Gemini API',
+    'google-vertexai': 'Google Vertex AI',
+    'google-vertexai-web': 'Google Vertex AI Web',
+    'google-genai': 'Google GenAI',
     mistral: 'Mistral API',
+    mistralai: 'Mistral AI',
+    ollama: 'Ollama',
+    groq: 'Groq API',
+    bedrock: 'AWS Bedrock',
+    aws: 'AWS Bedrock',
+    deepseek: 'DeepSeek API',
+    xai: 'xAI API',
+    cerebras: 'Cerebras API',
+    fireworks: 'Fireworks AI',
+    together: 'Together AI',
+    perplexity: 'Perplexity API',
     openrouter: 'OpenRouter API',
     'openai-oauth': 'OpenAI ChatGPT OAuth',
     'copilot-proxy': 'GitHub Copilot OAuth',
@@ -327,7 +359,49 @@ const YAGR_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     'openai-compatible': 'OpenAI Compatible',
 };
 
-const YAGR_API_KEY_PROVIDERS = new Set(['anthropic', 'openai', 'google', 'mistral', 'openrouter', 'minimax', 'minimax-token-plan']);
+const YAGR_API_KEY_PROVIDERS = new Set([
+    'anthropic',
+    'openai',
+    'azure_openai',
+    'cohere',
+    'google',
+    'google-genai',
+    'mistral',
+    'mistralai',
+    'groq',
+    'deepseek',
+    'xai',
+    'cerebras',
+    'fireworks',
+    'together',
+    'perplexity',
+    'openrouter',
+    'minimax',
+    'minimax-token-plan',
+]);
+
+const LANGCHAIN_UNIVERSAL_PROVIDERS = new Set([
+    'openai',
+    'anthropic',
+    'azure_openai',
+    'cohere',
+    'google',
+    'google-vertexai',
+    'google-vertexai-web',
+    'google-genai',
+    'ollama',
+    'mistralai',
+    'mistral',
+    'groq',
+    'bedrock',
+    'aws',
+    'deepseek',
+    'xai',
+    'cerebras',
+    'fireworks',
+    'together',
+    'perplexity',
+]);
 
 function normalizeAgentProviderId(provider: string | undefined): string | undefined {
     const normalized = provider?.trim().toLowerCase();
@@ -335,6 +409,9 @@ function normalizeAgentProviderId(provider: string | undefined): string | undefi
     if (normalized === 'claude') return 'anthropic';
     if (normalized === 'anthropic-proxy') return 'anthropic';
     if (normalized === 'gemini') return 'google';
+    if (normalized === 'azure-openai') return 'azure_openai';
+    if (normalized === 'google-vertex') return 'google-vertexai';
+    if (normalized === 'google-ai') return 'google-genai';
     return YAGR_MODEL_PROVIDERS.includes(normalized) ? normalized : undefined;
 }
 
@@ -1442,8 +1519,23 @@ export class AgentRuntimeController implements vscode.Disposable {
         const envKeys: Record<string, string[]> = {
             anthropic: ['ANTHROPIC_API_KEY'],
             openai: ['OPENAI_API_KEY'],
+            azure_openai: ['AZURE_OPENAI_API_KEY'],
+            cohere: ['COHERE_API_KEY'],
             google: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY'],
+            'google-vertexai': ['GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_CLOUD_PROJECT'],
+            'google-vertexai-web': ['GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_CLOUD_PROJECT'],
+            'google-genai': ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY'],
             mistral: ['MISTRAL_API_KEY'],
+            mistralai: ['MISTRAL_API_KEY'],
+            groq: ['GROQ_API_KEY'],
+            bedrock: ['AWS_ACCESS_KEY_ID', 'AWS_PROFILE'],
+            aws: ['AWS_ACCESS_KEY_ID', 'AWS_PROFILE'],
+            deepseek: ['DEEPSEEK_API_KEY'],
+            xai: ['XAI_API_KEY'],
+            cerebras: ['CEREBRAS_API_KEY'],
+            fireworks: ['FIREWORKS_API_KEY'],
+            together: ['TOGETHER_API_KEY'],
+            perplexity: ['PPLX_API_KEY', 'PERPLEXITY_API_KEY'],
             openrouter: ['OPENROUTER_API_KEY'],
             'openai-compatible': ['OPENAI_COMPATIBLE_API_KEY'],
         };
@@ -2144,17 +2236,19 @@ export class AgentRuntimeController implements vscode.Disposable {
             }, configStore);
         }
 
-        if (provider === 'anthropic') {
-            const { ChatAnthropic } = await importRuntimeModule('@langchain/anthropic');
-            return new ChatAnthropic({ apiKey: providerConfig.apiKey, model });
-        }
-        if (provider === 'google') {
+        if (provider === 'google' || provider === 'google-genai') {
             const { ChatGoogleGenerativeAI } = await importRuntimeModule('@langchain/google-genai');
             return new ChatGoogleGenerativeAI({ apiKey: providerConfig.apiKey, model });
         }
-        if (provider === 'mistral') {
-            const { ChatMistralAI } = await importRuntimeModule('@langchain/mistralai');
-            return new ChatMistralAI({ apiKey: providerConfig.apiKey, model });
+        if (provider === 'azure_openai') {
+            const { AzureChatOpenAI } = await importRuntimeModule('@langchain/openai');
+            return new AzureChatOpenAI({
+                azureOpenAIApiKey: providerConfig.apiKey,
+                azureOpenAIEndpoint: providerConfig.baseUrl,
+                azureOpenAIApiDeploymentName: model,
+                azureOpenAIApiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-10-21',
+                temperature: providerConfig.temperature,
+            });
         }
         if (provider === 'minimax' || provider === 'minimax-token-plan') {
             const { ChatAnthropic } = await importRuntimeModule('@langchain/anthropic');
@@ -2162,6 +2256,15 @@ export class AgentRuntimeController implements vscode.Disposable {
                 apiKey: providerConfig.apiKey,
                 model,
                 anthropicApiUrl: providerConfig.baseUrl || 'https://api.minimax.io/anthropic',
+            });
+        }
+        if (LANGCHAIN_UNIVERSAL_PROVIDERS.has(provider)) {
+            const { initChatModel } = await importRuntimeModule('langchain/chat_models/universal');
+            return initChatModel(model, {
+                modelProvider: provider,
+                temperature: providerConfig.temperature,
+                ...(providerConfig.apiKey ? { apiKey: providerConfig.apiKey } : {}),
+                ...(providerConfig.baseUrl ? { baseUrl: providerConfig.baseUrl } : {}),
             });
         }
 
@@ -2180,8 +2283,24 @@ export class AgentRuntimeController implements vscode.Disposable {
         const defaults: Record<string, string> = {
             anthropic: 'claude-haiku-4-5',
             openai: 'gpt-4o',
+            azure_openai: 'gpt-4o',
+            cohere: 'command-a-03-2025',
             google: 'gemini-3-flash-preview',
+            'google-vertexai': 'gemini-2.5-pro',
+            'google-vertexai-web': 'gemini-2.5-pro',
+            'google-genai': 'gemini-3-flash-preview',
             mistral: 'mistral-large-latest',
+            mistralai: 'mistral-large-latest',
+            ollama: 'llama3.1',
+            groq: 'llama-3.3-70b-versatile',
+            bedrock: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+            aws: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+            deepseek: 'deepseek-chat',
+            xai: 'grok-4',
+            cerebras: 'llama3.1-8b',
+            fireworks: 'accounts/fireworks/models/llama-v3p1-70b-instruct',
+            together: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+            perplexity: 'sonar',
             openrouter: 'anthropic/claude-3.5-sonnet',
             'openai-oauth': 'gpt-5.4',
             'copilot-proxy': 'gpt-4.1',
