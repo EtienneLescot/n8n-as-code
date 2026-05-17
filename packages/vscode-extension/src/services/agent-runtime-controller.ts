@@ -263,6 +263,7 @@ type SessionServiceHandle = {
     touch(sessionId: string, options?: { title?: string; closed?: boolean }): DeepAgentSessionRecord | undefined;
     delete(id: string): Promise<void>;
     setCheckpointer(checkpointer: unknown): void;
+    resetRuntimeThread(sessionId: string): Promise<void>;
     buildSessionConfig(sessionId: string): Record<string, unknown>;
     listCheckpoints(sessionId: string): Promise<SessionCheckpointMetadata[]>;
     saveCheckpoint(sessionId: string, options?: SaveCheckpointOptions): Promise<SessionCheckpointMetadata>;
@@ -273,6 +274,7 @@ type SessionServiceHandle = {
     clearDisplayThread(sessionId: string): void;
     setTitle(sessionId: string, title: string): void;
     readDisplaySession(sessionId: string): WebUiSession | undefined;
+    flushPendingWrites?(): Promise<void>;
 };
 
 type SessionRuntime = {
@@ -368,6 +370,10 @@ class WorkbenchSessionService implements SessionServiceHandle {
     private readonly displayDir: string;
     private readonly checkpointDir: string;
     private checkpointer: RuntimeCheckpointer | undefined;
+    private pendingDisplayWrites = new Map<string, WebUiSession>();
+    private pendingRecordWrites = new Map<string, DeepAgentSessionRecord>();
+    private flushTimer: NodeJS.Timeout | undefined;
+    private flushPromise: Promise<void> | undefined;
 
     constructor(private readonly sessionsRoot: string) {
         this.recordsDir = path.join(sessionsRoot, 'records');
@@ -394,6 +400,8 @@ class WorkbenchSessionService implements SessionServiceHandle {
     }
 
     get(id: string): DeepAgentSessionRecord | undefined {
+        const pending = this.pendingRecordWrites.get(id);
+        if (pending) return pending;
         return this.readJson<DeepAgentSessionRecord>(this.recordPath(id));
     }
 
@@ -452,6 +460,15 @@ class WorkbenchSessionService implements SessionServiceHandle {
 
     setCheckpointer(checkpointer: unknown): void {
         this.checkpointer = checkpointer as RuntimeCheckpointer;
+    }
+
+    async resetRuntimeThread(sessionId: string): Promise<void> {
+        await this.checkpointer?.deleteThread?.(sessionId);
+        const record = this.get(sessionId);
+        if (record?.restoredRuntimeCheckpointId) {
+            const { restoredRuntimeCheckpointId: _unused, ...next } = record;
+            this.writeRecord({ ...next, updatedAt: new Date().toISOString() });
+        }
     }
 
     buildSessionConfig(sessionId: string): Record<string, unknown> {
@@ -543,19 +560,25 @@ class WorkbenchSessionService implements SessionServiceHandle {
     syncDisplayThread(sessionId: string, displayThread: unknown[]): void {
         const record = this.ensure(sessionId);
         const now = new Date().toISOString();
-        this.writeDisplaySession({
+        const displaySession = {
             id: sessionId,
             title: record.title,
             createdAt: record.createdAt,
             updatedAt: now,
             displayThread,
-        });
-        this.writeRecord({ ...record, updatedAt: now });
+        };
+        const nextRecord = { ...record, updatedAt: now };
+        this.pendingDisplayWrites.set(sessionId, displaySession);
+        this.pendingRecordWrites.set(sessionId, nextRecord);
+        this.scheduleFlush();
     }
 
     clearDisplayThread(sessionId: string): void {
         const display = this.readDisplaySession(sessionId);
-        if (display) this.writeDisplaySession({ ...display, displayThread: [], updatedAt: new Date().toISOString() });
+        if (display) {
+            this.pendingDisplayWrites.set(sessionId, { ...display, displayThread: [], updatedAt: new Date().toISOString() });
+            this.scheduleFlush();
+        }
     }
 
     setTitle(sessionId: string, title: string): void {
@@ -563,11 +586,24 @@ class WorkbenchSessionService implements SessionServiceHandle {
         const now = new Date().toISOString();
         this.writeRecord({ ...record, title, updatedAt: now });
         const display = this.readDisplaySession(sessionId);
-        if (display) this.writeDisplaySession({ ...display, title, updatedAt: now });
+        if (display) {
+            this.pendingDisplayWrites.set(sessionId, { ...display, title, updatedAt: now });
+            this.scheduleFlush();
+        }
     }
 
     readDisplaySession(sessionId: string): WebUiSession | undefined {
+        const pending = this.pendingDisplayWrites.get(sessionId);
+        if (pending) return pending;
         return this.readJson<WebUiSession>(this.displayPath(sessionId));
+    }
+
+    async flushPendingWrites(): Promise<void> {
+        if (this.flushTimer) {
+            clearTimeout(this.flushTimer);
+            this.flushTimer = undefined;
+        }
+        await this.flushPendingWritesNow();
     }
 
     private create(options: { id?: string; title?: string; scope?: DeepAgentSessionScope } = {}): DeepAgentSessionRecord {
@@ -620,6 +656,34 @@ class WorkbenchSessionService implements SessionServiceHandle {
         this.writeJson(this.displayPath(session.id), session);
     }
 
+    private scheduleFlush(): void {
+        if (this.flushTimer) return;
+        this.flushTimer = setTimeout(() => {
+            this.flushTimer = undefined;
+            void this.flushPendingWritesNow();
+        }, 150);
+    }
+
+    private async flushPendingWritesNow(): Promise<void> {
+        if (this.flushPromise) return this.flushPromise;
+        this.flushPromise = (async () => {
+            const displayWrites = [...this.pendingDisplayWrites.values()];
+            const recordWrites = [...this.pendingRecordWrites.values()];
+            this.pendingDisplayWrites.clear();
+            this.pendingRecordWrites.clear();
+            await Promise.all([
+                ...displayWrites.map((session) => this.writeJsonAsync(this.displayPath(session.id), session)),
+                ...recordWrites.map((record) => this.writeJsonAsync(this.recordPath(record.id), record)),
+            ]);
+        })().finally(() => {
+            this.flushPromise = undefined;
+            if (this.pendingDisplayWrites.size || this.pendingRecordWrites.size) {
+                this.scheduleFlush();
+            }
+        });
+        return this.flushPromise;
+    }
+
     private recordPath(id: string): string {
         return path.join(this.recordsDir, `${this.safeId(id)}.json`);
     }
@@ -651,6 +715,11 @@ class WorkbenchSessionService implements SessionServiceHandle {
     private writeJson(filePath: string, value: unknown): void {
         fs.mkdirSync(path.dirname(filePath), { recursive: true });
         fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+    }
+
+    private async writeJsonAsync(filePath: string, value: unknown): Promise<void> {
+        await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+        await fs.promises.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
     }
 }
 
@@ -906,6 +975,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                 ...this.withoutContextUsage(entries),
                 { kind: 'compaction', id: randomUUID(), timestamp: Date.now(), event },
             ]);
+            await sessions.service.resetRuntimeThread(sessionId);
             await this.saveWorkbenchCheckpoint(sessions.service, sessionId, {
                 reason: 'after-compaction',
                 label: 'After context compaction',
@@ -1024,6 +1094,7 @@ export class AgentRuntimeController implements vscode.Disposable {
     dispose(): void {
         this.activeRun?.abortController.abort();
         this.activeRun = undefined;
+        void this.flushSessionWrites();
     }
 
     private async runInitialAgentTurn(
@@ -1316,12 +1387,32 @@ export class AgentRuntimeController implements vscode.Disposable {
         const blocks = [
             input.workflowId ? `Current workflow: ${input.workflowName || input.workflowId} (${input.workflowId})` : 'No workflow is attached. The user may be designing a new workflow.',
             input.workflowFilename ? `Current workflow file: ${input.workflowFilename}` : undefined,
+            await this.loadCompactedSessionContext(input.sessionId),
             this.formatNodeContexts(nodeContexts),
             workflowContext,
             'User request:',
             input.prompt.trim(),
         ].filter(Boolean);
         return blocks.join('\n\n');
+    }
+
+    private async loadCompactedSessionContext(sessionId?: string): Promise<string | undefined> {
+        if (!sessionId) return undefined;
+        const sessions = await this.getSessionRuntime();
+        const entries = this.readSessionEntries(sessions.service, sessionId);
+        const latestCompaction = [...entries].reverse().find((entry): entry is Extract<AgentTimelineEntry, { kind: 'compaction' }> => entry.kind === 'compaction');
+        if (!latestCompaction?.event.summary.trim()) return undefined;
+        const recentText = entries
+            .filter((entry) => 'timestamp' in entry && entry.timestamp > latestCompaction.timestamp && entry.kind !== 'context-usage')
+            .map((entry) => this.getEntryText(entry))
+            .filter(Boolean)
+            .slice(-6)
+            .join('\n\n');
+        return [
+            'Compacted prior conversation context:',
+            latestCompaction.event.summary,
+            recentText ? `Recent conversation after compaction:\n${recentText}` : undefined,
+        ].filter(Boolean).join('\n\n');
     }
 
     private formatNodeContexts(nodeContexts: AgentNodeContext[]): string | undefined {
@@ -1553,6 +1644,11 @@ export class AgentRuntimeController implements vscode.Disposable {
             })();
         }
         return this.sessionRuntimePromise;
+    }
+
+    private async flushSessionWrites(): Promise<void> {
+        const sessions = await this.sessionRuntimePromise?.catch(() => undefined);
+        await sessions?.service.flushPendingWrites?.();
     }
 
     private getSessionScope(input: Omit<AgentPromptInput, 'prompt'>): DeepAgentSessionScope {
