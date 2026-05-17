@@ -18,10 +18,13 @@ const managerCoreAgentToolingPaths = new Set([
     fs.existsSync(managerCoreAgentToolingPath) ? fs.realpathSync(managerCoreAgentToolingPath) : managerCoreAgentToolingPath,
 ]);
 const runtimeDependencyRoots = [
-    '@yagr/deepagent-bootstrap',
+    'deepagents',
+    '@langchain/anthropic',
+    '@langchain/google-genai',
+    '@langchain/langgraph',
+    '@langchain/mistralai',
+    '@langchain/openai',
     '@yagr/provider-runtime',
-    '@yagr/session-service',
-    '@yagr/stream-adapter',
 ];
 const bundledSkillsAssetFiles = new Set([
     'n8n-docs-complete.json',
@@ -259,7 +262,7 @@ const extensionBuild = esbuild.build({
     entryPoints: ['./src/extension.ts'],
     bundle: true,
     outfile: 'out/extension.js',
-    external: ['vscode', 'prettier', '@yagr/*'],
+    external: ['vscode', 'prettier', 'deepagents', 'langchain', '@langchain/*', '@yagr/provider-runtime'],
     format: 'cjs',
     platform: 'node',
     logOverride: {

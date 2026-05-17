@@ -278,6 +278,11 @@ type SessionRuntime = {
     deriveSessionTitle: (text: string, fallback?: string) => string;
 };
 
+type DeepAgentHandle = {
+    agent: any;
+    checkpointer: unknown;
+};
+
 type ProviderRuntimeConfig = {
     ready: boolean;
     reason?: string;
@@ -289,7 +294,7 @@ type ProviderRuntimeConfig = {
     temperature: number;
 };
 
-type YagrProviderRegistryModule = {
+type AgentProviderRegistryModule = {
     YAGR_MODEL_PROVIDERS: string[];
     normalizeProviderId(provider: string): string | undefined;
     providerRequiresApiKey(provider: string): boolean;
@@ -333,7 +338,7 @@ function normalizeAgentProviderId(provider: string | undefined): string | undefi
     return YAGR_MODEL_PROVIDERS.includes(normalized) ? normalized : undefined;
 }
 
-const LOCAL_YAGR_PROVIDER_REGISTRY: YagrProviderRegistryModule = {
+const LOCAL_AGENT_PROVIDER_REGISTRY: AgentProviderRegistryModule = {
     YAGR_MODEL_PROVIDERS: [...YAGR_MODEL_PROVIDERS],
     normalizeProviderId: normalizeAgentProviderId,
     providerRequiresApiKey: (provider: string) => YAGR_API_KEY_PROVIDERS.has(provider),
@@ -348,6 +353,248 @@ type CompactionState = {
 
 function importRuntimeModule<T = any>(specifier: string): Promise<T> {
     return import(specifier) as Promise<T>;
+}
+
+class WorkbenchSessionService implements SessionServiceHandle {
+    private readonly recordsDir: string;
+    private readonly displayDir: string;
+    private readonly checkpointDir: string;
+
+    constructor(private readonly sessionsRoot: string) {
+        this.recordsDir = path.join(sessionsRoot, 'records');
+        this.displayDir = path.join(sessionsRoot, 'display');
+        this.checkpointDir = path.join(sessionsRoot, 'checkpoints');
+        fs.mkdirSync(this.recordsDir, { recursive: true });
+        fs.mkdirSync(this.displayDir, { recursive: true });
+        fs.mkdirSync(this.checkpointDir, { recursive: true });
+    }
+
+    list(): SessionSummary[] {
+        return this.readRecords()
+            .map((record) => {
+                const display = this.readDisplaySession(record.id);
+                return {
+                    id: record.id,
+                    title: display?.title || record.title,
+                    createdAt: record.createdAt,
+                    updatedAt: record.updatedAt,
+                    messageCount: Array.isArray(display?.displayThread) ? display.displayThread.length : 0,
+                };
+            })
+            .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    }
+
+    get(id: string): DeepAgentSessionRecord | undefined {
+        return this.readJson<DeepAgentSessionRecord>(this.recordPath(id));
+    }
+
+    getOrCreateForScope(scope: DeepAgentSessionScope, options?: { title?: string }): DeepAgentSessionRecord {
+        const active = this.getActiveForScope(scope);
+        return active || this.create({ title: options?.title, scope });
+    }
+
+    rotateForScope(scope: DeepAgentSessionScope, options?: { title?: string }): DeepAgentSessionRecord {
+        const now = new Date().toISOString();
+        for (const record of this.listForScope(scope)) {
+            this.writeRecord({ ...record, closedAt: record.closedAt || now, updatedAt: now });
+        }
+        return this.create({ title: options?.title, scope });
+    }
+
+    getActiveForScope(scope: DeepAgentSessionScope): DeepAgentSessionRecord | undefined {
+        return this.listForScope(scope)
+            .filter((record) => !record.closedAt)
+            .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0];
+    }
+
+    listForScope(scope: DeepAgentSessionScope): DeepAgentSessionRecord[] {
+        return this.readRecords().filter((record) => record.scope?.kind === scope.kind && record.scope?.key === scope.key);
+    }
+
+    ensure(sessionId: string, options?: { title?: string; scope?: DeepAgentSessionScope }): DeepAgentSessionRecord {
+        const existing = this.get(sessionId);
+        if (existing) return existing;
+        return this.create({ id: sessionId, title: options?.title, scope: options?.scope });
+    }
+
+    touch(sessionId: string, options?: { title?: string; closed?: boolean }): DeepAgentSessionRecord | undefined {
+        const record = this.get(sessionId);
+        if (!record) return undefined;
+        const next: DeepAgentSessionRecord = {
+            ...record,
+            updatedAt: new Date().toISOString(),
+            ...(options?.title ? { title: options.title } : {}),
+            ...(options?.closed ? { closedAt: new Date().toISOString() } : {}),
+        };
+        this.writeRecord(next);
+        const display = this.readDisplaySession(sessionId);
+        if (display && options?.title) {
+            this.writeDisplaySession({ ...display, title: options.title, updatedAt: next.updatedAt });
+        }
+        return next;
+    }
+
+    async delete(id: string): Promise<void> {
+        fs.rmSync(this.recordPath(id), { force: true });
+        fs.rmSync(this.displayPath(id), { force: true });
+        fs.rmSync(this.sessionCheckpointDir(id), { recursive: true, force: true });
+    }
+
+    setCheckpointer(_checkpointer: unknown): void {
+        // DeepAgentJS owns graph persistence. The Workbench stores only UI-visible metadata here.
+    }
+
+    buildSessionConfig(sessionId: string): Record<string, unknown> {
+        return { configurable: { thread_id: sessionId }, version: 'v2' };
+    }
+
+    async listCheckpoints(sessionId: string): Promise<SessionCheckpointMetadata[]> {
+        const dir = this.sessionCheckpointDir(sessionId);
+        if (!fs.existsSync(dir)) return [];
+        return fs.readdirSync(dir)
+            .filter((file) => file.endsWith('.json'))
+            .map((file) => this.readJson<SessionCheckpointMetadata & { payloadState?: unknown }>(path.join(dir, file)))
+            .filter((checkpoint): checkpoint is SessionCheckpointMetadata => Boolean(checkpoint))
+            .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    }
+
+    async saveCheckpoint(sessionId: string, options: SaveCheckpointOptions = {}): Promise<SessionCheckpointMetadata> {
+        const createdAt = new Date().toISOString();
+        const display = this.readDisplaySession(sessionId);
+        const checkpoint: SessionCheckpointMetadata & { payloadState?: unknown } = {
+            id: randomUUID(),
+            sessionId,
+            createdAt,
+            messageCount: Array.isArray(display?.displayThread) ? display.displayThread.length : 0,
+            summary: options.summary,
+            reason: options.reason,
+            label: options.label,
+            payloadState: options.payloadState ?? (options.payloads ? { payloads: options.payloads } : undefined),
+        };
+        fs.mkdirSync(this.sessionCheckpointDir(sessionId), { recursive: true });
+        this.writeJson(this.checkpointPath(sessionId, checkpoint.id), checkpoint);
+        return checkpoint;
+    }
+
+    async maybeSaveCheckpoint(sessionId: string, reason: CheckpointReason, options: Omit<SaveCheckpointOptions, 'reason'> = {}): Promise<SessionCheckpointMetadata | undefined> {
+        if (reason !== 'manual' && reason !== 'auto' && reason !== 'after-tool' && reason !== 'after-compaction') {
+            return undefined;
+        }
+        return this.saveCheckpoint(sessionId, { ...options, reason });
+    }
+
+    async restoreCheckpoint(sessionId: string, checkpointId: string): Promise<RestoreCheckpointResult> {
+        const checkpoint = this.readJson<SessionCheckpointMetadata & { payloadState?: unknown }>(this.checkpointPath(sessionId, checkpointId));
+        if (!checkpoint) {
+            throw new Error(`Checkpoint not found: ${checkpointId}`);
+        }
+        const restoredAt = new Date().toISOString();
+        this.writeJson(this.checkpointPath(sessionId, checkpointId), { ...checkpoint, restoredAt });
+        return {
+            sessionId,
+            checkpointId,
+            restoredAt,
+            payloadState: checkpoint.payloadState,
+            displayThreadRestored: false,
+        };
+    }
+
+    async deleteCheckpoint(sessionId: string, checkpointId: string): Promise<void> {
+        fs.rmSync(this.checkpointPath(sessionId, checkpointId), { force: true });
+    }
+
+    syncDisplayThread(sessionId: string, displayThread: unknown[]): void {
+        const record = this.ensure(sessionId);
+        const now = new Date().toISOString();
+        this.writeDisplaySession({
+            id: sessionId,
+            title: record.title,
+            createdAt: record.createdAt,
+            updatedAt: now,
+            displayThread,
+        });
+        this.writeRecord({ ...record, updatedAt: now });
+    }
+
+    clearDisplayThread(sessionId: string): void {
+        const display = this.readDisplaySession(sessionId);
+        if (display) this.writeDisplaySession({ ...display, displayThread: [], updatedAt: new Date().toISOString() });
+    }
+
+    setTitle(sessionId: string, title: string): void {
+        const record = this.ensure(sessionId, { title });
+        const now = new Date().toISOString();
+        this.writeRecord({ ...record, title, updatedAt: now });
+        const display = this.readDisplaySession(sessionId);
+        if (display) this.writeDisplaySession({ ...display, title, updatedAt: now });
+    }
+
+    readDisplaySession(sessionId: string): WebUiSession | undefined {
+        return this.readJson<WebUiSession>(this.displayPath(sessionId));
+    }
+
+    private create(options: { id?: string; title?: string; scope?: DeepAgentSessionScope } = {}): DeepAgentSessionRecord {
+        const now = new Date().toISOString();
+        const record: DeepAgentSessionRecord = {
+            id: options.id || randomUUID(),
+            title: options.title || 'New conversation',
+            createdAt: now,
+            updatedAt: now,
+            scope: options.scope,
+        };
+        this.writeRecord(record);
+        this.writeDisplaySession({ id: record.id, title: record.title, createdAt: now, updatedAt: now, displayThread: [] });
+        return record;
+    }
+
+    private readRecords(): DeepAgentSessionRecord[] {
+        if (!fs.existsSync(this.recordsDir)) return [];
+        return fs.readdirSync(this.recordsDir)
+            .filter((file) => file.endsWith('.json'))
+            .map((file) => this.readJson<DeepAgentSessionRecord>(path.join(this.recordsDir, file)))
+            .filter((record): record is DeepAgentSessionRecord => Boolean(record));
+    }
+
+    private writeRecord(record: DeepAgentSessionRecord): void {
+        this.writeJson(this.recordPath(record.id), record);
+    }
+
+    private writeDisplaySession(session: WebUiSession): void {
+        this.writeJson(this.displayPath(session.id), session);
+    }
+
+    private recordPath(id: string): string {
+        return path.join(this.recordsDir, `${this.safeId(id)}.json`);
+    }
+
+    private displayPath(id: string): string {
+        return path.join(this.displayDir, `${this.safeId(id)}.json`);
+    }
+
+    private sessionCheckpointDir(sessionId: string): string {
+        return path.join(this.checkpointDir, this.safeId(sessionId));
+    }
+
+    private checkpointPath(sessionId: string, checkpointId: string): string {
+        return path.join(this.sessionCheckpointDir(sessionId), `${this.safeId(checkpointId)}.json`);
+    }
+
+    private safeId(value: string): string {
+        return value.replace(/[^a-zA-Z0-9._-]/g, '_');
+    }
+
+    private readJson<T>(filePath: string): T | undefined {
+        try {
+            return JSON.parse(fs.readFileSync(filePath, 'utf8')) as T;
+        } catch {
+            return undefined;
+        }
+    }
+
+    private writeJson(filePath: string, value: unknown): void {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+    }
 }
 
 export class AgentRuntimeController implements vscode.Disposable {
@@ -522,17 +769,14 @@ export class AgentRuntimeController implements vscode.Disposable {
 
     async saveCheckpoint(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
         const sessions = await this.getSessionRuntime();
-        const handle = await this.ensureAgentHandleWithCheckpoint(input);
         const surface = this.buildCheckpointSurfacePayload(sessions.service, sessionId);
-        const compaction = handle.compactionService?.getState?.(sessionId);
         const label = surface.selectedWorkflow ? 'Before workflow edit' : 'Manual checkpoint';
-        await this.saveYagrCheckpoint(sessions.service, sessionId, {
+        await this.saveWorkbenchCheckpoint(sessions.service, sessionId, {
             reason: 'manual',
             label,
             summary: this.buildCheckpointSummary(surface),
             payloads: {
                 surface,
-                ...(compaction ? { compaction } : {}),
             },
         });
         const entries = this.readSessionEntries(sessions.service, sessionId);
@@ -545,7 +789,6 @@ export class AgentRuntimeController implements vscode.Disposable {
 
     async restoreCheckpoint(sessionId: string, checkpointId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
         const sessions = await this.getSessionRuntime();
-        const handle = await this.ensureAgentHandleWithCheckpoint(input);
         const result = await sessions.service.restoreCheckpoint(sessionId, checkpointId);
         const payloads = this.extractCheckpointPayloads(result);
         const notices: AgentTimelineEntry[] = [];
@@ -561,11 +804,6 @@ export class AgentRuntimeController implements vscode.Disposable {
             ]);
         } else {
             notices.push(this.createSystemNotice(`Restored checkpoint ${checkpointId}. Runtime state was restored, but this checkpoint does not include Workbench surface state, so the visible conversation was kept.`));
-        }
-        if (this.isCompactionState(payloads.compaction) && typeof handle.compactionService?.setState === 'function') {
-            handle.compactionService.setState(sessionId, payloads.compaction);
-        } else if (typeof handle.compactionService?.reset === 'function') {
-            handle.compactionService.reset(sessionId);
         }
         for (const warning of result.warnings || []) {
             const message = typeof warning === 'string' ? warning : String(warning);
@@ -600,63 +838,26 @@ export class AgentRuntimeController implements vscode.Disposable {
                 : 'An agent run is already active. Stop it before compacting context.');
         }
         const sessions = await this.getSessionRuntime();
-        const handle = await this.ensureAgentHandleWithCheckpoint(input);
-        if (typeof handle.compactionService?.compactSession !== 'function') {
-            const entries = this.readSessionEntries(sessions.service, sessionId);
-            this.writeSessionEntries(sessions.service, sessionId, [
-                ...entries,
-                this.createSystemNotice('Manual context compaction is not supported by the installed Yagr runtime.'),
-            ]);
-            return this.getWorkbenchState({ ...input, sessionId });
-        }
 
         const abortController = new AbortController();
         this.activeRun = { abortController, sessionId };
         try {
-            const result = await handle.compactionService.compactSession(sessionId, {
-                abortSignal: abortController.signal,
-            });
             let entries = this.readSessionEntries(sessions.service, sessionId);
-            const status = String(result?.status || 'failed');
-            if (status === 'completed') {
-                const event = this.toCompactionSummary(result?.event);
-                if (event) {
-                    entries = [
-                        ...this.withoutContextUsage(entries),
-                        { kind: 'compaction', id: randomUUID(), timestamp: Date.now(), event },
-                    ];
-                } else {
-                    entries = [
-                        ...this.withoutContextUsage(entries),
-                        this.createSystemNotice('Context compacted, but the runtime did not return compaction details.'),
-                    ];
-                }
-                this.writeSessionEntries(sessions.service, sessionId, entries);
-                const surface = this.buildCheckpointSurfacePayload(sessions.service, sessionId, entries);
-                await this.saveYagrCheckpoint(sessions.service, sessionId, {
-                    reason: 'after-compaction',
-                    label: 'After context compaction',
-                    summary: 'Workbench checkpoint after context compaction',
-                    payloads: {
-                        surface,
-                        compaction: handle.compactionService.getState(sessionId),
-                    },
-                }).catch((error: any) => {
-                    this.outputChannel.appendLine(`[n8n-agent] Manual compaction checkpoint failed: ${error?.message || String(error)}`);
-                });
-                return this.getWorkbenchState({ ...input, sessionId });
-            }
-
-            const reason = typeof result?.reason === 'string' && result.reason.trim() ? result.reason.trim() : undefined;
-            const message = status === 'skipped'
-                ? (reason || 'Nothing to compact.')
-                : status === 'unavailable'
-                    ? (reason || 'Manual context compaction is not available for this runtime.')
-                    : (reason || 'Context compaction failed.');
+            const event = await this.summarizeSessionForCompaction(sessionId, input, entries, abortController.signal);
             this.writeSessionEntries(sessions.service, sessionId, [
-                ...entries,
-                this.createSystemNotice(message),
+                ...this.withoutContextUsage(entries),
+                { kind: 'compaction', id: randomUUID(), timestamp: Date.now(), event },
             ]);
+            await this.saveWorkbenchCheckpoint(sessions.service, sessionId, {
+                reason: 'after-compaction',
+                label: 'After context compaction',
+                summary: 'Workbench checkpoint after context compaction',
+                payloads: {
+                    surface: this.buildCheckpointSurfacePayload(sessions.service, sessionId),
+                },
+            }).catch((error: any) => {
+                this.outputChannel.appendLine(`[n8n-agent] Manual compaction checkpoint failed: ${error?.message || String(error)}`);
+            });
             return this.getWorkbenchState({ ...input, sessionId });
         } finally {
             if (this.activeRun?.abortController === abortController) {
@@ -775,7 +976,7 @@ export class AgentRuntimeController implements vscode.Disposable {
     ): Promise<{ entries: AgentTimelineEntry[]; workflowChanged: boolean }> {
         await this.throwIfAborted(signal);
 
-        const providerRegistry = await this.loadYagrProviderRegistry().catch((error: any) => ({ error: error?.message || String(error) }));
+        const providerRegistry = await this.loadAgentProviderRegistry().catch((error: any) => ({ error: error?.message || String(error) }));
         if ('error' in providerRegistry) {
             return {
                 entries: [
@@ -797,7 +998,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             };
         }
 
-        const handle = await this.getYagrAgentHandle(providerConfig, input);
+        const handle = await this.getDeepAgentHandle(providerConfig, input);
         const sessions = await this.getSessionRuntime();
         sessions.service.setCheckpointer(handle.checkpointer);
         const agent = handle.agent;
@@ -811,9 +1012,8 @@ export class AgentRuntimeController implements vscode.Disposable {
         let entries = [...initialEntries];
 
         if (typeof (agent as any).streamEvents === 'function') {
-            const stream = (agent as any).streamEvents({ messages }, config);
-            const streamAdapter = await importRuntimeModule('@yagr/stream-adapter');
-            const accumulator = streamAdapter.createLangGraphStreamAccumulator();
+            const stream = (agent as any).streamEvents({ messages }, { ...config, version: 'v2' });
+            const accumulator = this.createStreamAccumulator();
             let fileModificationDetected = false;
             const syncEntries = () => {
                 if (!input.sessionId) return;
@@ -822,7 +1022,7 @@ export class AgentRuntimeController implements vscode.Disposable {
 
             for await (const event of stream) {
                 await this.throwIfAborted(signal);
-                await streamAdapter.processLangGraphStreamEvent(event, accumulator, {
+                await this.processDeepAgentStreamEvent(event, accumulator, {
                     contextWindowTokens,
                     onTextDelta: async (delta: string) => {
                         entries = this.applyStreamEvent(entries, { type: 'text-delta', delta });
@@ -859,7 +1059,6 @@ export class AgentRuntimeController implements vscode.Disposable {
                             thresholdTokens: typeof compaction.thresholdTokens === 'number' ? compaction.thresholdTokens : undefined,
                             fallbackReason: typeof compaction.fallbackReason === 'string' ? compaction.fallbackReason : undefined,
                         };
-                        await handle.compactionService.notifyCompaction(input.sessionId || '', streamEvent);
                         entries = this.applyStreamEvent(entries, streamEvent);
                         syncEntries();
                         await postMessage({ type: 'agent.streamEvent', event: streamEvent });
@@ -895,12 +1094,11 @@ export class AgentRuntimeController implements vscode.Disposable {
             if (fileModificationDetected) {
                 this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime detected local workflow modification sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'} workflowFilePath=${input.workflowFilePath || 'none'}`);
                 try {
-                    await this.maybeSaveYagrCheckpoint(sessions.service, input.sessionId || '', 'after-tool', {
+                    await this.maybeSaveWorkbenchCheckpoint(sessions.service, input.sessionId || '', 'after-tool', {
                         label: 'After file modifications',
                         summary: 'Saved after file modifications',
                         payloads: {
                             surface: this.buildCheckpointSurfacePayload(sessions.service, input.sessionId || '', entries),
-                            compaction: handle.compactionService?.getState?.(input.sessionId || ''),
                         },
                     });
                 } catch (error: any) {
@@ -931,12 +1129,12 @@ export class AgentRuntimeController implements vscode.Disposable {
         return normalized.length > 500 ? `${normalized.slice(0, 500)}...` : normalized;
     }
 
-    private async loadYagrProviderRegistry(): Promise<YagrProviderRegistryModule> {
-        return LOCAL_YAGR_PROVIDER_REGISTRY;
+    private async loadAgentProviderRegistry(): Promise<AgentProviderRegistryModule> {
+        return LOCAL_AGENT_PROVIDER_REGISTRY;
     }
 
     private async describeProviderRuntimeConfig(): Promise<ProviderRuntimeConfig> {
-        const providerRegistry = await this.loadYagrProviderRegistry().catch(() => undefined);
+        const providerRegistry = await this.loadAgentProviderRegistry().catch(() => undefined);
         if (!providerRegistry) {
             const config = vscode.workspace.getConfiguration('n8n.agent');
             return {
@@ -951,7 +1149,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         return this.getProviderRuntimeConfig(providerRegistry);
     }
 
-    private async getProviderRuntimeConfig(providerRegistry: YagrProviderRegistryModule): Promise<ProviderRuntimeConfig> {
+    private async getProviderRuntimeConfig(providerRegistry: AgentProviderRegistryModule): Promise<ProviderRuntimeConfig> {
         const config = vscode.workspace.getConfiguration('n8n.agent');
         const provider = String(config.get<string>('provider') || 'openai');
         const normalizedProvider = providerRegistry.normalizeProviderId(provider);
@@ -959,7 +1157,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         if (!normalizedProvider) {
             return {
                 ready: false,
-                reason: `Provider ${provider} is not supported by the installed Yagr runtime.`,
+                reason: `Provider ${provider} is not supported by the embedded agent runtime.`,
                 provider,
                 model: String(config.get<string>('model') || '').trim() || undefined,
                 baseUrl: String(config.get<string>('baseUrl') || '').trim() || undefined,
@@ -1005,15 +1203,11 @@ export class AgentRuntimeController implements vscode.Disposable {
         };
     }
 
-    private async getYagrAgentHandle(providerConfig: ProviderRuntimeConfig, input: AgentPromptInput): Promise<any> {
+    private async getDeepAgentHandle(providerConfig: ProviderRuntimeConfig, input: AgentPromptInput): Promise<DeepAgentHandle> {
         const rootDir = input.workspaceRoot || process.cwd();
-        const [bootstrap, providerRuntime] = await Promise.all([
-            importRuntimeModule('@yagr/deepagent-bootstrap'),
-            importRuntimeModule('@yagr/provider-runtime'),
-        ]);
-        const providerRegistry = LOCAL_YAGR_PROVIDER_REGISTRY;
-        const memorySources = await this.getAgentMemorySources(rootDir, providerRuntime);
-        const skillSourcePaths = await this.getAgentSkillSources(rootDir, providerRuntime);
+        const deepagents = await importRuntimeModule('deepagents');
+        const memorySources = await this.getAgentMemorySources(rootDir);
+        const skillSourcePaths = await this.getAgentSkillSources(rootDir);
         const key = JSON.stringify({
             rootDir,
             provider: providerConfig.provider,
@@ -1027,36 +1221,21 @@ export class AgentRuntimeController implements vscode.Disposable {
             return this.cachedAgentHandle.handle;
         }
 
-        const credentials = new Map<string, string>();
-        await Promise.all(providerRegistry.YAGR_MODEL_PROVIDERS.map(async (provider: string) => {
-            const value = await this._context.secrets.get(getAgentProviderSecretKey(provider));
-            if (value) credentials.set(provider, value);
-        }));
-        const localConfig = {
-            provider: providerConfig.provider,
-            model: providerConfig.model,
-            baseUrl: providerConfig.baseUrl,
-            reasoningEffort: providerConfig.reasoningEffort,
-        } as any;
-        const configStore = {
-            getLocalConfig: () => localConfig,
-            getApiKey: (provider: string) => credentials.get(provider),
-        };
-        const model = await providerRuntime.createLangChainModel({
-            provider: providerConfig.provider,
-            model: providerConfig.model,
-            apiKey: providerConfig.apiKey,
-            baseUrl: providerConfig.baseUrl,
-        }, configStore as any);
-        const handle = await bootstrap.createYagrDeepAgent({
-            model,
-            defaultMemorySources: memorySources,
-            defaultSkillSourcePaths: skillSourcePaths,
-            runtimeOptions: {
-                rootDir,
-                systemPrompt: this.buildStaticSystemPrompt(input.workspaceRoot),
-            },
+        const model = await this.createLangChainModel(providerConfig);
+        const checkpointer = await this.createMemoryCheckpointer();
+        const backend = await deepagents.LocalShellBackend.create({
+            rootDir,
+            inheritEnv: true,
         });
+        const agent = deepagents.createDeepAgent({
+            model,
+            checkpointer,
+            backend,
+            memory: memorySources,
+            skills: skillSourcePaths,
+            systemPrompt: this.buildStaticSystemPrompt(input.workspaceRoot),
+        });
+        const handle = { agent, checkpointer };
         this.cachedAgentHandle = { key, handle };
         return handle;
     }
@@ -1120,12 +1299,9 @@ export class AgentRuntimeController implements vscode.Disposable {
         return existing.filter((candidate): candidate is string => Boolean(candidate));
     }
 
-    private async getAgentMemorySources(rootDir: string, providerRuntime: any): Promise<string[]> {
-        const globalSources = typeof providerRuntime.getActiveMemorySourcePaths === 'function'
-            ? providerRuntime.getActiveMemorySourcePaths()
-            : [];
+    private async getAgentMemorySources(rootDir: string): Promise<string[]> {
         const workspaceSources = await this.getWorkspaceMemorySources(rootDir);
-        return [...new Set([...globalSources, ...workspaceSources])];
+        return [...new Set(workspaceSources)];
     }
 
     private async getWorkspaceSkillSources(rootDir: string): Promise<string[]> {
@@ -1145,10 +1321,8 @@ export class AgentRuntimeController implements vscode.Disposable {
         return existing.filter((candidate): candidate is string => Boolean(candidate));
     }
 
-    private async getAgentSkillSources(rootDir: string, providerRuntime: any): Promise<string[]> {
+    private async getAgentSkillSources(rootDir: string): Promise<string[]> {
         const candidatePaths = [
-            typeof providerRuntime.getYagrSkillsDir === 'function' ? providerRuntime.getYagrSkillsDir() : undefined,
-            typeof providerRuntime.getYagrWorkspaceSkillsDir === 'function' ? providerRuntime.getYagrWorkspaceSkillsDir(rootDir) : undefined,
             ...(await this.getWorkspaceSkillSources(rootDir)),
         ].filter((candidate): candidate is string => Boolean(candidate));
         const existing = await Promise.all(candidatePaths.map(async (candidate) => {
@@ -1159,7 +1333,10 @@ export class AgentRuntimeController implements vscode.Disposable {
                 return undefined;
             }
         }));
-        return [...new Set(existing.filter((candidate): candidate is string => Boolean(candidate)))];
+        return [...new Set(existing
+            .filter((candidate): candidate is string => Boolean(candidate))
+            .map((candidate) => path.relative(rootDir, candidate).replace(/\\/g, '/'))
+            .filter((candidate) => candidate && !candidate.startsWith('..')))];
     }
 
     private async directoryHasSkill(directoryPath: string): Promise<boolean> {
@@ -1281,8 +1458,8 @@ export class AgentRuntimeController implements vscode.Disposable {
             ? `Workspace: ${input.workspaceRoot}.`
             : 'No workspace root was provided.';
         const runtimeLine = runtimeError
-            ? `Embedded Yagr runtime is not loadable yet: ${runtimeError}`
-            : 'Embedded Yagr runtime package was detected. Tool and provider execution will be enabled in the next implementation phase.';
+            ? `Embedded DeepAgentJS runtime is not loadable yet: ${runtimeError}`
+            : 'Embedded DeepAgentJS runtime is available. Tool and provider execution are enabled.';
 
         return [
             'The n8n Agent Workbench is wired into the VS Code extension host.',
@@ -1306,26 +1483,12 @@ export class AgentRuntimeController implements vscode.Disposable {
     private async getSessionRuntime(): Promise<SessionRuntime> {
         if (!this.sessionRuntimePromise) {
             this.sessionRuntimePromise = (async () => {
-                const module = await importRuntimeModule('@yagr/session-service');
                 const sessionsRoot = path.join(this._context.globalStorageUri.fsPath, 'agent-sessions');
-                const webUiSessionsDir = path.join(sessionsRoot, 'display');
-                await fs.promises.mkdir(webUiSessionsDir, { recursive: true });
-                const service = new module.SessionService({
-                    sessionsDir: path.join(sessionsRoot, 'records'),
-                    webUiSessionsDir,
-                    memoriesDir: path.join(sessionsRoot, 'memories'),
-                    checkpointPolicy: {
-                        enabled: true,
-                        afterFileModifications: true,
-                        beforeToolCalls: false,
-                        beforeCompaction: false,
-                        afterCompaction: false,
-                        maxCheckpointsPerSession: 20,
-                    },
-                } as any) as SessionServiceHandle;
+                await fs.promises.mkdir(sessionsRoot, { recursive: true });
+                const service = new WorkbenchSessionService(sessionsRoot);
                 return {
                     service,
-                    deriveSessionTitle: module.deriveSessionTitle as SessionRuntime['deriveSessionTitle'],
+                    deriveSessionTitle: this.deriveSessionTitle,
                 };
             })();
         }
@@ -1362,16 +1525,18 @@ export class AgentRuntimeController implements vscode.Disposable {
         return workflowName ? `${workflowName} conversation` : 'New conversation';
     }
 
+    private deriveSessionTitle(text: string, fallback = 'New conversation'): string {
+        const normalized = text.replace(/\s+/g, ' ').trim();
+        if (!normalized) return fallback;
+        return normalized.length > 48 ? `${normalized.slice(0, 45).trim()}...` : normalized;
+    }
+
     private async listSessionSummaries(scope: DeepAgentSessionScope, activeSessionId: string): Promise<AgentSessionSummary[]> {
         const sessions = await this.getSessionRuntime();
-        const handle = this.cachedAgentHandle?.handle;
         const summaries = await Promise.all(sessions.service.list().map(async (summary) => {
             const record = sessions.service.get(summary.id);
             const entries = this.readSessionEntries(sessions.service, summary.id);
             const workflowContext = this.getLatestWorkflowContext(entries, record);
-            const compactionState = handle?.compactionService?.getState
-                ? handle.compactionService.getState(summary.id) as CompactionState
-                : { lastCompaction: null, compactionHistory: [], totalCompactions: 0 };
             const checkpoints = await sessions.service.listCheckpoints(summary.id).catch(() => []);
             return {
                 id: summary.id,
@@ -1385,7 +1550,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                 workflowId: workflowContext?.id,
                 workflowLabel: workflowContext?.name || workflowContext?.id || workflowContext?.filename || 'New workflow chat',
                 workflowContext,
-                totalCompactions: compactionState.totalCompactions,
+                totalCompactions: entries.filter((entry) => entry.kind === 'compaction').length,
             };
         }));
         return summaries.sort((left, right) => {
@@ -1406,14 +1571,11 @@ export class AgentRuntimeController implements vscode.Disposable {
         const displaySession = sessions.service.readDisplaySession(sessionId);
         const entries = this.normalizeEntries(displaySession?.displayThread);
         const checkpoints = await sessions.service.listCheckpoints(sessionId).catch(() => []);
-        const handle = this.cachedAgentHandle?.handle;
-        const compactionState: CompactionState = handle?.compactionService?.getState
-            ? handle.compactionService.getState(sessionId)
-            : { lastCompaction: null, compactionHistory: [], totalCompactions: 0 };
         const record = sessions.service.get(sessionId);
         const workflowContext = this.getLatestWorkflowContext(entries, record);
         const nodeContexts = workflowContext ? this.getLatestNodeContexts(entries) : [];
         const latestUsageEntry = [...entries].reverse().find((entry): entry is Extract<AgentTimelineEntry, { kind: 'context-usage' }> => entry.kind === 'context-usage' && entry.usage.source === 'api');
+        const compactionEntries = entries.filter((entry): entry is Extract<AgentTimelineEntry, { kind: 'compaction' }> => entry.kind === 'compaction');
         return {
             sessionId,
             title: displaySession?.title || record?.title || this.getDefaultSessionTitle(input.workflowName),
@@ -1429,8 +1591,8 @@ export class AgentRuntimeController implements vscode.Disposable {
                 restoredAt: checkpoint.restoredAt,
             })),
             contextUsage: latestUsageEntry?.usage,
-            lastCompaction: compactionState.lastCompaction || undefined,
-            totalCompactions: compactionState.totalCompactions,
+            lastCompaction: compactionEntries[compactionEntries.length - 1]?.event,
+            totalCompactions: compactionEntries.length,
             workflowId: workflowContext?.id,
             workflowLabel: workflowContext?.name || workflowContext?.id || workflowContext?.filename || 'New workflow chat',
             workflowContext,
@@ -1869,7 +2031,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         return 'Workbench checkpoint';
     }
 
-    private async saveYagrCheckpoint(
+    private async saveWorkbenchCheckpoint(
         service: SessionServiceHandle,
         sessionId: string,
         options: SaveCheckpointOptions,
@@ -1877,14 +2039,14 @@ export class AgentRuntimeController implements vscode.Disposable {
         return service.saveCheckpoint(sessionId, this.withLegacyCheckpointPayload(options));
     }
 
-    private async maybeSaveYagrCheckpoint(
+    private async maybeSaveWorkbenchCheckpoint(
         service: SessionServiceHandle,
         sessionId: string,
         reason: CheckpointReason,
         options: Omit<SaveCheckpointOptions, 'reason'>,
     ): Promise<SessionCheckpointMetadata | undefined> {
         if (typeof service.maybeSaveCheckpoint !== 'function') {
-            return this.saveYagrCheckpoint(service, sessionId, { ...options, reason });
+            return this.saveWorkbenchCheckpoint(service, sessionId, { ...options, reason });
         }
         return service.maybeSaveCheckpoint(sessionId, reason, this.withLegacyCheckpointPayload(options));
     }
@@ -1959,13 +2121,294 @@ export class AgentRuntimeController implements vscode.Disposable {
         return Number.isFinite(number) ? number : undefined;
     }
 
+    private async createLangChainModel(providerConfig: ProviderRuntimeConfig): Promise<any> {
+        const provider = providerConfig.provider;
+        const model = providerConfig.model || this.getDefaultModelForProvider(provider);
+        if (provider === 'openai-oauth' || provider === 'copilot-proxy') {
+            const providerRuntime = await importRuntimeModule('@yagr/provider-runtime');
+            const localConfig = {
+                provider,
+                model,
+                baseUrl: providerConfig.baseUrl,
+                reasoningEffort: providerConfig.reasoningEffort,
+            };
+            const configStore = {
+                getLocalConfig: () => localConfig,
+                getApiKey: (candidate: string) => candidate === provider ? providerConfig.apiKey : undefined,
+            };
+            return providerRuntime.createLangChainModel({
+                provider,
+                model,
+                apiKey: providerConfig.apiKey,
+                baseUrl: providerConfig.baseUrl,
+            }, configStore);
+        }
+
+        if (provider === 'anthropic') {
+            const { ChatAnthropic } = await importRuntimeModule('@langchain/anthropic');
+            return new ChatAnthropic({ apiKey: providerConfig.apiKey, model });
+        }
+        if (provider === 'google') {
+            const { ChatGoogleGenerativeAI } = await importRuntimeModule('@langchain/google-genai');
+            return new ChatGoogleGenerativeAI({ apiKey: providerConfig.apiKey, model });
+        }
+        if (provider === 'mistral') {
+            const { ChatMistralAI } = await importRuntimeModule('@langchain/mistralai');
+            return new ChatMistralAI({ apiKey: providerConfig.apiKey, model });
+        }
+        if (provider === 'minimax' || provider === 'minimax-token-plan') {
+            const { ChatAnthropic } = await importRuntimeModule('@langchain/anthropic');
+            return new ChatAnthropic({
+                apiKey: providerConfig.apiKey,
+                model,
+                anthropicApiUrl: providerConfig.baseUrl || 'https://api.minimax.io/anthropic',
+            });
+        }
+
+        const { ChatOpenAI } = await importRuntimeModule('@langchain/openai');
+        const baseURL = provider === 'openrouter'
+            ? providerConfig.baseUrl || 'https://openrouter.ai/api/v1'
+            : providerConfig.baseUrl;
+        return new ChatOpenAI({
+            ...(providerConfig.apiKey ? { apiKey: providerConfig.apiKey } : {}),
+            model,
+            ...(baseURL ? { configuration: { baseURL } } : {}),
+        });
+    }
+
+    private getDefaultModelForProvider(provider: string): string {
+        const defaults: Record<string, string> = {
+            anthropic: 'claude-haiku-4-5',
+            openai: 'gpt-4o',
+            google: 'gemini-3-flash-preview',
+            mistral: 'mistral-large-latest',
+            openrouter: 'anthropic/claude-3.5-sonnet',
+            'openai-oauth': 'gpt-5.4',
+            'copilot-proxy': 'gpt-4.1',
+            minimax: 'MiniMax-M2.7',
+            'minimax-token-plan': 'MiniMax-M2.7',
+            'openai-compatible': 'gpt-4o',
+        };
+        return defaults[provider] || 'gpt-4o';
+    }
+
+    private async createMemoryCheckpointer(): Promise<unknown> {
+        const { MemorySaver } = await importRuntimeModule('@langchain/langgraph');
+        return new MemorySaver();
+    }
+
+    private createStreamAccumulator(): { responseText: string; thinkingText: string } {
+        return { responseText: '', thinkingText: '' };
+    }
+
+    private async processDeepAgentStreamEvent(
+        event: any,
+        accumulator: { responseText: string; thinkingText: string },
+        callbacks: {
+            contextWindowTokens: number;
+            onTextDelta: (delta: string) => Promise<void>;
+            onOperation: (operation: any) => Promise<void>;
+            onCompaction: (compaction: any) => Promise<void>;
+            onContextUsage: (usage: any) => Promise<void>;
+        },
+    ): Promise<void> {
+        const eventName = String(event?.event || '');
+        if (eventName === 'on_chat_model_stream') {
+            const chunk = event?.data?.chunk;
+            const { textDelta, thinkingDelta } = this.extractStreamDeltas(chunk);
+            await this.emitContextUsageFromChunk(event, chunk, callbacks.contextWindowTokens, callbacks.onContextUsage);
+            if (thinkingDelta) {
+                accumulator.thinkingText += thinkingDelta;
+                await callbacks.onOperation({
+                    operationId: 'thinking',
+                    label: 'Thinking',
+                    category: 'thinking',
+                    status: 'running',
+                    body: accumulator.thinkingText,
+                    startedAt: Date.now(),
+                });
+            }
+            if (textDelta) {
+                if (accumulator.thinkingText) {
+                    await callbacks.onOperation({
+                        operationId: 'thinking',
+                        label: 'Thinking',
+                        category: 'thinking',
+                        status: 'done',
+                        body: accumulator.thinkingText,
+                        startedAt: Date.now(),
+                        endedAt: Date.now(),
+                    });
+                    accumulator.thinkingText = '';
+                }
+                accumulator.responseText += textDelta;
+                await callbacks.onTextDelta(textDelta);
+            }
+            return;
+        }
+        if (eventName === 'on_chat_model_end') {
+            await this.emitContextUsageFromChunk(event, event?.data?.output || event?.data, callbacks.contextWindowTokens, callbacks.onContextUsage);
+            return;
+        }
+        if (eventName === 'on_tool_start') {
+            const toolName = String(event?.name || 'tool');
+            if (this.shouldShowToolOperation(toolName)) {
+                await callbacks.onOperation({
+                    operationId: this.getStreamOperationId(event, toolName),
+                    label: this.formatToolLabel(toolName),
+                    category: this.categorizeTool(toolName),
+                    status: 'running',
+                    body: this.stringifyToolPayload(event?.data?.input),
+                    startedAt: Date.now(),
+                });
+            }
+            return;
+        }
+        if (eventName === 'on_tool_end') {
+            const toolName = String(event?.name || 'tool');
+            if (this.shouldShowToolOperation(toolName)) {
+                await callbacks.onOperation({
+                    operationId: this.getStreamOperationId(event, toolName),
+                    label: this.formatToolLabel(toolName),
+                    category: this.categorizeTool(toolName),
+                    status: event?.data?.output?.error ? 'error' : 'done',
+                    summary: this.truncateOperationDetail(this.stringifyToolPayload(event?.data?.output)),
+                    startedAt: Date.now(),
+                    endedAt: Date.now(),
+                });
+            }
+            const compaction = this.extractCompactionSummary(event?.data?.output || event?.data?.chunk);
+            if (compaction) await callbacks.onCompaction(compaction);
+        }
+    }
+
+    private extractStreamDeltas(chunk: any): { textDelta?: string; thinkingDelta?: string } {
+        const content = chunk?.content;
+        let textDelta = typeof content === 'string' ? content : undefined;
+        if (!textDelta && Array.isArray(content)) {
+            textDelta = content.map((part) => {
+                if (typeof part === 'string') return part;
+                if (typeof part?.text === 'string') return part.text;
+                if (typeof part?.textDelta === 'string') return part.textDelta;
+                return '';
+            }).join('');
+        }
+        const thinkingDelta = typeof chunk?.additional_kwargs?.reasoning_content === 'string'
+            ? chunk.additional_kwargs.reasoning_content
+            : typeof chunk?.additional_kwargs?.reasoning === 'string'
+                ? chunk.additional_kwargs.reasoning
+                : undefined;
+        return { textDelta: textDelta || undefined, thinkingDelta };
+    }
+
+    private async emitContextUsageFromChunk(
+        event: any,
+        payload: any,
+        contextWindowTokens: number,
+        onContextUsage: (usage: any) => Promise<void>,
+    ): Promise<void> {
+        const usage = payload?.usage_metadata || payload?.usage || payload?.response_metadata?.tokenUsage;
+        const promptTokens = Number(usage?.input_tokens ?? usage?.promptTokens ?? usage?.prompt_tokens ?? 0);
+        const completionTokens = Number(usage?.output_tokens ?? usage?.completionTokens ?? usage?.completion_tokens ?? 0);
+        if (!promptTokens && !completionTokens) return;
+        const fillPercent = contextWindowTokens > 0 ? Math.min(100, Math.round((promptTokens / contextWindowTokens) * 100)) : 0;
+        await onContextUsage({
+            promptTokens,
+            completionTokens,
+            contextWindowTokens,
+            fillPercent,
+            source: 'api',
+            runId: event?.run_id,
+        });
+    }
+
+    private getStreamOperationId(event: any, toolName: string): string {
+        return `${toolName}:${String(event?.run_id || event?.id || 'unknown')}`;
+    }
+
+    private shouldShowToolOperation(toolName: string): boolean {
+        return !['ls', 'glob', 'grep'].includes(toolName);
+    }
+
+    private categorizeTool(toolName: string): string {
+        const normalized = toolName.toLowerCase();
+        if (normalized.includes('write') || normalized.includes('edit') || normalized.includes('delete') || normalized.includes('move')) return 'file-write';
+        if (normalized.includes('read')) return 'file-read';
+        if (normalized.includes('shell') || normalized.includes('execute')) return 'shell';
+        return 'tool';
+    }
+
+    private formatToolLabel(toolName: string): string {
+        return toolName.replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+
+    private stringifyToolPayload(value: unknown): string | undefined {
+        if (value === undefined || value === null) return undefined;
+        if (typeof value === 'string') return value;
+        try {
+            return JSON.stringify(value);
+        } catch {
+            return String(value);
+        }
+    }
+
+    private extractCompactionSummary(value: unknown): AgentCompactionSummary | undefined {
+        if (!this.isRecord(value)) return undefined;
+        if (typeof value.summary !== 'string' && typeof value.compaction !== 'object') return undefined;
+        return this.toCompactionSummary(this.isRecord(value.compaction) ? value.compaction : value);
+    }
+
+    private async summarizeSessionForCompaction(
+        sessionId: string,
+        input: Omit<AgentPromptInput, 'prompt'>,
+        entries: AgentTimelineEntry[],
+        signal: AbortSignal,
+    ): Promise<AgentCompactionSummary> {
+        const text = entries
+            .map((entry) => this.getEntryText(entry))
+            .filter(Boolean)
+            .join('\n\n')
+            .slice(-16_000);
+        if (!text.trim()) {
+            return {
+                summary: 'No conversation content was available to compact.',
+                source: 'fallback',
+                messagesCompacted: 0,
+                preservedRecentMessages: 0,
+            };
+        }
+        try {
+            const providerRegistry = await this.loadAgentProviderRegistry();
+            const providerConfig = await this.getProviderRuntimeConfig(providerRegistry);
+            if (!providerConfig.ready) throw new Error(providerConfig.reason || 'Provider is not ready.');
+            const model = await this.createLangChainModel(providerConfig);
+            const response = await model.invoke([
+                { role: 'user', content: `Summarize this Workbench conversation for future agent context. Keep key decisions, files, workflow context, and next steps.\n\n${text}` },
+            ], { signal });
+            return {
+                summary: this.extractAgentText({ messages: [response] }) || 'Context compacted.',
+                source: 'llm',
+                messagesCompacted: entries.length,
+                preservedRecentMessages: Math.min(4, entries.length),
+            };
+        } catch (error: any) {
+            return {
+                summary: `Context compaction fallback: ${text.slice(-1200)}`,
+                source: 'fallback',
+                messagesCompacted: entries.length,
+                preservedRecentMessages: Math.min(4, entries.length),
+                fallbackReason: error?.message || String(error),
+            };
+        }
+    }
+
     private async ensureAgentHandleWithCheckpoint(input: Omit<AgentPromptInput, 'prompt'>): Promise<any> {
-        const providerRegistry = await this.loadYagrProviderRegistry();
+        const providerRegistry = await this.loadAgentProviderRegistry();
         const providerConfig = await this.getProviderRuntimeConfig(providerRegistry);
         if (!providerConfig.ready) {
             throw new Error(providerConfig.reason || 'Agent provider is not ready.');
         }
-        const handle = await this.getYagrAgentHandle(providerConfig, { ...input, prompt: '' });
+        const handle = await this.getDeepAgentHandle(providerConfig, { ...input, prompt: '' });
         const sessions = await this.getSessionRuntime();
         sessions.service.setCheckpointer(handle.checkpointer);
         return handle;

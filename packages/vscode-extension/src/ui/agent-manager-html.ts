@@ -32,7 +32,7 @@ export function buildAgentManagerHtml(input: AgentManagerHtmlInput): string {
     const providerLabel = escapeHtml(input.providerLabel);
     const model = escapeHtml(input.model || 'provider default');
     const baseUrl = escapeHtml(input.baseUrl || (input.provider === 'openai-compatible' ? 'not set' : 'provider default'));
-    const reasoningEffort = escapeHtml(input.reasoningEffort || 'Yagr default');
+    const reasoningEffort = escapeHtml(input.reasoningEffort || 'Provider default');
     const keyStatus = input.hasStoredApiKey ? 'Stored in VS Code Secret Storage' : 'Not stored yet / environment fallback';
     const authKind = escapeHtml(input.authKind);
     const profiles = [

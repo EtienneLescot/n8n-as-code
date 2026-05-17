@@ -351,7 +351,7 @@ export class YagrProviderService {
             YAGR_REASONING_EFFORTS.map((effort) => ({
                 label: effort,
                 picked: effort === current,
-                description: effort === defaultReasoningEffort ? 'Yagr default' : undefined,
+                description: effort === defaultReasoningEffort ? 'Provider default' : undefined,
             })),
             {
                 title: 'Select reasoning effort',

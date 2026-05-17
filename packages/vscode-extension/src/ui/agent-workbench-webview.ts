@@ -364,7 +364,7 @@ export class AgentWorkbenchWebview {
                     type: 'progress',
                     tone: 'info',
                     title: 'Compacting context',
-                    detail: 'Requesting runtime context compaction from Yagr.',
+                    detail: 'Requesting runtime context compaction from DeepAgentJS.',
                     phase: 'compaction',
                 },
             });

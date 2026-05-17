@@ -75,7 +75,7 @@ test('Agent Workbench HTML: Enter submits and Shift+Enter keeps multiline input'
     assert.ok(html.includes('sendPrompt();'), 'Must submit the composer from the Enter key handler');
 });
 
-test('Agent Workbench HTML: context usage and compaction follow Yagr runtime contracts', () => {
+test('Agent Workbench HTML: context usage and compaction follow agent runtime contracts', () => {
     const { buildAgentWorkbenchHtml } = require('../../src/ui/agent-workbench-html.js');
     const html: string = buildAgentWorkbenchHtml({
         workflowId: 'wf-1',
