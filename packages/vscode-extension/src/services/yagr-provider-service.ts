@@ -4,24 +4,8 @@ import { getAgentProviderSecretKey } from './agent-runtime-controller.js';
 export type YagrModelProvider =
     | 'anthropic'
     | 'openai'
-    | 'azure_openai'
-    | 'cohere'
     | 'google'
-    | 'google-vertexai'
-    | 'google-vertexai-web'
-    | 'google-genai'
     | 'mistral'
-    | 'mistralai'
-    | 'ollama'
-    | 'groq'
-    | 'bedrock'
-    | 'aws'
-    | 'deepseek'
-    | 'xai'
-    | 'cerebras'
-    | 'fireworks'
-    | 'together'
-    | 'perplexity'
     | 'openrouter'
     | 'openai-oauth'
     | 'copilot-proxy'
@@ -107,60 +91,9 @@ export const YAGR_PROVIDER_DEFINITIONS: Record<YagrModelProvider, YagrProviderDe
         envKeys: ['OPENAI_LLM_API_KEY', 'OPENAI_API_KEY'],
         canDiscoverModels: true,
     },
-    azure_openai: {
-        id: 'azure_openai',
-        label: 'Azure OpenAI',
-        description: 'AZURE_OPENAI_API_KEY + endpoint',
-        defaultModel: 'gpt-4o',
-        requiresApiKey: true,
-        authKind: 'api-key',
-        envKeys: ['AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_API_KEY_LLM'],
-        canDiscoverModels: false,
-    },
-    cohere: {
-        id: 'cohere',
-        label: 'Cohere API',
-        description: 'COHERE_API_KEY',
-        defaultModel: 'command-a-03-2025',
-        requiresApiKey: true,
-        authKind: 'api-key',
-        envKeys: ['COHERE_API_KEY', 'COHERE_LLM_API_KEY'],
-        canDiscoverModels: false,
-    },
     google: {
         id: 'google',
         label: 'Gemini API',
-        description: 'GOOGLE_GENERATIVE_AI_API_KEY',
-        defaultModel: 'gemini-3-flash-preview',
-        defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-        requiresApiKey: true,
-        authKind: 'api-key',
-        envKeys: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_LLM_API_KEY', 'GOOGLE_LLM_API_KEY'],
-        canDiscoverModels: true,
-    },
-    'google-vertexai': {
-        id: 'google-vertexai',
-        label: 'Google Vertex AI',
-        description: 'Google ADC / Vertex AI credentials',
-        defaultModel: 'gemini-2.5-pro',
-        requiresApiKey: false,
-        authKind: 'none',
-        envKeys: ['GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_CLOUD_PROJECT'],
-        canDiscoverModels: false,
-    },
-    'google-vertexai-web': {
-        id: 'google-vertexai-web',
-        label: 'Google Vertex AI Web',
-        description: 'Google ADC / Vertex AI web credentials',
-        defaultModel: 'gemini-2.5-pro',
-        requiresApiKey: false,
-        authKind: 'none',
-        envKeys: ['GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_CLOUD_PROJECT'],
-        canDiscoverModels: false,
-    },
-    'google-genai': {
-        id: 'google-genai',
-        label: 'Google GenAI',
         description: 'GOOGLE_GENERATIVE_AI_API_KEY',
         defaultModel: 'gemini-3-flash-preview',
         defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
@@ -178,118 +111,6 @@ export const YAGR_PROVIDER_DEFINITIONS: Record<YagrModelProvider, YagrProviderDe
         requiresApiKey: true,
         authKind: 'api-key',
         envKeys: ['MISTRAL_API_KEY', 'MISTRAL_LLM_API_KEY'],
-        canDiscoverModels: true,
-    },
-    mistralai: {
-        id: 'mistralai',
-        label: 'Mistral AI',
-        description: 'MISTRAL_API_KEY',
-        defaultModel: 'mistral-large-latest',
-        defaultBaseUrl: 'https://api.mistral.ai/v1',
-        requiresApiKey: true,
-        authKind: 'api-key',
-        envKeys: ['MISTRAL_API_KEY', 'MISTRAL_LLM_API_KEY'],
-        canDiscoverModels: true,
-    },
-    ollama: {
-        id: 'ollama',
-        label: 'Ollama',
-        description: 'Local Ollama server',
-        defaultModel: 'llama3.1',
-        defaultBaseUrl: 'http://127.0.0.1:11434',
-        requiresApiKey: false,
-        authKind: 'none',
-        envKeys: [],
-        canDiscoverModels: true,
-    },
-    groq: {
-        id: 'groq',
-        label: 'Groq API',
-        description: 'GROQ_API_KEY',
-        defaultModel: 'llama-3.3-70b-versatile',
-        requiresApiKey: true,
-        authKind: 'api-key',
-        envKeys: ['GROQ_API_KEY', 'GROQ_LLM_API_KEY'],
-        canDiscoverModels: true,
-    },
-    bedrock: {
-        id: 'bedrock',
-        label: 'AWS Bedrock',
-        description: 'AWS credentials',
-        defaultModel: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
-        requiresApiKey: false,
-        authKind: 'none',
-        envKeys: ['AWS_ACCESS_KEY_ID', 'AWS_PROFILE'],
-        canDiscoverModels: false,
-    },
-    aws: {
-        id: 'aws',
-        label: 'AWS Bedrock',
-        description: 'AWS credentials',
-        defaultModel: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
-        requiresApiKey: false,
-        authKind: 'none',
-        envKeys: ['AWS_ACCESS_KEY_ID', 'AWS_PROFILE'],
-        canDiscoverModels: false,
-    },
-    deepseek: {
-        id: 'deepseek',
-        label: 'DeepSeek API',
-        description: 'DEEPSEEK_API_KEY',
-        defaultModel: 'deepseek-chat',
-        requiresApiKey: true,
-        authKind: 'api-key',
-        envKeys: ['DEEPSEEK_API_KEY'],
-        canDiscoverModels: true,
-    },
-    xai: {
-        id: 'xai',
-        label: 'xAI API',
-        description: 'XAI_API_KEY',
-        defaultModel: 'grok-4',
-        requiresApiKey: true,
-        authKind: 'api-key',
-        envKeys: ['XAI_API_KEY'],
-        canDiscoverModels: true,
-    },
-    cerebras: {
-        id: 'cerebras',
-        label: 'Cerebras API',
-        description: 'CEREBRAS_API_KEY',
-        defaultModel: 'llama3.1-8b',
-        requiresApiKey: true,
-        authKind: 'api-key',
-        envKeys: ['CEREBRAS_API_KEY'],
-        canDiscoverModels: false,
-    },
-    fireworks: {
-        id: 'fireworks',
-        label: 'Fireworks AI',
-        description: 'FIREWORKS_API_KEY',
-        defaultModel: 'accounts/fireworks/models/llama-v3p1-70b-instruct',
-        requiresApiKey: true,
-        authKind: 'api-key',
-        envKeys: ['FIREWORKS_API_KEY'],
-        canDiscoverModels: true,
-    },
-    together: {
-        id: 'together',
-        label: 'Together AI',
-        description: 'TOGETHER_API_KEY',
-        defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
-        requiresApiKey: true,
-        authKind: 'api-key',
-        envKeys: ['TOGETHER_API_KEY'],
-        canDiscoverModels: true,
-    },
-    perplexity: {
-        id: 'perplexity',
-        label: 'Perplexity API',
-        description: 'PPLX_API_KEY',
-        defaultModel: 'sonar',
-        requiresApiKey: true,
-        authKind: 'api-key',
-        envKeys: ['PPLX_API_KEY', 'PERPLEXITY_API_KEY'],
         canDiscoverModels: true,
     },
     openrouter: {
@@ -367,14 +188,11 @@ export function normalizeYagrProviderId(provider?: string): YagrModelProvider | 
     if (normalized === 'claude') return 'anthropic';
     if (normalized === 'anthropic-proxy') return 'anthropic';
     if (normalized === 'gemini') return 'google';
-    if (normalized === 'azure-openai') return 'azure_openai';
-    if (normalized === 'google-vertex') return 'google-vertexai';
-    if (normalized === 'google-ai') return 'google-genai';
     return normalized in YAGR_PROVIDER_DEFINITIONS ? normalized as YagrModelProvider : undefined;
 }
 
 export function providerNeedsBaseUrlInput(provider: YagrModelProvider): boolean {
-    return provider === 'openai-compatible' || provider === 'azure_openai' || provider === 'ollama';
+    return provider === 'openai-compatible';
 }
 
 export function providerSupportsReasoningEffort(provider: YagrModelProvider, _model?: string): boolean {
@@ -417,7 +235,7 @@ export class YagrProviderService {
                 credentialSource: hasStoredCredential ? 'secret' as const : hasEnvironmentCredential ? 'environment' as const : undefined,
                 selected: provider === selectedProvider,
                 model: provider === selectedProvider ? selectedModel : undefined,
-                baseUrl: providerNeedsBaseUrlInput(provider) ? configuredBaseUrl || definition.defaultBaseUrl : definition.defaultBaseUrl,
+                baseUrl: provider === 'openai-compatible' ? configuredBaseUrl : definition.defaultBaseUrl,
                 supportsReasoningEffort: providerSupportsReasoningEffort(provider, provider === selectedProvider ? selectedModel : definition.defaultModel),
                 reasoningEffort: provider === selectedProvider && providerSupportsReasoningEffort(provider, selectedModel) ? selectedReasoningEffort : undefined,
             };
@@ -451,15 +269,11 @@ export class YagrProviderService {
         if (providerNeedsBaseUrlInput(provider)) {
             const baseUrl = await vscode.window.showInputBox({
                 title: 'OpenAI-compatible base URL',
-                prompt: provider === 'azure_openai'
-                    ? 'Azure OpenAI endpoint, for example https://my-resource.openai.azure.com.'
-                    : provider === 'ollama'
-                        ? 'Ollama server URL.'
-                        : 'OpenAI-compatible provider base URL.',
-                value: String(config.get<string>('baseUrl') || definition.defaultBaseUrl || ''),
+                prompt: 'Only OpenAI-compatible providers allow a custom base URL.',
+                value: String(config.get<string>('baseUrl') || ''),
                 ignoreFocusOut: true,
                 validateInput: (value) => {
-                    if (!value.trim()) return 'Base URL is required for this provider.';
+                    if (!value.trim()) return 'Base URL is required for OpenAI-compatible providers.';
                     try { new URL(value.trim()); return undefined; } catch { return 'Enter a valid URL.'; }
                 },
             });
@@ -571,7 +385,7 @@ export class YagrProviderService {
         const apiKey = await this.getStoredCredential(provider) || this.readEnvironmentCredential(provider);
         const config = vscode.workspace.getConfiguration('n8n.agent');
         const configuredBaseUrl = String(config.get<string>('baseUrl') || '').trim();
-        const baseUrl = providerNeedsBaseUrlInput(provider) ? configuredBaseUrl || definition.defaultBaseUrl : definition.defaultBaseUrl;
+        const baseUrl = provider === 'openai-compatible' ? configuredBaseUrl : definition.defaultBaseUrl;
 
         if ((definition.requiresApiKey || provider !== 'openai-compatible') && !apiKey && definition.authKind !== 'none') {
             return [];
@@ -580,17 +394,10 @@ export class YagrProviderService {
         if (provider === 'anthropic') {
             return this.fetchJsonModels('https://api.anthropic.com/v1/models', { 'x-api-key': apiKey || '', 'anthropic-version': '2023-06-01' });
         }
-        if (provider === 'google' || provider === 'google-genai') {
+        if (provider === 'google') {
             return (await this.fetchJsonModels('https://generativelanguage.googleapis.com/v1beta/openai/models', { Authorization: `Bearer ${apiKey}` }))
                 .map((model) => model.replace(/^models\//, ''))
                 .filter((model) => /^gemini-/i.test(model));
-        }
-        if (provider === 'ollama') {
-            const response = await fetch(`${(baseUrl || definition.defaultBaseUrl || '').replace(/\/$/, '')}/api/tags`, { headers: { Accept: 'application/json' } });
-            if (!response.ok) return [];
-            const payload = await response.json() as Record<string, unknown>;
-            const models = Array.isArray(payload.models) ? payload.models : [];
-            return models.map((entry) => entry && typeof entry === 'object' ? String((entry as Record<string, unknown>).name || '').trim() : '').filter(Boolean);
         }
         if (provider === 'openai-oauth') {
             return this.fetchOpenAiOauthModels(apiKey || '');
@@ -603,9 +410,6 @@ export class YagrProviderService {
                 'Editor-Plugin-Version': 'copilot-chat/0.26.7',
             });
         }
-
-        const openAiCompatibleProviders = new Set<YagrModelProvider>(['openai-compatible', 'openrouter', 'mistral', 'mistralai', 'groq', 'deepseek', 'xai', 'fireworks', 'together', 'perplexity']);
-        if (!openAiCompatibleProviders.has(provider)) return [];
 
         const modelsUrl = provider === 'openai-compatible'
             ? (baseUrl ? `${baseUrl.replace(/\/$/, '')}/models` : undefined)

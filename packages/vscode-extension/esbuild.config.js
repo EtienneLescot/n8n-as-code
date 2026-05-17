@@ -20,22 +20,10 @@ const managerCoreAgentToolingPaths = new Set([
 const runtimeDependencyRoots = [
     'deepagents',
     '@langchain/anthropic',
-    '@langchain/aws',
-    '@langchain/cerebras',
-    '@langchain/cohere',
-    '@langchain/deepseek',
-    '@langchain/fireworks',
-    '@langchain/google',
     '@langchain/google-genai',
-    '@langchain/google-vertexai',
-    '@langchain/groq',
     '@langchain/langgraph',
     '@langchain/mistralai',
-    '@langchain/ollama',
     '@langchain/openai',
-    '@langchain/perplexity',
-    '@langchain/together-ai',
-    '@langchain/xai',
     '@yagr/provider-runtime',
 ];
 const bundledSkillsAssetFiles = new Set([
