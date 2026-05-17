@@ -801,7 +801,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         const sessions = await this.getSessionRuntime();
         sessions.service.setCheckpointer(handle.checkpointer);
         const agent = handle.agent;
-        const messages = [{ role: 'user', content: await this.buildInvocationPrompt(input) }];
+        const messages = this.buildConversationMessages(initialEntries, await this.buildInvocationPrompt(input));
         const contextWindowTokens = await this.resolveContextWindow(providerConfig.provider, providerConfig.model, providerConfig.apiKey, providerConfig.baseUrl);
         const config = {
             ...sessions.service.buildSessionConfig(input.sessionId || ''),
@@ -1084,6 +1084,26 @@ export class AgentRuntimeController implements vscode.Disposable {
             input.prompt.trim(),
         ].filter(Boolean);
         return blocks.join('\n\n');
+    }
+
+    private buildConversationMessages(
+        entries: AgentTimelineEntry[],
+        invocationPrompt: string,
+    ): Array<{ role: 'user' | 'assistant'; content: string }> {
+        const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+        for (const entry of entries) {
+            if (entry.kind === 'user-message') {
+                const text = entry.text.trim();
+                if (text) messages.push({ role: 'user', content: text });
+                continue;
+            }
+            if (entry.kind === 'assistant-body') {
+                const text = this.sanitizeAssistantText(entry.text);
+                if (text) messages.push({ role: 'assistant', content: text });
+            }
+        }
+        messages.push({ role: 'user', content: invocationPrompt });
+        return messages;
     }
 
     private formatNodeContexts(nodeContexts: AgentNodeContext[]): string | undefined {
