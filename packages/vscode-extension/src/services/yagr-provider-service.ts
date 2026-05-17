@@ -155,7 +155,7 @@ export const YAGR_PROVIDER_DEFINITIONS: Record<YagrModelProvider, YagrProviderDe
         requiresApiKey: true,
         authKind: 'api-key',
         envKeys: ['MINIMAX_API_KEY'],
-        canDiscoverModels: false,
+        canDiscoverModels: true,
     },
     'minimax-token-plan': {
         id: 'minimax-token-plan',
@@ -166,7 +166,7 @@ export const YAGR_PROVIDER_DEFINITIONS: Record<YagrModelProvider, YagrProviderDe
         requiresApiKey: true,
         authKind: 'api-key',
         envKeys: ['MINIMAX_TOKEN_PLAN_API_KEY'],
-        canDiscoverModels: false,
+        canDiscoverModels: true,
     },
     'openai-compatible': {
         id: 'openai-compatible',
@@ -409,6 +409,10 @@ export class YagrProviderService {
                 'Editor-Version': 'vscode/1.96.2',
                 'Editor-Plugin-Version': 'copilot-chat/0.26.7',
             });
+        }
+        if (provider === 'minimax' || provider === 'minimax-token-plan') {
+            const providerRuntime = await import('@yagr/provider-runtime');
+            return providerRuntime.getProviderPlugin(provider).discovery?.fetchAvailableModels?.({ apiKey, baseUrl }) || [];
         }
 
         const modelsUrl = provider === 'openai-compatible'

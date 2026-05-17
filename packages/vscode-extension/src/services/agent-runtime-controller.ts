@@ -2184,7 +2184,7 @@ export class AgentRuntimeController implements vscode.Disposable {
     private async createLangChainModel(providerConfig: ProviderRuntimeConfig): Promise<any> {
         const provider = providerConfig.provider;
         const model = providerConfig.model || this.getDefaultModelForProvider(provider);
-        if (provider === 'openai-oauth' || provider === 'copilot-proxy') {
+        if (provider === 'openai-oauth' || provider === 'copilot-proxy' || provider === 'minimax' || provider === 'minimax-token-plan') {
             const providerRuntime = await importRuntimeModule('@yagr/provider-runtime');
             const localConfig = {
                 provider,
@@ -2216,15 +2216,6 @@ export class AgentRuntimeController implements vscode.Disposable {
             const { ChatMistralAI } = await importRuntimeModule('@langchain/mistralai');
             return new ChatMistralAI({ apiKey: providerConfig.apiKey, model });
         }
-        if (provider === 'minimax' || provider === 'minimax-token-plan') {
-            const { ChatAnthropic } = await importRuntimeModule('@langchain/anthropic');
-            return new ChatAnthropic({
-                apiKey: providerConfig.apiKey,
-                model,
-                anthropicApiUrl: providerConfig.baseUrl || 'https://api.minimax.io/anthropic',
-            });
-        }
-
         const { ChatOpenAI } = await importRuntimeModule('@langchain/openai');
         const baseURL = provider === 'openrouter'
             ? providerConfig.baseUrl || 'https://openrouter.ai/api/v1'
