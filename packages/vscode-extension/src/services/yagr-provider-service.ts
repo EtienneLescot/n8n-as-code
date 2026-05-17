@@ -222,7 +222,7 @@ export class YagrProviderService {
             const hasStoredCredential = Boolean(await this.getStoredCredential(provider));
             const providerDisabled = disabledProviders.has(provider);
             const hasEnvironmentCredential = !providerDisabled && this.hasEnvironmentCredential(provider);
-            const connected = !providerDisabled && (hasStoredCredential || hasEnvironmentCredential || provider === selectedProvider);
+            const connected = !providerDisabled && (hasStoredCredential || hasEnvironmentCredential);
             return {
                 id: provider,
                 label: definition.label,
