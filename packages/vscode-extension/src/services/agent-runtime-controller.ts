@@ -188,6 +188,7 @@ type DeepAgentSessionRecord = {
     title: string;
     closedAt?: string;
     scope?: DeepAgentSessionScope;
+    restoredRuntimeCheckpointId?: string;
 };
 
 type SessionSummary = {
@@ -207,6 +208,7 @@ type SessionCheckpointMetadata = {
     reason?: CheckpointReason;
     label?: string;
     restoredAt?: string;
+    runtimeCheckpointId?: string;
 };
 
 type CheckpointReason = 'manual' | 'auto' | 'before-tool' | 'after-tool' | 'before-compaction' | 'after-compaction';
@@ -281,6 +283,12 @@ type SessionRuntime = {
 type DeepAgentHandle = {
     agent: any;
     checkpointer: unknown;
+};
+
+type RuntimeCheckpointer = {
+    getTuple?: (config: Record<string, unknown>) => Promise<{ checkpoint?: { id?: string }; config?: { configurable?: Record<string, unknown> } } | undefined>;
+    list?: (config: Record<string, unknown>, options?: { limit?: number }) => AsyncIterable<{ checkpoint?: { id?: string }; config?: { configurable?: Record<string, unknown> } }>;
+    deleteThread?: (threadId: string) => Promise<void>;
 };
 
 type ProviderRuntimeConfig = {
@@ -359,6 +367,7 @@ class WorkbenchSessionService implements SessionServiceHandle {
     private readonly recordsDir: string;
     private readonly displayDir: string;
     private readonly checkpointDir: string;
+    private checkpointer: RuntimeCheckpointer | undefined;
 
     constructor(private readonly sessionsRoot: string) {
         this.recordsDir = path.join(sessionsRoot, 'records');
@@ -438,14 +447,27 @@ class WorkbenchSessionService implements SessionServiceHandle {
         fs.rmSync(this.recordPath(id), { force: true });
         fs.rmSync(this.displayPath(id), { force: true });
         fs.rmSync(this.sessionCheckpointDir(id), { recursive: true, force: true });
+        await this.checkpointer?.deleteThread?.(id);
     }
 
-    setCheckpointer(_checkpointer: unknown): void {
-        // DeepAgentJS owns graph persistence. The Workbench stores only UI-visible metadata here.
+    setCheckpointer(checkpointer: unknown): void {
+        this.checkpointer = checkpointer as RuntimeCheckpointer;
     }
 
     buildSessionConfig(sessionId: string): Record<string, unknown> {
-        return { configurable: { thread_id: sessionId }, version: 'v2' };
+        const record = this.get(sessionId);
+        const checkpointId = record?.restoredRuntimeCheckpointId;
+        if (record && checkpointId) {
+            const { restoredRuntimeCheckpointId: _unused, ...next } = record;
+            this.writeRecord({ ...next, updatedAt: new Date().toISOString() });
+        }
+        return {
+            configurable: {
+                thread_id: sessionId,
+                ...(checkpointId ? { checkpoint_id: checkpointId } : {}),
+            },
+            version: 'v2',
+        };
     }
 
     async listCheckpoints(sessionId: string): Promise<SessionCheckpointMetadata[]> {
@@ -461,6 +483,7 @@ class WorkbenchSessionService implements SessionServiceHandle {
     async saveCheckpoint(sessionId: string, options: SaveCheckpointOptions = {}): Promise<SessionCheckpointMetadata> {
         const createdAt = new Date().toISOString();
         const display = this.readDisplaySession(sessionId);
+        const runtimeCheckpointId = await this.getLatestRuntimeCheckpointId(sessionId);
         const checkpoint: SessionCheckpointMetadata & { payloadState?: unknown } = {
             id: randomUUID(),
             sessionId,
@@ -469,6 +492,7 @@ class WorkbenchSessionService implements SessionServiceHandle {
             summary: options.summary,
             reason: options.reason,
             label: options.label,
+            runtimeCheckpointId,
             payloadState: options.payloadState ?? (options.payloads ? { payloads: options.payloads } : undefined),
         };
         fs.mkdirSync(this.sessionCheckpointDir(sessionId), { recursive: true });
@@ -489,13 +513,26 @@ class WorkbenchSessionService implements SessionServiceHandle {
             throw new Error(`Checkpoint not found: ${checkpointId}`);
         }
         const restoredAt = new Date().toISOString();
+        const warnings: string[] = [];
+        if (checkpoint.runtimeCheckpointId) {
+            const record = this.ensure(sessionId);
+            this.writeRecord({
+                ...record,
+                restoredRuntimeCheckpointId: checkpoint.runtimeCheckpointId,
+                updatedAt: restoredAt,
+            });
+        } else {
+            warnings.push('This checkpoint was created before a DeepAgentJS runtime checkpoint was available.');
+        }
         this.writeJson(this.checkpointPath(sessionId, checkpointId), { ...checkpoint, restoredAt });
         return {
             sessionId,
             checkpointId,
             restoredAt,
+            langGraphRestored: Boolean(checkpoint.runtimeCheckpointId),
             payloadState: checkpoint.payloadState,
             displayThreadRestored: false,
+            warnings,
         };
     }
 
@@ -559,6 +596,26 @@ class WorkbenchSessionService implements SessionServiceHandle {
         this.writeJson(this.recordPath(record.id), record);
     }
 
+    private async getLatestRuntimeCheckpointId(sessionId: string): Promise<string | undefined> {
+        const config = { configurable: { thread_id: sessionId } };
+        const tuple = await this.checkpointer?.getTuple?.(config).catch(() => undefined);
+        const tupleCheckpointId = tuple?.checkpoint?.id || tuple?.config?.configurable?.checkpoint_id;
+        if (typeof tupleCheckpointId === 'string' && tupleCheckpointId) return tupleCheckpointId;
+
+        const iterator = this.checkpointer?.list?.(config, { limit: 1 });
+        if (!iterator) return undefined;
+        try {
+            for await (const checkpoint of iterator) {
+                const checkpointId = checkpoint.checkpoint?.id || checkpoint.config?.configurable?.checkpoint_id;
+                if (typeof checkpointId === 'string' && checkpointId) return checkpointId;
+                break;
+            }
+        } catch {
+            return undefined;
+        }
+        return undefined;
+    }
+
     private writeDisplaySession(session: WebUiSession): void {
         this.writeJson(this.displayPath(session.id), session);
     }
@@ -601,6 +658,7 @@ export class AgentRuntimeController implements vscode.Disposable {
     private activeRun: { abortController: AbortController; sessionId: string } | undefined;
     private cachedAgentHandle: { key: string; handle: any } | undefined;
     private sessionRuntimePromise: Promise<SessionRuntime> | undefined;
+    private checkpointerPromise: Promise<RuntimeCheckpointer> | undefined;
 
     constructor(
         private readonly _context: vscode.ExtensionContext,
@@ -1222,10 +1280,11 @@ export class AgentRuntimeController implements vscode.Disposable {
         }
 
         const model = await this.createLangChainModel(providerConfig);
-        const checkpointer = await this.createMemoryCheckpointer();
+        const checkpointer = await this.createPersistentCheckpointer();
         const backend = await deepagents.LocalShellBackend.create({
             rootDir,
-            inheritEnv: true,
+            inheritEnv: false,
+            env: this.buildAgentBackendEnv(),
         });
         const agent = deepagents.createDeepAgent({
             model,
@@ -1486,6 +1545,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                 const sessionsRoot = path.join(this._context.globalStorageUri.fsPath, 'agent-sessions');
                 await fs.promises.mkdir(sessionsRoot, { recursive: true });
                 const service = new WorkbenchSessionService(sessionsRoot);
+                service.setCheckpointer(await this.createPersistentCheckpointer());
                 return {
                     service,
                     deriveSessionTitle: this.deriveSessionTitle,
@@ -2192,18 +2252,31 @@ export class AgentRuntimeController implements vscode.Disposable {
         return defaults[provider] || 'gpt-4o';
     }
 
-    private async createMemoryCheckpointer(): Promise<unknown> {
-        const { MemorySaver } = await importRuntimeModule('@langchain/langgraph');
-        return new MemorySaver();
+    private async createPersistentCheckpointer(): Promise<RuntimeCheckpointer> {
+        if (!this.checkpointerPromise) {
+            this.checkpointerPromise = (async () => {
+                const checkpointsDir = path.join(this._context.globalStorageUri.fsPath, 'agent-sessions');
+                await fs.promises.mkdir(checkpointsDir, { recursive: true });
+                const { SqliteSaver } = await importRuntimeModule('@langchain/langgraph-checkpoint-sqlite');
+                return SqliteSaver.fromConnString(path.join(checkpointsDir, 'langgraph-checkpoints.sqlite')) as RuntimeCheckpointer;
+            })();
+        }
+        return this.checkpointerPromise;
     }
 
-    private createStreamAccumulator(): { responseText: string; thinkingText: string } {
+    private buildAgentBackendEnv(): Record<string, string> {
+        return {
+            PATH: process.env.PATH || '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin',
+        };
+    }
+
+    private createStreamAccumulator(): { responseText: string; thinkingText: string; thinkingOperationId?: string } {
         return { responseText: '', thinkingText: '' };
     }
 
     private async processDeepAgentStreamEvent(
         event: any,
-        accumulator: { responseText: string; thinkingText: string },
+        accumulator: { responseText: string; thinkingText: string; thinkingOperationId?: string },
         callbacks: {
             contextWindowTokens: number;
             onTextDelta: (delta: string) => Promise<void>;
@@ -2219,8 +2292,9 @@ export class AgentRuntimeController implements vscode.Disposable {
             await this.emitContextUsageFromChunk(event, chunk, callbacks.contextWindowTokens, callbacks.onContextUsage);
             if (thinkingDelta) {
                 accumulator.thinkingText += thinkingDelta;
+                accumulator.thinkingOperationId ||= this.getStreamOperationId(event, 'thinking');
                 await callbacks.onOperation({
-                    operationId: 'thinking',
+                    operationId: accumulator.thinkingOperationId,
                     label: 'Thinking',
                     category: 'thinking',
                     status: 'running',
@@ -2231,7 +2305,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             if (textDelta) {
                 if (accumulator.thinkingText) {
                     await callbacks.onOperation({
-                        operationId: 'thinking',
+                        operationId: accumulator.thinkingOperationId || this.getStreamOperationId(event, 'thinking'),
                         label: 'Thinking',
                         category: 'thinking',
                         status: 'done',
@@ -2240,6 +2314,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                         endedAt: Date.now(),
                     });
                     accumulator.thinkingText = '';
+                    accumulator.thinkingOperationId = undefined;
                 }
                 accumulator.responseText += textDelta;
                 await callbacks.onTextDelta(textDelta);
