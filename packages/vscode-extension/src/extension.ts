@@ -934,6 +934,14 @@ async function getOrCreateAgentSessionForWorkflow(workflow: IWorkflowStatus): Pr
     const runtime = requireAgentRuntimeController();
     const existingSessionId = await runtime.getLatestSessionIdForWorkflow(workflowContext);
     if (existingSessionId) return existingSessionId;
+    const currentSessionId = await runtime.attachSessionToWorkflowIfUnattached(AgentWorkbenchWebview.getCurrentActiveSessionId(), workflowContext, {
+        workflowId: workflow.id || undefined,
+        workflowName: workflow.name,
+        workflowFilename: workflow.filename,
+        workflowFilePath,
+        workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+    });
+    if (currentSessionId) return currentSessionId;
     return runtime.createSessionForWorkflow(workflowContext, {
         workflowId: workflow.id || undefined,
         workflowName: workflow.name,

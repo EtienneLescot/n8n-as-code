@@ -827,6 +827,22 @@ export class AgentRuntimeController implements vscode.Disposable {
         return latest?.id;
     }
 
+    async attachSessionToWorkflowIfUnattached(sessionId: string | undefined, workflow: AgentWorkflowContext, input: Omit<AgentPromptInput, 'prompt'>): Promise<string | undefined> {
+        if (!sessionId) return undefined;
+        const sessions = await this.getSessionRuntime();
+        const record = sessions.service.get(sessionId);
+        if (!record) return undefined;
+        const entries = this.readSessionEntries(sessions.service, sessionId);
+        if (!entries.some((entry) => entry.kind === 'user-message' || entry.kind === 'assistant-body' || entry.kind === 'operation')) return undefined;
+        const existingContext = this.getLatestWorkflowContext(entries, record);
+        if (existingContext) return undefined;
+        const name = workflow.name?.trim() || workflow.id || workflow.filename || 'Workflow';
+        this.writeSessionEntries(sessions.service, sessionId, this.withWorkflowContext(entries, { ...workflow, name }));
+        sessions.service.touch(sessionId, { title: record.title === 'New conversation' ? this.getDefaultSessionTitle(name) : record.title });
+        await this.getWorkbenchState({ ...input, sessionId });
+        return sessionId;
+    }
+
     async createSessionForWorkflow(workflow: AgentWorkflowContext, input: Omit<AgentPromptInput, 'prompt'>): Promise<string> {
         const name = workflow.name?.trim() || workflow.id || workflow.filename || 'Workflow';
         const sessions = await this.getSessionRuntime();
@@ -2397,7 +2413,8 @@ export class AgentRuntimeController implements vscode.Disposable {
                 class FileCheckpointSaver extends BaseCheckpointSaver {
                     private storage: CheckpointStorage = {};
                     private writes: CheckpointWrites = {};
-                    private flushPromise: Promise<void> | undefined;
+                    private flushQueue: Promise<void> = Promise.resolve();
+                    private flushCounter = 0;
 
                     constructor(private readonly filePath: string) {
                         super();
@@ -2417,12 +2434,9 @@ export class AgentRuntimeController implements vscode.Disposable {
                     }
 
                     private async flush(): Promise<void> {
-                        if (this.flushPromise) {
-                            await this.flushPromise;
-                        }
-                        this.flushPromise = (async () => {
+                        const flushTask = this.flushQueue.then(async () => {
                             await fs.promises.mkdir(path.dirname(this.filePath), { recursive: true });
-                            const tmpPath = `${this.filePath}.${process.pid}.tmp`;
+                            const tmpPath = `${this.filePath}.${process.pid}.${Date.now()}.${this.flushCounter++}.tmp`;
                             const payload = JSON.stringify({
                                 version: 1,
                                 storage: this.storage,
@@ -2430,12 +2444,9 @@ export class AgentRuntimeController implements vscode.Disposable {
                             });
                             await fs.promises.writeFile(tmpPath, payload, 'utf8');
                             await fs.promises.rename(tmpPath, this.filePath);
-                        })();
-                        try {
-                            await this.flushPromise;
-                        } finally {
-                            this.flushPromise = undefined;
-                        }
+                        });
+                        this.flushQueue = flushTask.catch(() => undefined);
+                        await flushTask;
                     }
 
                     async getTuple(config: Record<string, any>): Promise<any> {

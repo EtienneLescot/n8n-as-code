@@ -132,6 +132,10 @@ export class AgentWorkbenchWebview {
         }
     }
 
+    public static getCurrentActiveSessionId(): string | undefined {
+        return AgentWorkbenchWebview.currentPanel?._activeSessionId;
+    }
+
     public update(workflow: IWorkflowStatus | undefined, workflowFilePath: string | undefined, workflowUrl: string | undefined, workflowReloadUrl: string | undefined, providerModelLabel: string, postState = true): void {
         const hadWorkflowFrame = Boolean(this._workflow);
         const hasWorkflowFrame = Boolean(workflow);
