@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { IWorkflowStatus } from 'n8nac';
-import { buildWebviewHtml } from './webview-html.js';
+import { buildWebviewHtml, WORKFLOW_WEBVIEW_RELOAD_MESSAGE } from './webview-html.js';
 import { workflowWebviewRegistry } from '../services/workflow-webview-registry.js';
 export { buildWebviewHtml } from './webview-html.js';
 
@@ -18,7 +18,7 @@ export class WorkflowWebview {
         this._workflowId = workflowId;
         this._registryDisposable = workflowWebviewRegistry.register({
             getWorkflowId: () => this._workflowId,
-            reloadWorkflow: () => this._panel.webview.postMessage({ type: 'reload' }),
+            reloadWorkflow: () => this._panel.webview.postMessage({ type: WORKFLOW_WEBVIEW_RELOAD_MESSAGE }),
         });
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
         this._panel.webview.html = this.getHtmlForWebview(workflowId, url);

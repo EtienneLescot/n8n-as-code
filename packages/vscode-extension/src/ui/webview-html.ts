@@ -12,11 +12,14 @@
  *     are all enforced in the parent-webview JavaScript (this file), which is
  *     extension-controlled and inaccessible to iframe code.
  */
+export const WORKFLOW_WEBVIEW_RELOAD_MESSAGE = 'n8nac.workflow.reload';
+
 export function buildWebviewHtml(workflowId: string, url: string): string {
     // Escape workflowId for safe interpolation in HTML and JS contexts
     const htmlSafe = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const safeWorkflowIdHtml = htmlSafe(workflowId);
     const safeWorkflowIdJs = JSON.stringify(workflowId);
+    const reloadMessageTypeJs = JSON.stringify(WORKFLOW_WEBVIEW_RELOAD_MESSAGE);
 
     // url is the proxy URL pointing to the n8n workflow
     let iframePermissionOrigin = 'src';
@@ -217,7 +220,7 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
                     const message = event.data;
                     if (!message || typeof message !== 'object') return;
 
-                    if (message.type === 'reload') {
+                    if (message.type === ${reloadMessageTypeJs}) {
                         const softRefreshWorked = attemptSoftRefresh();
                         if (!softRefreshWorked) {
                             performSeamlessRefresh();

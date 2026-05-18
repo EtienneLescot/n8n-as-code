@@ -262,6 +262,8 @@ test('Parent webview HTML: seamless reload forces iframe navigation', () => {
     const { buildWebviewHtml } = require('../../src/ui/webview-html.js');
     const html: string = buildWebviewHtml('wf-1', 'http://localhost:5678/workflow/wf-1');
 
+    assert.ok(html.includes('message.type === "n8nac.workflow.reload"'), 'Reload command must use a namespaced extension message');
+    assert.ok(!html.includes("message.type === 'reload'"), 'Generic iframe reload messages must not trigger a parent reload');
     assert.ok(html.includes('_n8nacRefresh'), 'Reload must add a cache-busting query param');
     assert.ok(html.includes('pendingFrame.src = reloadUrl.toString()'), 'Reload must assign a fresh iframe URL');
 });
