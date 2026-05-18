@@ -2395,8 +2395,8 @@ export class AgentRuntimeController implements vscode.Disposable {
                 const getCheckpointId = checkpointModule.getCheckpointId as (config: Record<string, any>) => string;
                 const writesIndexMap = checkpointModule.WRITES_IDX_MAP as Record<string, number>;
 
-                type SerializedCheckpoint = [string, string, string | undefined];
-                type SerializedWrite = [string, string, string];
+                type SerializedCheckpoint = [unknown, unknown, string | undefined];
+                type SerializedWrite = [string, string, unknown];
                 type CheckpointStorage = Record<string, Record<string, Record<string, SerializedCheckpoint>>>;
                 type CheckpointWrites = Record<string, Record<string, SerializedWrite>>;
 
@@ -2431,6 +2431,33 @@ export class AgentRuntimeController implements vscode.Disposable {
                             this.storage = {};
                             this.writes = {};
                         }
+                    }
+
+                    private encodeSerializedValue(value: unknown): string {
+                        if (typeof value === 'string') return value;
+                        if (value instanceof Uint8Array) {
+                            return new TextDecoder().decode(value);
+                        }
+                        if (value instanceof ArrayBuffer) {
+                            return new TextDecoder().decode(value);
+                        }
+                        if (ArrayBuffer.isView(value)) {
+                            return new TextDecoder().decode(value as ArrayBufferView);
+                        }
+                        return this.decodeLegacySerializedValue(value);
+                    }
+
+                    private decodeLegacySerializedValue(value: unknown): string {
+                        if (typeof value === 'string') return value;
+                        if (!value || typeof value !== 'object') return String(value ?? '');
+                        const entries = Object.entries(value as Record<string, unknown>);
+                        if (!entries.length || !entries.every(([key, byte]) => /^\d+$/.test(key) && typeof byte === 'number')) {
+                            return JSON.stringify(value);
+                        }
+                        const bytes = entries
+                            .sort(([left], [right]) => Number(left) - Number(right))
+                            .map(([, byte]) => Number(byte));
+                        return new TextDecoder().decode(Uint8Array.from(bytes));
                     }
 
                     private async flush(): Promise<void> {
@@ -2469,12 +2496,12 @@ export class AgentRuntimeController implements vscode.Disposable {
                         const pendingWrites = await Promise.all(Object.values(this.writes[key] || {}).map(async ([taskId, channel, value]) => [
                             taskId,
                             channel,
-                            await this.serde.loadsTyped('json', value),
+                            await this.serde.loadsTyped('json', this.decodeLegacySerializedValue(value)),
                         ]));
                         const checkpointTuple: any = {
                             config: { configurable: { thread_id: threadId, checkpoint_ns: checkpointNamespace, checkpoint_id: checkpointId } },
-                            checkpoint: await this.serde.loadsTyped('json', checkpoint),
-                            metadata: await this.serde.loadsTyped('json', metadata),
+                            checkpoint: await this.serde.loadsTyped('json', this.decodeLegacySerializedValue(checkpoint)),
+                            metadata: await this.serde.loadsTyped('json', this.decodeLegacySerializedValue(metadata)),
                             pendingWrites,
                         };
                         if (parentCheckpointId !== undefined) {
@@ -2497,7 +2524,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                                 for (const [checkpointId, [checkpoint, metadataStr, parentCheckpointId]] of sortedCheckpoints) {
                                     if (configCheckpointId && checkpointId !== configCheckpointId) continue;
                                     if (before?.configurable?.checkpoint_id && checkpointId >= before.configurable.checkpoint_id) continue;
-                                    const metadata = await this.serde.loadsTyped('json', metadataStr);
+                                    const metadata = await this.serde.loadsTyped('json', this.decodeLegacySerializedValue(metadataStr));
                                     if (filter && !Object.entries(filter).every(([key, value]) => metadata?.[key] === value)) continue;
                                     if (limit !== undefined) {
                                         if (limit <= 0) break;
@@ -2507,11 +2534,11 @@ export class AgentRuntimeController implements vscode.Disposable {
                                     const pendingWrites = await Promise.all(Object.values(this.writes[key] || {}).map(async ([taskId, channel, value]) => [
                                         taskId,
                                         channel,
-                                        await this.serde.loadsTyped('json', value),
+                                        await this.serde.loadsTyped('json', this.decodeLegacySerializedValue(value)),
                                     ]));
                                     const checkpointTuple: any = {
                                         config: { configurable: { thread_id: threadId, checkpoint_ns: checkpointNamespace, checkpoint_id: checkpointId } },
-                                        checkpoint: await this.serde.loadsTyped('json', checkpoint),
+                                        checkpoint: await this.serde.loadsTyped('json', this.decodeLegacySerializedValue(checkpoint)),
                                         metadata,
                                         pendingWrites,
                                     };
@@ -2538,8 +2565,8 @@ export class AgentRuntimeController implements vscode.Disposable {
                             this.serde.dumpsTyped(metadata),
                         ]);
                         this.storage[threadId][checkpointNamespace][checkpoint.id] = [
-                            serializedCheckpoint,
-                            serializedMetadata,
+                            this.encodeSerializedValue(serializedCheckpoint),
+                            this.encodeSerializedValue(serializedMetadata),
                             config.configurable?.checkpoint_id,
                         ];
                         await this.flush();
@@ -2564,7 +2591,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                             const writeIndex = writesIndexMap[channel] ?? idx;
                             const innerKey = `${taskId},${writeIndex}`;
                             if (writeIndex >= 0 && existingWrites && innerKey in existingWrites) return;
-                            this.writes[outerKey][innerKey] = [taskId, channel, serializedValue];
+                            this.writes[outerKey][innerKey] = [taskId, channel, this.encodeSerializedValue(serializedValue)];
                         }));
                         await this.flush();
                     }
