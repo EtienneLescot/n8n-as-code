@@ -1068,6 +1068,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         let reasoningMenuOpen = false;
         let newSessionMenuOpen = false;
         let autoScrollFeed = true;
+        const expandedDetailKeys = new Set();
 
         const OP_ICONS = {
             'file-read': ${JSON.stringify(readOpIcon)},
@@ -1711,8 +1712,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             if (!visibleEntries.length) {
                 return;
             }
-            for (const entry of visibleEntries) {
-                feed.appendChild(renderEntry(entry));
+            for (let idx = 0; idx < visibleEntries.length; idx += 1) {
+                feed.appendChild(renderEntry(visibleEntries[idx], idx));
             }
             if (shouldStickToBottom) {
                 feed.scrollTop = feed.scrollHeight;
@@ -1722,7 +1723,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             }
         }
 
-        function renderEntry(entry) {
+        function renderEntry(entry, index) {
             if (entry.kind === 'user-message') {
                 return textEntry('user', entry.text);
             }
@@ -1739,17 +1740,14 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 el.className = 'entry compaction';
                 const isFallback = entry.event.source === 'fallback';
                 const title = isFallback ? 'Context compacted with fallback' : 'Context compacted';
-                const details = document.createElement('details');
-                details.className = 'details';
-                details.innerHTML = '<summary>Show compaction details</summary>' +
-                    '<div class="details-body">' +
-                    'Source: ' + escapeHtml(entry.event.source) + '\\n' +
-                    'Messages compacted: ' + escapeHtml(entry.event.messagesCompacted) + '\\n' +
-                    'Preserved recent messages: ' + escapeHtml(entry.event.preservedRecentMessages) +
-                    (entry.event.estimatedTokens ? '\\nEstimated tokens: ' + escapeHtml(entry.event.estimatedTokens) : '') +
-                    (entry.event.thresholdTokens ? '\\nThreshold tokens: ' + escapeHtml(entry.event.thresholdTokens) : '') +
-                    (entry.event.fallbackReason ? '\\nFallback reason: ' + escapeHtml(entry.event.fallbackReason) : '') +
-                    '</div>';
+                const detailText =
+                    'Source: ' + escapeText(entry.event.source) + '\\n' +
+                    'Messages compacted: ' + escapeText(entry.event.messagesCompacted) + '\\n' +
+                    'Preserved recent messages: ' + escapeText(entry.event.preservedRecentMessages) +
+                    (entry.event.estimatedTokens ? '\\nEstimated tokens: ' + escapeText(entry.event.estimatedTokens) : '') +
+                    (entry.event.thresholdTokens ? '\\nThreshold tokens: ' + escapeText(entry.event.thresholdTokens) : '') +
+                    (entry.event.fallbackReason ? '\\nFallback reason: ' + escapeText(entry.event.fallbackReason) : '');
+                const details = createPersistentDetails(getEntryDetailKey(entry, index), 'Show compaction details', detailText);
                 el.innerHTML = '<div class="entry-head"><div class="entry-title">' + escapeHtml(title) + '</div><div class="entry-subtle">' + escapeHtml(new Date(entry.timestamp).toLocaleTimeString()) + '</div></div><div>' + escapeHtml(entry.event.summary) + '</div>';
                 el.appendChild(details);
                 return el;
@@ -1762,22 +1760,93 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 const statusLabel = entry.status || entry.tone || '';
                 const statusIcon = STATUS_ICONS[entry.status] || '';
                 const title = entry.title || 'Operation';
+                const compactSummary = formatOperationCompactSummary(entry);
                 el.innerHTML = '<div class="entry-head">' +
                     '<div class="entry-title">' +
                     '<span class="entry-kind-icon" aria-hidden="true">' + icon + '</span>' +
                     '<span>' + escapeHtml(title) + '</span></div>' +
                     '<div class="entry-status' + escapeHtml(statusClass) + '" title="' + escapeHtml(statusLabel) + '" aria-label="' + escapeHtml(statusLabel) + '">' + statusIcon + '<span class="sr-only">' + escapeHtml(statusLabel) + '</span></div>' +
                     '</div>' +
-                    (entry.detail ? '<div>' + escapeHtml(entry.detail) + '</div>' : '');
+                    (compactSummary ? '<div>' + escapeHtml(compactSummary) + '</div>' : '');
                 if (entry.body || entry.summary) {
-                    const details = document.createElement('details');
-                    details.className = 'details';
-                    details.innerHTML = '<summary>Show details</summary><div class="details-body">' + escapeHtml(entry.body || entry.summary || '') + '</div>';
-                    el.appendChild(details);
+                    el.appendChild(createPersistentDetails(getEntryDetailKey(entry, index), 'Show details', entry.body || entry.summary || ''));
                 }
                 return el;
             }
             return textEntry('system', 'Unsupported entry');
+        }
+
+        function getEntryDetailKey(entry, index) {
+            return (entry && entry.id ? entry.id : (entry.kind || 'entry') + ':' + index) + ':details';
+        }
+
+        function createPersistentDetails(key, label, body) {
+            const details = document.createElement('details');
+            details.className = 'details';
+            details.open = expandedDetailKeys.has(key);
+            details.addEventListener('toggle', () => {
+                if (details.open) expandedDetailKeys.add(key);
+                else expandedDetailKeys.delete(key);
+            });
+            const summary = document.createElement('summary');
+            summary.textContent = label;
+            const content = document.createElement('div');
+            content.className = 'details-body';
+            content.textContent = escapeText(body);
+            details.append(summary, content);
+            return details;
+        }
+
+        function formatOperationCompactSummary(entry) {
+            const raw = entry.detail || entry.summary || '';
+            const extracted = extractReadableToolText(raw);
+            if (extracted) return truncateCompactText(extracted);
+            if (looksLikeStructuredPayload(raw)) return '';
+            return truncateCompactText(raw);
+        }
+
+        function truncateCompactText(value) {
+            const normalized = String(value || '').replace(/\\s+/g, ' ').trim();
+            if (!normalized) return '';
+            return normalized.length > 220 ? normalized.slice(0, 220) + '...' : normalized;
+        }
+
+        function looksLikeStructuredPayload(value) {
+            const text = String(value || '').trim();
+            return text.startsWith('{') || text.startsWith('[') || text.includes('"lc":') || text.includes('"kwargs":') || text.includes('ToolMessage');
+        }
+
+        function extractReadableToolText(value) {
+            const seen = new Set();
+            function visit(candidate) {
+                if (candidate == null) return '';
+                if (typeof candidate === 'string') {
+                    const trimmed = candidate.trim();
+                    if (!trimmed) return '';
+                    if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && !seen.has(trimmed)) {
+                        seen.add(trimmed);
+                        try {
+                            return visit(JSON.parse(trimmed));
+                        } catch (e) {
+                            return looksLikeStructuredPayload(trimmed) ? '' : trimmed;
+                        }
+                    }
+                    return looksLikeStructuredPayload(trimmed) ? '' : trimmed;
+                }
+                if (Array.isArray(candidate)) {
+                    return candidate.map(visit).filter(Boolean).join('\\n');
+                }
+                if (typeof candidate === 'object') {
+                    if (typeof candidate.text === 'string') return visit(candidate.text);
+                    if (typeof candidate.content === 'string') return visit(candidate.content);
+                    if (Array.isArray(candidate.content)) return visit(candidate.content);
+                    if (candidate.kwargs) return visit(candidate.kwargs);
+                    if (candidate.update) return visit(candidate.update);
+                    if (candidate.output) return visit(candidate.output);
+                }
+                return '';
+            }
+            return visit(value);
         }
 
         function textEntry(kind, text) {
@@ -2006,15 +2075,16 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 entries = consolidateFinalAssistant(entries, event.response || '', event.finalState);
             } else if (event.type === 'operation') {
                 const idx = findMatchingPendingOperationIndex(entries, event.operationId, event.label, event.category);
+                const existing = idx >= 0 && entries[idx] && entries[idx].kind === 'operation' ? entries[idx] : null;
                 const opEntry = {
                     kind: 'operation',
-                    id: event.operationId,
+                    id: event.operationId || (existing && existing.id) || crypto.randomUUID(),
                     tone: event.status === 'error' ? 'error' : event.status === 'done' ? 'success' : 'info',
                     title: event.label,
                     detail: event.summary,
                     category: event.category,
                     status: event.status,
-                    body: event.body,
+                    body: event.body || (existing && existing.body),
                     summary: event.summary,
                     startedAt: event.startedAt,
                     endedAt: event.endedAt,

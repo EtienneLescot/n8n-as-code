@@ -1985,14 +1985,17 @@ export class AgentRuntimeController implements vscode.Disposable {
         if (event.type === 'operation') {
             const next = [...entries];
             const existingIndex = this.findMatchingPendingOperationIndex(next, event.operationId, event.label, event.category);
+            const existingEntry = existingIndex >= 0 && next[existingIndex]?.kind === 'operation'
+                ? next[existingIndex] as Extract<AgentTimelineEntry, { kind: 'operation' }>
+                : undefined;
             const operationEntry: AgentTimelineEntry = {
                 kind: 'operation',
-                id: event.operationId,
+                id: event.operationId || existingEntry?.id || randomUUID(),
                 tone: event.status === 'error' ? 'error' : event.status === 'done' ? 'success' : 'info',
                 title: event.label,
                 category: event.category,
                 status: event.status,
-                body: event.body,
+                body: event.body || existingEntry?.body,
                 summary: event.summary,
                 startedAt: event.startedAt,
                 endedAt: event.endedAt,
@@ -2656,6 +2659,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                     category: this.categorizeTool(toolName),
                     status: event?.data?.output?.error ? 'error' : 'done',
                     summary: this.truncateOperationDetail(this.stringifyToolPayload(event?.data?.output)),
+                    body: this.stringifyToolPayload(event?.data?.output),
                     startedAt: Date.now(),
                     endedAt: Date.now(),
                 });
