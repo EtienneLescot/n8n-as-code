@@ -22,7 +22,7 @@ const runtimeDependencyRoots = [
     '@langchain/anthropic',
     '@langchain/google-genai',
     '@langchain/langgraph',
-    '@langchain/langgraph-checkpoint-sqlite',
+    '@langchain/langgraph-checkpoint',
     '@langchain/mistralai',
     '@langchain/openai',
     '@yagr/provider-runtime',

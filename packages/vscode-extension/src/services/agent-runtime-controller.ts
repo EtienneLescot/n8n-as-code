@@ -290,6 +290,9 @@ type DeepAgentHandle = {
 type RuntimeCheckpointer = {
     getTuple?: (config: Record<string, unknown>) => Promise<{ checkpoint?: { id?: string }; config?: { configurable?: Record<string, unknown> } } | undefined>;
     list?: (config: Record<string, unknown>, options?: { limit?: number }) => AsyncIterable<{ checkpoint?: { id?: string }; config?: { configurable?: Record<string, unknown> } }>;
+    put?: (config: Record<string, unknown>, checkpoint: Record<string, unknown>, metadata: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    putWrites?: (config: Record<string, unknown>, writes: [string, unknown][], taskId: string) => Promise<void>;
+    getNextVersion?: (current: unknown) => unknown;
     deleteThread?: (threadId: string) => Promise<void>;
 };
 
@@ -2344,8 +2347,204 @@ export class AgentRuntimeController implements vscode.Disposable {
             this.checkpointerPromise = (async () => {
                 const checkpointsDir = path.join(this._context.globalStorageUri.fsPath, 'agent-sessions');
                 await fs.promises.mkdir(checkpointsDir, { recursive: true });
-                const { SqliteSaver } = await importRuntimeModule('@langchain/langgraph-checkpoint-sqlite');
-                return SqliteSaver.fromConnString(path.join(checkpointsDir, 'langgraph-checkpoints.sqlite')) as RuntimeCheckpointer;
+                const checkpointPath = path.join(checkpointsDir, 'langgraph-checkpoints.json');
+                const checkpointModule = await importRuntimeModule('@langchain/langgraph-checkpoint');
+                const BaseCheckpointSaver = checkpointModule.BaseCheckpointSaver as new () => any;
+                const copyCheckpoint = checkpointModule.copyCheckpoint as (checkpoint: Record<string, unknown>) => Record<string, unknown>;
+                const getCheckpointId = checkpointModule.getCheckpointId as (config: Record<string, any>) => string;
+                const writesIndexMap = checkpointModule.WRITES_IDX_MAP as Record<string, number>;
+
+                type SerializedCheckpoint = [string, string, string | undefined];
+                type SerializedWrite = [string, string, string];
+                type CheckpointStorage = Record<string, Record<string, Record<string, SerializedCheckpoint>>>;
+                type CheckpointWrites = Record<string, Record<string, SerializedWrite>>;
+
+                const generateKey = (threadId: string, checkpointNamespace: string, checkpointId: string) => JSON.stringify([
+                    threadId,
+                    checkpointNamespace,
+                    checkpointId,
+                ]);
+                const parseKey = (key: string): { threadId: string; checkpointNamespace: string; checkpointId: string } => {
+                    const [threadId, checkpointNamespace, checkpointId] = JSON.parse(key);
+                    return { threadId, checkpointNamespace, checkpointId };
+                };
+
+                class FileCheckpointSaver extends BaseCheckpointSaver {
+                    private storage: CheckpointStorage = {};
+                    private writes: CheckpointWrites = {};
+                    private flushPromise: Promise<void> | undefined;
+
+                    constructor(private readonly filePath: string) {
+                        super();
+                        this.load();
+                    }
+
+                    private load(): void {
+                        try {
+                            const raw = fs.readFileSync(this.filePath, 'utf8');
+                            const data = JSON.parse(raw);
+                            this.storage = data.storage && typeof data.storage === 'object' ? data.storage : {};
+                            this.writes = data.writes && typeof data.writes === 'object' ? data.writes : {};
+                        } catch {
+                            this.storage = {};
+                            this.writes = {};
+                        }
+                    }
+
+                    private async flush(): Promise<void> {
+                        if (this.flushPromise) {
+                            await this.flushPromise;
+                        }
+                        this.flushPromise = (async () => {
+                            await fs.promises.mkdir(path.dirname(this.filePath), { recursive: true });
+                            const tmpPath = `${this.filePath}.${process.pid}.tmp`;
+                            const payload = JSON.stringify({
+                                version: 1,
+                                storage: this.storage,
+                                writes: this.writes,
+                            });
+                            await fs.promises.writeFile(tmpPath, payload, 'utf8');
+                            await fs.promises.rename(tmpPath, this.filePath);
+                        })();
+                        try {
+                            await this.flushPromise;
+                        } finally {
+                            this.flushPromise = undefined;
+                        }
+                    }
+
+                    async getTuple(config: Record<string, any>): Promise<any> {
+                        const threadId = config.configurable?.thread_id;
+                        const checkpointNamespace = config.configurable?.checkpoint_ns ?? '';
+                        if (!threadId) return undefined;
+
+                        let checkpointId = getCheckpointId(config);
+                        if (!checkpointId) {
+                            const checkpoints = this.storage[threadId]?.[checkpointNamespace];
+                            if (!checkpoints) return undefined;
+                            checkpointId = Object.keys(checkpoints).sort((a, b) => b.localeCompare(a))[0];
+                        }
+
+                        const saved = this.storage[threadId]?.[checkpointNamespace]?.[checkpointId];
+                        if (!saved) return undefined;
+
+                        const [checkpoint, metadata, parentCheckpointId] = saved;
+                        const key = generateKey(threadId, checkpointNamespace, checkpointId);
+                        const pendingWrites = await Promise.all(Object.values(this.writes[key] || {}).map(async ([taskId, channel, value]) => [
+                            taskId,
+                            channel,
+                            await this.serde.loadsTyped('json', value),
+                        ]));
+                        const checkpointTuple: any = {
+                            config: { configurable: { thread_id: threadId, checkpoint_ns: checkpointNamespace, checkpoint_id: checkpointId } },
+                            checkpoint: await this.serde.loadsTyped('json', checkpoint),
+                            metadata: await this.serde.loadsTyped('json', metadata),
+                            pendingWrites,
+                        };
+                        if (parentCheckpointId !== undefined) {
+                            checkpointTuple.parentConfig = { configurable: { thread_id: threadId, checkpoint_ns: checkpointNamespace, checkpoint_id: parentCheckpointId } };
+                        }
+                        return checkpointTuple;
+                    }
+
+                    async *list(config: Record<string, any>, options?: { before?: Record<string, any>; limit?: number; filter?: Record<string, unknown> }): AsyncIterable<any> {
+                        let { before, limit, filter } = options ?? {};
+                        const threadIds = config.configurable?.thread_id ? [config.configurable.thread_id] : Object.keys(this.storage);
+                        const configCheckpointNamespace = config.configurable?.checkpoint_ns;
+                        const configCheckpointId = config.configurable?.checkpoint_id;
+
+                        for (const threadId of threadIds) {
+                            for (const checkpointNamespace of Object.keys(this.storage[threadId] ?? {})) {
+                                if (configCheckpointNamespace !== undefined && checkpointNamespace !== configCheckpointNamespace) continue;
+                                const checkpoints = this.storage[threadId]?.[checkpointNamespace] ?? {};
+                                const sortedCheckpoints = Object.entries(checkpoints).sort((a, b) => b[0].localeCompare(a[0]));
+                                for (const [checkpointId, [checkpoint, metadataStr, parentCheckpointId]] of sortedCheckpoints) {
+                                    if (configCheckpointId && checkpointId !== configCheckpointId) continue;
+                                    if (before?.configurable?.checkpoint_id && checkpointId >= before.configurable.checkpoint_id) continue;
+                                    const metadata = await this.serde.loadsTyped('json', metadataStr);
+                                    if (filter && !Object.entries(filter).every(([key, value]) => metadata?.[key] === value)) continue;
+                                    if (limit !== undefined) {
+                                        if (limit <= 0) break;
+                                        limit -= 1;
+                                    }
+                                    const key = generateKey(threadId, checkpointNamespace, checkpointId);
+                                    const pendingWrites = await Promise.all(Object.values(this.writes[key] || {}).map(async ([taskId, channel, value]) => [
+                                        taskId,
+                                        channel,
+                                        await this.serde.loadsTyped('json', value),
+                                    ]));
+                                    const checkpointTuple: any = {
+                                        config: { configurable: { thread_id: threadId, checkpoint_ns: checkpointNamespace, checkpoint_id: checkpointId } },
+                                        checkpoint: await this.serde.loadsTyped('json', checkpoint),
+                                        metadata,
+                                        pendingWrites,
+                                    };
+                                    if (parentCheckpointId !== undefined) {
+                                        checkpointTuple.parentConfig = { configurable: { thread_id: threadId, checkpoint_ns: checkpointNamespace, checkpoint_id: parentCheckpointId } };
+                                    }
+                                    yield checkpointTuple;
+                                }
+                            }
+                        }
+                    }
+
+                    async put(config: Record<string, any>, checkpoint: Record<string, any>, metadata: Record<string, unknown>): Promise<Record<string, unknown>> {
+                        const preparedCheckpoint = copyCheckpoint(checkpoint);
+                        const threadId = config.configurable?.thread_id;
+                        const checkpointNamespace = config.configurable?.checkpoint_ns ?? '';
+                        if (!threadId) {
+                            throw new Error('Failed to put checkpoint. The passed RunnableConfig is missing configurable.thread_id.');
+                        }
+                        this.storage[threadId] ??= {};
+                        this.storage[threadId][checkpointNamespace] ??= {};
+                        const [[, serializedCheckpoint], [, serializedMetadata]] = await Promise.all([
+                            this.serde.dumpsTyped(preparedCheckpoint),
+                            this.serde.dumpsTyped(metadata),
+                        ]);
+                        this.storage[threadId][checkpointNamespace][checkpoint.id] = [
+                            serializedCheckpoint,
+                            serializedMetadata,
+                            config.configurable?.checkpoint_id,
+                        ];
+                        await this.flush();
+                        return { configurable: { thread_id: threadId, checkpoint_ns: checkpointNamespace, checkpoint_id: checkpoint.id } };
+                    }
+
+                    async putWrites(config: Record<string, any>, writes: [string, unknown][], taskId: string): Promise<void> {
+                        const threadId = config.configurable?.thread_id;
+                        const checkpointNamespace = config.configurable?.checkpoint_ns ?? '';
+                        const checkpointId = config.configurable?.checkpoint_id;
+                        if (!threadId) {
+                            throw new Error('Failed to put writes. The passed RunnableConfig is missing configurable.thread_id.');
+                        }
+                        if (!checkpointId) {
+                            throw new Error('Failed to put writes. The passed RunnableConfig is missing configurable.checkpoint_id.');
+                        }
+                        const outerKey = generateKey(threadId, checkpointNamespace, checkpointId);
+                        const existingWrites = this.writes[outerKey];
+                        this.writes[outerKey] ??= {};
+                        await Promise.all(writes.map(async ([channel, value], idx) => {
+                            const [, serializedValue] = await this.serde.dumpsTyped(value);
+                            const writeIndex = writesIndexMap[channel] ?? idx;
+                            const innerKey = `${taskId},${writeIndex}`;
+                            if (writeIndex >= 0 && existingWrites && innerKey in existingWrites) return;
+                            this.writes[outerKey][innerKey] = [taskId, channel, serializedValue];
+                        }));
+                        await this.flush();
+                    }
+
+                    async deleteThread(threadId: string): Promise<void> {
+                        delete this.storage[threadId];
+                        for (const key of Object.keys(this.writes)) {
+                            if (parseKey(key).threadId === threadId) {
+                                delete this.writes[key];
+                            }
+                        }
+                        await this.flush();
+                    }
+                }
+
+                return new FileCheckpointSaver(checkpointPath) as RuntimeCheckpointer;
             })();
         }
         return this.checkpointerPromise;
