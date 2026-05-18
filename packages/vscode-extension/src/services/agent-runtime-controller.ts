@@ -595,7 +595,8 @@ class WorkbenchSessionService implements SessionServiceHandle {
         }
     }
 
-    readDisplaySession(sessionId: string): WebUiSession | undefined {
+    readDisplaySession(sessionId: string | undefined): WebUiSession | undefined {
+        if (!this.isNonEmptyString(sessionId)) return undefined;
         const pending = this.pendingDisplayWrites.get(sessionId);
         if (pending) return pending;
         return this.readJson<WebUiSession>(this.displayPath(sessionId));
@@ -626,9 +627,26 @@ class WorkbenchSessionService implements SessionServiceHandle {
     private readRecords(): DeepAgentSessionRecord[] {
         if (!fs.existsSync(this.recordsDir)) return [];
         return fs.readdirSync(this.recordsDir)
-            .filter((file) => file.endsWith('.json'))
+            .filter((file) => file.endsWith('.json') && !file.startsWith('.'))
             .map((file) => this.readJson<DeepAgentSessionRecord>(path.join(this.recordsDir, file)))
+            .map((record) => this.normalizeSessionRecord(record))
             .filter((record): record is DeepAgentSessionRecord => Boolean(record));
+    }
+
+    private normalizeSessionRecord(record: unknown): DeepAgentSessionRecord | undefined {
+        if (!record || typeof record !== 'object') return undefined;
+        const raw = record as Partial<DeepAgentSessionRecord>;
+        if (!this.isNonEmptyString(raw.id)) return undefined;
+        const now = new Date().toISOString();
+        return {
+            id: raw.id,
+            title: this.isNonEmptyString(raw.title) ? raw.title : 'New conversation',
+            createdAt: this.isNonEmptyString(raw.createdAt) ? raw.createdAt : now,
+            updatedAt: this.isNonEmptyString(raw.updatedAt) ? raw.updatedAt : this.isNonEmptyString(raw.createdAt) ? raw.createdAt : now,
+            scope: raw.scope,
+            closedAt: raw.closedAt,
+            restoredRuntimeCheckpointId: raw.restoredRuntimeCheckpointId,
+        };
     }
 
     private writeRecord(record: DeepAgentSessionRecord): void {
@@ -705,6 +723,10 @@ class WorkbenchSessionService implements SessionServiceHandle {
 
     private safeId(value: string): string {
         return value.replace(/[^a-zA-Z0-9._-]/g, '_');
+    }
+
+    private isNonEmptyString(value: unknown): value is string {
+        return typeof value === 'string' && value.length > 0;
     }
 
     private readJson<T>(filePath: string): T | undefined {
