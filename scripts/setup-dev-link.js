@@ -139,6 +139,10 @@ function getVsCodeStorageCandidates(homePath) {
         candidates.push(path.join(homePath, 'Library', 'Application Support', 'Code', 'User', 'globalStorage', 'storage.json'));
         candidates.push(path.join(homePath, 'Library', 'Application Support', 'Code - Insiders', 'User', 'globalStorage', 'storage.json'));
     }
+    if (process.platform === 'win32' && process.env.APPDATA) {
+        candidates.push(path.join(process.env.APPDATA, 'Code', 'User', 'globalStorage', 'storage.json'));
+        candidates.push(path.join(process.env.APPDATA, 'Code - Insiders', 'User', 'globalStorage', 'storage.json'));
+    }
     candidates.push(path.join(homePath, '.config', 'Code', 'User', 'globalStorage', 'storage.json'));
     candidates.push(path.join(homePath, '.config', 'Code - Insiders', 'User', 'globalStorage', 'storage.json'));
     return [...new Set(candidates)];
@@ -153,10 +157,6 @@ try {
         // Create or update the entry — don't require it to pre-exist
         windowsState.lastPluginDevelopmentHostWindow = windowsState.lastPluginDevelopmentHostWindow || {};
         windowsState.lastPluginDevelopmentHostWindow.extensionDevelopmentPath = [extensionSrcDir];
-        // Keep the folder pointing to the n8n-workflows workspace if set, otherwise leave it
-        if (!windowsState.lastPluginDevelopmentHostWindow.folder) {
-            windowsState.lastPluginDevelopmentHostWindow.folder = 'file:///home/etienne/Documents/repos/n8n-workflows';
-        }
         storageData.windowsState = windowsState;
         fs.writeFileSync(vscodeStoragePath, JSON.stringify(storageData, null, 2), 'utf8');
         console.log(`🔧 Fixed VS Code extensionDevelopmentPath → ${extensionSrcDir}`);
