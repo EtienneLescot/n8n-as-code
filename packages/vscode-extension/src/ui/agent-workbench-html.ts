@@ -1769,7 +1769,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                     '</div>' +
                     (compactSummary ? '<div>' + escapeHtml(compactSummary) + '</div>' : '');
                 if (entry.body || entry.summary) {
-                    el.appendChild(createPersistentDetails(getEntryDetailKey(entry, index), 'Show details', entry.body || entry.summary || ''));
+                    el.appendChild(createPersistentDetails(getEntryDetailKey(entry, index), 'Show details', formatOperationDetailsBody(entry)));
                 }
                 return el;
             }
@@ -1805,6 +1805,12 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             return truncateCompactText(raw);
         }
 
+        function formatOperationDetailsBody(entry) {
+            const raw = entry.body || entry.summary || '';
+            const extracted = extractReadableToolText(raw);
+            return extracted || raw;
+        }
+
         function truncateCompactText(value) {
             const normalized = String(value || '').replace(/\\s+/g, ' ').trim();
             if (!normalized) return '';
@@ -1837,6 +1843,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                     return candidate.map(visit).filter(Boolean).join('\\n');
                 }
                 if (typeof candidate === 'object') {
+                    if (candidate.kwargs && typeof candidate.kwargs.content === 'string') return visit(candidate.kwargs.content);
                     if (typeof candidate.text === 'string') return visit(candidate.text);
                     if (typeof candidate.content === 'string') return visit(candidate.content);
                     if (Array.isArray(candidate.content)) return visit(candidate.content);

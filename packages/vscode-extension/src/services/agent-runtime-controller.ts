@@ -2012,10 +2012,10 @@ export class AgentRuntimeController implements vscode.Disposable {
                 category: event.category,
                 status: event.status,
                 body: event.body || existingEntry?.body,
-                summary: event.summary,
+                summary: event.category === 'shell' && existingEntry?.summary ? existingEntry.summary : event.summary,
                 startedAt: event.startedAt,
                 endedAt: event.endedAt,
-                detail: event.summary,
+                detail: event.category === 'shell' && existingEntry?.summary ? existingEntry.summary : event.summary,
             };
             if (existingIndex >= 0) {
                 next[existingIndex] = operationEntry;
@@ -2650,12 +2650,15 @@ export class AgentRuntimeController implements vscode.Disposable {
         if (eventName === 'on_tool_start') {
             const toolName = String(event?.name || 'tool');
             if (this.shouldShowToolOperation(toolName)) {
+                const category = this.categorizeTool(toolName);
+                const command = category === 'shell' ? this.extractCommandFromToolPayload(event?.data?.input) : undefined;
                 await callbacks.onOperation({
                     operationId: this.getStreamOperationId(event, toolName),
                     label: this.formatToolLabel(toolName),
-                    category: this.categorizeTool(toolName),
+                    category,
                     status: 'running',
-                    body: this.stringifyToolPayload(event?.data?.input),
+                    body: command ? `$ ${command}` : this.stringifyToolPayload(event?.data?.input),
+                    summary: command ? `$ ${command}` : undefined,
                     startedAt: Date.now(),
                 });
             }
@@ -2664,13 +2667,14 @@ export class AgentRuntimeController implements vscode.Disposable {
         if (eventName === 'on_tool_end') {
             const toolName = String(event?.name || 'tool');
             if (this.shouldShowToolOperation(toolName)) {
+                const output = this.stringifyToolOutput(event?.data?.output);
                 await callbacks.onOperation({
                     operationId: this.getStreamOperationId(event, toolName),
                     label: this.formatToolLabel(toolName),
                     category: this.categorizeTool(toolName),
                     status: event?.data?.output?.error ? 'error' : 'done',
-                    summary: this.truncateOperationDetail(this.stringifyToolPayload(event?.data?.output)),
-                    body: this.stringifyToolPayload(event?.data?.output),
+                    summary: this.truncateOperationDetail(output),
+                    body: output,
                     startedAt: Date.now(),
                     endedAt: Date.now(),
                 });
@@ -2738,6 +2742,79 @@ export class AgentRuntimeController implements vscode.Disposable {
 
     private formatToolLabel(toolName: string): string {
         return toolName.replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+
+    private extractCommandFromToolPayload(value: unknown): string | undefined {
+        const visited = new Set<unknown>();
+        const visit = (candidate: unknown): string | undefined => {
+            if (candidate === undefined || candidate === null || visited.has(candidate)) return undefined;
+            if (typeof candidate === 'string') {
+                const trimmed = candidate.trim();
+                if (!trimmed) return undefined;
+                if ((trimmed.startsWith('{') || trimmed.startsWith('['))) {
+                    try {
+                        return visit(JSON.parse(trimmed));
+                    } catch {
+                        return trimmed.includes('\n') ? undefined : trimmed;
+                    }
+                }
+                return trimmed.includes('\n') ? undefined : trimmed;
+            }
+            if (Array.isArray(candidate)) {
+                for (const item of candidate) {
+                    const command = visit(item);
+                    if (command) return command;
+                }
+                return undefined;
+            }
+            if (typeof candidate === 'object') {
+                visited.add(candidate);
+                const record = candidate as Record<string, unknown>;
+                for (const key of ['command', 'cmd', 'shell', 'script']) {
+                    if (typeof record[key] === 'string' && record[key].trim()) return record[key].trim();
+                }
+                for (const key of ['input', 'args', 'kwargs']) {
+                    const command = visit(record[key]);
+                    if (command) return command;
+                }
+            }
+            return undefined;
+        };
+        return visit(value);
+    }
+
+    private stringifyToolOutput(value: unknown): string | undefined {
+        const extracted = this.extractToolMessageContent(value);
+        return extracted ?? this.stringifyToolPayload(value);
+    }
+
+    private extractToolMessageContent(value: unknown): string | undefined {
+        if (value === undefined || value === null) return undefined;
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (!trimmed) return undefined;
+            if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                try {
+                    return this.extractToolMessageContent(JSON.parse(trimmed));
+                } catch {
+                    return trimmed;
+                }
+            }
+            return trimmed;
+        }
+        if (Array.isArray(value)) {
+            const parts = value.map((item) => this.extractToolMessageContent(item)).filter(Boolean);
+            return parts.length ? parts.join('\n') : undefined;
+        }
+        if (typeof value === 'object') {
+            const record = value as Record<string, unknown>;
+            const kwargs = record.kwargs && typeof record.kwargs === 'object' ? record.kwargs as Record<string, unknown> : undefined;
+            if (typeof kwargs?.content === 'string') return kwargs.content.trim() || undefined;
+            if (typeof record.content === 'string') return record.content.trim() || undefined;
+            if (Array.isArray(record.content)) return this.extractToolMessageContent(record.content);
+            if (record.output !== undefined) return this.extractToolMessageContent(record.output);
+        }
+        return undefined;
     }
 
     private stringifyToolPayload(value: unknown): string | undefined {
