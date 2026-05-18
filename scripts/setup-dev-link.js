@@ -129,9 +129,24 @@ try {
 //    window uses `packages/vscode-extension` as its extensionDevelopmentPath,
 //    not the monorepo root (which lacks an `engines` field and causes the
 //    "property `engines` is mandatory" error on startup).
-const vscodeStoragePath = path.join(homeDir, '.config', 'Code', 'User', 'globalStorage', 'storage.json');
+function getVsCodeStorageCandidates(homePath) {
+    const candidates = [];
+    if (process.env.VSCODE_PORTABLE) {
+        candidates.push(path.join(process.env.VSCODE_PORTABLE, 'user-data', 'User', 'globalStorage', 'storage.json'));
+    }
+    if (process.platform === 'darwin') {
+        candidates.push(path.join(homePath, 'Library', 'Application Support', 'Code', 'User', 'globalStorage', 'storage.json'));
+        candidates.push(path.join(homePath, 'Library', 'Application Support', 'Code - Insiders', 'User', 'globalStorage', 'storage.json'));
+    }
+    candidates.push(path.join(homePath, '.config', 'Code', 'User', 'globalStorage', 'storage.json'));
+    candidates.push(path.join(homePath, '.config', 'Code - Insiders', 'User', 'globalStorage', 'storage.json'));
+    return [...new Set(candidates)];
+}
+
+const vscodeStoragePaths = getVsCodeStorageCandidates(homeDir);
 try {
-    if (fs.existsSync(vscodeStoragePath)) {
+    for (const vscodeStoragePath of vscodeStoragePaths) {
+        if (!fs.existsSync(vscodeStoragePath)) continue;
         const storageData = JSON.parse(fs.readFileSync(vscodeStoragePath, 'utf8'));
         const windowsState = storageData.windowsState || {};
         // Create or update the entry — don't require it to pre-exist
