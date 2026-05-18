@@ -971,6 +971,9 @@ export class ConfigService {
         const saved = this.manager.upsertInstance(input, {
             setActive: options.setActive,
         });
+        if (options.apiKey) {
+            this.manager.saveApiKey(saved.id, options.apiKey);
+        }
 
         if (workspaceConfigIsV4) {
             return this.toInstanceProfile(saved);
@@ -1726,6 +1729,26 @@ export class ConfigService {
     }
 
     private readLegacyStoredApiKey(instanceId: string, host?: string): string | undefined {
+        const readFromStore = (store: { hosts?: Record<string, unknown>; instanceProfiles?: Record<string, unknown> } | undefined): string | undefined => {
+            const instanceApiKey = asString(store?.instanceProfiles?.[instanceId]);
+            if (instanceApiKey) return instanceApiKey;
+            if (!host) return undefined;
+            return asString(store?.hosts?.[this.normalizeHost(host)]);
+        };
+
+        for (const root of [process.env.XDG_CONFIG_HOME, process.env.N8N_MANAGER_HOME]) {
+            if (!root) continue;
+            const filePath = path.join(root, 'n8nac-nodejs', 'credentials.json');
+            if (!fs.existsSync(filePath)) continue;
+            try {
+                const value = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                const apiKey = readFromStore(value && typeof value === 'object' && !Array.isArray(value) ? value as any : undefined);
+                if (apiKey) return apiKey;
+            } catch {
+                // Try the Conf-backed store below.
+            }
+        }
+
         try {
             const store = new Conf<Record<string, unknown>>({
                 projectName: 'n8nac',
@@ -1733,12 +1756,8 @@ export class ConfigService {
                 configFileMode: 0o600,
             });
             const instanceProfiles = store.get('instanceProfiles') as Record<string, unknown> | undefined;
-            const instanceApiKey = asString(instanceProfiles?.[instanceId]);
-            if (instanceApiKey) return instanceApiKey;
-
-            if (!host) return undefined;
             const hosts = store.get('hosts') as Record<string, unknown> | undefined;
-            return asString(hosts?.[this.normalizeHost(host)]);
+            return readFromStore({ hosts, instanceProfiles });
         } catch {
             return undefined;
         }
