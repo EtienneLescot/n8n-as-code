@@ -1027,7 +1027,10 @@ async function listAgentModelOptions(providerId: string): Promise<Array<Record<s
     const definition = YAGR_PROVIDER_DEFINITIONS[provider];
     const config = vscode.workspace.getConfiguration('n8n.agent');
     const selectedProvider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
-    const currentModel = String(config.get<string>('model') || '').trim() || definition.defaultModel;
+    const selectedModel = String(config.get<string>('model') || '').trim();
+    const currentModel = provider === selectedProvider
+        ? (selectedModel || definition.defaultModel)
+        : definition.defaultModel;
     const liveModels = await requireYagrProviderService().fetchAvailableModels(provider).catch(() => []);
     return [...new Set([...(liveModels.length ? liveModels : []), definition.defaultModel, currentModel].filter(Boolean))]
         .map((model) => ({
