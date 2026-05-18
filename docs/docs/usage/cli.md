@@ -53,7 +53,7 @@ For a compact overview, see the [Command Glossary](/docs/usage/commands).
 ### Remote n8n environment
 
 ```bash
-n8nac env add Dev --base-url https://n8n.example.com --sync-folder workflows/dev
+n8nac env add Dev --base-url https://n8n.example.com --sync-folder workflows
 n8nac env auth set Dev --api-key-stdin
 n8nac env use Dev
 n8nac update-ai
@@ -63,7 +63,7 @@ n8nac update-ai
 
 ```bash
 n8n-manager instance list
-n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+n8nac env add Local --managed-instance <id> --sync-folder workflows
 n8nac env use Local
 n8nac update-ai
 ```
@@ -83,8 +83,8 @@ Use `env` for normal workspace configuration.
 ```bash
 n8nac env list
 n8nac env status
-n8nac env add Dev --base-url <url> --sync-folder workflows/dev
-n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+n8nac env add Dev --base-url <url> --sync-folder workflows
+n8nac env add Local --managed-instance <id> --sync-folder workflows
 n8nac env use Dev
 n8nac env auth set Dev --api-key-stdin
 n8nac env remove Dev
@@ -95,7 +95,7 @@ n8nac env remove Dev
 Remote environments store the URL in `n8nac-config.json`, but the API key stays local.
 
 ```bash
-n8nac env add Staging --base-url https://staging.example.com --sync-folder workflows/staging
+n8nac env add Staging --base-url https://staging.example.com --sync-folder workflows
 n8nac env auth set Staging --api-key-stdin
 ```
 
@@ -105,7 +105,7 @@ These workspace environments reference a local `n8n-manager` instance.
 
 ```bash
 n8n-manager instance list
-n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+n8nac env add Local --managed-instance <id> --sync-folder workflows
 ```
 
 The workspace does not copy Docker paths, tunnel state, logs, or local secrets.
@@ -246,10 +246,11 @@ Current config is environment-based and safe to commit when it contains no secre
     {
       "id": "dev",
       "name": "Dev",
+      "syncSlug": "dev",
       "environmentTargetId": "dev",
       "projectId": "personal",
       "projectName": "Personal",
-      "syncFolder": "workflows/dev"
+      "syncFolder": "workflows"
     }
   ],
   "environmentTargets": [
@@ -264,6 +265,8 @@ Current config is environment-based and safe to commit when it contains no secre
 ```
 
 API keys are stored locally with `n8nac env auth set <env> --api-key-stdin`.
+
+`syncSlug` is generated from the environment name when the environment is created. It is stable after creation, so changing the environment display name, target instance, or target project does not move the workflow directory. Existing legacy workflow directories are still used until a matching slug directory exists.
 
 In config examples, `kind: "external-instance"` is the persisted target kind for a remote n8n URL. Prefer the user-facing term "remote n8n environment" outside raw config discussions.
 
