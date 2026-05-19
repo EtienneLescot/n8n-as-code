@@ -1,5 +1,18 @@
 # @n8n-as-code/cli
 
+## [2.2.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.2.1...n8nac@v2.2.2) (2026-05-19)
+
+### Bug Fixes
+
+* **config:** preserve legacy credential migration ([d07fd61](https://github.com/EtienneLescot/n8n-as-code/commit/d07fd615905cfc10ae7dc3e63566d5222d14945e))
+* **config:** ignore ambiguous target name credentials ([0872291](https://github.com/EtienneLescot/n8n-as-code/commit/087229135eb5645dbce471181221c6b1bdadcdbd))
+* **config:** tolerate duplicate instance target names ([912adcc](https://github.com/EtienneLescot/n8n-as-code/commit/912adcc75d0368aa1f1c94251c606b4919c1bfba))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.1.3 to 2.1.4
+
 ## [2.2.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.2.0...n8nac@v2.2.1) (2026-05-13)
 
 ### Documentation
