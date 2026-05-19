@@ -145,6 +145,9 @@ export class PromoteCommand {
     ) {}
 
     async run(sourceWorkflowPath: string | undefined, options: PromoteOptions): Promise<PromoteResult> {
+        this.targetWorkflowInventory = undefined;
+        this.targetCredentialInventory = undefined;
+
         const source = await this.configService.prepareEnvironment(options.from);
         const target = await this.configService.prepareEnvironment(options.to);
         if (source.environmentId === target.environmentId) {
@@ -257,10 +260,16 @@ export class PromoteCommand {
         if (!fs.existsSync(sourceRoot)) {
             throw new Error(`Source environment sync scope does not exist: ${sourceRoot}`);
         }
-        return fs.readdirSync(sourceRoot)
-            .filter((filename) => filename.endsWith('.workflow.ts') && !filename.startsWith('.'))
-            .sort()
-            .map((filename) => path.join(sourceRoot, filename));
+
+        const walk = (directory: string): string[] => fs.readdirSync(directory, { withFileTypes: true })
+            .flatMap((entry) => {
+                if (entry.name.startsWith('.')) return [];
+                const entryPath = path.join(directory, entry.name);
+                if (entry.isDirectory()) return walk(entryPath);
+                return entry.name.endsWith('.workflow.ts') ? [entryPath] : [];
+            });
+
+        return walk(sourceRoot).sort();
     }
 
     private initializeTargetActions(sources: PromotionSourceWorkflow[], route: PromotionRouteConfig): void {
@@ -280,9 +289,7 @@ export class PromoteCommand {
         indexes: PromotionIndexes,
         options: PromoteOptions,
     ): Promise<void> {
-        const shouldDiscover = !options.dryRun;
-        if (!shouldDiscover) return;
-
+        const shouldPersistBindings = !options.dryRun;
         const workflows = await this.getTargetWorkflows(target);
         indexes.targetWorkflowsById = new Map(workflows.map((workflow) => [workflow.id, workflow]));
         indexes.targetWorkflowsByName = groupWorkflowsByName(workflows);
@@ -294,7 +301,7 @@ export class PromoteCommand {
             if (targetWorkflow) {
                 item.targetWorkflowId = targetWorkflow.id;
                 item.action = 'update';
-                route.bindings!.workflows![item.sourceKey] = targetWorkflow.id;
+                if (shouldPersistBindings) route.bindings!.workflows![item.sourceKey] = targetWorkflow.id;
                 continue;
             }
 
@@ -303,7 +310,7 @@ export class PromoteCommand {
             if (matches.length === 1) {
                 item.targetWorkflowId = matches[0].id;
                 item.action = 'update';
-                route.bindings!.workflows![item.sourceKey] = matches[0].id;
+                if (shouldPersistBindings) route.bindings!.workflows![item.sourceKey] = matches[0].id;
             }
         }
     }
