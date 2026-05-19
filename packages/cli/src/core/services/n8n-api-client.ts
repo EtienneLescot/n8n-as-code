@@ -1,6 +1,28 @@
 import axios, { AxiosInstance } from 'axios';
+import * as dns from 'dns';
+import * as http from 'http';
 import * as https from 'https';
 import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField, IExecutionDetails, IExecutionList, IExecutionSummary, ExecutionStatus } from '../types.js';
+
+type AgentLookup = NonNullable<http.AgentOptions['lookup']>;
+
+function createIpv4FirstLookup(): AgentLookup {
+    return ((hostname, options, callback) => {
+        const lookupOptions = { ...options, verbatim: false };
+        dns.lookup(hostname, lookupOptions, (error, address, family) => {
+            if (error) {
+                callback(error, address, family);
+                return;
+            }
+            if (Array.isArray(address)) {
+                const sorted = [...address].sort((left, right) => left.family === right.family ? 0 : left.family === 4 ? -1 : 1);
+                callback(null, sorted, family);
+                return;
+            }
+            callback(null, address, family);
+        });
+    }) as AgentLookup;
+}
 
 export class N8nApiClient {
     private client: AxiosInstance;
@@ -8,7 +30,8 @@ export class N8nApiClient {
     private projectsCache: Map<string, IProject> | null = null;
     private projectsCachePromise: Promise<Map<string, IProject>> | null = null;
     private static readonly PERSONAL_PROJECT_PLACEHOLDER_ID = 'personal';
-    /** Shared HTTPS agent – allows self-signed certs in local/dev environments */
+    /** Shared agents keep DNS/TLS behavior consistent for API, health, and webhook calls. */
+    private httpAgent: http.Agent;
     private httpsAgent: https.Agent;
 
     constructor(credentials: IN8nCredentials) {
@@ -19,8 +42,11 @@ export class N8nApiClient {
         }
 
         // Allow self-signed certificates by default to avoid issues in local environments.
-        // The same agent is reused for webhook test calls so TLS behaviour is consistent.
-        this.httpsAgent = new https.Agent({ rejectUnauthorized: false });
+        // Prefer IPv4 when both A and AAAA records exist; remote self-hosted n8n instances
+        // often publish IPv6 records that are unreachable from the extension host.
+        const lookup = createIpv4FirstLookup();
+        this.httpAgent = new http.Agent({ lookup });
+        this.httpsAgent = new https.Agent({ rejectUnauthorized: false, lookup });
 
         this.client = axios.create({
             baseURL: host,
@@ -29,6 +55,7 @@ export class N8nApiClient {
                 'Content-Type': 'application/json',
                 'User-Agent': 'n8n-as-code'
             },
+            httpAgent: this.httpAgent,
             httpsAgent: this.httpsAgent,
         });
     }
@@ -125,6 +152,7 @@ export class N8nApiClient {
         try {
             const baseURL = this.client.defaults.baseURL;
             const res = await axios.get(`${baseURL}/`, {
+                httpAgent: this.httpAgent,
                 httpsAgent: this.httpsAgent,
                 timeout: 10_000,
                 responseType: 'text',
@@ -825,7 +853,12 @@ export class N8nApiClient {
 
             // 2. Scraping Root Page as fallback (Using raw axios to avoid API headers)
             const baseURL = this.client.defaults.baseURL;
-            const res = await axios.get(`${baseURL}/`);
+            const res = await axios.get(`${baseURL}/`, {
+                httpAgent: this.httpAgent,
+                httpsAgent: this.httpsAgent,
+                timeout: 10_000,
+                responseType: 'text',
+            });
             const html = res.data;
 
             // Look for "release":"n8n@X.Y.Z" probably inside n8n:config:sentry meta (Base64 encoded)

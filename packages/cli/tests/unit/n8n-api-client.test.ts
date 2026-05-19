@@ -11,8 +11,15 @@ const { mockAxiosCall, mockAxiosGet, mockAxiosPost, mockAxiosPut, mockAxiosDelet
     mockAxiosCreate: vi.fn(),
 }));
 
+type MockAxiosCreateConfig = {
+    baseURL?: string;
+    headers?: Record<string, string>;
+    httpAgent?: unknown;
+    httpsAgent?: unknown;
+};
+
 vi.mock('axios', () => {
-    mockAxiosCreate.mockImplementation((config?: { baseURL?: string; headers?: Record<string, string> }) => ({
+    mockAxiosCreate.mockImplementation((config?: MockAxiosCreateConfig) => ({
         defaults: { baseURL: config?.baseURL ?? '' },
         get: mockAxiosGet,
         post: mockAxiosPost,
@@ -37,13 +44,24 @@ describe('N8nApiClient test workflow support', () => {
         mockAxiosPut.mockReset();
         mockAxiosDelete.mockReset();
         mockAxiosCreate.mockReset();
-        mockAxiosCreate.mockImplementation((config?: { baseURL?: string; headers?: Record<string, string> }) => ({
+        mockAxiosCreate.mockImplementation((config?: MockAxiosCreateConfig) => ({
             defaults: { baseURL: config?.baseURL ?? '' },
             get: mockAxiosGet,
             post: mockAxiosPost,
             put: mockAxiosPut,
             delete: mockAxiosDelete,
         }));
+    });
+
+    it('configures shared agents with IPv4-first DNS lookup', () => {
+        new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        const config = mockAxiosCreate.mock.calls[0][0];
+        expect(config.httpAgent).toBeDefined();
+        expect(config.httpsAgent).toBeDefined();
+        expect(typeof config.httpAgent.options.lookup).toBe('function');
+        expect(config.httpsAgent.options.lookup).toBe(config.httpAgent.options.lookup);
+        expect(config.httpsAgent.options.rejectUnauthorized).toBe(false);
     });
 
     it('asserts API access through the authenticated workflows endpoint', async () => {
@@ -75,6 +93,23 @@ describe('N8nApiClient test workflow support', () => {
         await expect(client.getInstanceIdentity()).resolves.toEqual({ id: 'instance-from-html' });
 
         expect(mockAxiosCall).toHaveBeenCalledWith('https://n8n.local/', expect.objectContaining({
+            httpAgent: expect.anything(),
+            httpsAgent: expect.anything(),
+            timeout: 10_000,
+            responseType: 'text',
+        }));
+    });
+
+    it('uses shared agents when scraping the root page for health fallback', async () => {
+        mockAxiosGet.mockRejectedValueOnce(new Error('healthz unavailable'));
+        mockAxiosCall.mockResolvedValueOnce({ data: '{"release":"n8n@2.20.9"}' });
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        await expect(client.getHealth()).resolves.toEqual({ version: '2.20.9' });
+
+        expect(mockAxiosCall).toHaveBeenCalledWith('https://n8n.local/', expect.objectContaining({
+            httpAgent: expect.anything(),
+            httpsAgent: expect.anything(),
             timeout: 10_000,
             responseType: 'text',
         }));
