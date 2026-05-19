@@ -169,6 +169,18 @@ n8nac push workflows/dev/my-workflow.workflow.ts --verify
 
 Push uploads one local workflow and uses optimistic concurrency checks.
 
+### `promote`
+
+```bash
+n8nac promote workflows/dev/my-workflow.workflow.ts --from Dev --to Prod --dry-run
+n8nac promote workflows/dev/my-workflow.workflow.ts --from Dev --to Prod
+n8nac promote --from Dev --to Prod --dry-run
+```
+
+Promote copies workflows from one workspace environment to another, remaps target workflow metadata, credential IDs, and supported Execute Workflow references, then pushes to the target environment unless `--no-push` is used.
+
+Promotion stores discovered source-to-target bindings in `n8nac-promotion.json`. Existing bindings are reused first, target names are used for initial discovery, and missing or ambiguous references block the promotion before push.
+
 ### `resolve`
 
 ```bash

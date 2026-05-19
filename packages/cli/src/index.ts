@@ -1195,12 +1195,13 @@ program.command('push')
 
 program.command('promote')
     .description('Promote a local workflow file from one workspace environment to another')
-    .argument('<path>', 'Workflow file path inside the source environment sync scope')
+    .argument('[path]', 'Workflow file path inside the source environment sync scope. Omit to promote all source workflows.')
     .requiredOption('--from <environment>', 'Source environment name or ID')
     .requiredOption('--to <environment>', 'Target environment name or ID')
     .option('--dry-run', 'Show the planned promotion without writing or pushing')
     .option('--no-push', 'Copy/adapt the workflow into the target environment without pushing')
     .option('--overwrite', 'Overwrite the target local workflow file if it already exists')
+    .option('--promotion-config <path>', 'Promotion config path', 'n8nac-promotion.json')
     .option('--json', 'Output promotion result as JSON')
     .action(async (pathArg, options) => {
         try {
@@ -1210,6 +1211,7 @@ program.command('promote')
                 dryRun: options.dryRun,
                 push: options.push,
                 overwrite: options.overwrite,
+                promotionConfig: options.promotionConfig,
                 json: options.json,
             });
         } catch (error: any) {

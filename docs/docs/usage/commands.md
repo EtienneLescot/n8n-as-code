@@ -75,6 +75,7 @@ After an environment exists, normal workflow operations stay in `n8nac`:
 n8nac list
 n8nac pull <workflow-id>
 n8nac push <path-to-workflow.workflow.ts> --verify
+n8nac promote --from Dev --to Prod --dry-run
 n8nac resolve <workflow-id> --mode keep-current
 n8nac resolve <workflow-id> --mode keep-incoming
 ```

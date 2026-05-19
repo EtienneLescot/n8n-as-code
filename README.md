@@ -115,6 +115,7 @@ Then sync workflows explicitly:
 npx --yes n8nac list
 npx --yes n8nac pull <workflow-id>
 npx --yes n8nac push workflows/dev/my-workflow.workflow.ts --verify
+npx --yes n8nac promote --from Dev --to Prod --dry-run
 ```
 
 [CLI guide](https://n8nascode.dev/docs/usage/cli/) · [n8n-manager guide](https://n8nascode.dev/docs/usage/n8n-manager/)
