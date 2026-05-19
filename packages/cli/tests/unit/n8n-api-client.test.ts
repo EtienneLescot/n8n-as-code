@@ -454,6 +454,8 @@ describe('N8nApiClient test workflow support', () => {
             url: 'https://n8n.local/webhook-test/wf',
             data: undefined,
             params: { chatInput: 'hello' },
+            httpAgent: expect.anything(),
+            httpsAgent: expect.anything(),
         }));
     });
 

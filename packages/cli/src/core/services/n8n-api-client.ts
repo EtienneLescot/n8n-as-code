@@ -1252,7 +1252,8 @@ export class N8nApiClient {
                 params: query ?? (['GET', 'HEAD'].includes(method) ? (body as any) : undefined),
                 validateStatus: () => true, // Don't throw on non-2xx
                 timeout: 30_000,             // Prevent indefinite hangs (e.g. chat trigger awaiting first message)
-                // Reuse the shared httpsAgent (same TLS policy as API calls).
+                // Reuse the shared agents (same DNS/TLS policy as API calls).
+                httpAgent: this.httpAgent,
                 httpsAgent: this.httpsAgent,
                 // Do NOT send the n8n API key when hitting the webhook URL.
                 // The webhook is a public endpoint and the API key header would
