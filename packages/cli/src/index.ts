@@ -514,8 +514,7 @@ workspaceProgram.command('status')
                 workspaceConfig.activeEnvironmentId ? `Env     : ${chalk.bold(resolvedEnvironment?.environmentName || workspaceConfig.activeEnvironment?.name || workspaceConfig.activeEnvironmentId)}` : undefined,
                 `Instance: ${chalk.bold(resolvedEnvironment?.activeInstanceName || workspaceConfig.activeInstanceId || '(none)')}`,
                 `Project : ${chalk.bold(resolvedEnvironment?.projectName || workspaceConfig.projectName || workspaceConfig.projectId || '(none)')}`,
-                `Sync root   : ${chalk.bold(resolvedEnvironment?.syncFolder || workspaceConfig.syncFolder || '(none)')}`,
-                `Workflow dir: ${chalk.bold(resolvedEnvironment?.workflowDir || workspaceConfig.workflowDir || '(none)')}`,
+                `Workflows path: ${chalk.bold(resolvedEnvironment?.workflowsPath || workspaceConfig.workflowsPath || workspaceConfig.workflowDir || '(none)')}`,
                 '',
             ].filter(Boolean).join('\n'),
         );
@@ -646,7 +645,7 @@ environmentTargetProgram.command('add')
             const instance = (await createManagerFacadeFromOptions({}).listInstances()).find((item) => item.id === managedInstanceId);
             if (!instance) throw new Error(`Unknown managed local n8n instance: ${managedInstanceId}`);
             if (instance.mode !== 'managed-local-docker') {
-                throw new Error(`Instance "${instance.name || instance.id}" is not managed locally. Prefer \`n8nac env add <name> --base-url <url> --sync-folder workflows\` for remote n8n environments.`);
+                throw new Error(`Instance "${instance.name || instance.id}" is not managed locally. Prefer \`n8nac env add <name> --base-url <url> --workflows-path workflows/<name>\` for remote n8n environments.`);
             }
         }
         const target = configService.addInstanceTarget({
@@ -709,7 +708,7 @@ environmentProgram.command('list')
                     environment.name,
                     environment.resolved?.environmentTargetName || environment.environmentTargetId,
                     environment.projectName || environment.projectId || '(no project)',
-                    environment.syncFolder,
+                    environment.workflowsPath || environment.workflowDir || environment.syncFolder,
                 ].join('\t')).join('\n')
                 : 'No workspace environments configured.',
         );
@@ -725,7 +724,9 @@ environmentProgram.command('add')
     .option('--api-key-stdin', 'Read the local API key for --base-url from stdin')
     .option('--project-id <id>', 'n8n project ID')
     .option('--project-name <name>', 'n8n project display name')
-    .option('--sync-folder <path>', 'Environment sync root', 'workflows')
+    .option('--workflows-path <path>', 'Directory that contains this environment workflows')
+    .option('--workflow-dir <path>', 'Compatibility alias for --workflows-path')
+    .option('--sync-folder <path>', 'Compatibility alias for --workflows-path')
     .option('--id <id>', 'Stable environment ID')
     .option('--folder-sync', 'Enable folder sync for this environment')
     .option('--custom-nodes-path <path>', 'Custom nodes path for this environment')
@@ -766,6 +767,8 @@ environmentProgram.command('add')
             environmentTarget,
             projectId: options.projectId || (urlOption ? 'personal' : undefined),
             projectName: options.projectName || (urlOption ? 'Personal' : undefined),
+            workflowsPath: options.workflowsPath,
+            workflowDir: options.workflowDir,
             syncFolder: options.syncFolder,
             folderSync: Boolean(options.folderSync),
             customNodesPath: options.customNodesPath,
@@ -785,7 +788,9 @@ environmentProgram.command('update')
     .option('--api-key-stdin', 'Read the local API key for --base-url from stdin')
     .option('--project-id <id>', 'n8n project ID')
     .option('--project-name <name>', 'n8n project display name')
-    .option('--sync-folder <path>', 'Environment sync root')
+    .option('--workflows-path <path>', 'Directory that contains this environment workflows')
+    .option('--workflow-dir <path>', 'Compatibility alias for --workflows-path')
+    .option('--sync-folder <path>', 'Compatibility alias for --workflows-path')
     .option('--folder-sync', 'Enable folder sync for this environment')
     .option('--no-folder-sync', 'Disable folder sync for this environment')
     .option('--custom-nodes-path <path>', 'Custom nodes path for this environment')
@@ -819,6 +824,8 @@ environmentProgram.command('update')
             environmentTarget,
             projectId: options.projectId,
             projectName: options.projectName,
+            workflowsPath: options.workflowsPath,
+            workflowDir: options.workflowDir,
             syncFolder: options.syncFolder,
             folderSync: typeof options.folderSync === 'boolean' ? options.folderSync : undefined,
             customNodesPath: options.customNodesPath,
@@ -902,8 +909,7 @@ environmentProgram.command('status')
                 `Instance: ${chalk.bold(environment.activeInstanceName || environment.managedInstanceId || '(externalInstance)')}`,
                 `Host    : ${chalk.bold(environment.host)}`,
                 `Project : ${chalk.bold(environment.projectName || environment.projectId || '(none)')}`,
-                `Sync root   : ${chalk.bold(environment.syncFolder)}`,
-                `Workflow dir: ${chalk.bold(environment.workflowDir || '(unresolved)')}`,
+                `Workflows path: ${chalk.bold(environment.workflowsPath || environment.workflowDir || '(unresolved)')}`,
                 `API key : ${chalk.bold(environment.apiKeyAvailable ? environment.apiKeySource : 'missing')}`,
                 '',
             ].join('\n'),

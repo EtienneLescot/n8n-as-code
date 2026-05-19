@@ -50,7 +50,7 @@ OpenClaw stores its working files under:
 ## Manual Equivalent
 
 ```bash
-n8nac env add Dev --base-url <url> --sync-folder workflows/dev
+n8nac env add Dev --base-url <url> --workflows-path workflows/dev
 n8nac env auth set Dev --api-key-stdin
 n8nac env use Dev
 n8nac update-ai
@@ -60,7 +60,7 @@ For a local managed instance:
 
 ```bash
 n8n-manager instance list
-n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+n8nac env add Local --managed-instance <id> --workflows-path workflows/local
 ```
 
 ## Agent CLI Flow

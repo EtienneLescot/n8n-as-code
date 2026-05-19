@@ -24,8 +24,8 @@ Use this page when you need to choose the right command family.
 ```bash
 n8nac env list
 n8nac env status
-n8nac env add <name> --base-url <url> --sync-folder <path>
-n8nac env add <name> --managed-instance <id> --sync-folder <path>
+n8nac env add <name> --base-url <url> --workflows-path <path>
+n8nac env add <name> --managed-instance <id> --workflows-path <path>
 n8nac env use <environment>
 n8nac env auth set <environment> --api-key-stdin
 n8nac env remove <environment>
@@ -36,7 +36,7 @@ Use it for:
 - remote n8n URLs
 - local API-key binding for remote environments
 - managed local instance references
-- project and sync-folder context
+- project and workflowsPath context
 - active environment selection
 
 ## Workspace Maintenance

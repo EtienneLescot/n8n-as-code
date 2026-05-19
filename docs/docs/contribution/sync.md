@@ -419,7 +419,7 @@ npm test
 interface CoreConfig {
   host: string;
   apiKey: string;
-  syncFolder: string;
+  workflowsPath: string;
   syncMode: 'auto' | 'manual';
   pollInterval: number;
   maxRetries: number;

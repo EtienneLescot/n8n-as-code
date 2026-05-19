@@ -254,7 +254,7 @@ n8nac --help
 2. Get an API key from n8n settings.
 3. Configure a workspace environment:
 ```bash
-n8nac env add Dev --base-url <url> --sync-folder workflows/dev
+n8nac env add Dev --base-url <url> --workflows-path workflows/dev
 n8nac env auth set Dev --api-key-stdin
 n8nac env use Dev
 ```
@@ -338,7 +338,7 @@ beforeEach(() => {
         environmentTargetId: 'dev',
         projectId: 'personal',
         projectName: 'Personal',
-        syncFolder: 'workflows/dev'
+        workflowsPath: 'workflows/dev'
       }],
       environmentTargets: [{
         id: 'dev',
@@ -420,7 +420,7 @@ curl -H "X-N8N-API-KEY: your-key" https://your-n8n.com/api/v1/workflows
 
 #### Configuration Not Found
 1. Check current directory for `n8nac-config.json`.
-2. Run `n8nac env add Dev --base-url <url> --sync-folder workflows/dev` to create an environment.
+2. Run `n8nac env add Dev --base-url <url> --workflows-path workflows/dev` to create an environment.
 3. Run `n8nac env auth set Dev --api-key-stdin` to store the local API key.
 
 #### Sync Conflicts

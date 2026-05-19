@@ -42,7 +42,7 @@ After that, use the sidebar to pull workflows or create a local workflow file, t
 ### Remote n8n environment
 
 ```bash
-n8nac env add Dev --base-url https://n8n.example.com --sync-folder workflows/dev
+n8nac env add Dev --base-url https://n8n.example.com --workflows-path workflows/dev
 n8nac env auth set Dev --api-key-stdin
 n8nac env use Dev
 n8nac update-ai
@@ -52,7 +52,7 @@ n8nac update-ai
 
 ```bash
 n8n-manager instance list
-n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+n8nac env add Local --managed-instance <id> --workflows-path workflows/local
 n8nac env use Local
 n8nac update-ai
 ```

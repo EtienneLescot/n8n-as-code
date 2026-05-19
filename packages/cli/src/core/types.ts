@@ -57,7 +57,8 @@ export interface IWorkflowStatus {
 
 export interface ISyncConfig {
     directory: string;
-    workflowDir?: string;        // Optional explicit workflow directory override
+    workflowsPath?: string;      // Optional explicit workflow directory
+    workflowDir?: string;        // Compatibility alias for workflowsPath
     syncInactive: boolean; // internal default true
     ignoredTags: string[]; // internal default []
     instanceIdentifier?: string; // Optional: auto-generated if not provided

@@ -36,7 +36,7 @@ n8n-manager tunnel stop <id>
 Then attach a local managed instance to the workspace with `n8nac env`:
 
 ```bash
-n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+n8nac env add Local --managed-instance <id> --workflows-path workflows/local
 n8nac env use Local
 ```
 
@@ -61,7 +61,7 @@ Do not commit:
 For an existing n8n Cloud or self-hosted URL, you usually do not need `n8n-manager`:
 
 ```bash
-n8nac env add Staging --base-url https://staging.example.com --sync-folder workflows/staging
+n8nac env add Staging --base-url https://staging.example.com --workflows-path workflows/staging
 n8nac env auth set Staging --api-key-stdin
 ```
 

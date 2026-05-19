@@ -45,7 +45,7 @@ Install the extension, open the `n8n` view, run `n8n: Configure`, and create an 
 ### CLI
 
 ```bash
-n8nac env add Dev --base-url https://n8n.example.com --sync-folder workflows/dev
+n8nac env add Dev --base-url https://n8n.example.com --workflows-path workflows/dev
 n8nac env auth set Dev --api-key-stdin
 n8nac env use Dev
 n8nac update-ai

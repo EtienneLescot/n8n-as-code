@@ -172,12 +172,12 @@ describe('SyncManager push filename contract', () => {
         expect(push).toHaveBeenCalledWith(workflowFilename, 'wf-123', expect.any(String));
     });
 
-    it('uses an explicit workflowDir as the active sync scope', async () => {
+    it('uses an explicit workflowsPath as the active sync scope', async () => {
         const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-sync-manager-'));
-        const workflowDir = path.join(workspaceDir, 'shared', 'project');
+        const workflowsPath = path.join(workspaceDir, 'shared', 'project');
         const manager = new SyncManager(new MockN8nApiClient() as any, {
             directory: path.join(workspaceDir, 'generated-base'),
-            workflowDir,
+            workflowsPath,
             syncInactive: true,
             ignoredTags: [],
             projectId: 'project-1',
@@ -187,12 +187,12 @@ describe('SyncManager push filename contract', () => {
 
         await (manager as any).ensureInitialized();
 
-        expect((manager as any).watcher.getDirectory()).toBe(workflowDir);
-        expect(fs.existsSync(path.join(workflowDir, 'n8n-workflows.d.ts'))).toBe(true);
+        expect((manager as any).watcher.getDirectory()).toBe(workflowsPath);
+        expect(fs.existsSync(path.join(workflowsPath, 'n8n-workflows.d.ts'))).toBe(true);
         expect(fs.existsSync(path.join(workspaceDir, 'generated-base', 'generated_instance', 'personal'))).toBe(false);
     });
 
-    it('requires resolved workflowDir for environment sync scopes', async () => {
+    it('requires resolved workflowsPath for environment sync scopes', async () => {
         const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-sync-manager-'));
         const manager = new SyncManager(new MockN8nApiClient() as any, {
             directory: workspaceDir,
@@ -206,6 +206,6 @@ describe('SyncManager push filename contract', () => {
             environmentName: 'Dev',
         });
 
-        await expect(manager.refreshLocalState()).rejects.toThrow(/missing a resolved workflowDir/);
+        await expect(manager.refreshLocalState()).rejects.toThrow(/missing a resolved workflowsPath/);
     });
 });

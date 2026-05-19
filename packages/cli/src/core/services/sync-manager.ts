@@ -33,12 +33,13 @@ export class SyncManager extends EventEmitter {
     private async ensureInitialized() {
         if (this.watcher) return;
 
-        if (this.config.environmentId && !this.config.workflowDir) {
-            throw new Error(`Environment "${this.config.environmentName || this.config.environmentId}" is missing a resolved workflowDir. Run \`n8nac env status --json\` and fix its instance, user, and project identity before syncing.`);
+        const workflowsPath = this.config.workflowsPath || this.config.workflowDir;
+        if (this.config.environmentId && !workflowsPath) {
+            throw new Error(`Environment "${this.config.environmentName || this.config.environmentId}" is missing a resolved workflowsPath. Run \`n8nac env status --json\` and fix its workspace environment config before syncing.`);
         }
 
-        const instanceDir = this.config.workflowDir
-            ? path.normalize(this.config.workflowDir)
+        const instanceDir = workflowsPath
+            ? path.normalize(workflowsPath)
             : path.join(
                 this.config.directory,
                 this.config.instanceIdentifier || 'default',
@@ -407,7 +408,7 @@ export class SyncManager extends EventEmitter {
                 `Active sync scope : ${scopeLabel}\n` +
                 `Expected path form: ${suggestedPath}\n` +
                 `Run               : n8nac push ${this.quoteShellArg(suggestedPath)}\n\n` +
-                `Tip: run \`n8nac workspace status --json\` and read \`workflowDir\` to ` +
+                `Tip: run \`n8nac workspace status --json\` and read \`workflowsPath\` to ` +
                 `get the exact relative path where workflow files must be created and pushed from.`
             );
         }

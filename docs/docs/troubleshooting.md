@@ -43,7 +43,7 @@ n8nac env auth set <environment> --api-key-stdin
 Create an environment:
 
 ```bash
-n8nac env add Dev --base-url <url> --sync-folder workflows/dev
+n8nac env add Dev --base-url <url> --workflows-path workflows/dev
 n8nac env auth set Dev --api-key-stdin
 n8nac env use Dev
 ```
@@ -52,7 +52,7 @@ Or attach a local managed instance:
 
 ```bash
 n8n-manager instance list
-n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+n8nac env add Local --managed-instance <id> --workflows-path workflows/local
 n8nac env use Local
 ```
 
@@ -190,7 +190,7 @@ Back up workflows first, then recreate the environment:
 ```bash
 cp -r workflows workflows-backup-$(date +%Y%m%d)
 rm n8nac-config.json
-n8nac env add Dev --base-url <url> --sync-folder workflows/dev
+n8nac env add Dev --base-url <url> --workflows-path workflows/dev
 n8nac env auth set Dev --api-key-stdin
 n8nac env use Dev
 n8nac list

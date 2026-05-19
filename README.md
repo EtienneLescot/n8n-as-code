@@ -95,7 +95,7 @@ If your agent asks for an explicit skill path, use `skills/n8n-architect`.
 Create a workspace environment for an existing n8n URL:
 
 ```bash
-npx --yes n8nac env add Dev --base-url https://n8n.example.com --sync-folder workflows/dev
+npx --yes n8nac env add Dev --base-url https://n8n.example.com --workflows-path workflows/dev
 printf '%s' "$N8N_API_KEY" | npx --yes n8nac env auth set Dev --api-key-stdin
 npx --yes n8nac env use Dev
 npx --yes n8nac update-ai
@@ -105,7 +105,7 @@ Or attach a local managed instance:
 
 ```bash
 n8n-manager instance list
-npx --yes n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+npx --yes n8nac env add Local --managed-instance <id> --workflows-path workflows/local
 npx --yes n8nac env use Local
 ```
 
@@ -125,8 +125,8 @@ npx --yes n8nac push workflows/dev/my-workflow.workflow.ts --verify
 
 ```bash
 n8nac env list
-n8nac env add Dev --base-url <url> --sync-folder workflows/dev
-n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+n8nac env add Dev --base-url <url> --workflows-path workflows/dev
+n8nac env add Local --managed-instance <id> --workflows-path workflows/local
 n8nac env use Dev
 n8nac env auth set Dev --api-key-stdin
 n8nac env remove Dev

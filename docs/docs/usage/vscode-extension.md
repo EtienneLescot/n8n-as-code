@@ -73,7 +73,7 @@ n8nac workspace migrate --write
 ## CLI Equivalent
 
 ```bash
-n8nac env add Dev --base-url <url> --sync-folder workflows/dev
+n8nac env add Dev --base-url <url> --workflows-path workflows/dev
 n8nac env auth set Dev --api-key-stdin
 n8nac env use Dev
 n8nac list
@@ -85,7 +85,7 @@ For a local managed instance:
 
 ```bash
 n8n-manager instance list
-n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+n8nac env add Local --managed-instance <id> --workflows-path workflows/local
 ```
 
 ## Compatibility Settings
@@ -96,7 +96,7 @@ The legacy native editor settings may still exist as fallbacks:
 |---|---|
 | `n8n.host` | Legacy n8n URL |
 | `n8n.apiKey` | Legacy API key |
-| `n8n.syncFolder` | Legacy sync folder |
+| `n8n.workflowsPath` | Legacy sync folder |
 
 Prefer `n8n environments` for all new configuration.
 

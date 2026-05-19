@@ -1458,13 +1458,13 @@ function toInstanceQuickPickItem(
 }
 
 function toEnvironmentQuickPickItem(
-    environment: { id: string; name: string; environmentTargetId: string; projectName?: string; syncFolder?: string },
+    environment: { id: string; name: string; environmentTargetId: string; projectName?: string; workflowsPath?: string; workflowDir?: string; syncFolder?: string },
     activeEnvironmentId?: string,
 ): EnvironmentQuickPickItem {
     return {
         label: environment.name,
         description: environment.projectName || environment.environmentTargetId,
-        detail: environment.syncFolder || (environment.id === activeEnvironmentId ? 'Currently active' : ''),
+        detail: environment.workflowsPath || environment.workflowDir || environment.syncFolder || (environment.id === activeEnvironmentId ? 'Currently active' : ''),
         picked: environment.id === activeEnvironmentId,
         environmentId: environment.id,
     };
@@ -2285,14 +2285,15 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
         activeInstanceId: environment?.activeInstanceId || effective?.activeInstanceId || '',
         host: environment?.host || effective?.apiBaseUrl || effective?.host || '',
         apiKey: environment?.apiKey || effective?.apiKey || '',
-        syncFolder: environment?.syncFolder || effective?.syncFolder || 'workflows',
-        workflowDir: environment?.workflowDir || (effective as any)?.workflowDir || '',
+        workflowsPath: environment?.workflowsPath || environment?.workflowDir || (effective as any)?.workflowsPath || (effective as any)?.workflowDir || '',
+        syncFolder: environment?.workflowsPath || environment?.workflowDir || (effective as any)?.workflowsPath || (effective as any)?.workflowDir || effective?.syncFolder || 'workflows',
+        workflowDir: environment?.workflowsPath || environment?.workflowDir || (effective as any)?.workflowsPath || (effective as any)?.workflowDir || '',
         projectId: environment?.projectId || effective?.projectId || '',
         projectName: environment?.projectName || effective?.projectName || '',
     };
 
     const { host, apiKey } = resolvedConfig;
-    const folder = resolvedConfig.syncFolder || 'workflows';
+    const folder = resolvedConfig.workflowsPath || resolvedConfig.workflowDir || resolvedConfig.syncFolder || 'workflows';
     let projectId = resolvedConfig.projectId || undefined;
     let projectName = resolvedConfig.projectName || undefined;
     if (!host || !apiKey) throw new Error('Host/API Key missing. Please configure n8n.');
@@ -2364,6 +2365,7 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
     // Create SyncManager (the stateful engine: WorkflowStateTracker, events, etc.)
     syncManager = new SyncManager(client, {
         directory: absDirectory,
+        workflowsPath: absWorkflowDirectory,
         workflowDir: absWorkflowDirectory,
         syncInactive: true,
         ignoredTags: [],

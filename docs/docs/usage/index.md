@@ -30,7 +30,7 @@ The recommended experience. It provides the n8n sidebar, embedded canvas, explic
 Use the CLI for scripts, CI, and direct terminal workflows:
 
 ```bash
-n8nac env add Dev --base-url <url> --sync-folder workflows/dev
+n8nac env add Dev --base-url <url> --workflows-path workflows/dev
 n8nac env auth set Dev --api-key-stdin
 n8nac env use Dev
 n8nac list

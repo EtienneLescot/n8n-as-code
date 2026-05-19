@@ -34,9 +34,8 @@ function normalizeHost(host: string): string {
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
 }
 
-function normalizeSyncRoot(syncRoot: string): string {
-  const trimmed = String(syncRoot || '').trim().replace(/\\/g, '/').replace(/\/+$/g, '');
-  return trimmed || 'workflows';
+function normalizeWorkflowsPath(workflowsPath: string): string {
+  return String(workflowsPath || '').trim().replace(/\\/g, '/').replace(/\/+$/g, '');
 }
 
 async function clearLegacyWorkspaceSettings(): Promise<string[]> {
@@ -372,14 +371,16 @@ export class ConfigurationWebview {
           if (environmentTargetId && url && apiKey) {
             configService.saveWorkspaceTargetApiKey(environmentTargetId, apiKey);
           }
-          const syncFolder = normalizeSyncRoot(String(payload.syncFolder || '').trim());
+          const workflowsPath = normalizeWorkflowsPath(String(payload.workflowsPath || payload.workflowDir || '').trim());
+          const syncFolder = normalizeWorkflowsPath(String(payload.syncFolder || '').trim());
           const folderSync = typeof payload.folderSync === 'boolean' ? payload.folderSync : undefined;
           const input = {
             name,
             environmentTarget: environmentTargetId,
             projectId,
             projectName,
-            syncFolder,
+            workflowsPath: workflowsPath || undefined,
+            syncFolder: workflowsPath ? undefined : syncFolder || undefined,
             folderSync,
             customNodesPath: String(payload.customNodesPath || '').trim() || undefined,
             description: String(payload.description || '').trim() || undefined,
@@ -936,7 +937,8 @@ export class ConfigurationWebview {
         host: effectiveContext.host,
         apiBaseUrl: effectiveContext.apiBaseUrl ?? effectiveContext.host,
         publicBaseUrl: effectiveContext.publicBaseUrl || '',
-        syncFolder: effectiveContext.syncFolder,
+        workflowsPath: (effectiveContext as any).workflowsPath || (effectiveContext as any).workflowDir || effectiveContext.syncFolder,
+        syncFolder: (effectiveContext as any).workflowsPath || (effectiveContext as any).workflowDir || effectiveContext.syncFolder,
         projectId: effectiveContext.projectId || '',
         projectName: effectiveContext.projectName || '',
         sources: effectiveContext.sources,

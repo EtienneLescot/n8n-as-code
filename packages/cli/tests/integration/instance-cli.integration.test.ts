@@ -153,13 +153,13 @@ describe('CLI workspace integration', () => {
             'env', 'add', 'Dev',
             '--base-url', 'https://dev.example.com',
             '--api-key', 'dev-key',
-            '--sync-folder', 'workflows/dev',
+            '--workflows-path', 'workflows/dev',
             '--json',
         ]));
 
         expect(created).toMatchObject({
             name: 'Dev',
-            syncFolder: 'workflows/dev',
+            workflowsPath: 'workflows/dev',
             projectId: 'personal',
             projectName: 'Personal',
         });

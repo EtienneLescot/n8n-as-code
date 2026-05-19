@@ -24,6 +24,7 @@ export interface ILocalConfig {
     projectName?: string;
     instanceIdentifier?: string;
     instanceUserIdentifier?: string;
+    workflowsPath?: string;
     workflowDir?: string;
     customNodesPath?: string;
     folderSync?: boolean;
@@ -78,7 +79,8 @@ export interface IWorkspaceEnvironment {
     environmentTargetId: string;
     projectId?: string;
     projectName?: string;
-    syncFolder: string;
+    workflowsPath?: string;
+    syncFolder?: string;
     folderSync?: boolean;
     customNodesPath?: string;
     description?: string;
@@ -87,6 +89,7 @@ export interface IWorkspaceEnvironment {
     managedInstanceId?: string;
     instanceName?: string;
     url?: string;
+    workflowsPathResolved?: string;
     workflowDir?: string;
     instanceIdentifier?: string;
     instanceUserIdentifier?: string;
@@ -143,7 +146,8 @@ export interface IResolvedWorkspaceEnvironment extends ILocalConfig {
     apiKeySource: 'env' | 'workspace-local' | 'global' | 'missing';
     apiKeyAvailable: boolean;
     accessStatus: EnvironmentAccessStatus;
-    syncFolder: string;
+    workflowsPath: string;
+    syncFolder?: string;
     instanceIdentifier?: string;
     instanceUserIdentifier?: string;
     workflowDir?: string;
@@ -518,7 +522,9 @@ export class ConfigService {
         environmentTarget: string;
         projectId?: string;
         projectName?: string;
-        syncFolder: string;
+        workflowsPath?: string;
+        workflowDir?: string;
+        syncFolder?: string;
         id?: string;
         folderSync?: boolean;
         customNodesPath?: string;
@@ -532,15 +538,20 @@ export class ConfigService {
             ...config.environments.map((item) => item.id),
         ]);
         this.assertUniqueName(name, config.environments, 'environment');
+        const syncSlug = this.uniqueEnvironmentSyncSlug(name, config.environments);
+        const workflowsPath = cleanOptional(input.workflowsPath)
+            || cleanOptional(input.workflowDir)
+            || cleanOptional(input.syncFolder)
+            || this.resolveInputWorkflowsPath({ syncSlug }, config.environments, name);
 
         const environment: IWorkspaceEnvironment = {
             id,
             name,
-            syncSlug: this.uniqueEnvironmentSyncSlug(name, config.environments),
+            syncSlug,
             environmentTargetId: target.id,
             projectId: cleanOptional(input.projectId),
             projectName: cleanOptional(input.projectName),
-            syncFolder: cleanRequired(input.syncFolder, 'Sync folder'),
+            workflowsPath,
             folderSync: input.folderSync,
             customNodesPath: input.customNodesPath,
             description: input.description,
@@ -554,7 +565,7 @@ export class ConfigService {
         return environment;
     }
 
-    updateEnvironment(nameOrId: string, patch: Partial<Pick<IWorkspaceEnvironment, 'name' | 'projectId' | 'projectName' | 'syncFolder' | 'folderSync' | 'customNodesPath' | 'description'>> & { environmentTarget?: string }): IWorkspaceEnvironment {
+    updateEnvironment(nameOrId: string, patch: Partial<Pick<IWorkspaceEnvironment, 'name' | 'projectId' | 'projectName' | 'workflowsPath' | 'workflowDir' | 'syncFolder' | 'folderSync' | 'customNodesPath' | 'description'>> & { environmentTarget?: string }): IWorkspaceEnvironment {
         const config = this.ensureV4WorkspaceConfig();
         const environment = this.findEnvironment(config, nameOrId);
         const currentTarget = this.findInstanceTarget(config, environment.environmentTargetId);
@@ -563,17 +574,24 @@ export class ConfigService {
         if (nextName.toLowerCase() !== environment.name.toLowerCase()) {
             this.assertUniqueName(nextName, config.environments.filter((item) => item.id !== environment.id), 'environment');
         }
-        const nextSyncFolder = patch.syncFolder !== undefined ? cleanRequired(patch.syncFolder, 'Sync folder') : environment.syncFolder;
-        const syncFolderChanged = this.resolveWorkspacePath(nextSyncFolder) !== this.resolveWorkspacePath(environment.syncFolder);
-        const legacyWorkflowDir = syncFolderChanged ? undefined : this.resolveEnvironmentLegacyWorkflowDir(environment, currentTarget);
+        const currentWorkflowsPath = cleanRequired(environment.workflowsPath, 'Workflows path');
+        const workflowsPathPatch = this.patchWorkflowsPath(environment, patch);
+        const workflowsPathChanged = workflowsPathPatch !== undefined
+            && this.resolveWorkspacePath(workflowsPathPatch) !== this.resolveWorkspacePath(currentWorkflowsPath);
+        if (workflowsPathChanged) {
+            this.migrateWorkflowsPath(currentWorkflowsPath, workflowsPathPatch);
+        }
+        const legacyWorkflowDir = workflowsPathChanged ? undefined : this.resolvePreservedLegacyWorkflowsPath(environment, currentTarget);
         const nextEnvironment: IWorkspaceEnvironment = stripUndefined({
             ...environment,
             name: nextName,
+            workflowsPath: workflowsPathPatch ?? environment.workflowsPath,
             legacyWorkflowDir,
+            workflowDir: undefined,
+            syncFolder: undefined,
             environmentTargetId: target?.id || environment.environmentTargetId,
             projectId: patch.projectId !== undefined ? cleanOptional(patch.projectId) : environment.projectId,
             projectName: patch.projectName !== undefined ? cleanOptional(patch.projectName) : environment.projectName,
-            syncFolder: nextSyncFolder,
             folderSync: patch.folderSync ?? environment.folderSync,
             customNodesPath: patch.customNodesPath ?? environment.customNodesPath,
             description: patch.description ?? environment.description,
@@ -641,20 +659,25 @@ export class ConfigService {
                 const identity = await this.resolveN8nIdentity(resolved.host, resolved.apiKey, undefined, resolved.instanceIdentifier || resolved.environmentTargetId).catch(() => undefined);
                 const instanceIdentifier = identity?.instanceIdentifier || resolved.instanceIdentifier;
                 const instanceUserIdentifier = identity?.instanceUserIdentifier || resolved.instanceUserIdentifier;
-                return {
-                    ...resolved,
+                const workflowsPath = this.resolveEnvironmentWorkflowsPath(resolved.environment, {
                     instanceIdentifier,
                     instanceUserIdentifier,
-                    workflowDir: this.buildEnvironmentWorkflowDir({
-                        syncFolder: resolved.syncFolder,
-                        syncSlug: resolved.environment.syncSlug,
-                        legacyWorkflowDir: resolved.environment.legacyWorkflowDir,
-                        environmentId: resolved.environmentId,
-                        instanceIdentifier,
-                        instanceUserIdentifier,
-                        projectId: resolved.projectId,
-                        projectName: resolved.projectName,
-                    }),
+                    legacyInstanceIdentifier: resolved.environmentTarget.kind === 'external-instance'
+                        ? resolved.environmentTarget.instanceIdentifier
+                        : undefined,
+                    legacyInstanceUserIdentifier: resolved.environmentTarget.kind === 'external-instance'
+                        ? resolved.environmentTarget.instanceUserIdentifier
+                        : undefined,
+                    projectId: resolved.projectId,
+                    projectName: resolved.projectName,
+                });
+                return {
+                    ...resolved,
+                    workflowsPath,
+                    syncFolder: workflowsPath,
+                    instanceIdentifier,
+                    instanceUserIdentifier,
+                    workflowDir: workflowsPath,
                 };
             }
             return resolved;
@@ -672,7 +695,6 @@ export class ConfigService {
 
         const context = prepared.context;
         const apiKey = resolved.apiKey || context.apiKey;
-        const syncFolder = resolved.syncFolder;
         const projectId = resolved.projectId || context.projectId;
         const projectName = resolved.projectName || context.projectName;
         let instanceIdentifier = this.canonicalWorkflowInstanceIdentifier((context as any).n8nInstanceIdentifier)
@@ -686,6 +708,14 @@ export class ConfigService {
             instanceIdentifier = identity?.instanceIdentifier || instanceIdentifier;
             instanceUserIdentifier = identity?.instanceUserIdentifier || instanceUserIdentifier;
         }
+        const workflowsPath = this.resolveEnvironmentWorkflowsPath(resolved.environment, {
+            instanceIdentifier,
+            instanceUserIdentifier,
+            legacyInstanceIdentifier: resolved.instance.instanceIdentifier,
+            legacyInstanceUserIdentifier: (resolved.instance as IInstanceProfile & { instanceUserIdentifier?: string }).instanceUserIdentifier,
+            projectId,
+            projectName,
+        });
         return {
             ...resolved,
             host: context.host,
@@ -699,17 +729,9 @@ export class ConfigService {
             instanceUserIdentifier,
             projectId,
             projectName,
-            syncFolder,
-            workflowDir: this.buildEnvironmentWorkflowDir({
-                syncFolder,
-                syncSlug: resolved.environment.syncSlug,
-                legacyWorkflowDir: resolved.environment.legacyWorkflowDir,
-                environmentId: resolved.environmentId,
-                instanceIdentifier,
-                instanceUserIdentifier,
-                projectId,
-                projectName,
-            }),
+            workflowsPath,
+            syncFolder: workflowsPath,
+            workflowDir: workflowsPath,
         };
     }
 
@@ -1188,7 +1210,8 @@ export class ConfigService {
             syncFolder: asString(raw.syncFolder) || activeInstance?.syncFolder,
             projectId: asString(raw.projectId) || activeInstance?.projectId,
             projectName: asString(raw.projectName) || activeInstance?.projectName,
-            workflowDir: asString(raw.workflowDir) || activeInstance?.workflowDir,
+            workflowsPath: asString(raw.workflowsPath) || activeInstance?.workflowsPath || asString(raw.workflowDir) || activeInstance?.workflowDir,
+            workflowDir: asString(raw.workflowDir) || activeInstance?.workflowDir || asString(raw.workflowsPath) || activeInstance?.workflowsPath,
             customNodesPath: asString(raw.customNodesPath) || activeInstance?.customNodesPath,
             folderSync: asBoolean(raw.folderSync) ?? activeInstance?.folderSync,
         });
@@ -1267,6 +1290,8 @@ export class ConfigService {
                 const environmentId = this.uniqueWorkspaceId(singleInstanceMigration ? 'default' : profile.id || legacy.id || environmentName, usedIds);
                 usedIds.push(environmentId);
                 const syncFolder = legacy.syncFolder || plan.workspace.syncFolder || DEFAULT_SYNC_FOLDER;
+                const syncSlug = this.createEnvironmentSyncSlug(environmentName);
+                const legacyWorkflowDir = legacy.workflowsPath || legacy.workflowDir || plan.workspace.workflowsPath || plan.workspace.workflowDir;
 
                 environmentTargets.push({
                     id: targetId,
@@ -1282,8 +1307,10 @@ export class ConfigService {
                     environmentTargetId: targetId,
                     projectId: legacy.projectId || plan.workspace.projectId,
                     projectName: legacy.projectName || plan.workspace.projectName,
+                    workflowsPath: legacyWorkflowDir || path.join(syncFolder, syncSlug),
+                    syncSlug,
                     syncFolder,
-                    legacyWorkflowDir: legacy.workflowDir || plan.workspace.workflowDir,
+                    legacyWorkflowDir,
                     customNodesPath: legacy.customNodesPath || plan.workspace.customNodesPath,
                     folderSync: legacy.folderSync ?? plan.workspace.folderSync,
                 }));
@@ -1536,12 +1563,15 @@ export class ConfigService {
                     const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
                     usedIds.push(environmentId);
                     const syncFolder = DEFAULT_SYNC_FOLDER;
+                    const syncSlug = this.createEnvironmentSyncSlug(environmentName);
                     existingEnvironment = stripUndefined({
                         id: environmentId,
                         name: environmentName,
                         environmentTargetId: targetId,
                         projectId: instance.defaultProject?.id || 'personal',
                         projectName: instance.defaultProject?.name || 'Personal',
+                        workflowsPath: path.join(syncFolder, syncSlug),
+                        syncSlug,
                         syncFolder,
                     });
                     environments.push(existingEnvironment);
@@ -1586,12 +1616,15 @@ export class ConfigService {
                     const environmentId = this.uniqueWorkspaceId(instance.id || environmentName, usedIds);
                     usedIds.push(environmentId);
                     const syncFolder = DEFAULT_SYNC_FOLDER;
+                    const syncSlug = this.createEnvironmentSyncSlug(environmentName);
                     existingEnvironment = stripUndefined({
                         id: environmentId,
                         name: environmentName,
                         environmentTargetId: existingTarget.id,
                         projectId: instance.defaultProject?.id || 'personal',
                         projectName: instance.defaultProject?.name || 'Personal',
+                        workflowsPath: path.join(syncFolder, syncSlug),
+                        syncSlug,
                         syncFolder,
                     });
                     environments.push(existingEnvironment);
@@ -1609,6 +1642,7 @@ export class ConfigService {
             const projectId = instance.defaultProject?.id || 'personal';
             const projectName = instance.defaultProject?.name || 'Personal';
             const syncFolder = DEFAULT_SYNC_FOLDER;
+            const syncSlug = this.createEnvironmentSyncSlug(environmentName);
 
             environmentTargets.push({
                 id: targetId,
@@ -1624,6 +1658,8 @@ export class ConfigService {
                 environmentTargetId: targetId,
                 projectId,
                 projectName,
+                workflowsPath: path.join(syncFolder, syncSlug),
+                syncSlug,
                 syncFolder,
             }));
 
@@ -1878,7 +1914,7 @@ export class ConfigService {
         const rawInstanceTargets = rawTargets as unknown[];
         const rawEnvironments = raw.environments as unknown[];
         const environmentTargets = rawInstanceTargets.map((target, index) => this.sanitizeInstanceTarget(target, index));
-        const environments = this.ensureEnvironmentSyncSlugs(rawEnvironments.map((environment, index) => this.sanitizeEnvironment(environment, index)));
+        const environments = this.ensureEnvironmentWorkflowsPaths(rawEnvironments.map((environment, index) => this.sanitizeEnvironment(environment, index)));
         this.assertUniqueIds(environmentTargets, 'instance target');
         this.assertUniqueIdsAndNames(environments, 'environment');
         const targetIds = new Set(environmentTargets.map((target) => target.id));
@@ -1926,10 +1962,11 @@ export class ConfigService {
                 name,
                 kind: 'external-instance' as const,
                 url,
-                instanceIdentifier: this.canonicalWorkflowInstanceIdentifier(target.instanceIdentifier || target.instance?.instanceIdentifier),
+                instanceIdentifier: this.canonicalWorkflowInstanceIdentifier(target.instanceIdentifier || target.instance?.instanceIdentifier)
+                    || cleanOptional(target.instanceIdentifier || target.instance?.instanceIdentifier),
                 instanceUserIdentifier: this.readStoredInstanceUserIdentifier(
                     target.instanceUserIdentifier || target.instance?.instanceUserIdentifier || target.instanceIdentifier || target.instance?.instanceIdentifier,
-                ),
+                ) || cleanOptional(target.instanceUserIdentifier || target.instance?.instanceUserIdentifier),
                 verification: target.verification || target.instance?.verification,
                 description: cleanOptional(target.description),
             });
@@ -1955,7 +1992,7 @@ export class ConfigService {
         }
     }
 
-    private ensureEnvironmentSyncSlugs(environments: IWorkspaceEnvironment[]): IWorkspaceEnvironment[] {
+    private ensureEnvironmentWorkflowsPaths(environments: IWorkspaceEnvironment[]): IWorkspaceEnvironment[] {
         const usedSlugs = new Set<string>();
         const normalized = environments.map((environment) => {
             const syncSlug = environment.syncSlug
@@ -1972,10 +2009,11 @@ export class ConfigService {
         });
 
         return normalized.map((environment) => {
-            if (environment.syncSlug) return environment;
-            const syncSlug = this.uniqueEnvironmentSyncSlug(environment.name, [], usedSlugs);
+            const syncSlug = environment.syncSlug || this.uniqueEnvironmentSyncSlug(environment.name, [], usedSlugs);
             usedSlugs.add(syncSlug.toLowerCase());
-            return { ...environment, syncSlug };
+            const workflowsPath = environment.workflowsPath
+                || this.resolveInputWorkflowsPath({ syncFolder: environment.syncFolder, syncSlug }, environments, environment.name);
+            return stripUndefined({ ...environment, syncSlug, workflowsPath, workflowDir: undefined });
         });
     }
 
@@ -1986,9 +2024,10 @@ export class ConfigService {
         const id = cleanOptional(environment.id);
         const name = cleanOptional(environment.name) || id;
         const environmentTargetId = cleanOptional(environment.environmentTargetId) || cleanOptional(environment.instanceTargetId);
+        const workflowsPath = cleanOptional(environment.workflowsPath) || cleanOptional(environment.workflowDir);
         const syncFolder = cleanOptional(environment.syncFolder);
-        if (!id || !name || !environmentTargetId || !syncFolder) {
-            throw new Error(`Invalid v4 workspace config: environment at index ${index} needs id, name, environmentTargetId, and syncFolder.`);
+        if (!id || !name || !environmentTargetId || (!workflowsPath && !syncFolder)) {
+            throw new Error(`Invalid v4 workspace config: environment at index ${index} needs id, name, environmentTargetId, and workflowsPath.`);
         }
         return stripUndefined({
             id,
@@ -1998,6 +2037,7 @@ export class ConfigService {
             environmentTargetId,
             projectId: cleanOptional(environment.projectId),
             projectName: cleanOptional(environment.projectName),
+            workflowsPath,
             syncFolder,
             folderSync: typeof environment.folderSync === 'boolean' ? environment.folderSync : undefined,
             customNodesPath: cleanOptional(environment.customNodesPath),
@@ -2019,6 +2059,7 @@ export class ConfigService {
         const environmentTargets: IEnvironmentTarget[] = managedInstanceId
             ? [{ id: 'default-instance', name: 'Default Instance', kind: 'managed-instance', managedInstanceId }]
             : [];
+        const legacyWorkflowDir = (overrides as Partial<ILocalConfig>).workflowDir;
         const environments: IWorkspaceEnvironment[] = managedInstanceId
             ? [stripUndefined({
                 id: 'default',
@@ -2027,7 +2068,9 @@ export class ConfigService {
                 environmentTargetId: 'default-instance',
                 projectId: overrides.projectId,
                 projectName: overrides.projectName,
+                workflowsPath: legacyWorkflowDir || path.join(overrides.syncFolder || DEFAULT_SYNC_FOLDER, this.createEnvironmentSyncSlug('Default')),
                 syncFolder: overrides.syncFolder || DEFAULT_SYNC_FOLDER,
+                legacyWorkflowDir,
                 folderSync: overrides.folderSync,
                 customNodesPath: overrides.customNodesPath,
             })]
@@ -2092,7 +2135,6 @@ export class ConfigService {
     }
 
     private resolveEnvironmentFromTarget(environment: IWorkspaceEnvironment, target: IEnvironmentTarget, source: IResolvedWorkspaceEnvironment['sources']['environment']): IResolvedWorkspaceEnvironment {
-        const syncFolder = this.resolveWorkspacePath(environment.syncFolder);
         if (target.kind === 'managed-instance') {
             const instance = this.manager.getInstance(target.managedInstanceId);
             if (!instance) throw new Error(`Workspace environment "${environment.name}" references missing global n8n-manager instance: ${target.managedInstanceId}`);
@@ -2103,6 +2145,15 @@ export class ConfigService {
             const projectId = environment.projectId || instance.defaultProject?.id;
             const projectName = environment.projectName || instance.defaultProject?.name;
             const identity = this.resolveManagedEnvironmentIdentity(instance, host, apiKey);
+            const workflowsPath = this.resolveEnvironmentWorkflowsPath(environment, {
+                instanceIdentifier: identity.instanceIdentifier,
+                instanceUserIdentifier: identity.instanceUserIdentifier,
+                legacyInstanceIdentifier: instance.instanceIdentifier,
+                legacyInstanceUserIdentifier: (instance as GlobalN8nInstance & { instanceUserIdentifier?: string }).instanceUserIdentifier,
+                projectId,
+                projectName,
+            });
+            const syncFolder = workflowsPath;
             return {
                 environment,
                 environmentTarget: target,
@@ -2120,21 +2171,13 @@ export class ConfigService {
                 apiKeySource: envApiKey ? 'env' : globalApiKey ? 'global' : 'missing',
                 apiKeyAvailable: Boolean(apiKey),
                 accessStatus: this.deriveAccessStatus({ host, apiKey, projectId, projectName, verification: envApiKey ? undefined : instance.verification }),
+                workflowsPath,
                 syncFolder,
                 projectId,
                 projectName,
                 instanceIdentifier: identity.instanceIdentifier,
                 instanceUserIdentifier: identity.instanceUserIdentifier,
-                workflowDir: this.buildEnvironmentWorkflowDir({
-                    syncFolder,
-                    syncSlug: environment.syncSlug,
-                    legacyWorkflowDir: environment.legacyWorkflowDir,
-                    environmentId: environment.id,
-                    instanceIdentifier: identity.instanceIdentifier,
-                    instanceUserIdentifier: identity.instanceUserIdentifier,
-                    projectId,
-                    projectName,
-                }),
+                workflowDir: workflowsPath,
                 folderSync: environment.folderSync ?? false,
                 customNodesPath: environment.customNodesPath,
                 sources: {
@@ -2152,6 +2195,15 @@ export class ConfigService {
         const globalApiKey = this.getApiKey(host);
         const apiKey = envApiKey || workspaceApiKey || globalApiKey;
         const identity = this.resolveExternalEnvironmentIdentity(target, apiKey);
+        const workflowsPath = this.resolveEnvironmentWorkflowsPath(environment, {
+            instanceIdentifier: identity.instanceIdentifier,
+            instanceUserIdentifier: identity.instanceUserIdentifier,
+            legacyInstanceIdentifier: target.instanceIdentifier,
+            legacyInstanceUserIdentifier: target.instanceUserIdentifier,
+            projectId: environment.projectId,
+            projectName: environment.projectName,
+        });
+        const syncFolder = workflowsPath;
         return {
             environment,
             environmentTarget: target,
@@ -2167,21 +2219,13 @@ export class ConfigService {
             apiKeySource: envApiKey ? 'env' : workspaceApiKey ? 'workspace-local' : globalApiKey ? 'global' : 'missing',
             apiKeyAvailable: Boolean(apiKey),
             accessStatus: this.deriveAccessStatus({ host, apiKey, projectId: environment.projectId, projectName: environment.projectName, verification: target.verification }),
+            workflowsPath,
             syncFolder,
             projectId: environment.projectId,
             projectName: environment.projectName,
             instanceIdentifier: identity.instanceIdentifier,
             instanceUserIdentifier: identity.instanceUserIdentifier,
-            workflowDir: this.buildEnvironmentWorkflowDir({
-                syncFolder,
-                syncSlug: environment.syncSlug,
-                legacyWorkflowDir: environment.legacyWorkflowDir,
-                environmentId: environment.id,
-                instanceIdentifier: identity.instanceIdentifier,
-                instanceUserIdentifier: identity.instanceUserIdentifier,
-                projectId: environment.projectId,
-                projectName: environment.projectName,
-            }),
+            workflowDir: workflowsPath,
             folderSync: environment.folderSync ?? false,
             customNodesPath: environment.customNodesPath,
             sources: {
@@ -2241,12 +2285,13 @@ export class ConfigService {
     private environmentToLocalConfig(environment: IResolvedWorkspaceEnvironment): Partial<ILocalConfig> {
         return stripUndefined({
             host: environment.host,
-            syncFolder: environment.syncFolder,
+            workflowsPath: environment.workflowsPath,
+            workflowDir: environment.workflowsPath,
+            syncFolder: environment.workflowsPath,
             projectId: environment.projectId,
             projectName: environment.projectName,
             instanceIdentifier: environment.instanceIdentifier,
             instanceUserIdentifier: environment.instanceUserIdentifier,
-            workflowDir: environment.workflowDir,
             customNodesPath: environment.customNodesPath,
             folderSync: environment.folderSync,
         });
@@ -2269,7 +2314,8 @@ export class ConfigService {
             managedInstanceId: resolved.managedInstanceId,
             instanceName: resolved.activeInstanceName,
             url: resolved.sourceKind === 'external-instance' ? resolved.host : undefined,
-            workflowDir: resolved.workflowDir,
+            workflowsPathResolved: resolved.workflowsPath,
+            workflowDir: resolved.workflowsPath,
             instanceIdentifier: resolved.instanceIdentifier,
             instanceUserIdentifier: resolved.instanceUserIdentifier,
             apiKeyAvailable: resolved.apiKeyAvailable,
@@ -2338,12 +2384,13 @@ export class ConfigService {
             id: environment.activeInstanceId || environment.environmentTargetId,
             name: environment.activeInstanceName || environment.environmentTargetName,
             host: environment.host,
-            syncFolder: environment.syncFolder,
+            workflowsPath: environment.workflowsPath,
+            workflowDir: environment.workflowsPath,
+            syncFolder: environment.workflowsPath,
             projectId: environment.projectId,
             projectName: environment.projectName,
             instanceIdentifier: environment.instanceIdentifier,
             instanceUserIdentifier: environment.instanceUserIdentifier,
-            workflowDir: environment.workflowDir,
             customNodesPath: environment.customNodesPath,
             folderSync: environment.folderSync,
         });
@@ -2367,12 +2414,13 @@ export class ConfigService {
             host: environment.host,
             baseUrl: environment.host,
             apiKey: environment.apiKey,
-            syncFolder: environment.syncFolder,
+            workflowsPath: environment.workflowsPath,
+            workflowDir: environment.workflowsPath,
+            syncFolder: environment.workflowsPath,
             projectId: environment.projectId,
             projectName: environment.projectName,
             instanceIdentifier: environment.instanceIdentifier,
             instanceUserIdentifier: environment.instanceUserIdentifier,
-            workflowDir: environment.workflowDir,
             folderSync: environment.folderSync ?? false,
             customNodesPath: environment.customNodesPath,
             environmentId: environment.environmentId,
@@ -2572,12 +2620,15 @@ export class ConfigService {
         return {
             ...this.toInstanceProfile(context.instance),
             host: context.host,
+            workflowsPath: (context as EffectiveN8nContext & { workflowsPath?: string }).workflowsPath
+                || (context as EffectiveN8nContext & { workflowDir?: string }).workflowDir,
             syncFolder: context.syncFolder,
             projectId: context.projectId,
             projectName: context.projectName,
             instanceIdentifier,
             instanceUserIdentifier,
-            workflowDir: (context as EffectiveN8nContext & { workflowDir?: string }).workflowDir
+            workflowDir: (context as EffectiveN8nContext & { workflowsPath?: string }).workflowsPath
+                || (context as EffectiveN8nContext & { workflowDir?: string }).workflowDir
                 || this.buildWorkflowDir(context.syncFolder, instanceIdentifier, context.projectName),
             customNodesPath: context.customNodesPath,
             folderSync: context.folderSync,
@@ -2590,13 +2641,14 @@ export class ConfigService {
 
     private toLocalConfig(profile?: Partial<ILocalConfig>): Partial<ILocalConfig> {
         if (!profile) return {};
-        const workflowDir = profile.workflowDir || this.buildWorkflowDir(
+        const workflowDir = profile.workflowsPath || profile.workflowDir || this.buildWorkflowDir(
             profile.syncFolder,
             profile.instanceIdentifier,
             profile.projectName,
         );
         return stripUndefined({
             host: profile.host,
+            workflowsPath: profile.workflowsPath,
             syncFolder: profile.syncFolder,
             projectId: profile.projectId,
             projectName: profile.projectName,
@@ -2685,67 +2737,98 @@ export class ConfigService {
             : undefined;
     }
 
-    private buildEnvironmentWorkflowDir(input: {
+    private resolveInputWorkflowsPath(input: {
+        workflowsPath?: string;
+        workflowDir?: string;
         syncFolder?: string;
         syncSlug?: string;
-        legacyWorkflowDir?: string;
-        environmentId?: string;
-        instanceIdentifier?: string;
-        instanceUserIdentifier?: string;
-        projectId?: string;
-        projectName?: string;
-    }): string | undefined {
-        if (input.syncFolder && input.syncSlug) {
-            const slugWorkflowDir = path.join(input.syncFolder, input.syncSlug);
-            const existingLegacyDir = this.findExistingLegacyWorkflowDir(input, slugWorkflowDir);
-            return existingLegacyDir || slugWorkflowDir;
-        }
-        return this.buildLegacyEnvironmentWorkflowDir(input);
+    }, environments: Array<Pick<IWorkspaceEnvironment, 'workflowsPath' | 'syncFolder' | 'syncSlug'>>, name: string): string {
+        const explicit = cleanOptional(input.workflowsPath) || cleanOptional(input.workflowDir);
+        if (explicit) return explicit;
+        const syncFolder = cleanOptional(input.syncFolder) || DEFAULT_SYNC_FOLDER;
+        const syncSlug = input.syncSlug || this.uniqueEnvironmentSyncSlug(name, environments);
+        return path.join(syncFolder, syncSlug);
     }
 
-    private findExistingLegacyWorkflowDir(input: {
-        syncFolder?: string;
-        legacyWorkflowDir?: string;
-        environmentId?: string;
-        instanceIdentifier?: string;
-        instanceUserIdentifier?: string;
-        projectId?: string;
-        projectName?: string;
-    }, slugWorkflowDir: string): string | undefined {
-        if (fs.existsSync(slugWorkflowDir)) return undefined;
-        const configuredLegacyDir = input.legacyWorkflowDir
-            ? this.resolveWorkspacePath(input.legacyWorkflowDir)
-            : undefined;
-        if (configuredLegacyDir && fs.existsSync(configuredLegacyDir)) {
-            return configuredLegacyDir;
-        }
-        return this.getLegacyEnvironmentWorkflowDirs(input).find((directory) => fs.existsSync(directory));
+    private patchWorkflowsPath(environment: IWorkspaceEnvironment, patch: Partial<Pick<IWorkspaceEnvironment, 'workflowsPath' | 'workflowDir' | 'syncFolder'>>): string | undefined {
+        const explicit = patch.workflowsPath !== undefined
+            ? cleanRequired(patch.workflowsPath, 'Workflows path')
+            : patch.workflowDir !== undefined
+                ? cleanRequired(patch.workflowDir, 'Workflow directory')
+                : undefined;
+        if (explicit !== undefined) return explicit;
+        if (patch.syncFolder === undefined) return undefined;
+        return cleanRequired(patch.syncFolder, 'Sync folder');
     }
 
-    private resolveEnvironmentLegacyWorkflowDir(environment: IWorkspaceEnvironment, target: IEnvironmentTarget): string | undefined {
-        const syncFolder = this.resolveWorkspacePath(environment.syncFolder);
-        const slugWorkflowDir = environment.syncSlug
-            ? path.join(syncFolder, environment.syncSlug)
+    private resolveEnvironmentWorkflowsPath(environment: IWorkspaceEnvironment, identity: {
+        instanceIdentifier?: string;
+        instanceUserIdentifier?: string;
+        legacyInstanceIdentifier?: string;
+        legacyInstanceUserIdentifier?: string;
+        projectId?: string;
+        projectName?: string;
+    } = {}): string {
+        const configured = this.resolveWorkspacePath(cleanRequired(environment.workflowsPath, 'Workflows path'));
+        if (fs.existsSync(configured)) return configured;
+        const configuredLegacyDir = environment.legacyWorkflowDir
+            ? this.resolveWorkspacePath(environment.legacyWorkflowDir)
             : undefined;
+        if (configuredLegacyDir && fs.existsSync(configuredLegacyDir)) return configuredLegacyDir;
+        const legacy = this.getLegacyEnvironmentWorkflowDirs({
+            syncFolder: environment.syncFolder ? this.resolveWorkspacePath(environment.syncFolder) : undefined,
+            environmentId: environment.id,
+            instanceIdentifier: identity.instanceIdentifier,
+            instanceUserIdentifier: identity.instanceUserIdentifier,
+            legacyInstanceIdentifier: identity.legacyInstanceIdentifier,
+            legacyInstanceUserIdentifier: identity.legacyInstanceUserIdentifier,
+            projectId: identity.projectId,
+            projectName: identity.projectName,
+        }).find((directory) => fs.existsSync(directory));
+        return legacy || configured;
+    }
+
+    private resolvePreservedLegacyWorkflowsPath(environment: IWorkspaceEnvironment, target: IEnvironmentTarget): string | undefined {
+        const configured = this.resolveWorkspacePath(cleanRequired(environment.workflowsPath, 'Workflows path'));
         const resolved = this.resolveEnvironmentFromTarget(environment, target, 'explicit');
-        const workflowDir = resolved.workflowDir;
-        if (!workflowDir || workflowDir === slugWorkflowDir || !fs.existsSync(workflowDir)) {
+        const workflowsPath = resolved.workflowsPath;
+        if (!workflowsPath || workflowsPath === configured || !fs.existsSync(workflowsPath)) {
             return environment.legacyWorkflowDir;
         }
-        return path.isAbsolute(workflowDir)
-            ? path.relative(this.workspaceRoot, workflowDir)
-            : workflowDir;
+        return path.isAbsolute(workflowsPath)
+            ? path.relative(this.workspaceRoot, workflowsPath)
+            : workflowsPath;
     }
 
-    private buildLegacyEnvironmentWorkflowDir(input: {
-        syncFolder?: string;
-        environmentId?: string;
-        instanceIdentifier?: string;
-        instanceUserIdentifier?: string;
-        projectId?: string;
-        projectName?: string;
-    }): string | undefined {
-        return this.getLegacyEnvironmentWorkflowDirs(input)[0];
+    private migrateWorkflowsPath(previousPath: string, nextPath: string): void {
+        const previous = this.resolveWorkspacePath(previousPath);
+        const next = this.resolveWorkspacePath(nextPath);
+        if (previous === next || !fs.existsSync(previous)) return;
+        const relative = path.relative(previous, next);
+        const reverseRelative = path.relative(next, previous);
+        if (!relative || (!relative.startsWith('..') && !path.isAbsolute(relative)) || !reverseRelative || (!reverseRelative.startsWith('..') && !path.isAbsolute(reverseRelative))) {
+            throw new Error('Cannot migrate workflowsPath into itself or one of its child directories.');
+        }
+        if (fs.existsSync(next) && !this.isDirectoryEmpty(next)) {
+            throw new Error(`Cannot migrate workflowsPath to "${nextPath}" because the destination is not empty.`);
+        }
+        fs.mkdirSync(path.dirname(next), { recursive: true });
+        if (fs.existsSync(next)) fs.rmSync(next, { recursive: true, force: true });
+        try {
+            fs.renameSync(previous, next);
+        } catch (error: any) {
+            if (error?.code !== 'EXDEV') throw error;
+            fs.cpSync(previous, next, { recursive: true, errorOnExist: false });
+            fs.rmSync(previous, { recursive: true, force: true });
+        }
+    }
+
+    private isDirectoryEmpty(directory: string): boolean {
+        try {
+            return fs.statSync(directory).isDirectory() && fs.readdirSync(directory).length === 0;
+        } catch {
+            return false;
+        }
     }
 
     private getLegacyEnvironmentWorkflowDirs(input: {
@@ -2753,6 +2836,8 @@ export class ConfigService {
         environmentId?: string;
         instanceIdentifier?: string;
         instanceUserIdentifier?: string;
+        legacyInstanceIdentifier?: string;
+        legacyInstanceUserIdentifier?: string;
         projectId?: string;
         projectName?: string;
     }): string[] {
@@ -2763,6 +2848,14 @@ export class ConfigService {
             environmentId: input.environmentId,
             instanceIdentifier: input.instanceIdentifier,
             instanceUserIdentifier: input.instanceUserIdentifier,
+            projectId: input.projectId,
+            })));
+        }
+        if (input.environmentId && input.legacyInstanceIdentifier && input.legacyInstanceUserIdentifier && input.projectId) {
+            dirs.push(path.join(input.syncFolder, createWorkflowDirNameV1({
+            environmentId: input.environmentId,
+            instanceIdentifier: input.legacyInstanceIdentifier,
+            instanceUserIdentifier: input.legacyInstanceUserIdentifier,
             projectId: input.projectId,
             })));
         }

@@ -31,7 +31,7 @@ export class BaseCommand {
         const requestedInstanceName = process.env.N8NAC_INSTANCE_NAME?.trim() || undefined;
         if (requestedInstanceName) {
             console.error(chalk.red('❌ Direct instance targeting is no longer supported by n8nac.'));
-            console.error(chalk.yellow('Create a workspace environment with `n8nac env add <name> --base-url <url> --sync-folder workflows`, then use `--env <name>`.'));
+                    console.error(chalk.yellow('Create a workspace environment with `n8nac env add <name> --base-url <url> --workflows-path workflows/<name>`, then use `--env <name>`.'));
             process.exit(1);
         }
 
@@ -58,7 +58,7 @@ export class BaseCommand {
                 }
                 apiKey = '';
             }
-            directory = resolvedEnvironment.syncFolder || this.configService.resolveWorkspacePath('./workflows');
+            directory = resolvedEnvironment.workflowsPath || resolvedEnvironment.workflowDir || this.configService.resolveWorkspacePath('./workflows');
             folderSync = resolvedEnvironment.folderSync ?? false;
             this.instanceIdentifier = resolvedEnvironment.instanceIdentifier || null;
             this.instanceUserIdentifier = resolvedEnvironment.instanceUserIdentifier || null;
@@ -88,7 +88,7 @@ export class BaseCommand {
             if (!host || !apiKey) {
                 if (!canPrepareManagedRuntime) {
                     console.error(chalk.red('❌ CLI not configured.'));
-                    console.error(chalk.yellow('Create a workspace environment with `n8nac env add <name> --base-url <url> --sync-folder workflows` and store auth with `n8nac env auth set <name> --api-key-stdin`.'));
+                    console.error(chalk.yellow('Create a workspace environment with `n8nac env add <name> --base-url <url> --workflows-path workflows/<name>` and store auth with `n8nac env auth set <name> --api-key-stdin`.'));
                     process.exit(1);
                 }
                 apiKey = '';
@@ -173,17 +173,24 @@ export class BaseCommand {
         const missing: string[] = [];
         if (!localConfig.projectId) missing.push('projectId');
         if (!localConfig.projectName) missing.push('projectName');
-        if (!localConfig.syncFolder) missing.push('syncFolder');
+        if (!localConfig.workflowsPath && !localConfig.workflowDir && !localConfig.syncFolder) missing.push('workflowsPath');
 
         if (missing.length > 0) {
             console.error(chalk.red(`❌ Missing required project configuration: ${missing.join(', ')}.`));
-            console.error(chalk.yellow('Update the workspace environment with `n8nac env update <name> --project-id personal --project-name Personal --sync-folder workflows`.'));
+            console.error(chalk.yellow('Update the workspace environment with `n8nac env update <name> --project-id personal --project-name Personal --workflows-path workflows/<name>`.'));
             process.exit(1);
         }
 
         return {
             directory: this.config.directory,
-            workflowDir: localConfig.workflowDir
+            workflowsPath: localConfig.workflowsPath
+                ? this.configService.resolveWorkspacePath(localConfig.workflowsPath)
+                : localConfig.workflowDir
+                ? this.configService.resolveWorkspacePath(localConfig.workflowDir)
+                : undefined,
+            workflowDir: localConfig.workflowsPath
+                ? this.configService.resolveWorkspacePath(localConfig.workflowsPath)
+                : localConfig.workflowDir
                 ? this.configService.resolveWorkspacePath(localConfig.workflowDir)
                 : undefined,
             syncInactive: true,
@@ -226,7 +233,7 @@ export class BaseCommand {
             this.client = new N8nApiClient({ host: context.host, apiKey: context.apiKey } as IN8nCredentials);
             this.config = {
                 ...this.config,
-                directory: this.configService.resolveWorkspacePath(context.syncFolder || './workflows'),
+                directory: this.configService.resolveWorkspacePath((context as any).workflowsPath || (context as any).workflowDir || context.syncFolder || './workflows'),
                 host: context.host,
                 apiKeyConfigured: true,
                 folderSync: context.folderSync ?? false,

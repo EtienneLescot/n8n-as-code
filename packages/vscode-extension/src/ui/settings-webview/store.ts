@@ -19,7 +19,7 @@ export interface EnvironmentDraft {
   apiKeyAvailable?: boolean;
   projectId: string;
   projectName: string;
-  syncFolder: string;
+  workflowsPath: string;
   folderSync: boolean;
   customNodesPath: string;
   description: string;
@@ -197,7 +197,7 @@ function blankEnvironmentDraft(id: string, environment?: any): EnvironmentDraft 
     apiKeyAvailable: environment?.apiKeyAvailable,
     projectId: environment?.projectId || '',
     projectName: environment?.projectName || '',
-    syncFolder: environment?.syncFolder || 'workflows',
+    workflowsPath: environment?.workflowsPath || environment?.workflowDir || environment?.syncFolder || defaultWorkflowsPath(environment?.name || ''),
     folderSync: environment?.folderSync !== false,
     customNodesPath: environment?.customNodesPath || '',
     description: environment?.description || '',
@@ -215,7 +215,11 @@ const draftsSlice = createSlice({
     },
     environmentDraftPatched: (state, action: PayloadAction<{ id: string; patch: Partial<EnvironmentDraft> }>) => {
       const existing = state.environment[action.payload.id] || blankEnvironmentDraft(action.payload.id);
-      state.environment[action.payload.id] = { ...existing, ...action.payload.patch, dirty: true };
+      const patch = { ...action.payload.patch };
+      if (patch.name !== undefined && patch.workflowsPath === undefined && !existing.environmentId && existing.workflowsPath === defaultWorkflowsPath(existing.name)) {
+        patch.workflowsPath = defaultWorkflowsPath(patch.name);
+      }
+      state.environment[action.payload.id] = { ...existing, ...patch, dirty: true };
     },
     environmentDraftProjectsReceived: (state, action: PayloadAction<{ id: string; requestKey?: string; projects?: Array<{ id: string; name: string; type?: string; detail?: string; displayName?: string }>; selectedProjectId?: string; selectedProjectName?: string; error?: string }>) => {
       const existing = state.environment[action.payload.id];
@@ -257,6 +261,16 @@ const draftsSlice = createSlice({
     },
   },
 });
+
+function defaultWorkflowsPath(name: string): string {
+  const slug = String(name || 'environment')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    || 'environment';
+  return `workflows/${slug}`;
+}
 
 export const actions = {
   ...serverSlice.actions,
