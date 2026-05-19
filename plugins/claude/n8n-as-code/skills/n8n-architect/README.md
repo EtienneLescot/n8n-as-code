@@ -11,7 +11,7 @@ Turns Claude into a specialized n8n workflow engineer using the `n8nac` CLI and 
 After installing the plugin, configure the target workspace with a workspace environment. `n8nac env` owns workspace context, `n8nac workspace` owns readiness and unified migration, and `n8n-manager` owns only local managed instances. `update-ai` refreshes the generated context later:
 
 ```bash
-npx --yes n8nac env add Dev --base-url <your-n8n-url> --sync-folder workflows/dev
+npx --yes n8nac env add Dev --base-url <your-n8n-url> --workflows-path workflows/dev
 npx --yes n8nac env auth set Dev --api-key-stdin
 npx --yes n8nac env use Dev
 npx --yes n8nac update-ai

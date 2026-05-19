@@ -35,7 +35,7 @@ Full documentation: [CLI guide](https://n8nascode.dev/docs/usage/cli/) · [n8n-m
 
 | Group | Command | Purpose |
 |---|---|---|
-| Primary Usage | `n8nac env` | Workspace environments: remote n8n URL or local managed instance, project, sync folder, active environment |
+| Primary Usage | `n8nac env` | Workspace environments: remote n8n URL or local managed instance, project, workflowsPath, active environment |
 | Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
 | Managed Local Instances | `n8n-manager` | Local managed instances, Docker lifecycle, tunnels, local secrets |
 | Hidden Compatibility | `instance-target`, `target`, `setup`, old `workspace` mutations | Compatibility only |
@@ -45,7 +45,7 @@ Full documentation: [CLI guide](https://n8nascode.dev/docs/usage/cli/) · [n8n-m
 Create a remote n8n environment for an existing n8n URL:
 
 ```bash
-n8nac env add Dev --base-url https://n8n.example.com --sync-folder workflows/dev
+n8nac env add Dev --base-url https://n8n.example.com --workflows-path workflows/dev
 printf '%s' "$N8N_API_KEY" | n8nac env auth set Dev --api-key-stdin
 n8nac env use Dev
 ```
@@ -54,7 +54,7 @@ Attach a workspace environment to a local managed instance:
 
 ```bash
 n8n-manager instance list
-n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+n8nac env add Local --managed-instance <id> --workflows-path workflows/local
 n8nac env use Local
 ```
 
@@ -155,7 +155,7 @@ Current workspace config is environment-based:
       "environmentTargetId": "dev",
       "projectId": "personal",
       "projectName": "Personal",
-      "syncFolder": "workflows/dev"
+      "workflowsPath": "workflows/dev"
     }
   ],
   "environmentTargets": [

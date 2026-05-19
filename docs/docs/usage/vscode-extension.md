@@ -18,7 +18,7 @@ The extension is the recommended n8n-as-code experience. It adds an n8n sidebar,
    - `Enter URL and API key` for a remote n8n environment.
    - an existing local managed instance.
    - `Create local instance` to create one locally.
-6. Select the project and sync folder.
+6. Select the project and workflows path.
 7. Save the environment.
 
 ## Configuration Model
@@ -51,7 +51,7 @@ The Agent can use:
 - current workflow file
 - selected node or canvas context
 - active n8n environment
-- project and sync folder
+- project and workflowsPath
 - generated `AGENTS.md`
 - bundled n8n schemas, docs, examples, templates, and validation rules
 
@@ -96,7 +96,7 @@ The legacy native editor settings may still exist as fallbacks:
 |---|---|
 | `n8n.host` | Legacy n8n URL |
 | `n8n.apiKey` | Legacy API key |
-| `n8n.workflowsPath` | Legacy sync folder |
+| `n8n.workflowsPath` | Legacy workflows path fallback |
 
 Prefer `n8n environments` for all new configuration.
 
@@ -112,7 +112,7 @@ Prefer `n8n environments` for all new configuration.
 ### Sync not updating
 
 - Use refresh or **Fetch**.
-- Confirm the active environment and sync folder.
+- Confirm the active environment and workflows path.
 - Resolve conflicts before pushing.
 
 ### Canvas not loading

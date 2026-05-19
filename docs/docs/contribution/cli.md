@@ -130,7 +130,7 @@ Workspace commands own only local overrides over the global `n8n-manager` config
 **Key Responsibilities:**
 - Show backend-resolved workspace status
 - Pin or clear the effective workspace instance
-- Set or clear the workspace sync folder
+- Set or clear legacy workspace sync-folder overrides
 - Set or clear the workspace project override
 
 ### 4. **Sync Command (`commands/sync.ts`)**

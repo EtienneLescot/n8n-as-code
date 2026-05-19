@@ -13,14 +13,14 @@ The product model is intentionally small:
 
 | Group | Command | Use it for |
 |---|---|---|
-| Primary Usage | `n8nac env` | Workspace environments: remote n8n URL or local managed instance, project, sync folder, active environment |
+| Primary Usage | `n8nac env` | Workspace environments: remote n8n URL or local managed instance, project, workflowsPath, active environment |
 | Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
 | Managed Local Instances | `n8n-manager` | Local managed instances, Docker lifecycle, tunnels, machine-local state |
 
 ## How It Works
 
 1. Create or select an **n8n environment** for the workspace.
-2. Pull or create workflow files in that environment's sync folder.
+2. Pull or create workflow files in that environment's workflowsPath.
 3. Ask the Agent to build, refactor, explain, validate, or fix workflows.
 4. Push intentionally, provision credentials, activate, run, and inspect executions.
 5. Commit workflow files and workspace-safe `n8nac-config.json` changes.

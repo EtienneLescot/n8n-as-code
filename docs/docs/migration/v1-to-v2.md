@@ -41,7 +41,7 @@ The dry-run and verification output use a single migration report. Review the `o
 | Embedded URL | Remote n8n URL environment target |
 | Global managed instance reference | Local managed instance environment target reference |
 | Embedded API key | Local API key storage |
-| Sync folder | Environment sync folder |
+| Sync folder | Environment `workflowsPath` |
 | Old active instance | Active environment |
 
 The migrated `n8nac-config.json` should be safe to commit when it contains no secrets.

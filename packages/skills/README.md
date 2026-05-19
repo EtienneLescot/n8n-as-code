@@ -259,7 +259,7 @@ If you prefer a different location, set `customNodesPath` in `n8nac-config.json`
 ```json
 {
   "host": "https://my-n8n.example.com",
-  "syncFolder": "workflows",
+  "workflowsPath": "workflows/dev",
   "projectId": "...",
   "projectName": "...",
   "customNodesPath": "./config/custom-nodes.json"

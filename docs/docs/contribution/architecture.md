@@ -10,7 +10,7 @@ n8n-as-code is a monorepo built with a modular architecture that separates works
 
 The public brand can stay unified as `n8n-as-code` / `n8nac`, but internally there are three concerns:
 
-1. **Workspace environments**: `n8nac env` owns the repository-level source of truth: environment name, remote n8n endpoint or local managed instance reference, project, sync folder, and active environment.
+1. **Workspace environments**: `n8nac env` owns the repository-level source of truth: environment name, remote n8n endpoint or local managed instance reference, project, workflowsPath, and active environment.
 2. **Managed local instances**: the independent `n8n-manager` repo owns local managed instances, Docker lifecycle, tunnels, and machine-local state.
 3. **Workflow engine/commands**: workflow representation, generation, validation, schemas, templates, node knowledge, and commands that read/write workflows through a resolved environment.
 

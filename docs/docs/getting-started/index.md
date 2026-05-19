@@ -23,7 +23,7 @@ This guide gets you from an empty workspace to an agent-assisted n8n workflow lo
 | Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
 | Managed Local Instances | `n8n-manager` | Local managed instances and tunnels |
 
-An environment stores the workspace-safe context: n8n endpoint, project, sync folder, and active selection. API keys stay local.
+An environment stores the workspace-safe context: n8n endpoint, project, workflowsPath, and active selection. API keys stay local.
 
 ## Recommended: VS Code / Cursor
 
@@ -32,7 +32,7 @@ An environment stores the workspace-safe context: n8n endpoint, project, sync fo
 3. Open the `n8n` view.
 4. Run **n8n: Configure**.
 5. In **n8n environments**, choose `Enter URL and API key` for a remote n8n environment or select a local managed instance.
-6. Choose the project and sync folder.
+6. Choose the project and workflows path.
 7. Save the environment.
 
 After that, use the sidebar to pull workflows or create a local workflow file, then ask the Agent Workbench for the change you want.

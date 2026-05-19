@@ -2,7 +2,7 @@
 
 The VS Code and Cursor workspace for building n8n workflows with an AI agent that has live n8n context.
 
-The extension centers on **workspace environments**: a workspace environment points to a remote n8n URL or local managed instance, a project, and a sync folder. Local Docker instances and tunnels are managed separately through `n8n-manager`.
+The extension centers on **workspace environments**: a workspace environment points to a remote n8n URL or local managed instance, a project, and a workflows path. Local Docker instances and tunnels are managed separately through `n8n-manager`.
 
 Published for both the Microsoft Marketplace and Open VSX.
 
@@ -49,7 +49,7 @@ The Agent can use:
 - current workflow file and workflow metadata
 - selected node or canvas context
 - active n8n environment
-- project and sync folder
+- project and workflowsPath
 - generated `AGENTS.md`
 - bundled n8n schemas, docs, examples, templates, and validation rules
 
@@ -82,7 +82,7 @@ n8nac workspace migrate --write
 ## CLI Equivalent
 
 ```bash
-n8nac env add Dev --base-url <url> --sync-folder workflows/dev
+n8nac env add Dev --base-url <url> --workflows-path workflows/dev
 n8nac env auth set Dev --api-key-stdin
 n8nac env use Dev
 n8nac list
@@ -94,7 +94,7 @@ For a local managed instance:
 
 ```bash
 n8n-manager instance list
-n8nac env add Local --managed-instance <id> --sync-folder workflows/local
+n8nac env add Local --managed-instance <id> --workflows-path workflows/local
 ```
 
 ## V1 Legacy Extension
