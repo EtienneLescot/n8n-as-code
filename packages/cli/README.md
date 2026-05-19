@@ -93,11 +93,39 @@ Dry-run with `--json` first, then apply with `--write` after reviewing the unifi
 n8nac list
 n8nac pull <workflow-id>
 n8nac push workflows/dev/my-workflow.workflow.ts --verify
+n8nac promote workflows/dev/my-workflow.workflow.ts --from Dev --to Prod --dry-run
+n8nac promote --from Dev --to Prod --dry-run
 n8nac resolve <workflow-id> --mode keep-current
 n8nac resolve <workflow-id> --mode keep-incoming
 ```
 
 Sync is Git-like and explicit. `pull` and `push` block on conflicts instead of silently overwriting work.
+
+### Promote Between Environments
+
+```bash
+n8nac promote workflows/dev/my-workflow.workflow.ts --from Dev --to Prod
+n8nac promote --from Dev --to Prod --dry-run
+n8nac promote --from Dev --to Prod --no-push
+```
+
+`promote` copies TypeScript workflows from one workspace environment to another. When a path is provided, it promotes that single workflow. When the path is omitted, it recursively promotes all `*.workflow.ts` files in the source environment sync folder and preserves their relative paths in the target environment.
+
+During promotion, `n8nac` rewrites target project metadata, strips source workflow identity for new target workflows, reuses known target workflow IDs for updates, remaps credential IDs by binding, override, or target inventory lookup, and remaps supported Execute Workflow references.
+
+Promotion stores stable source-to-target workflow and credential bindings in `n8nac-promotion.json` by default. Use `--promotion-config <path>` to choose a different file. `--dry-run` inspects the target environment so the plan can report create vs update accurately, but it does not write workflow files, push to n8n, or update the promotion config.
+
+Useful flags:
+
+| Flag | Effect |
+|---|---|
+| `--dry-run` | Show the planned promotion without writing files, pushing, or saving bindings |
+| `--no-push` | Write adapted target files locally without pushing them to n8n |
+| `--overwrite` | Allow replacing an existing local target file when no target workflow ID is known |
+| `--promotion-config <path>` | Read and write promotion bindings from a custom config path |
+| `--json` | Print the promotion result as JSON |
+
+Missing or ambiguous credentials and workflow references block promotion before push. After a pushed single-workflow promotion, the CLI prints a `workflow credential-required` command to check target credential readiness.
 
 ## Workflow Helpers
 

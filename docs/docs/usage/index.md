@@ -36,6 +36,7 @@ n8nac env use Dev
 n8nac list
 n8nac pull <workflow-id>
 n8nac push workflows/dev/my-workflow.workflow.ts --verify
+n8nac promote --from Dev --to Prod --dry-run
 ```
 
 [CLI Guide](/docs/usage/cli)

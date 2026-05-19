@@ -175,11 +175,89 @@ Push uploads one local workflow and uses optimistic concurrency checks.
 n8nac promote workflows/dev/my-workflow.workflow.ts --from Dev --to Prod --dry-run
 n8nac promote workflows/dev/my-workflow.workflow.ts --from Dev --to Prod
 n8nac promote --from Dev --to Prod --dry-run
+n8nac promote --from Dev --to Prod --no-push
+n8nac promote --from Dev --to Prod --promotion-config config/promotion.json --json
 ```
 
-Promote copies workflows from one workspace environment to another, remaps target workflow metadata, credential IDs, and supported Execute Workflow references, then pushes to the target environment unless `--no-push` is used.
+Promote copies TypeScript workflows from one workspace environment to another, adapts them for the target environment, and pushes them to n8n unless `--no-push` is used.
 
-Promotion stores discovered source-to-target bindings in `n8nac-promotion.json`. Existing bindings are reused first, target names are used for initial discovery, and missing or ambiguous references block the promotion before push.
+The positional path is optional:
+
+- With a path, `promote` handles one `*.workflow.ts` file inside the source environment sync folder.
+- Without a path, `promote` recursively finds all non-hidden `*.workflow.ts` files in the source environment sync folder and preserves their relative paths in the target environment.
+
+Promotion adapts workflows before writing or pushing:
+
+- target project metadata is rewritten to the target environment project
+- source workflow IDs and archived/home-project metadata are removed for new target workflows
+- known target workflow IDs are reused for updates
+- credential references are remapped by saved binding, explicit override, or unique target credential match by type and name
+- supported Execute Workflow references are remapped by saved binding, source workflow relation, explicit override, or unique target workflow name match
+
+Promotion stores discovered source-to-target bindings in `n8nac-promotion.json` by default. Existing bindings are reused first, target inventory discovery is used for initial create/update planning, and missing or ambiguous references block promotion before push.
+
+Options:
+
+| Option | Effect |
+|---|---|
+| `--from <environment>` | Source environment name or ID |
+| `--to <environment>` | Target environment name or ID |
+| `--dry-run` | Show the planned promotion without writing workflow files, pushing, or saving bindings |
+| `--no-push` | Write adapted files to the target sync folder without pushing them to n8n |
+| `--overwrite` | Replace an existing local target file when no target workflow ID is known |
+| `--promotion-config <path>` | Read and write promotion bindings from a custom config path |
+| `--json` | Print the promotion result as JSON |
+
+`--dry-run` still reads the target workflow inventory so the plan can report `create` vs `update` accurately. It does not write local workflow files, call push, or update `n8nac-promotion.json`.
+
+The promotion config has a stable v1 shape:
+
+```json
+{
+  "version": 1,
+  "routes": {
+    "Dev->Prod": {
+      "bindings": {
+        "workflows": {
+          "source-workflow-id": "target-workflow-id"
+        },
+        "credentials": {
+          "source-credential-id": "target-credential-id"
+        }
+      },
+      "workflowOverrides": {},
+      "credentialOverrides": {},
+      "nameRules": []
+    }
+  }
+}
+```
+
+Use overrides when a target name is ambiguous or intentionally different:
+
+```json
+{
+  "version": 1,
+  "routes": {
+    "Dev->Prod": {
+      "workflowOverrides": {
+        "source-workflow-id": { "targetId": "prod-workflow-id" },
+        "Source Workflow Name": { "targetName": "Production Workflow Name" }
+      },
+      "credentialOverrides": {
+        "httpBasicAuth::source-credential-id": { "targetId": "prod-credential-id" },
+        "httpBasicAuth::Shared Credential": { "targetName": "Production Credential" }
+      },
+      "nameRules": [
+        { "kind": "workflow", "from": " Dev$", "to": " Prod" },
+        { "kind": "credential", "from": " Dev$", "to": " Prod" }
+      ]
+    }
+  }
+}
+```
+
+Promotion does not create credentials in the target environment. Create or map target credentials first, or use `n8nac credentials ...` helpers. After a pushed single-workflow promotion, the CLI prints a `workflow credential-required` command so you can check target credential readiness.
 
 ### `resolve`
 
