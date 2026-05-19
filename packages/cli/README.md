@@ -109,7 +109,7 @@ n8nac promote --from Dev --to Prod --dry-run
 n8nac promote --from Dev --to Prod --no-push
 ```
 
-`promote` copies TypeScript workflows from one workspace environment to another. When a path is provided, it promotes that single workflow. When the path is omitted, it recursively promotes all `*.workflow.ts` files in the source environment sync folder and preserves their relative paths in the target environment.
+`promote` copies TypeScript workflows from one workspace environment to another. When a path is provided, it promotes that single workflow. When the path is omitted, it recursively promotes all `*.workflow.ts` files in the source environment `workflowsPath` and preserves their relative paths in the target environment.
 
 During promotion, `n8nac` rewrites target project metadata, strips source workflow identity for new target workflows, reuses known target workflow IDs for updates, remaps credential IDs by binding, override, or target inventory lookup, and remaps supported Execute Workflow references.
 

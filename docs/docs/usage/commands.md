@@ -81,7 +81,7 @@ n8nac resolve <workflow-id> --mode keep-current
 n8nac resolve <workflow-id> --mode keep-incoming
 ```
 
-Use `promote` to move workflow source between workspace environments. The path is optional: pass one workflow file for a targeted promotion, or omit it to recursively promote every `*.workflow.ts` file in the source environment sync folder. Promotion remaps target project metadata, credentials, and supported Execute Workflow references, saves stable bindings in `n8nac-promotion.json`, and pushes by default unless `--no-push` is used.
+Use `promote` to move workflow source between workspace environments. The path is optional: pass one workflow file for a targeted promotion, or omit it to recursively promote every `*.workflow.ts` file in the source environment `workflowsPath`. Promotion remaps target project metadata, credentials, and supported Execute Workflow references, saves stable bindings in `n8nac-promotion.json`, and pushes by default unless `--no-push` is used.
 
 ## AI Context And Skills
 

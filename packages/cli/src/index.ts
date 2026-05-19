@@ -1195,7 +1195,7 @@ program.command('push')
 
 program.command('promote')
     .description('Promote a local workflow file from one workspace environment to another')
-    .argument('[path]', 'Workflow file path inside the source environment sync scope. Omit to promote all source workflows.')
+    .argument('[path]', 'Workflow file path inside the source environment workflowsPath. Omit to promote all source workflows.')
     .requiredOption('--from <environment>', 'Source environment name or ID')
     .requiredOption('--to <environment>', 'Target environment name or ID')
     .option('--dry-run', 'Show the planned promotion without writing or pushing')

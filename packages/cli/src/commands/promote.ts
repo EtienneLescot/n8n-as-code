@@ -209,7 +209,7 @@ export class PromoteCommand {
             ? [this.resolveSourceWorkflowPath(sourceWorkflowPath, sourceRoot)]
             : this.listSourceWorkflowPaths(sourceRoot);
         if (sourcePaths.length === 0) {
-            throw new Error(`No TypeScript workflow files found in source environment sync scope: ${sourceRoot}`);
+            throw new Error(`No TypeScript workflow files found in source environment workflowsPath: ${sourceRoot}`);
         }
 
         const sourceRootRealPath = this.realpathExisting(sourceRoot);
@@ -219,7 +219,7 @@ export class PromoteCommand {
         for (const sourcePath of sourcePaths) {
             const sourceRealPath = this.realpathExisting(sourcePath);
             if (!this.isPathInside(sourceRealPath, sourceRootRealPath)) {
-                throw new Error(`Source workflow must be inside the source environment sync scope: ${sourceRoot}`);
+                throw new Error(`Source workflow must be inside the source environment workflowsPath: ${sourceRoot}`);
             }
             const relativePath = path.relative(sourceRoot, sourcePath);
             const targetPath = path.resolve(targetRoot, relativePath);
@@ -227,7 +227,7 @@ export class PromoteCommand {
 
             const targetExists = fs.existsSync(targetPath);
             if (targetExists && !this.isPathInside(this.realpathExisting(targetPath), targetRootRealPath)) {
-                throw new Error('Resolved target path escapes the target environment sync scope.');
+                throw new Error('Resolved target path escapes the target environment workflowsPath.');
             }
             const workflow = await compileWorkflowForPromotion(fs.readFileSync(sourcePath, 'utf8'));
             const sourceKey = workflow.id || workflow.name;
@@ -258,7 +258,7 @@ export class PromoteCommand {
 
     private listSourceWorkflowPaths(sourceRoot: string): string[] {
         if (!fs.existsSync(sourceRoot)) {
-            throw new Error(`Source environment sync scope does not exist: ${sourceRoot}`);
+            throw new Error(`Source environment workflowsPath does not exist: ${sourceRoot}`);
         }
 
         const walk = (directory: string): string[] => fs.readdirSync(directory, { withFileTypes: true })
@@ -688,19 +688,20 @@ export class PromoteCommand {
     }
 
     private getEnvironmentWorkflowRoot(environment: IResolvedWorkspaceEnvironment): string {
-        if (!environment.workflowDir) {
-            throw new Error(`Environment "${environment.environmentName}" is missing a resolved workflow directory. Check its API key, project, and instance identifier.`);
+        const workflowsPath = environment.workflowsPath || environment.workflowDir;
+        if (!workflowsPath) {
+            throw new Error(`Environment "${environment.environmentName}" is missing a resolved workflowsPath. Check its API key, project, and instance identifier.`);
         }
-        return path.resolve(environment.workflowDir);
+        return path.resolve(workflowsPath);
     }
 
     private assertTargetPath(targetPath: string, targetRoot: string, targetRootRealPath: string): void {
         if (!this.isPathInside(targetPath, targetRoot)) {
-            throw new Error('Resolved target path escapes the target environment sync scope.');
+            throw new Error('Resolved target path escapes the target environment workflowsPath.');
         }
         const targetParentRealPath = this.realpathExistingParent(path.dirname(targetPath));
         if (fs.existsSync(targetRoot) && targetParentRealPath && !this.isPathInside(targetParentRealPath, targetRootRealPath)) {
-            throw new Error('Resolved target path escapes the target environment sync scope.');
+            throw new Error('Resolved target path escapes the target environment workflowsPath.');
         }
     }
 

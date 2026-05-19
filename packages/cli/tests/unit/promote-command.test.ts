@@ -61,11 +61,11 @@ export class PromotedWorkflow {}
             const configService = new ConfigService(workspaceRoot);
             const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
             const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
-            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
-            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/prod' });
 
-            const sourceDir = configService.resolveEnvironment('Dev').workflowDir!;
-            const targetDir = configService.resolveEnvironment('Prod').workflowDir!;
+            const sourceDir = configService.resolveEnvironment('Dev').workflowsPath!;
+            const targetDir = configService.resolveEnvironment('Prod').workflowsPath!;
             mkdirSync(sourceDir, { recursive: true });
             mkdirSync(targetDir, { recursive: true });
             const workflow = "@workflow({ name: 'One' })\nexport class One {}\n";
@@ -114,11 +114,11 @@ export class PromotedWorkflow {}
             const configService = new ConfigService(workspaceRoot);
             const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
             const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
-            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
-            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/prod' });
 
-            const sourceDir = configService.resolveEnvironment('Dev').workflowDir!;
-            const targetDir = configService.resolveEnvironment('Prod').workflowDir!;
+            const sourceDir = configService.resolveEnvironment('Dev').workflowsPath!;
+            const targetDir = configService.resolveEnvironment('Prod').workflowsPath!;
             mkdirSync(sourceDir, { recursive: true });
             mkdirSync(targetDir, { recursive: true });
             const sourcePath = path.join(sourceDir, 'one.workflow.ts');
@@ -167,11 +167,11 @@ export class PromotedWorkflow {}
             const configService = new ConfigService(workspaceRoot);
             const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
             const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
-            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
-            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/prod' });
 
-            const sourceDir = configService.resolveEnvironment('Dev').workflowDir!;
-            const targetDir = configService.resolveEnvironment('Prod').workflowDir!;
+            const sourceDir = configService.resolveEnvironment('Dev').workflowsPath!;
+            const targetDir = configService.resolveEnvironment('Prod').workflowsPath!;
             mkdirSync(sourceDir, { recursive: true });
             mkdirSync(path.join(sourceDir, 'nested'), { recursive: true });
             mkdirSync(path.join(sourceDir, '.ignored'), { recursive: true });
@@ -225,11 +225,11 @@ export class PromotedWorkflow {}
             const configService = new ConfigService(workspaceRoot);
             const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
             const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
-            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
-            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/prod' });
 
-            const sourceDir = configService.resolveEnvironment('Dev').workflowDir!;
-            const targetDir = configService.resolveEnvironment('Prod').workflowDir!;
+            const sourceDir = configService.resolveEnvironment('Dev').workflowsPath!;
+            const targetDir = configService.resolveEnvironment('Prod').workflowsPath!;
             mkdirSync(sourceDir, { recursive: true });
             const sourcePath = path.join(sourceDir, 'credential.workflow.ts');
             writeFileSync(sourcePath, `import { workflow, node } from '@n8n-as-code/transformer';
@@ -294,11 +294,11 @@ export class CredentialWorkflow {
             const configService = new ConfigService(workspaceRoot);
             const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
             const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
-            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
-            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/prod' });
 
-            const sourceDir = configService.resolveEnvironment('Dev').workflowDir!;
-            const targetDir = configService.resolveEnvironment('Prod').workflowDir!;
+            const sourceDir = configService.resolveEnvironment('Dev').workflowsPath!;
+            const targetDir = configService.resolveEnvironment('Prod').workflowsPath!;
             mkdirSync(sourceDir, { recursive: true });
             const sourcePath = path.join(sourceDir, 'remote-existing.workflow.ts');
             writeFileSync(sourcePath, "@workflow({ id: 'source-wf', name: 'Remote Existing', active: false })\nexport class RemoteExisting {}\n", 'utf8');
@@ -349,10 +349,10 @@ export class CredentialWorkflow {
             const configService = new ConfigService(workspaceRoot);
             const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
             const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
-            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
-            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/prod' });
 
-            const sourceDir = configService.resolveEnvironment('Dev').workflowDir!;
+            const sourceDir = configService.resolveEnvironment('Dev').workflowsPath!;
             mkdirSync(sourceDir, { recursive: true });
             const sourcePath = path.join(sourceDir, 'dry-run-existing.workflow.ts');
             writeFileSync(sourcePath, "@workflow({ id: 'source-dry-run', name: 'Dry Run Existing', active: false })\nexport class DryRunExisting {}\n", 'utf8');
@@ -408,11 +408,11 @@ export class CredentialWorkflow {
             const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
             const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
             const stagingTarget = configService.addInstanceTarget({ name: 'Staging Target', managedInstanceId: 'staging-instance' });
-            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
-            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
-            configService.addEnvironment({ name: 'Staging', environmentTarget: stagingTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/staging' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/prod' });
+            configService.addEnvironment({ name: 'Staging', environmentTarget: stagingTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/staging' });
 
-            const sourceDir = configService.resolveEnvironment('Dev').workflowDir!;
+            const sourceDir = configService.resolveEnvironment('Dev').workflowsPath!;
             mkdirSync(sourceDir, { recursive: true });
             const sourcePath = path.join(sourceDir, 'reusable.workflow.ts');
             writeFileSync(sourcePath, "@workflow({ id: 'source-reusable', name: 'Reusable', active: false })\nexport class Reusable {}\n", 'utf8');
@@ -469,11 +469,11 @@ export class CredentialWorkflow {
             const configService = new ConfigService(workspaceRoot);
             const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
             const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
-            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
-            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/prod' });
 
-            const sourceDir = configService.resolveEnvironment('Dev').workflowDir!;
-            const targetDir = configService.resolveEnvironment('Prod').workflowDir!;
+            const sourceDir = configService.resolveEnvironment('Dev').workflowsPath!;
+            const targetDir = configService.resolveEnvironment('Prod').workflowsPath!;
             mkdirSync(sourceDir, { recursive: true });
             writeFileSync(path.join(sourceDir, 'caller.workflow.ts'), `import { workflow, node } from '@n8n-as-code/transformer';
 

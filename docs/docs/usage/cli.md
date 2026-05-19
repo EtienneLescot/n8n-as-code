@@ -183,8 +183,8 @@ Promote copies TypeScript workflows from one workspace environment to another, a
 
 The positional path is optional:
 
-- With a path, `promote` handles one `*.workflow.ts` file inside the source environment sync folder.
-- Without a path, `promote` recursively finds all non-hidden `*.workflow.ts` files in the source environment sync folder and preserves their relative paths in the target environment.
+- With a path, `promote` handles one `*.workflow.ts` file inside the source environment `workflowsPath`.
+- Without a path, `promote` recursively finds all non-hidden `*.workflow.ts` files in the source environment `workflowsPath` and preserves their relative paths in the target environment.
 
 Promotion adapts workflows before writing or pushing:
 
@@ -203,7 +203,7 @@ Options:
 | `--from <environment>` | Source environment name or ID |
 | `--to <environment>` | Target environment name or ID |
 | `--dry-run` | Show the planned promotion without writing workflow files, pushing, or saving bindings |
-| `--no-push` | Write adapted files to the target sync folder without pushing them to n8n |
+| `--no-push` | Write adapted files to the target `workflowsPath` without pushing them to n8n |
 | `--overwrite` | Replace an existing local target file when no target workflow ID is known |
 | `--promotion-config <path>` | Read and write promotion bindings from a custom config path |
 | `--json` | Print the promotion result as JSON |

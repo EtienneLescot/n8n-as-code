@@ -118,7 +118,7 @@ npx --yes n8nac push workflows/dev/my-workflow.workflow.ts --verify
 npx --yes n8nac promote --from Dev --to Prod --dry-run
 ```
 
-Use `promote` to move workflow source from one environment sync folder to another. Pass a workflow path for a single workflow, or omit it to promote every `*.workflow.ts` file in the source environment, including nested folders. Promotion rewrites target project metadata, remaps credentials and supported Execute Workflow references, records stable source-to-target bindings in `n8nac-promotion.json`, and pushes by default unless `--no-push` is set. `--dry-run` performs discovery for an accurate create/update plan, but does not write files, push, or update the promotion config.
+Use `promote` to move workflow source from one environment `workflowsPath` to another. Pass a workflow path for a single workflow, or omit it to promote every `*.workflow.ts` file in the source environment, including nested folders. Promotion rewrites target project metadata, remaps credentials and supported Execute Workflow references, records stable source-to-target bindings in `n8nac-promotion.json`, and pushes by default unless `--no-push` is set. `--dry-run` performs discovery for an accurate create/update plan, but does not write files, push, or update the promotion config.
 
 [CLI guide](https://n8nascode.dev/docs/usage/cli/) · [n8n-manager guide](https://n8nascode.dev/docs/usage/n8n-manager/)
 
