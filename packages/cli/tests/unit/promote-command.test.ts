@@ -119,7 +119,12 @@ export class PromotedWorkflow {}
             writeFileSync(sourcePath, "@workflow({ name: 'Source' })\nexport class Source {}\n", 'utf8');
             writeFileSync(targetPath, "@workflow({ id: 'target-id', name: 'Target' })\nexport class Target {}\n", 'utf8');
 
-            await expect(new PromoteCommand(configService).run(sourcePath, { from: 'Dev', to: 'Prod', push: false, promotionConfig: path.join(workspaceRoot, 'n8nac-promotion.json') })).resolves.toMatchObject({
+            await expect(new PromoteCommand(configService, {
+                createClient: () => ({
+                    getAllWorkflows: async () => [],
+                    listCredentials: async () => [],
+                }),
+            }).run(sourcePath, { from: 'Dev', to: 'Prod', push: false, promotionConfig: path.join(workspaceRoot, 'n8nac-promotion.json') })).resolves.toMatchObject({
                 targetEnvironmentName: 'Prod',
                 targetPath,
                 pushed: false,
@@ -164,7 +169,12 @@ export class PromotedWorkflow {}
             writeFileSync(path.join(sourceDir, 'one.workflow.ts'), "@workflow({ name: 'One', active: false })\nexport class One {}\n", 'utf8');
             writeFileSync(path.join(sourceDir, 'two.workflow.ts'), "@workflow({ name: 'Two', active: false })\nexport class Two {}\n", 'utf8');
 
-            const result = await new PromoteCommand(configService).run(undefined, {
+            const result = await new PromoteCommand(configService, {
+                createClient: () => ({
+                    getAllWorkflows: async () => [],
+                    listCredentials: async () => [],
+                }),
+            }).run(undefined, {
                 from: 'Dev',
                 to: 'Prod',
                 push: false,
@@ -243,6 +253,61 @@ export class CredentialWorkflow {
             expect(promoted).toContain("name: 'Shared Credential'");
             const promotionConfig = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-promotion.json'), 'utf8'));
             expect(promotionConfig.routes['Dev->Prod'].bindings.credentials['source-cred']).toBe('target-cred');
+        } finally {
+            if (previousManagerHome === undefined) {
+                delete process.env.N8N_MANAGER_HOME;
+            } else {
+                process.env.N8N_MANAGER_HOME = previousManagerHome;
+            }
+        }
+    });
+
+    it('discovers existing remote target workflow ids for no-push promotions', async () => {
+        const previousManagerHome = process.env.N8N_MANAGER_HOME;
+        const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-workspace-'));
+        process.env.N8N_MANAGER_HOME = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-manager-'));
+        try {
+            const globalWorkspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-global-'));
+            const globalConfigService = new ConfigService(globalWorkspaceRoot);
+            globalConfigService.saveLocalConfig({
+                host: 'https://dev.example.test',
+                instanceIdentifier: 'n8n_1111111111',
+            }, { instanceId: 'dev-instance', instanceName: 'Dev', apiKey: 'dev-key' });
+            globalConfigService.saveLocalConfig({
+                host: 'https://prod.example.test',
+                instanceIdentifier: 'n8n_2222222222',
+            }, { instanceId: 'prod-instance', instanceName: 'Prod', apiKey: 'prod-key', setActive: false });
+
+            const configService = new ConfigService(workspaceRoot);
+            const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
+            const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', syncFolder: 'workflows/prod' });
+
+            const sourceDir = configService.resolveEnvironment('Dev').workflowDir!;
+            const targetDir = configService.resolveEnvironment('Prod').workflowDir!;
+            mkdirSync(sourceDir, { recursive: true });
+            const sourcePath = path.join(sourceDir, 'remote-existing.workflow.ts');
+            writeFileSync(sourcePath, "@workflow({ id: 'source-wf', name: 'Remote Existing', active: false })\nexport class RemoteExisting {}\n", 'utf8');
+
+            const result = await new PromoteCommand(configService, {
+                createClient: () => ({
+                    getAllWorkflows: async () => [
+                        { id: 'target-wf', name: 'Remote Existing', active: false, nodes: [], connections: {} },
+                    ],
+                    listCredentials: async () => [],
+                }),
+            }).run(sourcePath, {
+                from: 'Dev',
+                to: 'Prod',
+                push: false,
+                promotionConfig: path.join(workspaceRoot, 'n8nac-promotion.json'),
+            });
+
+            expect(result.workflowId).toBe('target-wf');
+            expect(readFileSync(path.join(targetDir, 'remote-existing.workflow.ts'), 'utf8')).toContain("id: 'target-wf'");
+            const promotionConfig = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-promotion.json'), 'utf8'));
+            expect(promotionConfig.routes['Dev->Prod'].bindings.workflows['source-wf']).toBe('target-wf');
         } finally {
             if (previousManagerHome === undefined) {
                 delete process.env.N8N_MANAGER_HOME;

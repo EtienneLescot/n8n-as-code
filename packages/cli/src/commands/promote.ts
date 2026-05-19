@@ -282,7 +282,7 @@ export class PromoteCommand {
         indexes: PromotionIndexes,
         options: PromoteOptions,
     ): Promise<void> {
-        const shouldDiscover = options.push !== false && !options.dryRun;
+        const shouldDiscover = !options.dryRun;
         if (!shouldDiscover) return;
 
         const workflows = await this.getTargetWorkflows(target);
