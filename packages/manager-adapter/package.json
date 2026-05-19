@@ -1,6 +1,6 @@
 {
   "name": "@n8n-as-code/manager-adapter",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Facade adapter from n8n-as-code surfaces to the independent n8n-manager runtime engine",
   "type": "module",
   "main": "./dist/index.js",
