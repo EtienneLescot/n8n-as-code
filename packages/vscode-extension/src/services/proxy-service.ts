@@ -1,9 +1,15 @@
 import * as http from 'http';
 import * as os from 'os';
 import httpProxy = require('http-proxy');
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { AddressInfo } from 'net';
+import { randomUUID } from 'crypto';
 import { WebSocket, WebSocketServer } from 'ws';
+
+type ExternalAuthRequest = {
+    token: string;
+    targetUrl: string;
+};
 
 export class ProxyService {
     private server: http.Server | undefined;
@@ -17,6 +23,10 @@ export class ProxyService {
 
     private cookieJar = new Map<string, string>();
     private htmlRoutes = new Map<string, string>();
+    private externalAuthSessions = new Map<string, number>();
+
+    private readonly externalAuthRoutePrefix = '/__n8nac-external-auth/';
+    private readonly externalAuthSessionTtlMs = 15 * 60 * 1000;
 
     constructor() { }
 
@@ -41,21 +51,27 @@ export class ProxyService {
         return this.publicBaseUrl || `http://localhost:${this.port}`;
     }
 
-    private rewriteProxyLocation(location: string): string {
+    private rewriteProxyLocation(location: string, sourceUrl = this.target, externalAuthToken?: string): string {
         const proxyBaseUrl = this.getProxyBaseUrl();
         try {
             const targetUrl = new URL(this.target);
             const targetBasePath = this.trimTrailingSlash(targetUrl.pathname);
+            const sourceBaseUrl = new URL(sourceUrl || this.target);
 
             if (location.startsWith('/') && !location.startsWith('//')) {
-                const locationUrl = new URL(location, targetUrl.origin);
+                const locationUrl = new URL(location, sourceBaseUrl.origin);
+                if (locationUrl.origin !== targetUrl.origin) {
+                    return externalAuthToken ? this.buildExternalAuthProxyUrl(locationUrl.toString(), externalAuthToken) : location;
+                }
                 const remainingPath = this.stripTargetBasePath(locationUrl.pathname, targetBasePath);
                 return `${proxyBaseUrl}${remainingPath}${locationUrl.search}${locationUrl.hash}`;
             }
 
-            const locationUrl = new URL(location);
+            const locationUrl = location.startsWith('//')
+                ? new URL(`${sourceBaseUrl.protocol}${location}`)
+                : new URL(location);
             if (locationUrl.origin !== targetUrl.origin) {
-                return location;
+                return externalAuthToken ? this.buildExternalAuthProxyUrl(locationUrl.toString(), externalAuthToken) : location;
             }
 
             if (!this.urlPathMatchesBase(locationUrl.pathname, targetBasePath)) {
@@ -108,6 +124,15 @@ export class ProxyService {
         }
     }
 
+    private async openExternalUrl(url: string): Promise<void> {
+        try {
+            const vscodeRuntime = await import('vscode');
+            await vscodeRuntime.env.openExternal(vscodeRuntime.Uri.parse(url));
+        } catch (error: any) {
+            this.log(`[Proxy] Unable to open external authentication URL: ${error?.message || String(error)}`);
+        }
+    }
+
     private getStorageKey(): string {
         // Use a base64 encoded version of the target URL to avoid issues with special characters in keys
         return `n8n-cookies-${Buffer.from(this.target).toString('base64')}`;
@@ -124,6 +149,141 @@ export class ProxyService {
             hash = hash & hash; // Convert to 32bit integer
         }
         return 10000 + (Math.abs(hash) % 50000);
+    }
+
+    private cleanupExternalAuthSessions(): void {
+        const now = Date.now();
+        for (const [token, expiresAt] of this.externalAuthSessions) {
+            if (expiresAt <= now) {
+                this.externalAuthSessions.delete(token);
+            }
+        }
+    }
+
+    private createExternalAuthSession(): string {
+        this.cleanupExternalAuthSessions();
+        const token = randomUUID();
+        this.externalAuthSessions.set(token, Date.now() + this.externalAuthSessionTtlMs);
+        return token;
+    }
+
+    private isExternalAuthSessionValid(token: string): boolean {
+        this.cleanupExternalAuthSessions();
+        return Boolean(token && this.externalAuthSessions.has(token));
+    }
+
+    private buildExternalAuthProxyUrl(targetUrl: string, token = this.createExternalAuthSession()): string {
+        return `${this.getProxyBaseUrl()}${this.externalAuthRoutePrefix}${encodeURIComponent(token)}?url=${encodeURIComponent(targetUrl)}`;
+    }
+
+    private parseExternalAuthProxyRequest(requestUrl?: string): ExternalAuthRequest | undefined {
+        try {
+            const url = new URL(requestUrl ?? '/', `http://localhost:${this.port || 0}`);
+            if (!url.pathname.startsWith(this.externalAuthRoutePrefix)) {
+                return undefined;
+            }
+
+            const token = decodeURIComponent(url.pathname.slice(this.externalAuthRoutePrefix.length));
+            const targetUrl = url.searchParams.get('url') || '';
+            if (!this.isExternalAuthSessionValid(token)) {
+                return undefined;
+            }
+
+            const parsedTargetUrl = new URL(targetUrl);
+            if (!['http:', 'https:'].includes(parsedTargetUrl.protocol)) {
+                return undefined;
+            }
+
+            return { token, targetUrl: parsedTargetUrl.toString() };
+        } catch {
+            return undefined;
+        }
+    }
+
+    private isExternalN8nRedirect(location: string): boolean {
+        try {
+            const targetUrl = new URL(this.target);
+            const locationUrl = new URL(location, targetUrl.origin);
+            return locationUrl.origin !== targetUrl.origin;
+        } catch {
+            return false;
+        }
+    }
+
+    private createExternalAuthHandoff(location: string, returnUrl: string): { authProxyUrl: string; html: string } | undefined {
+        if (!this.isExternalN8nRedirect(location)) {
+            return undefined;
+        }
+
+        const targetUrl = new URL(location, new URL(this.target).origin).toString();
+        const authProxyUrl = this.buildExternalAuthProxyUrl(targetUrl);
+        return {
+            authProxyUrl,
+            html: this.buildExternalAuthHandoffHtml(authProxyUrl, returnUrl),
+        };
+    }
+
+    private buildExternalAuthHandoffHtml(authProxyUrl: string, returnUrl: string): string {
+        const htmlSafe = (value: string) => value
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        const authUrlHtml = htmlSafe(authProxyUrl);
+        const returnUrlHtml = htmlSafe(returnUrl);
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>n8n sign-in</title>
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #1e1e1e; color: #f3f3f3; font-family: system-ui, -apple-system, sans-serif; }
+    body { display: grid; place-items: center; padding: 24px; box-sizing: border-box; }
+    main { max-width: 520px; text-align: center; }
+    h1 { font-size: 20px; line-height: 1.35; margin: 0 0 12px; font-weight: 600; }
+    p { margin: 0 0 20px; color: #c8c8c8; line-height: 1.5; }
+    a { color: #ffffff; }
+    .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 14px; border-radius: 4px; background: #0e639c; color: #fff; text-decoration: none; font-size: 13px; }
+    .secondary { background: #3c3c3c; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Continue n8n sign-in in your browser</h1>
+    <p>Your SSO provider needs to run outside the embedded workflow view. After sign-in completes, return here and retry the workflow.</p>
+    <div class="actions">
+      <a class="button" href="${authUrlHtml}" target="_blank" rel="noreferrer">Open browser sign-in</a>
+      <a class="button secondary" href="${returnUrlHtml}">Retry workflow</a>
+    </div>
+  </main>
+</body>
+</html>`;
+    }
+
+    private handleExternalAuthProxyRequest(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+        const authRequest = this.parseExternalAuthProxyRequest(req.url);
+        if (!authRequest || !this.proxy) {
+            return false;
+        }
+
+        const targetUrl = new URL(authRequest.targetUrl);
+        (req as http.IncomingMessage & { __n8nacExternalAuth?: ExternalAuthRequest }).__n8nacExternalAuth = authRequest;
+        req.url = `${targetUrl.pathname}${targetUrl.search}`;
+        delete req.headers['accept-encoding'];
+        req.headers['host'] = targetUrl.host;
+        req.headers['origin'] = targetUrl.origin;
+        res.setHeader('access-control-allow-origin', '*');
+        res.setHeader('access-control-allow-credentials', 'true');
+
+        this.proxy.web(req, res, {
+            target: targetUrl.origin,
+            changeOrigin: true,
+            secure: false,
+            buffer: undefined,
+        });
+        return true;
     }
 
     private async saveCookies() {
@@ -204,7 +364,8 @@ export class ProxyService {
         });
 
         // Strip headers that block iframe embedding and manage cookies
-        this.proxy.on('proxyRes', (proxyRes, _req, res) => {
+        this.proxy.on('proxyRes', (proxyRes, req, res) => {
+            const externalAuth = (req as http.IncomingMessage & { __n8nacExternalAuth?: ExternalAuthRequest }).__n8nacExternalAuth;
             // Remove headers that prevent iframe embedding
             delete proxyRes.headers['x-frame-options'];
             delete proxyRes.headers['content-security-policy'];
@@ -217,7 +378,28 @@ export class ProxyService {
 
             // Rewrite Location header for redirects
             if (proxyRes.headers['location']) {
-                proxyRes.headers['location'] = this.rewriteProxyLocation(proxyRes.headers['location']);
+                const location = proxyRes.headers['location'];
+                const isRedirect = (proxyRes.statusCode || 0) >= 300 && (proxyRes.statusCode || 0) < 400;
+                if (!externalAuth && isRedirect && this.isExternalN8nRedirect(location)) {
+                    const returnUrl = `${this.getProxyBaseUrl()}${req.url || '/'}`;
+                    const handoff = this.createExternalAuthHandoff(location, returnUrl);
+                    if (handoff) {
+                        const httpRes = res as http.ServerResponse;
+                        void this.openExternalUrl(handoff.authProxyUrl);
+                        proxyRes.resume();
+                        httpRes.writeHead(200, {
+                            'content-type': 'text/html; charset=utf-8',
+                            'cache-control': 'no-store',
+                        });
+                        httpRes.end(handoff.html);
+                        return;
+                    }
+                }
+                proxyRes.headers['location'] = this.rewriteProxyLocation(
+                    location,
+                    externalAuth?.targetUrl ?? this.target,
+                    externalAuth?.token,
+                );
             }
 
             // CRITICAL: Capture and Fix cookies for iframe/webview context
@@ -225,7 +407,7 @@ export class ProxyService {
                 proxyRes.headers['set-cookie'] = proxyRes.headers['set-cookie'].map(cookie => {
                     const eqIdx = cookie.indexOf('=');
                     const scIdx = cookie.indexOf(';');
-                    if (eqIdx !== -1) {
+                    if (!externalAuth && eqIdx !== -1) {
                         const key = cookie.substring(0, eqIdx).trim();
                         const valuePart = cookie.substring(0, scIdx !== -1 ? scIdx : undefined).trim();
                         this.cookieJar.set(key, valuePart);
@@ -262,7 +444,9 @@ export class ProxyService {
                         const charsetMatch = contentType.match(/charset=([^\s;]+)/i);
                         const charset = (charsetMatch?.[1] || 'utf-8') as BufferEncoding;
                         let html = raw.toString(charset);
-                        html = this.injectClipboardBridge(html, isMacOS);
+                        if (!externalAuth) {
+                            html = this.injectClipboardBridge(html, isMacOS);
+                        }
                         const encoded = Buffer.from(html, charset);
                         delete proxyRes.headers['content-length'];
                         delete proxyRes.headers['content-encoding'];
@@ -294,6 +478,10 @@ export class ProxyService {
         });
 
         this.server = http.createServer((req, res) => {
+            if (this.handleExternalAuthProxyRequest(req, res)) {
+                return;
+            }
+
             const routeHtml = this.getRegisteredHtmlRoute(req.url);
             if (routeHtml && req.method === 'GET') {
                 res.writeHead(200, {

@@ -201,6 +201,62 @@ test('ProxyService: redirects match target base paths on URL boundaries', () => 
     );
 });
 
+test('ProxyService: external n8n redirects create browser auth handoff URLs', () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const service = new ProxyService();
+    (service as any).target = 'https://n8n.example.test';
+    service.setPublicBaseUrl('https://code.example.test/proxy/25444');
+
+    const handoff = (service as any).createExternalAuthHandoff(
+        'https://idp.example.test/sso?state=abc',
+        'https://code.example.test/proxy/25444/workflow/wf-1',
+    );
+
+    assert.ok(handoff, 'External redirects should produce a handoff page');
+    assert.ok(
+        handoff.authProxyUrl.startsWith('https://code.example.test/proxy/25444/__n8nac-external-auth/'),
+        'Auth URL should stay on the workflow proxy so callback cookies can be captured',
+    );
+    assert.ok(
+        handoff.authProxyUrl.includes(encodeURIComponent('https://idp.example.test/sso?state=abc')),
+        'Auth URL should carry the external SSO target',
+    );
+    assert.ok(handoff.html.includes('Continue n8n sign-in in your browser'), 'Handoff page should explain the browser sign-in step');
+});
+
+test('ProxyService: external auth redirects remain proxied until n8n callback returns', () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const service = new ProxyService();
+    (service as any).target = 'https://n8n.example.test';
+    service.setPublicBaseUrl('https://code.example.test/proxy/25444');
+    const token = (service as any).createExternalAuthSession();
+
+    const nextIdpUrl = (service as any).rewriteProxyLocation(
+        '/oauth/authorize?next=1',
+        'https://idp.example.test/login',
+        token,
+    );
+    assert.ok(
+        nextIdpUrl.startsWith('https://code.example.test/proxy/25444/__n8nac-external-auth/'),
+        'Relative IdP redirects should continue through the auth proxy',
+    );
+    assert.ok(
+        nextIdpUrl.includes(encodeURIComponent('https://idp.example.test/oauth/authorize?next=1')),
+        'Relative IdP redirects should resolve against the current IdP origin',
+    );
+    assert.ok(
+        (service as any).rewriteProxyLocation('//idp.example.test/factor', 'https://idp.example.test/login', token)
+            .includes(encodeURIComponent('https://idp.example.test/factor')),
+        'Protocol-relative IdP redirects should remain in the auth proxy flow',
+    );
+
+    assert.equal(
+        (service as any).rewriteProxyLocation('https://n8n.example.test/workflow/wf-1', 'https://idp.example.test/login', token),
+        'https://code.example.test/proxy/25444/workflow/wf-1',
+        'n8n callbacks should return to the normal workflow proxy route',
+    );
+});
+
 // ── 3 : parent webview HTML — grant token & rate-limit markers ──────────────
 // buildWebviewHtml is a pure function (no vscode dependency) that generates
 // the parent-webview HTML. We assert on the security-relevant parts of the
