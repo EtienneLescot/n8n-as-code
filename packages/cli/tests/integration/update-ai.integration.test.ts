@@ -113,7 +113,7 @@ describe('CLI update-ai integration', () => {
         expect(architectSkill).toContain(`node ${cliEntry} workspace migrate --json`);
         expect(architectSkill).toContain('Do not run environment, workflow, or setup commands while `workspace migrate --json` still reports migration required.');
         expect(architectSkill).toContain(`node ${cliEntry} workspace migrate --json\nnode ${cliEntry} env status --json`);
-        expect(architectSkill).toContain(`node ${cliEntry} env add Local --managed-instance <id> --sync-folder workflows`);
+        expect(architectSkill).toContain(`node ${cliEntry} env add Local --managed-instance <id> --workflows-path workflows/local`);
         expect(architectSkill).toContain('Managed Local Runtime');
         expect(architectSkill).toContain('--api-key-stdin');
         expect(agentsContent).not.toContain('saved instance configs');
