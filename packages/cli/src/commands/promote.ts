@@ -195,9 +195,7 @@ export class PromoteCommand {
             this.printResult(result, options);
             throw new Error(`Promotion blocked by ${applyProblems.length} problem${applyProblems.length === 1 ? '' : 's'}.`);
         }
-        if (!options.dryRun) {
-            this.savePromotionConfig(configPath, config);
-        }
+        this.savePromotionConfig(configPath, config);
         const result = this.buildResult(source, target, routeKey, configPath, applied, options);
         this.printResult(result, options);
         return result;
@@ -769,7 +767,11 @@ export class PromoteCommand {
         let next = value;
         for (const rule of route.nameRules ?? []) {
             if (rule.kind && rule.kind !== kind) continue;
-            next = next.replace(new RegExp(rule.from), rule.to);
+            try {
+                next = next.replace(new RegExp(rule.from), rule.to);
+            } catch {
+                throw new Error(`Invalid ${rule.kind || 'promotion'} nameRule pattern "${rule.from}" for ${kind} promotion.`);
+            }
         }
         return next;
     }

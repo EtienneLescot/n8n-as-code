@@ -73,12 +73,14 @@ export class PromotedWorkflow {}
             writeFileSync(sourcePath, workflow, 'utf8');
             writeFileSync(path.join(targetDir, 'one.workflow.ts'), workflow, 'utf8');
 
-            await expect(new PromoteCommand(configService).run(sourcePath, { from: 'Dev', to: 'Prod', dryRun: true, promotionConfig: path.join(workspaceRoot, 'n8nac-promotion.json') })).resolves.toMatchObject({
+            const promotionConfigPath = path.join(workspaceRoot, 'n8nac-promotion.json');
+            await expect(new PromoteCommand(configService).run(sourcePath, { from: 'Dev', to: 'Prod', dryRun: true, promotionConfig: promotionConfigPath })).resolves.toMatchObject({
                 targetEnvironmentName: 'Prod',
                 targetPath: path.join(targetDir, 'one.workflow.ts'),
                 dryRun: true,
                 pushed: false,
             });
+            expect(existsSync(promotionConfigPath)).toBe(false);
         } finally {
             if (previousManagerHome === undefined) {
                 delete process.env.N8N_MANAGER_HOME;
