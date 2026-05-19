@@ -539,10 +539,12 @@ export class ConfigService {
         ]);
         this.assertUniqueName(name, config.environments, 'environment');
         const syncSlug = this.uniqueEnvironmentSyncSlug(name, config.environments);
-        const workflowsPath = cleanOptional(input.workflowsPath)
-            || cleanOptional(input.workflowDir)
-            || cleanOptional(input.syncFolder)
-            || this.resolveInputWorkflowsPath({ syncSlug }, config.environments, name);
+        const workflowsPath = this.resolveInputWorkflowsPath({
+            workflowsPath: input.workflowsPath,
+            workflowDir: input.workflowDir,
+            syncFolder: input.syncFolder,
+            syncSlug,
+        }, config.environments, name);
 
         const environment: IWorkspaceEnvironment = {
             id,
@@ -2758,7 +2760,10 @@ export class ConfigService {
                 : undefined;
         if (explicit !== undefined) return explicit;
         if (patch.syncFolder === undefined) return undefined;
-        return cleanRequired(patch.syncFolder, 'Sync folder');
+        return this.resolveInputWorkflowsPath({
+            syncFolder: cleanRequired(patch.syncFolder, 'Sync folder'),
+            syncSlug: environment.syncSlug,
+        }, [], environment.name);
     }
 
     private resolveEnvironmentWorkflowsPath(environment: IWorkspaceEnvironment, identity: {

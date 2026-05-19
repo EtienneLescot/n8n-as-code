@@ -1057,7 +1057,7 @@ describe('ConfigService', () => {
             environmentTarget: target.id,
             projectId: 'personal',
             projectName: 'Personal',
-            syncFolder: 'workflows/dev',
+            workflowsPath: 'workflows/dev',
         });
 
         configService.saveLocalConfig({ host: 'https://other.example.test' }, {
@@ -1170,10 +1170,10 @@ describe('ConfigService', () => {
         expect(() => configService.pinWorkspaceInstance('anything')).toThrow(/v4 environments/);
     });
 
-    it('allows environments that share the same sync root folder', () => {
+    it('preserves legacy syncFolder root semantics for environment paths', () => {
         const configService = new ConfigService(workspaceRoot);
         const target = configService.addInstanceTarget({ name: 'Target', url: 'https://target.example.test', instanceIdentifier: 'n8n_1111111111' });
-        configService.addEnvironment({
+        const dev = configService.addEnvironment({
             name: 'Dev',
             environmentTarget: target.id,
             projectId: 'personal',
@@ -1189,7 +1189,12 @@ describe('ConfigService', () => {
             syncFolder: './workflows/shared',
         });
 
-        expect(prod.workflowsPath).toBe('./workflows/shared');
+        expect(dev.workflowsPath).toBe('workflows/dev');
+        expect(prod.workflowsPath).toBe('workflows/shared/prod');
+
+        expect(configService.updateEnvironment('Prod', {
+            syncFolder: 'team-workflows',
+        }).workflowsPath).toBe('team-workflows/prod');
 
         expect(configService.updateEnvironment('Prod', {
             workflowsPath: 'workflows/shared',
