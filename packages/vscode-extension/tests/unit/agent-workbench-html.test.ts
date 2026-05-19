@@ -48,6 +48,9 @@ test('Agent Workbench HTML: renders provider/session controls', () => {
     assert.ok(html.includes('id="history-open"'), 'Must render the conversation history button');
     assert.ok(html.includes('id="session-list"'), 'Must render the persisted session list in history modal');
     assert.ok(html.includes("type: 'agent.session.new'"), 'Must allow creating new persisted sessions');
+    assert.ok(html.includes("type: 'agent.session.delete'"), 'Must allow deleting persisted sessions from history');
+    assert.ok(html.includes("className = 'ghost session-delete'"), 'Must render a trash icon button for each persisted session');
+    assert.ok(html.includes('Delete this conversation? This cannot be undone.'), 'Must confirm before deleting a session');
     assert.ok(html.includes('id="new-session-menu"'), 'Must render new conversation context picker');
     assert.ok(html.includes('This workflow'), 'Must allow a new chat for the current workflow');
     assert.ok(html.includes('New workflow'), 'Must allow a new unattached workflow chat');

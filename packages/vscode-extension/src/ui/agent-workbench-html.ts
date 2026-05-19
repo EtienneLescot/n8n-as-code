@@ -47,6 +47,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
     const lucideIcon = (paths: string) => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths}</svg>`;
     const newConversationIcon = lucideIcon('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>');
     const historyIcon = lucideIcon('<path d="M3 12a9 9 0 1 0 9-9 9.8 9.8 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>');
+    const trashIcon = lucideIcon('<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>');
     const compactIcon = lucideIcon('<path d="M6 12h12"/><path d="m8 4 4 4 4-4"/><path d="m8 20 4-4 4 4"/>');
     const checkpointIcon = lucideIcon('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>');
     const sendIcon = lucideIcon('<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>');
@@ -172,12 +173,28 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             background: color-mix(in srgb, var(--bg) 82%, transparent);
             padding: 10px;
             display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: flex-start;
             gap: 6px;
-            cursor: pointer;
         }
         .session-item.active {
             border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
             box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 42%, transparent);
+        }
+        button.session-select {
+            display: grid;
+            min-width: 0;
+            gap: 6px;
+            padding: 0;
+            border: 0;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text);
+            text-align: left;
+        }
+        button.session-select:focus-visible {
+            outline: 1px solid var(--vscode-focusBorder, var(--accent));
+            outline-offset: 2px;
         }
         .session-item-head {
             display: flex;
@@ -196,6 +213,30 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             gap: 6px;
             flex-wrap: wrap;
             justify-content: flex-end;
+            align-items: center;
+            flex: 0 0 auto;
+        }
+        .session-delete {
+            width: 26px;
+            height: 26px;
+            min-width: 26px;
+            padding: 0;
+            border-radius: 6px;
+            color: var(--muted);
+        }
+        .session-delete:hover:not(:disabled) {
+            color: var(--error);
+            border-color: color-mix(in srgb, var(--error) 58%, var(--border));
+            background: color-mix(in srgb, var(--error) 12%, transparent);
+        }
+        .session-delete svg {
+            width: 14px;
+            height: 14px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
         .badge {
             border: 1px solid var(--border);
@@ -1443,13 +1484,17 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             }
 
             for (const session of sessions) {
-                const item = document.createElement('button');
-                item.type = 'button';
+                const item = document.createElement('div');
                 item.className = 'session-item' + (session.isActive ? ' active' : '');
-                item.addEventListener('click', () => {
+                const selectButton = document.createElement('button');
+                selectButton.type = 'button';
+                selectButton.className = 'session-select';
+                selectButton.setAttribute('aria-label', 'Open conversation ' + session.title);
+                const selectSession = () => {
                     closeHistory();
                     vscode.postMessage({ type: 'agent.session.select', sessionId: session.id });
-                });
+                };
+                selectButton.addEventListener('click', selectSession);
 
                 const head = document.createElement('div');
                 head.className = 'session-item-head';
@@ -1461,7 +1506,23 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 badges.className = 'session-item-badges';
                 if (session.isActive) badges.appendChild(badge('Active', 'active'));
                 if (session.checkpointCount) badges.appendChild(badge(session.checkpointCount + ' cp', 'success'));
-                head.append(title, badges);
+                const deleteButton = document.createElement('button');
+                deleteButton.type = 'button';
+                deleteButton.className = 'ghost session-delete';
+                deleteButton.title = 'Delete conversation';
+                deleteButton.setAttribute('aria-label', 'Delete conversation ' + session.title);
+                deleteButton.innerHTML = ${JSON.stringify(trashIcon)};
+                deleteButton.disabled = Boolean(isRunning && session.isActive);
+                deleteButton.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (deleteButton.disabled) return;
+                    const confirmed = window.confirm('Delete this conversation? This cannot be undone.');
+                    if (!confirmed) return;
+                    vscode.postMessage({ type: 'agent.session.delete', sessionId: session.id });
+                });
+                badges.appendChild(deleteButton);
+                head.appendChild(title);
 
                 const foot = document.createElement('div');
                 foot.className = 'session-item-foot';
@@ -1471,7 +1532,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 updated.textContent = formatDate(session.updatedAt);
                 foot.append(attachment, updated);
 
-                item.append(head, foot);
+                selectButton.append(head, foot);
+                item.append(selectButton, badges);
                 sessionList.appendChild(item);
             }
         }

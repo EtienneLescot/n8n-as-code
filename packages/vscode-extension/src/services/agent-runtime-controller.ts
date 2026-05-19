@@ -456,6 +456,18 @@ class WorkbenchSessionService implements SessionServiceHandle {
     }
 
     async delete(id: string): Promise<void> {
+        if (this.flushPromise) {
+            await this.flushPromise;
+        }
+        if (this.flushTimer) {
+            clearTimeout(this.flushTimer);
+            this.flushTimer = undefined;
+        }
+        this.pendingRecordWrites.delete(id);
+        this.pendingDisplayWrites.delete(id);
+        if (this.pendingRecordWrites.size || this.pendingDisplayWrites.size) {
+            await this.flushPendingWritesNow();
+        }
         fs.rmSync(this.recordPath(id), { force: true });
         fs.rmSync(this.displayPath(id), { force: true });
         fs.rmSync(this.sessionCheckpointDir(id), { recursive: true, force: true });
@@ -877,11 +889,12 @@ export class AgentRuntimeController implements vscode.Disposable {
         const scope = this.getSessionScope(input);
         const sessions = await this.getSessionRuntime();
         const active = sessions.service.getActiveForScope(scope)?.id;
+        const deletedSelectedSession = input.sessionId === sessionId;
         await sessions.service.delete(sessionId);
         if (active === sessionId) {
             sessions.service.getOrCreateForScope(scope, { title: this.getDefaultSessionTitle(input.workflowName) });
         }
-        return this.getWorkbenchState(input);
+        return this.getWorkbenchState(deletedSelectedSession ? { ...input, sessionId: undefined } : input);
     }
 
     async attachSessionToCurrentWorkflow(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
