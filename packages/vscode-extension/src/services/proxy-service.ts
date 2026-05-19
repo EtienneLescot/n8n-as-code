@@ -11,6 +11,11 @@ type ExternalAuthRequest = {
     targetUrl: string;
 };
 
+type ExternalAuthSession = {
+    expiresAt: number;
+    expectedTargetUrl: string;
+};
+
 export class ProxyService {
     private server: http.Server | undefined;
     private proxy: httpProxy | undefined;
@@ -23,7 +28,8 @@ export class ProxyService {
 
     private cookieJar = new Map<string, string>();
     private htmlRoutes = new Map<string, string>();
-    private externalAuthSessions = new Map<string, number>();
+    private externalAuthSessions = new Map<string, ExternalAuthSession>();
+    private lastWorkflowProxyUrl: string | undefined;
 
     private readonly externalAuthRoutePrefix = '/__n8nac-external-auth/';
     private readonly externalAuthSessionTtlMs = 15 * 60 * 1000;
@@ -63,6 +69,9 @@ export class ProxyService {
                 if (locationUrl.origin !== targetUrl.origin) {
                     return externalAuthToken ? this.buildExternalAuthProxyUrl(locationUrl.toString(), externalAuthToken) : location;
                 }
+                if (externalAuthToken) {
+                    this.externalAuthSessions.delete(externalAuthToken);
+                }
                 const remainingPath = this.stripTargetBasePath(locationUrl.pathname, targetBasePath);
                 return `${proxyBaseUrl}${remainingPath}${locationUrl.search}${locationUrl.hash}`;
             }
@@ -72,6 +81,10 @@ export class ProxyService {
                 : new URL(location);
             if (locationUrl.origin !== targetUrl.origin) {
                 return externalAuthToken ? this.buildExternalAuthProxyUrl(locationUrl.toString(), externalAuthToken) : location;
+            }
+
+            if (externalAuthToken) {
+                this.externalAuthSessions.delete(externalAuthToken);
             }
 
             if (!this.urlPathMatchesBase(locationUrl.pathname, targetBasePath)) {
@@ -153,27 +166,40 @@ export class ProxyService {
 
     private cleanupExternalAuthSessions(): void {
         const now = Date.now();
-        for (const [token, expiresAt] of this.externalAuthSessions) {
-            if (expiresAt <= now) {
+        for (const [token, session] of this.externalAuthSessions) {
+            if (session.expiresAt <= now) {
                 this.externalAuthSessions.delete(token);
             }
         }
     }
 
-    private createExternalAuthSession(): string {
+    private createExternalAuthSession(expectedTargetUrl: string): string {
         this.cleanupExternalAuthSessions();
         const token = randomUUID();
-        this.externalAuthSessions.set(token, Date.now() + this.externalAuthSessionTtlMs);
+        this.externalAuthSessions.set(token, {
+            expiresAt: Date.now() + this.externalAuthSessionTtlMs,
+            expectedTargetUrl: this.normalizeExternalAuthTargetUrl(expectedTargetUrl),
+        });
         return token;
     }
 
-    private isExternalAuthSessionValid(token: string): boolean {
+    private getExternalAuthSession(token: string): ExternalAuthSession | undefined {
         this.cleanupExternalAuthSessions();
-        return Boolean(token && this.externalAuthSessions.has(token));
+        return token ? this.externalAuthSessions.get(token) : undefined;
     }
 
-    private buildExternalAuthProxyUrl(targetUrl: string, token = this.createExternalAuthSession()): string {
-        return `${this.getProxyBaseUrl()}${this.externalAuthRoutePrefix}${encodeURIComponent(token)}?url=${encodeURIComponent(targetUrl)}`;
+    private normalizeExternalAuthTargetUrl(targetUrl: string): string {
+        return new URL(targetUrl).toString();
+    }
+
+    private buildExternalAuthProxyUrl(targetUrl: string, token?: string): string {
+        const normalizedTargetUrl = this.normalizeExternalAuthTargetUrl(targetUrl);
+        const sessionToken = token || this.createExternalAuthSession(normalizedTargetUrl);
+        const session = this.getExternalAuthSession(sessionToken);
+        if (session) {
+            session.expectedTargetUrl = normalizedTargetUrl;
+        }
+        return `${this.getProxyBaseUrl()}${this.externalAuthRoutePrefix}${encodeURIComponent(sessionToken)}?url=${encodeURIComponent(normalizedTargetUrl)}`;
     }
 
     private parseExternalAuthProxyRequest(requestUrl?: string): ExternalAuthRequest | undefined {
@@ -185,7 +211,8 @@ export class ProxyService {
 
             const token = decodeURIComponent(url.pathname.slice(this.externalAuthRoutePrefix.length));
             const targetUrl = url.searchParams.get('url') || '';
-            if (!this.isExternalAuthSessionValid(token)) {
+            const session = this.getExternalAuthSession(token);
+            if (!session) {
                 return undefined;
             }
 
@@ -193,8 +220,12 @@ export class ProxyService {
             if (!['http:', 'https:'].includes(parsedTargetUrl.protocol)) {
                 return undefined;
             }
+            const normalizedTargetUrl = parsedTargetUrl.toString();
+            if (normalizedTargetUrl !== session.expectedTargetUrl) {
+                return undefined;
+            }
 
-            return { token, targetUrl: parsedTargetUrl.toString() };
+            return { token, targetUrl: normalizedTargetUrl };
         } catch {
             return undefined;
         }
@@ -221,6 +252,43 @@ export class ProxyService {
             authProxyUrl,
             html: this.buildExternalAuthHandoffHtml(authProxyUrl, returnUrl),
         };
+    }
+
+    private buildProxyRequestUrl(requestUrl?: string): string {
+        const path = requestUrl && requestUrl.startsWith('/') ? requestUrl : `/${requestUrl || ''}`;
+        return `${this.getProxyBaseUrl()}${path}`;
+    }
+
+    private rememberWorkflowProxyUrl(requestUrl?: string): void {
+        try {
+            const url = new URL(requestUrl ?? '/', `http://localhost:${this.port || 0}`);
+            if (url.pathname.startsWith('/workflow/')) {
+                this.lastWorkflowProxyUrl = this.buildProxyRequestUrl(`${url.pathname}${url.search}`);
+            }
+        } catch {
+            // ignore malformed request URLs
+        }
+    }
+
+    private getWorkflowRetryUrl(req: http.IncomingMessage): string {
+        const referrer = typeof req.headers.referer === 'string' ? req.headers.referer : undefined;
+        const proxyBaseUrl = new URL(this.getProxyBaseUrl());
+        if (referrer) {
+            try {
+                const referrerUrl = new URL(referrer);
+                const proxyBasePath = this.trimTrailingSlash(proxyBaseUrl.pathname);
+                const referrerPath = proxyBasePath && referrerUrl.pathname.startsWith(`${proxyBasePath}/`)
+                    ? referrerUrl.pathname.slice(proxyBasePath.length)
+                    : referrerUrl.pathname;
+                if (referrerUrl.origin === proxyBaseUrl.origin && referrerPath.startsWith('/workflow/')) {
+                    return referrerUrl.toString();
+                }
+            } catch {
+                // ignore malformed referrers
+            }
+        }
+
+        return this.lastWorkflowProxyUrl || this.buildProxyRequestUrl(req.url);
     }
 
     private buildExternalAuthHandoffHtml(authProxyUrl: string, returnUrl: string): string {
@@ -342,6 +410,8 @@ export class ProxyService {
         // Reset state
         this.cookieJar.clear();
         this.htmlRoutes.clear();
+        this.externalAuthSessions.clear();
+        this.lastWorkflowProxyUrl = undefined;
         this.setPublicBaseUrl(undefined);
         this.target = normalizedTarget;
         this.port = stablePort;
@@ -381,7 +451,7 @@ export class ProxyService {
                 const location = proxyRes.headers['location'];
                 const isRedirect = (proxyRes.statusCode || 0) >= 300 && (proxyRes.statusCode || 0) < 400;
                 if (!externalAuth && isRedirect && this.isExternalN8nRedirect(location)) {
-                    const returnUrl = `${this.getProxyBaseUrl()}${req.url || '/'}`;
+                    const returnUrl = this.getWorkflowRetryUrl(req);
                     const handoff = this.createExternalAuthHandoff(location, returnUrl);
                     if (handoff) {
                         const httpRes = res as http.ServerResponse;
@@ -507,6 +577,7 @@ export class ProxyService {
             if (this.proxy) {
                 // Request uncompressed responses so HTML bridge injection can safely mutate the body.
                 delete req.headers['accept-encoding'];
+                this.rememberWorkflowProxyUrl(req.url);
 
                 const mergedCookies = this.buildMergedCookieHeader(req.headers.cookie);
                 if (mergedCookies) {

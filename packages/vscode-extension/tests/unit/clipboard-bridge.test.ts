@@ -229,7 +229,7 @@ test('ProxyService: external auth redirects remain proxied until n8n callback re
     const service = new ProxyService();
     (service as any).target = 'https://n8n.example.test';
     service.setPublicBaseUrl('https://code.example.test/proxy/25444');
-    const token = (service as any).createExternalAuthSession();
+    const token = (service as any).createExternalAuthSession('https://idp.example.test/login');
 
     const nextIdpUrl = (service as any).rewriteProxyLocation(
         '/oauth/authorize?next=1',
@@ -249,11 +249,86 @@ test('ProxyService: external auth redirects remain proxied until n8n callback re
             .includes(encodeURIComponent('https://idp.example.test/factor')),
         'Protocol-relative IdP redirects should remain in the auth proxy flow',
     );
+    const absoluteIdpUrl = (service as any).rewriteProxyLocation(
+        'https://idp.example.test/consent?step=2',
+        'https://idp.example.test/login',
+        token,
+    );
+    assert.ok(
+        absoluteIdpUrl.startsWith('https://code.example.test/proxy/25444/__n8nac-external-auth/'),
+        'Absolute IdP redirects should continue through the auth proxy',
+    );
+    assert.ok(
+        absoluteIdpUrl.includes(encodeURIComponent('https://idp.example.test/consent?step=2')),
+        'Absolute IdP redirects should carry the exact IdP URL',
+    );
 
     assert.equal(
         (service as any).rewriteProxyLocation('https://n8n.example.test/workflow/wf-1', 'https://idp.example.test/login', token),
         'https://code.example.test/proxy/25444/workflow/wf-1',
         'n8n callbacks should return to the normal workflow proxy route',
+    );
+});
+
+test('ProxyService: external auth tokens only proxy their expected target URL', () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const service = new ProxyService();
+    (service as any).target = 'https://n8n.example.test';
+    service.setPublicBaseUrl('https://code.example.test/proxy/25444');
+
+    const token = (service as any).createExternalAuthSession('https://idp.example.test/login?state=abc');
+
+    assert.deepEqual(
+        (service as any).parseExternalAuthProxyRequest(`/__n8nac-external-auth/${token}?url=${encodeURIComponent('https://idp.example.test/login?state=abc')}`),
+        { token, targetUrl: 'https://idp.example.test/login?state=abc' },
+    );
+    assert.equal(
+        (service as any).parseExternalAuthProxyRequest(`/__n8nac-external-auth/${token}?url=${encodeURIComponent('https://evil.example.test/steal')}`),
+        undefined,
+        'A valid token must not be reusable for arbitrary external URLs',
+    );
+
+    const nextUrl = (service as any).rewriteProxyLocation('https://idp.example.test/consent', 'https://idp.example.test/login?state=abc', token);
+    assert.ok(nextUrl.includes(encodeURIComponent('https://idp.example.test/consent')), 'Trusted redirects advance the expected target URL');
+    assert.equal(
+        (service as any).parseExternalAuthProxyRequest(`/__n8nac-external-auth/${token}?url=${encodeURIComponent('https://idp.example.test/login?state=abc')}`),
+        undefined,
+        'The previous IdP URL should no longer be accepted after the redirect target advances',
+    );
+    assert.deepEqual(
+        (service as any).parseExternalAuthProxyRequest(`/__n8nac-external-auth/${token}?url=${encodeURIComponent('https://idp.example.test/consent')}`),
+        { token, targetUrl: 'https://idp.example.test/consent' },
+    );
+});
+
+test('ProxyService: external auth handoff retries the last workflow URL', () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const service = new ProxyService();
+    (service as any).target = 'https://n8n.example.test';
+    (service as any).port = 25444;
+    service.setPublicBaseUrl('https://code.example.test/proxy/25444');
+
+    (service as any).rememberWorkflowProxyUrl('/workflow/wf-1?_n8nacBridge=123');
+    const retryFromMemory = (service as any).getWorkflowRetryUrl({
+        url: '/sso/saml/login',
+        headers: {},
+    });
+    assert.equal(
+        retryFromMemory,
+        'https://code.example.test/proxy/25444/workflow/wf-1?_n8nacBridge=123',
+        'Retry should prefer the remembered workflow URL over the SSO endpoint',
+    );
+
+    const retryFromReferrer = (service as any).getWorkflowRetryUrl({
+        url: '/sso/saml/login',
+        headers: {
+            referer: 'https://code.example.test/proxy/25444/workflow/wf-2?_n8nacBridge=456',
+        },
+    });
+    assert.equal(
+        retryFromReferrer,
+        'https://code.example.test/proxy/25444/workflow/wf-2?_n8nacBridge=456',
+        'Retry should use a workflow referrer when available',
     );
 });
 
