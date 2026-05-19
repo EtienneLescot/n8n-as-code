@@ -1,5 +1,17 @@
 # n8n-as-code
 
+## [2.8.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.8.0...n8n-as-code@v2.8.1) (2026-05-19)
+
+### Bug Fixes
+
+* **config:** tolerate duplicate instance target names ([912adcc](https://github.com/EtienneLescot/n8n-as-code/commit/912adcc75d0368aa1f1c94251c606b4919c1bfba))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.1.3 to 2.1.4
+    * n8nac bumped from 2.2.1 to 2.2.2
+
 ## [2.8.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.6.0...n8n-as-code@v2.8.0) (2026-05-13)
 
 ### Features
