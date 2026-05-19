@@ -1750,6 +1750,7 @@ export class ConfigService {
             name,
             host,
             syncFolder: asString(value.syncFolder) || asString(root.syncFolder),
+            workflowsPath: asString(value.workflowsPath) || asString(root.workflowsPath),
             projectId: asString(value.projectId) || asString(root.projectId),
             projectName: asString(value.projectName) || asString(root.projectName),
             instanceIdentifier: asString(value.instanceIdentifier) || asString(root.instanceIdentifier),

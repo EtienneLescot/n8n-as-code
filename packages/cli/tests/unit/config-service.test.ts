@@ -400,6 +400,7 @@ describe('ConfigService', () => {
                 name: 'etiennel.app.n8n.cloud · Etienne Lescot',
                 host: 'https://etiennel.app.n8n.cloud',
                 syncFolder: 'workflows',
+                workflowsPath: 'workflows/cloud-personal',
                 projectId: 'sD2aDWI5bIJF3Km3',
                 projectName: 'Personal',
                 instanceIdentifier: 'etiennel_cloud_etienne_l',
@@ -436,6 +437,7 @@ describe('ConfigService', () => {
                 name: 'etiennel.app.n8n.cloud · Etienne Lescot',
                 projectId: 'sD2aDWI5bIJF3Km3',
                 syncFolder: 'workflows',
+                workflowsPath: 'workflows/cloud-personal',
             }),
             expect.objectContaining({
                 id: 'instance-86ea2ff2',

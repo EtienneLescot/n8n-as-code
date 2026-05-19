@@ -264,7 +264,10 @@ function EnvironmentFormModal({ environmentId }: { environmentId?: string }) {
     }
     patch(nextPatch);
   };
-  const workflowsPathConflict = false;
+  const normalizedWorkflowsPath = normalizeWorkflowsPath(draft?.workflowsPath || '');
+  const workflowsPathConflict = Boolean(normalizedWorkflowsPath) && allEnvironments
+    .filter((environment) => environment?.id !== environmentId)
+    .some((environment) => normalizeWorkflowsPath(environment?.workflowsPath || environment?.workflowDir || environment?.syncFolder || '') === normalizedWorkflowsPath);
   const canContinue = draft && selected && selected.mode !== 'new-managed' && (isManaged || selected?.targetId || selected?.mode !== 'new-connected' || (draft.url && (draft.apiKey || draft.apiKeyAvailable)));
   if (!draft) return null;
   const save = () => {
@@ -281,7 +284,7 @@ function EnvironmentFormModal({ environmentId }: { environmentId?: string }) {
     {selected?.mode === 'new-managed' ? <div className="inline-message">Select New managed instance to create a linkable local runtime first.</div> : null}
     {canContinue && isManaged ? <div className="inline-message warning">Managed instance is {status?.label.toLowerCase()}. You can finish this environment now; runtime status will update in the background.</div> : null}
     {canContinue && !isManaged ? <ProjectFields draft={draft} patch={patch} draftId={draftId} selected={selected} /> : null}
-    {canContinue ? <div className="form-grid"><label>Workflows path<input value={draft.workflowsPath} onChange={(event) => patch({ workflowsPath: event.target.value })} /></label><label>Custom nodes path<input value={draft.customNodesPath} onChange={(event) => patch({ customNodesPath: event.target.value })} /></label></div> : null}
+    {canContinue ? <div className="form-grid"><label>Workflows path<input value={draft.workflowsPath} onChange={(event) => patch({ workflowsPath: event.target.value })} />{workflowsPathConflict ? <span className="inline-message error">Another environment already uses this workflows path.</span> : null}</label><label>Custom nodes path<input value={draft.customNodesPath} onChange={(event) => patch({ customNodesPath: event.target.value })} /></label></div> : null}
     {canContinue ? <label>Description<textarea value={draft.description} onChange={(event) => patch({ description: event.target.value })} /></label> : null}
     <div className="toolbar"><button onClick={save} disabled={!draft.name || !canContinue || workflowsPathConflict || savePending}>{savePending ? 'Saving...' : 'Save environment'}</button>{!isManaged ? <button className="secondary" disabled={activeSetup || editingEnvironment || savePending} onClick={() => dispatch(actions.modalOpened({ kind: 'managed-form', returnToEnvironmentForm: true, returnToEnvironmentDraftId: draftId }))}>Create local instance</button> : null}</div>
   </Modal>;
@@ -346,15 +349,19 @@ function defaultWorkflowsPathForName(name: string, existingEnvironments: any[], 
     || 'environment';
   const used = new Set(existingEnvironments
     .filter((environment) => environment?.id !== currentEnvironmentId)
-    .map((environment) => String(environment?.workflowsPath || environment?.workflowDir || environment?.syncFolder || '').toLowerCase())
+    .map((environment) => normalizeWorkflowsPath(environment?.workflowsPath || environment?.workflowDir || environment?.syncFolder || ''))
     .filter(Boolean));
   let candidate = `workflows/${slug}`;
   let counter = 2;
-  while (used.has(candidate.toLowerCase())) {
+  while (used.has(normalizeWorkflowsPath(candidate))) {
     candidate = `workflows/${slug}-${counter}`;
     counter += 1;
   }
   return candidate;
+}
+
+function normalizeWorkflowsPath(value: string): string {
+  return String(value || '').trim().replace(/\\/g, '/').replace(/\/+$/g, '').toLowerCase();
 }
 
 createRoot(document.getElementById('root')!).render(<Provider store={store}><App /></Provider>);
