@@ -29,7 +29,9 @@ interface AgentWorkbenchWorkflowProviders {
 }
 
 export class AgentWorkbenchWebview {
-    public static currentPanel: AgentWorkbenchWebview | undefined;
+    private static readonly _panels = new Map<string, AgentWorkbenchWebview>();
+    private static _lastActiveSessionId: string | undefined;
+    private static _clipboardPasteHandler: ((panel: vscode.WebviewPanel, grantToken: string) => Promise<void>) | undefined;
 
     private readonly _panel: vscode.WebviewPanel;
     private readonly _context: vscode.ExtensionContext;
@@ -45,7 +47,6 @@ export class AgentWorkbenchWebview {
     private _nodeContexts: AgentWorkbenchNodeContext[] = [];
     private _workflowProviders: AgentWorkbenchWorkflowProviders;
     private _activeSessionId: string | undefined;
-    private _onClipboardPasteRequest: ((panel: vscode.WebviewPanel, grantToken: string) => Promise<void>) | undefined;
     private _stateSequence = 0;
 
     private constructor(
@@ -76,7 +77,15 @@ export class AgentWorkbenchWebview {
 
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
         this._panel.onDidChangeViewState((event) => {
-            if (event.webviewPanel.visible) {
+            const isVisible = event.webviewPanel.visible;
+            void this._panel.webview.postMessage({
+                type: 'panel.visibility',
+                visible: isVisible,
+            });
+            if (event.webviewPanel.active && this._activeSessionId) {
+                AgentWorkbenchWebview._lastActiveSessionId = this._activeSessionId;
+            }
+            if (isVisible) {
                 void this.postWorkbenchState();
             }
         }, null, this._disposables);
@@ -105,12 +114,14 @@ export class AgentWorkbenchWebview {
     ): void {
         const column = viewColumn || vscode.ViewColumn.One;
 
-        if (AgentWorkbenchWebview.currentPanel) {
-            AgentWorkbenchWebview.currentPanel._panel.reveal(column);
-            AgentWorkbenchWebview.currentPanel._workflowProviders = workflowProviders;
-            AgentWorkbenchWebview.currentPanel._activeSessionId = initialSessionId || AgentWorkbenchWebview.currentPanel._activeSessionId;
-            AgentWorkbenchWebview.currentPanel.update(workflow, workflowFilePath, workflowUrl, workflowReloadUrl, providerModelLabel);
-            return;
+        if (initialSessionId) {
+            const existingPanel = AgentWorkbenchWebview._panels.get(initialSessionId);
+            if (existingPanel) {
+                existingPanel._panel.reveal(column);
+                existingPanel._workflowProviders = workflowProviders;
+                existingPanel.update(workflow, workflowFilePath, workflowUrl, workflowReloadUrl, providerModelLabel);
+                return;
+            }
         }
 
         const panel = vscode.window.createWebviewPanel(
@@ -124,17 +135,19 @@ export class AgentWorkbenchWebview {
             },
         );
 
-        AgentWorkbenchWebview.currentPanel = new AgentWorkbenchWebview(panel, context, workflow, workflowFilePath, workflowUrl, workflowReloadUrl, providerModelLabel, agentRuntime, outputChannel, workflowProviders, initialSessionId);
-    }
-
-    public static onClipboardPasteRequest(handler: (panel: vscode.WebviewPanel, grantToken: string) => Promise<void>): void {
-        if (AgentWorkbenchWebview.currentPanel) {
-            AgentWorkbenchWebview.currentPanel._onClipboardPasteRequest = handler;
+        const workbench = new AgentWorkbenchWebview(panel, context, workflow, workflowFilePath, workflowUrl, workflowReloadUrl, providerModelLabel, agentRuntime, outputChannel, workflowProviders, initialSessionId);
+        if (initialSessionId) {
+            AgentWorkbenchWebview._panels.set(initialSessionId, workbench);
+            AgentWorkbenchWebview._lastActiveSessionId = initialSessionId;
         }
     }
 
+    public static onClipboardPasteRequest(handler: (panel: vscode.WebviewPanel, grantToken: string) => Promise<void>): void {
+        AgentWorkbenchWebview._clipboardPasteHandler = handler;
+    }
+
     public static getCurrentActiveSessionId(): string | undefined {
-        return AgentWorkbenchWebview.currentPanel?._activeSessionId;
+        return AgentWorkbenchWebview._lastActiveSessionId;
     }
 
     public update(workflow: IWorkflowStatus | undefined, workflowFilePath: string | undefined, workflowUrl: string | undefined, workflowReloadUrl: string | undefined, providerModelLabel: string, postState = true): void {
@@ -166,8 +179,11 @@ export class AgentWorkbenchWebview {
     }
 
     public dispose(): void {
-        if (AgentWorkbenchWebview.currentPanel === this) {
-            AgentWorkbenchWebview.currentPanel = undefined;
+        if (this._activeSessionId) {
+            AgentWorkbenchWebview._panels.delete(this._activeSessionId);
+            if (AgentWorkbenchWebview._lastActiveSessionId === this._activeSessionId) {
+                AgentWorkbenchWebview._lastActiveSessionId = undefined;
+            }
         }
         this._registryDisposable?.dispose();
         this._registryDisposable = undefined;
@@ -205,7 +221,7 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'clipboard-paste-request' && typeof payload.grantToken === 'string') {
-            void this._onClipboardPasteRequest?.(this._panel, payload.grantToken)
+            void AgentWorkbenchWebview._clipboardPasteHandler?.(this._panel, payload.grantToken)
                 ?.catch(error => console.error('[AgentWorkbench] Clipboard paste handler error', error));
             return;
         }
@@ -294,7 +310,8 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'agent.stop') {
-            await this._agentRuntime.stop((event) => this._panel.webview.postMessage(event));
+            const sessionId = typeof payload.sessionId === 'string' ? payload.sessionId : this._activeSessionId;
+            await this._agentRuntime.stop((event) => this._panel.webview.postMessage(event), sessionId);
             return;
         }
 
@@ -319,13 +336,19 @@ export class AgentWorkbenchWebview {
                     nodeContext: undefined,
                     nodeContexts: undefined,
                 };
-            await this.postWorkbenchState(await this._agentRuntime.createSession(input));
+            const state = await this._agentRuntime.createSession(input);
+            await vscode.commands.executeCommand('n8n.openAgentWorkbench', { sessionId: state.activeSessionId, workflow });
             return;
         }
 
         if (payload.type === 'agent.session.select' && typeof payload.sessionId === 'string') {
-            this._activeSessionId = payload.sessionId;
-            await this.postWorkbenchState(await this._agentRuntime.selectSession(payload.sessionId, this.buildWorkbenchInput()));
+            const sessionId = payload.sessionId;
+            const existingPanel = AgentWorkbenchWebview._panels.get(sessionId);
+            if (existingPanel) {
+                existingPanel._panel.reveal();
+            } else {
+                await vscode.commands.executeCommand('n8n.openAgentWorkbench', { sessionId });
+            }
             return;
         }
 
@@ -493,8 +516,20 @@ export class AgentWorkbenchWebview {
         const enrich = options.enrich !== false;
         const stateSequence = ++this._stateSequence;
         const nextState = state ?? await this._agentRuntime.getWorkbenchState(this.buildWorkbenchInput());
-        this._activeSessionId = nextState.activeSessionId;
+        const oldSessionId = this._activeSessionId;
+        const newSessionId = nextState.activeSessionId;
+        this._activeSessionId = newSessionId;
         this._nodeContexts = Array.isArray(nextState.currentNodeContexts) ? nextState.currentNodeContexts : [];
+
+        if (oldSessionId && oldSessionId !== newSessionId) {
+            AgentWorkbenchWebview._panels.delete(oldSessionId);
+        }
+        if (newSessionId) {
+            AgentWorkbenchWebview._panels.set(newSessionId, this);
+            if (this._panel.active) {
+                AgentWorkbenchWebview._lastActiveSessionId = newSessionId;
+            }
+        }
         if (!enrich) {
             await this._panel.webview.postMessage({ type: 'agent.state', state: nextState, stateSequence });
             if (!nextState.isRunning) {

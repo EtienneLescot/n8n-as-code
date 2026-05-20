@@ -399,6 +399,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
         registerTelemetryCommand('n8n.openAgentWorkbench', async (arg: any) => {
             const runtime = requireAgentRuntimeController();
+            if (arg && typeof arg === 'object' && typeof arg.sessionId === 'string') {
+                telemetryClient?.track('vscode_workflow_view_opened', { mode: 'agent-workbench', workflow_state: arg.workflow ? 'workflow-context' : 'existing-session' });
+                await openAgentWorkbench(context, arg.workflow, arg.sessionId);
+                return;
+            }
             const wf = findWorkflowByCommandArg(arg);
             if (wf) {
                 const sessionId = await getOrCreateAgentSessionForWorkflow(wf);

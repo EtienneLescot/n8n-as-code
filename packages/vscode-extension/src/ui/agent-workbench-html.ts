@@ -2823,6 +2823,20 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             const message = event.data;
             if (!message || typeof message !== 'object') return;
 
+            if (message.type === 'panel.visibility') {
+                const isVisible = Boolean(message.visible);
+                if (!isVisible) {
+                    if (frame && frame.src !== 'about:blank') {
+                        frame.src = 'about:blank';
+                    }
+                } else {
+                    if (frame && frame.src !== workflowUrl && workflowUrl) {
+                        frame.src = workflowUrl;
+                    }
+                }
+                return;
+            }
+
             if (message.type === 'workflow.reload') {
                 vscode.postMessage({ type: 'workflow.reloadAck', workflowId, hasFrame: Boolean(frame), url: workflowReloadUrl || workflowUrl || '' });
                 reloadWorkflowFrame();

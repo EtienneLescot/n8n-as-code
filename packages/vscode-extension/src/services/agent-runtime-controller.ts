@@ -770,9 +770,9 @@ class WorkbenchSessionService implements SessionServiceHandle {
 }
 
 export class AgentRuntimeController implements vscode.Disposable {
-    private activeRun: { abortController: AbortController; sessionId: string; abortReason?: 'stop' | 'steer'; visibleDone?: boolean; runStartedAt?: number; visibleFinalAt?: number } | undefined;
+    private readonly activeRuns = new Map<string, { abortController: AbortController; sessionId: string; abortReason?: 'stop' | 'steer'; visibleDone?: boolean; runStartedAt?: number; visibleFinalAt?: number }>();
     private readonly stoppedRuns = new WeakSet<AbortController>();
-    private queuedPrompt: { input: AgentPromptInput; reason: 'pending' | 'steer' } | undefined;
+    private readonly queuedPrompts = new Map<string, { input: AgentPromptInput; reason: 'pending' | 'steer' }>();
     private cachedAgentHandle: { key: string; handle: any } | undefined;
     private sessionRuntimePromise: Promise<SessionRuntime> | undefined;
     private checkpointerPromise: Promise<RuntimeCheckpointer> | undefined;
@@ -816,7 +816,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             activeSessionId: activeRecord.id,
             sessions: await this.listSessionSummaries(scope, activeRecord.id),
             session,
-            isRunning: this.activeRun?.sessionId === activeRecord.id,
+            isRunning: this.activeRuns.has(activeRecord.id),
         };
     }
 
@@ -985,10 +985,8 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     async rewindToUserMessage(sessionId: string, messageId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<{ state: AgentWorkbenchState; prompt: string }> {
-        if (this.activeRun) {
-            throw new Error(this.activeRun.sessionId === sessionId
-                ? 'An agent run is already active for this conversation.'
-                : 'An agent run is already active. Stop it before rewinding.');
+        if (this.activeRuns.has(sessionId)) {
+            throw new Error('An agent run is already active for this conversation.');
         }
         const sessions = await this.getSessionRuntime();
         const entries = this.readSessionEntries(sessions.service, sessionId);
@@ -1025,6 +1023,9 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     async restoreCheckpoint(sessionId: string, checkpointId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
+        if (this.activeRuns.has(sessionId)) {
+            throw new Error('An agent run is already active for this conversation.');
+        }
         const sessions = await this.getSessionRuntime();
         const result = await sessions.service.restoreCheckpoint(sessionId, checkpointId);
         const payloads = this.extractCheckpointPayloads(result);
@@ -1069,15 +1070,13 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     async compactSession(sessionId: string, input: Omit<AgentPromptInput, 'prompt'>): Promise<AgentWorkbenchState> {
-        if (this.activeRun) {
-            throw new Error(this.activeRun.sessionId === sessionId
-                ? 'An agent run is already active for this conversation.'
-                : 'An agent run is already active. Stop it before compacting context.');
+        if (this.activeRuns.has(sessionId)) {
+            throw new Error('An agent run is already active for this conversation.');
         }
         const sessions = await this.getSessionRuntime();
 
         const abortController = new AbortController();
-        this.activeRun = { abortController, sessionId };
+        this.activeRuns.set(sessionId, { abortController, sessionId });
         try {
             let entries = this.readSessionEntries(sessions.service, sessionId);
             const event = await this.summarizeSessionForCompaction(sessionId, input, entries, abortController.signal);
@@ -1098,17 +1097,28 @@ export class AgentRuntimeController implements vscode.Disposable {
             });
             return this.getWorkbenchState({ ...input, sessionId });
         } finally {
-            if (this.activeRun?.abortController === abortController) {
-                this.activeRun = undefined;
+            const activeRun = this.activeRuns.get(sessionId);
+            if (activeRun?.abortController === abortController) {
+                this.activeRuns.delete(sessionId);
             }
         }
     }
 
     async sendPrompt(input: AgentPromptInput, postMessage: AgentWorkbenchPostMessage): Promise<AgentRunResult> {
-        if (this.activeRun) {
-            if (this.activeRun.visibleDone) {
-                const waitMs = this.activeRun.visibleFinalAt ? Date.now() - this.activeRun.visibleFinalAt : undefined;
-                this.outputChannel.appendLine(`[n8n-agent-debug] prompt queued while DeepAgents finalizes sessionId=${this.activeRun.sessionId} waitAfterVisibleMs=${waitMs ?? 'unknown'} reason=pending`);
+        const sessions = await this.getSessionRuntime();
+        const scope = this.getSessionScope(input);
+        const activeRecord = input.sessionId
+            ? sessions.service.ensure(input.sessionId, { title: this.getDefaultSessionTitle(input.workflowName) })
+            : (sessions.service.getActiveForScope(scope) || sessions.service.getOrCreateForScope(scope, {
+                title: this.getDefaultSessionTitle(input.workflowName),
+            }));
+        const targetSessionId = activeRecord.id;
+
+        const activeRun = this.activeRuns.get(targetSessionId);
+        if (activeRun) {
+            if (activeRun.visibleDone) {
+                const waitMs = activeRun.visibleFinalAt ? Date.now() - activeRun.visibleFinalAt : undefined;
+                this.outputChannel.appendLine(`[n8n-agent-debug] prompt queued while DeepAgents finalizes sessionId=${targetSessionId} waitAfterVisibleMs=${waitMs ?? 'unknown'} reason=pending`);
                 return this.queuePrompt(input, postMessage, 'pending');
             }
             await postMessage({
@@ -1123,21 +1133,14 @@ export class AgentRuntimeController implements vscode.Disposable {
             return { workflowChanged: false };
         }
 
-        const sessions = await this.getSessionRuntime();
-        const scope = this.getSessionScope(input);
-        const activeRecord = input.sessionId
-            ? sessions.service.ensure(input.sessionId, { title: this.getDefaultSessionTitle(input.workflowName) })
-            : (sessions.service.getActiveForScope(scope) || sessions.service.getOrCreateForScope(scope, {
-                title: this.getDefaultSessionTitle(input.workflowName),
-            }));
-        const sessionContext = await this.buildSessionState(activeRecord.id, input);
+        const sessionContext = await this.buildSessionState(targetSessionId, input);
         const promptWorkflowContext = sessionContext.workflowContext;
         const promptNodeContexts = sessionContext.nodeContexts.length
             ? sessionContext.nodeContexts
             : this.normalizeNodeContexts(input.nodeContexts || input.nodeContext);
         const promptInput: AgentPromptInput = {
             ...input,
-            sessionId: activeRecord.id,
+            sessionId: targetSessionId,
             workflowId: promptWorkflowContext?.id,
             workflowName: promptWorkflowContext?.name,
             workflowFilename: promptWorkflowContext?.filename,
@@ -1147,16 +1150,17 @@ export class AgentRuntimeController implements vscode.Disposable {
         };
 
         const abortController = new AbortController();
-        this.activeRun = { abortController, sessionId: activeRecord.id, runStartedAt: Date.now() };
+        const nextActiveRun = { abortController, sessionId: targetSessionId, runStartedAt: Date.now() };
+        this.activeRuns.set(targetSessionId, nextActiveRun);
 
         const derivedTitle = activeRecord.title === 'New conversation'
             ? sessions.deriveSessionTitle(prompt, this.getDefaultSessionTitle(input.workflowName))
             : activeRecord.title;
-        sessions.service.touch(activeRecord.id, { title: derivedTitle });
-        sessions.service.setTitle(activeRecord.id, derivedTitle);
+        sessions.service.touch(targetSessionId, { title: derivedTitle });
+        sessions.service.setTitle(targetSessionId, derivedTitle);
 
-        let entries = this.withoutContextUsage(this.readSessionEntries(sessions.service, activeRecord.id));
-        const beforeMessageCheckpoint = await this.saveBeforeUserMessageCheckpoint(sessions.service, activeRecord.id, entries, prompt, input.workspaceRoot);
+        let entries = this.withoutContextUsage(this.readSessionEntries(sessions.service, targetSessionId));
+        const beforeMessageCheckpoint = await this.saveBeforeUserMessageCheckpoint(sessions.service, targetSessionId, entries, prompt, input.workspaceRoot);
         entries = [...entries, {
             kind: 'user-message',
             id: randomUUID(),
@@ -1168,11 +1172,11 @@ export class AgentRuntimeController implements vscode.Disposable {
                 workspaceSnapshotId: beforeMessageCheckpoint.workspaceSnapshotId,
             },
         }];
-        this.writeSessionEntries(sessions.service, activeRecord.id, entries);
+        this.writeSessionEntries(sessions.service, targetSessionId, entries);
 
-        await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: activeRecord.id }) });
+        await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: targetSessionId }) });
         await postMessage({ type: 'agent.status', status: 'running', detail: 'Preparing n8n agent runtime...' });
-        await postMessage({ type: 'agent.streamEvent', event: { type: 'start', sessionId: activeRecord.id, message: prompt } });
+        await postMessage({ type: 'agent.streamEvent', event: { type: 'start', sessionId: targetSessionId, message: prompt } });
 
         let result: AgentRunResult = { workflowChanged: false };
         let queuedPrompt: { input: AgentPromptInput; reason: 'pending' | 'steer' } | undefined;
@@ -1180,10 +1184,11 @@ export class AgentRuntimeController implements vscode.Disposable {
         try {
             const runResult = await this.runInitialAgentTurn(promptInput, entries, postMessage, abortController.signal);
             entries = runResult.entries;
-            this.writeSessionEntries(sessions.service, activeRecord.id, entries);
-            if (!this.queuedPrompt && this.activeRun?.abortController === abortController) {
-                this.activeRun = undefined;
-                this.outputChannel.appendLine(`[n8n-agent-debug] agent host idle sessionId=${activeRecord.id}`);
+            this.writeSessionEntries(sessions.service, targetSessionId, entries);
+            const currentActiveRun = this.activeRuns.get(targetSessionId);
+            if (!this.queuedPrompts.has(targetSessionId) && currentActiveRun?.abortController === abortController) {
+                this.activeRuns.delete(targetSessionId);
+                this.outputChannel.appendLine(`[n8n-agent-debug] agent host idle sessionId=${targetSessionId}`);
                 await postMessage({ type: 'agent.status', status: 'idle' });
                 postedIdle = true;
             }
@@ -1191,49 +1196,51 @@ export class AgentRuntimeController implements vscode.Disposable {
                 const inferredWorkflow = await this.inferWorkflowContextFromWorkspace(input.workspaceRoot);
                 if (inferredWorkflow) {
                     entries = this.withWorkflowContext(entries, inferredWorkflow);
-                    this.writeSessionEntries(sessions.service, activeRecord.id, entries);
+                    this.writeSessionEntries(sessions.service, targetSessionId, entries);
                 }
             }
-            await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: activeRecord.id }) });
+            await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: targetSessionId }) });
             await postMessage({ type: 'agent.done' });
-            this.outputChannel.appendLine(`[n8n-agent-debug] agent host done sessionId=${activeRecord.id} queuedPrompt=${String(Boolean(this.queuedPrompt))}`);
+            this.outputChannel.appendLine(`[n8n-agent-debug] agent host done sessionId=${targetSessionId} queuedPrompt=${String(Boolean(this.queuedPrompts.has(targetSessionId)))}`);
             result = { workflowChanged: runResult.workflowChanged };
         } catch (error: any) {
             const message = error?.message || String(error);
+            const currentActiveRun = this.activeRuns.get(targetSessionId);
             if (this.stoppedRuns.has(abortController)) {
-                this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime stopped sessionId=${activeRecord.id}`);
-                this.appendRunStoppedNotice(sessions.service, activeRecord.id);
-                this.queuedPrompt = undefined;
+                this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime stopped sessionId=${targetSessionId}`);
+                this.appendRunStoppedNotice(sessions.service, targetSessionId);
+                this.queuedPrompts.delete(targetSessionId);
                 result = { workflowChanged: false };
-            } else if (this.activeRun?.abortController === abortController && this.activeRun.abortReason === 'steer') {
-                this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime steered sessionId=${activeRecord.id}`);
-                const latestEntries = this.withoutContextUsage(this.readSessionEntries(sessions.service, activeRecord.id));
-                this.writeSessionEntries(sessions.service, activeRecord.id, [
+            } else if (currentActiveRun?.abortController === abortController && currentActiveRun.abortReason === 'steer') {
+                this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime steered sessionId=${targetSessionId}`);
+                const latestEntries = this.withoutContextUsage(this.readSessionEntries(sessions.service, targetSessionId));
+                this.writeSessionEntries(sessions.service, targetSessionId, [
                     ...this.finalizePendingOperations(latestEntries, 'done'),
                     this.createSystemNotice('Run steered by a newer message.'),
                 ]);
-                await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: activeRecord.id }) });
+                await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: targetSessionId }) });
                 result = { workflowChanged: false };
             } else {
                 this.outputChannel.appendLine(`[n8n-agent] Run failed: ${message}`);
-                const latestEntries = this.withoutContextUsage(this.readSessionEntries(sessions.service, activeRecord.id));
+                const latestEntries = this.withoutContextUsage(this.readSessionEntries(sessions.service, targetSessionId));
                 const failedEntries = [
                     ...this.finalizePendingOperations(latestEntries, 'error'),
                     this.createSystemNotice(`Run failed: ${message}`),
                 ];
-                this.writeSessionEntries(sessions.service, activeRecord.id, failedEntries);
+                this.writeSessionEntries(sessions.service, targetSessionId, failedEntries);
                 await postMessage({ type: 'agent.streamEvent', event: { type: 'error', error: message } });
                 await postMessage({ type: 'agent.error', message });
-                await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: activeRecord.id }) });
+                await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: targetSessionId }) });
                 result = { workflowChanged: false };
             }
         } finally {
-            if (this.activeRun?.abortController === abortController) {
-                this.activeRun = undefined;
+            const currentActiveRun = this.activeRuns.get(targetSessionId);
+            if (currentActiveRun?.abortController === abortController) {
+                this.activeRuns.delete(targetSessionId);
             }
-            queuedPrompt = this.queuedPrompt;
+            queuedPrompt = this.queuedPrompts.get(targetSessionId);
             if (queuedPrompt) {
-                this.queuedPrompt = undefined;
+                this.queuedPrompts.delete(targetSessionId);
             } else if (!postedIdle) {
                 await postMessage({ type: 'agent.status', status: 'idle' });
             }
@@ -1250,41 +1257,53 @@ export class AgentRuntimeController implements vscode.Disposable {
         if (!prompt) {
             return { workflowChanged: false };
         }
-        if (!this.activeRun) {
+        const targetSessionId = input.sessionId;
+        if (!targetSessionId) {
             return this.sendPrompt(input, postMessage);
         }
-        this.queuedPrompt = { input: { ...input, prompt }, reason };
-        const waitMs = this.activeRun.visibleFinalAt ? Date.now() - this.activeRun.visibleFinalAt : undefined;
-        this.outputChannel.appendLine(`[n8n-agent-debug] queuePrompt accepted sessionId=${this.activeRun.sessionId} reason=${reason} visibleDone=${String(Boolean(this.activeRun.visibleDone))} waitAfterVisibleMs=${waitMs ?? 'unknown'}`);
+        const activeRun = this.activeRuns.get(targetSessionId);
+        if (!activeRun) {
+            return this.sendPrompt(input, postMessage);
+        }
+        this.queuedPrompts.set(targetSessionId, { input: { ...input, prompt }, reason });
+        const waitMs = activeRun.visibleFinalAt ? Date.now() - activeRun.visibleFinalAt : undefined;
+        this.outputChannel.appendLine(`[n8n-agent-debug] queuePrompt accepted sessionId=${targetSessionId} reason=${reason} visibleDone=${String(Boolean(activeRun.visibleDone))} waitAfterVisibleMs=${waitMs ?? 'unknown'}`);
         if (reason === 'steer') {
-            this.activeRun.abortReason = 'steer';
+            activeRun.abortReason = 'steer';
             await postMessage({ type: 'agent.status', status: 'stopping', detail: 'Steering current run...' });
-            this.activeRun.abortController.abort();
+            activeRun.abortController.abort();
         }
         return { workflowChanged: false };
     }
 
-    async stop(postMessage: AgentWorkbenchPostMessage): Promise<void> {
-        const activeRun = this.activeRun;
+    async stop(postMessage: AgentWorkbenchPostMessage, sessionId?: string): Promise<void> {
+        let activeRun;
+        if (sessionId) {
+            activeRun = this.activeRuns.get(sessionId);
+        } else {
+            activeRun = this.activeRuns.values().next().value;
+        }
         if (!activeRun) {
             await postMessage({ type: 'agent.status', status: 'idle' });
             return;
         }
-        this.queuedPrompt = undefined;
+        const runSessionId = activeRun.sessionId;
+        this.queuedPrompts.delete(runSessionId);
         activeRun.abortReason = 'stop';
         this.stoppedRuns.add(activeRun.abortController);
         activeRun.abortController.abort();
-        if (this.activeRun?.abortController === activeRun.abortController) {
-            this.activeRun = undefined;
-        }
+        this.activeRuns.delete(runSessionId);
         const sessions = await this.getSessionRuntime();
-        this.appendRunStoppedNotice(sessions.service, activeRun.sessionId);
+        this.appendRunStoppedNotice(sessions.service, runSessionId);
         await postMessage({ type: 'agent.status', status: 'idle' });
     }
 
     dispose(): void {
-        this.activeRun?.abortController.abort();
-        this.activeRun = undefined;
+        for (const run of this.activeRuns.values()) {
+            run.abortController.abort();
+        }
+        this.activeRuns.clear();
+        this.queuedPrompts.clear();
         void this.flushSessionWrites();
     }
 
@@ -1411,7 +1430,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                 authoritativeFinalEmitted = true;
                 visibleFinalEmitted = true;
             }
-            const activeRun = this.activeRun;
+            const activeRun = input.sessionId ? this.activeRuns.get(input.sessionId) : undefined;
             if (activeRun && activeRun.sessionId === input.sessionId) {
                 activeRun.visibleDone = true;
                 if (runtimeFinalizing) {

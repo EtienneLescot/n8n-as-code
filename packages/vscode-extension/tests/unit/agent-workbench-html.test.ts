@@ -214,8 +214,8 @@ test('Agent runtime: start state includes checkpointed user message', () => {
     const path = require('node:path');
     const source = fs.readFileSync(path.join(__dirname, '../../src/services/agent-runtime-controller.ts'), 'utf8');
 
-    const stateIndex = source.indexOf("await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: activeRecord.id }) });");
-    const startIndex = source.indexOf("await postMessage({ type: 'agent.streamEvent', event: { type: 'start', sessionId: activeRecord.id, message: prompt } });");
+    const stateIndex = source.indexOf("await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: targetSessionId }) });");
+    const startIndex = source.indexOf("await postMessage({ type: 'agent.streamEvent', event: { type: 'start', sessionId: targetSessionId, message: prompt } });");
     assert.ok(stateIndex >= 0, 'Must post the checkpointed user-message state before streaming starts');
     assert.ok(startIndex > stateIndex, 'The start event must follow the checkpointed state so rewind controls exist during a stopped run');
 });
@@ -291,3 +291,18 @@ test('Agent Workbench HTML: context usage and compaction follow agent runtime co
     assert.ok(html.includes('Context compacted with fallback'), 'Must label fallback compactions explicitly');
     assert.ok(html.includes("type: 'agent.context.compact'"), 'Must request runtime compaction from the extension host');
 });
+
+test('Agent Workbench HTML: handles panel.visibility to unload/reload iframe', () => {
+    const { buildAgentWorkbenchHtml } = require('../../src/ui/agent-workbench-html.js');
+    const html: string = buildAgentWorkbenchHtml({
+        workflowId: 'wf-1',
+        workflowName: 'Workflow 1',
+        workflowUrl: 'http://localhost:5678/workflow/wf-1',
+        providerModelLabel: 'openai / gpt-5.4',
+    });
+
+    assert.ok(html.includes("message.type === 'panel.visibility'"), 'Must handle panel.visibility messages');
+    assert.ok(html.includes("frame.src = 'about:blank'"), 'Must set frame.src to about:blank when hidden');
+    assert.ok(html.includes("frame.src = workflowUrl"), 'Must restore original workflowUrl when visible');
+});
+
