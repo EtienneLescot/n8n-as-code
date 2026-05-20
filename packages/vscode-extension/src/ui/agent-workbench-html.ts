@@ -1,13 +1,15 @@
 export interface AgentWorkbenchHtmlInput {
     workflowId: string;
     workflowName: string;
+    workflowFilename?: string;
+    workflowFilePath?: string;
     workflowAttached?: boolean;
     workflowUrl?: string;
     workflowReloadUrl?: string;
     providerModelLabel: string;
 }
 
-export const AGENT_WORKBENCH_BUILD = 'awb-2026.05.20.5-latency-probe';
+export const AGENT_WORKBENCH_BUILD = 'awb-2026.05.20.27-clean-multithread-codex';
 
 function escapeHtml(value: string): string {
     return value
@@ -37,6 +39,9 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
     const safeProviderModelLabel = escapeHtml(input.providerModelLabel);
     const safeWorkbenchBuild = escapeHtml(AGENT_WORKBENCH_BUILD);
     const workflowIdJs = JSON.stringify(input.workflowId);
+    const workflowNameJs = JSON.stringify(input.workflowName || input.workflowId || 'Current workflow');
+    const workflowFilenameJs = JSON.stringify(input.workflowFilename || '');
+    const workflowFilePathJs = JSON.stringify(input.workflowFilePath || '');
     const workflowUrlJs = JSON.stringify(input.workflowUrl || '');
     const workflowReloadUrlJs = JSON.stringify(input.workflowReloadUrl || input.workflowUrl || '');
 
@@ -1285,8 +1290,14 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
     <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
         let workflowId = ${workflowIdJs};
+        let workflowName = ${workflowNameJs};
+        let workflowFilename = ${workflowFilenameJs};
+        let workflowFilePath = ${workflowFilePathJs};
         let workflowUrl = ${workflowUrlJs};
         let workflowReloadUrl = ${workflowReloadUrlJs};
+        let openWorkflowContext = workflowId || workflowFilename || workflowFilePath
+            ? { id: workflowId || undefined, name: workflowName, filename: workflowFilename || undefined, filePath: workflowFilePath || undefined }
+            : null;
         let iframeOrigin = ${JSON.stringify(iframePermissionOrigin)};
         const PASTE_RATE_LIMIT_MS = 1000;
         const GRANT_TTL_MS = 5000;
@@ -1295,6 +1306,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         let isRunning = false;
         let currentWorkflowContext = null;
         let currentNodeContexts = [];
+        let availableWorkflowCache = [];
         let activeFilter = 'current';
         let state = null;
         let providerModelCache = {};
@@ -1601,8 +1613,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                     event.preventDefault();
                     event.stopPropagation();
                     if (deleteButton.disabled) return;
-                    const confirmed = window.confirm('Delete this conversation? This cannot be undone.');
-                    if (!confirmed) return;
                     vscode.postMessage({ type: 'agent.session.delete', sessionId: session.id });
                 });
                 badges.appendChild(deleteButton);
@@ -1738,9 +1748,10 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
 
             const list = document.createElement('div');
             list.className = 'inline-popover-list';
-            if (currentWorkflowContext) {
-                const current = inlineOption('This workflow', currentWorkflowContext.name || 'Current workflow', 'Current', 'workflow');
-                current.addEventListener('click', () => startNewSession(currentWorkflowContext));
+            const menuWorkflowContext = currentWorkflowContext || openWorkflowContext;
+            if (menuWorkflowContext) {
+                const current = inlineOption('This workflow', menuWorkflowContext.name || 'Current workflow', 'Current', 'workflow');
+                current.addEventListener('click', () => startNewSession(menuWorkflowContext));
                 list.appendChild(current);
             }
 
@@ -1748,13 +1759,13 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             blank.addEventListener('click', () => startNewSession(null));
             list.appendChild(blank);
 
-            const workflows = Array.isArray(state.availableWorkflows) ? state.availableWorkflows : [];
+            const workflows = Array.isArray(state.availableWorkflows) ? state.availableWorkflows : availableWorkflowCache;
             if (workflows.length) {
                 const divider = document.createElement('div');
                 divider.className = 'inline-divider';
                 list.appendChild(divider);
             }
-            const currentKey = workflowKey(currentWorkflowContext);
+            const currentKey = workflowKey(menuWorkflowContext);
             for (const workflow of workflows) {
                 const key = workflowKey(workflow);
                 if (currentKey && key && key === currentKey) continue;
@@ -2395,6 +2406,9 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         }
 
         function renderAll() {
+            if (state && Array.isArray(state.availableWorkflows)) {
+                availableWorkflowCache = state.availableWorkflows;
+            }
             currentWorkflowContext = state && state.session ? state.session.workflowContext || null : null;
             setNodeContexts(state && state.session ? state.session.nodeContexts || [] : [], false);
             renderSessions();
@@ -2795,7 +2809,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             renderReasoningMenu();
         });
         function startNewSession(workflow) {
-            if (isRunning) return;
             closeHistory();
             closeCheckpointPanel();
             closeInlineMenus();
@@ -2842,6 +2855,12 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 const nextWorkflowUrl = message.url;
                 const shouldUpdateFrame = nextWorkflowUrl !== workflowUrl;
                 workflowId = String(message.workflowId || workflowId);
+                workflowName = String(message.workflowName || workflowName || workflowId || 'Current workflow');
+                workflowFilename = String(message.workflowFilename || workflowFilename || '');
+                workflowFilePath = String(message.workflowFilePath || workflowFilePath || '');
+                openWorkflowContext = workflowId || workflowFilename || workflowFilePath
+                    ? { id: workflowId || undefined, name: workflowName, filename: workflowFilename || undefined, filePath: workflowFilePath || undefined }
+                    : null;
                 workflowUrl = nextWorkflowUrl;
                 workflowReloadUrl = typeof message.reloadUrl === 'string' && message.reloadUrl ? message.reloadUrl : workflowUrl;
                 try { iframeOrigin = new URL(workflowUrl).origin; } catch (e) { iframeOrigin = 'src'; }

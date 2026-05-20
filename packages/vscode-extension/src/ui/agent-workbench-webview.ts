@@ -172,6 +172,8 @@ export class AgentWorkbenchWebview {
             type: 'workflow.update',
             workflowId: workflow?.id || '',
             workflowName: workflow?.name || 'New workflow',
+            workflowFilename: workflow?.filename || '',
+            workflowFilePath: workflowFilePath || '',
             url: workflowUrl,
             reloadUrl: workflowReloadUrl,
         });
@@ -361,7 +363,22 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'agent.session.delete' && typeof payload.sessionId === 'string') {
-            await this.postWorkbenchState(await this._agentRuntime.deleteSession(payload.sessionId, this.buildWorkbenchInput()));
+            const sessionId = payload.sessionId;
+            const confirmed = await vscode.window.showWarningMessage(
+                'Delete this conversation? This cannot be undone.',
+                { modal: true },
+                'Delete',
+            );
+            if (confirmed !== 'Delete') return;
+            const deletedPanel = AgentWorkbenchWebview._panels.get(sessionId);
+            const state = await this._agentRuntime.deleteSession(sessionId, this.buildWorkbenchInput());
+            if (AgentWorkbenchWebview._panels.get(sessionId) === deletedPanel) {
+                AgentWorkbenchWebview._panels.delete(sessionId);
+            }
+            if (deletedPanel && deletedPanel !== this) {
+                deletedPanel.dispose();
+            }
+            await this.postWorkbenchState(state);
             return;
         }
 
@@ -595,10 +612,17 @@ export class AgentWorkbenchWebview {
 
     private async getWorkflowOptions(): Promise<AgentWorkflowContext[]> {
         const workflows = await this._workflowProviders.listWorkflows().catch(() => []);
-        return workflows.map((workflow) => ({
-            id: workflow.id || undefined,
-            name: workflow.name || workflow.id || workflow.filename || 'Workflow',
-            filename: workflow.filename || undefined,
+        return Promise.all(workflows.map(async (workflow) => {
+            const base = {
+                id: workflow.id || undefined,
+                name: workflow.name || workflow.id || workflow.filename || 'Workflow',
+                filename: workflow.filename || undefined,
+            };
+            const target = await this._workflowProviders.resolveWorkflow(base).catch(() => undefined);
+            return {
+                ...base,
+                filePath: target?.workflowFilePath,
+            };
         }));
     }
 
@@ -670,6 +694,8 @@ export class AgentWorkbenchWebview {
         return buildAgentWorkbenchHtml({
             workflowId: this._workflow?.id || '',
             workflowName: this._workflow?.name || 'New workflow',
+            workflowFilename: this._workflow?.filename,
+            workflowFilePath: this._workflowFilePath,
             workflowAttached: Boolean(this._workflow),
             workflowUrl: this._workflowUrl,
             workflowReloadUrl: this._workflowReloadUrl,

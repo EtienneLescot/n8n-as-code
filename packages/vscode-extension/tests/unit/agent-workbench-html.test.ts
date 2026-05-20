@@ -22,6 +22,8 @@ test('Agent Workbench HTML: forwards node detail context to the agent', () => {
     const html: string = buildAgentWorkbenchHtml({
         workflowId: 'wf-1',
         workflowName: 'Workflow 1',
+        workflowFilename: 'Workflow 1.workflow.ts',
+        workflowFilePath: '/workspace/workflows/dev3/Workflow 1.workflow.ts',
         workflowUrl: 'http://localhost:5678/workflow/wf-1',
         providerModelLabel: 'openai / gpt-5.4',
     });
@@ -50,14 +52,18 @@ test('Agent Workbench HTML: renders provider/session controls', () => {
     assert.ok(html.includes("type: 'agent.session.new'"), 'Must allow creating new persisted sessions');
     assert.ok(html.includes("type: 'agent.session.delete'"), 'Must allow deleting persisted sessions from history');
     assert.ok(html.includes("className = 'ghost session-delete'"), 'Must render a trash icon button for each persisted session');
-    assert.ok(html.includes('Delete this conversation? This cannot be undone.'), 'Must confirm before deleting a session');
+    assert.ok(!html.includes("window.confirm('Delete this conversation? This cannot be undone.')"), 'Conversation delete confirmation must be handled by the extension host');
     assert.ok(html.includes('id="new-session-menu"'), 'Must render new conversation context picker');
     assert.ok(html.includes('This workflow'), 'Must allow a new chat for the current workflow');
     assert.ok(html.includes('New workflow'), 'Must allow a new unattached workflow chat');
     assert.ok(html.includes('state.availableWorkflows'), 'Must list available workflows in the new chat picker');
+    assert.ok(html.includes('availableWorkflowCache'), 'Must keep the new conversation workflow menu stable while runtime state is lightweight');
+    assert.ok(html.includes('const menuWorkflowContext = currentWorkflowContext || openWorkflowContext'), 'Must show the currently open workflow while a run is active');
+    assert.ok(html.includes('workflowFilename'), 'Must preserve the open workflow filename in the client fallback context');
+    assert.ok(html.includes('workflowFilePath'), 'Must preserve the open workflow file path in the client fallback context');
     assert.ok(html.includes('startNewSession(null)'), 'Must request an unattached session for new workflow');
-    assert.ok(html.includes('blank.disabled = isRunning'), 'Must disable new-session options while a run is active');
-    assert.ok(html.includes('if (isRunning) return;'), 'Must guard against starting a new session while a run is active');
+    assert.ok(!html.includes('blank.disabled = isRunning'), 'Parallel chats must allow starting a new session while a run is active');
+    assert.ok(!html.includes('function startNewSession(workflow) {\n            if (isRunning) return;'), 'Parallel chats must not guard new-session creation on the current run state');
     assert.ok(html.includes('history-overlay'), 'Must render conversation history as a modal overlay');
     assert.ok(html.includes("type: 'agent.ready'"), 'Must request initial state from the extension host');
     assert.ok(html.includes('openai / gpt-5.4'), 'Must render selected provider/model label');
@@ -209,6 +215,31 @@ test('Agent Workbench state delivery: runtime states are lightweight and ordered
     assert.ok(source.includes('await this.postWorkbenchState(message.state, { enrich: false });'), 'Runtime state messages should use the lightweight path');
 });
 
+test('Agent Workbench webview: conversation deletion is confirmed and cleans panel ownership', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const source = fs.readFileSync(path.join(__dirname, '../../src/ui/agent-workbench-webview.ts'), 'utf8');
+
+    assert.ok(source.includes("payload.type === 'agent.session.delete'"), 'Must handle session deletion messages');
+    assert.ok(source.includes('vscode.window.showWarningMessage('), 'Session deletion must use a VS Code host confirmation dialog');
+    assert.ok(source.includes("confirmed !== 'Delete'"), 'Session deletion must be cancellable');
+    assert.ok(source.includes('AgentWorkbenchWebview._panels.delete(sessionId)'), 'Deleting a session must clear stale panel ownership');
+    assert.ok(source.includes('deletedPanel.dispose()'), 'Deleting a session from another panel must close that stale panel');
+});
+
+test('Agent Workbench webview: workflow menu options preserve local file paths', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const source = fs.readFileSync(path.join(__dirname, '../../src/ui/agent-workbench-webview.ts'), 'utf8');
+
+    assert.ok(source.includes('resolveWorkflow(base)'), 'Available workflows should resolve their local file targets');
+    assert.ok(source.includes('filePath: target?.workflowFilePath'), 'Available workflow options must include local file paths');
+    assert.ok(source.includes('workflowFilename: this._workflow?.filename'), 'Initial HTML must receive the current workflow filename');
+    assert.ok(source.includes('workflowFilePath: this._workflowFilePath'), 'Initial HTML must receive the current workflow file path');
+    assert.ok(source.includes("workflowFilename: workflow?.filename || ''"), 'Workflow update messages must preserve filename');
+    assert.ok(source.includes('workflowFilePath: workflowFilePath ||'), 'Workflow update messages must preserve file path');
+});
+
 test('Agent runtime: start state includes checkpointed user message', () => {
     const fs = require('node:fs');
     const path = require('node:path');
@@ -305,4 +336,3 @@ test('Agent Workbench HTML: handles panel.visibility to unload/reload iframe', (
     assert.ok(html.includes("frame.src = 'about:blank'"), 'Must set frame.src to about:blank when hidden');
     assert.ok(html.includes("frame.src = workflowUrl"), 'Must restore original workflowUrl when visible');
 });
-
