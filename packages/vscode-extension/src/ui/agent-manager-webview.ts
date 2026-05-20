@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { getAgentProviderSecretKey } from '../services/agent-runtime-controller.js';
-import { YAGR_PROVIDER_DEFINITIONS, normalizeYagrProviderId, providerSupportsReasoningEffort } from '../services/yagr-provider-service.js';
+import { AGENT_PROVIDER_DEFINITIONS, normalizeAgentProviderId, providerSupportsReasoningEffort } from '../services/agent-provider-service.js';
 import { buildAgentManagerHtml } from './agent-manager-html.js';
 
 export class AgentManagerWebview {
@@ -49,8 +49,8 @@ export class AgentManagerWebview {
 
     private async render(): Promise<void> {
         const config = vscode.workspace.getConfiguration('n8n.agent');
-        const provider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
-        const definition = YAGR_PROVIDER_DEFINITIONS[provider];
+        const provider = normalizeAgentProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
+        const definition = AGENT_PROVIDER_DEFINITIONS[provider];
         this._panel.webview.html = buildAgentManagerHtml({
             provider,
             providerLabel: definition.label,

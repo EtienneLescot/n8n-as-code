@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { WorkspaceSnapshotService } from './workspace-snapshot-service.js';
+import { createLocalProviderLangChainModel } from './agent-provider-runtime/create-langchain-model.js';
 
 export interface AgentPromptInput {
     prompt: string;
@@ -319,13 +320,13 @@ type ProviderRuntimeConfig = {
 };
 
 type AgentProviderRegistryModule = {
-    YAGR_MODEL_PROVIDERS: string[];
+    AGENT_MODEL_PROVIDERS: string[];
     normalizeProviderId(provider: string): string | undefined;
     providerRequiresApiKey(provider: string): boolean;
     getProviderDisplayName(provider: string): string;
 };
 
-const YAGR_MODEL_PROVIDERS = Object.freeze([
+const AGENT_MODEL_PROVIDERS = Object.freeze([
     'anthropic',
     'openai',
     'google',
@@ -338,7 +339,7 @@ const YAGR_MODEL_PROVIDERS = Object.freeze([
     'openai-compatible',
 ]);
 
-const YAGR_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+const AGENT_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     anthropic: 'Claude API',
     openai: 'OpenAI API',
     google: 'Gemini API',
@@ -351,7 +352,7 @@ const YAGR_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     'openai-compatible': 'OpenAI Compatible',
 };
 
-const YAGR_API_KEY_PROVIDERS = new Set(['anthropic', 'openai', 'google', 'mistral', 'openrouter', 'minimax', 'minimax-token-plan']);
+const AGENT_API_KEY_PROVIDERS = new Set(['anthropic', 'openai', 'google', 'mistral', 'openrouter', 'minimax', 'minimax-token-plan']);
 
 function normalizeAgentProviderId(provider: string | undefined): string | undefined {
     const normalized = provider?.trim().toLowerCase();
@@ -359,14 +360,14 @@ function normalizeAgentProviderId(provider: string | undefined): string | undefi
     if (normalized === 'claude') return 'anthropic';
     if (normalized === 'anthropic-proxy') return 'anthropic';
     if (normalized === 'gemini') return 'google';
-    return YAGR_MODEL_PROVIDERS.includes(normalized) ? normalized : undefined;
+    return AGENT_MODEL_PROVIDERS.includes(normalized) ? normalized : undefined;
 }
 
 const LOCAL_AGENT_PROVIDER_REGISTRY: AgentProviderRegistryModule = {
-    YAGR_MODEL_PROVIDERS: [...YAGR_MODEL_PROVIDERS],
+    AGENT_MODEL_PROVIDERS: [...AGENT_MODEL_PROVIDERS],
     normalizeProviderId: normalizeAgentProviderId,
-    providerRequiresApiKey: (provider: string) => YAGR_API_KEY_PROVIDERS.has(provider),
-    getProviderDisplayName: (provider: string) => YAGR_PROVIDER_DISPLAY_NAMES[provider] || provider,
+    providerRequiresApiKey: (provider: string) => AGENT_API_KEY_PROVIDERS.has(provider),
+    getProviderDisplayName: (provider: string) => AGENT_PROVIDER_DISPLAY_NAMES[provider] || provider,
 };
 
 type CompactionState = {
@@ -1587,6 +1588,9 @@ export class AgentRuntimeController implements vscode.Disposable {
         let messageText = '';
         let hasToolCall = false;
         let visibleFinalEmitted = false;
+        let textVisibilityResolved = false;
+        let pendingVisibleText = '';
+        let isInternalRecoveryMessage = false;
 
         const emitThinkingDone = async () => {
             if (!accumulator.thinkingText) return;
@@ -1603,7 +1607,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             accumulator.thinkingText = '';
             accumulator.thinkingOperationId = undefined;
         };
-        const emitTextDelta = async (delta: string, blockIndex?: number) => {
+        const emitVisibleTextDelta = async (delta: string, blockIndex?: number) => {
             if (!delta) return;
             await emitThinkingDone();
             accumulator.responseText += delta;
@@ -1613,6 +1617,27 @@ export class AgentRuntimeController implements vscode.Disposable {
             }
             callbacks.onProjectionEvent?.('text-delta', `chars=${delta.length} totalChars=${messageText.length}`);
             await callbacks.onStreamEvent({ type: 'text-delta', delta });
+        };
+        const emitTextDelta = async (delta: string, blockIndex?: number) => {
+            if (!delta || isInternalRecoveryMessage) return;
+            if (!textVisibilityResolved) {
+                pendingVisibleText += delta;
+                if (INVALID_TOOL_CALL_RECOVERY_MARKER.startsWith(pendingVisibleText) && pendingVisibleText.length < INVALID_TOOL_CALL_RECOVERY_MARKER.length) {
+                    return;
+                }
+                textVisibilityResolved = true;
+                if (pendingVisibleText.startsWith(INVALID_TOOL_CALL_RECOVERY_MARKER)) {
+                    isInternalRecoveryMessage = true;
+                    pendingVisibleText = '';
+                    blockText.clear();
+                    return;
+                }
+                const visibleText = pendingVisibleText;
+                pendingVisibleText = '';
+                await emitVisibleTextDelta(visibleText, blockIndex);
+                return;
+            }
+            await emitVisibleTextDelta(delta, blockIndex);
         };
         const emitReasoningDelta = async (delta: string) => {
             if (!delta) return;
@@ -1629,6 +1654,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             });
         };
         const emitVisibleFinal = async () => {
+            if (isInternalRecoveryMessage) return;
             const finalText = this.sanitizeAssistantText(messageText);
             if (visibleFinalEmitted || hasToolCall || !finalText) return;
             visibleFinalEmitted = true;
@@ -1747,27 +1773,53 @@ export class AgentRuntimeController implements vscode.Disposable {
     ): Promise<string> {
         if (!this.isAsyncIterable(message.text)) return '';
         let text = '';
+        let pendingText = '';
+        let textVisibilityResolved = false;
+        let isInternalRecoveryMessage = false;
+        const emitVisibleTextDelta = async (delta: string) => {
+            if (!delta) return;
+            if (accumulator.thinkingText) {
+                await callbacks.onStreamEvent({
+                    type: 'operation',
+                    operationId: accumulator.thinkingOperationId || `thinking:${messageKey}`,
+                    label: 'Thinking',
+                    category: 'thinking',
+                    status: 'done',
+                    body: accumulator.thinkingText,
+                    startedAt: Date.now(),
+                    endedAt: Date.now(),
+                });
+                accumulator.thinkingText = '';
+                accumulator.thinkingOperationId = undefined;
+            }
+            accumulator.responseText += delta;
+            text += delta;
+            await callbacks.onStreamEvent({ type: 'text-delta', delta });
+        };
         for await (const delta of message.text) {
             await this.throwIfAborted(callbacks.signal);
             if (typeof delta === 'string' && delta) {
                 callbacks.onProjectionEvent?.('message.text-delta', `chars=${delta.length}`);
-                if (accumulator.thinkingText) {
-                    await callbacks.onStreamEvent({
-                        type: 'operation',
-                        operationId: accumulator.thinkingOperationId || `thinking:${messageKey}`,
-                        label: 'Thinking',
-                        category: 'thinking',
-                        status: 'done',
-                        body: accumulator.thinkingText,
-                        startedAt: Date.now(),
-                        endedAt: Date.now(),
-                    });
-                    accumulator.thinkingText = '';
-                    accumulator.thinkingOperationId = undefined;
+                if (isInternalRecoveryMessage) {
+                    continue;
                 }
-                accumulator.responseText += delta;
-                text += delta;
-                await callbacks.onStreamEvent({ type: 'text-delta', delta });
+                if (!textVisibilityResolved) {
+                    pendingText += delta;
+                    if (INVALID_TOOL_CALL_RECOVERY_MARKER.startsWith(pendingText) && pendingText.length < INVALID_TOOL_CALL_RECOVERY_MARKER.length) {
+                        continue;
+                    }
+                    textVisibilityResolved = true;
+                    if (pendingText.startsWith(INVALID_TOOL_CALL_RECOVERY_MARKER)) {
+                        isInternalRecoveryMessage = true;
+                        pendingText = '';
+                        continue;
+                    }
+                    const visibleText = pendingText;
+                    pendingText = '';
+                    await emitVisibleTextDelta(visibleText);
+                    continue;
+                }
+                await emitVisibleTextDelta(delta);
             }
         }
         return text;
@@ -2208,7 +2260,6 @@ export class AgentRuntimeController implements vscode.Disposable {
             path.join(rootDir, 'README.md'),
             path.join(rootDir, 'readme.md'),
             path.join(rootDir, '.agents', 'AGENTS.md'),
-            path.join(rootDir, '.yagr', 'AGENTS.md'),
         ];
         const existing = await Promise.all(candidates.map(async (candidate) => {
             try {
@@ -2321,22 +2372,14 @@ export class AgentRuntimeController implements vscode.Disposable {
         if (!result || typeof result !== 'object') {
             return typeof result === 'string' ? result : 'The agent completed without producing text.';
         }
+        const assistantText = this.extractAssistantTextFromAgentOutput(result);
+        if (assistantText) return assistantText;
         const record = result as Record<string, unknown>;
         const messages = Array.isArray(record.messages) ? record.messages : [];
         const last = messages[messages.length - 1] as Record<string, unknown> | undefined;
         const content = last?.content ?? record.content ?? record.output;
-        if (typeof content === 'string') {
-            return this.sanitizeAssistantText(content);
-        }
-        if (Array.isArray(content)) {
-            return this.sanitizeAssistantText(content.map((part) => {
-                if (typeof part === 'string') return part;
-                if (part && typeof part === 'object' && typeof (part as Record<string, unknown>).text === 'string') {
-                    return (part as Record<string, string>).text;
-                }
-                return '';
-            }).join(''));
-        }
+        const text = this.extractMessageTextContent(content);
+        if (text.trim()) return this.sanitizeAssistantText(text);
         return 'The agent completed without producing text.';
     }
 
@@ -2352,7 +2395,8 @@ export class AgentRuntimeController implements vscode.Disposable {
         const last = messages[messages.length - 1];
         const lastRole = this.isRecord(last) ? String(last.role || last._getType || last.type || last.name || 'unknown') : 'none';
         const lastTextChars = this.isRecord(last) ? this.extractMessageTextContent(last.content).length : 0;
-        return `keys=${keys || 'none'} messages=${messages.length} lastRole=${lastRole} lastTextChars=${lastTextChars}`;
+        const lastProviderTextChars = this.isRecord(last) ? this.extractProviderOutputItemsText(last).length : 0;
+        return `keys=${keys || 'none'} messages=${messages.length} lastRole=${lastRole} lastTextChars=${lastTextChars} lastProviderTextChars=${lastProviderTextChars}`;
     }
 
     private readMessageEventIndex(event: Record<string, unknown>): number | undefined {
@@ -2426,8 +2470,67 @@ export class AgentRuntimeController implements vscode.Disposable {
         for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
             const message = messages[idx];
             if (!this.isAssistantMessage(message)) continue;
-            const text = this.extractMessageTextContent(this.isRecord(message) ? message.content : undefined);
+            const text = this.extractAssistantMessageText(message);
+            if (this.isInternalRecoveryText(text)) continue;
             if (text.trim()) return this.sanitizeAssistantText(text);
+        }
+        return '';
+    }
+
+    private extractAssistantMessageText(message: unknown): string {
+        if (!this.isRecord(message)) return '';
+        const directText = this.extractMessageTextContent(message.content);
+        if (directText.trim()) return directText;
+        const providerText = this.extractProviderOutputItemsText(message);
+        if (providerText.trim()) return providerText;
+        return '';
+    }
+
+    private isInternalRecoveryText(value: string): boolean {
+        return value.trimStart().startsWith(INVALID_TOOL_CALL_RECOVERY_MARKER);
+    }
+
+    private extractProviderOutputItemsText(message: Record<string, unknown>): string {
+        const candidates: unknown[] = [];
+        const collect = (value: unknown) => {
+            if (!this.isRecord(value)) return;
+            for (const key of ['codex_output_items', 'rawOutputItems', 'output_items', 'outputItems']) {
+                const candidate = value[key];
+                if (Array.isArray(candidate) || this.isRecord(candidate)) {
+                    candidates.push(candidate);
+                }
+            }
+        };
+        collect(message);
+        collect(message.additional_kwargs);
+        collect(message.response_metadata);
+        collect(message.kwargs);
+        collect(message.lc_kwargs);
+        if (this.isRecord(message.kwargs)) {
+            collect(message.kwargs.additional_kwargs);
+            collect(message.kwargs.response_metadata);
+        }
+        if (this.isRecord(message.lc_kwargs)) {
+            collect(message.lc_kwargs.additional_kwargs);
+            collect(message.lc_kwargs.response_metadata);
+        }
+        return candidates.map((candidate) => this.extractProviderOutputItemText(candidate)).join('');
+    }
+
+    private extractProviderOutputItemText(value: unknown): string {
+        if (Array.isArray(value)) {
+            return value.map((item) => this.extractProviderOutputItemText(item)).join('');
+        }
+        if (!this.isRecord(value)) return '';
+        const type = String(value.type || '').toLowerCase();
+        if ((type === 'message' || type === 'output_message') && Array.isArray(value.content)) {
+            return this.extractMessageTextContent(value.content);
+        }
+        if ((type === 'output_text' || type === 'text') && typeof value.text === 'string') {
+            return value.text;
+        }
+        if (Array.isArray(value.content)) {
+            return this.extractMessageTextContent(value.content);
         }
         return '';
     }
@@ -2532,15 +2635,22 @@ export class AgentRuntimeController implements vscode.Disposable {
 
     private extractMessageTextContent(value: unknown): string {
         if (typeof value === 'string') return value;
+        if (this.isRecord(value)) {
+            if (typeof value.text === 'string') return value.text;
+            if (Array.isArray(value.content)) return this.extractMessageTextContent(value.content);
+            return '';
+        }
         if (!Array.isArray(value)) return '';
         return value.map((part) => {
             if (typeof part === 'string') return part;
             if (this.isRecord(part) && typeof part.text === 'string') return part.text;
+            if (this.isRecord(part) && Array.isArray(part.content)) return this.extractMessageTextContent(part.content);
             return '';
         }).join('');
     }
 
     private sanitizeAssistantText(value: string): string {
+        if (this.isInternalRecoveryText(value)) return '';
         return value.replace(ENVIRONMENT_DETAILS_BLOCK_PATTERN, '').trim();
     }
 
@@ -2842,7 +2952,7 @@ export class AgentRuntimeController implements vscode.Disposable {
     ): Promise<void> {
         if (depth > 4) return;
         const relative = path.relative(workspaceRoot, directory).replace(/\\/g, '/');
-        if (relative && /(^|\/)(node_modules|dist|out|\.git|\.kilo|\.yagr)(\/|$)/.test(relative)) {
+        if (relative && /(^|\/)(node_modules|dist|out|\.git|\.kilo)(\/|$)/.test(relative)) {
             return;
         }
         let entries: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
@@ -3316,23 +3426,13 @@ export class AgentRuntimeController implements vscode.Disposable {
         const provider = providerConfig.provider;
         const model = providerConfig.model || this.getDefaultModelForProvider(provider);
         if (provider === 'openai-oauth' || provider === 'copilot-proxy' || provider === 'minimax' || provider === 'minimax-token-plan') {
-            const providerRuntime = await importRuntimeModule('@yagr/provider-runtime');
-            const localConfig = {
-                provider,
-                model,
-                baseUrl: providerConfig.baseUrl,
-                reasoningEffort: providerConfig.reasoningEffort,
-            };
-            const configStore = {
-                getLocalConfig: () => localConfig,
-                getApiKey: (candidate: string) => candidate === provider ? providerConfig.apiKey : undefined,
-            };
-            return providerRuntime.createLangChainModel({
+            return createLocalProviderLangChainModel({
                 provider,
                 model,
                 apiKey: providerConfig.apiKey,
                 baseUrl: providerConfig.baseUrl,
-            }, configStore);
+                reasoningEffort: providerConfig.reasoningEffort,
+            });
         }
 
         if (provider === 'google') {
@@ -3956,13 +4056,20 @@ export class AgentRuntimeController implements vscode.Disposable {
         if (!model) {
             return DEFAULT_CONTEXT_WINDOW_TOKENS;
         }
-        try {
-            const metadata = await importRuntimeModule('@yagr/provider-runtime');
-            const entry = await metadata.primeProviderModelMetadata(provider as any, model, apiKey, baseUrl);
-            return Number(entry?.contextWindow || DEFAULT_CONTEXT_WINDOW_TOKENS);
-        } catch {
-            return DEFAULT_CONTEXT_WINDOW_TOKENS;
+        const normalizedModel = model.toLowerCase();
+        if (provider === 'openai-oauth' || provider === 'openai') {
+            if (/gpt-5/i.test(normalizedModel)) return 400_000;
+            if (/gpt-4\.1|gpt-4o/i.test(normalizedModel)) return 128_000;
         }
+        if (provider === 'copilot-proxy') {
+            if (/gpt-4\.1|gpt-5/i.test(normalizedModel)) return 128_000;
+        }
+        if (provider === 'minimax' || provider === 'minimax-token-plan') {
+            return 200_000;
+        }
+        void apiKey;
+        void baseUrl;
+        return DEFAULT_CONTEXT_WINDOW_TOKENS;
     }
 
     private readReasoningEffort(): AgentReasoningEffort | undefined {

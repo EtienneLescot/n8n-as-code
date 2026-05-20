@@ -432,7 +432,6 @@
     "@n8n-as-code/telemetry": "2.0.0",
     "@n8n-as-code/workflow-core": "2.0.0",
     "@reduxjs/toolkit": "^2.11.2",
-    "@yagr/provider-runtime": "^0.1.2",
     "deepagents": "^1.10.2",
     "http-proxy": "^1.18.1",
     "langchain": "^1.4.1",

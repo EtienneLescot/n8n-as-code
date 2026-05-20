@@ -23,15 +23,15 @@ import { ProxyService } from './services/proxy-service.js';
 import { AgentRuntimeController } from './services/agent-runtime-controller.js';
 import type { AgentWorkflowContext } from './services/agent-runtime-controller.js';
 import {
-    YagrProviderService,
-    YAGR_PROVIDER_DEFINITIONS,
-    YAGR_REASONING_EFFORTS,
-    YAGR_SELECTABLE_PROVIDERS,
-    normalizeYagrProviderId,
+    AgentProviderService,
+    AGENT_PROVIDER_DEFINITIONS,
+    AGENT_REASONING_EFFORTS,
+    AGENT_SELECTABLE_PROVIDERS,
+    normalizeAgentProviderId,
     providerSupportsReasoningEffort,
-    type YagrModelProvider,
-    type YagrReasoningEffort,
-} from './services/yagr-provider-service.js';
+    type AgentModelProvider,
+    type AgentProviderReasoningEffort,
+} from './services/agent-provider-service.js';
 import {
     N8nConfigurationController,
     type N8nConfigurationChangeEvent,
@@ -103,7 +103,7 @@ let initializingPromise: Promise<void> | undefined;
 let runtimeDisposables: vscode.Disposable[] = [];
 let configurationController: N8nConfigurationController | undefined;
 let agentRuntimeController: AgentRuntimeController | undefined;
-let yagrProviderService: YagrProviderService | undefined;
+let agentProviderService: AgentProviderService | undefined;
 let suppressNextConfigurationReaction = false;
 let failedAutoInitRuntimeSignature: string | undefined;
 let failedAutoInitConnectionKey: string | undefined;
@@ -278,7 +278,7 @@ export async function activate(context: vscode.ExtensionContext) {
     proxyService.setOutputChannel(outputChannel);
     proxyService.setSecrets(context.secrets);
     agentRuntimeController = new AgentRuntimeController(context, outputChannel);
-    yagrProviderService = new YagrProviderService(context);
+    agentProviderService = new AgentProviderService(context);
     context.subscriptions.push(agentRuntimeController);
     configurationController = new N8nConfigurationController(outputChannel);
     context.subscriptions.push(
@@ -1014,7 +1014,7 @@ async function listAgentWorkflowNodes(workflowContext: AgentWorkflowContext): Pr
 }
 
 async function listAgentProviderOptions(): Promise<Array<Record<string, unknown>>> {
-    const states = await requireYagrProviderService().listProviderConnectionStates();
+    const states = await requireAgentProviderService().listProviderConnectionStates();
     return states.filter((state) => state.connected || state.selected).map((state) => ({
         id: state.id,
         label: state.label,
@@ -1028,15 +1028,15 @@ async function listAgentProviderOptions(): Promise<Array<Record<string, unknown>
 }
 
 async function listAgentModelOptions(providerId: string): Promise<Array<Record<string, unknown>>> {
-    const provider = normalizeYagrProviderId(providerId) || 'openai';
-    const definition = YAGR_PROVIDER_DEFINITIONS[provider];
+    const provider = normalizeAgentProviderId(providerId) || 'openai';
+    const definition = AGENT_PROVIDER_DEFINITIONS[provider];
     const config = vscode.workspace.getConfiguration('n8n.agent');
-    const selectedProvider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
+    const selectedProvider = normalizeAgentProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
     const selectedModel = String(config.get<string>('model') || '').trim();
     const currentModel = provider === selectedProvider
         ? (selectedModel || definition.defaultModel)
         : definition.defaultModel;
-    const liveModels = await requireYagrProviderService().fetchAvailableModels(provider).catch(() => []);
+    const liveModels = await requireAgentProviderService().fetchAvailableModels(provider).catch(() => []);
     return [...new Set([...(liveModels.length ? liveModels : []), definition.defaultModel, currentModel].filter(Boolean))]
         .map((model) => ({
             id: model,
@@ -1049,19 +1049,19 @@ async function listAgentModelOptions(providerId: string): Promise<Array<Record<s
 }
 
 async function selectAgentProviderModel(providerId: string, model: string): Promise<void> {
-    const provider = normalizeYagrProviderId(providerId) || 'openai';
-    const trimmedModel = model.trim() || YAGR_PROVIDER_DEFINITIONS[provider].defaultModel;
+    const provider = normalizeAgentProviderId(providerId) || 'openai';
+    const trimmedModel = model.trim() || AGENT_PROVIDER_DEFINITIONS[provider].defaultModel;
     const config = vscode.workspace.getConfiguration('n8n.agent');
     await config.update('provider', provider, vscode.ConfigurationTarget.Global);
     await config.update('model', trimmedModel, vscode.ConfigurationTarget.Global);
-    await requireYagrProviderService().syncReasoningEffortConfiguration(provider, trimmedModel);
+    await requireAgentProviderService().syncReasoningEffortConfiguration(provider, trimmedModel);
 }
 
 async function selectInlineAgentReasoningEffort(effort: string): Promise<void> {
-    const normalized = YAGR_REASONING_EFFORTS.includes(effort as YagrReasoningEffort) ? effort as YagrReasoningEffort : undefined;
+    const normalized = AGENT_REASONING_EFFORTS.includes(effort as AgentProviderReasoningEffort) ? effort as AgentProviderReasoningEffort : undefined;
     if (!normalized) return;
     const config = vscode.workspace.getConfiguration('n8n.agent');
-    const provider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
+    const provider = normalizeAgentProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
     const model = String(config.get<string>('model') || '').trim() || undefined;
     if (!providerSupportsReasoningEffort(provider, model)) {
         await config.update('reasoningEffort', undefined, vscode.ConfigurationTarget.Global);
@@ -1271,11 +1271,11 @@ function requireAgentRuntimeController(): AgentRuntimeController {
     return agentRuntimeController;
 }
 
-function requireYagrProviderService(): YagrProviderService {
-    if (!yagrProviderService) {
-        throw new Error('n8n Yagr provider service is not initialized.');
+function requireAgentProviderService(): AgentProviderService {
+    if (!agentProviderService) {
+        throw new Error('n8n agent provider service is not initialized.');
     }
-    return yagrProviderService;
+    return agentProviderService;
 }
 
 async function setAgentProviderApiKey(context: vscode.ExtensionContext): Promise<void> {
@@ -1283,17 +1283,17 @@ async function setAgentProviderApiKey(context: vscode.ExtensionContext): Promise
 }
 
 async function setupAgentProvider(context: vscode.ExtensionContext): Promise<void> {
-    const service = requireYagrProviderService();
+    const service = requireAgentProviderService();
     const config = vscode.workspace.getConfiguration('n8n.agent');
-    const currentProvider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
+    const currentProvider = normalizeAgentProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
     const picked = await vscode.window.showQuickPick(
-        YAGR_SELECTABLE_PROVIDERS.map((provider) => ({
+        AGENT_SELECTABLE_PROVIDERS.map((provider) => ({
             provider,
-            label: YAGR_PROVIDER_DEFINITIONS[provider].label,
-            description: YAGR_PROVIDER_DEFINITIONS[provider].description,
-            detail: YAGR_PROVIDER_DEFINITIONS[provider].authKind === 'oauth-device'
+            label: AGENT_PROVIDER_DEFINITIONS[provider].label,
+            description: AGENT_PROVIDER_DEFINITIONS[provider].description,
+            detail: AGENT_PROVIDER_DEFINITIONS[provider].authKind === 'oauth-device'
                 ? 'OAuth device flow'
-                : YAGR_PROVIDER_DEFINITIONS[provider].requiresApiKey
+                : AGENT_PROVIDER_DEFINITIONS[provider].requiresApiKey
                     ? 'API key'
                     : 'Account credential',
             picked: provider === currentProvider,
@@ -1310,9 +1310,9 @@ async function setupAgentProvider(context: vscode.ExtensionContext): Promise<voi
     }
 
     try {
-        const configured = await service.setupProvider(picked.provider as YagrModelProvider);
+        const configured = await service.setupProvider(picked.provider as AgentModelProvider);
         if (!configured) return;
-        await service.selectModel(picked.provider as YagrModelProvider);
+        await service.selectModel(picked.provider as AgentModelProvider);
         vscode.window.showInformationMessage(`Configured n8n Agent provider: ${picked.label}.`);
     } catch (error: any) {
         vscode.window.showErrorMessage(`Provider setup failed: ${error?.message || String(error)}`);
@@ -1320,14 +1320,14 @@ async function setupAgentProvider(context: vscode.ExtensionContext): Promise<voi
 }
 
 async function selectAgentModel(): Promise<void> {
-    const service = requireYagrProviderService();
+    const service = requireAgentProviderService();
     const config = vscode.workspace.getConfiguration('n8n.agent');
-    const currentProvider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
+    const currentProvider = normalizeAgentProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
     const pickedProvider = await vscode.window.showQuickPick(
-        YAGR_SELECTABLE_PROVIDERS.map((provider) => ({
+        AGENT_SELECTABLE_PROVIDERS.map((provider) => ({
             provider,
-            label: YAGR_PROVIDER_DEFINITIONS[provider].label,
-            description: YAGR_PROVIDER_DEFINITIONS[provider].description,
+            label: AGENT_PROVIDER_DEFINITIONS[provider].label,
+            description: AGENT_PROVIDER_DEFINITIONS[provider].description,
             picked: provider === currentProvider,
         })),
         {
@@ -1337,7 +1337,7 @@ async function selectAgentModel(): Promise<void> {
         },
     );
     if (!pickedProvider) return;
-    const provider = pickedProvider.provider as YagrModelProvider;
+    const provider = pickedProvider.provider as AgentModelProvider;
     try {
         await config.update('provider', provider, vscode.ConfigurationTarget.Global);
         await service.selectModel(provider);
@@ -1347,9 +1347,9 @@ async function selectAgentModel(): Promise<void> {
 }
 
 async function selectAgentReasoningEffort(): Promise<void> {
-    const service = requireYagrProviderService();
+    const service = requireAgentProviderService();
     const config = vscode.workspace.getConfiguration('n8n.agent');
-    const provider = normalizeYagrProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
+    const provider = normalizeAgentProviderId(String(config.get<string>('provider') || 'openai')) || 'openai';
     const model = String(config.get<string>('model') || '').trim() || undefined;
     try {
         await service.selectReasoningEffort(provider, model);

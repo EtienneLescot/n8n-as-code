@@ -191,6 +191,60 @@ test('Agent runtime: workbench uses the native DeepAgents v3 run stream', () => 
     }
 });
 
+test('Agent runtime: Codex v3 output adapter reads provider output items', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const source = fs.readFileSync(path.join(__dirname, '../../src/services/agent-runtime-controller.ts'), 'utf8');
+
+    assert.ok(source.includes('extractProviderOutputItemsText'), 'Must read provider-specific output metadata when native final content is empty');
+    assert.ok(source.includes('codex_output_items'), 'Must handle Codex raw Responses output stored by the local Codex provider runtime');
+    assert.ok(source.includes('rawOutputItems'), 'Must handle raw output item metadata from the Codex provider runtime');
+    assert.ok(source.includes('lastProviderTextChars'), 'Debug logs must make provider-output text extraction visible');
+    assert.ok(source.includes("type === 'output_text'"), 'Must extract text from Responses API output_text blocks');
+});
+
+test('Agent runtime: Codex stream keeps parallel tool calls separated', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const source = fs.readFileSync(path.join(__dirname, '../../src/services/agent-provider-runtime/chat-codex-oauth.ts'), 'utf8');
+
+    assert.ok(source.includes('toolCallIndexes = new Map'), 'Codex tool-call indexes must be stable per tool call id');
+    assert.ok(source.includes('index: index') || source.includes('index,'), 'Native LangChain tool-call chunks must receive distinct indexes');
+    assert.ok(source.includes('additional_kwargs'), 'Provider additional_kwargs tool calls must receive matching indexes');
+    assert.ok(source.includes('createOpenAiAccountLanguageModel'), 'The index mapping must live inside the local Codex LangChain model');
+});
+
+test('Agent runtime: agent provider runtime dependency is removed', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const controller = fs.readFileSync(path.join(__dirname, '../../src/services/agent-runtime-controller.ts'), 'utf8');
+    const providerService = fs.readFileSync(path.join(__dirname, '../../src/services/agent-provider-service.ts'), 'utf8');
+    const localFactory = fs.readFileSync(path.join(__dirname, '../../src/services/agent-provider-runtime/create-langchain-model.ts'), 'utf8');
+    const packageJson = fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8');
+    const removedRuntimePackage = `@${String.fromCharCode(121, 97, 103, 114)}/provider-runtime`;
+    const removedServiceName = `${String.fromCharCode(121, 97, 103, 114)}-provider-service`;
+
+    assert.ok(!controller.includes(removedRuntimePackage), 'Agent runtime must not import the external agent provider runtime');
+    assert.ok(!providerService.includes(removedRuntimePackage), 'Provider service must not import the external agent provider runtime');
+    assert.ok(!packageJson.includes(removedRuntimePackage), 'Extension package must not depend on the external agent provider runtime');
+    assert.ok(!controller.includes(removedServiceName), 'Agent runtime imports must use the renamed provider service');
+    assert.ok(localFactory.includes("case 'minimax'"), 'MiniMax must be handled by the local provider factory');
+    assert.ok(localFactory.includes('ChatAnthropic'), 'MiniMax M2 Anthropic-compatible endpoint should use the standard LangChain Anthropic model');
+    assert.ok(localFactory.includes('anthropicApiUrl'), 'MiniMax must use LangChain standard Anthropic-compatible base URL support');
+    assert.ok(!packageJson.includes('@langchain/community'), 'Do not add the old ChatMinimax integration for the Anthropic-compatible MiniMax path');
+});
+
+test('Agent runtime: invalid tool-call recovery stays hidden from the Workbench', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const source = fs.readFileSync(path.join(__dirname, '../../src/services/agent-runtime-controller.ts'), 'utf8');
+
+    assert.ok(source.includes('isInternalRecoveryText'), 'Must identify internal recovery prompts');
+    assert.ok(source.includes('pendingVisibleText.startsWith(INVALID_TOOL_CALL_RECOVERY_MARKER)'), 'Event projection must suppress recovery prompts before rendering');
+    assert.ok(source.includes('pendingText.startsWith(INVALID_TOOL_CALL_RECOVERY_MARKER)'), 'Message text projection must suppress recovery prompts before rendering');
+    assert.ok(source.includes('if (this.isInternalRecoveryText(value)) return'), 'Sanitization must never return internal recovery text as an assistant answer');
+});
+
 test('Agent runtime: LangGraph checkpoints are sharded by thread', () => {
     const fs = require('node:fs');
     const path = require('node:path');

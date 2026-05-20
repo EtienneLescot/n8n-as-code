@@ -9,7 +9,7 @@ export interface AgentWorkbenchHtmlInput {
     providerModelLabel: string;
 }
 
-export const AGENT_WORKBENCH_BUILD = 'awb-2026.05.20.27-clean-multithread-codex';
+export const AGENT_WORKBENCH_BUILD = 'awb-2026.05.20.31-agent-provider-rename';
 
 function escapeHtml(value: string): string {
     return value

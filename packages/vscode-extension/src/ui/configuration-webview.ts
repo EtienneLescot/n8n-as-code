@@ -5,7 +5,7 @@ import type { UpsertGlobalN8nInstanceInput } from '@n8n-as-code/n8n-manager-core
 import { ConfigService, resolveInstanceIdentifier } from 'n8nac';
 import { getWorkspaceRoot } from '../utils/state-detection.js';
 import type { N8nConfigurationController, N8nConfigurationSnapshot } from '../services/n8n-configuration-controller.js';
-import { YagrProviderService, normalizeYagrProviderId } from '../services/yagr-provider-service.js';
+import { AgentProviderService, normalizeAgentProviderId } from '../services/agent-provider-service.js';
 import { getConfigurationHtml } from './configuration-webview-html.js';
 import { runWorkspaceMigrationFromVscode } from '../services/workspace-migration-runner.js';
 import { loadProjectsForConfigurationWebview } from './configuration-webview-projects.js';
@@ -104,7 +104,7 @@ export class ConfigurationWebview {
   private readonly _panel: vscode.WebviewPanel;
   private readonly _context: vscode.ExtensionContext;
   private readonly _configurationController: N8nConfigurationController;
-  private readonly _providerService: YagrProviderService;
+  private readonly _providerService: AgentProviderService;
   private readonly _disposables: vscode.Disposable[] = [];
   private _stateVersion = 0;
   private _initialTab: string | undefined;
@@ -122,7 +122,7 @@ export class ConfigurationWebview {
     this._panel = panel;
     this._context = context;
     this._configurationController = configurationController;
-    this._providerService = new YagrProviderService(context);
+    this._providerService = new AgentProviderService(context);
     this._initialTab = initialTab;
 
     this._panel.onDidDispose(() => {
@@ -573,7 +573,7 @@ export class ConfigurationWebview {
           return;
 
         case 'connectProvider': {
-          const provider = normalizeYagrProviderId(String(payload.provider || ''));
+          const provider = normalizeAgentProviderId(String(payload.provider || ''));
           if (!provider) throw new Error('Unsupported provider.');
           const configured = await this._providerService.setupProvider(provider);
           if (configured) {
@@ -586,7 +586,7 @@ export class ConfigurationWebview {
         }
 
         case 'disconnectProvider': {
-          const provider = normalizeYagrProviderId(String(payload.provider || ''));
+          const provider = normalizeAgentProviderId(String(payload.provider || ''));
           if (!provider) throw new Error('Unsupported provider.');
           await this._providerService.disconnectProvider(provider);
           await this.postInitialState();
