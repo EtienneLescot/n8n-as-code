@@ -180,7 +180,10 @@ export class AgentWorkbenchWebview {
 
     public dispose(): void {
         if (this._activeSessionId) {
-            AgentWorkbenchWebview._panels.delete(this._activeSessionId);
+            // Only clean up map entries that this panel owns to avoid evicting sibling panels.
+            if (AgentWorkbenchWebview._panels.get(this._activeSessionId) === this) {
+                AgentWorkbenchWebview._panels.delete(this._activeSessionId);
+            }
             if (AgentWorkbenchWebview._lastActiveSessionId === this._activeSessionId) {
                 AgentWorkbenchWebview._lastActiveSessionId = undefined;
             }
@@ -522,10 +525,17 @@ export class AgentWorkbenchWebview {
         this._nodeContexts = Array.isArray(nextState.currentNodeContexts) ? nextState.currentNodeContexts : [];
 
         if (oldSessionId && oldSessionId !== newSessionId) {
-            AgentWorkbenchWebview._panels.delete(oldSessionId);
+            // Only remove the old entry if this panel still owns it (avoid evicting another panel).
+            if (AgentWorkbenchWebview._panels.get(oldSessionId) === this) {
+                AgentWorkbenchWebview._panels.delete(oldSessionId);
+            }
         }
         if (newSessionId) {
-            AgentWorkbenchWebview._panels.set(newSessionId, this);
+            const existingOwner = AgentWorkbenchWebview._panels.get(newSessionId);
+            if (!existingOwner || existingOwner === this) {
+                // Only claim the session if it is unclaimed or already ours.
+                AgentWorkbenchWebview._panels.set(newSessionId, this);
+            }
             if (this._panel.active) {
                 AgentWorkbenchWebview._lastActiveSessionId = newSessionId;
             }

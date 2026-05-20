@@ -1596,7 +1596,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 deleteButton.title = 'Delete conversation';
                 deleteButton.setAttribute('aria-label', 'Delete conversation ' + session.title);
                 deleteButton.innerHTML = ${JSON.stringify(trashIcon)};
-                deleteButton.disabled = Boolean(isRunning && session.isActive);
+                deleteButton.disabled = Boolean(session.isRunning);
                 deleteButton.addEventListener('click', (event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -1740,13 +1740,11 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             list.className = 'inline-popover-list';
             if (currentWorkflowContext) {
                 const current = inlineOption('This workflow', currentWorkflowContext.name || 'Current workflow', 'Current', 'workflow');
-                current.disabled = isRunning;
                 current.addEventListener('click', () => startNewSession(currentWorkflowContext));
                 list.appendChild(current);
             }
 
             const blank = inlineOption('New workflow', 'Start without workflow context', '', 'workflow');
-            blank.disabled = isRunning;
             blank.addEventListener('click', () => startNewSession(null));
             list.appendChild(blank);
 
@@ -1763,7 +1761,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 const label = workflow.name || workflow.id || workflow.filename || 'Workflow';
                 const detail = [workflow.filename, workflow.id].filter(Boolean).join(' · ') || 'Existing workflow';
                 const option = inlineOption(label, detail, '', 'workflow');
-                option.disabled = isRunning;
                 option.addEventListener('click', () => startNewSession(workflow));
                 list.appendChild(option);
             }

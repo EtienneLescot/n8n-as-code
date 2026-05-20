@@ -78,6 +78,7 @@ export interface AgentSessionSummary {
     updatedAt: string;
     messageCount: number;
     isActive: boolean;
+    isRunning: boolean;
     isClosed: boolean;
     checkpointCount: number;
     workflowId?: string;
@@ -2696,6 +2697,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                 updatedAt: summary.updatedAt,
                 messageCount: summary.messageCount,
                 isActive: summary.id === activeSessionId,
+                isRunning: this.activeRuns.has(summary.id),
                 isClosed: Boolean(record?.closedAt),
                 checkpointCount: checkpoints.length,
                 workflowId: workflowContext?.id,
