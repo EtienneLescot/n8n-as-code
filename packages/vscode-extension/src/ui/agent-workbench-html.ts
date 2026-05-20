@@ -1378,8 +1378,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             sendButton.disabled = false;
             stopButton.disabled = !running;
             stopButton.classList.toggle('active', running);
-            newSessionButton.disabled = running;
-            newSessionHeaderButton.disabled = running;
             checkpointOpenButton.disabled = running;
             checkpointSaveButton.disabled = running;
             compactContextButton.disabled = running;
