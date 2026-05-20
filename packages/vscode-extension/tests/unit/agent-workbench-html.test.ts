@@ -214,6 +214,17 @@ test('Agent runtime: Codex stream keeps parallel tool calls separated', () => {
     assert.ok(source.includes('createOpenAiAccountLanguageModel'), 'The index mapping must live inside the local Codex LangChain model');
 });
 
+test('Agent runtime: Codex tool schemas use LangChain JSON schema conversion', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const source = fs.readFileSync(path.join(__dirname, '../../src/services/agent-provider-runtime/chat-codex-oauth.ts'), 'utf8');
+
+    assert.ok(source.includes('langChainToJsonSchema'), 'Codex tool binding must use LangChain Core JSON schema conversion');
+    assert.ok(source.includes('normalizeJsonSchemaRoot'), 'Codex function parameters must be normalized to an object root');
+    assert.ok(!source.includes('function zodToJsonSchema'), 'Do not reintroduce the incomplete local Zod converter');
+    assert.ok(!source.includes('function serializedZodToJsonSchema'), 'Do not reintroduce the incomplete serialized Zod converter');
+});
+
 test('Agent runtime: agent provider runtime dependency is removed', () => {
     const fs = require('node:fs');
     const path = require('node:path');

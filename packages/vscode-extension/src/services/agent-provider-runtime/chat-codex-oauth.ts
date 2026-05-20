@@ -16,7 +16,7 @@ import type { ToolCall } from '@langchain/core/messages/tool';
 import { ChatGenerationChunk, type ChatResult } from '@langchain/core/outputs';
 import type { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import type { Runnable } from '@langchain/core/runnables';
-import { z } from 'zod';
+import { toJsonSchema as langChainToJsonSchema } from '@langchain/core/utils/json_schema';
 import { createOpenAiAccountLanguageModel, CodexReasoningEffort, ensureCodexSessionId, getDefaultCodexReasoningEffort } from './openai-account.js';
 
 interface ChatCodexOAuthCallOptions extends BaseChatModelCallOptions {
@@ -535,152 +535,19 @@ function toLanguageModelTool(input: BindToolsInput): LanguageModelV1FunctionTool
 }
 
 function toJsonSchema(schema: unknown): JSONSchema7 {
-  if (schema instanceof z.ZodType) {
-    return normalizeJsonSchema(zodToJsonSchema(schema));
-  }
-
-  if (isSerializedZodSchema(schema)) {
-    return normalizeJsonSchema(serializedZodToJsonSchema(schema));
-  }
-
-  if (schema && typeof schema === 'object') {
-    return normalizeJsonSchema(schema as JSONSchema7);
-  }
-
-  return normalizeJsonSchema({
-    type: 'object',
-    properties: {},
-    additionalProperties: true,
-  });
+  const converted = schema && typeof schema === 'object'
+    ? langChainToJsonSchema(schema as Parameters<typeof langChainToJsonSchema>[0])
+    : undefined;
+  return normalizeJsonSchemaRoot(converted as JSONSchema7 | undefined);
 }
 
-function zodToJsonSchema(schema: z.ZodTypeAny): JSONSchema7 {
-  if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable || schema instanceof z.ZodDefault) {
-    return zodToJsonSchema(schema._def.innerType);
-  }
-
-  if (schema instanceof z.ZodString) {
-    return { type: 'string' };
-  }
-
-  if (schema instanceof z.ZodNumber) {
-    return { type: 'number' };
-  }
-
-  if (schema instanceof z.ZodBoolean) {
-    return { type: 'boolean' };
-  }
-
-  if (schema instanceof z.ZodEnum) {
-    return { type: 'string', enum: [...schema._def.values] };
-  }
-
-  if (schema instanceof z.ZodLiteral) {
-    return { enum: [schema._def.value] };
-  }
-
-  if (schema instanceof z.ZodArray) {
-    return {
-      type: 'array',
-      items: zodToJsonSchema(schema._def.type),
-    };
-  }
-
-  if (schema instanceof z.ZodUnion) {
-    return {
-      anyOf: schema._def.options.map((option: z.ZodTypeAny) => zodToJsonSchema(option)),
-    };
-  }
-
-  if (schema instanceof z.ZodObject) {
-    const shape = schema._def.shape();
-    const properties = Object.fromEntries(
-      Object.entries(shape).map(([key, value]) => [key, zodToJsonSchema(value as z.ZodTypeAny)]),
-    );
-    const required = Object.entries(shape)
-      .filter(([, value]) => !isOptionalZodSchema(value as z.ZodTypeAny))
-      .map(([key]) => key);
-    return {
-      type: 'object',
-      properties,
-      additionalProperties: false,
-      ...(required.length > 0 ? { required } : {}),
-    };
-  }
-
-  return {};
-}
-
-function isOptionalZodSchema(schema: z.ZodTypeAny): boolean {
-  return schema instanceof z.ZodOptional || schema instanceof z.ZodDefault;
-}
-
-function isSerializedZodSchema(schema: unknown): schema is { def: { type?: string; [key: string]: unknown } } {
-  return Boolean(
-    schema
-      && typeof schema === 'object'
-      && 'def' in (schema as Record<string, unknown>)
-      && typeof (schema as { def?: unknown }).def === 'object',
-  );
-}
-
-function serializedZodToJsonSchema(schema: { def: { type?: string; [key: string]: unknown } }): JSONSchema7 {
-  const def = schema.def;
-  switch (def.type) {
-    case 'string':
-      return { type: 'string' };
-    case 'number':
-      return { type: 'number' };
-    case 'boolean':
-      return { type: 'boolean' };
-    case 'literal':
-      return { enum: [def.value] as JSONSchema7['enum'] };
-    case 'enum':
-      return { type: 'string', enum: Array.isArray(def.values) ? [...def.values] : [] };
-    case 'nullable':
-    case 'optional':
-    case 'default':
-      return serializedInnerTypeToJsonSchema(def.innerType);
-    case 'array':
-      return {
-        type: 'array',
-        items: serializedInnerTypeToJsonSchema(def.type),
-      };
-    case 'union':
-      return {
-        anyOf: Array.isArray(def.options)
-          ? def.options.map((option: z.ZodTypeAny) => serializedInnerTypeToJsonSchema(option))
-          : [],
-      };
-    case 'object': {
-      const shapeRecord = typeof def.shape === 'function' ? def.shape() : def.shape;
-      const shape = shapeRecord && typeof shapeRecord === 'object' ? shapeRecord as Record<string, unknown> : {};
-      const properties = Object.fromEntries(
-        Object.entries(shape).map(([key, value]) => [key, serializedInnerTypeToJsonSchema(value)]),
-      );
-      const required = Object.entries(shape)
-        .filter(([, value]) => !isSerializedOptionalSchema(value))
-        .map(([key]) => key);
-      return {
-        type: 'object',
-        properties,
-        additionalProperties: false,
-        ...(required.length > 0 ? { required } : {}),
-      };
-    }
-    default:
-      return {};
-  }
-}
-
-function serializedInnerTypeToJsonSchema(value: unknown): JSONSchema7 {
-  return isSerializedZodSchema(value)
-    ? serializedZodToJsonSchema(value)
-    : toJsonSchema(value);
-}
-
-function isSerializedOptionalSchema(value: unknown): boolean {
-  return isSerializedZodSchema(value) && (value.def.type === 'optional' || value.def.type === 'default');
+function normalizeJsonSchemaRoot(schema: JSONSchema7 | undefined): JSONSchema7 {
+  const normalized = normalizeJsonSchema(schema && typeof schema === 'object' && !Array.isArray(schema)
+    ? schema
+    : { type: 'object', properties: {}, additionalProperties: true });
+  return normalized.type === 'object'
+    ? normalized
+    : { type: 'object', properties: {}, additionalProperties: true };
 }
 
 function normalizeJsonSchema(schema: JSONSchema7): JSONSchema7 {

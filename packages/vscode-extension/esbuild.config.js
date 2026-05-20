@@ -25,7 +25,6 @@ const runtimeDependencyRoots = [
     '@langchain/langgraph-checkpoint',
     '@langchain/mistralai',
     '@langchain/openai',
-    '@yagr/provider-runtime',
 ];
 const bundledSkillsAssetFiles = new Set([
     'n8n-docs-complete.json',
@@ -263,7 +262,7 @@ const extensionBuild = esbuild.build({
     entryPoints: ['./src/extension.ts'],
     bundle: true,
     outfile: 'out/extension.js',
-    external: ['vscode', 'prettier', 'deepagents', 'langchain', '@langchain/*', '@yagr/provider-runtime'],
+    external: ['vscode', 'prettier', 'deepagents', 'langchain', '@langchain/*'],
     format: 'cjs',
     platform: 'node',
     logOverride: {
