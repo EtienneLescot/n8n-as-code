@@ -154,23 +154,24 @@ const copySkillsAssets = {
     name: 'copy-skills-assets',
     setup(build) {
         build.onEnd(() => {
-            const skillsAssetsDir = path.join(
-                __dirname,
-                'node_modules',
-                '@n8n-as-code',
-                'skills',
-                'dist',
-                'assets'
+            const assetDirCandidates = [
+                path.join(__dirname, 'node_modules', '@n8n-as-code', 'skills', 'dist', 'assets'),
+                path.join(__dirname, '..', 'skills', 'dist', 'assets'),
+                path.join(__dirname, '..', 'skills', 'src', 'assets'),
+                path.join(__dirname, 'assets'),
+            ];
+            const hasRequiredSkillsAssets = dir => (
+                bundledSkillsAssetFiles.size > 0
+                && [...bundledSkillsAssetFiles].every(file => fs.existsSync(path.join(dir, file)))
             );
-
-            // Fallback to local workspace for development
-            const fallbackAssetsDir = path.join(__dirname, '..', 'skills', 'dist', 'assets');
-
-            const sourceDir = fs.existsSync(skillsAssetsDir) ? skillsAssetsDir : fallbackAssetsDir;
+            const sourceDir = assetDirCandidates.find(hasRequiredSkillsAssets);
             const targetDir = path.join(__dirname, 'assets');
 
-            if (!fs.existsSync(sourceDir)) {
-                console.warn('⚠️  skills assets not found, skipping copy');
+            if (!sourceDir) {
+                throw new Error(
+                    'skills assets not found; run `npm run build:extension` from the repository root. Checked:\n' +
+                    assetDirCandidates.map(p => `  ${p}`).join('\n')
+                );
             } else {
                 // Create target directory
                 if (!fs.existsSync(targetDir)) {

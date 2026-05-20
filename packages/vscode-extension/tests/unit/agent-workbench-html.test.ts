@@ -268,6 +268,34 @@ test('Agent runtime: LangGraph checkpoints are sharded by thread', () => {
     assert.ok(!source.includes('storage: this.storage,\n                                writes: this.writes'), 'Checkpoint writes must not rewrite one global monolithic JSON file');
 });
 
+test('Agent runtime: written workflow files update the owning conversation context', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const source = fs.readFileSync(path.join(__dirname, '../../src/services/agent-runtime-controller.ts'), 'utf8');
+
+    assert.ok(source.includes('writtenWorkflowPaths'), 'Runtime must track workflow files written by the current run');
+    assert.ok(source.includes('inferWorkflowContextFromWrittenFiles'), 'Runtime must infer context from files written by this run');
+    assert.ok(source.includes('runResult.workflowContext'), 'Run result must carry the inferred workflow context back to the session');
+    assert.ok(!source.includes('runResult.workflowChanged && !promptWorkflowContext'), 'Existing context must not prevent switching to a newly written workflow');
+});
+
+test('CLI skills assets: dev resolution validates candidate assets before use', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const rootPackage = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../../package.json'), 'utf8'));
+    const extensionBuildSource = fs.readFileSync(path.join(__dirname, '../../esbuild.config.js'), 'utf8');
+    const cliSource = fs.readFileSync(path.join(__dirname, '../../../cli/src/index.ts'), 'utf8');
+    const skillsCliSource = fs.readFileSync(path.join(__dirname, '../../../skills/src/cli.ts'), 'utf8');
+
+    assert.ok(rootPackage.scripts['build:extension'].includes('ensure-extension-skills-assets.cjs'), 'Extension build must verify skills assets before bundling');
+    assert.ok(extensionBuildSource.includes('hasRequiredSkillsAssets'), 'Extension bundler must reject incomplete skills asset directories');
+    assert.ok(!extensionBuildSource.includes('skills assets not found, skipping copy'), 'Extension bundler must not silently skip missing skills assets');
+    assert.ok(cliSource.includes('hasRequiredAssets'), 'CLI must verify skills asset directories before selecting them');
+    assert.ok(cliSource.includes("'vscode-extension', 'assets'"), 'CLI dev fallback should find extension-bundled assets');
+    assert.ok(skillsCliSource.includes('hasRequiredAssets'), 'Direct skills CLI must verify skills asset directories before selecting them');
+    assert.ok(skillsCliSource.includes('vscode-extension/assets'), 'Direct skills CLI dev fallback should find extension-bundled assets');
+});
+
 test('Agent Workbench state delivery: runtime states are lightweight and ordered', () => {
     const fs = require('node:fs');
     const path = require('node:path');

@@ -22,7 +22,7 @@
     "build:cli": "cd packages/cli && npm run build",
     "build:mcp": "cd packages/mcp && npm run build",
     "build:claude-plugin": "npm run build --workspace=packages/skills && npm run build:adapters --workspace=packages/skills",
-    "build:extension": "cd packages/vscode-extension && npm run build",
+    "build:extension": "node scripts/ensure-extension-skills-assets.cjs && cd packages/vscode-extension && npm run build",
     "extension:install": "node scripts/build-and-install.js",
     "extension:dev": "node scripts/setup-dev-link.js",
     "release:plan": "node scripts/release/workspace-release.mjs stable-pr",

@@ -9,7 +9,7 @@ export interface AgentWorkbenchHtmlInput {
     providerModelLabel: string;
 }
 
-export const AGENT_WORKBENCH_BUILD = 'awb-2026.05.20.32-codex-tool-schema';
+export const AGENT_WORKBENCH_BUILD = 'awb-2026.05.20.33-workflow-context-assets';
 
 function escapeHtml(value: string): string {
     return value

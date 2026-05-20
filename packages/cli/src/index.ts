@@ -210,19 +210,32 @@ const getVersion = () => {
  * Resolve the skills assets directory bundled with @n8n-as-code/skills
  */
 const getSkillsAssetsDir = (): string => {
+    const hasRequiredAssets = (candidate: string): boolean => (
+        existsSync(join(candidate, 'n8n-nodes-technical.json'))
+        && existsSync(join(candidate, 'workflows-index.json'))
+    );
+
     // Allow override via environment
-    if (process.env.N8N_AS_CODE_ASSETS_DIR) {
+    if (process.env.N8N_AS_CODE_ASSETS_DIR && hasRequiredAssets(process.env.N8N_AS_CODE_ASSETS_DIR)) {
         return process.env.N8N_AS_CODE_ASSETS_DIR;
     }
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const candidates: string[] = [];
     try {
         const require = createRequire(import.meta.url);
         const skillsPkg = require.resolve('@n8n-as-code/skills/package.json');
-        return join(dirname(skillsPkg), 'dist', 'assets');
-    } catch {
-        // Fallback: skills lives next to cli in a monorepo
-        const __dirname = dirname(fileURLToPath(import.meta.url));
-        return join(__dirname, '..', '..', 'skills', 'dist', 'assets');
-    }
+        const skillsRoot = dirname(skillsPkg);
+        candidates.push(
+            join(skillsRoot, 'dist', 'assets'),
+            join(skillsRoot, 'src', 'assets'),
+        );
+    } catch { /* fall through to monorepo candidates */ }
+    candidates.push(
+        join(__dirname, '..', '..', 'skills', 'dist', 'assets'),
+        join(__dirname, '..', '..', 'skills', 'src', 'assets'),
+        join(__dirname, '..', '..', 'vscode-extension', 'assets'),
+    );
+    return candidates.find(hasRequiredAssets) || candidates[0];
 };
 
 const getSkillsCliEntry = (): string => {

@@ -147,6 +147,7 @@ export interface AgentWorkbenchState {
 
 export interface AgentRunResult {
     workflowChanged: boolean;
+    workflowContext?: AgentWorkflowContext;
 }
 
 export type AgentStreamEvent =
@@ -1195,17 +1196,20 @@ export class AgentRuntimeController implements vscode.Disposable {
                 await postMessage({ type: 'agent.status', status: 'idle' });
                 postedIdle = true;
             }
-            if (runResult.workflowChanged && !promptWorkflowContext) {
-                const inferredWorkflow = await this.inferWorkflowContextFromWorkspace(input.workspaceRoot);
+            if (runResult.workflowChanged) {
+                const inferredWorkflow = runResult.workflowContext || await this.inferWorkflowContextFromWorkspace(input.workspaceRoot);
                 if (inferredWorkflow) {
-                    entries = this.withWorkflowContext(entries, inferredWorkflow);
-                    this.writeSessionEntries(sessions.service, targetSessionId, entries);
+                    const shouldUpdateWorkflowContext = !promptWorkflowContext || !this.workflowContextsMatch(promptWorkflowContext, inferredWorkflow);
+                    if (shouldUpdateWorkflowContext) {
+                        entries = this.withWorkflowContext(entries, inferredWorkflow);
+                        this.writeSessionEntries(sessions.service, targetSessionId, entries);
+                    }
                 }
             }
             await postMessage({ type: 'agent.state', state: await this.getWorkbenchState({ ...input, sessionId: targetSessionId }) });
             await postMessage({ type: 'agent.done' });
             this.outputChannel.appendLine(`[n8n-agent-debug] agent host done sessionId=${targetSessionId} queuedPrompt=${String(Boolean(this.queuedPrompts.has(targetSessionId)))}`);
-            result = { workflowChanged: runResult.workflowChanged };
+            result = { workflowChanged: runResult.workflowChanged, workflowContext: runResult.workflowContext };
         } catch (error: any) {
             const message = error?.message || String(error);
             const currentActiveRun = this.activeRuns.get(targetSessionId);
@@ -1250,7 +1254,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         }
         if (queuedPrompt) {
             const queuedResult = await this.sendPrompt(queuedPrompt.input, postMessage);
-            return { workflowChanged: result.workflowChanged || queuedResult.workflowChanged };
+            return { workflowChanged: result.workflowChanged || queuedResult.workflowChanged, workflowContext: queuedResult.workflowContext || result.workflowContext };
         }
         return result;
     }
@@ -1311,7 +1315,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         initialEntries: AgentTimelineEntry[],
         postMessage: AgentWorkbenchPostMessage,
         signal: AbortSignal,
-    ): Promise<{ entries: AgentTimelineEntry[]; workflowChanged: boolean }> {
+    ): Promise<{ entries: AgentTimelineEntry[]; workflowChanged: boolean; workflowContext?: AgentWorkflowContext }> {
         await this.throwIfAborted(signal);
 
         const providerRegistry = await this.loadAgentProviderRegistry().catch((error: any) => ({ error: error?.message || String(error) }));
@@ -1399,11 +1403,12 @@ export class AgentRuntimeController implements vscode.Disposable {
         postMessage: AgentWorkbenchPostMessage,
         signal: AbortSignal,
         contextWindowTokens: number,
-    ): Promise<{ entries: AgentTimelineEntry[]; workflowChanged: boolean }> {
+    ): Promise<{ entries: AgentTimelineEntry[]; workflowChanged: boolean; workflowContext?: AgentWorkflowContext }> {
         const runStartedAt = Date.now();
         const accumulator = this.createStreamAccumulator();
         let entries = [...initialEntries];
         let fileModificationDetected = false;
+        const writtenWorkflowPaths = new Set<string>();
         let visibleFinalEmitted = false;
         let authoritativeFinalEmitted = false;
         const loggedProjectionEvents = new Set<string>();
@@ -1416,8 +1421,12 @@ export class AgentRuntimeController implements vscode.Disposable {
             entries = this.applyStreamEvent(entries, streamEvent);
             syncEntries();
             await postMessage({ type: 'agent.streamEvent', event: streamEvent });
-            if (streamEvent.type === 'operation' && streamEvent.status === 'done' && streamEvent.category === 'file-write') {
-                fileModificationDetected = true;
+            if (streamEvent.type === 'operation' && streamEvent.category === 'file-write') {
+                const filePath = this.extractWorkflowFilePathFromOperation(streamEvent);
+                if (filePath) writtenWorkflowPaths.add(filePath);
+                if (streamEvent.status === 'done') {
+                    fileModificationDetected = true;
+                }
             }
         };
         const emitFinalEvent = async (response: string, finalState: string, runtimeFinalizing: boolean) => {
@@ -1505,8 +1514,11 @@ export class AgentRuntimeController implements vscode.Disposable {
         if (fileModificationDetected) {
             this.saveAutoCheckpointAfterFileModificationInBackground(service, input, entries);
         }
+        const workflowContext = fileModificationDetected
+            ? await this.inferWorkflowContextFromWrittenFiles([...writtenWorkflowPaths], input.workspaceRoot)
+            : undefined;
         this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime completed sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'} stream=v3 workflowChanged=${String(fileModificationDetected)} elapsedMs=${Date.now() - runStartedAt}`);
-        return { entries, workflowChanged: fileModificationDetected };
+        return { entries, workflowChanged: fileModificationDetected, workflowContext };
     }
 
     private async consumeDeepAgentV3MessageProjection(
@@ -2934,6 +2946,35 @@ export class AgentRuntimeController implements vscode.Disposable {
         for (const candidate of candidates.slice(0, 12)) {
             const context = await this.readWorkflowContextFromTypeScriptFile(candidate.filePath, workspaceRoot);
             if (context) return context;
+        }
+        return undefined;
+    }
+
+    private async inferWorkflowContextFromWrittenFiles(filePaths: string[], workspaceRoot?: string): Promise<AgentWorkflowContext | undefined> {
+        if (!workspaceRoot) return undefined;
+        const seen = new Set<string>();
+        for (const candidate of filePaths) {
+            const resolved = path.isAbsolute(candidate)
+                ? candidate
+                : path.resolve(workspaceRoot, candidate);
+            if (seen.has(resolved)) continue;
+            seen.add(resolved);
+            if (!resolved.endsWith('.workflow.ts')) continue;
+            const relative = path.relative(workspaceRoot, resolved);
+            if (relative.startsWith('..') || path.isAbsolute(relative)) continue;
+            const context = await this.readWorkflowContextFromTypeScriptFile(resolved, workspaceRoot);
+            if (context) return context;
+        }
+        return undefined;
+    }
+
+    private extractWorkflowFilePathFromOperation(event: Extract<AgentStreamEvent, { type: 'operation' }>): string | undefined {
+        for (const candidate of [event.summary, event.body]) {
+            if (typeof candidate !== 'string') continue;
+            const trimmed = candidate.trim();
+            if (!trimmed || !trimmed.endsWith('.workflow.ts')) continue;
+            if (trimmed.includes('\n')) continue;
+            return trimmed;
         }
         return undefined;
     }

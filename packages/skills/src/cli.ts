@@ -30,18 +30,28 @@ const getVersion = () => {
 };
 
 const getAssetsDir = () => {
-    if (process.env.N8N_AS_CODE_ASSETS_DIR) {
+    const hasRequiredAssets = (candidate: string): boolean => (
+        fs.existsSync(join(candidate, 'n8n-nodes-technical.json'))
+        && fs.existsSync(join(candidate, 'workflows-index.json'))
+    );
+
+    if (process.env.N8N_AS_CODE_ASSETS_DIR && hasRequiredAssets(process.env.N8N_AS_CODE_ASSETS_DIR)) {
         return process.env.N8N_AS_CODE_ASSETS_DIR;
     }
 
     // Fallback 1: subfolder assets (Standard NPM install: dist/cli.js + dist/assets/ OR dev: src/cli.ts + src/assets/)
     const localAssets = join(_dirname, 'assets');
-    if (fs.existsSync(join(localAssets, 'n8n-docs-complete.json'))) {
+    if (hasRequiredAssets(localAssets)) {
         return localAssets;
     }
 
     // Fallback 2: parent's sibling assets (VS Code Extension: out/skills/cli.js -> assets/)
-    return join(_dirname, '../../assets');
+    const candidates = [
+        join(_dirname, '../../assets'),
+        join(_dirname, '../../vscode-extension/assets'),
+        join(_dirname, '../dist/assets'),
+    ];
+    return candidates.find(hasRequiredAssets) || candidates[0];
 };
 
 const assetsDir = getAssetsDir();
