@@ -1113,13 +1113,14 @@ export class AgentRuntimeController implements vscode.Disposable {
                 title: this.getDefaultSessionTitle(input.workflowName),
             }));
         const targetSessionId = activeRecord.id;
+        input.sessionId = targetSessionId;
 
         const activeRun = this.activeRuns.get(targetSessionId);
         if (activeRun) {
             if (activeRun.visibleDone) {
                 const waitMs = activeRun.visibleFinalAt ? Date.now() - activeRun.visibleFinalAt : undefined;
                 this.outputChannel.appendLine(`[n8n-agent-debug] prompt queued while DeepAgents finalizes sessionId=${targetSessionId} waitAfterVisibleMs=${waitMs ?? 'unknown'} reason=pending`);
-                return this.queuePrompt(input, postMessage, 'pending');
+                return this.queuePrompt({ ...input, sessionId: targetSessionId }, postMessage, 'pending');
             }
             await postMessage({
                 type: 'agent.error',
@@ -1292,10 +1293,6 @@ export class AgentRuntimeController implements vscode.Disposable {
         activeRun.abortReason = 'stop';
         this.stoppedRuns.add(activeRun.abortController);
         activeRun.abortController.abort();
-        this.activeRuns.delete(runSessionId);
-        const sessions = await this.getSessionRuntime();
-        this.appendRunStoppedNotice(sessions.service, runSessionId);
-        await postMessage({ type: 'agent.status', status: 'idle' });
     }
 
     dispose(): void {
