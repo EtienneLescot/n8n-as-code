@@ -900,6 +900,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         }
         .worktree-warning {
             display: none;
+            padding: 4px 14px 6px;
             color: var(--warning);
             font-size: 12px;
             line-height: 1.4;
@@ -1279,7 +1280,6 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                     <div id="runtime-finalizing" class="runtime-finalizing" aria-live="polite">Finalizing context before the next run...</div>
                     <div id="mention-menu" class="mention-menu"></div>
                     <textarea id="prompt" placeholder="Ask the n8n agent what to do with this workflow..." rows="2"></textarea>
-                    <div id="worktree-warning" class="worktree-warning" aria-live="polite">Isolated worktree — n8n-as-code config changes and local workflow list from extension UI don't apply here.</div>
                     <div class="composer-toolbar">
                         <div class="composer-provider">
                             <button id="select-model" class="secondary small" type="button" title="${safeProviderModelLabel}">${safeProviderModelLabel}</button>
@@ -1296,6 +1296,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                     </div>
                 </div>
             </form>
+            <div id="worktree-warning" class="worktree-warning" aria-live="polite">Isolated worktree — n8n-as-code config changes and local workflow list from extension UI don't apply here.</div>
         </section>
         ${hasWorkflow ? `<section class="workflow" aria-label="n8n workflow">
             <div id="refresh-pill" class="refresh-pill">Refreshing n8n...</div>
