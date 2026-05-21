@@ -1,5 +1,13 @@
 # @n8n-as-code/cli
 
+## [2.3.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.3.0...n8nac@v2.3.1) (2026-05-21)
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.2.0 to 2.2.1
+    * @n8n-as-code/telemetry bumped from 2.0.0 to 2.0.1
+
 ## [2.3.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.2.1...n8nac@v2.3.0) (2026-05-21)
 
 ### Features

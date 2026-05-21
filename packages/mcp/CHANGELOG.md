@@ -1,5 +1,13 @@
 # @n8n-as-code/mcp
 
+## [2.0.10](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/mcp@v2.0.9...@n8n-as-code/mcp@v2.0.10) (2026-05-21)
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/telemetry bumped from 2.0.0 to 2.0.1
+    * n8nac bumped from 2.3.0 to 2.3.1
+
 ## [2.0.9](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/mcp@v2.0.8...@n8n-as-code/mcp@v2.0.9) (2026-05-21)
 
 ### Dependencies

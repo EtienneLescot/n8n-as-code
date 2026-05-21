@@ -1,6 +1,6 @@
 {
     "name": "@n8n-as-code/skills",
-    "version": "2.2.0",
+    "version": "2.2.1",
     "description": "AI Agent skills library for n8nac (internal — use npx n8nac skills)",
     "type": "module",
     "license": "MIT",
@@ -19,7 +19,7 @@
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.27.1",
-        "@n8n-as-code/telemetry": "2.0.0",
+        "@n8n-as-code/telemetry": "2.0.1",
         "@n8n-as-code/transformer": "2.0.0",
         "chalk": "^4.1.2",
         "commander": "^11.1.0",

@@ -1,5 +1,19 @@
 # n8n-as-code
 
+## [2.14.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.12.0...n8n-as-code@v2.14.0) (2026-05-21)
+
+### Bug Fixes
+
+* **vscode:** require canonical agent skills for packaging ([6262bd0](https://github.com/EtienneLescot/n8n-as-code/commit/6262bd02d76423028a976259d8127f808a6ddbc6))
+* **vscode:** stop bundling generated skill json assets ([c785462](https://github.com/EtienneLescot/n8n-as-code/commit/c7854621a6a4aaeadd88420a4716e52fddb3563d))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.2.0 to 2.2.1
+    * @n8n-as-code/telemetry bumped from 2.0.0 to 2.0.1
+    * n8nac bumped from 2.3.0 to 2.3.1
+
 ## [2.10.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.8.0...n8n-as-code@v2.10.0) (2026-05-21)
 
 ### Features
