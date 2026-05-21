@@ -1,5 +1,31 @@
 # @n8n-as-code/cli
 
+## [2.3.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.2.1...n8nac@v2.3.0) (2026-05-21)
+
+### Features
+
+* **vscode-extension:** improve workflow context management and asset resolution ([07a289f](https://github.com/EtienneLescot/n8n-as-code/commit/07a289f5cf2eb40e8e2192d3f21b436eff291e3d))
+* **cli:** add native environment promotion ([b5aaa3e](https://github.com/EtienneLescot/n8n-as-code/commit/b5aaa3ef1333fd8c42af1f119e01a9f153e4425c))
+
+### Bug Fixes
+
+* update core and credentials manager dependencies ([84cefbe](https://github.com/EtienneLescot/n8n-as-code/commit/84cefbe2561983b72f81ea7f395cbd4b00a7a5b8))
+* **cli:** refresh promotion discovery planning ([a2cf402](https://github.com/EtienneLescot/n8n-as-code/commit/a2cf402fef009962bfabd8ee63f028436da9bcfe))
+* **cli:** discover target ids for staged promotion ([2b909be](https://github.com/EtienneLescot/n8n-as-code/commit/2b909be4b01c1b2679af794c5714dd8255fa2212))
+* **config:** preserve legacy credential migration ([d07fd61](https://github.com/EtienneLescot/n8n-as-code/commit/d07fd615905cfc10ae7dc3e63566d5222d14945e))
+* **config:** ignore ambiguous target name credentials ([0872291](https://github.com/EtienneLescot/n8n-as-code/commit/087229135eb5645dbce471181221c6b1bdadcdbd))
+* **config:** tolerate duplicate instance target names ([912adcc](https://github.com/EtienneLescot/n8n-as-code/commit/912adcc75d0368aa1f1c94251c606b4919c1bfba))
+
+### Documentation
+
+* document promotion workflow ([c71ac78](https://github.com/EtienneLescot/n8n-as-code/commit/c71ac784f1d1f50de67506ce5597a6db6f83ded8))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/manager-adapter bumped from 2.0.3 to 2.0.4
+    * @n8n-as-code/skills bumped from 2.1.3 to 2.2.0
+
 ## [2.2.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.2.0...n8nac@v2.2.1) (2026-05-13)
 
 ### Documentation

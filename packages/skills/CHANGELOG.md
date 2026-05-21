@@ -1,5 +1,17 @@
 # @n8n-as-code/skills
 
+## [2.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.1.3...@n8n-as-code/skills@v2.2.0) (2026-05-21)
+
+### Features
+
+* **vscode-extension:** improve workflow context management and asset resolution ([07a289f](https://github.com/EtienneLescot/n8n-as-code/commit/07a289f5cf2eb40e8e2192d3f21b436eff291e3d))
+
+### Bug Fixes
+
+* **skills:** update knowledge base for n8n@2.21.5 ([3144f02](https://github.com/EtienneLescot/n8n-as-code/commit/3144f027f7c9af87ac3c832f9b3587c47d445c1e))
+* **skills:** update knowledge base for n8n@2.21.4 ([3274412](https://github.com/EtienneLescot/n8n-as-code/commit/3274412a86dbd9047a9890f744506c9e48958f73))
+* **skills:** update knowledge base for n8n@2.20.9 ([e86c39f](https://github.com/EtienneLescot/n8n-as-code/commit/e86c39fa20aae6ad3d27165df4869d4011b4295c))
+
 ## [2.1.3](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.1.2...@n8n-as-code/skills@v2.1.3) (2026-05-13)
 
 ### Bug Fixes

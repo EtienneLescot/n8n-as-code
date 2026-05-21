@@ -1,5 +1,12 @@
 # @n8n-as-code/mcp
 
+## [2.0.9](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/mcp@v2.0.8...@n8n-as-code/mcp@v2.0.9) (2026-05-21)
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * n8nac bumped from 2.2.1 to 2.3.0
+
 ## [2.0.8](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/mcp@v2.0.7...@n8n-as-code/mcp@v2.0.8) (2026-05-13)
 
 ### Dependencies

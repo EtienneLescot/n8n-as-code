@@ -1,5 +1,42 @@
 # n8n-as-code
 
+## [2.10.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.8.0...n8n-as-code@v2.10.0) (2026-05-21)
+
+### Features
+
+* **worktree:** add delete confirmation and isolation warning banner ([81c95b7](https://github.com/EtienneLescot/n8n-as-code/commit/81c95b71cf242fec2dccbed9e98946bcaca4a20f))
+* **workbench:** add git worktree management to Agent Workbench ([af4c928](https://github.com/EtienneLescot/n8n-as-code/commit/af4c928b2fa40192b357b597803fb5d1a4f8dc82))
+* **vscode-extension:** improve workflow context management and asset resolution ([07a289f](https://github.com/EtienneLescot/n8n-as-code/commit/07a289f5cf2eb40e8e2192d3f21b436eff291e3d))
+* **ui:** enable parallel chat threads and session management ([a544c0c](https://github.com/EtienneLescot/n8n-as-code/commit/a544c0cacac36a3a848ae51e2cc1721652a20b55))
+* **agent-workbench:** implement parallel chat threads and visibility performance optimization ([0a98d85](https://github.com/EtienneLescot/n8n-as-code/commit/0a98d85fc268651b16eaccef5f6694ebe885d353))
+
+### Bug Fixes
+
+* **worktree:** force-remove worktree to handle agent-created files ([4498fc4](https://github.com/EtienneLescot/n8n-as-code/commit/4498fc42d8b2d05a5f7462077d2dcb0c17782330))
+* **worktree:** replace nested button with span to fix delete action ([1cb7ffe](https://github.com/EtienneLescot/n8n-as-code/commit/1cb7ffebcf563f41517823e5f97c253bcc4b2a6d))
+* **worktree:** move warning banner outside composer form ([f50bfa9](https://github.com/EtienneLescot/n8n-as-code/commit/f50bfa99a0e5e7f4f3cb920eeee57411d41a16b9))
+* **worktree:** move warning below input, simplify to orange text ([c2b18f9](https://github.com/EtienneLescot/n8n-as-code/commit/c2b18f97d5939f9300e49b13d9a8f0c1f7c9ed6f))
+* **worktree:** also filter main workspace from agent.worktree.list response ([a711f93](https://github.com/EtienneLescot/n8n-as-code/commit/a711f932c6d755b694055456707a4e0cab4479f2))
+* **worktree:** store worktrees under .n8nac/ and hide main workspace from list ([b575737](https://github.com/EtienneLescot/n8n-as-code/commit/b575737175cdd03c90116f2d6e4cbec1c182cee4))
+* **worktree:** let listWorktrees errors propagate in remove handler ([1c5d5a1](https://github.com/EtienneLescot/n8n-as-code/commit/1c5d5a1fbf08b7a83ac6ad73d3b591aa51698805))
+* **workbench:** address code review feedback ([cc1cf49](https://github.com/EtienneLescot/n8n-as-code/commit/cc1cf493c153a38b2e74494e8961cd5f5ab6d7c4))
+* **worktree:** swap worktree path before baseBranch in git args ([27a8ab8](https://github.com/EtienneLescot/n8n-as-code/commit/27a8ab8ec49f212540a7cc69481dab8b99ba0ad6))
+* **workbench:** clear stale active session ownership ([b99760b](https://github.com/EtienneLescot/n8n-as-code/commit/b99760b8ea9e20d71c6677c72f916ccd5d980e13))
+* **runtime:** replace custom zod-to-json-schema with langchain utility ([f0df91b](https://github.com/EtienneLescot/n8n-as-code/commit/f0df91baadaed45b2b27bd10470b82a86062f02a))
+* **ui:** rename yagr provider service to agent provider service ([d059c7a](https://github.com/EtienneLescot/n8n-as-code/commit/d059c7a6f8bcf64b8cc726d2385ecdba42d7782d))
+* **workbench:** rebuild parallel chat changes cleanly ([a03d3e1](https://github.com/EtienneLescot/n8n-as-code/commit/a03d3e1d0c38f0256416216defe4cc05b0d018ef))
+* **ui:** allow starting new sessions while agent is running ([1e0efb6](https://github.com/EtienneLescot/n8n-as-code/commit/1e0efb6dd51a46af05c79b2e5c46f4f17b5bdc75))
+* **agent-runtime:** address CodeRabbit feedback on prompt queue recursion and stop cleanup race ([929ef74](https://github.com/EtienneLescot/n8n-as-code/commit/929ef74d4838e89467c229332d0fe43d2d846675))
+* update core and credentials manager dependencies ([84cefbe](https://github.com/EtienneLescot/n8n-as-code/commit/84cefbe2561983b72f81ea7f395cbd4b00a7a5b8))
+* **config:** tolerate duplicate instance target names ([912adcc](https://github.com/EtienneLescot/n8n-as-code/commit/912adcc75d0368aa1f1c94251c606b4919c1bfba))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/manager-adapter bumped from 2.0.3 to 2.0.4
+    * @n8n-as-code/skills bumped from 2.1.3 to 2.2.0
+    * n8nac bumped from 2.2.1 to 2.3.0
+
 ## [2.8.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.6.0...n8n-as-code@v2.8.0) (2026-05-13)
 
 ### Features
