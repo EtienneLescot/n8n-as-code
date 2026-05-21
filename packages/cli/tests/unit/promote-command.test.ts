@@ -316,7 +316,151 @@ export class CredentialWorkflow {
             expect(promoted).toContain("id: 'target-cred'");
             expect(promoted).toContain("name: 'Shared Credential'");
             const promotionConfig = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-promotion.json'), 'utf8'));
-            expect(promotionConfig.routes['Dev->Prod'].bindings.credentials['source-cred']).toBe('target-cred');
+            expect(promotionConfig.routes['Dev->Prod'].bindings.credentials['Shared Credential:httpBasicAuth']).toBe('Shared Credential:httpBasicAuth');
+        } finally {
+            if (previousManagerHome === undefined) {
+                delete process.env.N8N_MANAGER_HOME;
+            } else {
+                process.env.N8N_MANAGER_HOME = previousManagerHome;
+            }
+        }
+    });
+
+    it('prompts for unresolved credential mappings and persists name-type bindings', async () => {
+        const previousManagerHome = process.env.N8N_MANAGER_HOME;
+        const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-workspace-'));
+        process.env.N8N_MANAGER_HOME = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-manager-'));
+        try {
+            const globalWorkspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-global-'));
+            const globalConfigService = new ConfigService(globalWorkspaceRoot);
+            globalConfigService.saveLocalConfig({
+                host: 'https://dev.example.test',
+                instanceIdentifier: 'n8n_1111111111',
+            }, { instanceId: 'dev-instance', instanceName: 'Dev', apiKey: 'dev-key' });
+            globalConfigService.saveLocalConfig({
+                host: 'https://prod.example.test',
+                instanceIdentifier: 'n8n_2222222222',
+            }, { instanceId: 'prod-instance', instanceName: 'Prod', apiKey: 'prod-key', setActive: false });
+
+            const configService = new ConfigService(workspaceRoot);
+            const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
+            const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/prod' });
+
+            const sourceDir = configService.resolveEnvironment('Dev').workflowsPath!;
+            const targetDir = configService.resolveEnvironment('Prod').workflowsPath!;
+            mkdirSync(sourceDir, { recursive: true });
+            const sourcePath = path.join(sourceDir, 'mapped-credential.workflow.ts');
+            writeFileSync(sourcePath, `import { workflow, node } from '@n8n-as-code/transformer';
+
+@workflow({ id: 'source-wf', name: 'Mapped Credential Workflow', active: false })
+export class MappedCredentialWorkflow {
+  @node({
+    name: 'Postgres',
+    type: 'n8n-nodes-base.postgres',
+    version: 2,
+    position: [100, 100],
+    credentials: { postgres: { id: 'source-postgres', name: 'Dev Database' } }
+  })
+  Postgres = { operation: 'executeQuery' };
+}
+`, 'utf8');
+
+            const promptCandidates: string[] = [];
+            await new PromoteCommand(configService, {
+                createClient: () => ({
+                    getAllWorkflows: async () => [],
+                    listCredentials: async () => [
+                        { id: 'target-postgres', name: 'Prod Database', type: 'postgres' },
+                        { id: 'target-http', name: 'Prod HTTP', type: 'httpBasicAuth' },
+                    ],
+                }),
+                promptCredentialMapping: async (candidate, targetCredentials) => {
+                    promptCandidates.push(`${candidate.sourceName}:${candidate.credentialType}`);
+                    expect(targetCredentials).toEqual([{ id: 'target-postgres', name: 'Prod Database', type: 'postgres' }]);
+                    return { action: 'map', credential: targetCredentials[0]! };
+                },
+            }).run(sourcePath, {
+                from: 'Dev',
+                to: 'Prod',
+                push: false,
+                promotionConfig: path.join(workspaceRoot, 'n8nac-promotion.json'),
+            });
+
+            expect(promptCandidates).toEqual(['Dev Database:postgres']);
+            const promoted = readFileSync(path.join(targetDir, 'mapped-credential.workflow.ts'), 'utf8');
+            expect(promoted).toContain("id: 'target-postgres'");
+            expect(promoted).toContain("name: 'Prod Database'");
+            const promotionConfig = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-promotion.json'), 'utf8'));
+            expect(promotionConfig.version).toBe(2);
+            expect(promotionConfig.routes['Dev->Prod'].bindings.credentials['Dev Database:postgres']).toBe('Prod Database:postgres');
+        } finally {
+            if (previousManagerHome === undefined) {
+                delete process.env.N8N_MANAGER_HOME;
+            } else {
+                process.env.N8N_MANAGER_HOME = previousManagerHome;
+            }
+        }
+    });
+
+    it('keeps blocking unresolved credentials when interactive prompts are disabled', async () => {
+        const previousManagerHome = process.env.N8N_MANAGER_HOME;
+        const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-workspace-'));
+        process.env.N8N_MANAGER_HOME = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-manager-'));
+        try {
+            const globalWorkspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-global-'));
+            const globalConfigService = new ConfigService(globalWorkspaceRoot);
+            globalConfigService.saveLocalConfig({
+                host: 'https://dev.example.test',
+                instanceIdentifier: 'n8n_1111111111',
+            }, { instanceId: 'dev-instance', instanceName: 'Dev', apiKey: 'dev-key' });
+            globalConfigService.saveLocalConfig({
+                host: 'https://prod.example.test',
+                instanceIdentifier: 'n8n_2222222222',
+            }, { instanceId: 'prod-instance', instanceName: 'Prod', apiKey: 'prod-key', setActive: false });
+
+            const configService = new ConfigService(workspaceRoot);
+            const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
+            const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/prod' });
+
+            const sourceDir = configService.resolveEnvironment('Dev').workflowsPath!;
+            mkdirSync(sourceDir, { recursive: true });
+            const sourcePath = path.join(sourceDir, 'blocked-credential.workflow.ts');
+            writeFileSync(sourcePath, `import { workflow, node } from '@n8n-as-code/transformer';
+
+@workflow({ id: 'source-wf', name: 'Blocked Credential Workflow', active: false })
+export class BlockedCredentialWorkflow {
+  @node({
+    name: 'Postgres',
+    type: 'n8n-nodes-base.postgres',
+    version: 2,
+    position: [100, 100],
+    credentials: { postgres: { id: 'source-postgres', name: 'Dev Database' } }
+  })
+  Postgres = { operation: 'executeQuery' };
+}
+`, 'utf8');
+
+            const promotionConfigPath = path.join(workspaceRoot, 'n8nac-promotion.json');
+            await expect(new PromoteCommand(configService, {
+                createClient: () => ({
+                    getAllWorkflows: async () => [],
+                    listCredentials: async () => [
+                        { id: 'target-postgres', name: 'Prod Database', type: 'postgres' },
+                    ],
+                }),
+                promptCredentialMapping: async () => ({ action: 'abort' }),
+            }).run(sourcePath, {
+                from: 'Dev',
+                to: 'Prod',
+                push: false,
+                interactive: false,
+                promotionConfig: promotionConfigPath,
+            })).rejects.toThrow('Promotion blocked by 1 problem.');
+            expect(existsSync(promotionConfigPath)).toBe(false);
         } finally {
             if (previousManagerHome === undefined) {
                 delete process.env.N8N_MANAGER_HOME;

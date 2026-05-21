@@ -1215,6 +1215,7 @@ program.command('promote')
     .option('--no-push', 'Copy/adapt the workflow into the target environment without pushing')
     .option('--overwrite', 'Overwrite the target local workflow file if it already exists')
     .option('--promotion-config <path>', 'Promotion config path', 'n8nac-promotion.json')
+    .option('--no-interactive', 'Disable interactive credential mapping prompts')
     .option('--json', 'Output promotion result as JSON')
     .action(async (pathArg, options) => {
         try {
@@ -1225,6 +1226,7 @@ program.command('promote')
                 push: options.push,
                 overwrite: options.overwrite,
                 promotionConfig: options.promotionConfig,
+                interactive: options.interactive,
                 json: options.json,
             });
         } catch (error: any) {

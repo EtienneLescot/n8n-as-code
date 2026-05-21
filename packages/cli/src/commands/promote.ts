@@ -15,6 +15,7 @@ export interface PromoteOptions {
     overwrite?: boolean;
     json?: boolean;
     promotionConfig?: string;
+    interactive?: boolean;
 }
 
 export interface PromotionSubstitution {
@@ -33,6 +34,9 @@ export interface PromotionProblem {
     message: string;
     nodeName?: string;
     ref?: string;
+    credentialType?: string;
+    sourceId?: string;
+    sourceName?: string;
 }
 
 export interface PromotionWorkflowResult {
@@ -71,9 +75,31 @@ export interface PromoteResult {
     workflows: PromotionWorkflowResult[];
 }
 
+export interface CredentialMappingCandidate {
+    credentialType: string;
+    sourceId?: string;
+    sourceName: string;
+    nodeNames: string[];
+}
+
+export interface CredentialMappingPromptContext {
+    routeKey: string;
+    targetEnvironmentName: string;
+}
+
+export type CredentialMappingPromptAnswer =
+    | { action: 'map'; credential: Record<string, unknown> }
+    | { action: 'skip' }
+    | { action: 'abort' };
+
 export interface PromotionCommandDependencies {
     createClient?: (environment: IResolvedWorkspaceEnvironment) => PromotionRuntimeClient;
     pushWorkflow?: (targetEnvironment: IResolvedWorkspaceEnvironment, targetPath: string) => Promise<string | undefined>;
+    promptCredentialMapping?: (
+        candidate: CredentialMappingCandidate,
+        targetCredentials: Array<Record<string, unknown>>,
+        context: CredentialMappingPromptContext,
+    ) => Promise<CredentialMappingPromptAnswer>;
 }
 
 export interface PromotionRuntimeClient {
@@ -82,7 +108,7 @@ export interface PromotionRuntimeClient {
 }
 
 interface PromotionConfig {
-    version: 1;
+    version: 1 | 2;
     routes: Record<string, PromotionRouteConfig>;
 }
 
@@ -177,11 +203,24 @@ export class PromoteCommand {
 
         await this.discoverTargetWorkflowIds(sources, target, route, indexes, options);
 
-        const planned = await this.planWorkflows(sources, target, route, indexes);
-        const blockingProblems = planned.flatMap((workflow) => workflow.problems);
+        let planned = await this.planWorkflows(sources, target, route, indexes);
+        let blockingProblems = planned.flatMap((workflow) => workflow.problems);
+        let hasConfirmedInteractiveMappings = false;
+        const credentialMappingStatus = await this.resolveCredentialProblemsInteractively(planned, target, route, indexes, routeKey, options);
+        if (credentialMappingStatus === 'aborted') {
+            throw new Error('Promotion aborted by user.');
+        }
+        if (credentialMappingStatus === 'mapped') {
+            hasConfirmedInteractiveMappings = true;
+            planned = await this.planWorkflows(sources, target, route, indexes);
+            blockingProblems = planned.flatMap((workflow) => workflow.problems);
+        }
         if (blockingProblems.length > 0) {
             const result = this.buildResult(source, target, routeKey, configPath, planned, options);
             this.printResult(result, options);
+            if (hasConfirmedInteractiveMappings && !options.dryRun) {
+                this.savePromotionConfig(configPath, config);
+            }
             throw new Error(`Promotion blocked by ${blockingProblems.length} problem${blockingProblems.length === 1 ? '' : 's'}.`);
         }
 
@@ -488,7 +527,10 @@ export class PromoteCommand {
                 problems.push({
                     kind: 'credential',
                     nodeName: node.name,
-                    ref: sourceId || sourceName,
+                    ref: sourceName ? this.credentialBindingKey(sourceName, credentialType) : sourceId,
+                    credentialType,
+                    sourceId: sourceId || undefined,
+                    sourceName: sourceName || undefined,
                     message: `Cannot resolve credential "${sourceName || sourceId}" of type "${credentialType}" in target environment.`,
                 });
                 continue;
@@ -496,7 +538,10 @@ export class PromoteCommand {
             const targetId = String(targetCredential.id ?? '').trim();
             const targetName = String(targetCredential.name ?? '').trim();
             node.credentials[credentialType] = { id: targetId, name: targetName };
-            if (sourceId) route.bindings!.credentials![sourceId] = targetId;
+            const sourceBindingName = sourceName || sourceId;
+            if (sourceBindingName && targetName) {
+                route.bindings!.credentials![this.credentialBindingKey(sourceBindingName, credentialType)] = this.credentialBindingKey(targetName, credentialType);
+            }
             substitutions.push({
                 kind: 'credential',
                 nodeName: node.name,
@@ -519,10 +564,16 @@ export class PromoteCommand {
         sourceName: string,
     ): Promise<Record<string, unknown> | undefined> {
         await this.ensureTargetCredentialIndexes(target, indexes);
+        const sourceBindingName = sourceName || sourceId;
+        if (sourceBindingName) {
+            const boundRef = route.bindings?.credentials?.[this.credentialBindingKey(sourceBindingName, credentialType)];
+            const boundCredential = this.resolveCredentialBindingReference(boundRef, credentialType, indexes);
+            if (boundCredential) return boundCredential;
+        }
         if (sourceId) {
             const boundId = route.bindings?.credentials?.[sourceId];
             if (boundId) {
-                return indexes.targetCredentialsById!.get(boundId);
+                return this.resolveCredentialBindingReference(boundId, credentialType, indexes);
             }
         }
 
@@ -540,6 +591,137 @@ export class PromoteCommand {
         const matches = indexes.targetCredentialsByKey!.get(`${credentialType}::${targetName}`) ?? [];
         if (matches.length === 1) return matches[0];
         return undefined;
+    }
+
+    private async resolveCredentialProblemsInteractively(
+        planned: PromotionWorkflowResult[],
+        target: IResolvedWorkspaceEnvironment,
+        route: PromotionRouteConfig,
+        indexes: PromotionIndexes,
+        routeKey: string,
+        options: PromoteOptions,
+    ): Promise<'none' | 'mapped' | 'aborted'> {
+        if (!this.shouldPromptForCredentialMappings(options)) return 'none';
+        const candidates = this.collectCredentialMappingCandidates(planned);
+        if (candidates.length === 0) return 'none';
+
+        await this.ensureTargetCredentialIndexes(target, indexes);
+        console.log(chalk.yellow('\nUnresolved credentials require target mappings.'));
+        let mapped = false;
+        let currentType: string | undefined;
+        for (const candidate of candidates) {
+            if (candidate.credentialType !== currentType) {
+                currentType = candidate.credentialType;
+                console.log(chalk.dim(`\n${candidate.credentialType}`));
+            }
+            const targetCredentials = this.getTargetCredentialsByType(indexes, candidate.credentialType);
+            const answer = await this.askCredentialMapping(candidate, targetCredentials, {
+                routeKey,
+                targetEnvironmentName: target.environmentName,
+            });
+            if (answer.action === 'abort') return 'aborted';
+            if (answer.action === 'skip') continue;
+
+            const targetName = String(answer.credential.name ?? '').trim();
+            const targetType = String(answer.credential.type ?? '').trim();
+            if (!targetName || targetType !== candidate.credentialType) continue;
+            route.bindings!.credentials![this.credentialBindingKey(candidate.sourceName, candidate.credentialType)] = this.credentialBindingKey(targetName, targetType);
+            mapped = true;
+        }
+        return mapped ? 'mapped' : 'none';
+    }
+
+    private shouldPromptForCredentialMappings(options: PromoteOptions): boolean {
+        if (options.interactive === false || options.dryRun || options.json) return false;
+        if (this.dependencies.promptCredentialMapping) return true;
+        return Boolean(process.stdin.isTTY && process.stdout.isTTY);
+    }
+
+    private collectCredentialMappingCandidates(planned: PromotionWorkflowResult[]): CredentialMappingCandidate[] {
+        const byKey = new Map<string, CredentialMappingCandidate>();
+        for (const workflow of planned) {
+            for (const problem of workflow.problems) {
+                if (problem.kind !== 'credential' || !problem.credentialType) continue;
+                const sourceName = problem.sourceName || problem.sourceId || problem.ref;
+                if (!sourceName) continue;
+                const key = this.credentialBindingKey(sourceName, problem.credentialType);
+                const existing = byKey.get(key) ?? {
+                    credentialType: problem.credentialType,
+                    sourceId: problem.sourceId,
+                    sourceName,
+                    nodeNames: [],
+                };
+                if (problem.nodeName && !existing.nodeNames.includes(problem.nodeName)) {
+                    existing.nodeNames.push(problem.nodeName);
+                }
+                byKey.set(key, existing);
+            }
+        }
+        return Array.from(byKey.values()).sort((a, b) => {
+            const byType = a.credentialType.localeCompare(b.credentialType);
+            return byType || a.sourceName.localeCompare(b.sourceName);
+        });
+    }
+
+    private getTargetCredentialsByType(indexes: PromotionIndexes, credentialType: string): Array<Record<string, unknown>> {
+        return Array.from(indexes.targetCredentialsById?.values() ?? [])
+            .filter((credential) => String(credential.type ?? '').trim() === credentialType)
+            .sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? '')));
+    }
+
+    private async askCredentialMapping(
+        candidate: CredentialMappingCandidate,
+        targetCredentials: Array<Record<string, unknown>>,
+        context: CredentialMappingPromptContext,
+    ): Promise<CredentialMappingPromptAnswer> {
+        if (this.dependencies.promptCredentialMapping) {
+            return this.dependencies.promptCredentialMapping(candidate, targetCredentials, context);
+        }
+
+        const { default: inquirer } = await import('inquirer');
+        const choices = targetCredentials.map((credential, index) => ({
+            name: `${String(credential.name ?? 'Unnamed credential')} (${String(credential.id ?? 'no id')})`,
+            value: `map:${index}`,
+        }));
+        choices.push(
+            { name: 'Skip this credential', value: 'skip' },
+            { name: 'Abort promotion', value: 'abort' },
+        );
+        const nodeLabel = candidate.nodeNames.length > 0 ? ` used by ${candidate.nodeNames.join(', ')}` : '';
+        const answer = await inquirer.prompt<{ selection: string }>([{
+            type: 'list',
+            name: 'selection',
+            message: `Map "${candidate.sourceName}" (${candidate.credentialType})${nodeLabel} in ${context.targetEnvironmentName}`,
+            choices,
+        }]);
+        if (answer.selection === 'abort') return { action: 'abort' };
+        if (answer.selection === 'skip') return { action: 'skip' };
+        const index = Number(answer.selection.replace(/^map:/, ''));
+        const credential = targetCredentials[index];
+        return credential ? { action: 'map', credential } : { action: 'skip' };
+    }
+
+    private resolveCredentialBindingReference(boundRef: string | undefined, credentialType: string, indexes: PromotionIndexes): Record<string, unknown> | undefined {
+        if (!boundRef) return undefined;
+        const byId = indexes.targetCredentialsById!.get(boundRef);
+        if (byId) return byId;
+
+        const parsed = this.parseCredentialBindingKey(boundRef);
+        if (!parsed || parsed.type !== credentialType) return undefined;
+        return unique(indexes.targetCredentialsByKey!.get(`${parsed.type}::${parsed.name}`));
+    }
+
+    private credentialBindingKey(name: string, credentialType: string): string {
+        return `${name}:${credentialType}`;
+    }
+
+    private parseCredentialBindingKey(value: string): { name: string; type: string } | undefined {
+        const delimiterIndex = value.lastIndexOf(':');
+        if (delimiterIndex <= 0 || delimiterIndex === value.length - 1) return undefined;
+        return {
+            name: value.slice(0, delimiterIndex),
+            type: value.slice(delimiterIndex + 1),
+        };
     }
 
     private async remapWorkflowReferences(
@@ -730,16 +912,17 @@ export class PromoteCommand {
 
     private loadPromotionConfig(configPath: string): PromotionConfig {
         if (!fs.existsSync(configPath)) {
-            return { version: 1, routes: {} };
+            return { version: 2, routes: {} };
         }
         const parsed = JSON.parse(fs.readFileSync(configPath, 'utf8')) as PromotionConfig;
-        if (parsed.version !== 1 || !parsed.routes || typeof parsed.routes !== 'object') {
+        if ((parsed.version !== 1 && parsed.version !== 2) || !parsed.routes || typeof parsed.routes !== 'object') {
             throw new Error(`Invalid promotion config: ${configPath}`);
         }
         return parsed;
     }
 
     private savePromotionConfig(configPath: string, config: PromotionConfig): void {
+        config.version = 2;
         fs.mkdirSync(path.dirname(configPath), { recursive: true });
         fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
     }
