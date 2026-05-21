@@ -453,7 +453,9 @@ export class AgentWorkbenchWebview {
 
         if (payload.type === 'agent.worktree.list') {
             try {
-                const worktrees = await this._workflowProviders.listWorktrees();
+                const allWorktrees = await this._workflowProviders.listWorktrees();
+                const mainWorkspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+                const worktrees = allWorktrees.filter((wt) => wt.path !== mainWorkspacePath);
                 const activePath = this._agentRuntime.getActiveWorktreePath();
                 await this._panel.webview.postMessage({
                     type: 'agent.worktrees',
