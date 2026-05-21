@@ -467,9 +467,19 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'agent.worktree.select' && typeof payload.path === 'string') {
-            await this._agentRuntime.setActiveWorktreePath(payload.path);
-            await this._outputChannel.appendLine(`[n8n-agent-debug] Worktree selected path=${payload.path}`);
-            await this.postWorkbenchState();
+            try {
+                const worktrees = await this._workflowProviders.listWorktrees();
+                const isKnown = worktrees.some((wt) => wt.path === payload.path);
+                if (!isKnown) {
+                    this._outputChannel.appendLine(`[n8n-agent] Worktree select refused: unknown path=${payload.path}`);
+                    return;
+                }
+                await this._agentRuntime.setActiveWorktreePath(payload.path);
+                this._outputChannel.appendLine(`[n8n-agent-debug] Worktree selected path=${payload.path}`);
+                await this.postWorkbenchState();
+            } catch (error: any) {
+                this._outputChannel.appendLine(`[n8n-agent] Worktree select error: ${error?.message || String(error)}`);
+            }
             return;
         }
 
@@ -499,6 +509,11 @@ export class AgentWorkbenchWebview {
 
         if (payload.type === 'agent.worktree.remove' && typeof payload.path === 'string') {
             try {
+                const allowed = await this._workflowProviders.listWorktrees().catch(() => []);
+                const isKnown = allowed.some((wt) => wt.path === payload.path);
+                if (!isKnown) {
+                    throw new Error('Refusing to remove unknown worktree path.');
+                }
                 await this._workflowProviders.removeWorktree(payload.path);
                 const activePath = this._agentRuntime.getActiveWorktreePath();
                 if (activePath === payload.path) {

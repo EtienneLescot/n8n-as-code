@@ -860,7 +860,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             width: min(340px, calc(100vw - 28px));
         }
         .inline-option.worktree-item {
-            grid-template-columns: 1fr auto auto;
+            grid-template-columns: 1fr auto auto auto;
         }
         .inline-option.worktree-item .branch-name {
             color: var(--muted);
@@ -1820,6 +1820,10 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             for (const wt of worktrees) {
                 const branchDisplay = wt.branch ? wt.branch.replace('refs/heads/', '') : (wt.detached ? '(detached)' : '');
                 const isActive = activePath === wt.path;
+
+                const wrapper = document.createElement('div');
+                wrapper.style.display = 'contents';
+
                 const option = document.createElement('button');
                 option.type = 'button';
                 option.className = 'inline-option worktree-item' + (isActive ? ' active' : '');
@@ -1832,12 +1836,28 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 const mark = document.createElement('span');
                 mark.className = 'mark';
                 mark.textContent = isActive ? 'Active' : '';
-                option.append(main, sub, mark);
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'ghost worktree-delete';
+                removeBtn.title = 'Remove worktree';
+                removeBtn.setAttribute('aria-label', 'Remove worktree ' + (branchDisplay || wt.path));
+                removeBtn.innerHTML = ${JSON.stringify(trashIcon)};
+                removeBtn.disabled = isActive;
+                removeBtn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (removeBtn.disabled) return;
+                    vscode.postMessage({ type: 'agent.worktree.remove', path: wt.path });
+                });
+
+                option.append(main, sub, mark, removeBtn);
                 option.addEventListener('click', () => {
                     closeInlineMenus();
                     vscode.postMessage({ type: 'agent.worktree.select', path: wt.path });
                 });
-                list.appendChild(option);
+                wrapper.appendChild(option);
+                list.appendChild(wrapper);
             }
 
             worktreeMenu.appendChild(list);
@@ -1849,9 +1869,11 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             closeCheckpointPanel();
             providerMenuOpen = false;
             reasoningMenuOpen = false;
+            newSessionMenuOpen = false;
             worktreeMenuOpen = !worktreeMenuOpen;
             if (providerMenu) providerMenu.classList.remove('open');
             if (reasoningMenu) reasoningMenu.classList.remove('open');
+            if (newSessionMenu) newSessionMenu.classList.remove('open');
             vscode.postMessage({ type: 'agent.worktree.list' });
             renderWorktreeMenu();
         }
