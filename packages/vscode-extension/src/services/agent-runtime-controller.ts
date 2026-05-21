@@ -845,10 +845,11 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     getActiveWorktreePath(sessionId?: string): string | undefined {
+        const legacyPath = this._context.workspaceState.get<string>(ACTIVE_WORKTREE_PATH_KEY);
         if (sessionId) {
-            return this.readActiveWorktreePathsBySession()[sessionId];
+            return this.readActiveWorktreePathsBySession()[sessionId] ?? legacyPath;
         }
-        return this._context.workspaceState.get<string>(ACTIVE_WORKTREE_PATH_KEY);
+        return legacyPath;
     }
 
     async setActiveWorktreePath(worktreePath: string | undefined, sessionId?: string): Promise<void> {
@@ -860,12 +861,28 @@ export class AgentRuntimeController implements vscode.Disposable {
                 delete bySession[sessionId];
             }
             await this._context.workspaceState.update(ACTIVE_WORKTREE_PATH_BY_SESSION_KEY, bySession);
-            await this._context.workspaceState.update(ACTIVE_WORKTREE_PATH_KEY, undefined);
             return;
         }
         if (worktreePath) {
             await this._context.workspaceState.update(ACTIVE_WORKTREE_PATH_KEY, worktreePath);
         } else {
+            await this._context.workspaceState.update(ACTIVE_WORKTREE_PATH_KEY, undefined);
+        }
+    }
+
+    async clearActiveWorktreePath(worktreePath: string): Promise<void> {
+        const bySession = this.readActiveWorktreePathsBySession();
+        let changed = false;
+        for (const [sessionId, activeWorktreePath] of Object.entries(bySession)) {
+            if (activeWorktreePath === worktreePath) {
+                delete bySession[sessionId];
+                changed = true;
+            }
+        }
+        if (changed) {
+            await this._context.workspaceState.update(ACTIVE_WORKTREE_PATH_BY_SESSION_KEY, bySession);
+        }
+        if (this._context.workspaceState.get<string>(ACTIVE_WORKTREE_PATH_KEY) === worktreePath) {
             await this._context.workspaceState.update(ACTIVE_WORKTREE_PATH_KEY, undefined);
         }
     }

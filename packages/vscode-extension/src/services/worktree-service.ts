@@ -126,21 +126,24 @@ export class WorktreeService {
     private resolveManagedWorktreePath(worktreePath: string): string {
         const resolvedRoot = path.resolve(this.worktreesRoot);
         const resolvedWorktreePath = path.resolve(worktreePath);
-        if (this.isManagedChildPath(resolvedRoot, resolvedWorktreePath)) {
-            return resolvedWorktreePath;
-        }
 
         try {
             const realRoot = fs.realpathSync(this.worktreesRoot);
             const realWorktreePath = fs.realpathSync(worktreePath);
-            if (this.isManagedChildPath(realRoot, realWorktreePath)) {
-                return realWorktreePath;
+            if (!this.isManagedChildPath(realRoot, realWorktreePath)) {
+                throw new Error('Refusing to remove worktree outside the managed worktrees directory.');
             }
-        } catch {
-            // Fall through to the explicit error below.
+            return realWorktreePath;
+        } catch (error: any) {
+            if (error?.code !== 'ENOENT') {
+                throw error;
+            }
         }
 
-        throw new Error('Refusing to remove worktree outside the managed worktrees directory.');
+        if (!this.isManagedChildPath(resolvedRoot, resolvedWorktreePath)) {
+            throw new Error('Refusing to remove worktree outside the managed worktrees directory.');
+        }
+        return resolvedWorktreePath;
     }
 
     private isManagedChildPath(rootPath: string, childPath: string): boolean {

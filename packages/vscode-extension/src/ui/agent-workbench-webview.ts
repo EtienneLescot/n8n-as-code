@@ -524,10 +524,7 @@ export class AgentWorkbenchWebview {
                     throw new Error('Refusing to remove unknown worktree path.');
                 }
                 await this._workflowProviders.removeWorktree(payload.path);
-                const activePath = this._agentRuntime.getActiveWorktreePath(this._activeSessionId);
-                if (activePath === payload.path) {
-                    await this._agentRuntime.setActiveWorktreePath(undefined, this._activeSessionId);
-                }
+                await this._agentRuntime.clearActiveWorktreePath(payload.path);
                 this._outputChannel.appendLine(`[n8n-agent-debug] Worktree removed path=${payload.path}`);
             } catch (error: any) {
                 const message = error?.message || String(error);

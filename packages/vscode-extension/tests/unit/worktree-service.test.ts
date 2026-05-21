@@ -25,6 +25,14 @@ test('WorktreeService rejects unsafe branch names before creating worktrees', as
             () => service.createWorktree(root, { branchName: 'unsafe..name' }),
             /not a safe Git branch name/,
         );
+        await assert.rejects(
+            () => service.createWorktree(root, { branchName: 'unsafe.' }),
+            /not a safe Git branch name/,
+        );
+        await assert.rejects(
+            () => service.createWorktree(root, { branchName: 'unsafe.lock' }),
+            /not a safe Git branch name/,
+        );
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }
@@ -52,6 +60,23 @@ test('WorktreeService refuses to remove unknown managed worktree paths', async (
         await assert.rejects(
             () => service.removeWorktree(root, path.join(service.getWorktreesRoot(), 'missing')),
             /unknown worktree path/,
+        );
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test('WorktreeService refuses to remove locked managed worktrees', async () => {
+    const { WorktreeService } = require('../../src/services/worktree-service.js');
+    const root = await createGitRepo();
+    try {
+        const service = new WorktreeService(root);
+        const worktree = await service.createWorktree(root, { branchName: 'n8n-agent-locked' });
+        await execFileAsync('git', ['worktree', 'lock', worktree.path], { cwd: root });
+
+        await assert.rejects(
+            () => service.removeWorktree(root, worktree.path),
+            /Cannot remove locked worktree/,
         );
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
