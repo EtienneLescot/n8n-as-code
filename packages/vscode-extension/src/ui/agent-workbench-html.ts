@@ -898,6 +898,20 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             color: var(--accent-text);
             background: var(--accent);
         }
+        .worktree-warning {
+            display: none;
+            padding: 6px 10px;
+            margin-bottom: 2px;
+            border: 1px solid color-mix(in srgb, var(--warning) 55%, var(--border));
+            border-radius: 7px;
+            background: color-mix(in srgb, var(--warning) 14%, transparent);
+            color: var(--text);
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .worktree-warning.active {
+            display: block;
+        }
         .inline-popover-head {
             display: flex;
             justify-content: space-between;
@@ -1268,6 +1282,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                     <div id="context-badges" class="context-badges"></div>
                     <div id="pending-prompt" class="pending-prompt" aria-live="polite"></div>
                     <div id="runtime-finalizing" class="runtime-finalizing" aria-live="polite">Finalizing context before the next run...</div>
+                    <div id="worktree-warning" class="worktree-warning" aria-live="polite">Isolated worktree — n8n-as-code config changes and workflow list don't apply here.</div>
                     <div id="mention-menu" class="mention-menu"></div>
                     <textarea id="prompt" placeholder="Ask the n8n agent what to do with this workflow..." rows="2"></textarea>
                     <div class="composer-toolbar">
@@ -1394,6 +1409,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const promptInput = document.getElementById('prompt');
         const pendingPromptEl = document.getElementById('pending-prompt');
         const runtimeFinalizingEl = document.getElementById('runtime-finalizing');
+        const worktreeWarningEl = document.getElementById('worktree-warning');
         const sendButton = document.getElementById('send');
         const stopButton = document.getElementById('stop');
         const selectModelButton = document.getElementById('select-model');
@@ -2138,6 +2154,9 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 selectWorktreeButton.textContent = wtLabel;
                 selectWorktreeButton.title = state.activeWorktree ? state.activeWorktree.path : 'Current workspace';
                 selectWorktreeButton.classList.toggle('worktree-active', Boolean(state.activeWorktree));
+            }
+            if (worktreeWarningEl) {
+                worktreeWarningEl.classList.toggle('active', Boolean(state.activeWorktree));
             }
             renderProviderMenu();
             renderReasoningMenu();

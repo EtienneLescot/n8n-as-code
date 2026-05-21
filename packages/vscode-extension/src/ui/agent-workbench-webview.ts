@@ -510,6 +510,13 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'agent.worktree.remove' && typeof payload.path === 'string') {
+            const confirmed = await vscode.window.showWarningMessage(
+                'Delete this worktree? Unsaved or unpushed work may be lost.',
+                { modal: true },
+                'Delete',
+            );
+            if (confirmed !== 'Delete') return;
+
             try {
                 const allowed = await this._workflowProviders.listWorktrees();
                 const isKnown = allowed.some((wt) => wt.path === payload.path);
