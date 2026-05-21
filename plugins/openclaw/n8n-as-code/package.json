@@ -28,7 +28,7 @@
     "@n8n-as-code/workflow-core": "2.0.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^25.9.1",
     "openclaw": "^2026.2.26",
     "typescript": "^5.8.0",
     "vitest": "^1.6.1"
