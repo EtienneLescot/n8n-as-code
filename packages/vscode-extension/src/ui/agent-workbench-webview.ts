@@ -509,7 +509,7 @@ export class AgentWorkbenchWebview {
 
         if (payload.type === 'agent.worktree.remove' && typeof payload.path === 'string') {
             try {
-                const allowed = await this._workflowProviders.listWorktrees().catch(() => []);
+                const allowed = await this._workflowProviders.listWorktrees();
                 const isKnown = allowed.some((wt) => wt.path === payload.path);
                 if (!isKnown) {
                     throw new Error('Refusing to remove unknown worktree path.');
