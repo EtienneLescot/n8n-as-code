@@ -1113,12 +1113,12 @@ async function createAgentWorktree(options?: { branchName?: string }): Promise<W
     });
 }
 
-async function removeAgentWorktree(worktreePath: string): Promise<void> {
+async function removeAgentWorktree(worktreePath: string, options?: { force?: boolean }): Promise<void> {
     const workspaceRoot = getWorkspaceRoot();
     if (!workspaceRoot) throw new Error('No workspace root available.');
     const service = getWorktreeService();
     if (!service) throw new Error('Worktree service unavailable.');
-    await service.removeWorktree(workspaceRoot, worktreePath);
+    await service.removeWorktree(workspaceRoot, worktreePath, options?.force ?? false);
 }
 
 async function resolveWorkflowWebviewTarget(workflow: IWorkflowStatus): Promise<{ url: string; targetUrl: string }> {

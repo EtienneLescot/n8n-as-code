@@ -29,7 +29,7 @@ interface AgentWorkbenchWorkflowProviders {
     selectReasoningEffort(effort: string): Promise<void>;
     listWorktrees(): Promise<WorktreeInfo[]>;
     createWorktree(options?: { branchName?: string }): Promise<WorktreeInfo | undefined>;
-    removeWorktree(worktreePath: string): Promise<void>;
+    removeWorktree(worktreePath: string, options?: { force?: boolean }): Promise<void>;
 }
 
 export class AgentWorkbenchWebview {
@@ -523,7 +523,7 @@ export class AgentWorkbenchWebview {
                 if (!isKnown) {
                     throw new Error('Refusing to remove unknown worktree path.');
                 }
-                await this._workflowProviders.removeWorktree(payload.path);
+                await this._workflowProviders.removeWorktree(payload.path, { force: true });
                 const activePath = this._agentRuntime.getActiveWorktreePath();
                 if (activePath === payload.path) {
                     await this._agentRuntime.setActiveWorktreePath(undefined);
