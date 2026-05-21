@@ -326,7 +326,7 @@ export class CredentialWorkflow {
         }
     });
 
-    it('prompts for unresolved credential mappings and persists name-type bindings', async () => {
+    it('prompts for unresolved credential mappings and persists deterministic target id bindings', async () => {
         const previousManagerHome = process.env.N8N_MANAGER_HOME;
         const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-workspace-'));
         process.env.N8N_MANAGER_HOME = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-manager-'));
@@ -394,7 +394,78 @@ export class MappedCredentialWorkflow {
             expect(promoted).toContain("name: 'Prod Database'");
             const promotionConfig = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-promotion.json'), 'utf8'));
             expect(promotionConfig.version).toBe(2);
-            expect(promotionConfig.routes['Dev->Prod'].bindings.credentials['Dev Database:postgres']).toBe('Prod Database:postgres');
+            expect(promotionConfig.routes['Dev->Prod'].bindings.credentials['Dev Database:postgres']).toBe('target-postgres');
+        } finally {
+            if (previousManagerHome === undefined) {
+                delete process.env.N8N_MANAGER_HOME;
+            } else {
+                process.env.N8N_MANAGER_HOME = previousManagerHome;
+            }
+        }
+    });
+
+    it('uses the selected credential id when interactive mapping target names are duplicated', async () => {
+        const previousManagerHome = process.env.N8N_MANAGER_HOME;
+        const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-workspace-'));
+        process.env.N8N_MANAGER_HOME = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-manager-'));
+        try {
+            const globalWorkspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-global-'));
+            const globalConfigService = new ConfigService(globalWorkspaceRoot);
+            globalConfigService.saveLocalConfig({
+                host: 'https://dev.example.test',
+                instanceIdentifier: 'n8n_1111111111',
+            }, { instanceId: 'dev-instance', instanceName: 'Dev', apiKey: 'dev-key' });
+            globalConfigService.saveLocalConfig({
+                host: 'https://prod.example.test',
+                instanceIdentifier: 'n8n_2222222222',
+            }, { instanceId: 'prod-instance', instanceName: 'Prod', apiKey: 'prod-key', setActive: false });
+
+            const configService = new ConfigService(workspaceRoot);
+            const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
+            const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/prod' });
+
+            const sourceDir = configService.resolveEnvironment('Dev').workflowsPath!;
+            const targetDir = configService.resolveEnvironment('Prod').workflowsPath!;
+            mkdirSync(sourceDir, { recursive: true });
+            const sourcePath = path.join(sourceDir, 'duplicate-credential.workflow.ts');
+            writeFileSync(sourcePath, `import { workflow, node } from '@n8n-as-code/transformer';
+
+@workflow({ id: 'source-wf', name: 'Duplicate Credential Workflow', active: false })
+export class DuplicateCredentialWorkflow {
+  @node({
+    name: 'Postgres',
+    type: 'n8n-nodes-base.postgres',
+    version: 2,
+    position: [100, 100],
+    credentials: { postgres: { id: 'source-postgres', name: 'Dev Database' } }
+  })
+  Postgres = { operation: 'executeQuery' };
+}
+`, 'utf8');
+
+            await new PromoteCommand(configService, {
+                createClient: () => ({
+                    getAllWorkflows: async () => [],
+                    listCredentials: async () => [
+                        { id: 'target-postgres-a', name: 'Prod Database', type: 'postgres' },
+                        { id: 'target-postgres-b', name: 'Prod Database', type: 'postgres' },
+                    ],
+                }),
+                promptCredentialMapping: async (_candidate, targetCredentials) => ({ action: 'map', credential: targetCredentials[1]! }),
+            }).run(sourcePath, {
+                from: 'Dev',
+                to: 'Prod',
+                push: false,
+                promotionConfig: path.join(workspaceRoot, 'n8nac-promotion.json'),
+            });
+
+            const promoted = readFileSync(path.join(targetDir, 'duplicate-credential.workflow.ts'), 'utf8');
+            expect(promoted).toContain("id: 'target-postgres-b'");
+            expect(promoted).toContain("name: 'Prod Database'");
+            const promotionConfig = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-promotion.json'), 'utf8'));
+            expect(promotionConfig.routes['Dev->Prod'].bindings.credentials['Dev Database:postgres']).toBe('target-postgres-b');
         } finally {
             if (previousManagerHome === undefined) {
                 delete process.env.N8N_MANAGER_HOME;
@@ -452,7 +523,9 @@ export class BlockedCredentialWorkflow {
                         { id: 'target-postgres', name: 'Prod Database', type: 'postgres' },
                     ],
                 }),
-                promptCredentialMapping: async () => ({ action: 'abort' }),
+                promptCredentialMapping: async () => {
+                    throw new Error('promptCredentialMapping must not be called when interactive is false');
+                },
             }).run(sourcePath, {
                 from: 'Dev',
                 to: 'Prod',

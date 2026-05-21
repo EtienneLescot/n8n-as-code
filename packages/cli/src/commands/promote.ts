@@ -540,7 +540,8 @@ export class PromoteCommand {
             node.credentials[credentialType] = { id: targetId, name: targetName };
             const sourceBindingName = sourceName || sourceId;
             if (sourceBindingName && targetName) {
-                route.bindings!.credentials![this.credentialBindingKey(sourceBindingName, credentialType)] = this.credentialBindingKey(targetName, credentialType);
+                const sourceBindingKey = this.credentialBindingKey(sourceBindingName, credentialType);
+                route.bindings!.credentials![sourceBindingKey] ??= this.credentialBindingKey(targetName, credentialType);
             }
             substitutions.push({
                 kind: 'credential',
@@ -624,8 +625,9 @@ export class PromoteCommand {
 
             const targetName = String(answer.credential.name ?? '').trim();
             const targetType = String(answer.credential.type ?? '').trim();
+            const targetId = String(answer.credential.id ?? '').trim();
             if (!targetName || targetType !== candidate.credentialType) continue;
-            route.bindings!.credentials![this.credentialBindingKey(candidate.sourceName, candidate.credentialType)] = this.credentialBindingKey(targetName, targetType);
+            route.bindings!.credentials![this.credentialBindingKey(candidate.sourceName, candidate.credentialType)] = targetId || this.credentialBindingKey(targetName, targetType);
             mapped = true;
         }
         return mapped ? 'mapped' : 'none';
