@@ -56,10 +56,10 @@ export class WorktreeService {
         } else {
             args.push('-b', branchName);
         }
+        args.push(worktreePath);
         if (options.baseBranch) {
             args.push(options.baseBranch);
         }
-        args.push(worktreePath);
 
         try {
             await execFileAsync('git', args, {
