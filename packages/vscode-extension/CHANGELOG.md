@@ -1,5 +1,11 @@
 # n8n-as-code
 
+## [2.16.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.14.0...n8n-as-code@v2.16.0) (2026-05-21)
+
+### Bug Fixes
+
+* **vscode-extension:** allow nested node_modules in runtime dependency copying ([37c16b3](https://github.com/EtienneLescot/n8n-as-code/commit/37c16b37288e7fd9a021809786908fab68f1e54c))
+
 ## [2.14.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.12.0...n8n-as-code@v2.14.0) (2026-05-21)
 
 ### Bug Fixes
