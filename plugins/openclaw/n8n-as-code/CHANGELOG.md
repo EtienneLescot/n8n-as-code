@@ -1,5 +1,12 @@
 # @n8n-as-code/n8nac
 
+## [2.1.3](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2.1.2...@n8n-as-code/n8nac@v2.1.3) (2026-05-21)
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/telemetry bumped from 2.0.0 to 2.0.1
+
 ## [2.1.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2.1.1...@n8n-as-code/n8nac@v2.1.2) (2026-05-13)
 
 ### Documentation
