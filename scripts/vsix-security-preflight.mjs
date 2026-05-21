@@ -105,14 +105,14 @@ function parseArgs(argv) {
     printUsage();
     throw new Error('Missing VSIX path.');
   }
-  if (args.failOn !== 'none' && !severityRank[args.failOn]) {
+  if (args.failOn !== 'none' && !Object.hasOwn(severityRank, args.failOn)) {
     throw new Error('--fail-on must be one of: none, low, medium, high');
   }
   if (!Number.isFinite(args.maxTextBytes) || args.maxTextBytes < 0) {
     throw new Error('--max-text-bytes must be a non-negative number.');
   }
-  if (!Number.isFinite(args.maxFindings) || args.maxFindings < 1) {
-    throw new Error('--max-findings must be a positive number.');
+  if (!Number.isInteger(args.maxFindings) || args.maxFindings < 1) {
+    throw new Error('--max-findings must be a positive integer.');
   }
 
   return args;
@@ -144,7 +144,7 @@ function listEntries(vsixPath) {
   });
   const entries = [];
   for (const line of output.split('\n')) {
-    const match = line.match(/^\s*(\d+)\s+\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}\s+(.+)$/);
+    const match = line.match(/^\s*(\d+)\s+\d{2,4}-\d{2}-\d{2,4}\s+\d{2}:\d{2}\s+(.+)$/);
     if (!match) continue;
     const size = Number(match[1]);
     const name = match[2];
