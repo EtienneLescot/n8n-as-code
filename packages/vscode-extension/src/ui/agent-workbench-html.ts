@@ -1849,20 +1849,23 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 mark.className = 'mark';
                 mark.textContent = isActive ? 'Active' : '';
 
-                const removeBtn = document.createElement('button');
-                removeBtn.type = 'button';
+                const removeBtn = document.createElement('span');
                 removeBtn.className = 'ghost worktree-delete';
                 removeBtn.title = 'Remove worktree';
+                removeBtn.setAttribute('role', 'button');
+                removeBtn.setAttribute('tabindex', '0');
                 removeBtn.setAttribute('aria-label', 'Remove worktree ' + (branchDisplay || wt.path));
                 removeBtn.innerHTML = ${JSON.stringify(trashIcon)};
-                removeBtn.disabled = isActive;
-                removeBtn.addEventListener('click', (event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    if (removeBtn.disabled) return;
-                    vscode.postMessage({ type: 'agent.worktree.remove', path: wt.path });
-                });
-
+                if (!isActive) {
+                    removeBtn.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        vscode.postMessage({ type: 'agent.worktree.remove', path: wt.path });
+                    });
+                } else {
+                    removeBtn.style.opacity = '0.38';
+                    removeBtn.style.pointerEvents = 'none';
+                }
                 option.append(main, sub, mark, removeBtn);
                 option.addEventListener('click', () => {
                     closeInlineMenus();
