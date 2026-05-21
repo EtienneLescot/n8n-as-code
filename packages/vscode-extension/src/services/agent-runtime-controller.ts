@@ -4,6 +4,7 @@ import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { WorkspaceSnapshotService } from './workspace-snapshot-service.js';
 import { createLocalProviderLangChainModel } from './agent-provider-runtime/create-langchain-model.js';
+import type { WorktreeInfo } from './worktree-service.js';
 
 export interface AgentPromptInput {
     prompt: string;
@@ -12,6 +13,7 @@ export interface AgentPromptInput {
     workflowFilename?: string;
     workflowFilePath?: string;
     workspaceRoot?: string;
+    worktreePath?: string;
     nodeContext?: AgentNodeContext;
     nodeContexts?: AgentNodeContext[];
     sessionId?: string;
@@ -20,6 +22,7 @@ export interface AgentPromptInput {
 const ENVIRONMENT_DETAILS_BLOCK_PATTERN = /<environment_details>[\s\S]*?<\/environment_details>/gi;
 const UNATTACHED_WORKFLOW_SCOPE_KEY = '__unattached__';
 const DEFAULT_CONTEXT_WINDOW_TOKENS = 200_000;
+const ACTIVE_WORKTREE_PATH_KEY = 'n8n.agent.activeWorktreePath';
 const INVALID_TOOL_CALL_RECOVERY_MARKER = 'N8N_INVALID_TOOL_CALL_RECOVERY';
 
 export interface AgentNodeContext {
@@ -143,6 +146,8 @@ export interface AgentWorkbenchState {
     sessions: AgentSessionSummary[];
     session: AgentSessionState;
     isRunning: boolean;
+    activeWorktree?: WorktreeInfo;
+    availableWorktrees: WorktreeInfo[];
 }
 
 export interface AgentRunResult {
@@ -820,6 +825,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             sessions: await this.listSessionSummaries(scope, activeRecord.id),
             session,
             isRunning: this.activeRuns.has(activeRecord.id),
+            availableWorktrees: [],
         };
     }
 
@@ -835,6 +841,18 @@ export class AgentRuntimeController implements vscode.Disposable {
             return this.getWorkbenchState({ ...input, sessionId: record.id, nodeContext: undefined, nodeContexts: undefined });
         }
         return this.getWorkbenchState({ ...input, workflowId: undefined, workflowName: undefined, workflowFilename: undefined, workflowFilePath: undefined, nodeContext: undefined, nodeContexts: undefined, sessionId: record.id });
+    }
+
+    getActiveWorktreePath(): string | undefined {
+        return this._context.workspaceState.get<string>(ACTIVE_WORKTREE_PATH_KEY);
+    }
+
+    async setActiveWorktreePath(worktreePath: string | undefined): Promise<void> {
+        if (worktreePath) {
+            await this._context.workspaceState.update(ACTIVE_WORKTREE_PATH_KEY, worktreePath);
+        } else {
+            await this._context.workspaceState.update(ACTIVE_WORKTREE_PATH_KEY, undefined);
+        }
     }
 
     async getLatestSessionId(): Promise<string | undefined> {
@@ -1108,6 +1126,12 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     async sendPrompt(input: AgentPromptInput, postMessage: AgentWorkbenchPostMessage): Promise<AgentRunResult> {
+        const activeWorktreePath = this.getActiveWorktreePath();
+        if (activeWorktreePath) {
+            input.workspaceRoot = activeWorktreePath;
+            input.worktreePath = activeWorktreePath;
+        }
+
         const sessions = await this.getSessionRuntime();
         const scope = this.getSessionScope(input);
         const activeRecord = input.sessionId

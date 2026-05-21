@@ -4,6 +4,7 @@ import { IWorkflowStatus } from 'n8nac';
 import { AgentRuntimeController, type AgentWorkbenchMessage, type AgentWorkflowContext } from '../services/agent-runtime-controller.js';
 import { workflowWebviewRegistry } from '../services/workflow-webview-registry.js';
 import { buildAgentWorkbenchHtml } from './agent-workbench-html.js';
+import type { WorktreeInfo } from '../services/worktree-service.js';
 
 interface AgentWorkbenchNodeContext {
     name: string;
@@ -26,6 +27,9 @@ interface AgentWorkbenchWorkflowProviders {
     listModelOptions(provider: string): Promise<Array<Record<string, unknown>>>;
     selectProviderModel(provider: string, model: string): Promise<void>;
     selectReasoningEffort(effort: string): Promise<void>;
+    listWorktrees(): Promise<WorktreeInfo[]>;
+    createWorktree(options?: { branchName?: string }): Promise<WorktreeInfo | undefined>;
+    removeWorktree(worktreePath: string): Promise<void>;
 }
 
 export class AgentWorkbenchWebview {
@@ -446,6 +450,70 @@ export class AgentWorkbenchWebview {
             }
             return;
         }
+
+        if (payload.type === 'agent.worktree.list') {
+            try {
+                const worktrees = await this._workflowProviders.listWorktrees();
+                const activePath = this._agentRuntime.getActiveWorktreePath();
+                await this._panel.webview.postMessage({
+                    type: 'agent.worktrees',
+                    worktrees,
+                    activePath,
+                });
+            } catch (error: any) {
+                this._outputChannel.appendLine(`[n8n-agent] Worktree list error: ${error?.message || String(error)}`);
+            }
+            return;
+        }
+
+        if (payload.type === 'agent.worktree.select' && typeof payload.path === 'string') {
+            await this._agentRuntime.setActiveWorktreePath(payload.path);
+            await this._outputChannel.appendLine(`[n8n-agent-debug] Worktree selected path=${payload.path}`);
+            await this.postWorkbenchState();
+            return;
+        }
+
+        if (payload.type === 'agent.worktree.create') {
+            const branchName = typeof payload.branchName === 'string' && payload.branchName ? payload.branchName : undefined;
+            try {
+                const worktree = await this._workflowProviders.createWorktree({ branchName });
+                if (worktree) {
+                    await this._agentRuntime.setActiveWorktreePath(worktree.path);
+                    this._outputChannel.appendLine(`[n8n-agent-debug] Worktree created and selected path=${worktree.path}`);
+                }
+            } catch (error: any) {
+                const message = error?.message || String(error);
+                this._outputChannel.appendLine(`[n8n-agent] Worktree create error: ${message}`);
+                await this._panel.webview.postMessage({ type: 'agent.error', message: `Failed to create worktree: ${message}` });
+            }
+            await this.postWorkbenchState();
+            return;
+        }
+
+        if (payload.type === 'agent.worktree.clear') {
+            await this._agentRuntime.setActiveWorktreePath(undefined);
+            this._outputChannel.appendLine('[n8n-agent-debug] Worktree cleared, back to current workspace');
+            await this.postWorkbenchState();
+            return;
+        }
+
+        if (payload.type === 'agent.worktree.remove' && typeof payload.path === 'string') {
+            try {
+                await this._workflowProviders.removeWorktree(payload.path);
+                const activePath = this._agentRuntime.getActiveWorktreePath();
+                if (activePath === payload.path) {
+                    await this._agentRuntime.setActiveWorktreePath(undefined);
+                }
+                this._outputChannel.appendLine(`[n8n-agent-debug] Worktree removed path=${payload.path}`);
+                fs.promises.rm(payload.path, { recursive: true, force: true }).catch(() => {});
+            } catch (error: any) {
+                const message = error?.message || String(error);
+                this._outputChannel.appendLine(`[n8n-agent] Worktree remove error: ${message}`);
+                await this._panel.webview.postMessage({ type: 'agent.error', message: `Failed to remove worktree: ${message}` });
+            }
+            await this.postWorkbenchState();
+            return;
+        }
     }
 
     private sanitizeNodeContext(value: unknown): AgentWorkbenchNodeContext | undefined {
@@ -513,16 +581,19 @@ export class AgentWorkbenchWebview {
         workflowFilename?: string;
         workflowFilePath?: string;
         workspaceRoot?: string;
+        worktreePath?: string;
         nodeContext?: AgentWorkbenchNodeContext;
         nodeContexts?: AgentWorkbenchNodeContext[];
         sessionId?: string;
     } {
+        const activeWorktreePath = this._agentRuntime.getActiveWorktreePath();
         return {
             workflowId: this._workflow?.id,
             workflowName: this._workflow?.name,
             workflowFilename: this._workflow?.filename,
             workflowFilePath: this._workflowFilePath,
-            workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+            workspaceRoot: activeWorktreePath || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+            worktreePath: activeWorktreePath,
             nodeContext: this._nodeContexts[0],
             nodeContexts: this._nodeContexts,
             sessionId: this._activeSessionId,
@@ -573,6 +644,13 @@ export class AgentWorkbenchWebview {
             return;
         }
         await this.reconcileWorkflowContext(nextState.workflowContext);
+
+        const activeWorktreePath = this._agentRuntime.getActiveWorktreePath();
+        const availableWorktrees = await this._workflowProviders.listWorktrees().catch(() => []);
+        const activeWorktree = activeWorktreePath
+            ? availableWorktrees.find((wt) => wt.path === activeWorktreePath)
+            : undefined;
+
         const enrichedState = {
             ...nextState,
             availableWorkflows: await this.getWorkflowOptions(),
@@ -584,6 +662,8 @@ export class AgentWorkbenchWebview {
                 label: effort,
                 selected: effort === nextState.reasoningEffort,
             })),
+            activeWorktree,
+            availableWorktrees,
         };
         await this._panel.webview.postMessage({ type: 'agent.state', state: enrichedState, stateSequence });
     }

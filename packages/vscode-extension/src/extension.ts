@@ -22,6 +22,7 @@ import { WorkflowDecorationProvider } from './ui/workflow-decoration-provider.js
 import { ProxyService } from './services/proxy-service.js';
 import { AgentRuntimeController } from './services/agent-runtime-controller.js';
 import type { AgentWorkflowContext } from './services/agent-runtime-controller.js';
+import { WorktreeService, type WorktreeInfo } from './services/worktree-service.js';
 import {
     AgentProviderService,
     AGENT_PROVIDER_DEFINITIONS,
@@ -104,6 +105,7 @@ let runtimeDisposables: vscode.Disposable[] = [];
 let configurationController: N8nConfigurationController | undefined;
 let agentRuntimeController: AgentRuntimeController | undefined;
 let agentProviderService: AgentProviderService | undefined;
+let worktreeService: WorktreeService | undefined;
 let suppressNextConfigurationReaction = false;
 let failedAutoInitRuntimeSignature: string | undefined;
 let failedAutoInitConnectionKey: string | undefined;
@@ -916,6 +918,9 @@ async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: I
                 listModelOptions: listAgentModelOptions,
                 selectProviderModel: selectAgentProviderModel,
                 selectReasoningEffort: selectInlineAgentReasoningEffort,
+                listWorktrees: listWorktreeOptions,
+                createWorktree: createAgentWorktree,
+                removeWorktree: removeAgentWorktree,
             },
             initialSessionId,
             vscode.ViewColumn.One,
@@ -1075,6 +1080,45 @@ function getSelectedAgentProviderModelLabel(): string {
     const provider = String(config.get<string>('provider') || 'openai').trim() || 'openai';
     const model = String(config.get<string>('model') || '').trim();
     return model ? `${provider} / ${model}` : provider;
+}
+
+function getWorktreeService(): WorktreeService | undefined {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) return undefined;
+    const expectedRoot = path.resolve(workspaceRoot, '.kilo', 'worktrees');
+    if (!worktreeService || path.resolve(worktreeService.getWorktreesRoot()) !== expectedRoot) {
+        worktreeService = new WorktreeService(workspaceRoot, (message) => {
+            outputChannel.appendLine(message);
+        });
+    }
+    return worktreeService;
+}
+
+async function listWorktreeOptions(): Promise<WorktreeInfo[]> {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) return [];
+    const service = getWorktreeService();
+    if (!service) return [];
+    return service.listWorktrees(workspaceRoot);
+}
+
+async function createAgentWorktree(options?: { branchName?: string }): Promise<WorktreeInfo | undefined> {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) throw new Error('No workspace root available.');
+    const service = getWorktreeService();
+    if (!service) throw new Error('Worktree service unavailable.');
+    return service.createWorktree(workspaceRoot, {
+        branchName: options?.branchName,
+        baseBranch: 'HEAD',
+    });
+}
+
+async function removeAgentWorktree(worktreePath: string): Promise<void> {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) throw new Error('No workspace root available.');
+    const service = getWorktreeService();
+    if (!service) throw new Error('Worktree service unavailable.');
+    await service.removeWorktree(workspaceRoot, worktreePath);
 }
 
 async function resolveWorkflowWebviewTarget(workflow: IWorkflowStatus): Promise<{ url: string; targetUrl: string }> {

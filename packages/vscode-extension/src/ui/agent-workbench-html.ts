@@ -854,6 +854,50 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             bottom: auto;
             width: min(340px, calc(100vw - 28px));
         }
+        .inline-popover.worktree {
+            left: auto;
+            right: 0;
+            width: min(340px, calc(100vw - 28px));
+        }
+        .inline-option.worktree-item {
+            grid-template-columns: 1fr auto auto;
+        }
+        .inline-option.worktree-item .branch-name {
+            color: var(--muted);
+            font-family: var(--vscode-editor-font-family, monospace);
+            font-size: 10px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .worktree-delete {
+            width: 22px;
+            height: 22px;
+            min-width: 22px;
+            padding: 0;
+            border-radius: 4px;
+            color: var(--muted);
+            display: inline-grid;
+            place-items: center;
+        }
+        .worktree-delete:hover {
+            color: var(--error);
+            background: color-mix(in srgb, var(--error) 12%, transparent);
+        }
+        .worktree-delete svg {
+            width: 12px;
+            height: 12px;
+        }
+        #select-worktree {
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        #select-worktree.worktree-active {
+            color: var(--accent-text);
+            background: var(--accent);
+        }
         .inline-popover-head {
             display: flex;
             justify-content: space-between;
@@ -1230,8 +1274,10 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                         <div class="composer-provider">
                             <button id="select-model" class="secondary small" type="button" title="${safeProviderModelLabel}">${safeProviderModelLabel}</button>
                             <button id="select-reasoning" class="secondary small" type="button">Reasoning</button>
+                            <button id="select-worktree" class="secondary small" type="button" title="Worktree">Workspace</button>
                             <div id="provider-menu" class="inline-popover" role="menu"></div>
                             <div id="reasoning-menu" class="inline-popover reasoning" role="menu"></div>
+                            <div id="worktree-menu" class="inline-popover worktree" role="menu"></div>
                         </div>
                         <div class="composer-actions">
                             <button id="stop" class="ghost stop-button" type="button" title="Stop" aria-label="Stop" disabled>${stopIcon}</button>
@@ -1316,6 +1362,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         let modelSearchQuery = '';
         let reasoningMenuOpen = false;
         let newSessionMenuOpen = false;
+        let worktreeMenuOpen = false;
+        let activeWorktreePath = null;
         let autoScrollFeed = true;
         let pendingPrompt = null;
         let runtimeFinalizing = false;
@@ -1352,6 +1400,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const selectReasoningButton = document.getElementById('select-reasoning');
         const providerMenu = document.getElementById('provider-menu');
         const reasoningMenu = document.getElementById('reasoning-menu');
+        const selectWorktreeButton = document.getElementById('select-worktree');
+        const worktreeMenu = document.getElementById('worktree-menu');
         const frame = document.getElementById('workflow-frame');
         const refreshPill = document.getElementById('refresh-pill');
         const contextBadges = document.getElementById('context-badges');
@@ -1728,9 +1778,82 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             providerMenuOpen = false;
             reasoningMenuOpen = false;
             newSessionMenuOpen = false;
+            worktreeMenuOpen = false;
             if (providerMenu) providerMenu.classList.remove('open');
             if (reasoningMenu) reasoningMenu.classList.remove('open');
             if (newSessionMenu) newSessionMenu.classList.remove('open');
+            if (worktreeMenu) worktreeMenu.classList.remove('open');
+        }
+
+        function renderWorktreeMenu() {
+            if (!worktreeMenu || !state) return;
+            worktreeMenu.innerHTML = '';
+
+            const head = document.createElement('div');
+            head.className = 'inline-popover-head';
+            head.innerHTML = '<strong>Workspace</strong><span>Choose where the agent works</span>';
+            worktreeMenu.appendChild(head);
+
+            const list = document.createElement('div');
+            list.className = 'inline-popover-list';
+
+            const currentOption = inlineOption('Current workspace', 'Work in this VS Code workspace directly', state.activeWorktree ? '' : 'Active', '');
+            currentOption.addEventListener('click', () => {
+                closeInlineMenus();
+                vscode.postMessage({ type: 'agent.worktree.clear' });
+            });
+            list.appendChild(currentOption);
+
+            const divider = document.createElement('div');
+            divider.className = 'inline-divider';
+            list.appendChild(divider);
+
+            const createOption = inlineOption('+ Create new worktree', 'Isolated branch for agent changes', '', '');
+            createOption.addEventListener('click', () => {
+                closeInlineMenus();
+                vscode.postMessage({ type: 'agent.worktree.create' });
+            });
+            list.appendChild(createOption);
+
+            const worktrees = Array.isArray(state.availableWorktrees) ? state.availableWorktrees : [];
+            const activePath = state.activeWorktree ? state.activeWorktree.path : activeWorktreePath;
+            for (const wt of worktrees) {
+                const branchDisplay = wt.branch ? wt.branch.replace('refs/heads/', '') : (wt.detached ? '(detached)' : '');
+                const isActive = activePath === wt.path;
+                const option = document.createElement('button');
+                option.type = 'button';
+                option.className = 'inline-option worktree-item' + (isActive ? ' active' : '');
+                const main = document.createElement('span');
+                main.className = 'main';
+                main.textContent = branchDisplay || wt.path.split('/').pop() || 'worktree';
+                const sub = document.createElement('span');
+                sub.className = 'branch-name';
+                sub.textContent = wt.path;
+                const mark = document.createElement('span');
+                mark.className = 'mark';
+                mark.textContent = isActive ? 'Active' : '';
+                option.append(main, sub, mark);
+                option.addEventListener('click', () => {
+                    closeInlineMenus();
+                    vscode.postMessage({ type: 'agent.worktree.select', path: wt.path });
+                });
+                list.appendChild(option);
+            }
+
+            worktreeMenu.appendChild(list);
+            worktreeMenu.classList.toggle('open', worktreeMenuOpen);
+        }
+
+        function openWorktreeMenu() {
+            closeHistory();
+            closeCheckpointPanel();
+            providerMenuOpen = false;
+            reasoningMenuOpen = false;
+            worktreeMenuOpen = !worktreeMenuOpen;
+            if (providerMenu) providerMenu.classList.remove('open');
+            if (reasoningMenu) reasoningMenu.classList.remove('open');
+            vscode.postMessage({ type: 'agent.worktree.list' });
+            renderWorktreeMenu();
         }
 
         function workflowKey(workflow) {
@@ -1985,8 +2108,18 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             if (state.provider && Array.isArray(state.modelOptions)) providerModelCache[state.provider] = state.modelOptions;
             selectReasoningButton.textContent = state.reasoningEffort ? 'Reasoning ' + state.reasoningEffort : 'Reasoning';
             selectReasoningButton.style.display = state.supportsReasoningEffort ? 'inline-block' : 'none';
+            if (selectWorktreeButton) {
+                activeWorktreePath = state.activeWorktree ? state.activeWorktree.path : null;
+                const wtLabel = state.activeWorktree
+                    ? (state.activeWorktree.branch ? state.activeWorktree.branch.replace('refs/heads/', '') : 'Worktree')
+                    : 'Workspace';
+                selectWorktreeButton.textContent = wtLabel;
+                selectWorktreeButton.title = state.activeWorktree ? state.activeWorktree.path : 'Current workspace';
+                selectWorktreeButton.classList.toggle('worktree-active', Boolean(state.activeWorktree));
+            }
             renderProviderMenu();
             renderReasoningMenu();
+            renderWorktreeMenu();
             renderNewSessionMenu();
             const usage = state.session && state.session.contextUsage;
             if (!usage || usage.source !== 'api') {
@@ -2769,6 +2902,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             if (providerMenu && (providerMenu.contains(target) || selectModelButton.contains(target))) return;
             if (reasoningMenu && (reasoningMenu.contains(target) || selectReasoningButton.contains(target))) return;
             if (newSessionMenu && (newSessionMenu.contains(target) || newSessionHeaderButton.contains(target))) return;
+            if (worktreeMenu && (worktreeMenu.contains(target) || selectWorktreeButton.contains(target))) return;
             closeInlineMenus();
         }, true);
         on(promptInput, 'input', renderMentionMenu);
@@ -2808,6 +2942,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             renderProviderMenu();
             renderReasoningMenu();
         });
+        on(selectWorktreeButton, 'click', openWorktreeMenu);
         function startNewSession(workflow) {
             closeHistory();
             closeCheckpointPanel();
@@ -2936,6 +3071,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             if (message.type === 'agent.state') {
                 if (!acceptIncomingStateMessage(message)) return;
                 state = message.state || null;
+                activeWorktreePath = state && state.activeWorktree ? state.activeWorktree.path : null;
                 renderAll();
                 return;
             }
@@ -2944,6 +3080,16 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 providerModelCache[String(message.provider || '')] = Array.isArray(message.models) ? message.models : [];
                 providerMenuOpen = true;
                 renderProviderMenu();
+                return;
+            }
+
+            if (message.type === 'agent.worktrees') {
+                if (state) {
+                    state.availableWorktrees = Array.isArray(message.worktrees) ? message.worktrees : [];
+                    state.activeWorktree = state.availableWorktrees.find((wt) => wt.path === message.activePath) || null;
+                    activeWorktreePath = typeof message.activePath === 'string' && message.activePath ? message.activePath : null;
+                    renderWorktreeMenu();
+                }
                 return;
             }
 
