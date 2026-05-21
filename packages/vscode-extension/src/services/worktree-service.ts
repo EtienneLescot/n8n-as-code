@@ -81,19 +81,15 @@ export class WorktreeService {
         return created;
     }
 
-    async removeWorktree(repoPath: string, worktreePath: string, force = false): Promise<void> {
-        const args = ['worktree', 'remove'];
-        if (force) args.push('--force');
-        args.push(worktreePath);
-
+    async removeWorktree(repoPath: string, worktreePath: string): Promise<void> {
         try {
-            await execFileAsync('git', args, {
+            await execFileAsync('git', ['worktree', 'remove', worktreePath], {
                 cwd: repoPath,
                 maxBuffer: 10 * 1024 * 1024,
             });
             this.log(`[n8n-worktree] Removed worktree at ${worktreePath}`);
         } catch (error: any) {
-            const message = error?.message || String(error);
+            const message = this.formatRemoveError(error);
             this.log(`[n8n-worktree] Remove failed: ${message}`);
             throw new Error(`Failed to remove worktree: ${message}`);
         }
@@ -162,5 +158,15 @@ export class WorktreeService {
         }
 
         return result;
+    }
+
+    private formatRemoveError(error: any): string {
+        const stderr = typeof error?.stderr === 'string' ? error.stderr : '';
+        const stdout = typeof error?.stdout === 'string' ? error.stdout : '';
+        const message = [stderr, stdout, error?.message || String(error)].filter(Boolean).join('\n').trim();
+        if (/contains modified or untracked files|contains.*uncommitted|is dirty/i.test(message)) {
+            return 'Cannot remove worktree because it contains uncommitted changes. Commit, stash, or discard those changes first.';
+        }
+        return message || 'Unknown git worktree remove error.';
     }
 }

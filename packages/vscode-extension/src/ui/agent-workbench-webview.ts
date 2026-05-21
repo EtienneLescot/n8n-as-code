@@ -29,7 +29,7 @@ interface AgentWorkbenchWorkflowProviders {
     selectReasoningEffort(effort: string): Promise<void>;
     listWorktrees(): Promise<WorktreeInfo[]>;
     createWorktree(options?: { branchName?: string }): Promise<WorktreeInfo | undefined>;
-    removeWorktree(worktreePath: string, options?: { force?: boolean }): Promise<void>;
+    removeWorktree(worktreePath: string): Promise<void>;
 }
 
 export class AgentWorkbenchWebview {
@@ -511,7 +511,7 @@ export class AgentWorkbenchWebview {
 
         if (payload.type === 'agent.worktree.remove' && typeof payload.path === 'string') {
             const confirmed = await vscode.window.showWarningMessage(
-                'Delete this worktree? Unsaved or unpushed work may be lost.',
+                'Delete this worktree? This will fail if it contains uncommitted changes.',
                 { modal: true },
                 'Delete',
             );
@@ -523,7 +523,7 @@ export class AgentWorkbenchWebview {
                 if (!isKnown) {
                     throw new Error('Refusing to remove unknown worktree path.');
                 }
-                await this._workflowProviders.removeWorktree(payload.path, { force: true });
+                await this._workflowProviders.removeWorktree(payload.path);
                 const activePath = this._agentRuntime.getActiveWorktreePath();
                 if (activePath === payload.path) {
                     await this._agentRuntime.setActiveWorktreePath(undefined);
