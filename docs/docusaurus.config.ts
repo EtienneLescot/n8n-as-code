@@ -40,6 +40,7 @@ const config: Config = {
 
   onBrokenLinks: 'warn',
   markdown: {
+    mermaid: true,
     hooks: {
       onBrokenMarkdownLinks: (args) => {
         console.warn(`Broken markdown link found: ${args.url} in ${args.sourceFilePath}`);
