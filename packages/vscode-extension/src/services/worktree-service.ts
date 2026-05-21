@@ -46,7 +46,7 @@ export class WorktreeService {
     }
 
     async createWorktree(repoPath: string, options: CreateWorktreeOptions = {}): Promise<WorktreeInfo> {
-        const branchName = options.branchName || `n8n-agent-${Date.now().toString(36)}`;
+        const branchName = this.normalizeBranchName(options.branchName || `n8n-agent-${Date.now().toString(36)}`);
         const worktreePath = path.join(this.worktreesRoot, branchName);
         fs.mkdirSync(this.worktreesRoot, { recursive: true });
 
@@ -74,7 +74,7 @@ export class WorktreeService {
         }
 
         const worktrees = await this.listWorktrees(repoPath);
-        const created = worktrees.find((wt) => wt.path === worktreePath);
+        const created = await this.findWorktreeByPath(worktrees, worktreePath);
         if (!created) {
             throw new Error('Worktree created but not found in listing.');
         }
@@ -82,12 +82,22 @@ export class WorktreeService {
     }
 
     async removeWorktree(repoPath: string, worktreePath: string): Promise<void> {
+        const resolvedWorktreePath = this.resolveManagedWorktreePath(worktreePath);
+        const worktrees = await this.listWorktrees(repoPath);
+        const knownWorktree = await this.findWorktreeByPath(worktrees, resolvedWorktreePath);
+        if (!knownWorktree) {
+            throw new Error('Refusing to remove unknown worktree path.');
+        }
+        if (knownWorktree.locked) {
+            throw new Error('Cannot remove locked worktree. Unlock it with Git before deleting it.');
+        }
+
         try {
-            await execFileAsync('git', ['worktree', 'remove', worktreePath], {
+            await execFileAsync('git', ['worktree', 'remove', resolvedWorktreePath], {
                 cwd: repoPath,
                 maxBuffer: 10 * 1024 * 1024,
             });
-            this.log(`[n8n-worktree] Removed worktree at ${worktreePath}`);
+            this.log(`[n8n-worktree] Removed worktree at ${resolvedWorktreePath}`);
         } catch (error: any) {
             const message = this.formatRemoveError(error);
             this.log(`[n8n-worktree] Remove failed: ${message}`);
@@ -97,6 +107,63 @@ export class WorktreeService {
 
     getWorktreesRoot(): string {
         return this.worktreesRoot;
+    }
+
+    private normalizeBranchName(value: string): string {
+        const branchName = value.trim();
+        if (!branchName) {
+            throw new Error('Worktree branch name is required.');
+        }
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/.test(branchName)) {
+            throw new Error('Worktree branch name may only contain letters, numbers, dots, underscores, and hyphens.');
+        }
+        if (branchName.endsWith('.') || branchName.includes('..') || branchName.endsWith('.lock')) {
+            throw new Error('Worktree branch name is not a safe Git branch name.');
+        }
+        return branchName;
+    }
+
+    private resolveManagedWorktreePath(worktreePath: string): string {
+        const resolvedRoot = path.resolve(this.worktreesRoot);
+        const resolvedWorktreePath = path.resolve(worktreePath);
+        if (this.isManagedChildPath(resolvedRoot, resolvedWorktreePath)) {
+            return resolvedWorktreePath;
+        }
+
+        try {
+            const realRoot = fs.realpathSync(this.worktreesRoot);
+            const realWorktreePath = fs.realpathSync(worktreePath);
+            if (this.isManagedChildPath(realRoot, realWorktreePath)) {
+                return realWorktreePath;
+            }
+        } catch {
+            // Fall through to the explicit error below.
+        }
+
+        throw new Error('Refusing to remove worktree outside the managed worktrees directory.');
+    }
+
+    private isManagedChildPath(rootPath: string, childPath: string): boolean {
+        const relativePath = path.relative(rootPath, childPath);
+        return Boolean(relativePath) && relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`) && !path.isAbsolute(relativePath);
+    }
+
+    private async findWorktreeByPath(worktrees: WorktreeInfo[], worktreePath: string): Promise<WorktreeInfo | undefined> {
+        const expectedPath = await this.canonicalPath(worktreePath);
+        for (const worktree of worktrees) {
+            if (await this.canonicalPath(worktree.path) === expectedPath) {
+                return worktree;
+            }
+        }
+        return undefined;
+    }
+
+    private async canonicalPath(value: string): Promise<string> {
+        try {
+            return await fs.promises.realpath(value);
+        } catch {
+            return path.resolve(value);
+        }
     }
 
     private parseWorktreePorcelain(output: string): WorktreeInfo[] {

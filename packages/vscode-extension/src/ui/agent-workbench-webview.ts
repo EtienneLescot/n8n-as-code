@@ -456,7 +456,7 @@ export class AgentWorkbenchWebview {
                 const allWorktrees = await this._workflowProviders.listWorktrees();
                 const mainWorkspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
                 const worktrees = allWorktrees.filter((wt) => wt.path !== mainWorkspacePath);
-                const activePath = this._agentRuntime.getActiveWorktreePath();
+                const activePath = this._agentRuntime.getActiveWorktreePath(this._activeSessionId);
                 await this._panel.webview.postMessage({
                     type: 'agent.worktrees',
                     worktrees,
@@ -476,7 +476,7 @@ export class AgentWorkbenchWebview {
                     this._outputChannel.appendLine(`[n8n-agent] Worktree select refused: unknown path=${payload.path}`);
                     return;
                 }
-                await this._agentRuntime.setActiveWorktreePath(payload.path);
+                await this._agentRuntime.setActiveWorktreePath(payload.path, this._activeSessionId);
                 this._outputChannel.appendLine(`[n8n-agent-debug] Worktree selected path=${payload.path}`);
                 await this.postWorkbenchState();
             } catch (error: any) {
@@ -490,7 +490,7 @@ export class AgentWorkbenchWebview {
             try {
                 const worktree = await this._workflowProviders.createWorktree({ branchName });
                 if (worktree) {
-                    await this._agentRuntime.setActiveWorktreePath(worktree.path);
+                    await this._agentRuntime.setActiveWorktreePath(worktree.path, this._activeSessionId);
                     this._outputChannel.appendLine(`[n8n-agent-debug] Worktree created and selected path=${worktree.path}`);
                 }
             } catch (error: any) {
@@ -503,7 +503,7 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'agent.worktree.clear') {
-            await this._agentRuntime.setActiveWorktreePath(undefined);
+            await this._agentRuntime.setActiveWorktreePath(undefined, this._activeSessionId);
             this._outputChannel.appendLine('[n8n-agent-debug] Worktree cleared, back to current workspace');
             await this.postWorkbenchState();
             return;
@@ -524,9 +524,9 @@ export class AgentWorkbenchWebview {
                     throw new Error('Refusing to remove unknown worktree path.');
                 }
                 await this._workflowProviders.removeWorktree(payload.path);
-                const activePath = this._agentRuntime.getActiveWorktreePath();
+                const activePath = this._agentRuntime.getActiveWorktreePath(this._activeSessionId);
                 if (activePath === payload.path) {
-                    await this._agentRuntime.setActiveWorktreePath(undefined);
+                    await this._agentRuntime.setActiveWorktreePath(undefined, this._activeSessionId);
                 }
                 this._outputChannel.appendLine(`[n8n-agent-debug] Worktree removed path=${payload.path}`);
             } catch (error: any) {
@@ -609,7 +609,7 @@ export class AgentWorkbenchWebview {
         nodeContexts?: AgentWorkbenchNodeContext[];
         sessionId?: string;
     } {
-        const activeWorktreePath = this._agentRuntime.getActiveWorktreePath();
+        const activeWorktreePath = this._agentRuntime.getActiveWorktreePath(this._activeSessionId);
         return {
             workflowId: this._workflow?.id,
             workflowName: this._workflow?.name,
@@ -668,7 +668,7 @@ export class AgentWorkbenchWebview {
         }
         await this.reconcileWorkflowContext(nextState.workflowContext);
 
-        const activeWorktreePath = this._agentRuntime.getActiveWorktreePath();
+        const activeWorktreePath = this._agentRuntime.getActiveWorktreePath(nextState.activeSessionId);
         const allWorktrees = await this._workflowProviders.listWorktrees().catch(() => []);
         const mainWorkspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         const availableWorktrees = allWorktrees.filter((wt) => wt.path !== mainWorkspacePath);

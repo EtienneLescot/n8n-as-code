@@ -23,6 +23,7 @@ const ENVIRONMENT_DETAILS_BLOCK_PATTERN = /<environment_details>[\s\S]*?<\/envir
 const UNATTACHED_WORKFLOW_SCOPE_KEY = '__unattached__';
 const DEFAULT_CONTEXT_WINDOW_TOKENS = 200_000;
 const ACTIVE_WORKTREE_PATH_KEY = 'n8n.agent.activeWorktreePath';
+const ACTIVE_WORKTREE_PATH_BY_SESSION_KEY = 'n8n.agent.activeWorktreePathBySession';
 const INVALID_TOOL_CALL_RECOVERY_MARKER = 'N8N_INVALID_TOOL_CALL_RECOVERY';
 
 export interface AgentNodeContext {
@@ -843,16 +844,36 @@ export class AgentRuntimeController implements vscode.Disposable {
         return this.getWorkbenchState({ ...input, workflowId: undefined, workflowName: undefined, workflowFilename: undefined, workflowFilePath: undefined, nodeContext: undefined, nodeContexts: undefined, sessionId: record.id });
     }
 
-    getActiveWorktreePath(): string | undefined {
+    getActiveWorktreePath(sessionId?: string): string | undefined {
+        if (sessionId) {
+            return this.readActiveWorktreePathsBySession()[sessionId];
+        }
         return this._context.workspaceState.get<string>(ACTIVE_WORKTREE_PATH_KEY);
     }
 
-    async setActiveWorktreePath(worktreePath: string | undefined): Promise<void> {
+    async setActiveWorktreePath(worktreePath: string | undefined, sessionId?: string): Promise<void> {
+        if (sessionId) {
+            const bySession = this.readActiveWorktreePathsBySession();
+            if (worktreePath) {
+                bySession[sessionId] = worktreePath;
+            } else {
+                delete bySession[sessionId];
+            }
+            await this._context.workspaceState.update(ACTIVE_WORKTREE_PATH_BY_SESSION_KEY, bySession);
+            await this._context.workspaceState.update(ACTIVE_WORKTREE_PATH_KEY, undefined);
+            return;
+        }
         if (worktreePath) {
             await this._context.workspaceState.update(ACTIVE_WORKTREE_PATH_KEY, worktreePath);
         } else {
             await this._context.workspaceState.update(ACTIVE_WORKTREE_PATH_KEY, undefined);
         }
+    }
+
+    private readActiveWorktreePathsBySession(): Record<string, string> {
+        const value = this._context.workspaceState.get<Record<string, string>>(ACTIVE_WORKTREE_PATH_BY_SESSION_KEY);
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+        return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim().length > 0));
     }
 
     async getLatestSessionId(): Promise<string | undefined> {
@@ -926,6 +947,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         const active = sessions.service.getActiveForScope(scope)?.id;
         const deletedSelectedSession = input.sessionId === sessionId;
         await sessions.service.delete(sessionId);
+        await this.setActiveWorktreePath(undefined, sessionId);
         if (active === sessionId) {
             sessions.service.getOrCreateForScope(scope, { title: this.getDefaultSessionTitle(input.workflowName) });
         }
@@ -1126,12 +1148,6 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     async sendPrompt(input: AgentPromptInput, postMessage: AgentWorkbenchPostMessage): Promise<AgentRunResult> {
-        const activeWorktreePath = this.getActiveWorktreePath();
-        if (activeWorktreePath) {
-            input.workspaceRoot = activeWorktreePath;
-            input.worktreePath = activeWorktreePath;
-        }
-
         const sessions = await this.getSessionRuntime();
         const scope = this.getSessionScope(input);
         const activeRecord = input.sessionId
@@ -1141,6 +1157,12 @@ export class AgentRuntimeController implements vscode.Disposable {
             }));
         const targetSessionId = activeRecord.id;
         input.sessionId = targetSessionId;
+
+        const activeWorktreePath = this.getActiveWorktreePath(targetSessionId);
+        if (activeWorktreePath) {
+            input.workspaceRoot = activeWorktreePath;
+            input.worktreePath = activeWorktreePath;
+        }
 
         const activeRun = this.activeRuns.get(targetSessionId);
         if (activeRun) {
