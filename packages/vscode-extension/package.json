@@ -455,11 +455,12 @@
     "typescript": "^5.3.3"
   },
   "scripts": {
-    "vscode:prepublish": "npm run build",
+    "vscode:prepublish": "npm run build && npm run prune-package-artifacts",
     "compile": "tsc -b",
     "watch": "tsc -b -w",
     "package-bundle": "node esbuild.config.js",
     "copy-assets": "node scripts/copy-assets.mjs",
+    "prune-package-artifacts": "node scripts/prune-package-artifacts.mjs",
     "build": "npm run compile && npm run copy-assets && npm run package-bundle",
     "clean": "rm -rf out assets tsconfig.tsbuildinfo",
     "test": "npm run compile && npx tsx --test tests/unit/*.test.ts"
