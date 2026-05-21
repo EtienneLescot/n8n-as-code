@@ -661,7 +661,9 @@ export class AgentWorkbenchWebview {
         await this.reconcileWorkflowContext(nextState.workflowContext);
 
         const activeWorktreePath = this._agentRuntime.getActiveWorktreePath();
-        const availableWorktrees = await this._workflowProviders.listWorktrees().catch(() => []);
+        const allWorktrees = await this._workflowProviders.listWorktrees().catch(() => []);
+        const mainWorkspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const availableWorktrees = allWorktrees.filter((wt) => wt.path !== mainWorkspacePath);
         const activeWorktree = activeWorktreePath
             ? availableWorktrees.find((wt) => wt.path === activeWorktreePath)
             : undefined;

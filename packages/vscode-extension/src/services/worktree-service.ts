@@ -29,7 +29,7 @@ export class WorktreeService {
         workspaceRoot: string,
         private readonly log: WorktreeLogger = () => {},
     ) {
-        this.worktreesRoot = path.join(workspaceRoot, '.kilo', 'worktrees');
+        this.worktreesRoot = path.join(workspaceRoot, '.n8nac', 'worktrees');
     }
 
     async listWorktrees(repoPath: string): Promise<WorktreeInfo[]> {

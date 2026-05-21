@@ -1085,7 +1085,7 @@ function getSelectedAgentProviderModelLabel(): string {
 function getWorktreeService(): WorktreeService | undefined {
     const workspaceRoot = getWorkspaceRoot();
     if (!workspaceRoot) return undefined;
-    const expectedRoot = path.resolve(workspaceRoot, '.kilo', 'worktrees');
+    const expectedRoot = path.resolve(workspaceRoot, '.n8nac', 'worktrees');
     if (!worktreeService || path.resolve(worktreeService.getWorktreesRoot()) !== expectedRoot) {
         worktreeService = new WorktreeService(workspaceRoot, (message) => {
             outputChannel.appendLine(message);
