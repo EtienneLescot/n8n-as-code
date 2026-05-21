@@ -26,6 +26,8 @@ const ACTIVE_WORKTREE_PATH_KEY = 'n8n.agent.activeWorktreePath';
 const ACTIVE_WORKTREE_PATH_BY_SESSION_KEY = 'n8n.agent.activeWorktreePathBySession';
 const INVALID_TOOL_CALL_RECOVERY_MARKER = 'N8N_INVALID_TOOL_CALL_RECOVERY';
 
+type ActiveWorktreePathsBySession = Record<string, string | null>;
+
 export interface AgentNodeContext {
     name: string;
     type?: string;
@@ -847,7 +849,9 @@ export class AgentRuntimeController implements vscode.Disposable {
     getActiveWorktreePath(sessionId?: string): string | undefined {
         const legacyPath = this._context.workspaceState.get<string>(ACTIVE_WORKTREE_PATH_KEY);
         if (sessionId) {
-            return this.readActiveWorktreePathsBySession()[sessionId] ?? legacyPath;
+            const sessionPath = this.readActiveWorktreePathsBySession()[sessionId];
+            if (sessionPath === null) return undefined;
+            return sessionPath ?? legacyPath;
         }
         return legacyPath;
     }
@@ -858,7 +862,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             if (worktreePath) {
                 bySession[sessionId] = worktreePath;
             } else {
-                delete bySession[sessionId];
+                bySession[sessionId] = null;
             }
             await this._context.workspaceState.update(ACTIVE_WORKTREE_PATH_BY_SESSION_KEY, bySession);
             return;
@@ -875,7 +879,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         let changed = false;
         for (const [sessionId, activeWorktreePath] of Object.entries(bySession)) {
             if (activeWorktreePath === worktreePath) {
-                delete bySession[sessionId];
+                bySession[sessionId] = null;
                 changed = true;
             }
         }
@@ -887,10 +891,17 @@ export class AgentRuntimeController implements vscode.Disposable {
         }
     }
 
-    private readActiveWorktreePathsBySession(): Record<string, string> {
-        const value = this._context.workspaceState.get<Record<string, string>>(ACTIVE_WORKTREE_PATH_BY_SESSION_KEY);
+    private async deleteActiveWorktreePathForSession(sessionId: string): Promise<void> {
+        const bySession = this.readActiveWorktreePathsBySession();
+        if (!Object.prototype.hasOwnProperty.call(bySession, sessionId)) return;
+        delete bySession[sessionId];
+        await this._context.workspaceState.update(ACTIVE_WORKTREE_PATH_BY_SESSION_KEY, bySession);
+    }
+
+    private readActiveWorktreePathsBySession(): ActiveWorktreePathsBySession {
+        const value = this._context.workspaceState.get<ActiveWorktreePathsBySession>(ACTIVE_WORKTREE_PATH_BY_SESSION_KEY);
         if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-        return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim().length > 0));
+        return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string | null] => entry[1] === null || (typeof entry[1] === 'string' && entry[1].trim().length > 0)));
     }
 
     async getLatestSessionId(): Promise<string | undefined> {
@@ -964,7 +975,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         const active = sessions.service.getActiveForScope(scope)?.id;
         const deletedSelectedSession = input.sessionId === sessionId;
         await sessions.service.delete(sessionId);
-        await this.setActiveWorktreePath(undefined, sessionId);
+        await this.deleteActiveWorktreePathForSession(sessionId);
         if (active === sessionId) {
             sessions.service.getOrCreateForScope(scope, { title: this.getDefaultSessionTitle(input.workflowName) });
         }
