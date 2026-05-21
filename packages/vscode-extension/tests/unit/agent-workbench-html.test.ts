@@ -320,6 +320,17 @@ test('Agent Workbench webview: conversation deletion is confirmed and cleans pan
     assert.ok(source.includes('deletedPanel.dispose()'), 'Deleting a session from another panel must close that stale panel');
 });
 
+test('Agent Workbench webview: active panel clears stale last-active session when it loses ownership', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const source = fs.readFileSync(path.join(__dirname, '../../src/ui/agent-workbench-webview.ts'), 'utf8');
+
+    assert.ok(source.includes('let ownsNewSession = false;'), 'Panel ownership tracking must distinguish claimed sessions from stale state');
+    assert.ok(source.includes('this._panel.active && ownsNewSession'), 'Only the active owner should publish a new last-active session');
+    assert.ok(source.includes('this._panel.active && !ownsNewSession && AgentWorkbenchWebview._lastActiveSessionId === oldSessionId'), 'Active panels that lose ownership must clear stale last-active session ids');
+    assert.ok(source.includes('AgentWorkbenchWebview._lastActiveSessionId = undefined;'), 'Stale last-active session ids must be cleared');
+});
+
 test('Agent Workbench webview: workflow menu options preserve local file paths', () => {
     const fs = require('node:fs');
     const path = require('node:path');

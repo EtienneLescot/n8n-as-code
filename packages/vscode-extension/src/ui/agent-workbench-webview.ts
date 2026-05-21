@@ -547,15 +547,22 @@ export class AgentWorkbenchWebview {
                 AgentWorkbenchWebview._panels.delete(oldSessionId);
             }
         }
+        let ownsNewSession = false;
         if (newSessionId) {
             const existingOwner = AgentWorkbenchWebview._panels.get(newSessionId);
             if (!existingOwner || existingOwner === this) {
                 // Only claim the session if it is unclaimed or already ours.
                 AgentWorkbenchWebview._panels.set(newSessionId, this);
+                ownsNewSession = true;
+            } else {
+                ownsNewSession = false;
             }
-            if (this._panel.active) {
+            if (this._panel.active && ownsNewSession) {
                 AgentWorkbenchWebview._lastActiveSessionId = newSessionId;
             }
+        }
+        if (this._panel.active && !ownsNewSession && AgentWorkbenchWebview._lastActiveSessionId === oldSessionId) {
+            AgentWorkbenchWebview._lastActiveSessionId = undefined;
         }
         if (!enrich) {
             await this._panel.webview.postMessage({ type: 'agent.state', state: nextState, stateSequence });
