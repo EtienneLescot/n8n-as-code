@@ -246,7 +246,7 @@ export class PromoteCommand {
     }
 
     private resolveSourceWorkflowPath(sourceWorkflowPath: string, sourceRoot: string): string {
-        const sourcePath = path.resolve(sourceWorkflowPath);
+        const sourcePath = path.resolve(sourceRoot, sourceWorkflowPath);
         if (!fs.existsSync(sourcePath)) {
             throw new Error(`Source workflow not found: ${sourcePath}`);
         }

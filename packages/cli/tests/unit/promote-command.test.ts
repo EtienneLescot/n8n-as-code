@@ -95,6 +95,57 @@ export class PromotedWorkflow {}
         }
     });
 
+    it('resolves a workflow path argument relative to the source workflowsPath', async () => {
+        const previousManagerHome = process.env.N8N_MANAGER_HOME;
+        const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-workspace-'));
+        process.env.N8N_MANAGER_HOME = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-manager-'));
+        try {
+            const globalWorkspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-global-'));
+            const globalConfigService = new ConfigService(globalWorkspaceRoot);
+            globalConfigService.saveLocalConfig({
+                host: 'https://dev.example.test',
+                instanceIdentifier: 'n8n_1111111111',
+            }, { instanceId: 'dev-instance', instanceName: 'Dev', apiKey: 'dev-key' });
+            globalConfigService.saveLocalConfig({
+                host: 'https://prod.example.test',
+                instanceIdentifier: 'n8n_2222222222',
+            }, { instanceId: 'prod-instance', instanceName: 'Prod', apiKey: 'prod-key', setActive: false });
+
+            const configService = new ConfigService(workspaceRoot);
+            const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
+            const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/prod' });
+
+            const sourceDir = configService.resolveEnvironment('Dev').workflowsPath!;
+            const targetDir = configService.resolveEnvironment('Prod').workflowsPath!;
+            mkdirSync(sourceDir, { recursive: true });
+            const sourcePath = path.join(sourceDir, 'filename-only.workflow.ts');
+            writeFileSync(sourcePath, "@workflow({ name: 'Filename Only', active: false })\nexport class FilenameOnly {}\n", 'utf8');
+
+            const result = await new PromoteCommand(configService, {
+                createClient: () => ({
+                    getAllWorkflows: async () => [],
+                    listCredentials: async () => [],
+                }),
+            }).run('filename-only.workflow.ts', {
+                from: 'Dev',
+                to: 'Prod',
+                dryRun: true,
+                promotionConfig: path.join(workspaceRoot, 'n8nac-promotion.json'),
+            });
+
+            expect(result.sourcePath).toBe(sourcePath);
+            expect(result.targetPath).toBe(path.join(targetDir, 'filename-only.workflow.ts'));
+        } finally {
+            if (previousManagerHome === undefined) {
+                delete process.env.N8N_MANAGER_HOME;
+            } else {
+                process.env.N8N_MANAGER_HOME = previousManagerHome;
+            }
+        }
+    });
+
     it('reuses an existing target workflow id without requiring overwrite', async () => {
         const previousManagerHome = process.env.N8N_MANAGER_HOME;
         const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-workspace-'));
