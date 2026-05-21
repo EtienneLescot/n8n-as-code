@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { execFile } from 'child_process';
 import { createHash } from 'crypto';
@@ -46,7 +47,89 @@ export class WorkspaceSnapshotService {
         const resolvedRoot = path.resolve(workspaceRoot);
         await this.ensureSnapshotRepo(resolvedRoot);
         await this.capture(resolvedRoot, 'Before checkpoint rewind restore');
-        await this.git(resolvedRoot, ['reset', '--hard', snapshotId]);
+        const currentFiles = await this.listTreeFiles(resolvedRoot, 'HEAD');
+        await this.removeTrackedFiles(resolvedRoot, currentFiles);
+        await this.checkoutTree(resolvedRoot, snapshotId);
+        await this.git(resolvedRoot, ['read-tree', snapshotId]);
+    }
+
+    private async listTreeFiles(workspaceRoot: string, treeish: string): Promise<string[]> {
+        const { stdout } = await this.git(workspaceRoot, ['ls-tree', '-r', '-z', '--name-only', treeish]);
+        return stdout.split('\0').filter(Boolean);
+    }
+
+    private async removeTrackedFiles(workspaceRoot: string, files: string[]): Promise<void> {
+        const directories = new Set<string>();
+        for (const file of files) {
+            const absolutePath = this.resolveWorkspacePath(workspaceRoot, file);
+            directories.add(path.dirname(absolutePath));
+            await this.removePathIfPresent(absolutePath);
+        }
+
+        const sortedDirectories = Array.from(directories)
+            .filter((directory) => path.relative(workspaceRoot, directory))
+            .sort((a, b) => b.length - a.length);
+        for (const directory of sortedDirectories) {
+            await this.removeEmptyDirectory(directory);
+        }
+    }
+
+    private async removePathIfPresent(absolutePath: string): Promise<void> {
+        let stat: fs.Stats;
+        try {
+            stat = await fs.promises.lstat(absolutePath);
+        } catch (error: any) {
+            if (error?.code === 'ENOENT') return;
+            throw error;
+        }
+
+        if (stat.isDirectory() && !stat.isSymbolicLink()) {
+            await fs.promises.rm(absolutePath, { recursive: true });
+        } else {
+            await fs.promises.unlink(absolutePath);
+        }
+    }
+
+    private async removeEmptyDirectory(absolutePath: string): Promise<void> {
+        try {
+            await fs.promises.rmdir(absolutePath);
+        } catch (error: any) {
+            if (error?.code === 'ENOENT' || error?.code === 'ENOTEMPTY' || error?.code === 'EEXIST') return;
+            throw error;
+        }
+    }
+
+    private async checkoutTree(workspaceRoot: string, treeish: string): Promise<void> {
+        const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'n8nac-snapshot-index-'));
+        const env = { GIT_INDEX_FILE: path.join(tempDir, 'index') };
+        try {
+            await this.git(workspaceRoot, ['read-tree', treeish], { env });
+            await this.git(workspaceRoot, ['checkout-index', '-a', '-f', `--prefix=${this.checkoutPrefix(workspaceRoot)}`], { env });
+        } finally {
+            await this.removeTempDirectory(tempDir);
+        }
+    }
+
+    private async removeTempDirectory(absolutePath: string): Promise<void> {
+        try {
+            await fs.promises.rm(absolutePath, { recursive: true });
+        } catch (error: any) {
+            if (error?.code === 'ENOENT') return;
+            throw error;
+        }
+    }
+
+    private checkoutPrefix(workspaceRoot: string): string {
+        return workspaceRoot.endsWith(path.sep) ? workspaceRoot : `${workspaceRoot}${path.sep}`;
+    }
+
+    private resolveWorkspacePath(workspaceRoot: string, file: string): string {
+        const absolutePath = path.resolve(workspaceRoot, file);
+        const relativePath = path.relative(workspaceRoot, absolutePath);
+        if (!relativePath || relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) {
+            throw new Error(`Snapshot path escapes workspace: ${file}`);
+        }
+        return absolutePath;
     }
 
     private async ensureSnapshotRepo(workspaceRoot: string): Promise<void> {
@@ -77,13 +160,18 @@ export class WorkspaceSnapshotService {
         return stdout.trim();
     }
 
-    private async git(workspaceRoot: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+    private async git(
+        workspaceRoot: string,
+        args: string[],
+        options: { env?: Record<string, string> } = {},
+    ): Promise<{ stdout: string; stderr: string }> {
         const result = await execFileAsync('git', [
             `--git-dir=${this.gitDir(workspaceRoot)}`,
             `--work-tree=${workspaceRoot}`,
             ...args,
         ], {
             cwd: workspaceRoot,
+            env: options.env ? { ...process.env, ...options.env } : process.env,
             maxBuffer: 50 * 1024 * 1024,
         });
         return {
