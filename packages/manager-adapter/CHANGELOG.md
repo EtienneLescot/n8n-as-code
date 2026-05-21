@@ -1,5 +1,11 @@
 # @n8n-as-code/manager-adapter
 
+## [2.0.4](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/manager-adapter@v2.0.3...@n8n-as-code/manager-adapter@v2.0.4) (2026-05-21)
+
+### Bug Fixes
+
+* update core and credentials manager dependencies ([84cefbe](https://github.com/EtienneLescot/n8n-as-code/commit/84cefbe2561983b72f81ea7f395cbd4b00a7a5b8))
+
 ## [2.0.3](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/manager-adapter@v2.0.2...@n8n-as-code/manager-adapter@v2.0.3) (2026-05-11)
 
 ### Bug Fixes

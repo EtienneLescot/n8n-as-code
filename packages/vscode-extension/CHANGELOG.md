@@ -1,5 +1,31 @@
 # n8n-as-code
 
+## [2.10.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.8.0...n8n-as-code@v2.10.0) (2026-05-21)
+
+### Features
+
+* **vscode-extension:** improve workflow context management and asset resolution ([07a289f](https://github.com/EtienneLescot/n8n-as-code/commit/07a289f5cf2eb40e8e2192d3f21b436eff291e3d))
+* **ui:** enable parallel chat threads and session management ([a544c0c](https://github.com/EtienneLescot/n8n-as-code/commit/a544c0cacac36a3a848ae51e2cc1721652a20b55))
+* **agent-workbench:** implement parallel chat threads and visibility performance optimization ([0a98d85](https://github.com/EtienneLescot/n8n-as-code/commit/0a98d85fc268651b16eaccef5f6694ebe885d353))
+
+### Bug Fixes
+
+* **workbench:** clear stale active session ownership ([b99760b](https://github.com/EtienneLescot/n8n-as-code/commit/b99760b8ea9e20d71c6677c72f916ccd5d980e13))
+* **runtime:** replace custom zod-to-json-schema with langchain utility ([f0df91b](https://github.com/EtienneLescot/n8n-as-code/commit/f0df91baadaed45b2b27bd10470b82a86062f02a))
+* **ui:** rename yagr provider service to agent provider service ([d059c7a](https://github.com/EtienneLescot/n8n-as-code/commit/d059c7a6f8bcf64b8cc726d2385ecdba42d7782d))
+* **workbench:** rebuild parallel chat changes cleanly ([a03d3e1](https://github.com/EtienneLescot/n8n-as-code/commit/a03d3e1d0c38f0256416216defe4cc05b0d018ef))
+* **ui:** allow starting new sessions while agent is running ([1e0efb6](https://github.com/EtienneLescot/n8n-as-code/commit/1e0efb6dd51a46af05c79b2e5c46f4f17b5bdc75))
+* **agent-runtime:** address CodeRabbit feedback on prompt queue recursion and stop cleanup race ([929ef74](https://github.com/EtienneLescot/n8n-as-code/commit/929ef74d4838e89467c229332d0fe43d2d846675))
+* update core and credentials manager dependencies ([84cefbe](https://github.com/EtienneLescot/n8n-as-code/commit/84cefbe2561983b72f81ea7f395cbd4b00a7a5b8))
+* **config:** tolerate duplicate instance target names ([912adcc](https://github.com/EtienneLescot/n8n-as-code/commit/912adcc75d0368aa1f1c94251c606b4919c1bfba))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/manager-adapter bumped from 2.0.3 to 2.0.4
+    * @n8n-as-code/skills bumped from 2.1.3 to 2.2.0
+    * n8nac bumped from 2.2.1 to 2.3.0
+
 ## [2.8.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.6.0...n8n-as-code@v2.8.0) (2026-05-13)
 
 ### Features
