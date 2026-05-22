@@ -1,5 +1,15 @@
 # n8n-as-code
 
+## [2.18.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.16.0...n8n-as-code@v2.18.0) (2026-05-22)
+
+### Features
+
+* **vscode-extension:** implement agent provider reasoning capabilities and managed settings ([93586ff](https://github.com/EtienneLescot/n8n-as-code/commit/93586ff5bc4e7f75b538eac0555bbff4a5078a9b))
+
+### Bug Fixes
+
+* **vscode-extension:** improve message content handling for strict provider adapters ([76ca1c4](https://github.com/EtienneLescot/n8n-as-code/commit/76ca1c430f5e8954de1ec800ea485b7821796ffb))
+
 ## [2.16.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.14.0...n8n-as-code@v2.16.0) (2026-05-21)
 
 ### Bug Fixes
