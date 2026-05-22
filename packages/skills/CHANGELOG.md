@@ -1,5 +1,11 @@
 # @n8n-as-code/skills
 
+## [2.2.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.2.1...@n8n-as-code/skills@v2.2.2) (2026-05-22)
+
+### Bug Fixes
+
+* **release:** add retry logic for Open VSX publishing ([18a9901](https://github.com/EtienneLescot/n8n-as-code/commit/18a990181f49dd7fda6cde9e4cdbd10f43635511))
+
 ## [2.2.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.2.0...@n8n-as-code/skills@v2.2.1) (2026-05-21)
 
 ### Bug Fixes
