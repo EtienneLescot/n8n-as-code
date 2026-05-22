@@ -221,26 +221,12 @@ async function refreshWorkflowList(): Promise<IWorkflowStatus[]> {
 }
 
 export async function activate(context: vscode.ExtensionContext) {
-    outputChannel.show(true);
-    outputChannel.appendLine('🔌 Activation of "n8n-as-code"...');
-    telemetryClient = createTelemetryClient({
-        facade: 'vscode',
-        version: String(context.extension.packageJSON?.version ?? __N8NAC_CLI_SEMVER__ ?? ''),
-        forceDisabled: !vscode.env.isTelemetryEnabled,
-    });
-    telemetryClient.track('vscode_extension_activated', {
-        vscode_version: vscode.version,
-        extension_version: String(context.extension.packageJSON?.version ?? ''),
-        has_workspace: Boolean(vscode.workspace.workspaceFolders?.length),
-    });
-    context.subscriptions.push(vscode.env.onDidChangeTelemetryEnabled((enabled) => {
-        telemetryClient = createTelemetryClient({
-            facade: 'vscode',
-            version: String(context.extension.packageJSON?.version ?? __N8NAC_CLI_SEMVER__ ?? ''),
-            forceDisabled: !enabled,
-        });
-    }));
-
+    try {
+        outputChannel.show(true);
+        outputChannel.appendLine('🔌 Activation of "n8n-as-code"...');
+    } catch {
+        // Keep activation moving so command registration still happens in Cursor-compatible hosts.
+    }
     const registerTelemetryCommand = (command: string, callback: (...args: any[]) => any): vscode.Disposable => (
         vscode.commands.registerCommand(command, async (...args: any[]) => {
             const telemetry = telemetryClient;
@@ -258,6 +244,51 @@ export async function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    context.subscriptions.push(
+        registerTelemetryCommand('n8n.configure', async () => {
+            ConfigurationWebview.createOrShow(context, getOrCreateConfigurationController());
+        }),
+    );
+
+    try {
+        const controller = getOrCreateConfigurationController();
+        context.subscriptions.push(
+            controller,
+            controller.onDidChangeSnapshot((event) => {
+                const workspaceRoot = getWorkspaceRoot();
+                if (shouldAutoEnsureAiContext({ workspaceRoot, snapshot: event.snapshot })) {
+                    scheduleEnsureAiContextFresh(context, `snapshot:${event.reason}`, event.snapshot);
+                }
+                void handleConfigurationSnapshotChanged(context, event);
+            }),
+        );
+    } catch (error: any) {
+        outputChannel.appendLine(`[n8n] Configuration controller initialization failed: ${error?.message || error}`);
+    }
+
+    try {
+        telemetryClient = createTelemetryClient({
+            facade: 'vscode',
+            version: String(context.extension.packageJSON?.version ?? __N8NAC_CLI_SEMVER__ ?? ''),
+            forceDisabled: !vscode.env.isTelemetryEnabled,
+        });
+        telemetryClient.track('vscode_extension_activated', {
+            vscode_version: vscode.version,
+            extension_version: String(context.extension.packageJSON?.version ?? ''),
+            has_workspace: Boolean(vscode.workspace.workspaceFolders?.length),
+        });
+        context.subscriptions.push(vscode.env.onDidChangeTelemetryEnabled((enabled) => {
+            telemetryClient = createTelemetryClient({
+                facade: 'vscode',
+                version: String(context.extension.packageJSON?.version ?? __N8NAC_CLI_SEMVER__ ?? ''),
+                forceDisabled: !enabled,
+            });
+        }));
+    } catch (error: any) {
+        outputChannel.appendLine(`[n8n] Telemetry initialization skipped: ${error?.message || error}`);
+    }
+
+    try {
     // Register Remote Content Provider for Diffs
     context.subscriptions.push(
         vscode.workspace.registerTextDocumentContentProvider('n8n-remote', {
@@ -282,17 +313,6 @@ export async function activate(context: vscode.ExtensionContext) {
     agentRuntimeController = new AgentRuntimeController(context, outputChannel);
     agentProviderService = new AgentProviderService(context);
     context.subscriptions.push(agentRuntimeController);
-    configurationController = new N8nConfigurationController(outputChannel);
-    context.subscriptions.push(
-        configurationController,
-        configurationController.onDidChangeSnapshot((event) => {
-            const workspaceRoot = getWorkspaceRoot();
-            if (shouldAutoEnsureAiContext({ workspaceRoot, snapshot: event.snapshot })) {
-                scheduleEnsureAiContextFresh(context, `snapshot:${event.reason}`, event.snapshot);
-            }
-            void handleConfigurationSnapshotChanged(context, event);
-        }),
-    );
 
     // ── Register Commands ──────────────────────────────────────────────────────
     // Commands are registered early so they are available during activation.
@@ -301,10 +321,6 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         registerTelemetryCommand('n8n.init', async () => {
             await handleInitializeCommand(context);
-        }),
-
-        registerTelemetryCommand('n8n.configure', async () => {
-            ConfigurationWebview.createOrShow(context, requireConfigurationController());
         }),
 
         registerTelemetryCommand('n8n.migrateWorkspaceConfiguration', async () => {
@@ -712,7 +728,7 @@ export async function activate(context: vscode.ExtensionContext) {
     );
 
     // ── Backend configuration snapshot initialization ────────────────────────
-    configurationController.start();
+    getOrCreateConfigurationController().start();
 
     // ── Settings change listener ───────────────────────────────────────────
     context.subscriptions.push(
@@ -750,6 +766,10 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         })
     );
+    } catch (error: any) {
+        outputChannel.appendLine(`[n8n] Activation completed with degraded functionality: ${error?.stack || error?.message || error}`);
+        vscode.window.showErrorMessage(`n8n as code activation issue: ${error?.message || error}`);
+    }
 }
 
 function getExistingWorkflowFileUri(workflow: IWorkflowStatus): vscode.Uri | undefined {
@@ -1275,11 +1295,13 @@ function updateContextKeys() {
     vscode.commands.executeCommand('setContext', 'n8n.initialized', state === ExtensionState.INITIALIZED);
 }
 
-function requireConfigurationController(): N8nConfigurationController {
-    if (!configurationController) {
-        throw new Error('n8n configuration controller is not initialized.');
-    }
+function getOrCreateConfigurationController(): N8nConfigurationController {
+    configurationController ??= new N8nConfigurationController(outputChannel);
     return configurationController;
+}
+
+function requireConfigurationController(): N8nConfigurationController {
+    return getOrCreateConfigurationController();
 }
 
 async function migrateWorkspaceConfiguration(context: vscode.ExtensionContext): Promise<void> {

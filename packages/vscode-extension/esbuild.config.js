@@ -274,12 +274,28 @@ exports.activate = activate;
 exports.deactivate = deactivate;
 const path = require('node:path');
 process.env.N8N_AS_CODE_ASSETS_DIR ??= path.join(__dirname, '..', 'assets');
-const runtime = require('./extension-runtime.js');
+let runtime;
+function loadRuntime() {
+  runtime ??= require('./extension-runtime.js');
+  return runtime;
+}
 async function activate(context) {
-  return runtime.activate(context);
+  try {
+    return await loadRuntime().activate(context);
+  } catch (error) {
+    const vscode = require('vscode');
+    const message = error && (error.stack || error.message) || String(error);
+    const outputChannel = vscode.window.createOutputChannel('n8n-as-code');
+    outputChannel.appendLine('[n8n] Failed to load extension runtime: ' + message);
+    context.subscriptions.push(vscode.commands.registerCommand('n8n.configure', async () => {
+      await vscode.commands.executeCommand('workbench.action.openSettings', 'n8n');
+      vscode.window.showErrorMessage('n8n as code could not load its full runtime. See the n8n-as-code output channel for details.');
+    }));
+    vscode.window.showErrorMessage('n8n as code could not load its full runtime. See the n8n-as-code output channel for details.');
+  }
 }
 function deactivate() {
-  return typeof runtime.deactivate === 'function' ? runtime.deactivate() : undefined;
+  return runtime && typeof runtime.deactivate === 'function' ? runtime.deactivate() : undefined;
 }
 //# sourceMappingURL=extension.js.map
 `);
