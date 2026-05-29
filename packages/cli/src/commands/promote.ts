@@ -148,6 +148,7 @@ interface PromotionIndexes {
     sourceByName: Map<string, PromotionSourceWorkflow[]>;
     targetWorkflowsById?: Map<string, IWorkflow>;
     targetWorkflowsByName?: Map<string, IWorkflow[]>;
+    targetCredentials?: Array<Record<string, unknown>>;
     targetCredentialsById?: Map<string, Record<string, unknown>>;
     targetCredentialsByKey?: Map<string, Array<Record<string, unknown>>>;
 }
@@ -535,8 +536,8 @@ export class PromoteCommand {
                 });
                 continue;
             }
-            const targetId = String(targetCredential.id ?? '').trim();
-            const targetName = String(targetCredential.name ?? '').trim();
+            const targetId = this.getCredentialId(targetCredential);
+            const targetName = this.getCredentialName(targetCredential);
             node.credentials[credentialType] = { id: targetId, name: targetName };
             const sourceBindingName = sourceName || sourceId;
             if (sourceBindingName && targetName) {
@@ -623,9 +624,9 @@ export class PromoteCommand {
             if (answer.action === 'abort') return 'aborted';
             if (answer.action === 'skip') continue;
 
-            const targetName = String(answer.credential.name ?? '').trim();
-            const targetType = String(answer.credential.type ?? '').trim();
-            const targetId = String(answer.credential.id ?? '').trim();
+            const targetName = this.getCredentialName(answer.credential);
+            const targetType = this.getCredentialType(answer.credential);
+            const targetId = this.getCredentialId(answer.credential);
             if (!targetName || targetType !== candidate.credentialType) continue;
             route.bindings!.credentials![this.credentialBindingKey(candidate.sourceName, candidate.credentialType)] = targetId || this.credentialBindingKey(targetName, targetType);
             mapped = true;
@@ -666,9 +667,9 @@ export class PromoteCommand {
     }
 
     private getTargetCredentialsByType(indexes: PromotionIndexes, credentialType: string): Array<Record<string, unknown>> {
-        return Array.from(indexes.targetCredentialsById?.values() ?? [])
-            .filter((credential) => String(credential.type ?? '').trim() === credentialType)
-            .sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? '')));
+        return (indexes.targetCredentials ?? [])
+            .filter((credential) => this.getCredentialType(credential) === credentialType)
+            .sort((a, b) => this.getCredentialName(a).localeCompare(this.getCredentialName(b)));
     }
 
     private async askCredentialMapping(
@@ -682,10 +683,11 @@ export class PromoteCommand {
 
         const { default: inquirer } = await import('inquirer');
         const choices = targetCredentials.map((credential, index) => ({
-            name: `${String(credential.name ?? 'Unnamed credential')} (${String(credential.id ?? 'no id')})`,
+            name: `${this.getCredentialName(credential) || 'Unnamed credential'} (${this.getCredentialId(credential) || 'no id'})`,
             value: `map:${index}`,
         }));
         choices.push(
+            { name: 'Enter credential name or ID manually', value: 'manual' },
             { name: 'Skip this credential', value: 'skip' },
             { name: 'Abort promotion', value: 'abort' },
         );
@@ -698,6 +700,19 @@ export class PromoteCommand {
         }]);
         if (answer.selection === 'abort') return { action: 'abort' };
         if (answer.selection === 'skip') return { action: 'skip' };
+        if (answer.selection === 'manual') {
+            const manual = await inquirer.prompt<{ reference: string }>([{
+                type: 'input',
+                name: 'reference',
+                message: `Target credential name or ID for "${candidate.sourceName}" (${candidate.credentialType})`,
+            }]);
+            const credential = this.resolveCredentialFromInput(manual.reference, candidate.credentialType, targetCredentials);
+            if (!credential) {
+                console.log(chalk.yellow(`No ${candidate.credentialType} credential matched "${manual.reference}".`));
+                return { action: 'skip' };
+            }
+            return { action: 'map', credential };
+        }
         const index = Number(answer.selection.replace(/^map:/, ''));
         const credential = targetCredentials[index];
         return credential ? { action: 'map', credential } : { action: 'skip' };
@@ -709,8 +724,28 @@ export class PromoteCommand {
         if (byId) return byId;
 
         const parsed = this.parseCredentialBindingKey(boundRef);
-        if (!parsed || parsed.type !== credentialType) return undefined;
-        return unique(indexes.targetCredentialsByKey!.get(`${parsed.type}::${parsed.name}`));
+        if (parsed) {
+            if (parsed.type !== credentialType) return undefined;
+            return unique(indexes.targetCredentialsByKey!.get(`${parsed.type}::${parsed.name}`));
+        }
+        return unique(indexes.targetCredentialsByKey!.get(`${credentialType}::${boundRef}`));
+    }
+
+    private resolveCredentialFromInput(reference: string, credentialType: string, targetCredentials: Array<Record<string, unknown>>): Record<string, unknown> | undefined {
+        const value = String(reference ?? '').trim();
+        if (!value) return undefined;
+        const parsed = this.parseCredentialBindingKey(value);
+        const targetName = parsed ? parsed.name : value;
+        const targetType = parsed?.type ?? credentialType;
+        if (targetType !== credentialType) return undefined;
+
+        const idMatch = targetCredentials.find((credential) => this.getCredentialId(credential) === value);
+        if (idMatch) return idMatch;
+
+        return unique(targetCredentials.filter((credential) =>
+            this.getCredentialName(credential) === targetName &&
+            this.getCredentialType(credential) === credentialType
+        ));
     }
 
     private credentialBindingKey(name: string, credentialType: string): string {
@@ -724,6 +759,18 @@ export class PromoteCommand {
             name: value.slice(0, delimiterIndex),
             type: value.slice(delimiterIndex + 1),
         };
+    }
+
+    private getCredentialId(credential: Record<string, unknown>): string {
+        return String(credential.id ?? credential.credentialId ?? '').trim();
+    }
+
+    private getCredentialName(credential: Record<string, unknown>): string {
+        return String(credential.name ?? '').trim();
+    }
+
+    private getCredentialType(credential: Record<string, unknown>): string {
+        return String(credential.type ?? credential.credentialType ?? credential.credentialTypeName ?? '').trim();
     }
 
     private async remapWorkflowReferences(
@@ -824,11 +871,15 @@ export class PromoteCommand {
     private async ensureTargetCredentialIndexes(target: IResolvedWorkspaceEnvironment, indexes: PromotionIndexes): Promise<void> {
         if (indexes.targetCredentialsById && indexes.targetCredentialsByKey) return;
         const credentials = await this.getTargetCredentials(target);
-        indexes.targetCredentialsById = new Map(credentials.map((credential) => [String(credential.id ?? ''), credential]));
+        indexes.targetCredentials = credentials;
+        indexes.targetCredentialsById = new Map();
         indexes.targetCredentialsByKey = new Map();
         for (const credential of credentials) {
-            const type = String(credential.type ?? '').trim();
-            const name = String(credential.name ?? '').trim();
+            const id = this.getCredentialId(credential);
+            if (id) indexes.targetCredentialsById.set(id, credential);
+            const type = this.getCredentialType(credential);
+            const name = this.getCredentialName(credential);
+            if (!type || !name) continue;
             const key = `${type}::${name}`;
             const existing = indexes.targetCredentialsByKey.get(key) ?? [];
             existing.push(credential);
