@@ -1,5 +1,17 @@
 # @n8n-as-code/cli
 
+## [2.3.3](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.3.2...n8nac@v2.3.3) (2026-05-29)
+
+### Bug Fixes
+
+* **cli:** anchor workflow id decorator parsing ([3ffad0e](https://github.com/EtienneLescot/n8n-as-code/commit/3ffad0e9013562cfbf6a4268c85ee5727d174aad))
+* **cli:** improve credential mapping and workflow state tracking ([d2adac6](https://github.com/EtienneLescot/n8n-as-code/commit/d2adac69123ecdb119eef242f3d9edf336b30dd4))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.2.2 to 2.2.3
+
 ## [2.3.2](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.3.1...n8nac@v2.3.2) (2026-05-22)
 
 ### Dependencies
