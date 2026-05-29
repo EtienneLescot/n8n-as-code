@@ -481,6 +481,48 @@ export class PostgresWorkflow {
         }
     });
 
+    it('resolves manual credential references with colons as exact names or ids before binding syntax', () => {
+        const cmd = new PromoteCommand();
+        const credentials = [
+            { credentialId: 'target:postgres', name: 'DB_PROD', credentialType: 'postgres' },
+            { credentialId: 'target-postgres-eu', name: 'Prod:EU', credentialType: 'postgres' },
+            { credentialId: 'target-postgres-fallback', name: 'Prod', credentialType: 'postgres' },
+            { credentialId: 'target-http-eu', name: 'Prod:EU', credentialType: 'httpBasicAuth' },
+        ];
+        const resolveInput = (cmd as unknown as {
+            resolveCredentialFromInput: (
+                reference: string,
+                credentialType: string,
+                targetCredentials: Array<Record<string, unknown>>,
+            ) => Record<string, unknown> | undefined;
+        }).resolveCredentialFromInput.bind(cmd);
+        const resolveBinding = (cmd as unknown as {
+            resolveCredentialBindingReference: (
+                boundRef: string | undefined,
+                credentialType: string,
+                indexes: {
+                    targetCredentialsById: Map<string, Record<string, unknown>>;
+                    targetCredentialsByKey: Map<string, Array<Record<string, unknown>>>;
+                },
+            ) => Record<string, unknown> | undefined;
+        }).resolveCredentialBindingReference.bind(cmd);
+
+        expect(resolveInput('target:postgres', 'postgres', credentials)).toBe(credentials[0]);
+        expect(resolveInput('Prod:EU', 'postgres', credentials)).toBe(credentials[1]);
+        expect(resolveInput('Prod:postgres', 'postgres', credentials)).toBe(credentials[2]);
+        expect(resolveInput('Prod:httpBasicAuth', 'postgres', credentials)).toBeUndefined();
+
+        const indexes = {
+            targetCredentialsById: new Map(credentials.map((credential) => [String(credential.credentialId), credential])),
+            targetCredentialsByKey: new Map([
+                ['postgres::Prod:EU', [credentials[1]!]],
+                ['postgres::Prod', [credentials[2]!]],
+            ]),
+        };
+        expect(resolveBinding('Prod:EU', 'postgres', indexes)).toBe(credentials[1]);
+        expect(resolveBinding('Prod:postgres', 'postgres', indexes)).toBe(credentials[2]);
+    });
+
     it('uses the selected credential id when interactive mapping target names are duplicated', async () => {
         const previousManagerHome = process.env.N8N_MANAGER_HOME;
         const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-workspace-'));

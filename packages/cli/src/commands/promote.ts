@@ -723,27 +723,38 @@ export class PromoteCommand {
         const byId = indexes.targetCredentialsById!.get(boundRef);
         if (byId) return byId;
 
+        const byName = unique(indexes.targetCredentialsByKey!.get(`${credentialType}::${boundRef}`));
+        if (byName) return byName;
+
         const parsed = this.parseCredentialBindingKey(boundRef);
         if (parsed) {
             if (parsed.type !== credentialType) return undefined;
             return unique(indexes.targetCredentialsByKey!.get(`${parsed.type}::${parsed.name}`));
         }
-        return unique(indexes.targetCredentialsByKey!.get(`${credentialType}::${boundRef}`));
+        return undefined;
     }
 
     private resolveCredentialFromInput(reference: string, credentialType: string, targetCredentials: Array<Record<string, unknown>>): Record<string, unknown> | undefined {
         const value = String(reference ?? '').trim();
         if (!value) return undefined;
-        const parsed = this.parseCredentialBindingKey(value);
-        const targetName = parsed ? parsed.name : value;
-        const targetType = parsed?.type ?? credentialType;
-        if (targetType !== credentialType) return undefined;
 
-        const idMatch = targetCredentials.find((credential) => this.getCredentialId(credential) === value);
+        const idMatch = targetCredentials.find((credential) =>
+            this.getCredentialId(credential) === value &&
+            this.getCredentialType(credential) === credentialType
+        );
         if (idMatch) return idMatch;
 
+        const nameMatch = unique(targetCredentials.filter((credential) =>
+            this.getCredentialName(credential) === value &&
+            this.getCredentialType(credential) === credentialType
+        ));
+        if (nameMatch) return nameMatch;
+
+        const parsed = this.parseCredentialBindingKey(value);
+        if (!parsed || parsed.type !== credentialType) return undefined;
+
         return unique(targetCredentials.filter((credential) =>
-            this.getCredentialName(credential) === targetName &&
+            this.getCredentialName(credential) === parsed.name &&
             this.getCredentialType(credential) === credentialType
         ));
     }
