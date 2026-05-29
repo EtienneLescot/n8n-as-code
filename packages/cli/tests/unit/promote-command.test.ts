@@ -594,6 +594,78 @@ export class DuplicateCredentialWorkflow {
         }
     });
 
+    it('can promote without an unresolved credential without persisting the omission', async () => {
+        const previousManagerHome = process.env.N8N_MANAGER_HOME;
+        const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-workspace-'));
+        process.env.N8N_MANAGER_HOME = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-manager-'));
+        try {
+            const globalWorkspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-global-'));
+            const globalConfigService = new ConfigService(globalWorkspaceRoot);
+            globalConfigService.saveLocalConfig({
+                host: 'https://dev.example.test',
+                instanceIdentifier: 'n8n_1111111111',
+            }, { instanceId: 'dev-instance', instanceName: 'Dev', apiKey: 'dev-key' });
+            globalConfigService.saveLocalConfig({
+                host: 'https://prod.example.test',
+                instanceIdentifier: 'n8n_2222222222',
+            }, { instanceId: 'prod-instance', instanceName: 'Prod', apiKey: 'prod-key', setActive: false });
+
+            const configService = new ConfigService(workspaceRoot);
+            const devTarget = configService.addInstanceTarget({ name: 'Dev Target', managedInstanceId: 'dev-instance' });
+            const prodTarget = configService.addInstanceTarget({ name: 'Prod Target', managedInstanceId: 'prod-instance' });
+            configService.addEnvironment({ name: 'Dev', environmentTarget: devTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/dev' });
+            configService.addEnvironment({ name: 'Prod', environmentTarget: prodTarget.id, projectId: 'personal', projectName: 'Personal', workflowsPath: 'workflows/prod' });
+
+            const sourceDir = configService.resolveEnvironment('Dev').workflowsPath!;
+            const targetDir = configService.resolveEnvironment('Prod').workflowsPath!;
+            mkdirSync(sourceDir, { recursive: true });
+            const sourcePath = path.join(sourceDir, 'omitted-credential.workflow.ts');
+            writeFileSync(sourcePath, `import { workflow, node } from '@n8n-as-code/transformer';
+
+@workflow({ id: 'source-wf', name: 'Omitted Credential Workflow', active: false })
+export class OmittedCredentialWorkflow {
+  @node({
+    name: 'Postgres',
+    type: 'n8n-nodes-base.postgres',
+    version: 2,
+    position: [100, 100],
+    credentials: { postgres: { id: 'source-postgres', name: 'Dev Database' } }
+  })
+  Postgres = { operation: 'executeQuery' };
+}
+`, 'utf8');
+
+            const result = await new PromoteCommand(configService, {
+                createClient: () => ({
+                    getAllWorkflows: async () => [],
+                    listCredentials: async () => [],
+                }),
+                promptCredentialMapping: async () => ({ action: 'omit' }),
+            }).run(sourcePath, {
+                from: 'Dev',
+                to: 'Prod',
+                push: false,
+                promotionConfig: path.join(workspaceRoot, 'n8nac-promotion.json'),
+            });
+
+            expect(result.summary.blocked).toBe(0);
+            expect(result.workflows[0].substitutions).toEqual(expect.arrayContaining([
+                expect.objectContaining({ kind: 'credential', fromName: 'Dev Database', toName: 'omitted', status: 'omitted' }),
+            ]));
+            const promoted = readFileSync(path.join(targetDir, 'omitted-credential.workflow.ts'), 'utf8');
+            expect(promoted).not.toContain('credentials:');
+            const promotionConfig = JSON.parse(readFileSync(path.join(workspaceRoot, 'n8nac-promotion.json'), 'utf8'));
+            expect(promotionConfig.routes['Dev->Prod'].credentialPolicies).toBeUndefined();
+            expect(promotionConfig.routes['Dev->Prod'].bindings.credentials['Dev Database:postgres']).toBeUndefined();
+        } finally {
+            if (previousManagerHome === undefined) {
+                delete process.env.N8N_MANAGER_HOME;
+            } else {
+                process.env.N8N_MANAGER_HOME = previousManagerHome;
+            }
+        }
+    });
+
     it('keeps blocking unresolved credentials when interactive prompts are disabled', async () => {
         const previousManagerHome = process.env.N8N_MANAGER_HOME;
         const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'n8nac-promote-workspace-'));

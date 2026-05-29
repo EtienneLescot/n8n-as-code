@@ -377,6 +377,34 @@ describe('N8nApiClient test workflow support', () => {
         expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Workflow wf-created was created'));
     });
 
+    it('omits the personal project placeholder when creating a workflow', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
+        mockAxiosPost.mockResolvedValueOnce({
+            data: {
+                id: 'wf-created',
+                name: 'Personal Workflow',
+                nodes: [],
+                connections: {},
+                settings: { executionOrder: 'v1' },
+            },
+        });
+
+        await client.createWorkflow({
+            name: 'Personal Workflow',
+            nodes: [],
+            connections: {},
+            settings: { executionOrder: 'v1' },
+            projectId: 'personal',
+        } as any);
+
+        expect(mockAxiosPost).toHaveBeenCalledWith('/api/v1/workflows', {
+            name: 'Personal Workflow',
+            nodes: [],
+            connections: {},
+            settings: { executionOrder: 'v1' },
+        });
+    });
+
     it('normalizes webhook paths with leading slashes and special characters', () => {
         const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'secret' });
 

@@ -589,6 +589,7 @@ export class N8nApiClient {
 
         const clean: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+            if (key === 'projectId' && value === 'personal') continue;
             if (allowedKeys.has(key) && value !== undefined) {
                 clean[key] = value;
             }

@@ -32,6 +32,8 @@ const WINDOWS_RESERVED_FILENAMES = new Set([
     'LPT9'
 ]);
 
+const EXPLICIT_WORKFLOW_ID_FIELD = '__n8nacExplicitWorkflowId';
+
 /**
  * Watcher - State Observation Component
  * 
@@ -194,12 +196,25 @@ export class WorkflowStateTracker extends EventEmitter {
             this.idToFileMap.set(id, winner);
         }
 
+        // Explicit id: undefined/null means "create a new remote workflow". Do not
+        // resurrect stale filename mappings from state for these files.
+        for (const { filename, content } of fileContents) {
+            if (!content?.[EXPLICIT_WORKFLOW_ID_FIELD] || content.id) continue;
+            const staleId = this.fileToIdMap.get(filename);
+            if (!staleId) continue;
+            this.fileToIdMap.delete(filename);
+            if (this.idToFileMap.get(staleId) === filename) {
+                this.idToFileMap.delete(staleId);
+            }
+        }
+
         // Recovery path: if a tracked file lost its decorator ID after a manual rewrite,
         // reconnect it using the last known filename hint from state.
         const claimedIds = new Set(idClaims.keys());
         const state = this.loadState();
         for (const { filename, content } of fileContents) {
             if (content?.id) continue;
+            if (content?.[EXPLICIT_WORKFLOW_ID_FIELD]) continue;
             if (this.fileToIdMap.has(filename)) continue;
 
             const matchingIds = Object.entries(state.workflows)
@@ -697,10 +712,16 @@ export class WorkflowStateTracker extends EventEmitter {
                     const decoratorContent = decoratorMatch[1];
                     const result: any = {};
 
-                    // Extract id if present
-                    const idMatch = decoratorContent.match(/id:\s*["']([^"']+)["']/);
-                    if (idMatch) {
-                        result.id = idMatch[1];
+                    // Extract id if present. `id: undefined` is meaningful: it marks
+                    // a local-only workflow that must not recover an old ID from state.
+                    const idFieldMatch = decoratorContent.match(/\bid\s*:\s*([^,\n\r}]+)/);
+                    if (idFieldMatch) {
+                        result[EXPLICIT_WORKFLOW_ID_FIELD] = true;
+                        const idValue = idFieldMatch[1].trim();
+                        const idMatch = idValue.match(/^["']([^"']+)["']$/);
+                        if (idMatch) {
+                            result.id = idMatch[1];
+                        }
                     }
 
                     // Extract name if present

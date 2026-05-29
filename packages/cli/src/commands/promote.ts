@@ -26,7 +26,7 @@ export interface PromotionSubstitution {
     fromName?: string;
     toId?: string;
     toName?: string;
-    status: 'mapped' | 'pending-create' | 'unchanged';
+    status: 'mapped' | 'pending-create' | 'unchanged' | 'omitted';
 }
 
 export interface PromotionProblem {
@@ -89,6 +89,7 @@ export interface CredentialMappingPromptContext {
 
 export type CredentialMappingPromptAnswer =
     | { action: 'map'; credential: Record<string, unknown> }
+    | { action: 'omit' }
     | { action: 'skip' }
     | { action: 'abort' };
 
@@ -151,6 +152,7 @@ interface PromotionIndexes {
     targetCredentials?: Array<Record<string, unknown>>;
     targetCredentialsById?: Map<string, Record<string, unknown>>;
     targetCredentialsByKey?: Map<string, Array<Record<string, unknown>>>;
+    omittedCredentialBindings?: Set<string>;
 }
 
 interface WorkflowTransformResult {
@@ -523,6 +525,22 @@ export class PromoteCommand {
         for (const [credentialType, credentialRef] of Object.entries(node.credentials as Record<string, any>)) {
             const sourceId = String(credentialRef?.id ?? '').trim();
             const sourceName = String(credentialRef?.name ?? '').trim();
+            const sourceBindingName = sourceName || sourceId;
+            const sourceBindingKey = sourceBindingName ? this.credentialBindingKey(sourceBindingName, credentialType) : undefined;
+            if (sourceBindingKey && indexes.omittedCredentialBindings?.has(sourceBindingKey)) {
+                delete node.credentials[credentialType];
+                if (Object.keys(node.credentials).length === 0) delete node.credentials;
+                substitutions.push({
+                    kind: 'credential',
+                    nodeName: node.name,
+                    field: credentialType,
+                    fromId: sourceId || undefined,
+                    fromName: sourceName || undefined,
+                    toName: 'omitted',
+                    status: 'omitted',
+                });
+                continue;
+            }
             const targetCredential = await this.resolveTargetCredential(target, route, indexes, credentialType, sourceId, sourceName);
             if (!targetCredential) {
                 problems.push({
@@ -539,10 +557,8 @@ export class PromoteCommand {
             const targetId = this.getCredentialId(targetCredential);
             const targetName = this.getCredentialName(targetCredential);
             node.credentials[credentialType] = { id: targetId, name: targetName };
-            const sourceBindingName = sourceName || sourceId;
             if (sourceBindingName && targetName) {
-                const sourceBindingKey = this.credentialBindingKey(sourceBindingName, credentialType);
-                route.bindings!.credentials![sourceBindingKey] ??= this.credentialBindingKey(targetName, credentialType);
+                route.bindings!.credentials![sourceBindingKey!] ??= this.credentialBindingKey(targetName, credentialType);
             }
             substitutions.push({
                 kind: 'credential',
@@ -623,6 +639,12 @@ export class PromoteCommand {
             });
             if (answer.action === 'abort') return 'aborted';
             if (answer.action === 'skip') continue;
+            if (answer.action === 'omit') {
+                indexes.omittedCredentialBindings ??= new Set();
+                indexes.omittedCredentialBindings.add(this.credentialBindingKey(candidate.sourceName, candidate.credentialType));
+                mapped = true;
+                continue;
+            }
 
             const targetName = this.getCredentialName(answer.credential);
             const targetType = this.getCredentialType(answer.credential);
@@ -688,18 +710,20 @@ export class PromoteCommand {
         }));
         choices.push(
             { name: 'Enter credential name or ID manually', value: 'manual' },
-            { name: 'Skip this credential', value: 'skip' },
+            { name: 'Promote without this credential', value: 'omit' },
+            { name: 'Skip (promotion will fail)', value: 'skip' },
             { name: 'Abort promotion', value: 'abort' },
         );
-        const nodeLabel = candidate.nodeNames.length > 0 ? ` used by ${candidate.nodeNames.join(', ')}` : '';
+        const nodeLabel = candidate.nodeNames.length > 0 ? ` used by node ${candidate.nodeNames.join(', ')}` : '';
         const answer = await inquirer.prompt<{ selection: string }>([{
-            type: 'list',
+            type: 'select',
             name: 'selection',
-            message: `Map "${candidate.sourceName}" (${candidate.credentialType})${nodeLabel} in ${context.targetEnvironmentName}`,
+            message: `Select target ${candidate.credentialType} credential for source credential "${candidate.sourceName}"${nodeLabel} in ${context.targetEnvironmentName}`,
             choices,
         }]);
         if (answer.selection === 'abort') return { action: 'abort' };
         if (answer.selection === 'skip') return { action: 'skip' };
+        if (answer.selection === 'omit') return { action: 'omit' };
         if (answer.selection === 'manual') {
             const manual = await inquirer.prompt<{ reference: string }>([{
                 type: 'input',
