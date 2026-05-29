@@ -714,7 +714,7 @@ export class WorkflowStateTracker extends EventEmitter {
 
                     // Extract id if present. `id: undefined` is meaningful: it marks
                     // a local-only workflow that must not recover an old ID from state.
-                    const idFieldMatch = decoratorContent.match(/\bid\s*:\s*([^,\n\r}]+)/);
+                    const idFieldMatch = decoratorContent.match(/(?:^|[,{])\s*id\s*:\s*([^,\n\r}]+)/);
                     if (idFieldMatch) {
                         result[EXPLICIT_WORKFLOW_ID_FIELD] = true;
                         const idValue = idFieldMatch[1].trim();

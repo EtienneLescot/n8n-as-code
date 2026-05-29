@@ -220,4 +220,35 @@ export class NewCopyWorkflow {
         expect(tracker.getWorkflowIdForFilename('new-copy.workflow.ts')).toBeUndefined();
         expect(tracker.getFilenameForId('stale-wf')).toBeUndefined();
     });
+
+    it('extracts the workflow id key without matching id text inside decorator string values', async () => {
+        const tracker = createTracker();
+
+        fs.writeFileSync(
+            path.join(tempDir!, 'order-id.workflow.ts'),
+            `import { workflow, node } from '@n8n-as-code/transformer';
+
+@workflow({
+  name: 'Order id: x',
+  id: 'real-id',
+  active: false
+})
+export class OrderIdWorkflow {
+  @node({
+    name: 'Webhook',
+    type: 'n8n-nodes-base.webhook',
+    version: 2.1,
+    position: [0, 0]
+  })
+  Webhook = { path: 'order-id', httpMethod: 'POST' };
+}
+`,
+            'utf-8',
+        );
+
+        await tracker.refreshLocalState();
+
+        expect(tracker.getWorkflowIdForFilename('order-id.workflow.ts')).toBe('real-id');
+        expect(tracker.getFilenameForId('real-id')).toBe('order-id.workflow.ts');
+    });
 });
