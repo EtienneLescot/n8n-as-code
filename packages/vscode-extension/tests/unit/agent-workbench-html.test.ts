@@ -230,6 +230,28 @@ test('Agent runtime: v3 tool message projections are not duplicated as assistant
     assert.ok(source.includes("normalized.startsWith('tools:')"), 'Tool namespace segments must be recognized');
 });
 
+test('Agent runtime: non-final assistant phases do not end workbench runs', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const source = fs.readFileSync(path.join(__dirname, '../../src/services/agent-runtime-controller.ts'), 'utf8');
+
+    assert.ok(source.includes('createNonFinalAssistantPhaseRecoveryMiddleware'), 'Runtime must install a DeepAgents middleware for non-final assistant phases');
+    assert.ok(source.includes('afterModel'), 'Recovery must use the LangChain afterModel hook');
+    assert.ok(source.includes("canJumpTo: ['model']"), 'Recovery must declare the LangChain model jump target');
+    assert.ok(source.includes("jumpTo: 'model'"), 'Recovery must continue the same turn through the LangChain router');
+    assert.ok(source.includes('new RemoveMessage'), 'Recovery must remove the terminal-looking assistant message before routing');
+    assert.ok(source.includes('N8N_NON_FINAL_ASSISTANT_PHASE_RECOVERY'), 'Recovery prompt must be marked so repeated attempts can be bounded');
+    assert.ok(source.includes('isNonFinalAssistantPhaseMessage'), 'Runtime must classify assistant messages by protocol phase');
+    assert.ok(source.includes('getAssistantPhase'), 'Runtime must read provider assistant phase metadata');
+    assert.ok(source.includes('isTerminalAssistantPhase'), 'Runtime must distinguish terminal and non-terminal assistant phases');
+    assert.ok(source.includes("normalized === 'final' || normalized === 'final_answer'"), 'Only final phases should be accepted as terminal no-tool responses');
+    assert.ok(source.includes('Assistant phases are part of the runtime contract'), 'System prompt must describe the phase contract');
+    assert.ok(!source.includes('createPrematureProgressRecoveryMiddleware'), 'Runtime must not use progress-text recovery middleware');
+    assert.ok(!source.includes('N8N_PREMATURE_PROGRESS_RECOVERY'), 'Runtime must not use heuristic progress recovery markers');
+    assert.ok(!source.includes('isPrematureProgressMessage'), 'Runtime must not classify progress text heuristically');
+    assert.ok(!source.includes('Je poursuis'), 'Runtime must not special-case the observed French text');
+});
+
 test('Agent runtime: provider raw tool calls are preserved for Gemini 3 tool loops', () => {
     const fs = require('node:fs');
     const path = require('node:path');

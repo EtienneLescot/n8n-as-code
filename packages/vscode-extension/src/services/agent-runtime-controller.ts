@@ -27,6 +27,7 @@ const DEFAULT_CONTEXT_WINDOW_TOKENS = 200_000;
 const ACTIVE_WORKTREE_PATH_KEY = 'n8n.agent.activeWorktreePath';
 const ACTIVE_WORKTREE_PATH_BY_SESSION_KEY = 'n8n.agent.activeWorktreePathBySession';
 const INVALID_TOOL_CALL_RECOVERY_MARKER = 'N8N_INVALID_TOOL_CALL_RECOVERY';
+const NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER = 'N8N_NON_FINAL_ASSISTANT_PHASE_RECOVERY';
 
 type ActiveWorktreePathsBySession = Record<string, string | null>;
 
@@ -2170,6 +2171,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             middleware: [
                 this.createProviderMessageCompatibilityMiddleware(langchain, messagesModule),
                 this.createInvalidToolCallRecoveryMiddleware(langchain, messagesModule),
+                this.createNonFinalAssistantPhaseRecoveryMiddleware(langchain, messagesModule),
             ].filter(Boolean),
             systemPrompt: this.buildStaticSystemPrompt(input.workspaceRoot),
         });
@@ -2216,6 +2218,41 @@ export class AgentRuntimeController implements vscode.Disposable {
                         messages: [
                             ...(lastMessageId ? [new RemoveMessage({ id: lastMessageId })] : []),
                             repairMessage,
+                        ],
+                        jumpTo: 'model',
+                    };
+                },
+            },
+        });
+    }
+
+    private createNonFinalAssistantPhaseRecoveryMiddleware(langchain: any, messagesModule: any): unknown {
+        const createMiddleware = langchain?.createMiddleware;
+        const HumanMessage = messagesModule?.HumanMessage;
+        const RemoveMessage = messagesModule?.RemoveMessage;
+        if (typeof createMiddleware !== 'function' || typeof HumanMessage !== 'function' || typeof RemoveMessage !== 'function') {
+            return undefined;
+        }
+        return createMiddleware({
+            name: 'N8nNonFinalAssistantPhaseRecovery',
+            afterModel: {
+                canJumpTo: ['model'],
+                hook: (state: any) => {
+                    const messages = Array.isArray(state?.messages) ? state.messages : [];
+                    const lastMessage = messages[messages.length - 1];
+                    if (!this.isNonFinalAssistantPhaseMessage(lastMessage)) return undefined;
+                    const recoveryAttempts = this.countRecentRecoveryAttempts(messages, NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER);
+                    if (recoveryAttempts >= 2) {
+                        this.outputChannel.appendLine('[n8n-agent] Stopping non-final assistant phase recovery after two attempts.');
+                        return undefined;
+                    }
+                    const phase = this.getAssistantPhase(lastMessage) || 'unknown';
+                    this.outputChannel.appendLine(`[n8n-agent-debug] recovering non-final assistant phase=${phase} attempt=${recoveryAttempts + 1}`);
+                    const lastMessageId = this.getMessageId(lastMessage);
+                    return {
+                        messages: [
+                            ...(lastMessageId ? [new RemoveMessage({ id: lastMessageId })] : []),
+                            new HumanMessage({ content: this.buildNonFinalAssistantPhaseRecoveryPrompt(lastMessage) }),
                         ],
                         jumpTo: 'model',
                     };
@@ -2368,12 +2405,16 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     private countRecentInvalidToolCallRecoveryAttempts(messages: unknown[]): number {
+        return this.countRecentRecoveryAttempts(messages, INVALID_TOOL_CALL_RECOVERY_MARKER);
+    }
+
+    private countRecentRecoveryAttempts(messages: unknown[], marker: string): number {
         let attempts = 0;
         for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
             const message = messages[idx];
             if (!this.isRecord(message)) continue;
             const text = this.extractMessageTextContent(message.content);
-            if (text.includes('N8N_INVALID_TOOL_CALL_RECOVERY')) {
+            if (text.includes(marker)) {
                 attempts += 1;
                 continue;
             }
@@ -2415,12 +2456,27 @@ export class AgentRuntimeController implements vscode.Disposable {
         ].filter(Boolean).join('\n');
     }
 
+    private buildNonFinalAssistantPhaseRecoveryPrompt(message: unknown): string {
+        const phase = this.getAssistantPhase(message) || 'unknown';
+        const text = this.extractAssistantMessageText(message).replace(/\s+/g, ' ').trim();
+        return [
+            NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER,
+            `Your previous assistant message had non-terminal assistant phase "${phase}" and was removed before ending the run.`,
+            text ? `Removed assistant text: ${text}` : undefined,
+            '',
+            'Continue the same user task now.',
+            'If work remains, emit the next required tool call or another non-terminal assistant phase followed by a tool call.',
+            'Only emit a final answer when the requested work is actually complete or blocked.',
+        ].filter(Boolean).join('\n');
+    }
+
     private buildStaticSystemPrompt(workspaceRoot?: string): string {
         return [
             'You are the embedded n8n-as-code VS Code agent.',
             'You help users design, inspect, validate, and operate n8n workflows from the current workspace.',
             'Your DeepAgents backend working directory is the VS Code workspace root. Use real workspace paths: either relative paths like workflows/dev/example.workflow.ts or absolute paths under the workspace root. Do not use pseudo-root paths like /workflows/... unless the workspace root itself is /.',
             'Use tools only when useful. For workflow-specific questions, use the inline workflow and node context supplied with each user turn as authoritative.',
+            'Assistant phases are part of the runtime contract: non-terminal phases such as commentary or analysis are interim only. A run may end without tool calls only when the assistant response is in a terminal final phase and the work is complete or genuinely blocked.',
             'When creating or editing n8n-as-code workflows, write TypeScript source files (.ts) using @workflow, @node, and @links decorators. Do not create raw n8n workflow JSON unless the user explicitly asks for JSON export.',
             'Do not invent workflow helper APIs such as createWorkflow. The canonical TypeScript shape is: import { workflow, node, links } from "@n8n-as-code/transformer"; then @workflow({...}) export class MyWorkflow { @node({...}) ManualTrigger = {}; @links() defineRouting() {} }.',
             'Do not claim to push workflows, provision credentials, or change n8n runtime state unless a tool explicitly performs that action successfully.',
@@ -2735,7 +2791,9 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     private isInternalRecoveryText(value: string): boolean {
-        return value.trimStart().startsWith(INVALID_TOOL_CALL_RECOVERY_MARKER);
+        const trimmed = value.trimStart();
+        return trimmed.startsWith(INVALID_TOOL_CALL_RECOVERY_MARKER)
+            || trimmed.startsWith(NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER);
     }
 
     private extractProviderOutputItemsText(message: Record<string, unknown>): string {
@@ -2847,6 +2905,36 @@ export class AgentRuntimeController implements vscode.Disposable {
         if (messageType === 'tool' || messageType === 'human' || messageType === 'system') return false;
         if (messageType === 'ai' || messageType === 'assistant') return true;
         return false;
+    }
+
+    private isNonFinalAssistantPhaseMessage(message: unknown): boolean {
+        if (!this.isAssistantMessage(message)) return false;
+        if (this.messageHasToolCalls(message)) return false;
+        const phase = this.getAssistantPhase(message);
+        if (!phase) return false;
+        return !this.isTerminalAssistantPhase(phase);
+    }
+
+    private isTerminalAssistantPhase(phase: string): boolean {
+        const normalized = phase.toLowerCase().replace(/[-\s]/g, '_').trim();
+        return normalized === 'final' || normalized === 'final_answer';
+    }
+
+    private getAssistantPhase(message: unknown): string | undefined {
+        if (!this.isRecord(message)) return undefined;
+        const read = (value: unknown): string | undefined => {
+            if (!this.isRecord(value)) return undefined;
+            const direct = value.phase;
+            if (typeof direct === 'string' && direct.trim()) return direct.trim();
+            return undefined;
+        };
+        return read(message)
+            || read(message.additional_kwargs)
+            || read(message.response_metadata)
+            || read(message.kwargs)
+            || read(message.lc_kwargs)
+            || (this.isRecord(message.kwargs) ? read(message.kwargs.additional_kwargs) || read(message.kwargs.response_metadata) : undefined)
+            || (this.isRecord(message.lc_kwargs) ? read(message.lc_kwargs.additional_kwargs) || read(message.lc_kwargs.response_metadata) : undefined);
     }
 
     private getMessageType(value: Record<string, unknown>): string | undefined {
