@@ -1,5 +1,13 @@
 # n8n-as-code
 
+## [2.24.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.22.0...n8n-as-code@v2.24.0) (2026-06-02)
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.2.3 to 2.2.4
+    * n8nac bumped from 2.3.3 to 2.3.4
+
 ## [2.22.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.20.0...n8n-as-code@v2.22.0) (2026-05-29)
 
 ### Dependencies

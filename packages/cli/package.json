@@ -1,6 +1,6 @@
 {
     "name": "n8nac",
-    "version": "2.3.3",
+    "version": "2.3.4",
     "description": "Unified CLI for n8n-as-code — manage workflows and access AI tools",
     "main": "./dist/lib.js",
     "types": "./dist/lib.d.ts",
@@ -24,7 +24,7 @@
     "dependencies": {
         "@n8n-as-code/manager-adapter": "2.0.4",
         "@n8n-as-code/n8n-manager-core": "^0.7.1",
-        "@n8n-as-code/skills": "2.2.3",
+        "@n8n-as-code/skills": "2.2.4",
         "@n8n-as-code/telemetry": "2.0.1",
         "@n8n-as-code/transformer": "2.0.0",
         "@n8n-as-code/workflow-core": "2.0.0",

@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Community marketplace for n8n-as-code Claude Code plugin releases. The plugin name stays user-facing as n8n-as-code; n8nac is kept as the CLI alias.",
-    "version": "2.2.3"
+    "version": "2.2.4"
   },
   "plugins": [
     {
       "name": "n8n-as-code",
       "source": "./plugins/claude/n8n-as-code",
       "description": "Expert n8n workflow engineering skills for Claude Code. Uses n8n-manager, the n8nac CLI, and the n8n-as-code knowledge base to manage instances, search nodes, inspect schemas, and generate TypeScript workflows.",
-      "version": "2.2.3",
+      "version": "2.2.4",
       "author": {
         "name": "Etienne Lescot"
       },
