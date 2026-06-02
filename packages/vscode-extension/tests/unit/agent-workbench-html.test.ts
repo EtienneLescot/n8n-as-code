@@ -237,10 +237,12 @@ test('Agent runtime: non-final assistant phases do not end workbench runs', () =
 
     assert.ok(source.includes('createNonFinalAssistantPhaseRecoveryMiddleware'), 'Runtime must install a DeepAgents middleware for non-final assistant phases');
     assert.ok(source.includes('afterModel'), 'Recovery must use the LangChain afterModel hook');
-    assert.ok(source.includes("canJumpTo: ['model']"), 'Recovery must declare the LangChain model jump target');
+    assert.ok(source.includes("canJumpTo: ['model', 'end']"), 'Recovery must declare the LangChain model and exhaustion jump targets');
     assert.ok(source.includes("jumpTo: 'model'"), 'Recovery must continue the same turn through the LangChain router');
+    assert.ok(source.includes("jumpTo: 'end'"), 'Recovery exhaustion must end with a controlled terminal assistant message');
     assert.ok(source.includes('new RemoveMessage'), 'Recovery must remove the terminal-looking assistant message before routing');
     assert.ok(source.includes('N8N_NON_FINAL_ASSISTANT_PHASE_RECOVERY'), 'Recovery prompt must be marked so repeated attempts can be bounded');
+    assert.ok(source.includes('isInternalRecoveryPrefix'), 'Streaming gates must hide partial internal recovery markers');
     assert.ok(source.includes('isNonFinalAssistantPhaseMessage'), 'Runtime must classify assistant messages by protocol phase');
     assert.ok(source.includes('getAssistantPhase'), 'Runtime must read provider assistant phase metadata');
     assert.ok(source.includes('isTerminalAssistantPhase'), 'Runtime must distinguish terminal and non-terminal assistant phases');
@@ -343,8 +345,9 @@ test('Agent runtime: invalid tool-call recovery stays hidden from the Workbench'
     const source = fs.readFileSync(path.join(__dirname, '../../src/services/agent-runtime-controller.ts'), 'utf8');
 
     assert.ok(source.includes('isInternalRecoveryText'), 'Must identify internal recovery prompts');
-    assert.ok(source.includes('pendingVisibleText.startsWith(INVALID_TOOL_CALL_RECOVERY_MARKER)'), 'Event projection must suppress recovery prompts before rendering');
-    assert.ok(source.includes('pendingText.startsWith(INVALID_TOOL_CALL_RECOVERY_MARKER)'), 'Message text projection must suppress recovery prompts before rendering');
+    assert.ok(source.includes('isInternalRecoveryPrefix(pendingVisibleText)'), 'Event projection must suppress recovery prompts before rendering');
+    assert.ok(source.includes('isInternalRecoveryPrefix(pendingText)'), 'Message text projection must suppress recovery prompts before rendering');
+    assert.ok(source.includes('NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER.startsWith(trimmed)'), 'Recovery prefix checks must include non-final assistant phase prompts');
     assert.ok(source.includes('if (this.isInternalRecoveryText(value)) return'), 'Sanitization must never return internal recovery text as an assistant answer');
 });
 

@@ -1712,11 +1712,11 @@ export class AgentRuntimeController implements vscode.Disposable {
             if (!delta || isInternalRecoveryMessage) return;
             if (!textVisibilityResolved) {
                 pendingVisibleText += delta;
-                if (INVALID_TOOL_CALL_RECOVERY_MARKER.startsWith(pendingVisibleText) && pendingVisibleText.length < INVALID_TOOL_CALL_RECOVERY_MARKER.length) {
+                if (this.isInternalRecoveryPrefix(pendingVisibleText) && !this.isInternalRecoveryText(pendingVisibleText)) {
                     return;
                 }
                 textVisibilityResolved = true;
-                if (pendingVisibleText.startsWith(INVALID_TOOL_CALL_RECOVERY_MARKER)) {
+                if (this.isInternalRecoveryText(pendingVisibleText)) {
                     isInternalRecoveryMessage = true;
                     pendingVisibleText = '';
                     blockText.clear();
@@ -1883,11 +1883,11 @@ export class AgentRuntimeController implements vscode.Disposable {
                 }
                 if (!textVisibilityResolved) {
                     pendingText += delta;
-                    if (INVALID_TOOL_CALL_RECOVERY_MARKER.startsWith(pendingText) && pendingText.length < INVALID_TOOL_CALL_RECOVERY_MARKER.length) {
+                    if (this.isInternalRecoveryPrefix(pendingText) && !this.isInternalRecoveryText(pendingText)) {
                         continue;
                     }
                     textVisibilityResolved = true;
-                    if (pendingText.startsWith(INVALID_TOOL_CALL_RECOVERY_MARKER)) {
+                    if (this.isInternalRecoveryText(pendingText)) {
                         isInternalRecoveryMessage = true;
                         pendingText = '';
                         continue;
@@ -2228,15 +2228,16 @@ export class AgentRuntimeController implements vscode.Disposable {
 
     private createNonFinalAssistantPhaseRecoveryMiddleware(langchain: any, messagesModule: any): unknown {
         const createMiddleware = langchain?.createMiddleware;
+        const AIMessage = messagesModule?.AIMessage;
         const HumanMessage = messagesModule?.HumanMessage;
         const RemoveMessage = messagesModule?.RemoveMessage;
-        if (typeof createMiddleware !== 'function' || typeof HumanMessage !== 'function' || typeof RemoveMessage !== 'function') {
+        if (typeof createMiddleware !== 'function' || typeof AIMessage !== 'function' || typeof HumanMessage !== 'function' || typeof RemoveMessage !== 'function') {
             return undefined;
         }
         return createMiddleware({
             name: 'N8nNonFinalAssistantPhaseRecovery',
             afterModel: {
-                canJumpTo: ['model'],
+                canJumpTo: ['model', 'end'],
                 hook: (state: any) => {
                     const messages = Array.isArray(state?.messages) ? state.messages : [];
                     const lastMessage = messages[messages.length - 1];
@@ -2244,7 +2245,18 @@ export class AgentRuntimeController implements vscode.Disposable {
                     const recoveryAttempts = this.countRecentRecoveryAttempts(messages, NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER);
                     if (recoveryAttempts >= 2) {
                         this.outputChannel.appendLine('[n8n-agent] Stopping non-final assistant phase recovery after two attempts.');
-                        return undefined;
+                        const lastMessageId = this.getMessageId(lastMessage);
+                        return {
+                            messages: [
+                                ...(lastMessageId ? [new RemoveMessage({ id: lastMessageId })] : []),
+                                new AIMessage({
+                                    content: 'I could not complete the task after repeated non-final assistant phases. Please try again or rephrase the request.',
+                                    additional_kwargs: { phase: 'final' },
+                                    response_metadata: { phase: 'final' },
+                                }),
+                            ],
+                            jumpTo: 'end',
+                        };
                     }
                     const phase = this.getAssistantPhase(lastMessage) || 'unknown';
                     this.outputChannel.appendLine(`[n8n-agent-debug] recovering non-final assistant phase=${phase} attempt=${recoveryAttempts + 1}`);
@@ -2794,6 +2806,12 @@ export class AgentRuntimeController implements vscode.Disposable {
         const trimmed = value.trimStart();
         return trimmed.startsWith(INVALID_TOOL_CALL_RECOVERY_MARKER)
             || trimmed.startsWith(NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER);
+    }
+
+    private isInternalRecoveryPrefix(value: string): boolean {
+        const trimmed = value.trimStart();
+        return INVALID_TOOL_CALL_RECOVERY_MARKER.startsWith(trimmed)
+            || NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER.startsWith(trimmed);
     }
 
     private extractProviderOutputItemsText(message: Record<string, unknown>): string {
