@@ -237,6 +237,11 @@ export class AgentWorkbenchWebview {
             return;
         }
 
+        if (payload.type === 'open-external' && typeof payload.url === 'string') {
+            await this.openExternalUrl(payload.url);
+            return;
+        }
+
         if (payload.type === 'agent.send' || payload.type === 'agent.queue' || payload.type === 'agent.steer') {
             const nodeContexts = this.sanitizeNodeContexts(payload.nodeContexts) || this.sanitizeNodeContexts(payload.nodeContext) || this._nodeContexts;
             this._outputChannel.appendLine(`[n8n-agent-debug] ${payload.type} workflowId=${this._workflow?.id || 'none'} workflowFilePath=${this._workflowFilePath || 'none'} sessionId=${typeof payload.sessionId === 'string' ? payload.sessionId : 'none'}`);
@@ -807,5 +812,23 @@ export class AgentWorkbenchWebview {
             workflowReloadUrl: this._workflowReloadUrl,
             providerModelLabel: this._providerModelLabel,
         });
+    }
+
+    private async openExternalUrl(url: string): Promise<void> {
+        let uri: vscode.Uri;
+        try {
+            uri = vscode.Uri.parse(url);
+        } catch {
+            return;
+        }
+        const scheme = uri.scheme.toLowerCase();
+        if (scheme !== 'http' && scheme !== 'https') {
+            return;
+        }
+        try {
+            await vscode.env.openExternal(uri);
+        } catch (error) {
+            console.error('[AgentWorkbench] Open external URL error', error);
+        }
     }
 }

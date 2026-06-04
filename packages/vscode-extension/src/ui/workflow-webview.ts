@@ -38,6 +38,9 @@ export class WorkflowWebview {
                 void this._onClipboardPasteRequest?.(this._panel, message.grantToken)
                     ?.catch(e => console.error('[Webview] Clipboard paste handler error', e));
             }
+            if (message.type === 'open-external' && typeof message.url === 'string') {
+                await this.openExternalUrl(message.url);
+            }
         }, null, this._disposables);
     }
 
@@ -107,5 +110,23 @@ export class WorkflowWebview {
 
     private getHtmlForWebview(workflowId: string, url: string) {
         return buildWebviewHtml(workflowId, url);
+    }
+
+    private async openExternalUrl(url: string): Promise<void> {
+        let uri: vscode.Uri;
+        try {
+            uri = vscode.Uri.parse(url);
+        } catch {
+            return;
+        }
+        const scheme = uri.scheme.toLowerCase();
+        if (scheme !== 'http' && scheme !== 'https') {
+            return;
+        }
+        try {
+            await vscode.env.openExternal(uri);
+        } catch (error) {
+            console.error('[Webview] Open external URL error', error);
+        }
     }
 }

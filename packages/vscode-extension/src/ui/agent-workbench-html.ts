@@ -3043,6 +3043,12 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 return;
             }
 
+            if (message.type === 'n8n-open-external' && typeof message.url === 'string') {
+                if (!isWorkflowFrameEvent(event)) return;
+                vscode.postMessage({ type: 'open-external', url: message.url });
+                return;
+            }
+
             if (message.type === 'n8n-paste-request') {
                 if (!isWorkflowFrameEvent(event)) return;
                 const now = Date.now();

@@ -791,6 +791,54 @@ export class ProxyService {
     return value.replace(/\\s+/g, " ").trim();
   }
 
+  function isPopupTarget(target) {
+    var normalized = cleanText(target || "_blank").toLowerCase();
+    return !normalized || normalized === "_blank" || normalized === "_new";
+  }
+
+  function isAnchorPopupTarget(target) {
+    var normalized = cleanText(target).toLowerCase();
+    return normalized === "_blank" || normalized === "_new";
+  }
+
+  function postOpenExternal(url, target) {
+    if (url === undefined || url === null) return false;
+    url = String(url);
+    if (!url) return false;
+    try {
+      var absoluteUrl = new URL(url, window.location.href);
+      if (absoluteUrl.protocol !== "http:" && absoluteUrl.protocol !== "https:") return false;
+      window.parent.postMessage({
+        type: "n8n-open-external",
+        build: N8NAC_BRIDGE_BUILD,
+        url: absoluteUrl.toString(),
+        target: typeof target === "string" ? target : ""
+      }, "*");
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function installPopupBridge() {
+    var originalWindowOpen = window.open;
+    window.open = function(url, target, features) {
+      if (isPopupTarget(target) && postOpenExternal(url, target)) return null;
+      return originalWindowOpen.apply(window, arguments);
+    };
+
+    document.addEventListener("click", function(e) {
+      var target = e.target;
+      var anchor = target && target.closest ? target.closest("a[href]") : null;
+      if (!anchor || !isAnchorPopupTarget(anchor.getAttribute("target") || "")) return;
+      if (anchor.hasAttribute("download")) return;
+      if (!postOpenExternal(anchor.getAttribute("href") || "", anchor.getAttribute("target") || "")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    }, true);
+  }
+
   function coerceNode(value) {
     var record = asRecord(value);
     if (!record) return null;
@@ -1142,6 +1190,7 @@ export class ProxyService {
 
   function installNodeDetailObserver() {
     postBridgeReady();
+    installPopupBridge();
     if (!NODE_BRIDGE_ENABLED) return;
     document.addEventListener("pointerdown", function(e) {
       var node = readNodeFromElement(e.target);
