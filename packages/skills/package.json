@@ -1,6 +1,6 @@
 {
     "name": "@n8n-as-code/skills",
-    "version": "2.2.4",
+    "version": "2.2.5",
     "description": "AI Agent skills library for n8nac (internal — use npx n8nac skills)",
     "type": "module",
     "license": "MIT",
@@ -49,5 +49,5 @@
     "publishConfig": {
         "access": "public"
     },
-    "n8nVersion": "2.23.2"
+    "n8nVersion": "2.23.3"
 }

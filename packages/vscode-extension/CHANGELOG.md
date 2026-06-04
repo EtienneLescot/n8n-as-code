@@ -1,5 +1,19 @@
 # n8n-as-code
 
+## [2.26.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.24.0...n8n-as-code@v2.26.0) (2026-06-04)
+
+### Bug Fixes
+
+* **vscode-extension:** address workbench live test review ([c768593](https://github.com/EtienneLescot/n8n-as-code/commit/c768593d80cef6bbe2e1e53c64d766da0f833453))
+* **vscode-extension:** harden agent recovery and filesystem sandboxing ([faa0b95](https://github.com/EtienneLescot/n8n-as-code/commit/faa0b95f68b2e2729336a1e3bec67ccd333935e9))
+* **vscode-extension:** improve assistant phase recovery and codex stream handling ([83442ca](https://github.com/EtienneLescot/n8n-as-code/commit/83442caf53fbce9c40d5d369e776e8cc55e65fcb))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.2.4 to 2.2.5
+    * n8nac bumped from 2.3.4 to 2.3.5
+
 ## [2.24.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.22.0...n8n-as-code@v2.24.0) (2026-06-02)
 
 ### Dependencies
