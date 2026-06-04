@@ -460,6 +460,12 @@ function readFirstEnv(keys: string[]): string | undefined {
 }
 
 function findAuthoredWorkflowPath(workspaceRoot: string, result: unknown): string | undefined {
+  const resolvedWorkspaceRoot = path.resolve(workspaceRoot);
+  const isWithinWorkspace = (candidatePath: string): boolean => {
+    const relative = path.relative(resolvedWorkspaceRoot, candidatePath);
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+  };
+
   const resultPath = result && typeof result === 'object' && typeof (result as { workflowContext?: { filePath?: unknown } }).workflowContext?.filePath === 'string'
     ? (result as { workflowContext: { filePath: string } }).workflowContext.filePath
     : undefined;
@@ -469,8 +475,8 @@ function findAuthoredWorkflowPath(workspaceRoot: string, result: unknown): strin
     ...listWorkflowFiles(path.join(workspaceRoot, 'workflows')).filter((filePath) => !filePath.endsWith('recherche-annonces-leboncoin.workflow.ts')),
   ].filter((candidate): candidate is string => Boolean(candidate));
   return candidates.find((candidate) => {
-    const resolved = path.isAbsolute(candidate) ? candidate : path.join(workspaceRoot, candidate);
-    return fs.existsSync(resolved) && resolved.endsWith('.workflow.ts') ? resolved : undefined;
+    const resolved = path.resolve(path.isAbsolute(candidate) ? candidate : path.join(workspaceRoot, candidate));
+    return fs.existsSync(resolved) && resolved.endsWith('.workflow.ts') && isWithinWorkspace(resolved) ? resolved : undefined;
   });
 }
 
@@ -560,7 +566,7 @@ function liveDiagnostics(result: unknown, messages: AgentWorkbenchMessage[], out
     issues,
     workflowPath,
     workflowExists: Boolean(workflowPath && fs.existsSync(workflowPath)),
-    workflowExcerpt: workflowContent?.slice(0, 4000),
+    workflowContentLength: workflowContent?.length ?? 0,
     operationEvents,
     lastStreamEvent: streamEvents[streamEvents.length - 1],
     lastMessage: messages[messages.length - 1],
