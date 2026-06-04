@@ -32,6 +32,28 @@ test('Agent Workbench HTML: relays workflow iframe popup requests', () => {
     assert.ok(html.includes("vscode.postMessage({ type: 'open-external', url: message.url });"), 'Must ask extension host to open popup URLs externally');
 });
 
+test('Agent Workbench HTML: split view has a persistent resizable divider', () => {
+    const { buildAgentWorkbenchHtml } = require('../../src/ui/agent-workbench-html.js');
+    const html: string = buildAgentWorkbenchHtml({
+        workflowId: 'wf-1',
+        workflowName: 'Workflow 1',
+        workflowUrl: 'http://localhost:5678/workflow/wf-1',
+        providerModelLabel: 'openai / gpt-5.4',
+    });
+
+    assert.ok(html.includes('id="split-resizer"'), 'Must render a divider between chat and workflow');
+    assert.ok(html.includes('role="separator"'), 'Divider must expose separator semantics');
+    assert.ok(html.includes('aria-orientation="vertical"'), 'Divider must describe horizontal resizing');
+    assert.ok(html.includes('var(--agent-chat-width, .95fr)'), 'Grid must use a CSS variable for the chat column width');
+    assert.ok(html.includes('n8n.agentWorkbench.chatSplitRatio'), 'Split ratio must persist across workbench reloads');
+    assert.ok(html.includes("splitResizer.addEventListener('pointerdown'"), 'Divider must support pointer resizing');
+    assert.ok(html.includes("splitResizer.addEventListener('keydown'"), 'Divider must support keyboard resizing');
+    assert.ok(html.includes("event.key === 'ArrowLeft'"), 'Keyboard resizing must shrink the chat panel');
+    assert.ok(html.includes("event.key === 'ArrowRight'"), 'Keyboard resizing must expand the chat panel');
+    assert.ok(html.includes("workbench.classList.toggle('resizing', active)"), 'Resizing must set a state class that protects iframe interactions');
+    assert.ok(html.includes('initializeSplitResizer();'), 'Workbench must initialize split sizing on load');
+});
+
 test('Agent Workbench HTML: forwards node detail context to the agent', () => {
     const { buildAgentWorkbenchHtml } = require('../../src/ui/agent-workbench-html.js');
     const html: string = buildAgentWorkbenchHtml({
