@@ -379,8 +379,11 @@ test('Parent webview HTML: relays iframe popup requests after origin validation'
     const html: string = buildWebviewHtml('wf-1', 'http://localhost:5678/workflow/wf-1');
 
     assert.ok(html.includes("message.type === 'n8n-open-external'"), 'Must handle popup bridge messages');
+    assert.ok(html.includes('function isActiveFrameEvent(event)'), 'Must centralize active iframe validation for popup relays');
+    assert.ok(html.includes('event.origin === iframeOrigin'), 'Must validate iframe origin before relaying popup URLs');
+    assert.ok(html.includes('event.source === activeFrame.contentWindow'), 'Must reject popup requests from stale hidden iframes');
+    assert.ok(html.includes("if (!isActiveFrameEvent(event)) return;"), 'Must require an active iframe event before relaying popup URLs');
     assert.ok(html.includes("vscode.postMessage({ type: 'open-external', url: message.url });"), 'Must relay popup URL to the extension host');
-    assert.ok(html.includes("if (event.origin !== iframeOrigin) return;\n                        vscode.postMessage({ type: 'open-external', url: message.url });"), 'Must validate iframe origin before relaying popup URLs');
 });
 
 test('Parent webview HTML: does not embed a static NONCE', () => {

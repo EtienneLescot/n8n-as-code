@@ -216,6 +216,10 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
                     return true;
                 }
 
+                function isActiveFrameEvent(event) {
+                    return event.origin === iframeOrigin && event.source === activeFrame.contentWindow;
+                }
+
                 window.addEventListener('message', (event) => {
                     const message = event.data;
                     if (!message || typeof message !== 'object') return;
@@ -230,7 +234,7 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
 
                     // Popup bridge: iframe requests an external browser window.
                     if (message.type === 'n8n-open-external' && typeof message.url === 'string') {
-                        if (event.origin !== iframeOrigin) return;
+                        if (!isActiveFrameEvent(event)) return;
                         vscode.postMessage({ type: 'open-external', url: message.url });
                         return;
                     }

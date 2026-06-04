@@ -43,9 +43,11 @@ test('Agent Workbench HTML: split view has a persistent resizable divider', () =
 
     assert.ok(html.includes('id="split-resizer"'), 'Must render a divider between chat and workflow');
     assert.ok(html.includes('role="separator"'), 'Divider must expose separator semantics');
-    assert.ok(html.includes('aria-orientation="vertical"'), 'Divider must describe horizontal resizing');
+    assert.ok(html.includes('aria-orientation="vertical"'), 'Divider must be oriented vertically for left-right panel resizing');
     assert.ok(html.includes('var(--agent-chat-width, .95fr)'), 'Grid must use a CSS variable for the chat column width');
     assert.ok(html.includes('n8n.agentWorkbench.chatSplitRatio'), 'Split ratio must persist across workbench reloads');
+    assert.ok(html.includes("resizerStyle.display === 'none'"), 'Hidden responsive divider must not overwrite the active split ratio');
+    assert.ok(html.includes('currentChatSplitRatio = readStoredChatSplitRatio();'), 'Stored split ratio must survive reloads that start in stacked layout');
     assert.ok(html.includes("splitResizer.addEventListener('pointerdown'"), 'Divider must support pointer resizing');
     assert.ok(html.includes("splitResizer.addEventListener('keydown'"), 'Divider must support keyboard resizing');
     assert.ok(html.includes("event.key === 'ArrowLeft'"), 'Keyboard resizing must shrink the chat panel');
@@ -71,6 +73,7 @@ test('Agent Workbench HTML: forwards node detail context to the agent', () => {
     assert.ok(html.includes("message.type === 'n8n-node-detail-opened'"), 'Must handle node detail messages from iframe');
     assert.ok(html.includes("type: 'agent.nodeDetailChanged'"), 'Must forward node context to extension host');
     assert.ok(html.includes('nodeContexts: currentNodeContexts'), 'Must include node contexts when sending prompts');
+    assert.ok(!html.includes("event.origin === 'null'"), 'Workflow iframe messages must not trust null origins');
 });
 
 test('Agent Workbench HTML: context badge removal subtracts persisted context', () => {

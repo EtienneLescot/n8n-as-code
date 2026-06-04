@@ -1501,6 +1501,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
 
         function getSplitMetrics() {
             if (!workbench || !splitResizer) return null;
+            const resizerStyle = window.getComputedStyle(splitResizer);
+            if (resizerStyle.display === 'none') return null;
             const rect = workbench.getBoundingClientRect();
             const resizerWidth = splitResizer.offsetWidth || 7;
             const availableWidth = Math.max(0, rect.width - resizerWidth);
@@ -1554,7 +1556,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
 
         function initializeSplitResizer() {
             if (!splitResizer || !workbench) return;
-            applyChatSplitRatio(readStoredChatSplitRatio(), false);
+            currentChatSplitRatio = readStoredChatSplitRatio();
+            applyChatSplitRatio(currentChatSplitRatio, false);
 
             splitResizer.addEventListener('pointerdown', (event) => {
                 event.preventDefault();
@@ -1728,7 +1731,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
 
         function isWorkflowFrameEvent(event) {
             if (!frame || event.source !== frame.contentWindow) return false;
-            return event.origin === iframeOrigin || event.origin === 'null';
+            return event.origin === iframeOrigin;
         }
 
         function reloadWorkflowFrame() {
