@@ -298,9 +298,12 @@ test('Agent runtime: non-final assistant phases do not end workbench runs', () =
     assert.ok(source.includes('isInternalRecoveryPrefix'), 'Streaming gates must hide partial internal recovery markers');
     assert.ok(source.includes('isNonFinalAssistantPhaseMessage'), 'Runtime must classify assistant messages by protocol phase');
     assert.ok(source.includes('getAssistantPhase'), 'Runtime must read provider assistant phase metadata');
+    assert.ok(source.includes('hasOpenAiAccountTerminalAssistantFinishReason'), 'Runtime must accept OpenAI account stop finish reasons as terminal when no phase metadata is available');
+    assert.ok(source.includes('hasOpenAiAccountProviderMetadata'), 'Finish-reason fallback must be scoped to the OpenAI account/Codex provider');
     assert.ok(source.includes('isTerminalAssistantPhase'), 'Runtime must distinguish terminal and non-terminal assistant phases');
     assert.ok(source.includes("normalized === 'final' || normalized === 'final_answer'"), 'Only final phases should be accepted as terminal no-tool responses');
-    assert.ok(source.includes('if (!phase) return !this.extractAssistantMessageText(message).trim() || this.hasIncompleteAgentTodos(state);'), 'No-tool assistant messages without terminal phase must not silently end while todos are incomplete');
+    assert.ok(source.includes('if (this.hasIncompleteAgentTodos(state)) return true;'), 'Incomplete DeepAgents todos must always make no-tool assistant text non-terminal');
+    assert.ok(source.includes('return !this.hasOpenAiAccountTerminalAssistantFinishReason(message, provider);'), 'OpenAI account stop finish reasons may only end empty no-phase messages after incomplete todos are ruled out');
     assert.ok(source.includes('private hasIncompleteAgentTodos'), 'Runtime must use DeepAgents todo state as a non-terminal completion signal');
     assert.ok(source.includes('The todo list shows unfinished work'), 'Recovery prompt must explain unfinished todo-driven continuation');
     assert.ok(source.includes('Assistant phases are part of the runtime contract'), 'System prompt must describe the phase contract');
@@ -362,6 +365,7 @@ test('Agent runtime: Codex stream keeps parallel tool calls separated', () => {
     assert.ok(source.includes('index: index') || source.includes('index,'), 'Native LangChain tool-call chunks must receive distinct indexes');
     assert.ok(source.includes('additional_kwargs'), 'Provider additional_kwargs tool calls must receive matching indexes');
     assert.ok(source.includes('createOpenAiAccountLanguageModel'), 'The index mapping must live inside the local Codex LangChain model');
+    assert.ok(!source.includes("phase: 'final'"), 'Codex text chunks must not hard-code final phase because progress text can be non-terminal');
 });
 
 test('Agent runtime: Codex continuations keep tool call ids stable', () => {
@@ -415,8 +419,10 @@ test('Agent runtime: invalid tool-call recovery stays hidden from the Workbench'
     const source = fs.readFileSync(path.join(__dirname, '../../src/services/agent-runtime-controller.ts'), 'utf8');
 
     assert.ok(source.includes('isInternalRecoveryText'), 'Must identify internal recovery prompts');
+    assert.ok(source.includes('await callbacks.onStreamEvent({ type: \'text-delta\', delta });'), 'Workbench must stream visible assistant text progressively');
     assert.ok(source.includes('isInternalRecoveryPrefix(pendingVisibleText)'), 'Event projection must suppress recovery prompts before rendering');
     assert.ok(source.includes('isInternalRecoveryPrefix(pendingText)'), 'Message text projection must suppress recovery prompts before rendering');
+    assert.ok(source.includes('!this.messageHasToolCalls(output) && !this.isInternalRecoveryText(finalText)'), 'Message text projection must suppress recovery prompts and text attached to tool-call messages before rendering');
     assert.ok(source.includes('NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER.startsWith(trimmed)'), 'Recovery prefix checks must include non-final assistant phase prompts');
     assert.ok(source.includes('if (this.isInternalRecoveryText(value)) return'), 'Sanitization must never return internal recovery text as an assistant answer');
 });

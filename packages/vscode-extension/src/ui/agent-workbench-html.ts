@@ -9,7 +9,20 @@ export interface AgentWorkbenchHtmlInput {
     providerModelLabel: string;
 }
 
-export const AGENT_WORKBENCH_BUILD = 'awb-2026.05.21.1-last-active-session';
+export function createAgentWorkbenchBuildStamp(date = new Date()): string {
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return [
+        'awb',
+        date.getFullYear(),
+        pad(date.getMonth() + 1),
+        pad(date.getDate()),
+        pad(date.getHours()),
+        pad(date.getMinutes()),
+        pad(date.getSeconds()),
+    ].join('-');
+}
+
+export const AGENT_WORKBENCH_BUILD = createAgentWorkbenchBuildStamp();
 
 function escapeHtml(value: string): string {
     return value
@@ -37,7 +50,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
     const initialWorkflowLabel = hasWorkflow ? safeWorkflowName : 'No workflow context';
     const safeWorkflowUrl = escapeHtml(input.workflowUrl || '');
     const safeProviderModelLabel = escapeHtml(input.providerModelLabel);
-    const safeWorkbenchBuild = escapeHtml(AGENT_WORKBENCH_BUILD);
+    const safeWorkbenchBuild = escapeHtml(createAgentWorkbenchBuildStamp());
     const workflowIdJs = JSON.stringify(input.workflowId);
     const workflowNameJs = JSON.stringify(input.workflowName || input.workflowId || 'Current workflow');
     const workflowFilenameJs = JSON.stringify(input.workflowFilename || '');

@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run n8n VS Code Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/packages/vscode-extension",
+        "${workspaceFolder}/packages/vscode-extension/test-workspace"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/packages/vscode-extension/out/**/*.js"
+      ],
+      "preLaunchTask": "build vscode extension"
+    }
+  ]
+}

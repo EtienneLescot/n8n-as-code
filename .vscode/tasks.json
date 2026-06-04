@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build vscode extension",
+      "type": "shell",
+      "command": "npm run build --workspace=packages/vscode-extension",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": "$tsc"
+    }
+  ]
+}

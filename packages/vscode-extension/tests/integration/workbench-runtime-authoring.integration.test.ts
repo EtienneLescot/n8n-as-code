@@ -16,6 +16,13 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 dotenv.config({ path: path.join(repoRoot, '.env.test'), quiet: true });
 
 const TARGET_WORKFLOW = 'workflows/dev/recherche-annonces-multi-plateformes.workflow.ts';
+const OPEN_QUESTION_WORKFLOW = 'workflows/dev/recherche-annonces-leboncoin.workflow.ts';
+const OPEN_QUESTION_PROMPT = 'Peux-tu m’expliquer ce workflow et le nœud Form Trigger ? Je veux comprendre le rôle du nœud, le flux des données et les points d’attention si je modifie ce workflow.';
+const OPEN_QUESTION_WORKFLOW_OVERRIDE = process.env.N8N_AGENT_WORKBENCH_OPEN_QUESTION_WORKFLOW || OPEN_QUESTION_WORKFLOW;
+const OPEN_QUESTION_PROMPT_OVERRIDE = process.env.N8N_AGENT_WORKBENCH_OPEN_QUESTION_PROMPT || OPEN_QUESTION_PROMPT;
+const OPEN_QUESTION_TIMEOUT_MS = readNumberEnv('N8N_AGENT_WORKBENCH_OPEN_QUESTION_TIMEOUT_MS', 240_000);
+const OPEN_QUESTION_MAX_STREAM_CHARS = readNumberEnv('N8N_AGENT_WORKBENCH_OPEN_QUESTION_MAX_STREAM_CHARS', 24_000);
+const OPEN_QUESTION_MAX_FINAL_CHARS = readNumberEnv('N8N_AGENT_WORKBENCH_OPEN_QUESTION_MAX_FINAL_CHARS', 12_000);
 const EXACT_AUTHORING_PROMPT = `Crée un workflow TypeScript n8n-as-code similaire à \`recherche-annonces-leboncoin\`: un moteur interactif de recherche d’annonces pertinentes multi-plateformes.
 
 Objectif:
@@ -166,7 +173,7 @@ test('workbench runtime live provider generates a validated workflow', {
   timeout: 600_000,
 }, async (t) => {
   const provider = chooseLiveProvider();
-  const apiKey = readFirstEnv(liveProviderEnvKeys(provider));
+  const apiKey = readFirstEnv(liveProviderEnvKeys(provider)) || readLiveProviderFallbackSecret(provider);
   if (!apiKey) {
     t.skip(`Missing API key for live provider ${provider}`);
     return;
@@ -220,6 +227,111 @@ test('workbench runtime live provider generates a validated workflow', {
     assert.equal(postedMessages.some((message) => message.type === 'agent.error'), false, liveDiagnostics(result, postedMessages, outputLines, workflowPath, workflowContent, issues));
     assert.ok(workflowPath && fs.existsSync(workflowPath), liveDiagnostics(result, postedMessages, outputLines, workflowPath, workflowContent, issues));
     assert.deepEqual(issues, [], liveDiagnostics(result, postedMessages, outputLines, workflowPath, workflowContent, issues));
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('workbench runtime live provider answers an open workflow/node question without runaway output', {
+  skip: process.env.N8N_AGENT_WORKBENCH_LIVE_OPEN_QUESTION !== '1',
+  timeout: Math.max(OPEN_QUESTION_TIMEOUT_MS + 60_000, 300_000),
+}, async (t) => {
+  const provider = chooseLiveProvider();
+  const apiKey = readFirstEnv(liveProviderEnvKeys(provider)) || readLiveProviderFallbackSecret(provider);
+  if (!apiKey && providerRequiresLiveSecret(provider)) {
+    t.skip(`Missing credential for live provider ${provider}`);
+    return;
+  }
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-workbench-live-open-question-'));
+  const storageDir = path.join(tempDir, '.storage');
+  const workspaceRoot = path.join(tempDir, 'workspace');
+  const workflowPath = path.join(workspaceRoot, OPEN_QUESTION_WORKFLOW_OVERRIDE);
+  const outputLines: string[] = [];
+  const postedMessages: AgentWorkbenchMessage[] = [];
+  const finalResponses: string[] = [];
+  let streamedResponseChars = 0;
+  let stopReason: string | undefined;
+
+  try {
+    createWorkbenchWorkspace(workspaceRoot);
+    const originalWorkflowContent = fs.readFileSync(workflowPath, 'utf8');
+    const context = createExtensionContext(storageDir, {
+      globalState: {
+        'n8n.agent.settingsManaged': true,
+        'n8n.agent.provider': provider,
+        'n8n.agent.model': process.env.N8N_AGENT_WORKBENCH_LIVE_MODEL || undefined,
+        'n8n.agent.baseUrl': process.env.N8N_AGENT_WORKBENCH_LIVE_BASE_URL || undefined,
+        'n8n.agent.reasoningEffort': process.env.N8N_AGENT_WORKBENCH_LIVE_REASONING_EFFORT || undefined,
+      },
+      secrets: apiKey ? {
+        [getAgentProviderSecretKey(provider)]: apiKey,
+      } : {},
+    });
+    const controller = new AgentRuntimeController(context, {
+      appendLine: (line: string) => outputLines.push(line),
+    } as any);
+    const startedAt = Date.now();
+    const postMessage = async (message: AgentWorkbenchMessage) => {
+      postedMessages.push(message);
+      if (message.type === 'agent.streamEvent') {
+        if (message.event.type === 'text-delta') {
+          streamedResponseChars += message.event.delta.length;
+        }
+        if (message.event.type === 'final') {
+          finalResponses.push(message.event.response);
+        }
+      }
+      if (!stopReason && streamedResponseChars > OPEN_QUESTION_MAX_STREAM_CHARS) {
+        stopReason = `streamed response exceeded ${OPEN_QUESTION_MAX_STREAM_CHARS} chars`;
+        await controller.stop(async (stopMessage) => {
+          postedMessages.push(stopMessage);
+          return true;
+        }, latestSessionId(postedMessages));
+      }
+      return true;
+    };
+
+    const result = await withTimeout(
+      controller.sendPrompt({
+        prompt: OPEN_QUESTION_PROMPT_OVERRIDE,
+        workspaceRoot,
+        workflowId: path.basename(OPEN_QUESTION_WORKFLOW_OVERRIDE, '.workflow.ts'),
+        workflowName: workflowNameFromFilename(OPEN_QUESTION_WORKFLOW_OVERRIDE),
+        workflowFilename: path.basename(OPEN_QUESTION_WORKFLOW_OVERRIDE),
+        workflowFilePath: workflowPath,
+        nodeContexts: [{ name: 'Form Trigger', type: 'n8n-nodes-base.formTrigger' }],
+      }, postMessage),
+      OPEN_QUESTION_TIMEOUT_MS,
+      async () => {
+        stopReason = `run exceeded ${OPEN_QUESTION_TIMEOUT_MS}ms`;
+        await controller.stop(postMessage, latestSessionId(postedMessages));
+      },
+    );
+    const elapsedMs = Date.now() - startedAt;
+    const finalResponse = finalResponses[finalResponses.length - 1] || '';
+    const diagnostics = () => liveOpenQuestionDiagnostics({
+      provider,
+      model: process.env.N8N_AGENT_WORKBENCH_LIVE_MODEL,
+      result,
+      elapsedMs,
+      stopReason,
+      streamedResponseChars,
+      finalResponse,
+      messages: postedMessages,
+      outputLines,
+    });
+
+    assert.equal(stopReason, undefined, diagnostics());
+    assert.equal(postedMessages.some((message) => message.type === 'agent.error'), false, diagnostics());
+    assert.equal(result.workflowChanged, false, diagnostics());
+    assert.equal(fs.readFileSync(workflowPath, 'utf8'), originalWorkflowContent, diagnostics());
+    assert.equal(finalResponses.length, 1, diagnostics());
+    assert.ok(finalResponse.trim().length > 0, diagnostics());
+    assert.ok(finalResponse.length <= OPEN_QUESTION_MAX_FINAL_CHARS, diagnostics());
+    assert.equal(outputLines.some((line) => line.includes('recovering non-final assistant phase=unknown')), false, diagnostics());
+    assert.match(finalResponse, /Form Trigger|form|workflow|flux|nœud|noeud/i, diagnostics());
+    assert.match(finalResponse, /workflow|flux|donn/i, diagnostics());
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -398,7 +510,40 @@ export class RechercheAnnoncesLeboncoinWorkflow {
   defineRouting() {}
 }
 `);
+  fs.writeFileSync(path.join(rootDir, 'workflows', 'dev', 'moteur-recherche-annonces-multi-plateformes.workflow.ts'), createMultiPlatformSearchWorkflowSource());
   fs.writeFileSync(path.join(rootDir, 'n8nac-config.json'), JSON.stringify({ version: 1, environments: {} }, null, 2));
+}
+
+function createMultiPlatformSearchWorkflowSource(): string {
+  return `import { workflow, node, links } from '@n8n-as-code/transformer';
+
+@workflow({ name: 'Moteur Recherche Annonces Multi Plateformes', active: false })
+export class MoteurRechercheAnnoncesMultiPlateformesWorkflow {
+  @node({ name: 'Form Trigger', type: 'n8n-nodes-base.formTrigger', version: 2, parameters: { formTitle: 'Recherche annonce', formFields: { values: [{ fieldLabel: 'Recherche libre', fieldType: 'textarea' }, { fieldLabel: 'Résultats maximum', fieldType: 'number' }] } } })
+  FormTrigger = {};
+
+  @node({ name: 'Extract Search Criteria', type: '@n8n/n8n-nodes-langchain.agent', version: 2, parameters: { promptType: 'define', text: 'Transforme la recherche libre en critères structurés.' } })
+  ExtractSearchCriteria = {};
+
+  @node({ name: 'Build Platform Queries', type: 'n8n-nodes-base.code', version: 2, parameters: { jsCode: 'return [{ json: { queries: [\"site:leboncoin.fr\", \"site:ebay.fr\", \"site:paruvendu.fr\"] } }];' } })
+  BuildPlatformQueries = {};
+
+  @node({ name: 'Fetch Search Results', type: 'n8n-nodes-base.httpRequest', version: 4, parameters: { method: 'GET', url: 'https://example.com/search' } })
+  FetchSearchResults = {};
+
+  @node({ name: 'Extract Candidate Ads', type: 'n8n-nodes-base.code', version: 2, parameters: { jsCode: 'return items.map((item) => ({ json: { title: item.json.title || \"Annonce\", url: item.json.url, platform: item.json.platform } }));' } })
+  ExtractCandidateAds = {};
+
+  @node({ name: 'Score Candidate Ads', type: '@n8n/n8n-nodes-langchain.agent', version: 2, parameters: { promptType: 'define', text: 'Score uniquement les annonces candidates fournies.' } })
+  ScoreCandidateAds = {};
+
+  @node({ name: 'Render Results Page', type: 'n8n-nodes-base.code', version: 2, parameters: { jsCode: 'return [{ json: { html: \"<html><body><h1>Résultats</h1></body></html>\" } }];' } })
+  RenderResultsPage = {};
+
+  @links()
+  defineRouting() {}
+}
+`;
 }
 
 function createExtensionContext(storageDir: string, seed: { globalState?: Record<string, unknown>; workspaceState?: Record<string, unknown>; secrets?: Record<string, string> } = {}): any {
@@ -440,6 +585,7 @@ function liveProviderEnvKeys(provider: string): string[] {
     case 'mistral': return ['MISTRAL_API_KEY', 'MISTRAL_LLM_API_KEY'];
     case 'google': return ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY'];
     case 'openrouter': return ['OPENROUTER_API_KEY', 'OPENROUTER_LLM_API_KEY'];
+    case 'openai-oauth': return ['N8N_AGENT_WORKBENCH_LIVE_OPENAI_OAUTH_TOKEN', 'N8N_AGENT_WORKBENCH_OPENAI_OAUTH_TOKEN', 'OPENAI_OAUTH_ACCESS_TOKEN', 'OPENAI_CODEX_ACCESS_TOKEN'];
     case 'openai-compatible': return ['OPENAI_COMPATIBLE_API_KEY', 'OPENAI_API_KEY'];
     default: return ['OPENAI_API_KEY', 'OPENAI_LLM_API_KEY', 'OPENAI_KEY'];
   }
@@ -448,8 +594,59 @@ function liveProviderEnvKeys(provider: string): string[] {
 function chooseLiveProvider(): string {
   const configured = process.env.N8N_AGENT_WORKBENCH_LIVE_PROVIDER?.trim();
   if (configured) return configured;
-  const candidates = ['google', 'openai', 'anthropic', 'mistral', 'openrouter', 'openai-compatible'];
+  const candidates = ['google', 'openai', 'anthropic', 'mistral', 'openrouter', 'openai-compatible', 'openai-oauth'];
   return candidates.find((provider) => Boolean(readFirstEnv(liveProviderEnvKeys(provider)))) || 'openai';
+}
+
+function providerRequiresLiveSecret(provider: string): boolean {
+  return provider !== 'openai-compatible' && provider !== 'openai-oauth';
+}
+
+function readLiveProviderFallbackSecret(provider: string): string | undefined {
+  if (provider !== 'openai-oauth') return undefined;
+  return readOpenAiAccountAccessTokenFromCodexAuth();
+}
+
+function readOpenAiAccountAccessTokenFromCodexAuth(): string | undefined {
+  const authPath = process.env.N8N_CODEX_AUTH_PATH || path.join(os.homedir(), '.codex', 'auth.json');
+  try {
+    const parsed = JSON.parse(fs.readFileSync(authPath, 'utf8')) as Record<string, any>;
+    const token = typeof parsed.tokens?.access_token === 'string'
+      ? parsed.tokens.access_token.trim()
+      : typeof parsed.access_token === 'string'
+        ? parsed.access_token.trim()
+        : '';
+    return token || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, onTimeout: () => Promise<void>): Promise<T> {
+  let timeout: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      void onTimeout().finally(() => reject(new Error(`Timed out after ${timeoutMs}ms`)));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+function readNumberEnv(name: string, fallback: number): number {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function workflowNameFromFilename(filePath: string): string {
+  return path.basename(filePath, '.workflow.ts')
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
 }
 
 function readFirstEnv(keys: string[]): string | undefined {
@@ -572,5 +769,41 @@ function liveDiagnostics(result: unknown, messages: AgentWorkbenchMessage[], out
     lastStreamEvent: streamEvents[streamEvents.length - 1],
     lastMessage: messages[messages.length - 1],
     outputLines,
+  }, null, 2);
+}
+
+function liveOpenQuestionDiagnostics(input: {
+  provider: string;
+  model?: string;
+  result: unknown;
+  elapsedMs: number;
+  stopReason?: string;
+  streamedResponseChars: number;
+  finalResponse: string;
+  messages: AgentWorkbenchMessage[];
+  outputLines: string[];
+}): string {
+  const streamEvents = input.messages
+    .filter((message): message is Extract<AgentWorkbenchMessage, { type: 'agent.streamEvent' }> => message.type === 'agent.streamEvent')
+    .map((message) => message.event);
+  const operationEvents = streamEvents
+    .filter((event) => event.type === 'operation')
+    .map((event) => `${event.label}:${event.status}:${event.category}:${event.summary || ''}`);
+  const finalEvents = streamEvents.filter((event) => event.type === 'final');
+  return JSON.stringify({
+    provider: input.provider,
+    model: input.model,
+    elapsedMs: input.elapsedMs,
+    stopReason: input.stopReason,
+    result: input.result,
+    streamedResponseChars: input.streamedResponseChars,
+    finalResponseChars: input.finalResponse.length,
+    finalResponseExcerpt: input.finalResponse.slice(0, 2000),
+    finalEventCount: finalEvents.length,
+    operationEvents,
+    errors: input.messages.filter((message) => message.type === 'agent.error'),
+    lastStreamEvent: streamEvents[streamEvents.length - 1],
+    lastMessage: input.messages[input.messages.length - 1],
+    outputLines: input.outputLines,
   }, null, 2);
 }

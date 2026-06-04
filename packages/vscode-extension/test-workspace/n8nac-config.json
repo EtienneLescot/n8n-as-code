@@ -1,0 +1,40 @@
+{
+  "version": 4,
+  "activeEnvironmentId": "managed-5450e932-2",
+  "environmentTargets": [
+    {
+      "id": "managed-5450e932",
+      "name": "managed",
+      "kind": "managed-instance",
+      "managedInstanceId": "managed-5450e932"
+    },
+    {
+      "id": "managed-dd72301a",
+      "name": "prod",
+      "kind": "managed-instance",
+      "managedInstanceId": "managed-dd72301a"
+    }
+  ],
+  "environments": [
+    {
+      "id": "managed-5450e932-2",
+      "name": "managed",
+      "syncSlug": "managed",
+      "environmentTargetId": "managed-5450e932",
+      "projectId": "personal",
+      "projectName": "Personal",
+      "workflowsPath": "workflows/managed",
+      "syncFolder": "workflows"
+    },
+    {
+      "id": "managed-dd72301a-2",
+      "name": "prod",
+      "syncSlug": "prod",
+      "environmentTargetId": "managed-dd72301a",
+      "projectId": "personal",
+      "projectName": "Personal",
+      "workflowsPath": "workflows/prod",
+      "syncFolder": "workflows"
+    }
+  ]
+}

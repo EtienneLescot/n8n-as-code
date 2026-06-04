@@ -7,6 +7,7 @@ import type {
   LanguageModelV1,
   LanguageModelV1CallOptions,
   LanguageModelV1CallWarning,
+  LanguageModelV1FinishReason,
   LanguageModelV1FunctionTool,
   LanguageModelV1FunctionToolCall,
   LanguageModelV1Prompt,
@@ -978,6 +979,7 @@ export function createOpenAiAccountLanguageModel(
                 const toolCall = extractCodexToolCallFromItem(item, toolCalls.size);
                 if (toolCall) toolCalls.set(toolCall.toolCallId, toolCall);
               }
+              assistantPhase = assistantPhase || extractCodexAssistantPhaseFromOutputItems(rawOutputItems);
               completed = true;
               break;
             } else if (type === 'response.failed') {
@@ -988,12 +990,13 @@ export function createOpenAiAccountLanguageModel(
           }
 
           finishReason = toolCalls.size > 0 ? 'tool-calls' : 'stop';
+          const resolvedAssistantPhase = assistantPhase || getCodexTerminalAssistantPhase(finishReason);
           controller.enqueue({
             type: 'finish',
             finishReason,
             usage: { promptTokens: inputTokens, completionTokens: outputTokens },
-            ...((responseId || assistantPhase || rawOutputItems)
-              ? { providerMetadata: { ...(responseId ? { responseId } : {}), ...(assistantPhase ? { assistantPhase } : {}), ...(rawOutputItems ? { rawOutputItems } : {}) } }
+            ...((responseId || resolvedAssistantPhase || rawOutputItems)
+              ? { providerMetadata: { ...(responseId ? { responseId } : {}), ...(resolvedAssistantPhase ? { assistantPhase: resolvedAssistantPhase } : {}), ...(rawOutputItems ? { rawOutputItems } : {}) } }
               : {}),
           });
           controller.close();
@@ -1171,6 +1174,7 @@ async function runOpenAiAccountCompletion(
           toolCalls.set(toolCall.toolCallId, toolCall);
         }
       }
+      assistantPhase = assistantPhase || extractCodexAssistantPhaseFromOutputItems(rawOutputItems);
     } else if (type === 'response.failed') {
       throw new Error(extractCodexSseErrorMessage(event) || 'Codex response failed.');
     } else if (type === 'error') {
@@ -1178,14 +1182,17 @@ async function runOpenAiAccountCompletion(
     }
   }
 
+  const finishReason = toolCalls.size > 0 ? 'tool-calls' : 'stop';
+  const resolvedAssistantPhase = assistantPhase || getCodexTerminalAssistantPhase(finishReason);
+
   return {
     text,
-    finishReason: toolCalls.size > 0 ? 'tool-calls' : 'stop',
+    finishReason,
     usage: { promptTokens: inputTokens, completionTokens: outputTokens },
     ...(toolCalls.size > 0 ? { toolCalls: [...toolCalls.values()] } : {}),
     warnings,
     ...(responseId ? { responseId } : {}),
-    ...(assistantPhase ? { assistantPhase } : {}),
+    ...(resolvedAssistantPhase ? { assistantPhase: resolvedAssistantPhase } : {}),
     ...(rawOutputItems ? { rawOutputItems } : {}),
   };
 }
@@ -1441,6 +1448,20 @@ function readResponseOutputItem(event: Record<string, unknown>): unknown {
     return event.output_item;
   }
   return undefined;
+}
+
+function extractCodexAssistantPhaseFromOutputItems(items: Array<Record<string, unknown>> | undefined): string | undefined {
+  if (!items) return undefined;
+  for (const item of items) {
+    if (item.type !== 'message') continue;
+    const phase = readOptionalString(item.phase);
+    if (phase) return phase;
+  }
+  return undefined;
+}
+
+function getCodexTerminalAssistantPhase(finishReason: LanguageModelV1FinishReason): string | undefined {
+  return finishReason === 'stop' ? 'final' : undefined;
 }
 
 function extractCodexToolCallFromItem(item: unknown, index: number): LanguageModelV1FunctionToolCall | undefined {

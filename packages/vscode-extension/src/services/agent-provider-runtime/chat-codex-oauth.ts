@@ -24,6 +24,8 @@ interface ChatCodexOAuthCallOptions extends BaseChatModelCallOptions {
   reasoningEffort?: CodexReasoningEffort;
 }
 
+const OPENAI_ACCOUNT_PROVIDER_METADATA = 'openai-oauth.account';
+
 export class ChatCodexOAuth extends BaseChatModel<ChatCodexOAuthCallOptions> {
   static lc_name() {
     return 'ChatCodexOAuth';
@@ -140,10 +142,12 @@ export class ChatCodexOAuth extends BaseChatModel<ChatCodexOAuthCallOptions> {
       content: text,
       tool_calls: toolCalls,
       additional_kwargs: {
+        provider: OPENAI_ACCOUNT_PROVIDER_METADATA,
         ...(result.response?.assistantPhase ? { phase: result.response.assistantPhase } : {}),
         ...(result.response?.rawOutputItems ? { codex_output_items: result.response.rawOutputItems } : {}),
       },
       response_metadata: {
+        provider: OPENAI_ACCOUNT_PROVIDER_METADATA,
         ...(result.response?.assistantPhase ? { phase: result.response.assistantPhase } : {}),
         ...(result.response?.rawOutputItems ? { codex_output_items: result.response.rawOutputItems } : {}),
       },
@@ -161,6 +165,7 @@ export class ChatCodexOAuth extends BaseChatModel<ChatCodexOAuthCallOptions> {
         text,
         message: aiMessage,
         generationInfo: {
+          provider: OPENAI_ACCOUNT_PROVIDER_METADATA,
           finishReason: result.finishReason,
           warnings: result.warnings,
         },
@@ -231,7 +236,12 @@ export class ChatCodexOAuth extends BaseChatModel<ChatCodexOAuthCallOptions> {
           if (DEBUG_STREAM) console.error('[DEBUG_CODEX_STREAM] Yielding text-delta:', part.textDelta);
           const message = new AIMessageChunk({
             content: part.textDelta,
-            additional_kwargs: {},
+            additional_kwargs: {
+              provider: OPENAI_ACCOUNT_PROVIDER_METADATA,
+            },
+            response_metadata: {
+              provider: OPENAI_ACCOUNT_PROVIDER_METADATA,
+            },
           });
           const chunk = new ChatGenerationChunk({
             message,
@@ -305,17 +315,20 @@ export class ChatCodexOAuth extends BaseChatModel<ChatCodexOAuthCallOptions> {
                 total_tokens: part.usage.promptTokens + part.usage.completionTokens,
               },
               response_metadata: {
+                provider: OPENAI_ACCOUNT_PROVIDER_METADATA,
                 finishReason: part.finishReason,
                 ...(part.providerMetadata?.assistantPhase ? { phase: part.providerMetadata.assistantPhase } : {}),
                 ...(part.providerMetadata?.rawOutputItems ? { codex_output_items: part.providerMetadata.rawOutputItems } : {}),
               },
               additional_kwargs: {
+                provider: OPENAI_ACCOUNT_PROVIDER_METADATA,
                 ...(part.providerMetadata?.assistantPhase ? { phase: part.providerMetadata.assistantPhase } : {}),
                 ...(part.providerMetadata?.rawOutputItems ? { codex_output_items: part.providerMetadata.rawOutputItems } : {}),
               },
             }),
             text: '',
             generationInfo: {
+              provider: OPENAI_ACCOUNT_PROVIDER_METADATA,
               finishReason: part.finishReason,
             },
           });

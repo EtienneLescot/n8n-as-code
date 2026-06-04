@@ -1660,7 +1660,9 @@ export class AgentRuntimeController implements vscode.Disposable {
             accumulator.thinkingOperationId = undefined;
         }
         const finalText = this.extractMessageTextFromOutput(output) || messageText;
-        if (finalText.trim() && !this.messageHasToolCalls(output)) this.sanitizeAssistantText(finalText);
+        if (finalText.trim() && !this.messageHasToolCalls(output) && !this.isInternalRecoveryText(finalText)) {
+            this.sanitizeAssistantText(finalText);
+        }
     }
 
     private async consumeDeepAgentV3MessageEvents(
@@ -1678,7 +1680,6 @@ export class AgentRuntimeController implements vscode.Disposable {
         const messageKey = `message:${randomUUID()}`;
         const blockText = new Map<number, string>();
         let messageText = '';
-        let hasToolCall = false;
         let textVisibilityResolved = false;
         let pendingVisibleText = '';
         let isInternalRecoveryMessage = false;
@@ -1761,27 +1762,18 @@ export class AgentRuntimeController implements vscode.Disposable {
             }
             if (eventName === 'content-block-start') {
                 const content = event.content;
-                if (this.isToolContentBlock(content)) {
-                    hasToolCall = true;
-                }
                 await emitTextDelta(this.extractContentBlockText(content), this.readMessageEventIndex(event));
                 await emitReasoningDelta(this.extractContentBlockReasoning(content));
                 continue;
             }
             if (eventName === 'content-block-delta') {
                 const delta = event.delta || event.content;
-                if (this.isToolContentBlock(delta) || this.isToolContentBlock(this.isRecord(delta) ? delta.fields : undefined)) {
-                    hasToolCall = true;
-                }
                 await emitTextDelta(this.extractContentBlockText(delta), this.readMessageEventIndex(event));
                 await emitReasoningDelta(this.extractContentBlockReasoning(delta));
                 continue;
             }
             if (eventName === 'content-block-finish') {
                 const content = event.content;
-                if (this.isToolContentBlock(content)) {
-                    hasToolCall = true;
-                }
                 const index = this.readMessageEventIndex(event);
                 const finalBlockText = this.extractContentBlockText(content);
                 if (finalBlockText) {
@@ -2173,7 +2165,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             middleware: [
                 this.createProviderMessageCompatibilityMiddleware(langchain, messagesModule),
                 this.createInvalidToolCallRecoveryMiddleware(langchain, messagesModule),
-                this.createNonFinalAssistantPhaseRecoveryMiddleware(langchain, messagesModule),
+                this.createNonFinalAssistantPhaseRecoveryMiddleware(langchain, messagesModule, providerConfig.provider),
             ].filter(Boolean),
             systemPrompt: this.buildStaticSystemPrompt(input.workspaceRoot),
         });
@@ -2228,7 +2220,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         });
     }
 
-    private createNonFinalAssistantPhaseRecoveryMiddleware(langchain: any, messagesModule: any): unknown {
+    private createNonFinalAssistantPhaseRecoveryMiddleware(langchain: any, messagesModule: any, provider: string): unknown {
         const createMiddleware = langchain?.createMiddleware;
         const AIMessage = messagesModule?.AIMessage;
         const HumanMessage = messagesModule?.HumanMessage;
@@ -2243,7 +2235,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                 hook: (state: any) => {
                     const messages = Array.isArray(state?.messages) ? state.messages : [];
                     const lastMessage = messages[messages.length - 1];
-                    if (!this.isNonFinalAssistantPhaseMessage(lastMessage, state)) return undefined;
+                    if (!this.isNonFinalAssistantPhaseMessage(lastMessage, state, provider)) return undefined;
                     const recoveryAttempts = this.countRecentRecoveryAttempts(messages, NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER);
                     if (recoveryAttempts >= NON_FINAL_ASSISTANT_PHASE_MAX_RECOVERY_ATTEMPTS) {
                         this.outputChannel.appendLine(`[n8n-agent] Stopping non-final assistant phase recovery after ${NON_FINAL_ASSISTANT_PHASE_MAX_RECOVERY_ATTEMPTS} attempts.`);
@@ -2936,11 +2928,17 @@ export class AgentRuntimeController implements vscode.Disposable {
         return false;
     }
 
-    private isNonFinalAssistantPhaseMessage(message: unknown, state?: unknown): boolean {
+    private isNonFinalAssistantPhaseMessage(message: unknown, state?: unknown, provider?: string): boolean {
         if (!this.isAssistantMessage(message)) return false;
         if (this.messageHasToolCalls(message)) return false;
         const phase = this.getAssistantPhase(message);
-        if (!phase) return !this.extractAssistantMessageText(message).trim() || this.hasIncompleteAgentTodos(state);
+        if (!phase) {
+            if (this.hasIncompleteAgentTodos(state)) return true;
+            if (!this.extractAssistantMessageText(message).trim()) {
+                return !this.hasOpenAiAccountTerminalAssistantFinishReason(message, provider);
+            }
+            return false;
+        }
         return !this.isTerminalAssistantPhase(phase);
     }
 
@@ -2954,6 +2952,51 @@ export class AgentRuntimeController implements vscode.Disposable {
     private isTerminalAssistantPhase(phase: string): boolean {
         const normalized = phase.toLowerCase().replace(/[-\s]/g, '_').trim();
         return normalized === 'final' || normalized === 'final_answer';
+    }
+
+    private hasOpenAiAccountTerminalAssistantFinishReason(message: unknown, provider?: string): boolean {
+        if (provider !== 'openai-oauth' && !this.hasOpenAiAccountProviderMetadata(message)) return false;
+        const finishReason = this.getAssistantFinishReason(message);
+        return finishReason === 'stop';
+    }
+
+    private hasOpenAiAccountProviderMetadata(message: unknown): boolean {
+        const read = (value: unknown): boolean => {
+            if (!this.isRecord(value)) return false;
+            if (value.provider === 'openai-oauth.account' || value.model_provider === 'openai-oauth.account') return true;
+            return Array.isArray(value.codex_output_items) || Array.isArray(value.rawOutputItems);
+        };
+        if (!this.isRecord(message)) return false;
+        return read(message)
+            || read(message.additional_kwargs)
+            || read(message.response_metadata)
+            || read(message.generationInfo)
+            || read(message.generation_info)
+            || read(message.kwargs)
+            || read(message.lc_kwargs)
+            || (this.isRecord(message.kwargs) && (read(message.kwargs.additional_kwargs) || read(message.kwargs.response_metadata)))
+            || (this.isRecord(message.lc_kwargs) && (read(message.lc_kwargs.additional_kwargs) || read(message.lc_kwargs.response_metadata)));
+    }
+
+    private getAssistantFinishReason(message: unknown): string | undefined {
+        if (!this.isRecord(message)) return undefined;
+        const read = (value: unknown): string | undefined => {
+            if (!this.isRecord(value)) return undefined;
+            for (const key of ['finishReason', 'finish_reason', 'stopReason', 'stop_reason']) {
+                const direct = value[key];
+                if (typeof direct === 'string' && direct.trim()) return direct.toLowerCase().trim();
+            }
+            return undefined;
+        };
+        return read(message)
+            || read(message.response_metadata)
+            || read(message.additional_kwargs)
+            || read(message.generationInfo)
+            || read(message.generation_info)
+            || read(message.kwargs)
+            || read(message.lc_kwargs)
+            || (this.isRecord(message.kwargs) ? read(message.kwargs.response_metadata) || read(message.kwargs.additional_kwargs) : undefined)
+            || (this.isRecord(message.lc_kwargs) ? read(message.lc_kwargs.response_metadata) || read(message.lc_kwargs.additional_kwargs) : undefined);
     }
 
     private getAssistantPhase(message: unknown): string | undefined {
@@ -4336,46 +4379,41 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     private extractTodosFromPayload(value: unknown): Array<{ content?: unknown; status?: unknown }> {
-        const todoLists = this.extractTodoListsFromPayload(value);
-        return todoLists[todoLists.length - 1] || [];
+        const directTodos = this.readTodosProperty(value);
+        if (directTodos) return directTodos.todos;
+        const messages = this.readMessagesArray(value);
+        if (messages) {
+            for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
+                const todos = this.readUpdatedTodoListFromMessage(messages[idx]);
+                if (todos) return todos;
+            }
+        }
+        return [];
     }
 
-    private extractTodoListsFromPayload(value: unknown): Array<Array<{ content?: unknown; status?: unknown }>> {
-        const visited = new Set<unknown>();
-        const visit = (candidate: unknown): Array<Array<{ content?: unknown; status?: unknown }>> => {
-            if (candidate === undefined || candidate === null || visited.has(candidate)) return [];
-            if (typeof candidate === 'string') {
-                const trimmed = candidate.trim();
-                if (!trimmed) return [];
-                const embeddedTodoList = /^Updated todo list to (\[[\s\S]*\])$/i.exec(trimmed)?.[1];
-                const jsonCandidate = embeddedTodoList || trimmed;
-                if (!jsonCandidate.startsWith('{') && !jsonCandidate.startsWith('[')) return [];
-                try {
-                    return visit(JSON.parse(jsonCandidate));
-                } catch {
-                    return [];
-                }
-            }
-            if (Array.isArray(candidate)) {
-                if (candidate.every((item) => item && typeof item === 'object' && 'content' in item)) {
-                    return [candidate as Array<{ content?: unknown; status?: unknown }>];
-                }
-                return candidate.flatMap((item) => visit(item));
-            }
-            if (typeof candidate === 'object') {
-                visited.add(candidate);
-                const record = candidate as Record<string, unknown>;
-                if (Array.isArray(record.todos)) return visit(record.todos);
-                const todoLists: Array<Array<{ content?: unknown; status?: unknown }>> = [];
-                for (const key of ['messages', 'tool_calls', 'toolCalls', 'additional_kwargs', 'response_metadata', 'lc_kwargs', 'kwargs', 'content', 'update', 'input', 'args']) {
-                    const todos = visit(record[key]);
-                    if (todos.length) todoLists.push(...todos);
-                }
-                return todoLists;
-            }
-            return [];
-        };
-        return visit(value);
+    private readTodosProperty(value: unknown): { todos: Array<{ content?: unknown; status?: unknown }> } | undefined {
+        if (!this.isRecord(value) || !Array.isArray(value.todos)) return undefined;
+        return { todos: value.todos as Array<{ content?: unknown; status?: unknown }> };
+    }
+
+    private readMessagesArray(value: unknown): unknown[] | undefined {
+        if (!this.isRecord(value)) return undefined;
+        if (Array.isArray(value.messages)) return value.messages;
+        if (this.isRecord(value.update) && Array.isArray(value.update.messages)) return value.update.messages;
+        return undefined;
+    }
+
+    private readUpdatedTodoListFromMessage(message: unknown): Array<{ content?: unknown; status?: unknown }> | undefined {
+        if (!this.isRecord(message)) return undefined;
+        const content = this.extractMessageTextContent(message.content) || (this.isRecord(message.kwargs) ? this.extractMessageTextContent(message.kwargs.content) : '');
+        const match = /^Updated todo list to (\[[\s\S]*\])$/i.exec(content.trim());
+        if (!match) return undefined;
+        try {
+            const parsed = JSON.parse(match[1]);
+            return Array.isArray(parsed) ? parsed as Array<{ content?: unknown; status?: unknown }> : undefined;
+        } catch {
+            return undefined;
+        }
     }
 
     private stringifyToolOutput(value: unknown): string | undefined {
