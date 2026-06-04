@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AIMessage } from '@langchain/core/messages';
@@ -11,7 +12,7 @@ import type { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager
 import type { ChatResult } from '@langchain/core/outputs';
 import { AgentRuntimeController, getAgentProviderSecretKey, type AgentWorkbenchMessage } from '../../src/services/agent-runtime-controller.js';
 
-const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../..');
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 dotenv.config({ path: path.join(repoRoot, '.env.test'), quiet: true });
 
 const TARGET_WORKFLOW = 'workflows/dev/recherche-annonces-multi-plateformes.workflow.ts';
