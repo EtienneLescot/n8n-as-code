@@ -1,5 +1,11 @@
 # n8n-as-code
 
+## [2.28.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.26.0...n8n-as-code@v2.28.0) (2026-06-04)
+
+### Bug Fixes
+
+* **vscode-extension:** stabilize workbench assistant completion ([b9903d3](https://github.com/EtienneLescot/n8n-as-code/commit/b9903d3d45c3d092e1f0c62b05f323f7b36fec97))
+
 ## [2.26.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.24.0...n8n-as-code@v2.26.0) (2026-06-04)
 
 ### Bug Fixes
