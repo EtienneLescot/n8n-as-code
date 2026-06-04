@@ -111,11 +111,15 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         button, input, select, textarea { font: inherit; }
         .workbench {
             display: grid;
-            grid-template-columns: ${hasWorkflow ? 'minmax(360px, .95fr) minmax(420px, 1.05fr)' : 'minmax(420px, 1fr)'};
+            grid-template-columns: ${hasWorkflow ? 'minmax(360px, var(--agent-chat-width, .95fr)) 7px minmax(420px, 1fr)' : 'minmax(420px, 1fr)'};
             height: 100vh;
             width: 100vw;
             min-width: 0;
             min-height: 0;
+        }
+        .workbench.resizing {
+            cursor: col-resize;
+            user-select: none;
         }
         .chat {
             min-width: 0;
@@ -132,6 +136,40 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             min-width: 0;
             min-height: 0;
             background: var(--bg);
+        }
+        .split-resizer {
+            position: relative;
+            z-index: 3;
+            min-width: 7px;
+            min-height: 0;
+            cursor: col-resize;
+            background: var(--panel);
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            touch-action: none;
+        }
+        .split-resizer::before {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 3px;
+            height: 44px;
+            border-radius: 999px;
+            transform: translate(-50%, -50%);
+            background: color-mix(in srgb, var(--muted) 55%, transparent);
+        }
+        .split-resizer:hover::before,
+        .split-resizer:focus-visible::before,
+        .workbench.resizing .split-resizer::before {
+            background: var(--accent);
+        }
+        .split-resizer:focus-visible {
+            outline: 1px solid var(--vscode-focusBorder, var(--accent));
+            outline-offset: -1px;
+        }
+        .workbench.resizing .workflow iframe {
+            pointer-events: none;
         }
         .chat-head {
             padding: 12px 14px;
@@ -1221,6 +1259,9 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 grid-template-columns: 1fr;
                 grid-template-rows: ${hasWorkflow ? 'minmax(360px, 48%) 1fr' : '1fr'};
             }
+            .split-resizer {
+                display: none;
+            }
             .chat {
                 border-right: 0;
             }
@@ -1233,6 +1274,9 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             .workbench {
                 grid-template-columns: 1fr;
                 grid-template-rows: auto ${hasWorkflow ? 'minmax(280px, 42%)' : ''};
+            }
+            .split-resizer {
+                display: none;
             }
             .chat {
                 border-right: 0;
@@ -1298,7 +1342,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             </form>
             <div id="worktree-warning" class="worktree-warning" aria-live="polite">Isolated worktree — n8n-as-code config changes and local workflow list from extension UI don't apply here.</div>
         </section>
-        ${hasWorkflow ? `<section class="workflow" aria-label="n8n workflow">
+        ${hasWorkflow ? `<div id="split-resizer" class="split-resizer" role="separator" aria-label="Resize chat and workflow panels" aria-orientation="vertical" aria-valuemin="360" aria-valuemax="1200" aria-valuenow="0" tabindex="0"></div>
+        <section class="workflow" aria-label="n8n workflow">
             <div id="refresh-pill" class="refresh-pill">Refreshing n8n...</div>
             ${hasWorkflowUi ? `<iframe
                 id="workflow-frame"
@@ -1381,6 +1426,12 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         let lastStateSequence = 0;
         const rewoundMessageIds = new Set();
         const expandedDetailKeys = new Set();
+        const SPLIT_RESIZER_STORAGE_KEY = 'n8n.agentWorkbench.chatSplitRatio';
+        const DEFAULT_CHAT_SPLIT_RATIO = 0.475;
+        const MIN_CHAT_PANEL_WIDTH = 360;
+        const MIN_WORKFLOW_PANEL_WIDTH = 420;
+        let currentChatSplitRatio = DEFAULT_CHAT_SPLIT_RATIO;
+        let activeSplitResize = false;
 
         const OP_ICONS = {
             'file-read': ${JSON.stringify(readOpIcon)},
@@ -1414,6 +1465,8 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         const reasoningMenu = document.getElementById('reasoning-menu');
         const selectWorktreeButton = document.getElementById('select-worktree');
         const worktreeMenu = document.getElementById('worktree-menu');
+        const workbench = document.getElementById('workbench');
+        const splitResizer = document.getElementById('split-resizer');
         const frame = document.getElementById('workflow-frame');
         const refreshPill = document.getElementById('refresh-pill');
         const contextBadges = document.getElementById('context-badges');
@@ -1440,6 +1493,105 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
 
         function on(element, eventName, handler) {
             if (element) element.addEventListener(eventName, handler);
+        }
+
+        function clamp(value, min, max) {
+            return Math.min(Math.max(value, min), max);
+        }
+
+        function getSplitMetrics() {
+            if (!workbench || !splitResizer) return null;
+            const rect = workbench.getBoundingClientRect();
+            const resizerWidth = splitResizer.offsetWidth || 7;
+            const availableWidth = Math.max(0, rect.width - resizerWidth);
+            const maxChatWidth = Math.max(MIN_CHAT_PANEL_WIDTH, availableWidth - MIN_WORKFLOW_PANEL_WIDTH);
+            const minRatio = availableWidth > 0 ? MIN_CHAT_PANEL_WIDTH / availableWidth : DEFAULT_CHAT_SPLIT_RATIO;
+            const maxRatio = availableWidth > 0 ? maxChatWidth / availableWidth : DEFAULT_CHAT_SPLIT_RATIO;
+            return { rect, availableWidth, maxChatWidth, minRatio, maxRatio };
+        }
+
+        function readStoredChatSplitRatio() {
+            try {
+                const raw = localStorage.getItem(SPLIT_RESIZER_STORAGE_KEY);
+                if (!raw) return DEFAULT_CHAT_SPLIT_RATIO;
+                const parsed = Number(raw);
+                return Number.isFinite(parsed) ? parsed : DEFAULT_CHAT_SPLIT_RATIO;
+            } catch (e) {
+                return DEFAULT_CHAT_SPLIT_RATIO;
+            }
+        }
+
+        function persistChatSplitRatio(ratio) {
+            try {
+                localStorage.setItem(SPLIT_RESIZER_STORAGE_KEY, String(ratio));
+            } catch (e) {}
+        }
+
+        function applyChatSplitRatio(ratio, persist) {
+            const metrics = getSplitMetrics();
+            if (!metrics || !metrics.availableWidth) return;
+            const boundedRatio = clamp(ratio, metrics.minRatio, metrics.maxRatio);
+            const chatWidth = Math.round(metrics.availableWidth * boundedRatio);
+            currentChatSplitRatio = boundedRatio;
+            workbench.style.setProperty('--agent-chat-width', chatWidth + 'px');
+            splitResizer.setAttribute('aria-valuemin', String(MIN_CHAT_PANEL_WIDTH));
+            splitResizer.setAttribute('aria-valuemax', String(Math.round(metrics.maxChatWidth)));
+            splitResizer.setAttribute('aria-valuenow', String(chatWidth));
+            if (persist) persistChatSplitRatio(boundedRatio);
+        }
+
+        function setChatSplitFromClientX(clientX, persist) {
+            const metrics = getSplitMetrics();
+            if (!metrics || !metrics.availableWidth) return;
+            const chatWidth = clamp(clientX - metrics.rect.left, MIN_CHAT_PANEL_WIDTH, metrics.maxChatWidth);
+            applyChatSplitRatio(chatWidth / metrics.availableWidth, persist);
+        }
+
+        function setSplitResizing(active) {
+            activeSplitResize = active;
+            if (workbench) workbench.classList.toggle('resizing', active);
+        }
+
+        function initializeSplitResizer() {
+            if (!splitResizer || !workbench) return;
+            applyChatSplitRatio(readStoredChatSplitRatio(), false);
+
+            splitResizer.addEventListener('pointerdown', (event) => {
+                event.preventDefault();
+                splitResizer.setPointerCapture?.(event.pointerId);
+                setSplitResizing(true);
+                setChatSplitFromClientX(event.clientX, true);
+            });
+            splitResizer.addEventListener('pointermove', (event) => {
+                if (!activeSplitResize) return;
+                setChatSplitFromClientX(event.clientX, true);
+            });
+            splitResizer.addEventListener('pointerup', (event) => {
+                splitResizer.releasePointerCapture?.(event.pointerId);
+                setSplitResizing(false);
+            });
+            splitResizer.addEventListener('pointercancel', (event) => {
+                splitResizer.releasePointerCapture?.(event.pointerId);
+                setSplitResizing(false);
+            });
+            splitResizer.addEventListener('keydown', (event) => {
+                const metrics = getSplitMetrics();
+                if (!metrics) return;
+                if (event.key === 'ArrowLeft') {
+                    event.preventDefault();
+                    applyChatSplitRatio(currentChatSplitRatio - 0.03, true);
+                } else if (event.key === 'ArrowRight') {
+                    event.preventDefault();
+                    applyChatSplitRatio(currentChatSplitRatio + 0.03, true);
+                } else if (event.key === 'Home') {
+                    event.preventDefault();
+                    applyChatSplitRatio(metrics.minRatio, true);
+                } else if (event.key === 'End') {
+                    event.preventDefault();
+                    applyChatSplitRatio(metrics.maxRatio, true);
+                }
+            });
+            window.addEventListener('resize', () => applyChatSplitRatio(currentChatSplitRatio, false));
         }
 
         function isFeedNearBottom() {
@@ -3145,6 +3297,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             }
         });
 
+        initializeSplitResizer();
         vscode.postMessage({ type: 'agent.ready' });
     </script>
 </body>
