@@ -22,7 +22,7 @@
         "@n8n-as-code/telemetry": "2.0.1",
         "@n8n-as-code/transformer": "2.0.0",
         "chalk": "^4.1.2",
-        "commander": "^11.1.0",
+        "commander": "^15.0.0",
         "flexsearch": "^0.8.212",
         "zod": "^3.22.4"
     },
