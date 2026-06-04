@@ -75,6 +75,18 @@ test('Bridge script: sends node detail opened messages', () => {
     assert.ok(script.includes('readNodeFromElement'), 'Must extract node context from canvas elements');
 });
 
+test('Bridge script: relays popup openings to the parent webview', () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const script: string = ProxyService.buildBridgeScript();
+
+    assert.ok(script.includes('"n8n-open-external"'), 'Must publish popup-open requests');
+    assert.ok(script.includes('window.open = function(url, target, features)'), 'Must intercept window.open calls');
+    assert.ok(script.includes('target.closest("a[href]")'), 'Must intercept target=_blank anchor clicks');
+    assert.ok(script.includes('isAnchorPopupTarget(anchor.getAttribute("target") || "")'), 'Must not intercept ordinary same-frame anchor clicks');
+    assert.ok(script.includes('new URL(url, window.location.href)'), 'Must resolve relative popup URLs against the proxied page');
+    assert.ok(script.includes('absoluteUrl.protocol !== "http:" && absoluteUrl.protocol !== "https:"'), 'Must only relay browser-safe URL schemes');
+});
+
 test('Bridge script: does not validate nonce on incoming paste message', () => {
     // The n8n-clipboard-paste handler in the iframe should accept the message
     // without a nonce check — security is enforced in the parent webview layer.
@@ -360,6 +372,15 @@ test('Parent webview HTML: validates event.origin against iframeOrigin', () => {
 
     assert.ok(html.includes('iframeOrigin'), 'Must declare iframeOrigin');
     assert.ok(html.includes('event.origin !== iframeOrigin'), 'Must reject messages from unknown origins');
+});
+
+test('Parent webview HTML: relays iframe popup requests after origin validation', () => {
+    const { buildWebviewHtml } = require('../../src/ui/webview-html.js');
+    const html: string = buildWebviewHtml('wf-1', 'http://localhost:5678/workflow/wf-1');
+
+    assert.ok(html.includes("message.type === 'n8n-open-external'"), 'Must handle popup bridge messages');
+    assert.ok(html.includes("vscode.postMessage({ type: 'open-external', url: message.url });"), 'Must relay popup URL to the extension host');
+    assert.ok(html.includes("if (event.origin !== iframeOrigin) return;\n                        vscode.postMessage({ type: 'open-external', url: message.url });"), 'Must validate iframe origin before relaying popup URLs');
 });
 
 test('Parent webview HTML: does not embed a static NONCE', () => {

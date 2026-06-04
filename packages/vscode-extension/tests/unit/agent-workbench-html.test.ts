@@ -17,6 +17,21 @@ test('Agent Workbench HTML: workflow reload forces iframe navigation', () => {
     assert.ok(html.includes('frame.src = reloadUrl.toString()'), 'Reload must assign a fresh iframe URL');
 });
 
+test('Agent Workbench HTML: relays workflow iframe popup requests', () => {
+    const { buildAgentWorkbenchHtml } = require('../../src/ui/agent-workbench-html.js');
+    const html: string = buildAgentWorkbenchHtml({
+        workflowId: 'wf-1',
+        workflowName: 'Workflow 1',
+        workflowUrl: 'http://localhost:5678/__n8n-manager/open-workflow/wf-1',
+        workflowReloadUrl: 'http://localhost:5678/workflow/wf-1',
+        providerModelLabel: 'openai / gpt-5.4',
+    });
+
+    assert.ok(html.includes("message.type === 'n8n-open-external'"), 'Must listen for popup bridge messages');
+    assert.ok(html.includes('isWorkflowFrameEvent(event)'), 'Must validate workflow iframe origin before relaying');
+    assert.ok(html.includes("vscode.postMessage({ type: 'open-external', url: message.url });"), 'Must ask extension host to open popup URLs externally');
+});
+
 test('Agent Workbench HTML: forwards node detail context to the agent', () => {
     const { buildAgentWorkbenchHtml } = require('../../src/ui/agent-workbench-html.js');
     const html: string = buildAgentWorkbenchHtml({
@@ -160,6 +175,19 @@ test('Agent runtime: final response does not wait for post-run checkpoint work',
     assert.ok(source.includes("await postMessage({ type: 'agent.status', status: 'idle' });\n                postedIdle = true;"), 'Must post idle before slower state refresh work on normal completion');
     assert.ok(source.includes('saveAutoCheckpointAfterFileModificationInBackground'), 'Must keep auto-checkpoints off the response critical path');
     assert.ok(!source.includes('await this.saveAutoCheckpointAfterFileModification(service, input, entries);'), 'Must not await auto-checkpoint after emitting the final response');
+});
+
+test('Workflow webviews: extension host opens relayed popup URLs externally', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const workflowWebview = fs.readFileSync(path.join(__dirname, '../../src/ui/workflow-webview.ts'), 'utf8');
+    const agentWorkbenchWebview = fs.readFileSync(path.join(__dirname, '../../src/ui/agent-workbench-webview.ts'), 'utf8');
+
+    for (const source of [workflowWebview, agentWorkbenchWebview]) {
+        assert.ok(source.includes("payload.type === 'open-external'") || source.includes("message.type === 'open-external'"), 'Must handle open-external host messages');
+        assert.ok(source.includes("scheme !== 'http' && scheme !== 'https'"), 'Must reject non-browser URL schemes');
+        assert.ok(source.includes('vscode.env.openExternal(uri)'), 'Must open relayed popup URLs via VS Code');
+    }
 });
 
 test('Agent runtime: workbench uses the native DeepAgents v3 run stream', () => {

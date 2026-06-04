@@ -228,6 +228,13 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
                         return;
                     }
 
+                    // Popup bridge: iframe requests an external browser window.
+                    if (message.type === 'n8n-open-external' && typeof message.url === 'string') {
+                        if (event.origin !== iframeOrigin) return;
+                        vscode.postMessage({ type: 'open-external', url: message.url });
+                        return;
+                    }
+
                     // Clipboard bridge: iframe requests paste data -> forward to extension host
                     // Validate origin, apply rate limit, issue a one-time grant token.
                     if (message.type === 'n8n-paste-request') {
