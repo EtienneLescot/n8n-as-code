@@ -160,11 +160,11 @@ test('workbench runtime authoring continues past non-final progress text', { tim
   }
 });
 
-test('workbench runtime live authoring prompt', {
+test('workbench runtime live provider generates a validated workflow', {
   skip: process.env.N8N_AGENT_WORKBENCH_LIVE_PROMPT !== '1',
   timeout: 600_000,
 }, async (t) => {
-  const provider = (process.env.N8N_AGENT_WORKBENCH_LIVE_PROVIDER || 'openai').trim();
+  const provider = chooseLiveProvider();
   const apiKey = readFirstEnv(liveProviderEnvKeys(provider));
   if (!apiKey) {
     t.skip(`Missing API key for live provider ${provider}`);
@@ -193,13 +193,32 @@ test('workbench runtime live authoring prompt', {
       appendLine: (line: string) => outputLines.push(line),
     } as any);
 
-    const result = await controller.sendPrompt({ prompt: EXACT_AUTHORING_PROMPT, workspaceRoot }, async (message) => {
+    let result = await controller.sendPrompt({ prompt: EXACT_AUTHORING_PROMPT, workspaceRoot }, async (message) => {
       postedMessages.push(message);
       return true;
     });
-    const workflowPath = path.join(workspaceRoot, TARGET_WORKFLOW);
-    assert.equal(postedMessages.some((message) => message.type === 'agent.error'), false, liveDiagnostics(result, postedMessages, outputLines, workflowPath));
-    assert.ok(fs.existsSync(workflowPath), liveDiagnostics(result, postedMessages, outputLines, workflowPath));
+    let workflowPath = findAuthoredWorkflowPath(workspaceRoot, result);
+    let workflowContent = workflowPath && fs.existsSync(workflowPath) ? fs.readFileSync(workflowPath, 'utf8') : '';
+    let issues = validateProviderGeneratedWorkflow(workflowContent, collectOperationEvents(postedMessages));
+    for (let repairAttempt = 1; issues.length && repairAttempt <= 3; repairAttempt += 1) {
+      const sessionId = latestSessionId(postedMessages);
+      assert.ok(sessionId, liveDiagnostics(result, postedMessages, outputLines, workflowPath, workflowContent, issues));
+      result = await controller.sendPrompt({
+        prompt: buildLiveRepairPrompt(issues, workflowPath || path.join(workspaceRoot, TARGET_WORKFLOW), workflowContent),
+        workspaceRoot,
+        sessionId,
+      }, async (message) => {
+        postedMessages.push(message);
+        return true;
+      });
+      workflowPath = findAuthoredWorkflowPath(workspaceRoot, result) || workflowPath;
+      workflowContent = workflowPath && fs.existsSync(workflowPath) ? fs.readFileSync(workflowPath, 'utf8') : '';
+      issues = validateProviderGeneratedWorkflow(workflowContent, collectOperationEvents(postedMessages));
+    }
+
+    assert.equal(postedMessages.some((message) => message.type === 'agent.error'), false, liveDiagnostics(result, postedMessages, outputLines, workflowPath, workflowContent, issues));
+    assert.ok(workflowPath && fs.existsSync(workflowPath), liveDiagnostics(result, postedMessages, outputLines, workflowPath, workflowContent, issues));
+    assert.deepEqual(issues, [], liveDiagnostics(result, postedMessages, outputLines, workflowPath, workflowContent, issues));
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -355,9 +374,14 @@ function createWorkbenchWorkspace(rootDir: string): void {
   fs.writeFileSync(path.join(rootDir, 'AGENTS.md'), [
     '# n8n-as-code workspace',
     'Use n8n-as-code TypeScript workflows with @workflow, @node, and @links.',
+    `When creating the multi-platform annonces workflow, write it to ${TARGET_WORKFLOW}.`,
     'Before workflow commands, run n8nac workspace migrate --json then workspace status --json.',
   ].join('\n'));
   fs.writeFileSync(path.join(rootDir, '.agents', 'skills', 'n8n-architect', 'SKILL.md'), [
+    '---',
+    'name: n8n-architect',
+    'description: Create and validate n8n-as-code TypeScript workflows.',
+    '---',
     '# n8n Architect',
     'Create maintainable n8n-as-code workflows and verify node schemas before choosing versions.',
     'Connect LangChain sub-nodes with .uses() and use structured parsers for important LLM outputs.',
@@ -420,6 +444,13 @@ function liveProviderEnvKeys(provider: string): string[] {
   }
 }
 
+function chooseLiveProvider(): string {
+  const configured = process.env.N8N_AGENT_WORKBENCH_LIVE_PROVIDER?.trim();
+  if (configured) return configured;
+  const candidates = ['google', 'openai', 'anthropic', 'mistral', 'openrouter', 'openai-compatible'];
+  return candidates.find((provider) => Boolean(readFirstEnv(liveProviderEnvKeys(provider)))) || 'openai';
+}
+
 function readFirstEnv(keys: string[]): string | undefined {
   for (const key of keys) {
     const value = process.env[key]?.trim();
@@ -428,12 +459,109 @@ function readFirstEnv(keys: string[]): string | undefined {
   return undefined;
 }
 
-function liveDiagnostics(result: unknown, messages: AgentWorkbenchMessage[], outputLines: string[], workflowPath: string): string {
+function findAuthoredWorkflowPath(workspaceRoot: string, result: unknown): string | undefined {
+  const resultPath = result && typeof result === 'object' && typeof (result as { workflowContext?: { filePath?: unknown } }).workflowContext?.filePath === 'string'
+    ? (result as { workflowContext: { filePath: string } }).workflowContext.filePath
+    : undefined;
+  const candidates = [
+    resultPath,
+    path.join(workspaceRoot, TARGET_WORKFLOW),
+    ...listWorkflowFiles(path.join(workspaceRoot, 'workflows')).filter((filePath) => !filePath.endsWith('recherche-annonces-leboncoin.workflow.ts')),
+  ].filter((candidate): candidate is string => Boolean(candidate));
+  return candidates.find((candidate) => {
+    const resolved = path.isAbsolute(candidate) ? candidate : path.join(workspaceRoot, candidate);
+    return fs.existsSync(resolved) && resolved.endsWith('.workflow.ts') ? resolved : undefined;
+  });
+}
+
+function listWorkflowFiles(directory: string): string[] {
+  if (!fs.existsSync(directory)) return [];
+  const entries = fs.readdirSync(directory, { withFileTypes: true });
+  return entries.flatMap((entry) => {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) return listWorkflowFiles(entryPath);
+    return entry.isFile() && entry.name.endsWith('.workflow.ts') ? [entryPath] : [];
+  });
+}
+
+function assertProviderGeneratedWorkflow(content: string, diagnostics: string): void {
+  assert.deepEqual(validateProviderGeneratedWorkflow(content, []), [], diagnostics);
+}
+
+function validateProviderGeneratedWorkflow(content: string, operationEvents: Array<Extract<AgentWorkbenchMessage, { type: 'agent.streamEvent' }>['event']>): string[] {
+  const issues: string[] = [];
+  if (!content.trim()) issues.push('workflow file was not created or is empty');
+  if (content.trim() === workflowSource().trim()) issues.push('workflow must be generated by the provider, not the deterministic fixture');
+  if (!/<workflow-map>/.test(content)) issues.push('missing <workflow-map> block');
+  if (!/@workflow\s*\(/.test(content)) issues.push('missing @workflow decorator');
+  if (!/@node\s*\(/.test(content)) issues.push('missing @node decorators');
+  if (!/@links\s*\(/.test(content)) issues.push('missing @links decorator');
+  if ((content.match(/@node\s*\(/g) || []).length < 8) issues.push('expected at least 8 @node decorators for the requested architecture');
+  if (!/Form Trigger|formTrigger/i.test(content)) issues.push('missing Form Trigger node');
+  if (!/agent|langchain/i.test(content)) issues.push('missing AI agent nodes');
+  if (!/outputParserStructured|structured output|parser structuré|structured parser/i.test(content)) issues.push('missing structured parser nodes for LLM outputs');
+  if (!/httpRequest|Bing|RSS|Jina|Leboncoin/i.test(content)) issues.push('missing HTTP/search platform retrieval nodes');
+  if (!/steering|ajustement|relancer|Form/i.test(content)) issues.push('missing steering/adjustment loop');
+  if (!/\.uses\s*\(/.test(content)) issues.push('missing .uses() connections for AI sub-nodes');
+  if (/@workflow\s*\(\s*\{[\s\S]{0,1000}\bnodes\s*:/.test(content)) issues.push('@workflow must not contain raw n8n nodes object; use @node-decorated class properties');
+  if (/"""/.test(content)) issues.push('workflow contains Python-style triple quotes, which is invalid TypeScript');
+  if (/credentialId|credentials\s*:\s*\{[^}]*id/i.test(content)) issues.push('workflow must not hardcode credential IDs or placeholders');
+  if (/(?:api[_-]?key|secret|token)\s*[:=]\s*['"][^'"]+['"]/i.test(content)) issues.push('workflow must not hardcode secrets');
+  if (!operationEvents.some((event) => event.type === 'operation' && event.label === 'Write File' && event.status === 'done')) issues.push('provider did not complete a write_file operation');
+  if (!operationEvents.some((event) => event.type === 'operation' && event.label === 'Execute' && event.status === 'done')) issues.push('provider did not complete an execute operation to check schemas or validate');
+  return issues;
+}
+
+function buildLiveRepairPrompt(issues: string[], workflowPath: string, currentContent: string): string {
+  return [
+    'The workflow you generated is not acceptable yet. Continue the same task and repair the workflow now.',
+    `Target file: ${workflowPath}`,
+    '',
+    'Validation issues:',
+    ...issues.map((issue) => `- ${issue}`),
+    '',
+    'Mandatory repair steps:',
+    '1. Use execute to check at least the Form Trigger, HTTP Request, LangChain Agent, and Structured Output Parser schemas or to run a local validation command.',
+    '2. Replace the workflow file with complete decorator-based TypeScript using @workflow, @node, and @links class members.',
+    '3. Do not use raw @workflow({ nodes: ... }) JSON-style definitions.',
+    '4. Do not include credentials, credential IDs, API keys, tokens, or placeholders like CHANGE_ME.',
+    '5. Connect AI sub-nodes with .uses().',
+    '6. Use structured parser nodes for criteria extraction and selected-annonce output.',
+    '7. Include the iterative steering loop.',
+    '8. End only after writing the corrected file and validating it.',
+    '',
+    'Current file content:',
+    '```ts',
+    currentContent.slice(0, 12000),
+    '```',
+  ].join('\n');
+}
+
+function latestSessionId(messages: AgentWorkbenchMessage[]): string | undefined {
+  for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
+    const message = messages[idx];
+    if (message.type === 'agent.state') return message.state.activeSessionId;
+  }
+  return undefined;
+}
+
+function collectOperationEvents(messages: AgentWorkbenchMessage[]): Array<Extract<AgentWorkbenchMessage, { type: 'agent.streamEvent' }>['event']> {
+  return messages
+    .filter((message): message is Extract<AgentWorkbenchMessage, { type: 'agent.streamEvent' }> => message.type === 'agent.streamEvent')
+    .map((message) => message.event)
+    .filter((event) => event.type === 'operation');
+}
+
+function liveDiagnostics(result: unknown, messages: AgentWorkbenchMessage[], outputLines: string[], workflowPath?: string, workflowContent?: string, issues: string[] = []): string {
   const streamEvents = messages.filter((message): message is Extract<AgentWorkbenchMessage, { type: 'agent.streamEvent' }> => message.type === 'agent.streamEvent').map((message) => message.event);
+  const operationEvents = streamEvents.filter((event) => event.type === 'operation').map((event) => `${event.label}:${event.status}:${event.summary || ''}`);
   return JSON.stringify({
     result,
+    issues,
     workflowPath,
-    workflowExists: fs.existsSync(workflowPath),
+    workflowExists: Boolean(workflowPath && fs.existsSync(workflowPath)),
+    workflowExcerpt: workflowContent?.slice(0, 4000),
+    operationEvents,
     lastStreamEvent: streamEvents[streamEvents.length - 1],
     lastMessage: messages[messages.length - 1],
     outputLines,

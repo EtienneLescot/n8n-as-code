@@ -28,6 +28,7 @@ const ACTIVE_WORKTREE_PATH_KEY = 'n8n.agent.activeWorktreePath';
 const ACTIVE_WORKTREE_PATH_BY_SESSION_KEY = 'n8n.agent.activeWorktreePathBySession';
 const INVALID_TOOL_CALL_RECOVERY_MARKER = 'N8N_INVALID_TOOL_CALL_RECOVERY';
 const NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER = 'N8N_NON_FINAL_ASSISTANT_PHASE_RECOVERY';
+const NON_FINAL_ASSISTANT_PHASE_MAX_RECOVERY_ATTEMPTS = 12;
 
 type ActiveWorktreePathsBySession = Record<string, string | null>;
 
@@ -2159,6 +2160,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         const checkpointer = await this.createPersistentCheckpointer();
         const backend = await deepagents.LocalShellBackend.create({
             rootDir,
+            virtualMode: true,
             inheritEnv: false,
             env: this.buildAgentBackendEnv(),
         });
@@ -2243,8 +2245,8 @@ export class AgentRuntimeController implements vscode.Disposable {
                     const lastMessage = messages[messages.length - 1];
                     if (!this.isNonFinalAssistantPhaseMessage(lastMessage, state)) return undefined;
                     const recoveryAttempts = this.countRecentRecoveryAttempts(messages, NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER);
-                    if (recoveryAttempts >= 2) {
-                        this.outputChannel.appendLine('[n8n-agent] Stopping non-final assistant phase recovery after two attempts.');
+                    if (recoveryAttempts >= NON_FINAL_ASSISTANT_PHASE_MAX_RECOVERY_ATTEMPTS) {
+                        this.outputChannel.appendLine(`[n8n-agent] Stopping non-final assistant phase recovery after ${NON_FINAL_ASSISTANT_PHASE_MAX_RECOVERY_ATTEMPTS} attempts.`);
                         const lastMessageId = this.getMessageId(lastMessage);
                         return {
                             messages: [
@@ -2483,8 +2485,9 @@ export class AgentRuntimeController implements vscode.Disposable {
             text ? `Removed assistant text: ${text}` : undefined,
             '',
             'Continue the same user task now.',
-            hasIncompleteTodos ? 'The todo list shows unfinished work; continue with the next required tool call or update the todo list before finalizing.' : undefined,
-            'If work remains, emit the next required tool call or another non-terminal assistant phase followed by a tool call.',
+            hasIncompleteTodos ? 'The todo list shows unfinished work. Your next response must include a valid tool call; do not emit another text-only progress update.' : undefined,
+            hasIncompleteTodos ? 'Call the next concrete tool now, for example read_file, execute, write_file, or write_todos.' : undefined,
+            'If work remains, emit the next required tool call or another non-terminal assistant phase paired with a tool call.',
             'Only emit a final answer when the requested work is actually complete or blocked.',
         ].filter(Boolean).join('\n');
     }
@@ -2493,15 +2496,16 @@ export class AgentRuntimeController implements vscode.Disposable {
         return [
             'You are the embedded n8n-as-code VS Code agent.',
             'You help users design, inspect, validate, and operate n8n workflows from the current workspace.',
-            'Your DeepAgents backend working directory is the VS Code workspace root. Use real workspace paths: either relative paths like workflows/dev/example.workflow.ts or absolute paths under the workspace root. Do not use pseudo-root paths like /workflows/... unless the workspace root itself is /.',
+            'Your DeepAgents filesystem tools are scoped to the VS Code workspace root. Prefer relative paths like workflows/dev/example.workflow.ts. Absolute filesystem tool paths are virtual paths rooted at the workspace, so /workflows/dev/example.workflow.ts maps to the workspace workflows/dev/example.workflow.ts file, not the host root.',
             'Use tools only when useful. For workflow-specific questions, use the inline workflow and node context supplied with each user turn as authoritative.',
             'Assistant phases are part of the runtime contract: non-terminal phases such as commentary or analysis are interim only. A run may end without tool calls only when the assistant response is in a terminal final phase and the work is complete or genuinely blocked.',
             'When creating or editing n8n-as-code workflows, write TypeScript source files (.ts) using @workflow, @node, and @links decorators. Do not create raw n8n workflow JSON unless the user explicitly asks for JSON export.',
             'Do not invent workflow helper APIs such as createWorkflow. The canonical TypeScript shape is: import { workflow, node, links } from "@n8n-as-code/transformer"; then @workflow({...}) export class MyWorkflow { @node({...}) ManualTrigger = {}; @links() defineRouting() {} }.',
             'Do not claim to push workflows, provision credentials, or change n8n runtime state unless a tool explicitly performs that action successfully.',
             'When using the execute tool, pass exactly one argument object with a command string: {"command":"..."}. Never pass a separate path field, and never concatenate multiple JSON objects.',
+            'Do not end a run with plain progress text while work remains. If todos are pending or in progress, continue with the next tool call such as read_file, execute, write_file, or write_todos. Only final answers may end without tool calls.',
             workspaceRoot ? `Workspace root: ${workspaceRoot}` : undefined,
-            workspaceRoot ? `Example absolute workflow path: ${path.join(workspaceRoot, 'workflows/dev/example.workflow.ts')}` : undefined,
+            'Example workflow file path for tools: workflows/dev/example.workflow.ts',
         ].filter(Boolean).join('\n');
     }
 
