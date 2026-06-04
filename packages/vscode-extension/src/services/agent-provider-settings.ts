@@ -1,4 +1,4 @@
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 
 export type AgentProviderId =
     | 'anthropic'
@@ -41,8 +41,16 @@ export interface AgentProviderSettings {
     reasoningEffort?: AgentProviderReasoningEffortSetting;
 }
 
+type LegacyConfiguration = {
+    get<T>(key: string): T | undefined;
+};
+
+const EMPTY_LEGACY_CONFIGURATION: LegacyConfiguration = {
+    get: () => undefined,
+};
+
 export function readAgentProviderSettings(state: vscode.Memento): AgentProviderSettings {
-    const legacyConfig = vscode.workspace.getConfiguration('n8n.agent');
+    const legacyConfig = getLegacyAgentConfiguration();
     const legacyProvider = readOptionalString(legacyConfig.get<string>('provider'));
     const useManagedSettings = state.get<boolean>(MANAGED_SETTINGS_STATE_KEY) === true || !legacyProvider;
     const provider = normalizeAgentProviderId(useManagedSettings
@@ -61,6 +69,17 @@ export function readAgentProviderSettings(state: vscode.Memento): AgentProviderS
         ? reasoningValue as AgentProviderReasoningEffortSetting
         : undefined;
     return { provider, model, baseUrl, reasoningEffort };
+}
+
+function getLegacyAgentConfiguration(): LegacyConfiguration {
+    const runtimeRequire = typeof require === 'function' ? require : undefined;
+    if (!runtimeRequire) return EMPTY_LEGACY_CONFIGURATION;
+    try {
+        const vscodeModule = runtimeRequire('vscode') as { workspace?: { getConfiguration(section: string): LegacyConfiguration } };
+        return vscodeModule.workspace?.getConfiguration('n8n.agent') || EMPTY_LEGACY_CONFIGURATION;
+    } catch {
+        return EMPTY_LEGACY_CONFIGURATION;
+    }
 }
 
 function normalizeAgentProviderId(provider?: string): AgentProviderId | undefined {

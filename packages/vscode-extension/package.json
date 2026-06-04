@@ -476,6 +476,7 @@
     "test": "npm run compile && npx tsx --test tests/unit/*.test.ts",
     "test:integration:providers": "node scripts/run-provider-stream-v3-integrations.mjs",
     "test:integration:providers:single": "npx tsx --test tests/integration/provider-stream-v3.integration.test.ts",
-    "test:integration:tool-usage": "npx tsx --test tests/integration/tool-usage-workflow-authoring.integration.test.ts"
+    "test:integration:tool-usage": "npx tsx --test tests/integration/tool-usage-workflow-authoring.integration.test.ts",
+    "test:integration:workbench-runtime": "npx tsx --test tests/integration/workbench-runtime-authoring.integration.test.ts"
   }
 }

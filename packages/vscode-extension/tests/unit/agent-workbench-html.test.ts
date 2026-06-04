@@ -247,6 +247,9 @@ test('Agent runtime: non-final assistant phases do not end workbench runs', () =
     assert.ok(source.includes('getAssistantPhase'), 'Runtime must read provider assistant phase metadata');
     assert.ok(source.includes('isTerminalAssistantPhase'), 'Runtime must distinguish terminal and non-terminal assistant phases');
     assert.ok(source.includes("normalized === 'final' || normalized === 'final_answer'"), 'Only final phases should be accepted as terminal no-tool responses');
+    assert.ok(source.includes('if (!phase) return !this.extractAssistantMessageText(message).trim() || this.hasIncompleteAgentTodos(state);'), 'No-tool assistant messages without terminal phase must not silently end while todos are incomplete');
+    assert.ok(source.includes('private hasIncompleteAgentTodos'), 'Runtime must use DeepAgents todo state as a non-terminal completion signal');
+    assert.ok(source.includes('The todo list shows unfinished work'), 'Recovery prompt must explain unfinished todo-driven continuation');
     assert.ok(source.includes('Assistant phases are part of the runtime contract'), 'System prompt must describe the phase contract');
     assert.ok(!source.includes('createPrematureProgressRecoveryMiddleware'), 'Runtime must not use progress-text recovery middleware');
     assert.ok(!source.includes('N8N_PREMATURE_PROGRESS_RECOVERY'), 'Runtime must not use heuristic progress recovery markers');
@@ -306,6 +309,20 @@ test('Agent runtime: Codex stream keeps parallel tool calls separated', () => {
     assert.ok(source.includes('index: index') || source.includes('index,'), 'Native LangChain tool-call chunks must receive distinct indexes');
     assert.ok(source.includes('additional_kwargs'), 'Provider additional_kwargs tool calls must receive matching indexes');
     assert.ok(source.includes('createOpenAiAccountLanguageModel'), 'The index mapping must live inside the local Codex LangChain model');
+});
+
+test('Agent runtime: Codex continuations keep tool call ids stable', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const source = fs.readFileSync(path.join(__dirname, '../../src/services/agent-provider-runtime/openai-account.ts'), 'utf8');
+    const adapter = fs.readFileSync(path.join(__dirname, '../../src/services/agent-provider-runtime/chat-codex-oauth.ts'), 'utf8');
+
+    assert.ok(source.includes('rememberCodexToolCallAliases'), 'Codex stream must remember item_id to call_id aliases');
+    assert.ok(source.includes('const callId = readOptionalString(event.call_id);'), 'Codex argument events must prefer stable call_id over item_id');
+    assert.ok(source.includes('resolveCodexToolCallEventId(event, toolCallAliases)'), 'Codex argument events must resolve aliases before updating tool calls');
+    assert.ok(source.includes('getUnstreamedCodexToolArgs'), 'Codex stream must avoid replaying already-streamed tool arguments');
+    assert.ok(source.includes('extractCodexSseErrorMessage(event)'), 'Codex SSE errors must preserve backend details');
+    assert.ok(adapter.includes('formatCodexStreamError(part.error)'), 'Codex LangChain adapter must format object stream errors safely');
 });
 
 test('Agent runtime: Codex tool schemas use LangChain JSON schema conversion', () => {

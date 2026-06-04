@@ -875,6 +875,8 @@ export function createOpenAiAccountLanguageModel(
       let outputTokens = 0;
       let finishReason: 'stop' | 'error' | 'tool-calls' | 'length' | 'content-filter' | 'other' | 'unknown' = 'unknown';
       const toolCalls = new Map<string, LanguageModelV1FunctionToolCall>();
+      const toolCallAliases = new Map<string, string>();
+      const streamedToolCallArgs = new Map<string, string>();
       let responseId: string | undefined;
       let assistantPhase: string | undefined;
       let rawOutputItems: Array<Record<string, unknown>> | undefined;
@@ -895,13 +897,29 @@ export function createOpenAiAccountLanguageModel(
               const toolCall = extractCodexToolCallFromItem(item, toolCalls.size);
               if (toolCall) {
                 toolCalls.set(toolCall.toolCallId, toolCall);
-                controller.enqueue({
-                  type: 'tool-call-delta',
-                  toolCallType: 'function',
-                  toolCallId: toolCall.toolCallId,
-                  toolName: toolCall.toolName,
-                  argsTextDelta: toolCall.args,
-                });
+                rememberCodexToolCallAliases(item, toolCall.toolCallId, toolCallAliases);
+                if (type === 'response.output_item.added') {
+                  controller.enqueue({
+                    type: 'tool-call-delta',
+                    toolCallType: 'function',
+                    toolCallId: toolCall.toolCallId,
+                    toolName: toolCall.toolName,
+                    argsTextDelta: '',
+                  });
+                } else {
+                  const streamed = streamedToolCallArgs.get(toolCall.toolCallId) ?? '';
+                  const missingArgs = getUnstreamedCodexToolArgs(toolCall.args, streamed);
+                  if (missingArgs) {
+                    streamedToolCallArgs.set(toolCall.toolCallId, `${streamed}${missingArgs}`);
+                    controller.enqueue({
+                      type: 'tool-call-delta',
+                      toolCallType: 'function',
+                      toolCallId: toolCall.toolCallId,
+                      toolName: toolCall.toolName,
+                      argsTextDelta: missingArgs,
+                    });
+                  }
+                }
               }
               if (item && typeof item === 'object' && (item as { type?: unknown }).type === 'message') {
                 const phase = readOptionalString((item as { phase?: unknown }).phase);
@@ -910,13 +928,14 @@ export function createOpenAiAccountLanguageModel(
                 }
               }
             } else if (type === 'response.function_call_arguments.delta') {
-              const itemId = readOptionalString(event.item_id) || readOptionalString(event.call_id);
+              const itemId = resolveCodexToolCallEventId(event, toolCallAliases);
               if (!itemId) continue;
               const existing = toolCalls.get(itemId);
               if (!existing || typeof event.delta !== 'string') continue;
               const delta = event.delta;
               const newArgs = `${existing.args}${delta}`;
               toolCalls.set(itemId, { ...existing, args: newArgs });
+              streamedToolCallArgs.set(itemId, `${streamedToolCallArgs.get(itemId) ?? ''}${delta}`);
               controller.enqueue({
                 type: 'tool-call-delta',
                 toolCallType: 'function',
@@ -925,12 +944,24 @@ export function createOpenAiAccountLanguageModel(
                 argsTextDelta: delta,
               });
             } else if (type === 'response.function_call_arguments.done') {
-              const itemId = readOptionalString(event.item_id) || readOptionalString(event.call_id);
+              const itemId = resolveCodexToolCallEventId(event, toolCallAliases);
               if (!itemId) continue;
               const existing = toolCalls.get(itemId);
               if (!existing) continue;
               const finalArgs = readOptionalString(event.arguments) ?? existing.args;
               toolCalls.set(itemId, { ...existing, args: finalArgs });
+              const streamed = streamedToolCallArgs.get(itemId) ?? '';
+              const missingArgs = getUnstreamedCodexToolArgs(finalArgs, streamed);
+              if (missingArgs) {
+                streamedToolCallArgs.set(itemId, `${streamed}${missingArgs}`);
+                controller.enqueue({
+                  type: 'tool-call-delta',
+                  toolCallType: 'function',
+                  toolCallId: itemId,
+                  toolName: existing.toolName,
+                  argsTextDelta: missingArgs,
+                });
+              }
             } else if (type === 'response.completed') {
               const resp = event.response as {
                 id?: string;
@@ -950,11 +981,9 @@ export function createOpenAiAccountLanguageModel(
               completed = true;
               break;
             } else if (type === 'response.failed') {
-              const resp = event.response as { error?: { message?: string } } | undefined;
-              throw new Error(resp?.error?.message || 'Codex response failed.');
+              throw new Error(extractCodexSseErrorMessage(event) || 'Codex response failed.');
             } else if (type === 'error') {
-              const msg = typeof event.message === 'string' ? event.message : '';
-              throw new Error(msg || 'Codex stream error.');
+              throw new Error(extractCodexSseErrorMessage(event) || 'Codex stream error.');
             }
           }
 
@@ -1069,6 +1098,7 @@ async function runOpenAiAccountCompletion(
   let inputTokens = 0;
   let outputTokens = 0;
   const toolCalls = new Map<string, LanguageModelV1FunctionToolCall>();
+  const toolCallAliases = new Map<string, string>();
   let responseId: string | undefined;
   let assistantPhase: string | undefined;
   let rawOutputItems: Array<Record<string, unknown>> | undefined;
@@ -1086,6 +1116,7 @@ async function runOpenAiAccountCompletion(
       const toolCall = extractCodexToolCallFromItem(item, toolCalls.size);
       if (toolCall) {
         toolCalls.set(toolCall.toolCallId, toolCall);
+        rememberCodexToolCallAliases(item, toolCall.toolCallId, toolCallAliases);
       }
       if (item && typeof item === 'object' && (item as { type?: unknown }).type === 'message') {
         const phase = readOptionalString((item as { phase?: unknown }).phase);
@@ -1094,7 +1125,7 @@ async function runOpenAiAccountCompletion(
         }
       }
     } else if (type === 'response.function_call_arguments.delta') {
-      const itemId = readOptionalString(event.item_id) || readOptionalString(event.call_id);
+      const itemId = resolveCodexToolCallEventId(event, toolCallAliases);
       if (!itemId) {
         continue;
       }
@@ -1107,7 +1138,7 @@ async function runOpenAiAccountCompletion(
         args: `${existing.args}${event.delta}`,
       });
     } else if (type === 'response.function_call_arguments.done') {
-      const itemId = readOptionalString(event.item_id) || readOptionalString(event.call_id);
+      const itemId = resolveCodexToolCallEventId(event, toolCallAliases);
       if (!itemId) {
         continue;
       }
@@ -1141,11 +1172,9 @@ async function runOpenAiAccountCompletion(
         }
       }
     } else if (type === 'response.failed') {
-      const resp = event.response as { error?: { message?: string } } | undefined;
-      throw new Error(resp?.error?.message || 'Codex response failed.');
+      throw new Error(extractCodexSseErrorMessage(event) || 'Codex response failed.');
     } else if (type === 'error') {
-      const msg = typeof event.message === 'string' ? event.message : '';
-      throw new Error(msg || 'Codex stream error.');
+      throw new Error(extractCodexSseErrorMessage(event) || 'Codex stream error.');
     }
   }
 
@@ -1442,6 +1471,85 @@ function extractCodexToolCallFromItem(item: unknown, index: number): LanguageMod
     toolName,
     args,
   };
+}
+
+function rememberCodexToolCallAliases(item: unknown, toolCallId: string, aliases: Map<string, string>): void {
+  if (!item || typeof item !== 'object') {
+    return;
+  }
+  const record = item as Record<string, unknown>;
+  for (const candidate of [record.call_id, record.id]) {
+    const alias = readOptionalString(candidate);
+    if (alias) {
+      aliases.set(alias, toolCallId);
+    }
+  }
+}
+
+function resolveCodexToolCallEventId(event: Record<string, unknown>, aliases: Map<string, string>): string | undefined {
+  const callId = readOptionalString(event.call_id);
+  if (callId) {
+    return aliases.get(callId) ?? callId;
+  }
+  const itemId = readOptionalString(event.item_id);
+  return itemId ? aliases.get(itemId) ?? itemId : undefined;
+}
+
+function getUnstreamedCodexToolArgs(finalArgs: string, streamedArgs: string): string {
+  if (!finalArgs) {
+    return '';
+  }
+  if (!streamedArgs) {
+    return finalArgs;
+  }
+  if (finalArgs.startsWith(streamedArgs)) {
+    return finalArgs.slice(streamedArgs.length);
+  }
+  return '';
+}
+
+function extractCodexSseErrorMessage(event: Record<string, unknown>): string | undefined {
+  const direct = readOptionalString(event.message)
+    || readOptionalString(event.detail)
+    || readOptionalString(event.code);
+  if (direct) {
+    return direct;
+  }
+  const nestedError = event.error;
+  if (typeof nestedError === 'string') {
+    return nestedError.trim() || undefined;
+  }
+  if (nestedError && typeof nestedError === 'object') {
+    const errorRecord = nestedError as Record<string, unknown>;
+    const nested = readOptionalString(errorRecord.message)
+      || readOptionalString(errorRecord.detail)
+      || readOptionalString(errorRecord.code)
+      || readOptionalString(errorRecord.type);
+    if (nested) {
+      return nested;
+    }
+  }
+  const response = event.response;
+  if (response && typeof response === 'object') {
+    const responseRecord = response as Record<string, unknown>;
+    const responseError = responseRecord.error;
+    if (responseError && typeof responseError === 'object') {
+      const errorRecord = responseError as Record<string, unknown>;
+      const responseMessage = readOptionalString(errorRecord.message)
+        || readOptionalString(errorRecord.detail)
+        || readOptionalString(errorRecord.code)
+        || readOptionalString(errorRecord.type);
+      if (responseMessage) {
+        return responseMessage;
+      }
+    }
+  }
+  try {
+    const serialized = JSON.stringify(event);
+    return serialized && serialized !== '{}' ? serialized : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function stringifyToolResult(value: unknown): string {

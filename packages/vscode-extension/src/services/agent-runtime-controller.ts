@@ -1,4 +1,4 @@
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
@@ -2241,7 +2241,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                 hook: (state: any) => {
                     const messages = Array.isArray(state?.messages) ? state.messages : [];
                     const lastMessage = messages[messages.length - 1];
-                    if (!this.isNonFinalAssistantPhaseMessage(lastMessage)) return undefined;
+                    if (!this.isNonFinalAssistantPhaseMessage(lastMessage, state)) return undefined;
                     const recoveryAttempts = this.countRecentRecoveryAttempts(messages, NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER);
                     if (recoveryAttempts >= 2) {
                         this.outputChannel.appendLine('[n8n-agent] Stopping non-final assistant phase recovery after two attempts.');
@@ -2264,7 +2264,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                     return {
                         messages: [
                             ...(lastMessageId ? [new RemoveMessage({ id: lastMessageId })] : []),
-                            new HumanMessage({ content: this.buildNonFinalAssistantPhaseRecoveryPrompt(lastMessage) }),
+                            new HumanMessage({ content: this.buildNonFinalAssistantPhaseRecoveryPrompt(lastMessage, state) }),
                         ],
                         jumpTo: 'model',
                     };
@@ -2468,15 +2468,22 @@ export class AgentRuntimeController implements vscode.Disposable {
         ].filter(Boolean).join('\n');
     }
 
-    private buildNonFinalAssistantPhaseRecoveryPrompt(message: unknown): string {
+    private buildNonFinalAssistantPhaseRecoveryPrompt(message: unknown, state?: unknown): string {
         const phase = this.getAssistantPhase(message) || 'unknown';
         const text = this.extractAssistantMessageText(message).replace(/\s+/g, ' ').trim();
+        const hasIncompleteTodos = this.hasIncompleteAgentTodos(state);
+        const reason = phase === 'unknown' && hasIncompleteTodos
+            ? 'Your previous assistant message had no terminal assistant phase or tool call, and the todo list still has pending or in-progress work, so it was removed before ending the run.'
+            : phase === 'unknown' && !text
+            ? 'Your previous assistant message had no terminal assistant phase, no tool call, and no visible text, so it was removed before ending the run.'
+            : `Your previous assistant message had non-terminal assistant phase "${phase}" and was removed before ending the run.`;
         return [
             NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER,
-            `Your previous assistant message had non-terminal assistant phase "${phase}" and was removed before ending the run.`,
+            reason,
             text ? `Removed assistant text: ${text}` : undefined,
             '',
             'Continue the same user task now.',
+            hasIncompleteTodos ? 'The todo list shows unfinished work; continue with the next required tool call or update the todo list before finalizing.' : undefined,
             'If work remains, emit the next required tool call or another non-terminal assistant phase followed by a tool call.',
             'Only emit a final answer when the requested work is actually complete or blocked.',
         ].filter(Boolean).join('\n');
@@ -2925,12 +2932,19 @@ export class AgentRuntimeController implements vscode.Disposable {
         return false;
     }
 
-    private isNonFinalAssistantPhaseMessage(message: unknown): boolean {
+    private isNonFinalAssistantPhaseMessage(message: unknown, state?: unknown): boolean {
         if (!this.isAssistantMessage(message)) return false;
         if (this.messageHasToolCalls(message)) return false;
         const phase = this.getAssistantPhase(message);
-        if (!phase) return false;
+        if (!phase) return !this.extractAssistantMessageText(message).trim() || this.hasIncompleteAgentTodos(state);
         return !this.isTerminalAssistantPhase(phase);
+    }
+
+    private hasIncompleteAgentTodos(state: unknown): boolean {
+        return this.extractTodosFromPayload(state).some((todo) => {
+            const status = String(todo.status || 'pending').toLowerCase().replace(/[-\s]/g, '_').trim();
+            return status === 'pending' || status === 'in_progress';
+        });
     }
 
     private isTerminalAssistantPhase(phase: string): boolean {
@@ -4318,21 +4332,29 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     private extractTodosFromPayload(value: unknown): Array<{ content?: unknown; status?: unknown }> {
+        const todoLists = this.extractTodoListsFromPayload(value);
+        return todoLists[todoLists.length - 1] || [];
+    }
+
+    private extractTodoListsFromPayload(value: unknown): Array<Array<{ content?: unknown; status?: unknown }>> {
         const visited = new Set<unknown>();
-        const visit = (candidate: unknown): Array<{ content?: unknown; status?: unknown }> => {
+        const visit = (candidate: unknown): Array<Array<{ content?: unknown; status?: unknown }>> => {
             if (candidate === undefined || candidate === null || visited.has(candidate)) return [];
             if (typeof candidate === 'string') {
                 const trimmed = candidate.trim();
-                if (!trimmed || (!trimmed.startsWith('{') && !trimmed.startsWith('['))) return [];
+                if (!trimmed) return [];
+                const embeddedTodoList = /^Updated todo list to (\[[\s\S]*\])$/i.exec(trimmed)?.[1];
+                const jsonCandidate = embeddedTodoList || trimmed;
+                if (!jsonCandidate.startsWith('{') && !jsonCandidate.startsWith('[')) return [];
                 try {
-                    return visit(JSON.parse(trimmed));
+                    return visit(JSON.parse(jsonCandidate));
                 } catch {
                     return [];
                 }
             }
             if (Array.isArray(candidate)) {
                 if (candidate.every((item) => item && typeof item === 'object' && 'content' in item)) {
-                    return candidate as Array<{ content?: unknown; status?: unknown }>;
+                    return [candidate as Array<{ content?: unknown; status?: unknown }>];
                 }
                 return candidate.flatMap((item) => visit(item));
             }
@@ -4340,10 +4362,12 @@ export class AgentRuntimeController implements vscode.Disposable {
                 visited.add(candidate);
                 const record = candidate as Record<string, unknown>;
                 if (Array.isArray(record.todos)) return visit(record.todos);
-                for (const key of ['update', 'input', 'args', 'kwargs']) {
+                const todoLists: Array<Array<{ content?: unknown; status?: unknown }>> = [];
+                for (const key of ['messages', 'tool_calls', 'toolCalls', 'additional_kwargs', 'response_metadata', 'lc_kwargs', 'kwargs', 'content', 'update', 'input', 'args']) {
                     const todos = visit(record[key]);
-                    if (todos.length) return todos;
+                    if (todos.length) todoLists.push(...todos);
                 }
+                return todoLists;
             }
             return [];
         };

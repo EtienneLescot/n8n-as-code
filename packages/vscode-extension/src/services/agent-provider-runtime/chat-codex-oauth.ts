@@ -321,13 +321,36 @@ export class ChatCodexOAuth extends BaseChatModel<ChatCodexOAuthCallOptions> {
           });
           return;
         } else if (part.type === 'error') {
-          throw new Error(`Codex stream error: ${part.error}`);
+          throw new Error(formatCodexStreamError(part.error));
         }
       }
     } finally {
       reader.releaseLock();
     }
   }
+}
+
+function formatCodexStreamError(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return `Codex stream error: ${error.message.trim()}`;
+  }
+  if (typeof error === 'string' && error.trim()) {
+    return `Codex stream error: ${error.trim()}`;
+  }
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>;
+    for (const key of ['message', 'detail', 'code', 'type']) {
+      if (typeof record[key] === 'string' && record[key].trim()) {
+        return `Codex stream error: ${record[key].trim()}`;
+      }
+    }
+    try {
+      return `Codex stream error: ${JSON.stringify(record)}`;
+    } catch {
+      return 'Codex stream error.';
+    }
+  }
+  return 'Codex stream error.';
 }
 
 function buildIncrementalPrompt(
