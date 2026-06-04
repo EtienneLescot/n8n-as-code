@@ -242,7 +242,7 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
                     // Clipboard bridge: iframe requests paste data -> forward to extension host
                     // Validate origin, apply rate limit, issue a one-time grant token.
                     if (message.type === 'n8n-paste-request') {
-                        if (event.origin !== iframeOrigin) return;
+                        if (!isActiveFrameEvent(event)) return;
                         var now = Date.now();
                         if (now - _lastPasteMs < PASTE_RATE_LIMIT_MS) return;
                         _lastPasteMs = now;
@@ -253,7 +253,7 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
 
                     // Clipboard bridge: iframe sends copied text -> write to system clipboard
                     if (message.type === 'n8n-clipboard-write' && typeof message.text === 'string') {
-                        if (event.origin !== iframeOrigin) return;
+                        if (!isActiveFrameEvent(event)) return;
                         vscode.postMessage({ type: 'clipboard-write', text: message.text });
                         return;
                     }

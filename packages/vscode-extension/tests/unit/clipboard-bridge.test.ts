@@ -83,6 +83,8 @@ test('Bridge script: relays popup openings to the parent webview', () => {
     assert.ok(script.includes('window.open = function(url, target, features)'), 'Must intercept window.open calls');
     assert.ok(script.includes('target.closest("a[href]")'), 'Must intercept target=_blank anchor clicks');
     assert.ok(script.includes('isAnchorPopupTarget(anchor.getAttribute("target") || "")'), 'Must not intercept ordinary same-frame anchor clicks');
+    assert.ok(script.includes('!isSameFrameTarget(normalized)'), 'Must treat named browsing targets as external popups');
+    assert.ok(script.includes('normalized === "_self" || normalized === "_parent" || normalized === "_top"'), 'Must preserve same-frame target semantics');
     assert.ok(script.includes('new URL(url, window.location.href)'), 'Must resolve relative popup URLs against the proxied page');
     assert.ok(script.includes('absoluteUrl.protocol !== "http:" && absoluteUrl.protocol !== "https:"'), 'Must only relay browser-safe URL schemes');
 });
@@ -236,6 +238,17 @@ test('ProxyService: external n8n redirects create browser auth handoff URLs', ()
     assert.ok(handoff.html.includes('Continue n8n sign-in in your browser'), 'Handoff page should explain the browser sign-in step');
 });
 
+test('ProxyService: external auth handoff page receives popup bridge injection', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const source = fs.readFileSync(path.join(__dirname, '../../src/services/proxy-service.ts'), 'utf8');
+
+    assert.ok(
+        source.includes("httpRes.end(this.injectClipboardBridge(handoff.html, false, false, 'auth-route'))"),
+        'External auth fallback HTML must include the popup bridge for manual browser sign-in links',
+    );
+});
+
 test('ProxyService: external auth redirects remain proxied until n8n callback returns', () => {
     const { ProxyService } = require('../../src/services/proxy-service.js');
     const service = new ProxyService();
@@ -366,12 +379,13 @@ test('Parent webview HTML: includes paste rate limiting', () => {
     assert.ok(html.includes('_lastPasteMs'), 'Must track last paste timestamp');
 });
 
-test('Parent webview HTML: validates event.origin against iframeOrigin', () => {
+test('Parent webview HTML: validates iframe messages against the active frame', () => {
     const { buildWebviewHtml } = require('../../src/ui/webview-html.js');
     const html: string = buildWebviewHtml('wf-1', 'http://localhost:5678/workflow/wf-1');
 
     assert.ok(html.includes('iframeOrigin'), 'Must declare iframeOrigin');
-    assert.ok(html.includes('event.origin !== iframeOrigin'), 'Must reject messages from unknown origins');
+    assert.ok(html.includes('event.origin === iframeOrigin'), 'Must reject messages from unknown origins');
+    assert.ok(html.includes('event.source === activeFrame.contentWindow'), 'Must reject messages from stale same-origin iframes');
 });
 
 test('Parent webview HTML: relays iframe popup requests after origin validation', () => {
@@ -384,6 +398,20 @@ test('Parent webview HTML: relays iframe popup requests after origin validation'
     assert.ok(html.includes('event.source === activeFrame.contentWindow'), 'Must reject popup requests from stale hidden iframes');
     assert.ok(html.includes("if (!isActiveFrameEvent(event)) return;"), 'Must require an active iframe event before relaying popup URLs');
     assert.ok(html.includes("vscode.postMessage({ type: 'open-external', url: message.url });"), 'Must relay popup URL to the extension host');
+});
+
+test('Parent webview HTML: validates active iframe before clipboard operations', () => {
+    const { buildWebviewHtml } = require('../../src/ui/webview-html.js');
+    const html: string = buildWebviewHtml('wf-1', 'http://localhost:5678/workflow/wf-1');
+
+    assert.ok(
+        html.includes("if (message.type === 'n8n-paste-request') {\n                        if (!isActiveFrameEvent(event)) return;"),
+        'Paste requests must come from the active iframe, not a stale same-origin frame',
+    );
+    assert.ok(
+        html.includes("if (message.type === 'n8n-clipboard-write' && typeof message.text === 'string') {\n                        if (!isActiveFrameEvent(event)) return;"),
+        'Clipboard writes must come from the active iframe, not a stale same-origin frame',
+    );
 });
 
 test('Parent webview HTML: does not embed a static NONCE', () => {

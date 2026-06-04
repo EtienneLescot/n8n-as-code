@@ -124,7 +124,10 @@ export class WorkflowWebview {
             return;
         }
         try {
-            await vscode.env.openExternal(uri);
+            const opened = await vscode.env.openExternal(uri);
+            if (!opened) {
+                console.error('[Webview] VS Code declined to open external URL', url);
+            }
         } catch (error) {
             console.error('[Webview] Open external URL error', error);
         }

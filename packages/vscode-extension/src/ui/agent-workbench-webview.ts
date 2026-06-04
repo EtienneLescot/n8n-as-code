@@ -826,7 +826,10 @@ export class AgentWorkbenchWebview {
             return;
         }
         try {
-            await vscode.env.openExternal(uri);
+            const opened = await vscode.env.openExternal(uri);
+            if (!opened) {
+                console.error('[AgentWorkbench] VS Code declined to open external URL', url);
+            }
         } catch (error) {
             console.error('[AgentWorkbench] Open external URL error', error);
         }

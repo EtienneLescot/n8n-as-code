@@ -211,7 +211,8 @@ test('Workflow webviews: extension host opens relayed popup URLs externally', ()
     for (const source of [workflowWebview, agentWorkbenchWebview]) {
         assert.ok(source.includes("payload.type === 'open-external'") || source.includes("message.type === 'open-external'"), 'Must handle open-external host messages');
         assert.ok(source.includes("scheme !== 'http' && scheme !== 'https'"), 'Must reject non-browser URL schemes');
-        assert.ok(source.includes('vscode.env.openExternal(uri)'), 'Must open relayed popup URLs via VS Code');
+        assert.ok(source.includes('const opened = await vscode.env.openExternal(uri)'), 'Must open relayed popup URLs via VS Code');
+        assert.ok(source.includes('if (!opened)'), 'Must handle VS Code declining to open the external URL');
     }
 });
 

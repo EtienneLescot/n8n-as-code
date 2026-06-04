@@ -462,7 +462,7 @@ export class ProxyService {
                             'content-type': 'text/html; charset=utf-8',
                             'cache-control': 'no-store',
                         });
-                        httpRes.end(handoff.html);
+                        httpRes.end(this.injectClipboardBridge(handoff.html, false, false, 'auth-route'));
                         return;
                     }
                 }
@@ -791,14 +791,18 @@ export class ProxyService {
     return value.replace(/\\s+/g, " ").trim();
   }
 
+  function isSameFrameTarget(normalized) {
+    return normalized === "_self" || normalized === "_parent" || normalized === "_top";
+  }
+
   function isPopupTarget(target) {
     var normalized = cleanText(target || "_blank").toLowerCase();
-    return !normalized || normalized === "_blank" || normalized === "_new";
+    return !normalized || !isSameFrameTarget(normalized);
   }
 
   function isAnchorPopupTarget(target) {
     var normalized = cleanText(target).toLowerCase();
-    return normalized === "_blank" || normalized === "_new";
+    return !!normalized && !isSameFrameTarget(normalized);
   }
 
   function postOpenExternal(url, target) {
