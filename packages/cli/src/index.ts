@@ -310,15 +310,51 @@ const loadSkillsRegistrar = async (): Promise<{
 };
 
 const getMcpEntry = (): string => {
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const siblingEntry = join(__dirname, '..', '..', 'mcp', 'dist', 'cli.js');
+    if (existsSync(siblingEntry)) {
+        return siblingEntry;
+    }
+
     try {
         const require = createRequire(import.meta.url);
         const mcpPkg = require.resolve('@n8n-as-code/mcp/package.json');
         return join(dirname(mcpPkg), 'dist', 'cli.js');
     } catch {
-        const __dirname = dirname(fileURLToPath(import.meta.url));
-        return join(__dirname, '..', '..', 'mcp', 'dist', 'cli.js');
+        return siblingEntry;
     }
 };
+
+async function runMcpDiagnosticCommand(
+    kind: 'status' | 'tools' | 'doctor',
+    options: { cwd?: string; json?: boolean; includeTools?: boolean } = {},
+): Promise<void> {
+    const mcpEntry = getMcpEntry();
+    const args = [mcpEntry, `--native-mcp-${kind}`];
+    if (options.cwd) args.push('--cwd', options.cwd);
+    if (options.json) args.push('--json');
+    if (options.includeTools) args.push('--include-tools');
+
+    const child = spawn(process.execPath, args, {
+        cwd: process.cwd(),
+        env: process.env,
+        stdio: 'inherit',
+    });
+
+    await new Promise<void>((resolve, reject) => {
+        child.on('error', reject);
+        child.on('exit', async (code, signal) => {
+            if (signal) {
+                process.kill(process.pid, signal);
+                return;
+            }
+            if ((code ?? 1) !== 0) {
+                await exitWithTelemetry(code ?? 1);
+            }
+            resolve();
+        });
+    });
+}
 
 const program = new Command();
 const telemetry = createTelemetryClient({ facade: 'cli', version: getVersion() });
@@ -1327,6 +1363,47 @@ program.command('convert-batch')
             await exitWithTelemetry(1);
         }
         await new ConvertCommand().batch(directory, options);
+    });
+
+const nativeMcpCmd = program.command('native-mcp')
+    .description('Inspect optional native n8n MCP assist configuration and capabilities');
+
+nativeMcpCmd
+    .command('status')
+    .description('Show native n8n MCP assist configuration status without mutating n8n')
+    .option('--cwd <path>', 'Project directory used to resolve n8n-as-code context', process.env.N8N_AS_CODE_PROJECT_DIR)
+    .option('--include-tools', 'Connect to the native n8n MCP server and include discovered tools')
+    .option('--json', 'Output status as JSON')
+    .action(async (options) => {
+        await runMcpDiagnosticCommand('status', {
+            cwd: options.cwd,
+            json: options.json,
+            includeTools: options.includeTools,
+        });
+    });
+
+nativeMcpCmd
+    .command('tools')
+    .description('List tools exposed by the configured native n8n MCP server')
+    .option('--cwd <path>', 'Project directory used to resolve n8n-as-code context', process.env.N8N_AS_CODE_PROJECT_DIR)
+    .option('--json', 'Output status and tool list as JSON')
+    .action(async (options) => {
+        await runMcpDiagnosticCommand('tools', {
+            cwd: options.cwd,
+            json: options.json,
+        });
+    });
+
+nativeMcpCmd
+    .command('doctor')
+    .description('Check whether native n8n MCP assist is enabled, configured, reachable, and tool-discoverable')
+    .option('--cwd <path>', 'Project directory used to resolve n8n-as-code context', process.env.N8N_AS_CODE_PROJECT_DIR)
+    .option('--json', 'Output status as JSON')
+    .action(async (options) => {
+        await runMcpDiagnosticCommand('doctor', {
+            cwd: options.cwd,
+            json: options.json,
+        });
     });
 
 program.command('mcp')

@@ -22,8 +22,65 @@ See the [CLI guide](/docs/usage/cli) and [n8n-manager guide](/docs/usage/n8n-man
 | `get_n8n_workflow_example` | Get metadata and download URL for a specific example |
 | `validate_n8n_workflow` | Validate a workflow against the bundled JSON schema |
 | `search_n8n_docs` | Search bundled n8n documentation pages |
+| `get_n8n_native_mcp_status` | Inspect optional native n8n MCP assist configuration and discovered tools |
 
-All tools operate entirely on bundled, offline data — no network access to n8n is required.
+The core tools operate entirely on bundled, offline data — no network access to n8n is required. Native n8n MCP assist is disabled by default and only makes network calls when explicitly enabled.
+
+## Optional native n8n MCP assist
+
+n8n 2.x includes an instance-level MCP server that can expose live workflow, node, execution, credential, project, folder, and workflow-builder capabilities. `@n8n-as-code/mcp` can optionally connect to that native server as a read-only assist layer.
+
+This integration is designed to complement the local n8n-as-code workflow, not replace it:
+
+- Use bundled `n8n-as-code` knowledge and `n8nac` commands as the default source of truth.
+- Use native MCP assist for live discovery, server-side validation, credential metadata, execution inspection, and node definitions from the connected instance.
+- Keep `.workflow.ts` files and Git as the durable source of truth.
+- Do not store native MCP bearer tokens in project files.
+- Do not use native MCP create, update, publish, archive, or destructive data-table operations as an automatic path. This package currently exposes only read-only native wrappers.
+
+### Enable assist mode
+
+Set the native MCP endpoint and auth in the environment that launches the MCP server:
+
+```bash
+export N8NAC_NATIVE_MCP_ENABLED=1
+export N8NAC_NATIVE_MCP_MODE=assist
+export N8N_NATIVE_MCP_URL="https://your-n8n.example.com/mcp-server/http"
+export N8N_NATIVE_MCP_TOKEN="your-personal-native-mcp-token"
+n8nac-mcp
+```
+
+OAuth2 is preferred when your MCP client connects directly to n8n's native server. For the `n8n-as-code` broker assist mode, use environment variables or a local secret mechanism outside the repository.
+
+### Native assist tools
+
+When `N8NAC_NATIVE_MCP_ENABLED=1` and `N8N_NATIVE_MCP_URL` is configured, the MCP server also exposes these read-only wrappers. Use `n8nac native-mcp status --include-tools --json` to confirm which underlying native tools your n8n version supports:
+
+| Tool | Native n8n tool | Purpose |
+| --- | --- | --- |
+| `search_n8n_live_workflows` | `search_workflows` | Search live workflow previews |
+| `get_n8n_live_workflow_details` | `get_workflow_details` | Inspect sanitized live workflow details |
+| `search_n8n_live_projects` | `search_projects` | Discover n8n projects |
+| `search_n8n_live_folders` | `search_folders` | Discover folders in a project |
+| `list_n8n_live_credentials` | `list_credentials` | List credential metadata without secrets |
+| `search_n8n_live_executions` | `search_executions` | Search execution metadata |
+| `get_n8n_live_execution` | `get_execution` | Inspect an execution, optionally with data |
+| `get_n8n_native_sdk_reference` | `get_sdk_reference` | Read native workflow-builder SDK guidance |
+| `search_n8n_native_nodes` | `search_nodes` | Search live node definitions |
+| `get_n8n_native_node_types` | `get_node_types` | Fetch native TypeScript node definitions |
+| `validate_n8n_native_workflow_code` | `validate_workflow` | Validate native workflow-builder code without creating workflows |
+
+### Diagnostics
+
+Use the CLI diagnostics before relying on native assist:
+
+```bash
+n8nac native-mcp status --include-tools --json
+n8nac native-mcp tools
+n8nac native-mcp doctor --json
+```
+
+`doctor` exits non-zero when assist is disabled, misconfigured, unreachable, or unable to list native tools.
 
 ## Installation
 
@@ -218,15 +275,25 @@ docker run -p 3000:3000 \
 | `MCP_TRANSPORT` | `stdio` | Transport: `stdio`, `http`, or `sse` |
 | `MCP_HOST` | `0.0.0.0` | Bind host for `http`/`sse` transport |
 | `MCP_PORT` | `3000` | Bind port for `http`/`sse` transport |
+| `N8NAC_NATIVE_MCP_ENABLED` | `0` | Enable optional native n8n MCP assist tools |
+| `N8NAC_NATIVE_MCP_MODE` | `assist` | Native MCP mode. Only read-only assist wrappers are currently exposed |
+| `N8N_NATIVE_MCP_URL` | _(unset)_ | Native n8n MCP endpoint, for example `https://host/mcp-server/http` |
+| `N8N_NATIVE_MCP_TOKEN` | _(unset)_ | Native n8n MCP bearer token. Keep this outside project files |
 
 For the full Docker reference including all image tags, Docker Compose examples, and local build instructions, see the **[Docker README](https://github.com/EtienneLescot/n8n-as-code/blob/main/packages/mcp/docker/README.md)**.
 
 ## How it works
 
-The MCP server is a thin protocol layer. Every tool call is delegated to the `n8nac` CLI, which ships with a bundled knowledge index:
+The MCP server is a thin protocol layer. Offline knowledge and validation calls are delegated to the `n8nac` CLI, which ships with a bundled knowledge index:
 
 ```text
 MCP Client → @n8n-as-code/mcp → n8nac CLI → bundled knowledge index
 ```
 
-No live n8n instance, no network calls — everything runs locally from the installed packages.
+By default there is no live n8n instance and no network call. When native MCP assist is explicitly enabled, read-only live wrappers use this additional path:
+
+```text
+MCP Client → @n8n-as-code/mcp → native n8n MCP server → live n8n instance
+```
+
+Native assist is optional and does not change the recommended Git/TypeScript workflow source of truth.

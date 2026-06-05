@@ -7,6 +7,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { isInitializeRequest, type ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { N8nAsCodeMcpService, type N8nAsCodeMcpServiceOptions } from './mcp-service.js';
+import { NATIVE_MCP_READ_ONLY_TOOL_MAP } from './native-mcp-tools.js';
 import { createTelemetryClient, classifyTelemetryError, type TelemetryClient } from '@n8n-as-code/telemetry';
 
 export interface HttpServerOptions {
@@ -77,6 +78,90 @@ const searchDocsSchema = {
     limit: z.number().int().min(1).max(10).optional().describe('Maximum number of pages to return.'),
 };
 
+const nativeMcpStatusSchema = {
+    includeTools: z.boolean().optional().describe('When true, connect to the native n8n MCP server and include discovered tools and capabilities.'),
+};
+
+const searchLiveWorkflowsSchema = {
+    query: z.string().optional().describe('Optional workflow search query.'),
+    projectId: z.string().optional().describe('Optional n8n project ID filter.'),
+    limit: z.number().int().min(1).max(200).optional().describe('Maximum number of workflows to return.'),
+};
+
+const getLiveWorkflowDetailsSchema = {
+    workflowId: z.string().min(1).describe('n8n workflow ID.'),
+};
+
+const searchLiveProjectsSchema = {
+    query: z.string().optional().describe('Optional project search query.'),
+    type: z.string().optional().describe('Optional project type filter, when supported by the native server.'),
+    limit: z.number().int().min(1).max(100).optional().describe('Maximum number of projects to return.'),
+};
+
+const searchLiveFoldersSchema = {
+    projectId: z.string().min(1).describe('n8n project ID.'),
+    query: z.string().optional().describe('Optional folder search query.'),
+    limit: z.number().int().min(1).max(100).optional().describe('Maximum number of folders to return.'),
+};
+
+const listLiveCredentialsSchema = {
+    query: z.string().optional().describe('Optional credential name search query.'),
+    type: z.string().optional().describe('Optional credential type filter.'),
+    projectId: z.string().optional().describe('Optional project ID filter.'),
+    onlySharedWithMe: z.boolean().optional().describe('When supported, exclude global credentials and list only credentials shared with the user.'),
+    limit: z.number().int().min(1).max(200).optional().describe('Maximum number of credentials to return.'),
+};
+
+const searchLiveExecutionsSchema = {
+    workflowId: z.string().min(1).describe('n8n workflow ID.'),
+    status: z.array(z.string()).optional().describe('Optional execution statuses.'),
+    startedAfter: z.string().optional().describe('Optional ISO timestamp lower bound.'),
+    startedBefore: z.string().optional().describe('Optional ISO timestamp upper bound.'),
+    lastId: z.string().optional().describe('Optional pagination cursor.'),
+    limit: z.number().int().min(1).max(200).optional().describe('Maximum number of executions to return.'),
+};
+
+const getLiveExecutionSchema = {
+    workflowId: z.string().min(1).describe('n8n workflow ID.'),
+    executionId: z.string().min(1).describe('n8n execution ID.'),
+    includeData: z.boolean().optional().describe('Include execution data. This may expose sensitive payloads.'),
+    nodeNames: z.array(z.string()).optional().describe('Optional node-name filter for execution data.'),
+    truncateData: z.boolean().optional().describe('Ask n8n to truncate large execution payloads when supported.'),
+};
+
+const nativeSdkReferenceSchema = {
+    section: z.enum(['patterns', 'expressions', 'functions', 'rules', 'import', 'guidelines', 'design', 'all']).optional().describe('SDK reference section to retrieve.'),
+};
+
+const nativeSearchNodesSchema = {
+    queries: z.array(z.string().min(1)).min(1).max(10).describe('Node search queries, for example ["gmail", "send email"].'),
+};
+
+const nativeNodeTypeDescriptorSchema = z.object({
+    nodeId: z.string().min(1),
+    version: z.number().optional(),
+    resource: z.string().optional(),
+    operation: z.string().optional(),
+    mode: z.string().optional(),
+}).passthrough();
+
+const nativeGetNodeTypesSchema = {
+    nodeIds: z.array(z.union([z.string().min(1), nativeNodeTypeDescriptorSchema])).min(1).max(50).describe('Native node IDs or descriptor objects returned by search_n8n_native_nodes.'),
+};
+
+const nativeValidateWorkflowCodeSchema = {
+    code: z.string().min(1).describe('Complete n8n native workflow builder TypeScript/JavaScript code.'),
+};
+
+function nativeToolResponse(service: N8nAsCodeMcpService, nativeToolName: string, args: Record<string, unknown>) {
+    return service.callNativeMcpTool(nativeToolName, args).then((result) => ({
+        content: [{ type: 'text' as const, text: asJsonText(result) }],
+    })).catch((error: any) => ({
+        isError: true,
+        content: [{ type: 'text' as const, text: error?.message || String(error) }],
+    }));
+}
+
 function buildMcpServer(service: N8nAsCodeMcpService, telemetry: TelemetryClient): McpServer {
     const server = new McpServer({
         name: 'n8n-as-code',
@@ -125,6 +210,13 @@ function buildMcpServer(service: N8nAsCodeMcpService, telemetry: TelemetryClient
         destructiveHint: false,
         idempotentHint: true,
         openWorldHint: false,
+    };
+
+    const nativeReadOnlyHints: ToolAnnotations = {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
     };
 
     s.tool(
@@ -221,6 +313,106 @@ function buildMcpServer(service: N8nAsCodeMcpService, telemetry: TelemetryClient
             content: [{ type: 'text' as const, text: asJsonText(await service.searchDocs(query, { category, type, limit })) }],
         })),
     );
+
+    s.tool(
+        'get_n8n_native_mcp_status',
+        'Inspect optional native n8n MCP assist configuration and, when requested, discovered native tools. Does not mutate n8n.',
+        nativeMcpStatusSchema,
+        nativeReadOnlyHints,
+        trackTool('get_n8n_native_mcp_status', async ({ includeTools }: { includeTools?: boolean }) => ({
+            content: [{ type: 'text' as const, text: asJsonText(await service.getNativeMcpStatus({ includeTools })) }],
+        })),
+    );
+
+    if (service.isNativeMcpConfigured()) {
+        s.tool(
+            'search_n8n_live_workflows',
+            'Search workflows on the configured native n8n MCP server. Read-only; returns live previews from the n8n instance.',
+            searchLiveWorkflowsSchema,
+            nativeReadOnlyHints,
+            trackTool('search_n8n_live_workflows', (args: Record<string, unknown>) => nativeToolResponse(service, NATIVE_MCP_READ_ONLY_TOOL_MAP.searchLiveWorkflows, args)),
+        );
+
+        s.tool(
+            'get_n8n_live_workflow_details',
+            'Get sanitized live workflow details from the configured native n8n MCP server. Read-only; credentials are not returned by n8n.',
+            getLiveWorkflowDetailsSchema,
+            nativeReadOnlyHints,
+            trackTool('get_n8n_live_workflow_details', (args: Record<string, unknown>) => nativeToolResponse(service, NATIVE_MCP_READ_ONLY_TOOL_MAP.getLiveWorkflowDetails, args)),
+        );
+
+        s.tool(
+            'search_n8n_live_projects',
+            'Search n8n projects through the configured native MCP server. Read-only.',
+            searchLiveProjectsSchema,
+            nativeReadOnlyHints,
+            trackTool('search_n8n_live_projects', (args: Record<string, unknown>) => nativeToolResponse(service, NATIVE_MCP_READ_ONLY_TOOL_MAP.searchLiveProjects, args)),
+        );
+
+        s.tool(
+            'search_n8n_live_folders',
+            'Search n8n folders in a project through the configured native MCP server. Read-only.',
+            searchLiveFoldersSchema,
+            nativeReadOnlyHints,
+            trackTool('search_n8n_live_folders', (args: Record<string, unknown>) => nativeToolResponse(service, NATIVE_MCP_READ_ONLY_TOOL_MAP.searchLiveFolders, args)),
+        );
+
+        s.tool(
+            'list_n8n_live_credentials',
+            'List accessible n8n credential metadata through the native MCP server. Read-only; secrets are never returned by n8n.',
+            listLiveCredentialsSchema,
+            nativeReadOnlyHints,
+            trackTool('list_n8n_live_credentials', (args: Record<string, unknown>) => nativeToolResponse(service, NATIVE_MCP_READ_ONLY_TOOL_MAP.listLiveCredentials, args)),
+        );
+
+        s.tool(
+            'search_n8n_live_executions',
+            'Search live n8n execution metadata through the native MCP server. Read-only but may reveal operational metadata.',
+            searchLiveExecutionsSchema,
+            nativeReadOnlyHints,
+            trackTool('search_n8n_live_executions', (args: Record<string, unknown>) => nativeToolResponse(service, NATIVE_MCP_READ_ONLY_TOOL_MAP.searchLiveExecutions, args)),
+        );
+
+        s.tool(
+            'get_n8n_live_execution',
+            'Get a live n8n execution through the native MCP server. Read-only; includeData may expose sensitive workflow payloads.',
+            getLiveExecutionSchema,
+            nativeReadOnlyHints,
+            trackTool('get_n8n_live_execution', (args: Record<string, unknown>) => nativeToolResponse(service, NATIVE_MCP_READ_ONLY_TOOL_MAP.getLiveExecution, args)),
+        );
+
+        s.tool(
+            'get_n8n_native_sdk_reference',
+            'Get n8n native workflow-builder SDK reference through the native MCP server. Read-only.',
+            nativeSdkReferenceSchema,
+            nativeReadOnlyHints,
+            trackTool('get_n8n_native_sdk_reference', (args: Record<string, unknown>) => nativeToolResponse(service, NATIVE_MCP_READ_ONLY_TOOL_MAP.getNativeSdkReference, args)),
+        );
+
+        s.tool(
+            'search_n8n_native_nodes',
+            'Search live n8n node definitions through the native MCP server. Read-only complement to the bundled n8n-as-code node knowledge.',
+            nativeSearchNodesSchema,
+            nativeReadOnlyHints,
+            trackTool('search_n8n_native_nodes', (args: Record<string, unknown>) => nativeToolResponse(service, NATIVE_MCP_READ_ONLY_TOOL_MAP.searchNativeNodes, args)),
+        );
+
+        s.tool(
+            'get_n8n_native_node_types',
+            'Get live native TypeScript definitions for n8n nodes through the native MCP server. Read-only.',
+            nativeGetNodeTypesSchema,
+            nativeReadOnlyHints,
+            trackTool('get_n8n_native_node_types', (args: Record<string, unknown>) => nativeToolResponse(service, NATIVE_MCP_READ_ONLY_TOOL_MAP.getNativeNodeTypes, args)),
+        );
+
+        s.tool(
+            'validate_n8n_native_workflow_code',
+            'Validate n8n native workflow-builder TypeScript/JavaScript code through the native MCP server. Read-only validation only; does not create or update workflows.',
+            nativeValidateWorkflowCodeSchema,
+            nativeReadOnlyHints,
+            trackTool('validate_n8n_native_workflow_code', (args: Record<string, unknown>) => nativeToolResponse(service, NATIVE_MCP_READ_ONLY_TOOL_MAP.validateNativeWorkflowCode, args)),
+        );
+    }
 
     return server;
 }

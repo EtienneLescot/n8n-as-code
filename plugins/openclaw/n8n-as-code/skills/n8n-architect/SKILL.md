@@ -232,6 +232,22 @@ npx --yes n8nac skills validate <workflow.workflow.ts>
 - Prefer the highest valid `typeVersion` returned by schema output.
 - For fixed collections such as Switch/If rules, Wait form fields, or nested options, read the full `node-info` output before writing values.
 
+## Optional Native n8n MCP Assist
+
+The native n8n instance-level MCP server can complement this workflow, but it does not replace `npx --yes n8nac`, bundled knowledge, `.workflow.ts`, Git, or the sync discipline.
+
+Use this routing policy:
+
+- Default to local `npx --yes n8nac` and `npx --yes n8nac skills` tools for workflow authoring, validation, pull, push, test, credentials, executions, and presentation.
+- If native MCP assist is configured, use it only for read-only live discovery, server-side validation, live node definitions, credential metadata without secrets, execution inspection, projects, and folders.
+- Check native availability with `npx --yes n8nac native-mcp status --include-tools --json` before relying on native tools.
+- Do not use native MCP create, update, publish, unpublish, archive, execute, or destructive data-table tools unless the user explicitly requests direct native MCP mode and the tool is gated by permissions.
+- If a workflow is ever created or changed through native MCP direct mode, immediately pull it back with `npx --yes n8nac pull <workflowId>` so the `.workflow.ts` file and Git remain the source of truth.
+- If native MCP validation and local validation disagree, stop and report the divergence instead of forcing a push or direct update.
+- Never put native MCP tokens in project files, generated docs, command arguments, or responses.
+
+Native MCP assist is a fallback and enrichment path, not the primary implementation path.
+
 ## Knowledge Commands
 
 Use these commands instead of guessing:
