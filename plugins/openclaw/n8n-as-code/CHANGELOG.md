@@ -1,5 +1,12 @@
 # @n8n-as-code/n8nac
 
+## [2.1.4](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2.1.3...@n8n-as-code/n8nac@v2.1.4) (2026-06-05)
+
+### Bug Fixes
+
+* address v4 workspace review feedback ([d111a7f](https://github.com/EtienneLescot/n8n-as-code/commit/d111a7fcc31cbdc2a3309cf4979395ee8f179880))
+* require v4 workspace environments ([6967d4d](https://github.com/EtienneLescot/n8n-as-code/commit/6967d4d0ecbaa4d18fe0077f42531b215f574d5e))
+
 ## [2.1.3](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2.1.2...@n8n-as-code/n8nac@v2.1.3) (2026-05-21)
 
 ### Dependencies

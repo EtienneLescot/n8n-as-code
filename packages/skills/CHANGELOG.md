@@ -1,5 +1,11 @@
 # @n8n-as-code/skills
 
+## [2.2.6](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.2.5...@n8n-as-code/skills@v2.2.6) (2026-06-05)
+
+### Bug Fixes
+
+* require v4 workspace environments ([6967d4d](https://github.com/EtienneLescot/n8n-as-code/commit/6967d4d0ecbaa4d18fe0077f42531b215f574d5e))
+
 ## [2.2.5](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.2.4...@n8n-as-code/skills@v2.2.5) (2026-06-04)
 
 ### Bug Fixes
