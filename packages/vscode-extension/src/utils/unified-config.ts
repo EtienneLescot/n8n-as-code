@@ -8,6 +8,8 @@ import {
     type ILocalConfig,
     type IInstanceProfile,
     type IWorkspaceConfig,
+    type IEnvironmentTarget,
+    type IWorkspaceEnvironment,
     type IInstanceVerificationClient,
 } from 'n8nac';
 
@@ -133,12 +135,38 @@ export async function buildUnifiedWorkspaceConfig(
         ? (existing.activeInstanceId || profile.id)
         : profile.id;
     const active = instances.find((instance) => instance.id === activeInstanceId);
+    const targetId = `${profile.id}-target`;
+    const environmentId = `${profile.id}-env`;
+    const target: IEnvironmentTarget = {
+        id: targetId,
+        name: profile.name,
+        kind: 'external-instance',
+        url: profile.host || '',
+        instanceIdentifier: profile.instanceIdentifier,
+    };
+    const environment: IWorkspaceEnvironment = {
+        id: environmentId,
+        name: profile.name,
+        environmentTargetId: targetId,
+        projectId: profile.projectId,
+        projectName: profile.projectName,
+        workflowsPath: profile.syncFolder || storedSyncFolder,
+    };
 
     return {
-        version: 3,
+        version: 4,
         activeInstanceId,
+        activeEnvironmentId: environmentId,
+        activeEnvironment: environment,
+        environmentTargets: [target],
+        environments: [environment],
         instances,
         ...toActiveFields(active),
+        sourceKind: 'external-instance',
+        environmentTargetId: target.id,
+        environmentTargetName: target.name,
+        apiKeyAvailable: Boolean(input.apiKey),
+        credentialSource: input.apiKey ? 'workspace-local' : 'missing',
     };
 }
 
