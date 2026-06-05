@@ -23,7 +23,7 @@
     },
     "dependencies": {
         "@n8n-as-code/manager-adapter": "2.0.4",
-        "@n8n-as-code/mcp": "2.0.14",
+        "@n8n-as-code/mcp": "2.0.15",
         "@n8n-as-code/n8n-manager-core": "^0.7.1",
         "@n8n-as-code/skills": "2.2.6",
         "@n8n-as-code/telemetry": "2.0.1",
