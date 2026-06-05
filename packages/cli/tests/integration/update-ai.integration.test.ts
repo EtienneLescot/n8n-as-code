@@ -220,9 +220,8 @@ describe('CLI update-ai integration', () => {
         const instanceIdentifier = 'inst_c6c289e49e';
         const workflowsPath = 'workflows/dev';
         const projectName = 'My Project';
-        const projectSlug = 'my_project';
 
-        const instanceDir = path.join(workspaceDir, workflowsPath, instanceIdentifier, projectSlug);
+        const instanceDir = path.join(workspaceDir, workflowsPath);
         fs.mkdirSync(instanceDir, { recursive: true });
 
         const dtsPath = path.join(instanceDir, 'n8n-workflows.d.ts');

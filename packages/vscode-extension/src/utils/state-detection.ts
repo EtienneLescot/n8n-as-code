@@ -7,7 +7,7 @@ import { ConfigValidationResult } from '../types.js';
 export interface ResolvedN8nWorkspaceConfig {
   host: string;
   apiKey: string;
-  syncFolder: string;
+  syncFolder?: string;
   projectId: string;
   projectName: string;
   activeInstanceId: string;
@@ -54,7 +54,6 @@ export function getResolvedN8nConfig(workspaceRoot = getWorkspaceRoot()): Resolv
   return {
     host: '',
     apiKey: '',
-    syncFolder: '',
     projectId: '',
     projectName: '',
     activeInstanceId: '',
@@ -192,6 +191,9 @@ export function getSyncDirectoryPath(): string | undefined {
   }
 
   const folder = getResolvedN8nConfig(workspaceRoot).syncFolder;
+  if (!folder) {
+    return undefined;
+  }
   
   return path.isAbsolute(folder) ? folder : path.resolve(workspaceRoot, folder);
 }

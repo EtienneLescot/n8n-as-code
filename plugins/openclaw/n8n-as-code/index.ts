@@ -26,9 +26,10 @@ Supported facade runtime modes:
 ${SETUP_MODE_CONTEXT}
 
 For agent-driven flows, use the installed \`n8n-manager\` and \`n8n-architect\`
-skills and their documented shell commands. Instance/auth/project management
-belongs to \`n8n-manager\`; workflow sync belongs to V4 \`n8nac env\`
-workspace environments and the n8n-as-code skills.
+skills and their documented shell commands. Local managed runtime lifecycle
+belongs to \`n8n-manager\`; environment/project/auth/workflowsPath management
+uses V4 \`n8nac env\` commands such as \`env add\`, \`env update\`, and
+\`env auth set\`, and workflow sync uses the n8n-as-code skills.
 `;
 
 function buildStatusHeader(workspaceDir: string): string {

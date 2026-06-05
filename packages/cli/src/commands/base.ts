@@ -26,9 +26,7 @@ export class BaseCommand {
         // If --env <name> was passed as a global option, resolve that workspace
         // environment; otherwise use the V4 active environment.
         const requestedEnvironment = process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
-        const resolvedEnvironment = requestedEnvironment
-            ? this.configService.resolveEnvironment(requestedEnvironment)
-            : this.tryResolveEnvironment();
+        const resolvedEnvironment = this.tryResolveEnvironment(requestedEnvironment);
 
         if (!resolvedEnvironment) {
             console.error(chalk.red('❌ CLI not configured.'));
@@ -81,12 +79,12 @@ export class BaseCommand {
         } catch { /* never block the command */ }
     }
 
-    private tryResolveEnvironment(): IResolvedWorkspaceEnvironment | undefined {
+    private tryResolveEnvironment(environmentNameOrId?: string): IResolvedWorkspaceEnvironment | undefined {
         if (!this.configService.isWorkspaceConfigV4()) {
             return undefined;
         }
         try {
-            return this.configService.resolveEnvironment();
+            return this.configService.resolveEnvironment(environmentNameOrId);
         } catch (error: any) {
             console.error(chalk.red(`❌ Workspace environment resolution failed: ${error?.message || error}`));
             console.error(chalk.yellow('Fix the pinned workspace environment with `n8nac env pin <name>` or update the v4 environment config.'));

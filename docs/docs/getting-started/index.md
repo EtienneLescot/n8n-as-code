@@ -20,7 +20,7 @@ This guide gets you from an empty workspace to an agent-assisted n8n workflow lo
 | Group | Command | Use it for |
 |---|---|---|
 | Primary Usage | `n8nac env` | Workspace environments |
-| Workspace Inspection | `n8nac workspace status` | V4 workspace snapshot |
+| Workspace Inspection | `n8nac workspace` | V4 workspace snapshot |
 | Managed Local Instances | `n8n-manager` | Local managed instances and tunnels |
 
 An environment stores the workspace-safe context: n8n endpoint, project, workflowsPath, and active selection. API keys stay local.

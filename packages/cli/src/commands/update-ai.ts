@@ -8,7 +8,6 @@ import {
     N8nApiClient,
     IN8nCredentials,
     WorkspaceSetupService,
-    createProjectSlug,
 } from '../core/index.js';
 import type { AiContextGenerator as AiContextGeneratorInstance } from '@n8n-as-code/skills';
 import { ConfigService } from '../services/config-service.js';
@@ -97,8 +96,12 @@ async function createAiContextGenerator(): Promise<AiContextGeneratorInstance> {
     const __dir = dirname(fileURLToPath(import.meta.url));
     const workspaceSkillsEntry = resolve(__dir, '..', '..', '..', 'skills', 'dist', 'index.js');
     if (existsSync(workspaceSkillsEntry)) {
-        const mod = await import(pathToFileURL(workspaceSkillsEntry).href) as typeof import('@n8n-as-code/skills');
-        return new mod.AiContextGenerator();
+        try {
+            const mod = await import(pathToFileURL(workspaceSkillsEntry).href) as typeof import('@n8n-as-code/skills');
+            return new mod.AiContextGenerator();
+        } catch {
+            // Fall through to the packaged dependency when a local dev build is stale.
+        }
     }
 
     const mod = await import('@n8n-as-code/skills');
@@ -194,21 +197,17 @@ export class UpdateAiCommand {
             let updatedCount = 0;
             for (const environment of environments) {
                 const resolved = configService.resolveEnvironment(environment.id);
-                const { workflowsPath, instanceIdentifier, projectName } = resolved;
-                if (!workflowsPath || !instanceIdentifier || !projectName) continue;
+                const { workflowsPath } = resolved;
+                if (!workflowsPath) continue;
 
-                const instanceDir = join(
-                    workflowsPath,
-                    instanceIdentifier,
-                    createProjectSlug(projectName)
-                );
+                const instanceDir = workflowsPath;
                 if (!fs.existsSync(instanceDir)) continue;
 
                 try {
                     WorkspaceSetupService.ensureWorkspaceFiles(instanceDir);
                     updatedCount++;
                 } catch (err: any) {
-                    if (!silent) console.warn(chalk.yellow(`   ⚠ Could not update TypeScript stubs for ${instanceIdentifier}: ${err.message}`));
+                    if (!silent) console.warn(chalk.yellow(`   ⚠ Could not update TypeScript stubs for ${environment.name}: ${err.message}`));
                 }
             }
             if (!silent) {
@@ -222,7 +221,7 @@ export class UpdateAiCommand {
                 console.log(chalk.gray('   ✔ AGENTS.md: Lightweight context-root bootstrap'));
                 console.log(chalk.gray('   ✔ .github/agents: VS Code/Copilot workspace agents'));
                 console.log(chalk.gray('   ✔ .agents/skills: Portable n8n-architect skill fallback'));
-                console.log(chalk.gray('   ✔ n8n-workflows.d.ts: TypeScript stubs (per instance)'));
+                console.log(chalk.gray('   ✔ n8n-workflows.d.ts: TypeScript stubs (per environment)'));
                 console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/skills)\n'));
             } else if (updatedCount > 0 || existsSync(join(projectRoot, 'AGENTS.md'))) {
                 // Single dim notice so the user knows a refresh happened — written to stderr

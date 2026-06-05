@@ -195,7 +195,9 @@ export class ConfigService {
     private readonly workspaceRoot: string;
 
     constructor(workspaceRoot?: string) {
-        const testWorkspaceRoot = process.env.N8NAC_TEST_WORKSPACE_ROOT?.trim();
+        const testWorkspaceRoot = process.env.NODE_ENV === 'test'
+            ? process.env.N8NAC_TEST_WORKSPACE_ROOT?.trim()
+            : undefined;
         this.workspaceRoot = workspaceRoot ? path.resolve(workspaceRoot) : testWorkspaceRoot ? path.resolve(testWorkspaceRoot) : this.findConfigRoot(process.cwd());
         this.manager = new N8nConfigurationService();
         this.runtime = new N8nRuntimeOrchestrator({ configuration: this.manager });
@@ -611,12 +613,20 @@ export class ConfigService {
     }
 
     getEffectiveContext(instanceId?: string): EffectiveN8nContext | undefined {
-        if (instanceId) return undefined;
+        if (instanceId) {
+            throw new Error('Explicit instance context is not supported with V4 workspace environments. Resolve a workspace environment instead.');
+        }
         return this.resolvedEnvironmentToEffectiveContext(tryResolve(() => this.resolveEnvironment()));
     }
 
     async prepareWorkspaceContext(input?: string | { instanceId?: string; environment?: string; consumer?: 'cli' | 'vscode' | string }): Promise<EffectiveN8nContext> {
         const environment = typeof input === 'string' ? undefined : input?.environment;
+        if (typeof input === 'object' && input?.instanceId) {
+            throw new Error('Explicit instance context is not supported with V4 workspace environments. Resolve a workspace environment instead.');
+        }
+        if (typeof input === 'object' && input?.consumer && input.consumer !== 'cli') {
+            throw new Error(`Unsupported workspace context consumer: ${input.consumer}`);
+        }
         return this.resolvedEnvironmentToEffectiveContext(await this.prepareEnvironment(environment))!;
     }
 

@@ -36,7 +36,9 @@ export function readWorkspaceBinding(workspaceDir: string): WorkspaceBinding {
     if (config.version !== 4) return {};
     const environments = Array.isArray(config.environments) ? config.environments as Array<Record<string, unknown>> : [];
     const activeEnvironmentId = readString(config.activeEnvironmentId);
-    const environment = environments.find((item) => readString(item.id) === activeEnvironmentId) || environments[0];
+    const environment = activeEnvironmentId
+      ? environments.find((item) => readString(item.id) === activeEnvironmentId)
+      : environments[0];
     if (!environment) return { activeEnvironmentId: activeEnvironmentId || undefined };
 
     return {

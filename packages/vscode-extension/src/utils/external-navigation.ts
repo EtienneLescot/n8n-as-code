@@ -109,6 +109,12 @@ export async function openExternalNavigation(request: ExternalNavigationRequest,
     const source = request.source || {};
     const dedupeKey = [decision.normalizedUrl, decision.reason, source.panelKind || '', source.workflowId || '', source.sessionId || ''].join('|');
     const now = Date.now();
+    const cutoff = now - Math.max(dedupeMs, RECENT_OPEN_WINDOW_MS);
+    for (const [key, timestamp] of recentExternalOpens) {
+        if (timestamp < cutoff) {
+            recentExternalOpens.delete(key);
+        }
+    }
     const lastOpenAt = recentExternalOpens.get(dedupeKey) || 0;
     if (dedupeMs > 0 && now - lastOpenAt < dedupeMs) {
         options.outputChannel?.appendLine(`${prefix} deduped reason=${decision.reason} panel=${source.panelKind || 'unknown'} workflow=${source.workflowId || 'none'} url=${decision.normalizedUrl}`);
