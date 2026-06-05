@@ -777,6 +777,7 @@ export class ProxyService {
   var _lastCanvasNode = null;
   var _uiMutationTimer = null;
   var _uiMutationCount = 0;
+  var _popupBridgeInstalled = false;
 
   function postBridgeReady() {
     window.parent.postMessage({ type: "n8n-bridge-ready", build: N8NAC_BRIDGE_BUILD, pageKind: N8NAC_BRIDGE_PAGE_KIND, href: window.location.href }, "*");
@@ -801,6 +802,18 @@ export class ProxyService {
     return normalized === "_blank" || normalized === "_new";
   }
 
+  function isFormTestUrl(url) {
+    if (url === undefined || url === null) return false;
+    url = String(url);
+    if (!url) return false;
+    try {
+      var absoluteUrl = new URL(url, window.location.href);
+      return absoluteUrl.pathname === "/form-test" || absoluteUrl.pathname.indexOf("/form-test/") !== -1;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function postOpenExternal(url, target) {
     if (url === undefined || url === null) return false;
     url = String(url);
@@ -820,24 +833,82 @@ export class ProxyService {
     }
   }
 
+  function createPopupBridgeWindow(target) {
+    var locationProxy = {
+      assign: function(nextUrl) { postOpenExternal(nextUrl, target); },
+      replace: function(nextUrl) { postOpenExternal(nextUrl, target); },
+      toString: function() { return ""; }
+    };
+    var popup = {
+      closed: false,
+      close: function() { this.closed = true; },
+      focus: function() {},
+      blur: function() {}
+    };
+
+    Object.defineProperty(locationProxy, "href", {
+      get: function() { return ""; },
+      set: function(nextUrl) { postOpenExternal(nextUrl, target); }
+    });
+    Object.defineProperty(popup, "location", {
+      get: function() { return locationProxy; },
+      set: function(nextUrl) { postOpenExternal(nextUrl, target); }
+    });
+
+    return popup;
+  }
+
   function installPopupBridge() {
+    if (_popupBridgeInstalled) return;
+    _popupBridgeInstalled = true;
     var originalWindowOpen = window.open;
     window.open = function(url, target, features) {
-      if (isPopupTarget(target) && postOpenExternal(url, target)) return null;
+      if (isPopupTarget(target)) {
+        var popup = createPopupBridgeWindow(target);
+        if (url === undefined || url === null || !String(url)) return popup;
+        if (postOpenExternal(url, target)) return popup;
+      }
       return originalWindowOpen.apply(window, arguments);
     };
+
+    if (window.HTMLAnchorElement && window.HTMLAnchorElement.prototype) {
+      var originalAnchorClick = window.HTMLAnchorElement.prototype.click;
+      window.HTMLAnchorElement.prototype.click = function() {
+        var href = this && this.getAttribute ? this.getAttribute("href") || "" : "";
+        var target = this && this.getAttribute ? this.getAttribute("target") || "" : "";
+        if ((isAnchorPopupTarget(target) || isFormTestUrl(href)) && postOpenExternal(href, target)) return;
+        return originalAnchorClick.apply(this, arguments);
+      };
+    }
 
     document.addEventListener("click", function(e) {
       var target = e.target;
       var anchor = target && target.closest ? target.closest("a[href]") : null;
-      if (!anchor || !isAnchorPopupTarget(anchor.getAttribute("target") || "")) return;
+      if (!anchor) return;
+      var href = anchor.getAttribute("href") || "";
+      var anchorTarget = anchor.getAttribute("target") || "";
+      if (!isAnchorPopupTarget(anchorTarget) && !isFormTestUrl(href)) return;
       if (anchor.hasAttribute("download")) return;
-      if (!postOpenExternal(anchor.getAttribute("href") || "", anchor.getAttribute("target") || "")) return;
+      if (!postOpenExternal(href, anchorTarget)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    }, true);
+
+    document.addEventListener("submit", function(e) {
+      var form = e.target;
+      if (!form || !form.getAttribute) return;
+      var action = form.getAttribute("action") || window.location.href;
+      var target = form.getAttribute("target") || "";
+      if (!isAnchorPopupTarget(target) && !isFormTestUrl(action)) return;
+      if (!postOpenExternal(action, target)) return;
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
     }, true);
   }
+
+  installPopupBridge();
 
   function coerceNode(value) {
     var record = asRecord(value);

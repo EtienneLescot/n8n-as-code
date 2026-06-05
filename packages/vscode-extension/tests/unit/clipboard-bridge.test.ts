@@ -82,9 +82,22 @@ test('Bridge script: relays popup openings to the parent webview', () => {
     assert.ok(script.includes('"n8n-open-external"'), 'Must publish popup-open requests');
     assert.ok(script.includes('window.open = function(url, target, features)'), 'Must intercept window.open calls');
     assert.ok(script.includes('target.closest("a[href]")'), 'Must intercept target=_blank anchor clicks');
-    assert.ok(script.includes('isAnchorPopupTarget(anchor.getAttribute("target") || "")'), 'Must not intercept ordinary same-frame anchor clicks');
+    assert.ok(script.includes('if (_popupBridgeInstalled) return;'), 'Must install popup bridge idempotently');
+    assert.ok(script.includes('installPopupBridge();'), 'Must install popup bridge before n8n can cache window.open');
+    assert.ok(script.includes('window.HTMLAnchorElement.prototype.click'), 'Must intercept programmatic anchor clicks');
+    assert.ok(script.includes('document.addEventListener("submit"'), 'Must intercept popup form submissions');
+    assert.ok(script.includes('isFormTestUrl'), 'Must detect n8n form-test routes');
+    assert.ok(script.includes('absoluteUrl.pathname === "/form-test"'), 'Must identify the root form-test route');
+    assert.ok(script.includes('absoluteUrl.pathname.indexOf("/form-test/") !== -1'), 'Must identify nested form-test routes');
+    assert.ok(script.includes('!isAnchorPopupTarget(anchorTarget) && !isFormTestUrl(href)'), 'Must not intercept ordinary same-frame anchor clicks');
     assert.ok(script.includes('new URL(url, window.location.href)'), 'Must resolve relative popup URLs against the proxied page');
     assert.ok(script.includes('absoluteUrl.protocol !== "http:" && absoluteUrl.protocol !== "https:"'), 'Must only relay browser-safe URL schemes');
+    assert.ok(script.includes('createPopupBridgeWindow'), 'Must return a synthetic popup handle for delayed popup navigation');
+    assert.ok(script.includes('Object.defineProperty(popup, "location"'), 'Must intercept popup.location assignment');
+    assert.ok(script.includes('Object.defineProperty(locationProxy, "href"'), 'Must intercept popup.location.href assignment');
+    assert.ok(script.includes('assign: function(nextUrl)'), 'Must intercept popup.location.assign');
+    assert.ok(script.includes('replace: function(nextUrl)'), 'Must intercept popup.location.replace');
+    assert.ok(script.includes('return popup'), 'window.open popup targets must return a popup-like handle');
 });
 
 test('Bridge script: does not validate nonce on incoming paste message', () => {
