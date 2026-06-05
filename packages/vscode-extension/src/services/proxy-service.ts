@@ -6,6 +6,7 @@ import type * as vscode from 'vscode';
 import { AddressInfo } from 'net';
 import { randomUUID } from 'crypto';
 import { WebSocket, WebSocketServer } from 'ws';
+import { openExternalNavigation } from '../utils/external-navigation.js';
 
 type ExternalAuthRequest = {
     token: string;
@@ -139,12 +140,11 @@ export class ProxyService {
     }
 
     private async openExternalUrl(url: string): Promise<void> {
-        try {
-            const vscodeRuntime = await import('vscode');
-            await vscodeRuntime.env.openExternal(vscodeRuntime.Uri.parse(url));
-        } catch (error: any) {
-            this.log(`[Proxy] Unable to open external authentication URL: ${error?.message || String(error)}`);
-        }
+        await openExternalNavigation({
+            url,
+            reason: 'oauth',
+            source: { panelKind: 'proxy' },
+        }, { outputChannel: this.outputChannel, logPrefix: '[Proxy]' });
     }
 
     private getStorageKey(): string {
@@ -778,6 +778,8 @@ export class ProxyService {
   var _uiMutationTimer = null;
   var _uiMutationCount = 0;
   var _popupBridgeInstalled = false;
+  var _lastFormTestReadyAt = 0;
+  var _formTestReadyVisible = false;
 
   function postBridgeReady() {
     window.parent.postMessage({ type: "n8n-bridge-ready", build: N8NAC_BRIDGE_BUILD, pageKind: N8NAC_BRIDGE_PAGE_KIND, href: window.location.href }, "*");
@@ -802,30 +804,63 @@ export class ProxyService {
     return normalized === "_blank" || normalized === "_new";
   }
 
-  function isFormTestUrl(url) {
+  function classifyExternalNavigation(url, target, fallbackReason) {
     if (url === undefined || url === null) return false;
     url = String(url);
     if (!url) return false;
     try {
       var absoluteUrl = new URL(url, window.location.href);
-      return absoluteUrl.pathname === "/form-test" || absoluteUrl.pathname.indexOf("/form-test/") !== -1;
+      var normalizedTarget = cleanText(target || "").toLowerCase();
+      var reason = fallbackReason || "unknown";
+      var isEndpoint = false;
+      if (absoluteUrl.pathname === "/form-test" || absoluteUrl.pathname.indexOf("/form-test/") === 0
+          || absoluteUrl.pathname === "/form" || absoluteUrl.pathname.indexOf("/form/") === 0) {
+        reason = "form-trigger";
+        isEndpoint = true;
+      } else if (absoluteUrl.pathname === "/webhook-test" || absoluteUrl.pathname.indexOf("/webhook-test/") === 0
+          || absoluteUrl.pathname === "/webhook" || absoluteUrl.pathname.indexOf("/webhook/") === 0) {
+        reason = "webhook";
+        isEndpoint = true;
+      }
+      return {
+        url: absoluteUrl,
+        reason: reason,
+        externalOrigin: absoluteUrl.origin !== window.location.origin,
+        endpoint: isEndpoint,
+        popupTarget: isPopupTarget(normalizedTarget),
+        anchorPopupTarget: isAnchorPopupTarget(normalizedTarget),
+        topTarget: normalizedTarget === "_top" || normalizedTarget === "_parent"
+      };
     } catch (e) {
       return false;
     }
   }
 
-  function postOpenExternal(url, target) {
-    if (url === undefined || url === null) return false;
-    url = String(url);
-    if (!url) return false;
+  function shouldExternalizeNavigation(url, target, fallbackReason) {
+    var classified = classifyExternalNavigation(url, target, fallbackReason);
+    if (!classified) return false;
+    return classified.externalOrigin || classified.endpoint || classified.anchorPopupTarget || classified.topTarget ? classified : false;
+  }
+
+  function postOpenExternal(url, target, reason, features, sourceKind) {
     try {
-      var absoluteUrl = new URL(url, window.location.href);
+      var classified = classifyExternalNavigation(url, target, reason || "popup");
+      if (!classified) return false;
+      var absoluteUrl = classified.url;
       if (absoluteUrl.protocol !== "http:" && absoluteUrl.protocol !== "https:") return false;
       window.parent.postMessage({
-        type: "n8n-open-external",
+        type: "n8n-external-navigation",
         build: N8NAC_BRIDGE_BUILD,
         url: absoluteUrl.toString(),
-        target: typeof target === "string" ? target : ""
+        reason: classified.reason,
+        target: typeof target === "string" ? target : "",
+        features: typeof features === "string" ? features : "",
+        source: {
+          opener: sourceKind || "unknown",
+          iframeHref: window.location.href,
+          pageKind: N8NAC_BRIDGE_PAGE_KIND,
+          bridgeBuild: N8NAC_BRIDGE_BUILD
+        }
       }, "*");
       return true;
     } catch (e) {
@@ -835,8 +870,8 @@ export class ProxyService {
 
   function createPopupBridgeWindow(target) {
     var locationProxy = {
-      assign: function(nextUrl) { postOpenExternal(nextUrl, target); },
-      replace: function(nextUrl) { postOpenExternal(nextUrl, target); },
+      assign: function(nextUrl) { postOpenExternal(nextUrl, target, "delayed-popup", "", "popup.location.assign"); },
+      replace: function(nextUrl) { postOpenExternal(nextUrl, target, "delayed-popup", "", "popup.location.replace"); },
       toString: function() { return ""; }
     };
     var popup = {
@@ -848,11 +883,11 @@ export class ProxyService {
 
     Object.defineProperty(locationProxy, "href", {
       get: function() { return ""; },
-      set: function(nextUrl) { postOpenExternal(nextUrl, target); }
+      set: function(nextUrl) { postOpenExternal(nextUrl, target, "delayed-popup", "", "popup.location.href"); }
     });
     Object.defineProperty(popup, "location", {
       get: function() { return locationProxy; },
-      set: function(nextUrl) { postOpenExternal(nextUrl, target); }
+      set: function(nextUrl) { postOpenExternal(nextUrl, target, "delayed-popup", "", "popup.location"); }
     });
 
     return popup;
@@ -863,10 +898,11 @@ export class ProxyService {
     _popupBridgeInstalled = true;
     var originalWindowOpen = window.open;
     window.open = function(url, target, features) {
-      if (isPopupTarget(target)) {
+      var classified = url === undefined || url === null || !String(url) ? false : shouldExternalizeNavigation(url, target, "popup");
+      if (isPopupTarget(target) || classified) {
         var popup = createPopupBridgeWindow(target);
         if (url === undefined || url === null || !String(url)) return popup;
-        if (postOpenExternal(url, target)) return popup;
+        if (postOpenExternal(url, target, classified ? classified.reason : "popup", features, "window.open")) return popup;
       }
       return originalWindowOpen.apply(window, arguments);
     };
@@ -876,10 +912,49 @@ export class ProxyService {
       window.HTMLAnchorElement.prototype.click = function() {
         var href = this && this.getAttribute ? this.getAttribute("href") || "" : "";
         var target = this && this.getAttribute ? this.getAttribute("target") || "" : "";
-        if ((isAnchorPopupTarget(target) || isFormTestUrl(href)) && postOpenExternal(href, target)) return;
+        var classified = shouldExternalizeNavigation(href, target, "popup");
+        if (classified && postOpenExternal(href, target, classified.reason, "", "anchor.click")) return;
         return originalAnchorClick.apply(this, arguments);
       };
     }
+
+    try {
+      if (window.Location && window.Location.prototype) {
+        var originalLocationAssign = window.Location.prototype.assign;
+        var originalLocationReplace = window.Location.prototype.replace;
+        window.Location.prototype.assign = function(nextUrl) {
+          var classified = shouldExternalizeNavigation(nextUrl, "_self", "unknown");
+          if (classified && postOpenExternal(nextUrl, "_self", classified.reason, "", "location.assign")) return;
+          return originalLocationAssign.apply(this, arguments);
+        };
+        window.Location.prototype.replace = function(nextUrl) {
+          var classified = shouldExternalizeNavigation(nextUrl, "_self", "unknown");
+          if (classified && postOpenExternal(nextUrl, "_self", classified.reason, "", "location.replace")) return;
+          return originalLocationReplace.apply(this, arguments);
+        };
+      }
+    } catch (e) {}
+
+    try {
+      var originalPushState = history.pushState;
+      var originalReplaceState = history.replaceState;
+      history.pushState = function(state, title, url) {
+        var result = originalPushState.apply(this, arguments);
+        if (url !== undefined && url !== null) {
+          var classified = shouldExternalizeNavigation(url, "_self", "unknown");
+          if (classified) postOpenExternal(url, "_self", classified.reason, "", "history.pushState");
+        }
+        return result;
+      };
+      history.replaceState = function(state, title, url) {
+        var result = originalReplaceState.apply(this, arguments);
+        if (url !== undefined && url !== null) {
+          var classified = shouldExternalizeNavigation(url, "_self", "unknown");
+          if (classified) postOpenExternal(url, "_self", classified.reason, "", "history.replaceState");
+        }
+        return result;
+      };
+    } catch (e) {}
 
     document.addEventListener("click", function(e) {
       var target = e.target;
@@ -887,9 +962,10 @@ export class ProxyService {
       if (!anchor) return;
       var href = anchor.getAttribute("href") || "";
       var anchorTarget = anchor.getAttribute("target") || "";
-      if (!isAnchorPopupTarget(anchorTarget) && !isFormTestUrl(href)) return;
+      var classified = shouldExternalizeNavigation(href, anchorTarget, "popup");
+      if (!classified) return;
       if (anchor.hasAttribute("download")) return;
-      if (!postOpenExternal(href, anchorTarget)) return;
+      if (!postOpenExternal(href, anchorTarget, classified.reason, "", "anchor.click-event")) return;
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -898,10 +974,12 @@ export class ProxyService {
     document.addEventListener("submit", function(e) {
       var form = e.target;
       if (!form || !form.getAttribute) return;
-      var action = form.getAttribute("action") || window.location.href;
-      var target = form.getAttribute("target") || "";
-      if (!isAnchorPopupTarget(target) && !isFormTestUrl(action)) return;
-      if (!postOpenExternal(action, target)) return;
+      var submitter = e.submitter && e.submitter.getAttribute ? e.submitter : null;
+      var action = (submitter && submitter.getAttribute("formaction")) || form.getAttribute("action") || window.location.href;
+      var target = (submitter && submitter.getAttribute("formtarget")) || form.getAttribute("target") || "";
+      var classified = shouldExternalizeNavigation(action, target, "popup");
+      if (!classified) return;
+      if (!postOpenExternal(action, target, classified.reason, "", "form.submit")) return;
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -958,12 +1036,43 @@ export class ProxyService {
     if (_uiMutationTimer) return;
     _uiMutationTimer = window.setTimeout(function() {
       _uiMutationTimer = null;
+      detectFormTestReady();
       window.parent.postMessage({
         type: "n8n-ui-change",
         build: N8NAC_BRIDGE_BUILD,
         count: _uiMutationCount
       }, "*");
     }, 250);
+  }
+
+  function detectFormTestReady() {
+    var text = cleanText((document.body && document.body.textContent) || "");
+    if (!text) {
+      _formTestReadyVisible = false;
+      return;
+    }
+    var looksReady = /Waiting for you to submit the form/i.test(text)
+      || /En attente de l'envoi du formulaire/i.test(text)
+      || /soumettre le formulaire/i.test(text);
+    if (!looksReady) {
+      _formTestReadyVisible = false;
+      return;
+    }
+    if (_formTestReadyVisible) return;
+    var now = Date.now();
+    if (now - _lastFormTestReadyAt < 1200) return;
+    _formTestReadyVisible = true;
+    _lastFormTestReadyAt = now;
+    window.parent.postMessage({
+      type: "n8n-form-test-ready",
+      build: N8NAC_BRIDGE_BUILD,
+      source: {
+        opener: "semantic.form-trigger-ready",
+        iframeHref: window.location.href,
+        pageKind: N8NAC_BRIDGE_PAGE_KIND,
+        bridgeBuild: N8NAC_BRIDGE_BUILD
+      }
+    }, "*");
   }
 
   function firstUsefulText(root) {
@@ -1282,6 +1391,7 @@ export class ProxyService {
       var observer = new MutationObserver(function() { postUiChangedSoon(); });
       observer.observe(document.body || document.documentElement, { childList: true, subtree: true, attributes: true });
     } catch (e) {}
+    detectFormTestReady();
     window.setInterval(postBridgeReady, 5000);
   }
 

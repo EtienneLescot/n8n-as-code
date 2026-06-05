@@ -1,3 +1,7 @@
+import { buildN8nIframeAllowPolicy, getN8nIframePermissionOrigin, N8N_IFRAME_SANDBOX } from './n8n-iframe-policy.js';
+import { buildN8nExternalNavigationClientScript } from './n8n-iframe-parent-bridge.js';
+import { normalizeWorkflowWebviewEndpoints, type WorkflowWebviewEndpoints } from '../services/workflow-webview-context.js';
+
 export interface AgentWorkbenchHtmlInput {
     workflowId: string;
     workflowName: string;
@@ -6,6 +10,8 @@ export interface AgentWorkbenchHtmlInput {
     workflowAttached?: boolean;
     workflowUrl?: string;
     workflowReloadUrl?: string;
+    workflowEndpoints?: WorkflowWebviewEndpoints;
+    workflowFormTestUrl?: string;
     providerModelLabel: string;
 }
 
@@ -57,14 +63,20 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
     const workflowFilePathJs = JSON.stringify(input.workflowFilePath || '');
     const workflowUrlJs = JSON.stringify(input.workflowUrl || '');
     const workflowReloadUrlJs = JSON.stringify(input.workflowReloadUrl || input.workflowUrl || '');
+    const workflowEndpoints = normalizeWorkflowWebviewEndpoints(input.workflowEndpoints || input.workflowFormTestUrl || undefined);
+    const workflowEndpointsJs = JSON.stringify(workflowEndpoints);
+    const workflowFormTestUrlJs = JSON.stringify(workflowEndpoints.formTestUrl || '');
 
-    let iframePermissionOrigin = 'src';
-    try {
-        iframePermissionOrigin = input.workflowUrl ? new URL(input.workflowUrl).origin : 'src';
-    } catch {
-        // Fallback to iframe's own source origin behavior if URL parsing fails.
-    }
-    const iframeAllowPolicy = `clipboard-read ${iframePermissionOrigin}; clipboard-write ${iframePermissionOrigin}; geolocation ${iframePermissionOrigin}; microphone ${iframePermissionOrigin}; camera ${iframePermissionOrigin}`;
+    const iframePermissionOrigin = getN8nIframePermissionOrigin(input.workflowUrl);
+    const iframeAllowPolicy = buildN8nIframeAllowPolicy(input.workflowUrl);
+    const externalNavigationScript = buildN8nExternalNavigationClientScript({
+        panelKind: 'agent-workbench',
+        workflowIdExpression: 'workflowId',
+        workflowNameExpression: 'workflowName',
+        sessionIdExpression: 'state && state.activeSessionId',
+        iframeHrefExpression: 'frame && frame.src',
+        endpointsExpression: 'workflowEndpoints',
+    });
     const lucideIcon = (paths: string) => `<svg viewBox="0 0 24 24" aria-hidden="true">${paths}</svg>`;
     const newConversationIcon = lucideIcon('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>');
     const historyIcon = lucideIcon('<path d="M3 12a9 9 0 1 0 9-9 9.8 9.8 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>');
@@ -1361,7 +1373,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             ${hasWorkflowUi ? `<iframe
                 id="workflow-frame"
                 src="${safeWorkflowUrl}"
-                sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation allow-top-navigation-by-user-activation"
+                sandbox="${N8N_IFRAME_SANDBOX}"
                 allow="${iframeAllowPolicy}">
             </iframe>` : `<div class="empty-workflow"><div><strong>Workflow UI unavailable</strong><br>Push this workflow to n8n to preview and interact with its UI here.</div></div>`}
         </section>` : ''}
@@ -1410,12 +1422,17 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
         let workflowFilePath = ${workflowFilePathJs};
         let workflowUrl = ${workflowUrlJs};
         let workflowReloadUrl = ${workflowReloadUrlJs};
+        let workflowEndpoints = ${workflowEndpointsJs};
+        let workflowFormTestUrl = ${workflowFormTestUrlJs};
+        let lastWorkflowFormTestOpenUrl = '';
+        let lastWorkflowFormTestOpenAt = 0;
         let openWorkflowContext = workflowId || workflowFilename || workflowFilePath
             ? { id: workflowId || undefined, name: workflowName, filename: workflowFilename || undefined, filePath: workflowFilePath || undefined }
             : null;
         let iframeOrigin = ${JSON.stringify(iframePermissionOrigin)};
         const PASTE_RATE_LIMIT_MS = 1000;
         const GRANT_TTL_MS = 5000;
+        const FORM_TEST_OPEN_COOLDOWN_MS = 1500;
         let lastPasteMs = 0;
         const pendingGrants = new Map();
         let isRunning = false;
@@ -1746,6 +1763,17 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             if (!frame || event.source !== frame.contentWindow) return false;
             return event.origin === iframeOrigin;
         }
+
+        function claimWorkflowFormTestOpen(url) {
+            if (!url) return false;
+            const now = Date.now();
+            if (lastWorkflowFormTestOpenUrl === url && now - lastWorkflowFormTestOpenAt < FORM_TEST_OPEN_COOLDOWN_MS) return false;
+            lastWorkflowFormTestOpenUrl = url;
+            lastWorkflowFormTestOpenAt = now;
+            return true;
+        }
+
+        ${externalNavigationScript}
 
         function reloadWorkflowFrame() {
             if (!frame || !refreshPill) return;
@@ -3206,14 +3234,34 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                     : null;
                 workflowUrl = nextWorkflowUrl;
                 workflowReloadUrl = typeof message.reloadUrl === 'string' && message.reloadUrl ? message.reloadUrl : workflowUrl;
+                workflowEndpoints = message.endpoints && typeof message.endpoints === 'object' ? message.endpoints : {};
+                const nextWorkflowFormTestUrl = typeof message.formTestUrl === 'string' ? message.formTestUrl : (workflowEndpoints.formTestUrl || '');
+                if (nextWorkflowFormTestUrl !== workflowFormTestUrl) {
+                    workflowFormTestUrl = nextWorkflowFormTestUrl;
+                    lastWorkflowFormTestOpenUrl = '';
+                    lastWorkflowFormTestOpenAt = 0;
+                }
                 try { iframeOrigin = new URL(workflowUrl).origin; } catch (e) { iframeOrigin = 'src'; }
                 if (frame && shouldUpdateFrame) frame.src = workflowUrl;
                 return;
             }
 
+            if (message.type === 'n8n-external-navigation' && typeof message.url === 'string') {
+                if (!isWorkflowFrameEvent(event)) return;
+                postN8nExternalNavigation(message.url, message.reason || inferN8nExternalNavigationReason(message.url, 'popup'), message);
+                return;
+            }
+
             if (message.type === 'n8n-open-external' && typeof message.url === 'string') {
                 if (!isWorkflowFrameEvent(event)) return;
-                vscode.postMessage({ type: 'open-external', url: message.url });
+                postN8nExternalNavigation(message.url, 'popup', message);
+                return;
+            }
+
+            if (message.type === 'n8n-form-test-ready') {
+                if (!isWorkflowFrameEvent(event)) return;
+                if (!claimWorkflowFormTestOpen(workflowFormTestUrl)) return;
+                postN8nExternalNavigation(workflowFormTestUrl, 'form-trigger', message);
                 return;
             }
 

@@ -27,9 +27,33 @@ test('Agent Workbench HTML: relays workflow iframe popup requests', () => {
         providerModelLabel: 'openai / gpt-5.4',
     });
 
-    assert.ok(html.includes("message.type === 'n8n-open-external'"), 'Must listen for popup bridge messages');
+    assert.ok(html.includes("message.type === 'n8n-external-navigation'"), 'Must listen for source-rich navigation bridge messages');
+    assert.ok(html.includes("message.type === 'n8n-open-external'"), 'Must keep legacy popup bridge compatibility');
     assert.ok(html.includes('isWorkflowFrameEvent(event)'), 'Must validate workflow iframe origin before relaying');
-    assert.ok(html.includes("vscode.postMessage({ type: 'open-external', url: message.url });"), 'Must ask extension host to open popup URLs externally');
+    assert.ok(html.includes('postN8nExternalNavigation(message.url'), 'Must ask extension host to open popup URLs externally through the shared bridge');
+    assert.ok(html.includes("type: 'open-external'"), 'Must use the host open-external message contract');
+});
+
+test('Agent Workbench HTML: opens prepared Form Trigger test URL from workflow iframe readiness', () => {
+    const { buildAgentWorkbenchHtml } = require('../../src/ui/agent-workbench-html.js');
+    const html: string = buildAgentWorkbenchHtml({
+        workflowId: 'wf-1',
+        workflowName: 'Workflow 1',
+        workflowUrl: 'http://localhost:5678/workflow/wf-1',
+        workflowReloadUrl: 'http://localhost:5678/workflow/wf-1',
+        workflowFormTestUrl: 'http://localhost:5678/form-test/form-path',
+        providerModelLabel: 'openai / gpt-5.4',
+    });
+
+    assert.ok(html.includes('let workflowFormTestUrl ='), 'Must track the prepared form test URL');
+    assert.ok(html.includes("message.type === 'n8n-form-test-ready'"), 'Must listen for Form Trigger readiness messages');
+    assert.ok(html.includes('FORM_TEST_OPEN_COOLDOWN_MS'), 'Must use bounded duplicate suppression for form test openings');
+    assert.ok(html.includes('function claimWorkflowFormTestOpen(url)'), 'Must allow later form test openings after the cooldown');
+    assert.ok(!html.includes('workflowFormTestOpened'), 'Must not permanently suppress subsequent form test openings');
+    assert.ok(html.includes('http://localhost:5678/form-test/form-path'), 'Must embed the prepared form test URL');
+    assert.ok(html.includes("postN8nExternalNavigation(workflowFormTestUrl, 'form-trigger', message);"), 'Must ask VS Code to open the form externally through the shared bridge');
+    assert.ok(html.includes('message.formTestUrl'), 'Must update the form test URL when workflow context changes');
+    assert.ok(html.includes('workflowEndpoints'), 'Must track endpoint metadata, not only a single form URL');
 });
 
 test('Agent Workbench HTML: split view has a persistent resizable divider', () => {
@@ -207,12 +231,15 @@ test('Workflow webviews: extension host opens relayed popup URLs externally', ()
     const path = require('node:path');
     const workflowWebview = fs.readFileSync(path.join(__dirname, '../../src/ui/workflow-webview.ts'), 'utf8');
     const agentWorkbenchWebview = fs.readFileSync(path.join(__dirname, '../../src/ui/agent-workbench-webview.ts'), 'utf8');
+    const externalNavigation = fs.readFileSync(path.join(__dirname, '../../src/utils/external-navigation.ts'), 'utf8');
 
     for (const source of [workflowWebview, agentWorkbenchWebview]) {
         assert.ok(source.includes("payload.type === 'open-external'") || source.includes("message.type === 'open-external'"), 'Must handle open-external host messages');
-        assert.ok(source.includes("scheme !== 'http' && scheme !== 'https'"), 'Must reject non-browser URL schemes');
-        assert.ok(source.includes('vscode.env.openExternal(uri)'), 'Must open relayed popup URLs via VS Code');
+        assert.ok(source.includes('openExternalNavigation({'), 'Must route relayed popup URLs through the shared navigation broker');
     }
+    assert.ok(externalNavigation.includes("'http:'") && externalNavigation.includes("'https:'"), 'Broker must allow browser URL schemes');
+    assert.ok(externalNavigation.includes('blocked-scheme'), 'Broker must reject non-browser URL schemes');
+    assert.ok(externalNavigation.includes('vscodeRuntime.env.openExternal'), 'Broker must open relayed popup URLs via VS Code');
 });
 
 test('Agent runtime: workbench uses the native DeepAgents v3 run stream', () => {

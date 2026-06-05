@@ -12,23 +12,34 @@
  *     are all enforced in the parent-webview JavaScript (this file), which is
  *     extension-controlled and inaccessible to iframe code.
  */
+import { buildN8nIframeAllowPolicy, getN8nIframePermissionOrigin, N8N_IFRAME_SANDBOX } from './n8n-iframe-policy.js';
+import { buildN8nExternalNavigationClientScript } from './n8n-iframe-parent-bridge.js';
+import { normalizeWorkflowWebviewEndpoints, type WorkflowWebviewEndpoints } from '../services/workflow-webview-context.js';
+
 export const WORKFLOW_WEBVIEW_RELOAD_MESSAGE = 'n8nac.workflow.reload';
 
-export function buildWebviewHtml(workflowId: string, url: string): string {
+export function buildWebviewHtml(workflowId: string, url: string, endpointsOrFormTest?: WorkflowWebviewEndpoints | string): string {
     // Escape workflowId for safe interpolation in HTML and JS contexts
     const htmlSafe = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const safeWorkflowIdHtml = htmlSafe(workflowId);
     const safeWorkflowIdJs = JSON.stringify(workflowId);
     const reloadMessageTypeJs = JSON.stringify(WORKFLOW_WEBVIEW_RELOAD_MESSAGE);
+    const workflowEndpoints = normalizeWorkflowWebviewEndpoints(endpointsOrFormTest);
+    const workflowEndpointsJs = JSON.stringify(workflowEndpoints);
+    const formTestUrlJs = JSON.stringify(workflowEndpoints.formTestUrl || '');
 
     // url is the proxy URL pointing to the n8n workflow
-    let iframePermissionOrigin = 'src';
-    try {
-        iframePermissionOrigin = new URL(url).origin;
-    } catch {
-        // Fallback to iframe's own source origin behavior if URL parsing fails
-    }
-    const iframeAllowPolicy = `clipboard-read ${iframePermissionOrigin}; clipboard-write ${iframePermissionOrigin}; geolocation ${iframePermissionOrigin}; microphone ${iframePermissionOrigin}; camera ${iframePermissionOrigin}`;
+    const iframePermissionOrigin = getN8nIframePermissionOrigin(url);
+    const iframeAllowPolicy = buildN8nIframeAllowPolicy(url);
+    const safeWorkflowUrlHtml = htmlSafe(url);
+    const safeIframeAllowPolicyHtml = htmlSafe(iframeAllowPolicy);
+    const externalNavigationScript = buildN8nExternalNavigationClientScript({
+        panelKind: 'workflow-board',
+        workflowIdExpression: 'workflowId',
+        workflowNameExpression: 'workflowId',
+        iframeHrefExpression: 'activeFrame && activeFrame.src',
+        endpointsExpression: 'workflowEndpoints',
+    });
 
     return `<!DOCTYPE html>
         <html lang="en">
@@ -96,15 +107,15 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
             <div class="iframe-container">
                 <iframe 
                     id="frame-1"
-                    src="${url}" 
-                    sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation allow-top-navigation-by-user-activation"
-                    allow="${iframeAllowPolicy}">
+                    src="${safeWorkflowUrlHtml}" 
+                    sandbox="${N8N_IFRAME_SANDBOX}"
+                    allow="${safeIframeAllowPolicyHtml}">
                 </iframe>
                 <iframe 
                     id="frame-2"
                     class="hidden"
-                    sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation allow-top-navigation-by-user-activation"
-                    allow="${iframeAllowPolicy}">
+                    sandbox="${N8N_IFRAME_SANDBOX}"
+                    allow="${safeIframeAllowPolicyHtml}">
                 </iframe>
             </div>
 
@@ -115,6 +126,8 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
                 const loadingOverlay = document.getElementById('loading-overlay');
                 const initialLoading = document.getElementById('initial-loading');
                 const workflowId = ${safeWorkflowIdJs};
+                const workflowEndpoints = ${workflowEndpointsJs};
+                const formTestUrl = ${formTestUrlJs};
                 
                 function focusActiveFrame() {
                     try {
@@ -199,6 +212,9 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
                 var _lastPasteMs = 0;
                 var _pendingGrants = new Map();
                 var GRANT_TTL_MS = 5000;
+                var FORM_TEST_OPEN_COOLDOWN_MS = 1500;
+                var _lastFormTestOpenUrl = '';
+                var _lastFormTestOpenAt = 0;
 
                 function issuePasteGrant() {
                     var token = crypto.randomUUID();
@@ -220,6 +236,17 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
                     return event.origin === iframeOrigin && event.source === activeFrame.contentWindow;
                 }
 
+                function claimFormTestOpen(url) {
+                    if (!url) return false;
+                    var now = Date.now();
+                    if (_lastFormTestOpenUrl === url && now - _lastFormTestOpenAt < FORM_TEST_OPEN_COOLDOWN_MS) return false;
+                    _lastFormTestOpenUrl = url;
+                    _lastFormTestOpenAt = now;
+                    return true;
+                }
+
+                ${externalNavigationScript}
+
                 window.addEventListener('message', (event) => {
                     const message = event.data;
                     if (!message || typeof message !== 'object') return;
@@ -232,10 +259,26 @@ export function buildWebviewHtml(workflowId: string, url: string): string {
                         return;
                     }
 
-                    // Popup bridge: iframe requests an external browser window.
+                    // External navigation bridge: iframe requests an external browser window.
+                    if (message.type === 'n8n-external-navigation' && typeof message.url === 'string') {
+                        if (!isActiveFrameEvent(event)) return;
+                        postN8nExternalNavigation(message.url, message.reason || inferN8nExternalNavigationReason(message.url, 'popup'), message);
+                        return;
+                    }
+
+                    // Legacy popup bridge: iframe requests an external browser window.
                     if (message.type === 'n8n-open-external' && typeof message.url === 'string') {
                         if (!isActiveFrameEvent(event)) return;
-                        vscode.postMessage({ type: 'open-external', url: message.url });
+                        postN8nExternalNavigation(message.url, 'popup', message);
+                        return;
+                    }
+
+                    // Form Trigger bridge: n8n may only show a waiting hint instead of
+                    // issuing a popup request inside VS Code's webview iframe.
+                    if (message.type === 'n8n-form-test-ready') {
+                        if (!isActiveFrameEvent(event)) return;
+                        if (!claimFormTestOpen(formTestUrl)) return;
+                        postN8nExternalNavigation(formTestUrl, 'form-trigger', message);
                         return;
                     }
 

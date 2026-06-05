@@ -79,17 +79,29 @@ test('Bridge script: relays popup openings to the parent webview', () => {
     const { ProxyService } = require('../../src/services/proxy-service.js');
     const script: string = ProxyService.buildBridgeScript();
 
-    assert.ok(script.includes('"n8n-open-external"'), 'Must publish popup-open requests');
+    assert.ok(script.includes('"n8n-external-navigation"'), 'Must publish source-rich external navigation requests');
+    assert.ok(!script.includes('N8N_LEGACY_OPEN_EXTERNAL_TYPE'), 'Must not keep an unused legacy popup-open marker in the iframe bridge');
     assert.ok(script.includes('window.open = function(url, target, features)'), 'Must intercept window.open calls');
     assert.ok(script.includes('target.closest("a[href]")'), 'Must intercept target=_blank anchor clicks');
     assert.ok(script.includes('if (_popupBridgeInstalled) return;'), 'Must install popup bridge idempotently');
     assert.ok(script.includes('installPopupBridge();'), 'Must install popup bridge before n8n can cache window.open');
     assert.ok(script.includes('window.HTMLAnchorElement.prototype.click'), 'Must intercept programmatic anchor clicks');
     assert.ok(script.includes('document.addEventListener("submit"'), 'Must intercept popup form submissions');
-    assert.ok(script.includes('isFormTestUrl'), 'Must detect n8n form-test routes');
+    assert.ok(script.includes('classifyExternalNavigation'), 'Must classify external navigation routes in the iframe');
+    assert.ok(script.includes('shouldExternalizeNavigation'), 'Must centralize bridge-side externalization checks');
+    assert.ok(script.includes('Location.prototype.assign'), 'Must intercept location.assign when possible');
+    assert.ok(script.includes('history.pushState'), 'Must observe SPA route pushes for public endpoints');
+    assert.ok(script.includes('formaction'), 'Must respect submitter formaction overrides');
+    assert.ok(script.includes('formtarget'), 'Must respect submitter formtarget overrides');
+    assert.ok(script.includes('detectFormTestReady'), 'Must detect n8n Form Trigger waiting state');
+    assert.ok(script.includes('_formTestReadyVisible'), 'Must emit Form Trigger readiness once per visible ready-state transition');
+    assert.ok(script.includes('"n8n-form-test-ready"'), 'Must notify the parent webview when a Form Trigger is waiting');
+    assert.ok(script.includes('Waiting for you to submit the form'), 'Must detect the English Form Trigger waiting hint');
+    assert.ok(script.includes('soumettre le formulaire'), 'Must detect localized Form Trigger waiting hints');
     assert.ok(script.includes('absoluteUrl.pathname === "/form-test"'), 'Must identify the root form-test route');
-    assert.ok(script.includes('absoluteUrl.pathname.indexOf("/form-test/") !== -1'), 'Must identify nested form-test routes');
-    assert.ok(script.includes('!isAnchorPopupTarget(anchorTarget) && !isFormTestUrl(href)'), 'Must not intercept ordinary same-frame anchor clicks');
+    assert.ok(script.includes('absoluteUrl.pathname.indexOf("/form-test/") === 0'), 'Must identify nested form-test routes');
+    assert.ok(script.includes('absoluteUrl.pathname === "/webhook-test"'), 'Must identify the root webhook-test route');
+    assert.ok(script.includes('!classified) return'), 'Must not intercept ordinary same-frame anchor clicks');
     assert.ok(script.includes('new URL(url, window.location.href)'), 'Must resolve relative popup URLs against the proxied page');
     assert.ok(script.includes('absoluteUrl.protocol !== "http:" && absoluteUrl.protocol !== "https:"'), 'Must only relay browser-safe URL schemes');
     assert.ok(script.includes('createPopupBridgeWindow'), 'Must return a synthetic popup handle for delayed popup navigation');
@@ -392,11 +404,40 @@ test('Parent webview HTML: relays iframe popup requests after origin validation'
     const html: string = buildWebviewHtml('wf-1', 'http://localhost:5678/workflow/wf-1');
 
     assert.ok(html.includes("message.type === 'n8n-open-external'"), 'Must handle popup bridge messages');
+    assert.ok(html.includes("message.type === 'n8n-external-navigation'"), 'Must handle source-rich navigation bridge messages');
     assert.ok(html.includes('function isActiveFrameEvent(event)'), 'Must centralize active iframe validation for popup relays');
     assert.ok(html.includes('event.origin === iframeOrigin'), 'Must validate iframe origin before relaying popup URLs');
     assert.ok(html.includes('event.source === activeFrame.contentWindow'), 'Must reject popup requests from stale hidden iframes');
     assert.ok(html.includes("if (!isActiveFrameEvent(event)) return;"), 'Must require an active iframe event before relaying popup URLs');
-    assert.ok(html.includes("vscode.postMessage({ type: 'open-external', url: message.url });"), 'Must relay popup URL to the extension host');
+    assert.ok(html.includes('postN8nExternalNavigation(message.url'), 'Must relay popup URL to the extension host through the shared bridge');
+    assert.ok(html.includes('resolveN8nExternalNavigationUrl'), 'Must normalize relative iframe URLs before host relay');
+    assert.ok(html.includes('url: normalizedUrl'), 'Must relay the normalized absolute URL to the extension host');
+    assert.ok(html.includes("type: 'open-external'"), 'Must use the host open-external message contract');
+});
+
+test('Parent webview HTML: escapes iframe URL attributes', () => {
+    const { buildWebviewHtml } = require('../../src/ui/webview-html.js');
+    const html: string = buildWebviewHtml('wf-1', 'http://localhost:5678/workflow/wf-1" onload="alert(1)&x=<tag>');
+
+    assert.ok(!html.includes('src="http://localhost:5678/workflow/wf-1" onload='), 'Iframe src must not allow attribute breakout');
+    assert.ok(html.includes('&quot; onload=&quot;alert(1)&amp;x=&lt;tag&gt;'), 'Iframe src must be HTML-escaped');
+});
+
+test('Parent webview HTML: opens prepared Form Trigger test URL when n8n waits for form submission', () => {
+    const { buildWebviewHtml } = require('../../src/ui/webview-html.js');
+    const html: string = buildWebviewHtml(
+        'wf-1',
+        'http://localhost:5678/workflow/wf-1',
+        'http://localhost:5678/form-test/form-path',
+    );
+
+    assert.ok(html.includes("message.type === 'n8n-form-test-ready'"), 'Must listen for Form Trigger readiness messages');
+    assert.ok(html.includes('FORM_TEST_OPEN_COOLDOWN_MS'), 'Must use bounded duplicate suppression for form test openings');
+    assert.ok(html.includes('function claimFormTestOpen(url)'), 'Must allow later form test openings after the cooldown');
+    assert.ok(!html.includes('_formTestOpened'), 'Must not permanently suppress subsequent form test openings');
+    assert.ok(html.includes('http://localhost:5678/form-test/form-path'), 'Must embed the prepared form test URL');
+    assert.ok(html.includes("postN8nExternalNavigation(formTestUrl, 'form-trigger', message);"), 'Must ask the extension host to open the form externally');
+    assert.ok(html.includes('workflowEndpoints'), 'Must embed endpoint metadata for generalized trigger handling');
 });
 
 test('Parent webview HTML: does not embed a static NONCE', () => {

@@ -8,7 +8,8 @@ declare const __N8NAC_VERSION__: string;
 declare const __N8NAC_CLI_SEMVER__: string;
 import {
     SyncManager, CliApi, N8nApiClient, IN8nCredentials, WorkflowSyncStatus, ConfigService,
-    resolveInstanceIdentifier, isCanonicalUserInstanceIdentifier, SYNC_EVENT_JOURNAL_FILENAME, type SyncEvent
+    resolveInstanceIdentifier, isCanonicalUserInstanceIdentifier, SYNC_EVENT_JOURNAL_FILENAME, type SyncEvent,
+    type ITestPlan, type IWorkflowStatus,
 } from 'n8nac';
 import { AiContextGenerator, getN8nacDevConfigFilenames } from '@n8n-as-code/skills';
 
@@ -50,7 +51,7 @@ import { buildWorkflowQuickPickItems } from './utils/workflow-finder.js';
 import { isClipboardBridgeRequired } from './utils/clipboard-utils.js';
 import { getCanonicalProjectName, getProjectDetail, getProjectDisplayLabel } from './utils/project-display.js';
 import { shouldAutoEnsureAiContext } from './utils/ai-context-policy.js';
-import { IWorkflowStatus } from 'n8nac';
+import { createWorkflowWebviewContext, type WorkflowWebviewContext } from './services/workflow-webview-context.js';
 
 import {
     store,
@@ -881,11 +882,45 @@ async function openWorkflowBoard(workflow: IWorkflowStatus, viewColumn?: vscode.
     }
 
     try {
-        const openTarget = await resolveWorkflowWebviewTarget(workflow);
-        WorkflowWebview.createOrShow(workflow, openTarget.url, viewColumn);
+        const webviewContext = await resolveWorkflowWebviewContext(workflow);
+        if (!webviewContext.workflowUrl) throw new Error(`Workflow "${workflow.name}" does not have a webview URL.`);
+        WorkflowWebview.createOrShow(webviewContext.workflow, webviewContext.workflowUrl, viewColumn, webviewContext.endpoints);
         registerClipboardHandler();
     } catch (e: any) {
         vscode.window.showErrorMessage(`Failed to open n8n workflow: ${e.message}`);
+    }
+}
+
+async function resolveWorkflowWebviewContext(workflow: IWorkflowStatus, workflowFilePath?: string): Promise<WorkflowWebviewContext> {
+    const [openTarget, testPlan] = await Promise.all([
+        resolveWorkflowWebviewTarget(workflow),
+        resolveWorkflowTestPlan(workflow),
+    ]);
+    return createWorkflowWebviewContext({
+        workflow,
+        workflowFilePath,
+        workflowUrl: openTarget.url,
+        workflowReloadUrl: openTarget.targetUrl,
+        testPlan,
+    });
+}
+
+async function resolveWorkflowTestPlan(workflow: IWorkflowStatus): Promise<ITestPlan | undefined> {
+    if (!workflow.id) return undefined;
+    const credentials = getN8nConfig();
+    if (!credentials.host || !credentials.apiKey) return undefined;
+
+    try {
+        const client = new N8nApiClient(credentials);
+        const plan = await client.getTestPlan(workflow.id);
+        const triggerType = plan.triggerInfo?.type || 'unknown';
+        if (plan.endpoints.testUrl) {
+            outputChannel.appendLine(`[n8n] ${triggerType} trigger test URL prepared for workflow ${workflow.id}.`);
+        }
+        return plan;
+    } catch (error: any) {
+        outputChannel.appendLine(`[n8n] Could not resolve trigger test plan for workflow ${workflow.id}: ${error?.message || error}`);
+        return undefined;
     }
 }
 
@@ -925,15 +960,16 @@ async function resolveWorkflowForSplitView(arg: any): Promise<IWorkflowStatus | 
 
 async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: IWorkflowStatus, initialSessionId?: string): Promise<void> {
     try {
-        const openTarget = workflow?.id ? await resolveWorkflowWebviewTarget(workflow) : undefined;
         const workflowFilePath = workflow ? getExistingWorkflowFileUri(workflow)?.fsPath : undefined;
+        const webviewContext = workflow?.id ? await resolveWorkflowWebviewContext(workflow, workflowFilePath) : undefined;
         const providerModelLabel = getSelectedAgentProviderModelLabel();
         AgentWorkbenchWebview.createOrShow(
             context,
-            workflow,
-            workflowFilePath,
-            openTarget?.url,
-            openTarget?.targetUrl,
+            webviewContext?.workflow || workflow,
+            webviewContext?.workflowFilePath || workflowFilePath,
+            webviewContext?.workflowUrl,
+            webviewContext?.workflowReloadUrl,
+            webviewContext?.endpoints,
             providerModelLabel,
             requireAgentRuntimeController(),
             outputChannel,
@@ -952,7 +988,7 @@ async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: I
             initialSessionId,
             vscode.ViewColumn.One,
         );
-        if (openTarget?.url) {
+        if (webviewContext?.workflowUrl) {
             registerClipboardHandler();
         }
     } catch (e: any) {
@@ -998,7 +1034,7 @@ async function listAgentWorkflowOptions(): Promise<IWorkflowStatus[]> {
     return selectAllWorkflows(store.getState());
 }
 
-async function resolveAgentWorkflowTarget(workflowContext: AgentWorkflowContext): Promise<{ workflow?: IWorkflowStatus; workflowFilePath?: string; workflowUrl?: string; workflowReloadUrl?: string }> {
+async function resolveAgentWorkflowTarget(workflowContext: AgentWorkflowContext): Promise<{ workflow?: IWorkflowStatus; workflowFilePath?: string; workflowUrl?: string; workflowReloadUrl?: string; workflowEndpoints?: WorkflowWebviewContext['endpoints'] }> {
     const workflows = await listAgentWorkflowOptions();
     const workflow = workflows.find((candidate) => (
         Boolean(workflowContext.id && candidate.id === workflowContext.id)
@@ -1015,12 +1051,13 @@ async function resolveAgentWorkflowTarget(workflowContext: AgentWorkflowContext)
         return { workflow: effectiveWorkflow, workflowFilePath };
     }
     try {
-        const openTarget = await resolveWorkflowWebviewTarget(effectiveWorkflow);
+        const webviewContext = await resolveWorkflowWebviewContext(effectiveWorkflow, workflowFilePath);
         return {
-            workflow: effectiveWorkflow,
-            workflowFilePath,
-            workflowUrl: openTarget.url,
-            workflowReloadUrl: openTarget.targetUrl,
+            workflow: webviewContext.workflow,
+            workflowFilePath: webviewContext.workflowFilePath,
+            workflowUrl: webviewContext.workflowUrl,
+            workflowReloadUrl: webviewContext.workflowReloadUrl,
+            workflowEndpoints: webviewContext.endpoints,
         };
     } catch {
         return { workflow: effectiveWorkflow, workflowFilePath };

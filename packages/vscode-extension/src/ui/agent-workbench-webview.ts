@@ -7,6 +7,8 @@ import { buildAgentWorkbenchHtml } from './agent-workbench-html.js';
 import { readAgentProviderSettings } from '../services/agent-provider-settings.js';
 import { getReasoningOptions } from '../services/agent-provider-capabilities.js';
 import type { WorktreeInfo } from '../services/worktree-service.js';
+import { openExternalNavigation } from '../utils/external-navigation.js';
+import type { WorkflowWebviewEndpoints } from '../services/workflow-webview-context.js';
 
 interface AgentWorkbenchNodeContext {
     name: string;
@@ -19,6 +21,7 @@ interface AgentWorkflowTarget {
     workflowFilePath?: string;
     workflowUrl?: string;
     workflowReloadUrl?: string;
+    workflowEndpoints?: WorkflowWebviewEndpoints;
 }
 
 interface AgentWorkbenchWorkflowProviders {
@@ -49,6 +52,7 @@ export class AgentWorkbenchWebview {
     private _workflowFilePath: string | undefined;
     private _workflowUrl: string | undefined;
     private _workflowReloadUrl: string | undefined;
+    private _workflowEndpoints: WorkflowWebviewEndpoints | undefined;
     private _providerModelLabel: string;
     private _nodeContexts: AgentWorkbenchNodeContext[] = [];
     private _workflowProviders: AgentWorkbenchWorkflowProviders;
@@ -62,6 +66,7 @@ export class AgentWorkbenchWebview {
         workflowFilePath: string | undefined,
         workflowUrl: string | undefined,
         workflowReloadUrl: string | undefined,
+        workflowEndpoints: WorkflowWebviewEndpoints | undefined,
         providerModelLabel: string,
         agentRuntime: AgentRuntimeController,
         outputChannel: vscode.OutputChannel,
@@ -74,6 +79,7 @@ export class AgentWorkbenchWebview {
         this._workflowFilePath = workflowFilePath;
         this._workflowUrl = workflowUrl;
         this._workflowReloadUrl = workflowReloadUrl;
+        this._workflowEndpoints = workflowEndpoints;
         this._providerModelLabel = providerModelLabel;
         this._agentRuntime = agentRuntime;
         this._outputChannel = outputChannel;
@@ -111,6 +117,7 @@ export class AgentWorkbenchWebview {
         workflowFilePath: string | undefined,
         workflowUrl: string | undefined,
         workflowReloadUrl: string | undefined,
+        workflowEndpoints: WorkflowWebviewEndpoints | undefined,
         providerModelLabel: string,
         agentRuntime: AgentRuntimeController,
         outputChannel: vscode.OutputChannel,
@@ -125,7 +132,7 @@ export class AgentWorkbenchWebview {
             if (existingPanel) {
                 existingPanel._panel.reveal(column);
                 existingPanel._workflowProviders = workflowProviders;
-                existingPanel.update(workflow, workflowFilePath, workflowUrl, workflowReloadUrl, providerModelLabel);
+                existingPanel.update(workflow, workflowFilePath, workflowUrl, workflowReloadUrl, workflowEndpoints, providerModelLabel);
                 return;
             }
         }
@@ -141,7 +148,7 @@ export class AgentWorkbenchWebview {
             },
         );
 
-        const workbench = new AgentWorkbenchWebview(panel, context, workflow, workflowFilePath, workflowUrl, workflowReloadUrl, providerModelLabel, agentRuntime, outputChannel, workflowProviders, initialSessionId);
+        const workbench = new AgentWorkbenchWebview(panel, context, workflow, workflowFilePath, workflowUrl, workflowReloadUrl, workflowEndpoints, providerModelLabel, agentRuntime, outputChannel, workflowProviders, initialSessionId);
         if (initialSessionId) {
             AgentWorkbenchWebview._panels.set(initialSessionId, workbench);
             AgentWorkbenchWebview._lastActiveSessionId = initialSessionId;
@@ -156,7 +163,7 @@ export class AgentWorkbenchWebview {
         return AgentWorkbenchWebview._lastActiveSessionId;
     }
 
-    public update(workflow: IWorkflowStatus | undefined, workflowFilePath: string | undefined, workflowUrl: string | undefined, workflowReloadUrl: string | undefined, providerModelLabel: string, postState = true): void {
+    public update(workflow: IWorkflowStatus | undefined, workflowFilePath: string | undefined, workflowUrl: string | undefined, workflowReloadUrl: string | undefined, workflowEndpoints: WorkflowWebviewEndpoints | undefined, providerModelLabel: string, postState = true): void {
         const hadWorkflowFrame = Boolean(this._workflow);
         const hasWorkflowFrame = Boolean(workflow);
         const hadWorkflowUi = Boolean(this._workflowUrl);
@@ -165,6 +172,7 @@ export class AgentWorkbenchWebview {
         this._workflowFilePath = workflowFilePath;
         this._workflowUrl = workflowUrl;
         this._workflowReloadUrl = workflowReloadUrl;
+        this._workflowEndpoints = workflowEndpoints;
         this._providerModelLabel = providerModelLabel;
         this.updateRegistryRegistration();
         this._panel.title = `n8n Agent: ${workflow?.name || 'New workflow'}`;
@@ -182,6 +190,8 @@ export class AgentWorkbenchWebview {
             workflowFilePath: workflowFilePath || '',
             url: workflowUrl,
             reloadUrl: workflowReloadUrl,
+            endpoints: workflowEndpoints || {},
+            formTestUrl: workflowEndpoints?.formTestUrl,
         });
         if (postState) void this.postWorkbenchState();
     }
@@ -238,7 +248,19 @@ export class AgentWorkbenchWebview {
         }
 
         if (payload.type === 'open-external' && typeof payload.url === 'string') {
-            await this.openExternalUrl(payload.url);
+            await openExternalNavigation({
+                url: payload.url,
+                reason: typeof payload.reason === 'string' ? payload.reason : 'unknown',
+                source: {
+                    ...(payload.source && typeof payload.source === 'object' ? payload.source : {}),
+                    panelKind: 'agent-workbench',
+                    workflowId: this._workflow?.id,
+                    workflowName: this._workflow?.name,
+                    sessionId: this._activeSessionId,
+                },
+                target: typeof payload.target === 'string' ? payload.target : undefined,
+                features: typeof payload.features === 'string' ? payload.features : undefined,
+            }, { outputChannel: this._outputChannel });
             return;
         }
 
@@ -703,7 +725,7 @@ export class AgentWorkbenchWebview {
     private async reconcileWorkflowContext(workflowContext: AgentWorkflowContext | undefined): Promise<void> {
         if (!workflowContext) {
             if (this._workflow || this._workflowUrl || this._workflowFilePath) {
-                this.update(undefined, undefined, undefined, undefined, this._providerModelLabel, false);
+                this.update(undefined, undefined, undefined, undefined, undefined, this._providerModelLabel, false);
             }
             return;
         }
@@ -718,7 +740,7 @@ export class AgentWorkbenchWebview {
             name: workflowContext.name,
             filename: workflowContext.filename || '',
         } as IWorkflowStatus);
-        this.update(workflow, target.workflowFilePath || workflowContext.filePath, target.workflowUrl, target.workflowReloadUrl, this._providerModelLabel, false);
+        this.update(workflow, target.workflowFilePath || workflowContext.filePath, target.workflowUrl, target.workflowReloadUrl, target.workflowEndpoints, this._providerModelLabel, false);
     }
 
     private async getWorkflowOptions(): Promise<AgentWorkflowContext[]> {
@@ -810,25 +832,8 @@ export class AgentWorkbenchWebview {
             workflowAttached: Boolean(this._workflow),
             workflowUrl: this._workflowUrl,
             workflowReloadUrl: this._workflowReloadUrl,
+            workflowEndpoints: this._workflowEndpoints,
             providerModelLabel: this._providerModelLabel,
         });
-    }
-
-    private async openExternalUrl(url: string): Promise<void> {
-        let uri: vscode.Uri;
-        try {
-            uri = vscode.Uri.parse(url);
-        } catch {
-            return;
-        }
-        const scheme = uri.scheme.toLowerCase();
-        if (scheme !== 'http' && scheme !== 'https') {
-            return;
-        }
-        try {
-            await vscode.env.openExternal(uri);
-        } catch (error) {
-            console.error('[AgentWorkbench] Open external URL error', error);
-        }
     }
 }
