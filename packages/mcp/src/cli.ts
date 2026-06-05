@@ -77,26 +77,26 @@ if (useNativeMcpStatus || useNativeMcpTools || useNativeMcpDoctor) {
     }
     if (useNativeMcpDoctor) {
         const ok = Boolean(status.config.enabled && status.config.configured && status.connection.ok);
-        process.exit(ok ? 0 : 1);
+        process.exitCode = ok ? 0 : 1;
+    } else if (useNativeMcpTools && status.connection.ok !== true) {
+        process.exitCode = 1;
+    } else {
+        process.exitCode = 0;
     }
-    if (useNativeMcpTools && status.connection.ok !== true) {
-        process.exit(1);
-    }
-    process.exit(0);
+} else {
+    await startN8nAsCodeMcpServer({
+        cwd,
+        http: useHttp
+            ? {
+                  port: port !== undefined ? Number.parseInt(port, 10) : undefined,
+                  host,
+              }
+            : undefined,
+        sse: useSse
+            ? {
+                  port: port !== undefined ? Number.parseInt(port, 10) : undefined,
+                  host,
+              }
+            : undefined,
+    });
 }
-
-await startN8nAsCodeMcpServer({
-    cwd,
-    http: useHttp
-        ? {
-              port: port !== undefined ? Number.parseInt(port, 10) : undefined,
-              host,
-          }
-        : undefined,
-    sse: useSse
-        ? {
-              port: port !== undefined ? Number.parseInt(port, 10) : undefined,
-              host,
-          }
-        : undefined,
-});

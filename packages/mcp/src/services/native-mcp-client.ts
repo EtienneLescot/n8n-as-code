@@ -150,7 +150,7 @@ export class NativeMcpHttpClient {
 
     private async post(payload: JsonRpcRequest, sessionId?: string, expectResponse = true): Promise<NativeMcpPostResult> {
         if (!this.config.endpoint) {
-            throw new Error('Native n8n MCP endpoint is not configured. Set N8N_NATIVE_MCP_URL and N8NAC_NATIVE_MCP_ENABLED=1.');
+            throw new Error('Native n8n MCP endpoint is not configured. Set N8N_NATIVE_MCP_URL or N8NAC_NATIVE_MCP_URL and N8NAC_NATIVE_MCP_ENABLED=1.');
         }
 
         const controller = new AbortController();

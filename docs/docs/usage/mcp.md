@@ -51,7 +51,7 @@ export N8N_NATIVE_MCP_TOKEN="your-personal-native-mcp-token"
 n8nac-mcp
 ```
 
-OAuth2 is preferred when your MCP client connects directly to n8n's native server. For the `n8n-as-code` broker assist mode, use environment variables or a local secret mechanism outside the repository.
+OAuth2 may be used when an MCP client connects directly to n8n's native server. The `n8n-as-code` broker assist mode implemented here uses `N8N_NATIVE_MCP_TOKEN` or another local secret mechanism outside the repository.
 
 ### Native assist tools
 

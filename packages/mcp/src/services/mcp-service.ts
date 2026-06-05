@@ -99,7 +99,7 @@ export class N8nAsCodeMcpService {
         }
 
         if (!this.nativeMcpConfig.endpoint) {
-            status.connection.error = 'Native n8n MCP endpoint is not configured. Set N8N_NATIVE_MCP_URL.';
+            status.connection.error = 'Native n8n MCP endpoint is not configured. Set N8N_NATIVE_MCP_URL or N8NAC_NATIVE_MCP_URL.';
             return status;
         }
 
@@ -215,7 +215,7 @@ export class N8nAsCodeMcpService {
             throw new Error('Native n8n MCP assist is disabled. Set N8NAC_NATIVE_MCP_ENABLED=1 to enable it.');
         }
         if (!this.nativeMcpConfig.endpoint) {
-            throw new Error('Native n8n MCP endpoint is not configured. Set N8N_NATIVE_MCP_URL.');
+            throw new Error('Native n8n MCP endpoint is not configured. Set N8N_NATIVE_MCP_URL or N8NAC_NATIVE_MCP_URL.');
         }
         return new NativeMcpHttpClient(this.nativeMcpConfig);
     }
