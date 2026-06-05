@@ -187,6 +187,47 @@ describe('N8nApiClient test workflow support', () => {
         });
     });
 
+    it('fetches public project folders with pagination', async () => {
+        mockAxiosGet
+            .mockResolvedValueOnce({ data: { count: 2, data: [{ id: 'f1', name: 'Parent', parentFolderId: null }] } })
+            .mockResolvedValueOnce({ data: { count: 2, data: [{ id: 'f2', name: 'Child', parentFolderId: 'f1' }] } });
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        await expect(client.getFolders('project-1')).resolves.toEqual([
+            expect.objectContaining({ id: 'f1', name: 'Parent', parentFolderId: null }),
+            expect.objectContaining({ id: 'f2', name: 'Child', parentFolderId: 'f1' }),
+        ]);
+
+        expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/projects/project-1/folders', expect.objectContaining({
+            params: expect.objectContaining({ skip: '0', take: '100' }),
+        }));
+        expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/projects/project-1/folders', expect.objectContaining({
+            params: expect.objectContaining({ skip: '100', take: '100' }),
+        }));
+    });
+
+    it('preserves workflow parent folder metadata from workflow payloads', async () => {
+        mockAxiosGet
+            .mockResolvedValueOnce({ data: {
+                id: 'wf-1',
+                name: 'Foldered Workflow',
+                active: true,
+                nodes: [],
+                connections: {},
+                shared: [],
+                parentFolderId: 'folder-1',
+                parentFolder: { id: 'folder-1', name: 'Folder' },
+            } })
+            .mockRejectedValueOnce(new Error('tags unavailable'))
+            .mockResolvedValueOnce({ data: { data: [] } });
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        await expect(client.getWorkflow('wf-1')).resolves.toEqual(expect.objectContaining({
+            parentFolderId: 'folder-1',
+            parentFolder: { id: 'folder-1', name: 'Folder' },
+        }));
+    });
+
     it('uses a bounded text request for HTML instance identity fallback', async () => {
         mockAxiosGet.mockRejectedValue(new Error('not available'));
         mockAxiosCall.mockResolvedValueOnce({ data: '<html><script>{"instanceId":"instance-from-html"}</script></html>' });

@@ -4,7 +4,7 @@ import * as http from 'http';
 import * as https from 'https';
 import * as tls from 'tls';
 import { resolveExtraCaCertificates, shouldVerifyServerCertificate } from './tls-certificates.js';
-import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField, IExecutionDetails, IExecutionList, IExecutionSummary, ExecutionStatus } from '../types.js';
+import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField, IExecutionDetails, IExecutionList, IExecutionSummary, ExecutionStatus, IFolder, IFolderCapability } from '../types.js';
 
 type AgentLookup = NonNullable<http.AgentOptions['lookup']>;
 
@@ -307,6 +307,96 @@ export class N8nApiClient {
         }
     }
 
+    async getFolders(projectId: string): Promise<IFolder[]> {
+        const folders: IFolder[] = [];
+        const seen = new Set<string>();
+        let skip = 0;
+        const take = 100;
+        let useSelect = true;
+
+        while (true) {
+            const params: Record<string, string> = {
+                skip: String(skip),
+                take: String(take),
+            };
+            if (useSelect) {
+                params.select = JSON.stringify(['id', 'name', 'parentFolderId', 'path', 'createdAt', 'updatedAt']);
+            }
+
+            let res: any;
+            try {
+                res = await this.client.get(`/api/v1/projects/${encodeURIComponent(projectId)}/folders`, { params });
+            } catch (error: any) {
+                if (useSelect && error?.response?.status === 400) {
+                    useSelect = false;
+                    continue;
+                }
+                throw error;
+            }
+
+            const data = Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+            const beforeCount = folders.length;
+            for (const folder of data) {
+                if (!folder?.id || seen.has(folder.id)) continue;
+                seen.add(folder.id);
+                folders.push({
+                    id: folder.id,
+                    name: folder.name ?? 'Folder',
+                    parentFolderId: folder.parentFolderId ?? folder.parentFolder?.id ?? null,
+                    path: folder.path,
+                    createdAt: folder.createdAt,
+                    updatedAt: folder.updatedAt,
+                });
+            }
+
+            const count = typeof res.data?.count === 'number' ? res.data.count : undefined;
+            if (count !== undefined && folders.length >= count) break;
+            if (folders.length === beforeCount) break;
+            if (data.length === 0 || (count === undefined && data.length < take)) break;
+            skip += take;
+        }
+
+        return folders;
+    }
+
+    async createFolder(projectId: string, input: { name: string; parentFolderId?: string | null }): Promise<IFolder> {
+        const payload: Record<string, unknown> = { name: input.name };
+        if (input.parentFolderId) payload.parentFolderId = input.parentFolderId;
+        const res = await this.client.post(`/api/v1/projects/${encodeURIComponent(projectId)}/folders`, payload);
+        return {
+            id: res.data.id,
+            name: res.data.name,
+            parentFolderId: res.data.parentFolderId ?? res.data.parentFolder?.id ?? null,
+            path: res.data.path,
+            createdAt: res.data.createdAt,
+            updatedAt: res.data.updatedAt,
+        };
+    }
+
+    async getFolderCapability(projectId: string): Promise<IFolderCapability> {
+        let folders = false;
+        try {
+            await this.client.get(`/api/v1/projects/${encodeURIComponent(projectId)}/folders`, {
+                params: { take: '1' },
+            });
+            folders = true;
+        } catch (error: any) {
+            if (![403, 404].includes(error?.response?.status)) throw error;
+        }
+
+        let workflowFolderFields = false;
+        try {
+            const res = await this.client.get('/api/v1/workflows', { params: { limit: 1 } });
+            const data = res.data && res.data.data ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+            const workflow = Array.isArray(data) ? data[0] : undefined;
+            workflowFolderFields = !!(workflow && ('parentFolderId' in workflow || 'parentFolder' in workflow));
+        } catch {
+            workflowFolderFields = false;
+        }
+
+        return { folders, workflowFolderFields };
+    }
+
     /**
      * Fetches all projects from n8n and caches them.
      * Returns a Map of projectId -> IProject for quick lookups.
@@ -584,6 +674,23 @@ export class N8nApiClient {
         if (workflow.isArchived !== undefined) {
             enriched.isArchived = workflow.isArchived;
         }
+
+        if ('parentFolderId' in workflow) {
+            enriched.parentFolderId = workflow.parentFolderId ?? null;
+        } else if (workflow.parentFolder?.id) {
+            enriched.parentFolderId = workflow.parentFolder.id;
+        }
+
+        if ('parentFolder' in workflow) {
+            enriched.parentFolder = workflow.parentFolder ?? null;
+        }
+        if (workflow.folderPath && Array.isArray(workflow.folderPath)) {
+            enriched.folderPath = workflow.folderPath;
+            enriched.folderPathString = workflow.folderPath.join('/');
+        } else if (typeof workflow.folderPathString === 'string') {
+            enriched.folderPathString = workflow.folderPathString;
+            enriched.folderPath = workflow.folderPathString.split('/').filter(Boolean);
+        }
         
         return enriched;
     }
@@ -624,6 +731,7 @@ export class N8nApiClient {
             'settings',
             'staticData',
             'projectId',
+            'parentFolderId',
         ]);
 
         const clean: Record<string, unknown> = {};

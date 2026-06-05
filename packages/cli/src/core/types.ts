@@ -21,6 +21,25 @@ export interface IWorkflow {
     projectName?: string;        // Name of the project (from shared[0].project.name)
     homeProject?: IProject;      // Full project object for detailed info
     isArchived?: boolean;        // Whether workflow is archived
+    parentFolderId?: string | null;
+    parentFolder?: { id: string; name: string } | null;
+    folderPath?: string[];
+    folderPathString?: string;
+}
+
+export interface IFolder {
+    id: string;
+    name: string;
+    parentFolderId?: string | null;
+    path?: string | string[];
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface IFolderCapability {
+    folders: boolean;
+    workflowFolderFields: boolean;
+    workflowParentFolderIdWritable?: boolean;
 }
 
 export interface ITag {
@@ -77,6 +96,10 @@ export interface IWorkflowStatus {
     lastSyncedAt?: string;
     /** Remote `updatedAt` from the most recent lightweight fetch, if available. */
     remoteUpdatedAt?: string;
+    parentFolderId?: string | null;
+    parentFolder?: { id: string; name: string } | null;
+    folderPath?: string[];
+    folderPathString?: string;
 }
 
 /**

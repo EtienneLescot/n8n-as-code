@@ -252,6 +252,76 @@ export class OrderIdWorkflow {
         expect(tracker.getWorkflowIdForFilename('order-id.workflow.ts')).toBe('real-id');
         expect(tracker.getFilenameForId('real-id')).toBe('order-id.workflow.ts');
     });
+
+    it('recursively scans nested workflow files and stores relative paths', async () => {
+        const tracker = createTracker();
+        fs.mkdirSync(path.join(tempDir!, 'Ai Chat', 'File Processing'), { recursive: true });
+        fs.writeFileSync(
+            path.join(tempDir!, 'Ai Chat', 'File Processing', 'nested.workflow.ts'),
+            `import { workflow, node } from '@n8n-as-code/transformer';
+
+@workflow({
+  id: 'nested-id',
+  name: 'Nested Workflow',
+  active: false
+})
+export class NestedWorkflow {
+  @node({
+    name: 'Webhook',
+    type: 'n8n-nodes-base.webhook',
+    version: 2.1,
+    position: [0, 0]
+  })
+  Webhook = { path: 'nested', httpMethod: 'POST' };
+}
+`,
+            'utf-8',
+        );
+
+        await tracker.refreshLocalState();
+
+        const relativePath = 'Ai Chat/File Processing/nested.workflow.ts';
+        expect(tracker.getWorkflowIdForFilename(relativePath)).toBe('nested-id');
+        expect(tracker.getFilenameForId('nested-id')).toBe(relativePath);
+    });
+
+    it('uses public folder metadata for new remote workflow paths when folderSync is enabled', async () => {
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-tracker-'));
+        const client = {
+            getAllWorkflows: vi.fn().mockResolvedValue([
+                {
+                    id: 'wf-foldered',
+                    name: 'Normalize Attachments',
+                    active: true,
+                    isArchived: false,
+                    parentFolderId: 'folder-file-processing',
+                },
+            ]),
+            getFolders: vi.fn().mockResolvedValue([
+                { id: 'folder-ai-chat', name: 'Ai Chat', parentFolderId: null },
+                { id: 'folder-file-processing', name: 'File Processing', parentFolderId: 'folder-ai-chat' },
+            ]),
+        } as any;
+
+        const tracker = new WorkflowStateTracker(client, {
+            directory: tempDir,
+            syncInactive: false,
+            ignoredTags: [],
+            projectId: 'project-1',
+            folderSync: true,
+        });
+
+        await tracker.refreshRemoteState();
+
+        const relativePath = 'Ai Chat/File Processing/Normalize Attachments.workflow.ts';
+        expect(tracker.getFilenameForId('wf-foldered')).toBe(relativePath);
+        const listed = await tracker.getLightweightList();
+        expect(listed[0]).toEqual(expect.objectContaining({
+            filename: relativePath,
+            folderPathString: 'Ai Chat/File Processing',
+            parentFolderId: 'folder-file-processing',
+        }));
+    });
 });
 
 describe('WorkflowStateTracker drift detection', () => {

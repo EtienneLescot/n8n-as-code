@@ -228,7 +228,7 @@ export class WorkflowTransformerAdapter {
      * Removes read-only and organization metadata fields
      */
     private static cleanForPush(workflow: IWorkflow): IWorkflow {
-        const { projectId, projectName, homeProject, isArchived, ...clean } = workflow as any;
+        const { projectId, projectName, homeProject, isArchived, parentFolder, folderPath, folderPathString, ...clean } = workflow as any;
 
         if (projectId) {
             clean.projectId = projectId;
