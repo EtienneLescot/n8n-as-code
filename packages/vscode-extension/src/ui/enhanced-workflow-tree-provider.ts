@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Store } from '@reduxjs/toolkit';
-import { ConfigService, IWorkflowStatus, SyncManager, WorkspaceMigrationFacade, WorkflowSyncStatus } from 'n8nac';
+import { IWorkflowStatus, SyncManager, WorkflowSyncStatus } from 'n8nac';
 import { ExtensionState } from '../types.js';
 import { getWorkspaceRoot, validateN8nConfig } from '../utils/state-detection.js';
 
@@ -137,11 +137,6 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
 
     // Root level items
     if (!element) {
-      const migrationItems = this.getMigrationItems();
-      if (migrationItems.length) {
-        return migrationItems;
-      }
-
       switch (this.extensionState) {
         case ExtensionState.UNINITIALIZED:
           return this.getUninitializedItems();
@@ -208,40 +203,6 @@ export class EnhancedWorkflowTreeProvider implements vscode.TreeDataProvider<Bas
 
   private getInitializingItems(): BaseTreeItem[] {
     return [new LoadingItem('Initializing n8n...')];
-  }
-
-  private getMigrationItems(): BaseTreeItem[] {
-    const workspaceRoot = getWorkspaceRoot();
-    if (!workspaceRoot) return [];
-
-    try {
-      const configService = new ConfigService(workspaceRoot);
-      const migration = new WorkspaceMigrationFacade({ configService }).inspect();
-      if (!migration) return [];
-
-      const title = new InfoItem(
-        'Migration required',
-        '',
-        new vscode.ThemeIcon('warning', new vscode.ThemeColor('notificationsWarningIcon.foreground'))
-      );
-      title.tooltip = 'Run the migration to update this workspace configuration.';
-
-      const migrate = new InfoItem('Run migration', '', new vscode.ThemeIcon('arrow-right'));
-      migrate.tooltip = 'Run required workspace migrations.';
-      migrate.command = {
-        command: 'n8n.migrateWorkspaceConfiguration',
-        title: 'Run Migration'
-      };
-
-      const configure = new InfoItem('Open n8n environments', '', new vscode.ThemeIcon('settings-gear'));
-      configure.command = {
-        command: 'n8n.configure',
-        title: 'Open n8n Environments'
-      };
-      return [title, migrate, configure];
-    } catch {
-      return [];
-    }
   }
 
   private getUninitializedItems(): BaseTreeItem[] {

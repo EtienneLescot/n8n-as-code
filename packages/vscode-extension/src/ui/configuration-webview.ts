@@ -7,7 +7,6 @@ import { getWorkspaceRoot } from '../utils/state-detection.js';
 import type { N8nConfigurationController, N8nConfigurationSnapshot } from '../services/n8n-configuration-controller.js';
 import { AgentProviderService, normalizeAgentProviderId } from '../services/agent-provider-service.js';
 import { getConfigurationHtml } from './configuration-webview-html.js';
-import { runWorkspaceMigrationFromVscode } from '../services/workspace-migration-runner.js';
 import { loadProjectsForConfigurationWebview } from './configuration-webview-projects.js';
 
 type ManagedSetupJob = {
@@ -36,31 +35,6 @@ function normalizeHost(host: string): string {
 
 function normalizeWorkflowsPath(workflowsPath: string): string {
   return String(workflowsPath || '').trim().replace(/\\/g, '/').replace(/\/+$/g, '');
-}
-
-async function clearLegacyWorkspaceSettings(): Promise<string[]> {
-  const config = vscode.workspace.getConfiguration('n8n');
-  const keys: Array<'host' | 'apiKey' | 'syncFolder' | 'projectId' | 'projectName'> = [
-    'host',
-    'apiKey',
-    'syncFolder',
-    'projectId',
-    'projectName',
-  ];
-  const cleared: string[] = [];
-
-  for (const key of keys) {
-    const inspected = config.inspect<string>(key);
-    if (inspected?.workspaceValue !== undefined) {
-      await config.update(key, undefined, vscode.ConfigurationTarget.Workspace);
-      cleared.push(`n8n.${key}`);
-    }
-    if (inspected?.workspaceFolderValue !== undefined) {
-      await config.update(key, undefined, vscode.ConfigurationTarget.WorkspaceFolder);
-      cleared.push(`n8n.${key}`);
-    }
-  }
-  return [...new Set(cleared)];
 }
 
 function getNonce(): string {
@@ -193,14 +167,6 @@ export class ConfigurationWebview {
           await this._configurationController.refresh('webview-refresh', { force: true });
           return;
 
-        case 'migrateWorkspaceConfiguration':
-        case 'migrateLegacyWorkspaceConfig':
-        case 'migrateGlobalInstancesToEnvironments': {
-          if (!workspaceRoot) throw new Error('Open a workspace before running migration.');
-          await this.migrateWorkspaceConfiguration(workspaceRoot);
-          return;
-        }
-
         case 'loadProjects': {
           try {
             const result = await loadProjectsForConfigurationWebview(payload, {
@@ -271,7 +237,6 @@ export class ConfigurationWebview {
           } else {
             configService.addInstanceTarget(input);
           }
-          await clearLegacyWorkspaceSettings();
           await this._configurationController.refresh('webview-save-instance-target', { force: true });
           this.notifySaved();
           return;
@@ -376,8 +341,7 @@ export class ConfigurationWebview {
           if (environmentTargetId && url && apiKey) {
             configService.saveWorkspaceTargetApiKey(environmentTargetId, apiKey);
           }
-          const workflowsPath = normalizeWorkflowsPath(String(payload.workflowsPath || payload.workflowDir || '').trim());
-          const syncFolder = normalizeWorkflowsPath(String(payload.syncFolder || '').trim());
+          const workflowsPath = normalizeWorkflowsPath(String(payload.workflowsPath || '').trim());
           const folderSync = typeof payload.folderSync === 'boolean' ? payload.folderSync : undefined;
           const input = {
             name,
@@ -385,7 +349,6 @@ export class ConfigurationWebview {
             projectId,
             projectName,
             workflowsPath: workflowsPath || undefined,
-            syncFolder: workflowsPath ? undefined : syncFolder || undefined,
             folderSync,
             customNodesPath: String(payload.customNodesPath || '').trim() || undefined,
             description: String(payload.description || '').trim() || undefined,
@@ -393,7 +356,6 @@ export class ConfigurationWebview {
           const savedEnvironment = environmentId
             ? configService.updateEnvironment(environmentId, input)
             : configService.addEnvironment(input);
-          await clearLegacyWorkspaceSettings();
           this._panel.webview.postMessage({ type: 'environmentSaved', environment: savedEnvironment });
           this.notifySaved();
           void this._configurationController.refresh('webview-save-environment', { force: true }).catch(() => undefined);
@@ -514,32 +476,6 @@ export class ConfigurationWebview {
           return;
         }
 
-        case 'saveWorkspaceContext': {
-          if (!workspaceRoot) throw new Error('Open a workspace before saving workspace n8n settings.');
-          if (new ConfigService(workspaceRoot).getWorkspaceConfig().version === 4) {
-            throw new Error('This workspace uses environments. Pin or edit an environment instead of saving legacy workspace settings.');
-          }
-          const syncFolder = String(payload.syncFolder || '').trim();
-          await facade.writeWorkspaceOverrides({
-            version: 3,
-            activeInstanceId: String(payload.activeInstanceId || '').trim() || undefined,
-            syncFolder: syncFolder || undefined,
-            projectId: String(payload.projectId || '').trim() || undefined,
-            projectName: String(payload.projectName || '').trim() || undefined,
-            folderSync: Boolean(payload.folderSync),
-          }, workspaceRoot);
-          const clearedLegacySettings = await clearLegacyWorkspaceSettings();
-          await this._context.workspaceState.update('n8n.suppressSettingsChangedOnce', true);
-          await this._configurationController.refresh('webview-save-workspace-context', { force: true });
-          if (clearedLegacySettings.length > 0) {
-            void vscode.window.showInformationMessage(
-              `n8n-as-code moved legacy VS Code workspace settings (${clearedLegacySettings.join(', ')}) into n8n-manager plus n8nac-config.json workspace overrides.`,
-            );
-          }
-          this.notifySaved();
-          return;
-        }
-
         case 'deleteInstance': {
           const instanceId = String(payload.instanceId || '').trim();
           if (!instanceId) throw new Error('Instance is required.');
@@ -641,29 +577,6 @@ export class ConfigurationWebview {
       this.notifySaved();
       void this._configurationController.refresh('webview-pin-environment', { force: true }).catch(() => undefined);
     }
-  }
-
-  private async migrateWorkspaceConfiguration(workspaceRoot: string): Promise<void> {
-    const result = await runWorkspaceMigrationFromVscode(this._context, workspaceRoot);
-    if (result.outcome === 'not-needed') {
-      this.notifySaved();
-      await this._configurationController.refresh('webview-migration-not-needed', { force: true });
-      return;
-    }
-
-    if (result.outcome === 'cancelled') {
-      this._panel.webview.postMessage({ type: 'cancelled' });
-      return;
-    }
-
-    const snapshot = await this._configurationController.refresh('webview-run-migration', { force: true });
-    await this.postInitialState(snapshot);
-    this._panel.webview.postMessage({
-      type: 'migrationCompleted',
-      backupPath: result.report.backupPath || '',
-      migratedCount: result.report.migratedEnvironmentIds?.length || 0,
-      deletedCount: result.report.deletedGlobalInstanceIds?.length || 0,
-    });
   }
 
   private ensureEmbeddedWorkspaceTarget(configService: ConfigService, input: { name: string; url: string }): string {
@@ -935,7 +848,6 @@ export class ConfigurationWebview {
         instances,
       },
       workspace: workspaceOverrides,
-      migration: currentSnapshot.migration,
       effective: effectiveContext ? {
         activeInstanceId: effectiveContext.activeInstanceId,
         activeInstanceName: effectiveContext.activeInstanceName,

@@ -13,9 +13,8 @@ Use this page when you need to choose the right command family.
 | Need | Use |
 |---|---|
 | Configure how this repository connects to n8n | `n8nac env` |
-| Inspect readiness or migrate workspace config | `n8nac workspace` |
+| Inspect workspace snapshots | `n8nac workspace` |
 | Create, start, stop, or tunnel a local managed instance | `n8n-manager` |
-| Maintain old scripts only | compat hidden commands |
 
 ## Primary Usage
 
@@ -41,15 +40,12 @@ Use it for:
 
 ## Workspace Maintenance
 
-`n8nac workspace` is for readiness and unified workspace migration.
+`n8nac workspace` inspects the V4 workspace snapshot. Use `env status` for effective runtime readiness.
 
 ```bash
-n8nac workspace status
-n8nac workspace migrate --json
-n8nac workspace migrate --write
+n8nac workspace status --json
+n8nac env status --json
 ```
-
-Use `migrate --json` as the dry-run for legacy config models. It reports one `operations` list and `migrate --write` applies all required migration operations together.
 
 ## Managed Local Instances
 
@@ -92,18 +88,4 @@ n8nac skills node-info googleSheets
 n8nac skills validate workflows/dev/my-workflow.workflow.ts
 ```
 
-## Hidden Compatibility
-
-These commands may remain callable for old scripts, but they are not first-level user flows:
-
-```bash
-n8nac instance-target ...
-n8nac target ...
-n8nac setup ...
-n8nac setup-modes ...
-n8nac workspace pin-instance ...
-n8nac workspace set-sync-folder ...
-n8nac workspace set-project ...
-```
-
-Prefer `n8nac env` for all new workspace configuration.
+Prefer `n8nac env` for all workspace configuration.

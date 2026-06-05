@@ -63,7 +63,10 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
     const workflowFilePathJs = JSON.stringify(input.workflowFilePath || '');
     const workflowUrlJs = JSON.stringify(input.workflowUrl || '');
     const workflowReloadUrlJs = JSON.stringify(input.workflowReloadUrl || input.workflowUrl || '');
-    const workflowEndpoints = normalizeWorkflowWebviewEndpoints(input.workflowEndpoints || input.workflowFormTestUrl || undefined);
+    const workflowEndpoints = {
+        ...normalizeWorkflowWebviewEndpoints(input.workflowFormTestUrl),
+        ...normalizeWorkflowWebviewEndpoints(input.workflowEndpoints),
+    };
     const workflowEndpointsJs = JSON.stringify(workflowEndpoints);
     const workflowFormTestUrlJs = JSON.stringify(workflowEndpoints.formTestUrl || '');
 

@@ -13,9 +13,8 @@ n8n-as-code uses one workflow model across all surfaces: workspace environments,
 | Group | Command | Purpose |
 |---|---|---|
 | Primary Usage | `n8nac env` | Workspace environments and active sync context |
-| Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
+| Workspace Inspection | `n8nac workspace` | V4 workspace snapshot |
 | Managed Local Instances | `n8n-manager` | Local managed instances, Docker, tunnels |
-| Hidden Compatibility | old `target`, `setup`, and workspace mutation commands | Compatibility only |
 
 [Command Glossary](/docs/usage/commands)
 

@@ -33,7 +33,6 @@ async function withManagerHome<T>(managerHome: string, callback: () => Promise<T
 
 test('buildUnifiedWorkspaceConfig resolves instanceIdentifier from API key user identity', async () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-unified-config-'));
-    const unifiedPath = path.join(workspaceRoot, 'n8nac-config.json');
     const managerHome = writeManagerConfig([{
         id: 'current',
         name: 'Local',
@@ -45,14 +44,6 @@ test('buildUnifiedWorkspaceConfig resolves instanceIdentifier from API key user 
             name: 'Personal',
         },
     }], 'current');
-
-    fs.writeFileSync(unifiedPath, JSON.stringify({
-        version: 3,
-        activeInstanceId: 'current',
-        syncFolder: 'workflows',
-        projectId: 'project-1',
-        projectName: 'Personal',
-    }, null, 2));
 
     const unified = await withManagerHome(managerHome, () => buildUnifiedWorkspaceConfig({
         workspaceRoot,
@@ -82,7 +73,6 @@ test('buildUnifiedWorkspaceConfig resolves instanceIdentifier from API key user 
 
 test('buildUnifiedWorkspaceConfig clears instanceIdentifier when credentials are incomplete', async () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-unified-config-'));
-    const unifiedPath = path.join(workspaceRoot, 'n8nac-config.json');
     const managerHome = writeManagerConfig([{
         id: 'prod',
         name: 'Production',
@@ -94,14 +84,6 @@ test('buildUnifiedWorkspaceConfig clears instanceIdentifier when credentials are
             name: 'Personal',
         },
     }], 'prod');
-
-    fs.writeFileSync(unifiedPath, JSON.stringify({
-        version: 3,
-        activeInstanceId: 'prod',
-        syncFolder: 'workflows',
-        projectId: 'project-1',
-        projectName: 'Personal',
-    }, null, 2));
 
     const unified = await withManagerHome(managerHome, () => buildUnifiedWorkspaceConfig({
         workspaceRoot,
@@ -120,7 +102,6 @@ test('buildUnifiedWorkspaceConfig clears instanceIdentifier when credentials are
 
 test('buildUnifiedWorkspaceConfig preserves global instances while updating the active profile', async () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-unified-config-'));
-    const unifiedPath = path.join(workspaceRoot, 'n8nac-config.json');
     const managerHome = writeManagerConfig([
         {
             id: 'test',
@@ -143,14 +124,6 @@ test('buildUnifiedWorkspaceConfig preserves global instances while updating the 
             },
         }
     ], 'prod');
-
-    fs.writeFileSync(unifiedPath, JSON.stringify({
-        version: 3,
-        activeInstanceId: 'prod',
-        syncFolder: 'workflows-prod',
-        projectId: 'project-prod',
-        projectName: 'Production'
-    }, null, 2));
 
     const unified = await withManagerHome(managerHome, () => buildUnifiedWorkspaceConfig({
         workspaceRoot,

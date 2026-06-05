@@ -56,7 +56,6 @@ function App() {
       if (message.type === 'projectsError') dispatch(actions.environmentDraftProjectsReceived({ id: String(message.draftId || 'new'), requestKey: message.requestKey, error: message.message || 'Unable to load projects.' }));
       if (message.type === 'managedCredentials') dispatch(actions.credentialsReceived(message.credentials));
       if (message.type === 'error') dispatch(actions.noticeShown({ tone: 'error', message: message.message || 'Unexpected error' }));
-      if (message.type === 'migrationCompleted') post({ type: 'refreshState' });
       if (message.type === 'saved') return;
     };
     window.addEventListener('message', listener);
@@ -74,7 +73,6 @@ function App() {
     </aside>
     <main className="page">
       {notice?.tone === 'error' ? <div className="inline-message notice error">{notice.message}</div> : null}
-      <MigrationBanner />
       {activeTab === 'environments' ? <EnvironmentsTab /> : null}
       {activeTab === 'managed-instances' ? <ManagedInstancesTab /> : null}
       {activeTab === 'agent-providers' ? <AgentProvidersTab /> : null}
@@ -82,20 +80,6 @@ function App() {
       <ActiveModal />
     </main>
   </div>;
-}
-
-function MigrationBanner() {
-  const migration = useSelector((state: RootState) => server(state).migration);
-  if (!migration?.required) return null;
-  const operations = Array.isArray(migration.operations) ? migration.operations : [];
-  const details = operations.map((operation: any) => {
-    const count = Number(operation.instanceCount || 0);
-    return count ? `${operation.id} (${count})` : operation.id;
-  }).filter(Boolean).join(', ');
-  return <section className="inline-message migration-banner">
-    <div><h2>Migration required</h2><p className="subtle">This workspace configuration needs to be migrated before it is fully up to date{details ? `: ${details}` : '.'}</p></div>
-    <button onClick={() => post({ type: 'migrateWorkspaceConfiguration' })}>Run migration</button>
-  </section>;
 }
 
 function normalizeTab(tab: string): any {

@@ -3,16 +3,13 @@ import chalk from 'chalk';
 import fs from 'fs';
 import { readFileSync, existsSync } from 'fs';
 import { join, dirname, resolve } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import {
     N8nApiClient,
     IN8nCredentials,
     WorkspaceSetupService,
-    createProjectSlug,
 } from '../core/index.js';
-import {
-    AiContextGenerator
-} from '@n8n-as-code/skills';
+import type { AiContextGenerator as AiContextGeneratorInstance } from '@n8n-as-code/skills';
 import { ConfigService } from '../services/config-service.js';
 import dotenv from 'dotenv';
 
@@ -95,6 +92,22 @@ function inferLocalDevManagerCommand(): string | undefined {
     return undefined;
 }
 
+async function createAiContextGenerator(): Promise<AiContextGeneratorInstance> {
+    const __dir = dirname(fileURLToPath(import.meta.url));
+    const workspaceSkillsEntry = resolve(__dir, '..', '..', '..', 'skills', 'dist', 'index.js');
+    if (existsSync(workspaceSkillsEntry)) {
+        try {
+            const mod = await import(pathToFileURL(workspaceSkillsEntry).href) as typeof import('@n8n-as-code/skills');
+            return new mod.AiContextGenerator();
+        } catch {
+            // Fall through to the packaged dependency when a local dev build is stale.
+        }
+    }
+
+    const mod = await import('@n8n-as-code/skills');
+    return new mod.AiContextGenerator();
+}
+
 export class UpdateAiCommand {
     constructor(private program: Command) {
         this.program
@@ -166,7 +179,7 @@ export class UpdateAiCommand {
 
             // 2. Generate Context (AGENTS.md)
             if (!silent) console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md + .github/agents + .agents/skills)...'));
-            const aiContextGenerator = new AiContextGenerator();
+            const aiContextGenerator = await createAiContextGenerator();
             const distTag = typeof options.cliVersion === 'string' && options.cliVersion.trim()
                 ? options.cliVersion.trim()
                 : getDistTag();
@@ -174,30 +187,27 @@ export class UpdateAiCommand {
                 cliCommandOverride: options.cliCmd || inferLocalDevCliCommand(projectRoot),
                 managerCommandOverride: options.managerCmd || inferLocalDevManagerCommand(),
                 cliVersion: getCliVersion(),
-            } as Parameters<AiContextGenerator['generate']>[3] & { managerCommandOverride?: string });
+            } as Parameters<AiContextGeneratorInstance['generate']>[3] & { managerCommandOverride?: string });
             if (!silent) console.log(chalk.green('   ✅ AI context files created.'));
 
-            // 3. Update n8n-workflows.d.ts for all configured instances
+            // 3. Update n8n-workflows.d.ts for all configured workspace environments
             if (!silent) console.log(chalk.gray('\n   - Updating TypeScript stubs (n8n-workflows.d.ts)...'));
             const configService = new ConfigService(projectRoot);
-            const instances = configService.listInstances();
+            const environments = configService.listEnvironments();
             let updatedCount = 0;
-            for (const instance of instances) {
-                const { syncFolder, instanceIdentifier, projectName } = instance;
-                if (!syncFolder || !instanceIdentifier || !projectName) continue;
+            for (const environment of environments) {
+                const resolved = configService.resolveEnvironment(environment.id);
+                const { workflowsPath } = resolved;
+                if (!workflowsPath) continue;
 
-                const instanceDir = join(
-                    resolve(projectRoot, syncFolder),
-                    instanceIdentifier,
-                    createProjectSlug(projectName)
-                );
+                const instanceDir = workflowsPath;
                 if (!fs.existsSync(instanceDir)) continue;
 
                 try {
                     WorkspaceSetupService.ensureWorkspaceFiles(instanceDir);
                     updatedCount++;
                 } catch (err: any) {
-                    if (!silent) console.warn(chalk.yellow(`   ⚠ Could not update TypeScript stubs for ${instanceIdentifier}: ${err.message}`));
+                    if (!silent) console.warn(chalk.yellow(`   ⚠ Could not update TypeScript stubs for ${environment.name}: ${err.message}`));
                 }
             }
             if (!silent) {
@@ -211,7 +221,7 @@ export class UpdateAiCommand {
                 console.log(chalk.gray('   ✔ AGENTS.md: Lightweight context-root bootstrap'));
                 console.log(chalk.gray('   ✔ .github/agents: VS Code/Copilot workspace agents'));
                 console.log(chalk.gray('   ✔ .agents/skills: Portable n8n-architect skill fallback'));
-                console.log(chalk.gray('   ✔ n8n-workflows.d.ts: TypeScript stubs (per instance)'));
+                console.log(chalk.gray('   ✔ n8n-workflows.d.ts: TypeScript stubs (per environment)'));
                 console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/skills)\n'));
             } else if (updatedCount > 0 || existsSync(join(projectRoot, 'AGENTS.md'))) {
                 // Single dim notice so the user knows a refresh happened — written to stderr

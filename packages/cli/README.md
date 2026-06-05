@@ -36,9 +36,8 @@ Full documentation: [CLI guide](https://n8nascode.dev/docs/usage/cli/) · [n8n-m
 | Group | Command | Purpose |
 |---|---|---|
 | Primary Usage | `n8nac env` | Workspace environments: remote n8n URL or local managed instance, project, workflowsPath, active environment |
-| Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
+| Workspace Inspection | `n8nac workspace` | V4 workspace snapshot |
 | Managed Local Instances | `n8n-manager` | Local managed instances, Docker lifecycle, tunnels, local secrets |
-| Hidden Compatibility | `instance-target`, `target`, `setup`, old `workspace` mutations | Compatibility only |
 
 ## Workspace Environments
 
@@ -74,18 +73,14 @@ n8nac env remove Dev
 
 Removing a workspace environment does not delete remote workflows, local workflow files, or local managed instances.
 
-## Workspace Migration
-
-Inspect and apply required workspace migrations explicitly:
+## Readiness
 
 ```bash
-n8nac workspace migrate --json
-n8nac workspace migrate --write
-n8nac workspace migrate --json
 n8nac env status --json
+n8nac workspace status --json
 ```
 
-Dry-run with `--json` first, then apply with `--write` after reviewing the unified `operations` list. Applied migrations create a backup before replacing `n8nac-config.json`.
+Use `env status --json` as the source of truth for active environment readiness.
 
 ## Sync Commands
 
@@ -198,21 +193,6 @@ Current workspace config is environment-based:
 ```
 
 In config examples, `kind: "external-instance"` is the persisted target kind for a remote n8n URL. Do not store API keys in this file. Use `n8nac env auth set <env> --api-key-stdin` for remote n8n environments.
-
-## Compatibility Commands
-
-These commands may still be callable for old workspaces or scripts, but they are not the primary CLI surface:
-
-```bash
-n8nac instance-target ...
-n8nac target ...
-n8nac setup ...
-n8nac setup-modes ...
-n8nac workspace pin-instance ...
-n8nac workspace set-sync-folder ...
-```
-
-Prefer `n8nac env` for all new workspace configuration.
 
 ## License
 

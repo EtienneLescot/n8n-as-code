@@ -63,11 +63,11 @@ function runCliExpectFailure(cwd: string, homeDir: string, args: string[]) {
 }
 
 describe('CLI workspace integration', () => {
-    it('loads full skills help when global options are placed between help and skills', () => {
+    it('loads full skills help without legacy global instance options', () => {
         const workspaceDir = createTempDir('n8nac-cli-help-workspace-');
         const homeDir = createTempDir('n8nac-cli-help-home-');
 
-        const output = runCli(workspaceDir, homeDir, ['help', '--instance', 'demo', 'skills']);
+        const output = runCli(workspaceDir, homeDir, ['help', 'skills']);
 
         expect(stripAnsi(output)).toContain('search [options] <query>');
         expect(stripAnsi(output)).toContain('examples');
@@ -132,13 +132,9 @@ describe('CLI workspace integration', () => {
         const legacyOutput = runCliExpectFailure(workspaceDir, homeDir, ['instance', 'list', '--json']);
         expect(stripAnsi(legacyOutput)).toContain("unknown command 'instance'");
 
-        const workspaceStatus = JSON.parse(runCli(workspaceDir, homeDir, ['workspace', 'status', '--json']));
-        expect(workspaceStatus).toMatchObject({
-            status: 'dry-run',
-            required: true,
-            nextCommand: 'n8nac workspace migrate --json',
-            applyCommand: 'n8nac workspace migrate --write',
-        });
+        const workspaceStatus = runCliExpectFailure(workspaceDir, homeDir, ['workspace', 'status', '--json']);
+        expect(stripAnsi(workspaceStatus)).toContain('Unsupported n8nac workspace config version: 3');
+        expect(stripAnsi(workspaceStatus)).not.toContain('workspace migrate');
 
         const workspaceConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         expect(workspaceConfig.activeInstanceId).toBe('test');
@@ -177,11 +173,8 @@ describe('CLI workspace integration', () => {
         expect(JSON.stringify(workspaceConfig)).not.toContain('apiKey');
         expect(JSON.stringify(workspaceConfig)).not.toContain('dev-key');
 
-        const migration = JSON.parse(runCli(workspaceDir, homeDir, ['workspace', 'migrate', '--json']));
-        expect(migration).toMatchObject({
-            status: 'not-needed',
-            required: false,
-        });
+        const migration = runCliExpectFailure(workspaceDir, homeDir, ['workspace', 'migrate', '--json']);
+        expect(stripAnsi(migration)).toContain("unknown command 'migrate'");
     });
 
     it('stores env auth locally for external workspace targets', () => {

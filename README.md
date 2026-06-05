@@ -29,8 +29,6 @@
 
 ---
 
-> **Using V1?** V2+ uses workspace environments. Start with the [migration guide](https://n8nascode.dev/docs/migration/v1-to-v2/) and run `n8nac workspace migrate --json` from the repository root before applying with `n8nac workspace migrate --write`. V1 users can keep using the legacy branch and packages: [V1 branch](https://github.com/EtienneLescot/n8n-as-code/tree/v1) · CLI: `npx --yes n8nac@v1 <command>` · Claude Code: `/plugin marketplace add https://github.com/EtienneLescot/n8n-as-code#v1`.
-
 > **n8n version compatibility** — The node schema bundled with n8n-as-code is built against the latest stable release of n8n. Keep your n8n instance up to date for best generation and validation results.
 
 > **Independent project** — n8n-as-code is an independent community project and is not affiliated with, endorsed by, or sponsored by n8n.
@@ -137,15 +135,14 @@ n8nac env remove Dev
 
 Use `n8nac env` for everything that describes how this repository connects to n8n.
 
-### Workspace Maintenance: `n8nac workspace`
+### Workspace Inspection: `n8nac workspace`
 
 ```bash
-n8nac workspace status
-n8nac workspace migrate --json
-n8nac workspace migrate --write
+n8nac workspace status --json
+n8nac env status --json
 ```
 
-Use `workspace migrate --json` as the migration dry-run. It reports one unified `operations` list for legacy workspace and global instance changes; apply all required operations together with `workspace migrate --write`.
+Use `env status --json` as the source of truth for active environment readiness.
 
 ### Managed Local Instances: `n8n-manager`
 
@@ -160,21 +157,6 @@ n8n-manager tunnel stop <id>
 ```
 
 Use `n8n-manager` only for local managed instances and machine-local operations. Do not use it as the workspace source of truth.
-
-### Hidden Compatibility
-
-Older commands can remain callable for compatibility but are not the primary model:
-
-```bash
-n8nac instance-target ...
-n8nac target ...
-n8nac setup ...
-n8nac setup-modes ...
-n8nac workspace pin-instance ...
-n8nac workspace set-sync-folder ...
-```
-
-New docs and user flows should prefer `n8nac env`.
 
 ## GitOps For n8n
 

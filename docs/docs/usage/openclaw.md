@@ -30,7 +30,7 @@ OpenClaw uses the same command split as every other surface:
 | Group | Command | Purpose |
 |---|---|---|
 | Primary Usage | `n8nac env` | Workspace environments |
-| Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
+| Workspace Inspection | `n8nac workspace` | V4 workspace snapshot |
 | Managed Local Instances | `n8n-manager` | Local managed instances and tunnels |
 
 ## Workspace

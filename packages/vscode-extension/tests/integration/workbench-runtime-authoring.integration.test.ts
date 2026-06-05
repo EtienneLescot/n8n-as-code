@@ -488,7 +488,7 @@ function createWorkbenchWorkspace(rootDir: string): void {
     '# n8n-as-code workspace',
     'Use n8n-as-code TypeScript workflows with @workflow, @node, and @links.',
     `When creating the multi-platform annonces workflow, write it to ${TARGET_WORKFLOW}.`,
-    'Before workflow commands, run n8nac workspace migrate --json then workspace status --json.',
+    'Before workflow commands, run n8nac env status --json and use the returned workflowsPath exactly.',
   ].join('\n'));
   fs.writeFileSync(path.join(rootDir, '.agents', 'skills', 'n8n-architect', 'SKILL.md'), [
     '---',
@@ -511,7 +511,25 @@ export class RechercheAnnoncesLeboncoinWorkflow {
 }
 `);
   fs.writeFileSync(path.join(rootDir, 'workflows', 'dev', 'moteur-recherche-annonces-multi-plateformes.workflow.ts'), createMultiPlatformSearchWorkflowSource());
-  fs.writeFileSync(path.join(rootDir, 'n8nac-config.json'), JSON.stringify({ version: 1, environments: {} }, null, 2));
+  fs.writeFileSync(path.join(rootDir, 'n8nac-config.json'), JSON.stringify({
+    version: 4,
+    activeEnvironmentId: 'dev',
+    environmentTargets: [{
+      id: 'dev-target',
+      name: 'Dev Target',
+      kind: 'external-instance',
+      url: 'https://dev.example.test',
+      instanceIdentifier: 'n8n_dev',
+    }],
+    environments: [{
+      id: 'dev',
+      name: 'Dev',
+      environmentTargetId: 'dev-target',
+      projectId: 'personal',
+      projectName: 'Personal',
+      workflowsPath: 'workflows/dev',
+    }],
+  }, null, 2));
 }
 
 function createMultiPlatformSearchWorkflowSource(): string {

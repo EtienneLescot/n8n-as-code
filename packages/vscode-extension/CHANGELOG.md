@@ -1,5 +1,20 @@
 # n8n-as-code
 
+## [2.32.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.30.0...n8n-as-code@v2.32.0) (2026-06-05)
+
+### Bug Fixes
+
+* preserve explicit workspace context selection ([feefbe7](https://github.com/EtienneLescot/n8n-as-code/commit/feefbe7b132e811f9f1bd95dbcd0113142092fa1))
+* **vscode-extension:** return v4 unified config ([bf75dd0](https://github.com/EtienneLescot/n8n-as-code/commit/bf75dd0dc6f7f8f88e34cca1cad8fcec806c3a90))
+* address v4 workspace review feedback ([d111a7f](https://github.com/EtienneLescot/n8n-as-code/commit/d111a7fcc31cbdc2a3309cf4979395ee8f179880))
+* require v4 workspace environments ([6967d4d](https://github.com/EtienneLescot/n8n-as-code/commit/6967d4d0ecbaa4d18fe0077f42531b215f574d5e))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.2.5 to 2.2.6
+    * n8nac bumped from 2.3.5 to 2.3.6
+
 ## [2.30.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.28.0...n8n-as-code@v2.30.0) (2026-06-05)
 
 ### Features

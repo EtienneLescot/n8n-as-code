@@ -6,8 +6,6 @@ The extension centers on **workspace environments**: a workspace environment poi
 
 Published for both the Microsoft Marketplace and Open VSX.
 
-> **Using V1?** The Marketplace and Open VSX listings follow the V2+ release line. V1 users must install the legacy VSIX manually from the [v1.46.1-legacy GitHub release](https://github.com/EtienneLescot/n8n-as-code/releases/tag/v1.46.1-legacy) and disable extension auto-updates.
-
 ![n8n-as-code demo](https://raw.githubusercontent.com/EtienneLescot/n8n-as-code/main/res/n8n-as-code.gif)
 
 ## Quick Start
@@ -63,21 +61,6 @@ The Agent can use:
 ### Managed Local Instances
 
 The extension can surface local managed instances through `n8n-manager`. These are machine-local resources. Adding or removing an environment does not create or delete a Docker instance unless you explicitly use the local instance controls.
-
-## Workspace Migration
-
-The extension detects old config models but does not rewrite them automatically when a workspace opens.
-
-Use explicit actions:
-
-```bash
-n8nac workspace migrate --json
-n8nac workspace migrate --write
-```
-
-- `migrate --json` is the dry-run for legacy config models and reports one unified `operations` list.
-- `migrate --write` applies the required migration as one operation.
-- The write step creates a backup before writing.
 
 ## CLI Equivalent
 

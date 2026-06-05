@@ -26,7 +26,8 @@ pre-commit:
         - "packages/skills/src/agent-skills/**"
         - "packages/skills/scripts/build-skill-adapters.js"
       run: |
-        npm run build --workspace=packages/skills
+        npx tsc -b packages/skills
+        npm run postbuild --workspace=packages/skills
         node packages/skills/scripts/build-skill-adapters.js
         git add skills/README.md \
                 skills/n8n-architect/SKILL.md \

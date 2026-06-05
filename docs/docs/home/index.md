@@ -14,7 +14,7 @@ The product model is intentionally small:
 | Group | Command | Use it for |
 |---|---|---|
 | Primary Usage | `n8nac env` | Workspace environments: remote n8n URL or local managed instance, project, workflowsPath, active environment |
-| Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
+| Workspace Inspection | `n8nac workspace` | V4 workspace snapshot |
 | Managed Local Instances | `n8n-manager` | Local managed instances, Docker lifecycle, tunnels, machine-local state |
 
 ## How It Works

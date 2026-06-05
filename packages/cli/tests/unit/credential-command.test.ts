@@ -3,6 +3,9 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CredentialCommand } from '../../src/commands/credential.js';
+import { installV4WorkspaceFixture } from '../helpers/v4-workspace-fixture.js';
+
+installV4WorkspaceFixture();
 
 vi.mock('chalk', () => {
     const identity = (s: string) => s;
@@ -17,8 +20,6 @@ vi.mock('chalk', () => {
 });
 
 function makeCommand(): CredentialCommand {
-    process.env.N8N_HOST = 'https://n8n.test';
-    process.env.N8N_API_KEY = 'test-key';
     return new CredentialCommand();
 }
 

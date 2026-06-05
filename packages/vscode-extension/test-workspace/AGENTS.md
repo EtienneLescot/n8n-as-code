@@ -35,19 +35,18 @@ If your agent runtime supports workspace agents, use the `.github/agents/*.agent
 
 ## Source Of Truth
 
-Do not infer configuration from this file. It intentionally avoids storing the effective instance, project, sync folder, or workflow directory.
+Do not infer configuration from this file. It intentionally avoids storing the effective instance, project, or workflow directory.
 
 n8nac backend resolution remains the only source of effective workspace state.
 - Workspace environments live in `n8nac-config.json` and are managed by `node '/home/etienne/repos/n8n-as-code/.kilo/worktrees/equinox-eggnog/packages/cli/dist/index.js' env ...`.
 - Managed local runtime state and secrets live in n8n-manager storage and are managed by `npx --yes @n8n-as-code/n8n-manager ...`.
 - The effective context is resolved by the backend.
 
-Before any n8n workflow command, run migration dry-run first, then workspace status only after migration is not required or has been applied:
+Before any n8n workflow command, resolve the active workspace environment:
 
 ```bash
 cd /home/etienne/repos/n8n-as-code/.kilo/worktrees/equinox-eggnog/packages/vscode-extension/test-workspace
-node '/home/etienne/repos/n8n-as-code/.kilo/worktrees/equinox-eggnog/packages/cli/dist/index.js' workspace migrate --json
-node '/home/etienne/repos/n8n-as-code/.kilo/worktrees/equinox-eggnog/packages/cli/dist/index.js' workspace status --json
+node '/home/etienne/repos/n8n-as-code/.kilo/worktrees/equinox-eggnog/packages/cli/dist/index.js' env status --json
 ```
 
 Use the returned `workflowsPath` exactly as provided. It is the configured workflow directory for the active environment.
@@ -59,7 +58,7 @@ Do not reconstruct `workflowsPath` from environment name/id, instance identifier
 
 - Primary workspace, environment, sync, validation, push, and pull work: `node '/home/etienne/repos/n8n-as-code/.kilo/worktrees/equinox-eggnog/packages/cli/dist/index.js' ...`
 - Local managed runtime lifecycle and tunnels only: `npx --yes @n8n-as-code/n8n-manager ...`
-- Workspace status and migration: `node '/home/etienne/repos/n8n-as-code/.kilo/worktrees/equinox-eggnog/packages/cli/dist/index.js' workspace ...`
+- Workspace environment status: `node '/home/etienne/repos/n8n-as-code/.kilo/worktrees/equinox-eggnog/packages/cli/dist/index.js' env status --json`
 - Workflow sync and validation: `node '/home/etienne/repos/n8n-as-code/.kilo/worktrees/equinox-eggnog/packages/cli/dist/index.js' ...`
 - Node knowledge and schema lookup: `node '/home/etienne/repos/n8n-as-code/.kilo/worktrees/equinox-eggnog/packages/cli/dist/index.js' skills ...`
 

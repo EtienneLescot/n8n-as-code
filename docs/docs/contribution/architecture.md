@@ -32,7 +32,7 @@ n8nac env
   workspace environments, active environment, local auth binding
 
 n8nac workspace
-  readiness and unified workspace migration
+  V4 workspace snapshot inspection
 
 n8nac workflow commands
   list/pull/push/sync/test/workflow/execution using a resolved environment
