@@ -69,6 +69,36 @@ function runCliFailure(workspaceDir: string, args: string[], envOverrides: NodeJ
     }
 }
 
+function expectNativeMcpRoutingPolicy(content: string, cliCmd: string, skillsCmd: string): void {
+    expect(content).toContain('The `n8n-as-code` MCP server is a client adapter for N8NAC tools.');
+    expect(content).toContain('The native n8n MCP server is a separate live n8n instance endpoint.');
+    expect(content).toContain(`Default to local \`${cliCmd}\` for code-first workflow authoring, validation, pull, push`);
+    expect(content).toContain(`Use \`${skillsCmd}\` as the bundled offline knowledge default.`);
+    expect(content).toContain(`Check native availability with \`${cliCmd} native-mcp status --include-tools --json\` before relying on native tools.`);
+    expect(content).toContain('Do not treat the presence of any MCP server as permission to call native n8n MCP tools.');
+    expect(content).toContain('Native n8n MCP is used if and only if the generated execution or investigation strategy needs live n8n capabilities that local N8NAC cannot provide as well.');
+
+    const useCases = [
+        'Workflow authoring, editing, pull, push, sync, credentials, and durable workflow changes: use local',
+        'Offline node knowledge, examples, documentation, and schema-first authoring: use local',
+        'Live workflow discovery, drift investigation, projects, folders, credentials metadata, and execution inspection: use native MCP assist only when it is configured and live n8n state is required.',
+        'Connected-version node definitions or server-side validation: use native MCP assist only when bundled knowledge may be stale or the user needs validation against the connected n8n version.',
+        `Runtime execution: prefer \`${cliCmd} test\` for real webhook, chat, or form trigger contracts; prefer native runtime execution only for explicit workflow-ID execution, non-webhook testing, native pin-data preparation, or direct execution diagnostics.`,
+        'Direct native workflow creation, update, publish, unpublish, archive, or destructive operations: do not use them as an automatic path; require an explicit direct-native request and sync-back plan.',
+    ];
+
+    for (const useCase of useCases) {
+        expect(content).toContain(useCase);
+    }
+
+    expect(content).toContain('do not run it just because the tool exists');
+    expect(content).toContain('Do not use native MCP create, update, publish, unpublish, archive, or destructive data-table tools');
+    expect(content).toContain('N8NAC_NATIVE_MCP_ALLOW_REMOTE=1');
+    expect(content).toContain('N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA=1');
+    expect(content).toContain('Never put native MCP tokens in project files, generated docs, command arguments, or responses.');
+    expect(content).not.toContain('Default to native MCP');
+}
+
 beforeAll(() => {
     execFileSync('npm', ['run', 'build', '--workspace=packages/cli'], {
         cwd: repoRoot,
@@ -116,6 +146,15 @@ describe('CLI update-ai integration', () => {
         expect(architectSkill).toContain('Managed Local Runtime');
         expect(architectSkill).toContain('--api-key-stdin');
         expect(agentsContent).not.toContain('saved instance configs');
+    });
+
+    it('generates native MCP routing guidance that uses live assist only when needed', () => {
+        const workspaceDir = createTempDir('n8nac-update-ai-native-mcp-routing-');
+        runUpdateAi(workspaceDir);
+
+        const architectSkill = fs.readFileSync(path.join(workspaceDir, '.agents/skills/n8n-architect/SKILL.md'), 'utf8');
+
+        expectNativeMcpRoutingPolicy(architectSkill, `node ${cliEntry}`, `node ${cliEntry} skills`);
     });
 
     it('embeds the n8nac CLI version stamp in AGENTS.md', () => {

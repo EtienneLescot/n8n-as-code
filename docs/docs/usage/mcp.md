@@ -12,7 +12,18 @@ Live workspace context uses the normal environments model: `n8nac-config.json` s
 
 See the [CLI guide](/docs/usage/cli) and [n8n-manager guide](/docs/usage/n8n-manager) for setup details.
 
-## What the MCP server provides
+## Two MCP surfaces
+
+There are two different MCP surfaces involved in this documentation:
+
+| Surface | Owner | Purpose | Default role |
+| --- | --- | --- | --- |
+| `@n8n-as-code/mcp` | n8n-as-code | Exposes N8NAC tools, bundled knowledge, workflow examples, validation, and optional brokered native wrappers to MCP clients | The MCP server you configure in Claude Desktop, Cursor, VS Code, Windsurf, or other AI clients |
+| Native n8n MCP server | n8n | Exposes live n8n instance capabilities such as workflows, executions, credentials metadata, projects, folders, native nodes, and workflow-builder tools | Optional upstream live assist endpoint used only when explicitly enabled |
+
+For normal n8n-as-code usage, configure your AI client to connect to `@n8n-as-code/mcp`. Do not replace it with the native n8n MCP endpoint unless you intentionally want a direct, non-N8NAC workflow. In assist mode, `@n8n-as-code/mcp` remains the broker: it exposes the N8NAC tools and calls the native n8n MCP server only through approved wrapper tools.
+
+## What the n8n-as-code MCP server provides
 
 | Tool | Description |
 | --- | --- |
@@ -26,9 +37,9 @@ See the [CLI guide](/docs/usage/cli) and [n8n-manager guide](/docs/usage/n8n-man
 
 The core tools operate entirely on bundled, offline data — no network access to n8n is required. Native n8n MCP assist is disabled by default and only makes network calls when explicitly enabled.
 
-## Optional native n8n MCP assist
+## Optional native n8n MCP assist through the broker
 
-n8n 2.x includes an instance-level MCP server that can expose live workflow, node, execution, credential, project, folder, and workflow-builder capabilities. `@n8n-as-code/mcp` can optionally connect to that native server as a complementary assist layer.
+n8n 2.x includes an instance-level MCP server that can expose live workflow, node, execution, credential, project, folder, and workflow-builder capabilities. `@n8n-as-code/mcp` can optionally connect to that native server as a complementary assist layer while still remaining the MCP server exposed to your AI client.
 
 This is a brokered integration: your AI client connects to the `n8n-as-code` MCP server, and the `n8n-as-code` MCP server calls the native n8n MCP server only when the optional assist mode is enabled. The current wrapper set is read-only; native runtime execution belongs in explicit test/execution flows, not automatic workflow editing.
 

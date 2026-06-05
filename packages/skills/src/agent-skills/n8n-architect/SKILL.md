@@ -206,7 +206,7 @@ Never guess n8n node parameters.
 
 ## Optional Native n8n MCP Assist
 
-The native n8n instance-level MCP server can complement this workflow for native knowledge, live state, and runtime execution, but it does not replace `{{N8NAC_CMD}}`, bundled knowledge, `.workflow.ts`, Git, or the sync discipline.
+The `n8n-as-code` MCP server is a client adapter for N8NAC tools. The native n8n MCP server is a separate live n8n instance endpoint. Native n8n MCP can complement this workflow for native knowledge, live state, and runtime execution, but it does not replace `{{N8NAC_CMD}}`, bundled knowledge, `.workflow.ts`, Git, or the sync discipline.
 
 Use this routing policy:
 
@@ -222,6 +222,17 @@ Use this routing policy:
 - If a workflow is ever created or changed through native MCP direct mode, immediately pull it back with `{{N8NAC_CMD}} pull <workflowId>` so the `.workflow.ts` file and Git remain the source of truth.
 - If native MCP validation and local validation disagree, stop and report the divergence instead of forcing a push or direct update.
 - Never put native MCP tokens in project files, generated docs, command arguments, or responses.
+
+Use-case routing examples:
+
+- Workflow authoring, editing, pull, push, sync, credentials, and durable workflow changes: use local `{{N8NAC_CMD}}` commands and `.workflow.ts` files.
+- Offline node knowledge, examples, documentation, and schema-first authoring: use local `{{N8NAC_SKILLS_CMD}}` commands first.
+- Live workflow discovery, drift investigation, projects, folders, credentials metadata, and execution inspection: use native MCP assist only when it is configured and live n8n state is required.
+- Connected-version node definitions or server-side validation: use native MCP assist only when bundled knowledge may be stale or the user needs validation against the connected n8n version.
+- Runtime execution: prefer `{{N8NAC_CMD}} test` for real webhook, chat, or form trigger contracts; prefer native runtime execution only for explicit workflow-ID execution, non-webhook testing, native pin-data preparation, or direct execution diagnostics.
+- Direct native workflow creation, update, publish, unpublish, archive, or destructive operations: do not use them as an automatic path; require an explicit direct-native request and sync-back plan.
+
+Do not treat the presence of any MCP server as permission to call native n8n MCP tools. Native n8n MCP is used if and only if the generated execution or investigation strategy needs live n8n capabilities that local N8NAC cannot provide as well.
 
 Native MCP assist is a complementary knowledge, live-state, and runtime enrichment path, not the primary authoring or sync path.
 
