@@ -1,5 +1,12 @@
 # n8n-as-code
 
+## [2.30.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.28.0...n8n-as-code@v2.30.0) (2026-06-05)
+
+### Features
+
+* **vscode-extension:** implement robust external navigation bridge and workflow context ([a50051f](https://github.com/EtienneLescot/n8n-as-code/commit/a50051fa6f0db1d5112b56a82ca0ba13a72029ae))
+* **vscode-extension:** enhance popup bridge with synthetic window handles and form-test support ([4d1c4b4](https://github.com/EtienneLescot/n8n-as-code/commit/4d1c4b4977bde4f4a16d0123fccdb7d056a376c9))
+
 ## [2.28.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.26.0...n8n-as-code@v2.28.0) (2026-06-04)
 
 ### Bug Fixes
