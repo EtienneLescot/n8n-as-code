@@ -28,15 +28,16 @@ The core tools operate entirely on bundled, offline data — no network access t
 
 ## Optional native n8n MCP assist
 
-n8n 2.x includes an instance-level MCP server that can expose live workflow, node, execution, credential, project, folder, and workflow-builder capabilities. `@n8n-as-code/mcp` can optionally connect to that native server as a read-only assist layer.
+n8n 2.x includes an instance-level MCP server that can expose live workflow, node, execution, credential, project, folder, and workflow-builder capabilities. `@n8n-as-code/mcp` can optionally connect to that native server as a complementary assist layer. The current wrapper set is read-only; native runtime execution belongs in explicit test/execution flows, not automatic workflow editing.
 
 This integration is designed to complement the local n8n-as-code workflow, not replace it:
 
 - Use bundled `n8n-as-code` knowledge and `n8nac` commands as the default source of truth.
-- Use native MCP assist for live discovery, server-side validation, credential metadata, execution inspection, and node definitions from the connected instance.
+- Use native MCP assist for live discovery, server-side validation, credential metadata, execution inspection, native node definitions, and explicit runtime execution strategies when it complements `n8nac test`.
 - Keep `.workflow.ts` files and Git as the durable source of truth.
 - Do not store native MCP bearer tokens in project files.
 - Do not expose native MCP assist over non-loopback HTTP/SSE transports unless the MCP transport is separately authenticated and `N8NAC_NATIVE_MCP_ALLOW_REMOTE=1` is set.
+- Treat native runtime execution as a side-effecting operation, like `n8nac test`. Agents should run it only from an explicit user request or generated execution strategy.
 - Do not use native MCP create, update, publish, archive, or destructive data-table operations as an automatic path. This package currently exposes only read-only native wrappers.
 
 ### Enable assist mode
@@ -70,6 +71,15 @@ When `N8NAC_NATIVE_MCP_ENABLED=1` and `N8N_NATIVE_MCP_URL` is configured, the MC
 | `search_n8n_native_nodes` | `search_nodes` | Search live node definitions |
 | `get_n8n_native_node_types` | `get_node_types` | Fetch native TypeScript node definitions |
 | `validate_n8n_native_workflow_code` | `validate_workflow` | Validate native workflow-builder code without creating workflows |
+
+### Runtime execution strategy
+
+Some n8n native MCP servers can expose runtime tools such as `execute_workflow`, `test_workflow`, or `prepare_test_pin_data`. This broker does not expose those tools in the current read-only wrapper set, but they are a good fit for future explicit execution flows when they complement existing `n8nac` behavior.
+
+- Prefer `n8nac test` when the goal is to exercise the real webhook, chat, or form trigger contract.
+- Prefer native runtime execution when it can do something `n8nac test` cannot do well, such as executing by workflow ID, testing non-webhook workflows, preparing native pin-data tests, or returning direct execution diagnostics.
+- Treat both `n8nac test` and native runtime execution as side-effecting runtime actions because workflows can send messages, write data, or call external APIs.
+- Keep native workflow create, update, publish, unpublish, archive, and destructive data-table operations separate from runtime execution. Those control-plane mutations can create drift from `.workflow.ts` and require a stronger code-first sync-back design before being exposed.
 
 ### Diagnostics
 

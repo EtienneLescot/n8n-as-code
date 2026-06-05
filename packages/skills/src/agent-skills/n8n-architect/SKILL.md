@@ -234,21 +234,24 @@ Never guess n8n node parameters.
 
 ## Optional Native n8n MCP Assist
 
-The native n8n instance-level MCP server can complement this workflow, but it does not replace `{{N8NAC_CMD}}`, bundled knowledge, `.workflow.ts`, Git, or the sync discipline.
+The native n8n instance-level MCP server can complement this workflow for native knowledge, live state, and runtime execution, but it does not replace `{{N8NAC_CMD}}`, bundled knowledge, `.workflow.ts`, Git, or the sync discipline.
 
 Use this routing policy:
 
-- Default to local `{{N8NAC_CMD}}` and `{{N8NAC_SKILLS_CMD}}` tools for workflow authoring, validation, pull, push, test, credentials, executions, and presentation.
-- If native MCP assist is configured, use it only for read-only live discovery, server-side validation, live node definitions, credential metadata without secrets, execution inspection, projects, and folders.
+- Default to local `{{N8NAC_CMD}}` for code-first workflow authoring, validation, pull, push, credentials, execution history, and presentation. Use `{{N8NAC_SKILLS_CMD}}` as the bundled offline knowledge default.
+- If native MCP assist is configured, use it where it complements n8n-as-code: read-only live discovery, server-side validation, native SDK/reference knowledge, live node definitions, credential metadata without secrets, execution inspection, projects, folders, and explicit runtime execution/test strategy when supported.
 - Check native availability with `{{N8NAC_CMD}} native-mcp status --include-tools --json` before relying on native tools.
 - Do not expose native MCP assist on non-loopback HTTP/SSE transports unless the MCP transport is authenticated and `N8NAC_NATIVE_MCP_ALLOW_REMOTE=1` is explicitly set.
 - Do not request full live execution payloads with `includeData=true` unless the user explicitly needs payload data and `N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA=1` is set.
-- Do not use native MCP create, update, publish, unpublish, archive, execute, or destructive data-table tools unless the user explicitly requests direct native MCP mode and the tool is gated by permissions.
+- Prefer `{{N8NAC_CMD}} test` when the execution strategy is to exercise the real webhook, chat, or form trigger contract.
+- Prefer native runtime execution only when the generated execution strategy explicitly calls for it and it does something better than `{{N8NAC_CMD}} test`, such as workflow ID execution, non-webhook workflow testing, native pin-data test preparation, or direct execution diagnostics.
+- Treat native execute/test as a side-effecting runtime action, like `{{N8NAC_CMD}} test`; do not run it just because the tool exists.
+- Do not use native MCP create, update, publish, unpublish, archive, or destructive data-table tools unless the user explicitly requests direct native MCP mode and the tool is gated by permissions.
 - If a workflow is ever created or changed through native MCP direct mode, immediately pull it back with `{{N8NAC_CMD}} pull <workflowId>` so the `.workflow.ts` file and Git remain the source of truth.
 - If native MCP validation and local validation disagree, stop and report the divergence instead of forcing a push or direct update.
 - Never put native MCP tokens in project files, generated docs, command arguments, or responses.
 
-Native MCP assist is a fallback and enrichment path, not the primary implementation path.
+Native MCP assist is a complementary knowledge, live-state, and runtime enrichment path, not the primary authoring or sync path.
 
 ## Knowledge Commands
 
