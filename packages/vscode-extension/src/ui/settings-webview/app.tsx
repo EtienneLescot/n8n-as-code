@@ -54,6 +54,7 @@ function App() {
       }
       if (message.type === 'projectsLoaded') dispatch(actions.environmentDraftProjectsReceived({ id: String(message.draftId || 'new'), requestKey: message.requestKey, projects: message.projects || [], selectedProjectId: message.selectedProjectId, selectedProjectName: message.selectedProjectName }));
       if (message.type === 'projectsError') dispatch(actions.environmentDraftProjectsReceived({ id: String(message.draftId || 'new'), requestKey: message.requestKey, error: message.message || 'Unable to load projects.' }));
+      if (message.type === 'nativeMcpTestResult') dispatch(actions.environmentDraftNativeMcpTestReceived({ id: String(message.draftId || 'new'), ok: Boolean(message.ok), message: String(message.message || '') }));
       if (message.type === 'managedCredentials') dispatch(actions.credentialsReceived(message.credentials));
       if (message.type === 'error') dispatch(actions.noticeShown({ tone: 'error', message: message.message || 'Unexpected error' }));
       if (message.type === 'saved') return;
@@ -259,6 +260,26 @@ function EnvironmentFormModal({ environmentId }: { environmentId?: string }) {
     dispatch(actions.environmentSaveRequested(draftId));
     post({
       type: 'saveEnvironment', environmentId, name: draft.name, environmentTargetId: selected?.targetId || draft.environmentTargetId || '', instanceId: selected?.instanceId || draft.instanceId || '', url: isManaged ? '' : draft.url || selected?.url || '', apiKey: isManaged ? '' : draft.apiKey, projectId: isManaged ? 'personal' : draft.projectId || 'personal', projectName: isManaged ? 'Personal' : draft.projectName || 'Personal', workflowsPath: draft.workflowsPath, folderSync: draft.folderSync, customNodesPath: draft.customNodesPath, description: draft.description,
+      nativeMcpEnabled: draft.nativeMcpEnabled,
+      nativeMcpUrl: draft.nativeMcpUrl,
+      nativeMcpToken: draft.nativeMcpToken,
+      nativeMcpAllowExecutionData: draft.nativeMcpAllowExecutionData,
+      nativeMcpAllowRemote: draft.nativeMcpAllowRemote,
+      nativeMcpTimeoutMs: draft.nativeMcpTimeoutMs,
+    });
+  };
+  const testNativeMcp = () => {
+    dispatch(actions.environmentDraftNativeMcpTestRequested({ id: draftId }));
+    post({
+      type: 'testNativeMcpConnection',
+      draftId,
+      environmentId,
+      environmentTargetId: selected?.targetId || draft.environmentTargetId || '',
+      instanceId: selected?.instanceId || draft.instanceId || '',
+      url: isManaged ? '' : draft.url || selected?.url || '',
+      nativeMcpUrl: draft.nativeMcpUrl,
+      nativeMcpToken: draft.nativeMcpToken,
+      nativeMcpTimeoutMs: draft.nativeMcpTimeoutMs,
     });
   };
   return <Modal title={environmentId ? 'Edit environment' : 'Add environment'} onClose={() => { dispatch(actions.environmentDraftClosed({ id: draftId })); dispatch(actions.modalClosed()); }}>
@@ -270,6 +291,16 @@ function EnvironmentFormModal({ environmentId }: { environmentId?: string }) {
     {canContinue && !isManaged ? <ProjectFields draft={draft} patch={patch} draftId={draftId} selected={selected} /> : null}
     {canContinue ? <div className="form-grid"><label>Workflows path<input value={draft.workflowsPath} onChange={(event) => patch({ workflowsPath: event.target.value })} />{workflowsPathConflict ? <span className="inline-message error">Another environment already uses this workflows path.</span> : null}</label><label>Custom nodes path<input value={draft.customNodesPath} onChange={(event) => patch({ customNodesPath: event.target.value })} /></label></div> : null}
     {canContinue ? <label>Description<textarea value={draft.description} onChange={(event) => patch({ description: event.target.value })} /></label> : null}
+    {canContinue ? <section className="panel stack">
+      <label className="row"><input type="checkbox" checked={draft.nativeMcpEnabled} onChange={(event) => patch({ nativeMcpEnabled: event.target.checked })} /> Native n8n MCP Assist <span className="badge">optional</span></label>
+      <p className="muted">Live assist for workflows, executions, credential metadata, native node definitions, and server-side validation. N8NAC remains the authoring and sync source of truth.</p>
+      {draft.nativeMcpEnabled ? <>
+        <div className="form-grid"><label>MCP endpoint<input value={draft.nativeMcpUrl} onChange={(event) => patch({ nativeMcpUrl: event.target.value })} placeholder="Defaults to the environment URL + /mcp-server/http" /></label><label>Token<input type="password" value={draft.nativeMcpToken} onChange={(event) => patch({ nativeMcpToken: event.target.value })} placeholder={draft.nativeMcpTokenAvailable ? 'Stored token will be reused' : 'Native MCP bearer token'} /></label></div>
+        <div className="form-grid"><label>Timeout ms<input value={draft.nativeMcpTimeoutMs} onChange={(event) => patch({ nativeMcpTimeoutMs: event.target.value })} placeholder="30000" /></label><label className="row"><input type="checkbox" checked={draft.nativeMcpAllowExecutionData} onChange={(event) => patch({ nativeMcpAllowExecutionData: event.target.checked })} /> Allow execution payload data</label></div>
+        <label className="row"><input type="checkbox" checked={draft.nativeMcpAllowRemote} onChange={(event) => patch({ nativeMcpAllowRemote: event.target.checked })} /> Allow non-loopback broker exposure</label>
+        <div className="toolbar"><button className="secondary" type="button" disabled={draft.nativeMcpTestPending || (!draft.nativeMcpToken && !draft.nativeMcpTokenAvailable)} onClick={testNativeMcp}>{draft.nativeMcpTestPending ? 'Testing...' : 'Test connection'}</button>{draft.nativeMcpTestResult ? <span className={`inline-message ${draft.nativeMcpTestResult.ok ? '' : 'error'}`}>{draft.nativeMcpTestResult.message}</span> : null}</div>
+      </> : null}
+    </section> : null}
     <div className="toolbar"><button onClick={save} disabled={!draft.name || !canContinue || workflowsPathConflict || savePending}>{savePending ? 'Saving...' : 'Save environment'}</button>{!isManaged ? <button className="secondary" disabled={activeSetup || savePending} onClick={() => dispatch(actions.modalOpened({ kind: 'managed-form', returnToEnvironmentForm: true, returnToEnvironmentDraftId: draftId }))}>Create local instance</button> : null}</div>
   </Modal>;
 }

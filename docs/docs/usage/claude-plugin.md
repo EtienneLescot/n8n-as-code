@@ -37,6 +37,7 @@ Ask Claude to initialize n8n-as-code in the workspace. The installed skills guid
 
 - creating or selecting an n8n environment
 - storing remote API keys locally
+- optionally configuring native n8n MCP live assist for that environment
 - creating or selecting local managed instances when needed
 - generating `AGENTS.md`
 - materializing `.agents/skills/n8n-architect`
@@ -46,9 +47,12 @@ Manual equivalent:
 ```bash
 n8nac env add Dev --base-url <url> --workflows-path workflows/dev
 n8nac env auth set Dev --api-key-stdin
+n8nac native-mcp configure Dev --url <native-mcp-url> --token-stdin # optional live assist
 n8nac env use Dev
 n8nac update-ai
 ```
+
+Claude Code does not need a manual `@n8n-as-code/mcp` server configuration. The plugin guides Claude to use `n8nac` directly in the workspace. If native n8n MCP assist is useful, Claude should propose configuring it on the active environment with `n8nac native-mcp configure`, then verify it with `n8nac native-mcp doctor`.
 
 ## Claude Desktop MCP
 
@@ -76,6 +80,7 @@ Claude reads AGENTS.md and local skills
 Claude resolves n8nac env status
 Claude pulls or creates workflow files
 Claude uses n8n node schemas and docs
+Claude uses native MCP live assist only when the configured environment needs live n8n state
 Claude edits and validates the workflow
 Claude pushes when asked
 ```
@@ -85,6 +90,7 @@ Claude pushes when asked
 - Skills run locally.
 - Workspace environment config can be committed when it contains no secrets.
 - Remote API keys stay local.
+- Native n8n MCP tokens stay local.
 - Local managed instance state stays in `n8n-manager` storage.
 
 ## Related

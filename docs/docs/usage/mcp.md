@@ -68,39 +68,65 @@ Use native MCP assist when the connected n8n instance knows something that the l
 
 Do not use native MCP assist as a shortcut for workflow authoring. Creating, updating, publishing, archiving, or deleting workflows directly in n8n can bypass `.workflow.ts` and create drift unless there is a deliberate sync-back design.
 
-### Enable assist mode
+### Enable assist for an environment
 
-First enable and configure the native MCP server in n8n, then copy its HTTP endpoint and bearer token into the local environment that launches the `n8n-as-code` MCP server. Do not commit these values to the repository.
+First enable and configure the native MCP server in n8n, then attach its endpoint and bearer token to the relevant n8n-as-code environment. This keeps the packaged onboarding model intact: Claude Code plugin users, VS Code Workbench users, and MCP-client users all share the same workspace environment configuration.
 
-Use `N8N_NATIVE_MCP_URL` and `N8N_NATIVE_MCP_TOKEN` for the native n8n connection. The `N8NAC_NATIVE_MCP_URL` and `N8NAC_NATIVE_MCP_TOKEN` aliases are also accepted.
+The non-secret native MCP settings are stored in `n8nac-config.json` under the environment. The bearer token is stored locally through the same secret store used for n8n API keys.
 
 ```bash
-export N8NAC_NATIVE_MCP_ENABLED=1
-export N8NAC_NATIVE_MCP_MODE=assist
-export N8N_NATIVE_MCP_URL="https://your-n8n.example.com/mcp-server/http"
-export N8N_NATIVE_MCP_TOKEN="your-personal-native-mcp-token"
-n8nac-mcp
+n8nac env add Dev --base-url https://your-n8n.example.com --workflows-path workflows/dev
+n8nac env auth set Dev --api-key-stdin
+n8nac native-mcp configure Dev --url https://your-n8n.example.com/mcp-server/http --token-stdin
+n8nac native-mcp doctor Dev --json
 ```
 
-OAuth2 may be used when an MCP client connects directly to n8n's native server. The `n8n-as-code` broker assist mode implemented here uses `N8N_NATIVE_MCP_TOKEN` or another local secret mechanism outside the repository.
+If `--url` is omitted, `native-mcp configure` derives the default endpoint from the environment URL by appending `/mcp-server/http`.
 
-The most common configuration variables are:
+```bash
+n8nac native-mcp configure Dev --token-stdin
+```
 
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `N8NAC_NATIVE_MCP_ENABLED=1` | Yes | Enables the optional native assist layer |
-| `N8NAC_NATIVE_MCP_MODE=assist` | Recommended | Keeps n8n-as-code as the broker and exposes only approved wrapper tools |
-| `N8N_NATIVE_MCP_URL` or `N8NAC_NATIVE_MCP_URL` | Yes | Native n8n MCP HTTP endpoint |
-| `N8N_NATIVE_MCP_TOKEN` or `N8NAC_NATIVE_MCP_TOKEN` | Usually | Bearer token used by the broker when calling n8n's native MCP server |
-| `N8NAC_NATIVE_MCP_TIMEOUT_MS` | No | Request timeout, default `30000` |
-| `N8NAC_NATIVE_MCP_ALLOW_REMOTE=1` | No | Allows exposing native assist wrappers through non-loopback HTTP/SSE broker transports |
-| `N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA=1` | No | Allows full execution payloads from `get_n8n_live_execution` when requested |
+The resulting workspace config contains only non-secret fields:
+
+```json
+{
+  "id": "dev",
+  "name": "Dev",
+  "nativeMcp": {
+    "enabled": true,
+    "mode": "assist",
+    "url": "https://your-n8n.example.com/mcp-server/http",
+    "requireSyncBack": true
+  }
+}
+```
+
+Use these commands to inspect or disable the environment-scoped native assist configuration:
+
+```bash
+n8nac native-mcp status Dev --include-tools --json
+n8nac native-mcp tools Dev --json
+n8nac native-mcp disable Dev
+```
+
+For advanced/container deployments, environment variables still override the environment-scoped configuration:
+
+| Variable | Purpose |
+| --- | --- |
+| `N8NAC_NATIVE_MCP_ENABLED=1` | Force-enables the optional native assist layer |
+| `N8NAC_NATIVE_MCP_MODE=assist` | Keeps n8n-as-code as the broker and exposes only approved wrapper tools |
+| `N8N_NATIVE_MCP_URL` or `N8NAC_NATIVE_MCP_URL` | Overrides the native n8n MCP HTTP endpoint |
+| `N8N_NATIVE_MCP_TOKEN` or `N8NAC_NATIVE_MCP_TOKEN` | Overrides the bearer token used by the broker |
+| `N8NAC_NATIVE_MCP_TIMEOUT_MS` | Overrides request timeout, default `30000` |
+| `N8NAC_NATIVE_MCP_ALLOW_REMOTE=1` | Allows exposing native assist wrappers through non-loopback HTTP/SSE broker transports |
+| `N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA=1` | Allows full execution payloads from `get_n8n_live_execution` when requested |
 
 Keep `N8NAC_NATIVE_MCP_ALLOW_REMOTE` unset for local desktop clients. Set it only when the broker transport is separately authenticated and intentionally reachable beyond loopback.
 
 ### Use from an MCP client
 
-For local desktop clients, the safest setup is to launch the broker over stdio and inject the native n8n settings as local environment variables. Example Claude Desktop-style configuration:
+For Claude Desktop or other MCP-only clients, configure the client to launch `@n8n-as-code/mcp`. The native n8n MCP endpoint is not configured in the MCP client; it is resolved from the active n8n-as-code environment, or from the environment-variable override path above.
 
 ```json
 {
@@ -109,17 +135,16 @@ For local desktop clients, the safest setup is to launch the broker over stdio a
       "command": "npx",
       "args": ["-y", "@n8n-as-code/mcp"],
       "env": {
-        "N8NAC_NATIVE_MCP_ENABLED": "1",
-        "N8NAC_NATIVE_MCP_MODE": "assist",
-        "N8N_NATIVE_MCP_URL": "https://your-n8n.example.com/mcp-server/http",
-        "N8N_NATIVE_MCP_TOKEN": "your-personal-native-mcp-token"
+        "N8N_AS_CODE_PROJECT_DIR": "/absolute/path/to/your/n8n-as-code-workspace"
       }
     }
   }
 }
 ```
 
-If you already start `n8nac-mcp` or `n8nac mcp` from a shell, export the same variables in that shell before starting the server. For HTTP broker mode, start the broker with `n8nac-mcp --http` and configure your MCP client with the broker URL, not the native n8n URL.
+If you already start `n8nac-mcp` or `n8nac mcp` from the workspace root, the project directory is resolved from the current working directory. For HTTP broker mode, start the broker with `n8nac-mcp --http` and configure your MCP client with the broker URL, not the native n8n URL.
+
+Claude Code plugin users and VS Code Agent Workbench users do not need to configure `@n8n-as-code/mcp` manually. They use the packaged plugin/extension flows, and native MCP assist is configured on the n8n-as-code environment.
 
 Useful agent prompts once assist mode is enabled:
 
@@ -132,7 +157,7 @@ Useful agent prompts once assist mode is enabled:
 
 ### Native assist tools
 
-When `N8NAC_NATIVE_MCP_ENABLED=1` and `N8N_NATIVE_MCP_URL` is configured, the MCP server also exposes these read-only wrappers. Use `n8nac native-mcp status --include-tools --json` to confirm which underlying native tools your n8n version supports:
+When the active environment has `nativeMcp.enabled=true`, or when the environment-variable override path is enabled, the MCP server also exposes these read-only wrappers. Use `n8nac native-mcp status --include-tools --json` to confirm which underlying native tools your n8n version supports:
 
 | Tool | Native n8n tool | Purpose |
 | --- | --- | --- |
@@ -364,12 +389,12 @@ docker run -p 3000:3000 \
 | `MCP_TRANSPORT` | `stdio` | Transport: `stdio`, `http`, or `sse` |
 | `MCP_HOST` | `0.0.0.0` | Bind host for `http`/`sse` transport |
 | `MCP_PORT` | `3000` | Bind port for `http`/`sse` transport |
-| `N8NAC_NATIVE_MCP_ENABLED` | `0` | Enable optional native n8n MCP assist tools |
+| `N8NAC_NATIVE_MCP_ENABLED` | environment config | Override optional native n8n MCP assist enablement |
 | `N8NAC_NATIVE_MCP_MODE` | `assist` | Native MCP mode. Only read-only assist wrappers are currently exposed |
-| `N8N_NATIVE_MCP_URL` | _(unset)_ | Native n8n MCP endpoint, for example `https://host/mcp-server/http` |
-| `N8N_NATIVE_MCP_TOKEN` | _(unset)_ | Native n8n MCP bearer token. Keep this outside project files |
-| `N8NAC_NATIVE_MCP_ALLOW_REMOTE` | `0` | Allow native assist live tools on non-loopback HTTP/SSE MCP transports. Use only with transport authentication |
-| `N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA` | `0` | Allow `get_n8n_live_execution` to request full execution payloads with `includeData=true` |
+| `N8N_NATIVE_MCP_URL` | environment config | Override native n8n MCP endpoint, for example `https://host/mcp-server/http` |
+| `N8N_NATIVE_MCP_TOKEN` | local secret store | Override native n8n MCP bearer token. Keep this outside project files |
+| `N8NAC_NATIVE_MCP_ALLOW_REMOTE` | environment config or `0` | Allow native assist live tools on non-loopback HTTP/SSE MCP transports. Use only with transport authentication |
+| `N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA` | environment config or `0` | Allow `get_n8n_live_execution` to request full execution payloads with `includeData=true` |
 
 For the full Docker reference including all image tags, Docker Compose examples, and local build instructions, see the **[Docker README](https://github.com/EtienneLescot/n8n-as-code/blob/main/packages/mcp/docker/README.md)**.
 
@@ -381,7 +406,7 @@ The MCP server is a thin protocol layer. Offline knowledge and validation calls 
 MCP Client → @n8n-as-code/mcp → n8nac CLI → bundled knowledge index
 ```
 
-By default there is no live n8n instance and no network call. When native MCP assist is explicitly enabled, read-only live wrappers use this additional path:
+By default there is no live n8n MCP assist and no native MCP network call. When native MCP assist is enabled on the active n8n-as-code environment, read-only live wrappers use this additional path:
 
 ```text
 MCP Client → @n8n-as-code/mcp → native n8n MCP server → live n8n instance

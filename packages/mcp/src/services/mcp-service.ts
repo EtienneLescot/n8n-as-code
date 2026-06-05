@@ -5,7 +5,7 @@ import { tmpdir } from 'os';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { NativeMcpHttpClient } from './native-mcp-client.js';
-import { loadNativeMcpConfig, redactNativeMcpConfig, type NativeMcpConfig } from './native-mcp-config.js';
+import { loadNativeMcpConfig, redactNativeMcpConfig, type NativeMcpConfig, type NativeMcpWorkspaceConfigInput } from './native-mcp-config.js';
 import {
     buildNativeMcpCapabilities,
     missingNativeMcpTools,
@@ -16,6 +16,7 @@ import {
 export interface N8nAsCodeMcpServiceOptions {
     cwd?: string;
     nativeMcpEnv?: NodeJS.ProcessEnv;
+    nativeMcpWorkspace?: NativeMcpWorkspaceConfigInput;
 }
 
 export interface ValidateWorkflowOptions {
@@ -54,7 +55,11 @@ export class N8nAsCodeMcpService {
 
     constructor(options: N8nAsCodeMcpServiceOptions = {}) {
         this.cwd = options.cwd || process.cwd();
-        this.nativeMcpConfig = loadNativeMcpConfig(options.nativeMcpEnv);
+        this.nativeMcpConfig = loadNativeMcpConfig(options.nativeMcpEnv, {
+            cwd: this.cwd,
+            environmentNameOrId: options.nativeMcpEnv?.N8NAC_ENVIRONMENT,
+            workspace: options.nativeMcpWorkspace,
+        });
     }
 
     isNativeMcpEnabled(): boolean {
@@ -94,12 +99,12 @@ export class N8nAsCodeMcpService {
         };
 
         if (!this.nativeMcpConfig.enabled) {
-            status.connection.error = 'Native n8n MCP assist is disabled. Set N8NAC_NATIVE_MCP_ENABLED=1 to enable it.';
+            status.connection.error = 'Native n8n MCP assist is disabled. Configure it for the active n8nac environment with `n8nac native-mcp configure`, or set N8NAC_NATIVE_MCP_ENABLED=1.';
             return status;
         }
 
         if (!this.nativeMcpConfig.endpoint) {
-            status.connection.error = 'Native n8n MCP endpoint is not configured. Set N8N_NATIVE_MCP_URL or N8NAC_NATIVE_MCP_URL.';
+            status.connection.error = 'Native n8n MCP endpoint is not configured. Set it with `n8nac native-mcp configure --url <url>`, or set N8N_NATIVE_MCP_URL or N8NAC_NATIVE_MCP_URL.';
             return status;
         }
 
@@ -212,10 +217,10 @@ export class N8nAsCodeMcpService {
 
     private createNativeMcpClient(): NativeMcpHttpClient {
         if (!this.nativeMcpConfig.enabled) {
-            throw new Error('Native n8n MCP assist is disabled. Set N8NAC_NATIVE_MCP_ENABLED=1 to enable it.');
+            throw new Error('Native n8n MCP assist is disabled. Configure it for the active n8nac environment with `n8nac native-mcp configure`, or set N8NAC_NATIVE_MCP_ENABLED=1.');
         }
         if (!this.nativeMcpConfig.endpoint) {
-            throw new Error('Native n8n MCP endpoint is not configured. Set N8N_NATIVE_MCP_URL or N8NAC_NATIVE_MCP_URL.');
+            throw new Error('Native n8n MCP endpoint is not configured. Set it with `n8nac native-mcp configure --url <url>`, or set N8N_NATIVE_MCP_URL or N8NAC_NATIVE_MCP_URL.');
         }
         return new NativeMcpHttpClient(this.nativeMcpConfig);
     }

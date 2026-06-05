@@ -169,6 +169,39 @@ describe('ConfigService filesystem integration', () => {
         expect(reloaded.listInstances()[0].id).toBe(testProfile.id);
     });
 
+    it('stores native MCP tokens locally without writing them to n8nac-config.json', () => {
+        const workspaceDir = createWorkspaceDir();
+        createManagerHome();
+
+        const configService = createService(workspaceDir);
+        const target = configService.ensureEmbeddedInstanceTarget({
+            name: 'Dev',
+            url: 'https://dev.example.com',
+        });
+        const environment = configService.addEnvironment({
+            name: 'Dev',
+            environmentTarget: target.id,
+            workflowsPath: 'workflows/dev',
+            nativeMcp: {
+                enabled: true,
+                url: 'https://dev.example.com/mcp-server/http',
+            },
+        });
+
+        configService.saveNativeMcpToken(environment.id, 'native-secret-token');
+
+        const reloaded = createService(workspaceDir);
+        expect(reloaded.getNativeMcpToken(environment.id)).toBe('native-secret-token');
+        expect(reloaded.resolveEnvironment(environment.id).nativeMcp).toMatchObject({
+            enabled: true,
+            tokenConfigured: true,
+        });
+        const rawConfig = fs.readFileSync(path.join(workspaceDir, 'n8nac-config.json'), 'utf-8');
+        expect(rawConfig).toContain('nativeMcp');
+        expect(rawConfig).not.toContain('native-secret-token');
+        expect(rawConfig).not.toContain('token');
+    });
+
     it('does not migrate legacy sidecar config files into the global instance store', () => {
         const workspaceDir = createWorkspaceDir();
         createManagerHome();

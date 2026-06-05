@@ -211,6 +211,7 @@ The `n8n-as-code` MCP server is a client adapter for N8NAC tools. The native n8n
 Use this routing policy:
 
 - Default to local `npx --yes n8nac` for code-first workflow authoring, validation, pull, push, credentials, execution history, and presentation. Use `npx --yes n8nac skills` as the bundled offline knowledge default.
+- Native MCP assist is configured per n8n-as-code environment. When creating or updating an environment, offer to configure it with `npx --yes n8nac native-mcp configure <environment> --token-stdin`; do not ask the user to manually configure a separate MCP server for Claude Code or the VS Code Workbench.
 - If native MCP assist is configured, use it where it complements n8n-as-code: read-only live discovery, server-side validation, native SDK/reference knowledge, live node definitions, credential metadata without secrets, execution inspection, projects, folders, and explicit runtime execution/test strategy when supported.
 - Check native availability with `npx --yes n8nac native-mcp status --include-tools --json` before relying on native tools.
 - Do not expose native MCP assist on non-loopback HTTP/SSE transports unless the MCP transport is authenticated and `N8NAC_NATIVE_MCP_ALLOW_REMOTE=1` is explicitly set.

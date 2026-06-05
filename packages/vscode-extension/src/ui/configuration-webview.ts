@@ -26,11 +26,41 @@ type SetupInstanceRef = Awaited<ReturnType<ReturnType<typeof createN8nManagerFac
   warnings?: string[];
 };
 
+type NativeMcpConfigService = ConfigService & {
+  getNativeMcpToken(environmentNameOrId?: string): string | undefined;
+  saveNativeMcpToken(environmentNameOrId: string, token: string): void;
+  deleteNativeMcpToken(environmentNameOrId: string): void;
+};
+
 const WORKSPACE_ENVIRONMENT_MODEL_METADATA = { n8nacWorkspaceEnvironmentModel: 'v4' };
 
 function normalizeHost(host: string): string {
   const trimmed = (host || '').trim();
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
+}
+
+function defaultNativeMcpEndpointFromHost(host: string | undefined): string {
+  const normalized = normalizeHost(host || '');
+  return normalized ? `${normalized}/mcp-server/http` : '';
+}
+
+function parseNativeMcpTimeoutMs(value: unknown): number | undefined {
+  const raw = String(value || '').trim();
+  if (!raw) return undefined;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) throw new Error('Native MCP timeout must be a positive integer.');
+  return parsed;
+}
+
+async function parseMcpJsonResponse(response: Response): Promise<any> {
+  const body = await response.text();
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('text/event-stream')) {
+    const dataLine = body.split(/\r?\n/).find((line) => line.startsWith('data:'));
+    if (!dataLine) return {};
+    return JSON.parse(dataLine.slice('data:'.length).trim());
+  }
+  return body ? JSON.parse(body) : {};
 }
 
 function normalizeWorkflowsPath(workflowsPath: string): string {
@@ -186,6 +216,25 @@ export class ConfigurationWebview {
           return;
         }
 
+        case 'testNativeMcpConnection': {
+          const draftId = String(payload.draftId || 'new');
+          try {
+            if (!workspaceRoot) throw new Error('Open a workspace before testing native MCP assist.');
+            const configService = new ConfigService(workspaceRoot);
+            const endpoint = normalizeHost(String(payload.nativeMcpUrl || '')) || defaultNativeMcpEndpointFromHost(await this.resolveEnvironmentHostForNativeMcp(configService, globalFacade, payload));
+            if (!endpoint) throw new Error('Native MCP endpoint is required.');
+            const environmentId = String(payload.environmentId || '').trim();
+            const token = String(payload.nativeMcpToken || '').trim() || (environmentId ? (configService as NativeMcpConfigService).getNativeMcpToken(environmentId) : undefined);
+            if (!token) throw new Error('Native MCP token is required.');
+            const timeoutMs = parseNativeMcpTimeoutMs(payload.nativeMcpTimeoutMs) || 30_000;
+            const tools = await this.probeNativeMcpTools({ endpoint, token, timeoutMs });
+            this._panel.webview.postMessage({ type: 'nativeMcpTestResult', draftId, ok: true, message: `Connected. ${tools.length} native tool(s) discovered.` });
+          } catch (error: any) {
+            this._panel.webview.postMessage({ type: 'nativeMcpTestResult', draftId, ok: false, message: error?.message || 'Native MCP connection failed.' });
+          }
+          return;
+        }
+
         case 'createManagedInstance': {
           await this.createManagedInstance(payload, globalFacade);
           return;
@@ -267,11 +316,12 @@ export class ConfigurationWebview {
           if (!workspaceRoot) throw new Error('Open a workspace before saving workspace environments.');
           const configService = new ConfigService(workspaceRoot);
           const environmentId = String(payload.environmentId || '').trim();
+          let existingEnvironment: ReturnType<ConfigService['getEnvironment']> | undefined;
           let environmentTargetId = String(payload.environmentTargetId || '').trim();
           let existingEnvironmentTargetId = '';
           let currentEnvironmentTargetUrl = '';
           if (environmentId) {
-            const existingEnvironment = configService.getEnvironment(environmentId);
+            existingEnvironment = configService.getEnvironment(environmentId);
             existingEnvironmentTargetId = existingEnvironment.environmentTargetId;
             const existingTarget = configService.getInstanceTarget(existingEnvironmentTargetId);
             if (existingTarget.kind === 'external-instance') {
@@ -343,6 +393,14 @@ export class ConfigurationWebview {
           }
           const workflowsPath = normalizeWorkflowsPath(String(payload.workflowsPath || '').trim());
           const folderSync = typeof payload.folderSync === 'boolean' ? payload.folderSync : undefined;
+          const nativeMcpToken = String(payload.nativeMcpToken || '').trim();
+          const nativeMcp = this.buildNativeMcpEnvironmentConfig(payload, (existingEnvironment as any)?.nativeMcp, await this.resolveEnvironmentHostForNativeMcp(configService, globalFacade, {
+            ...payload,
+            environmentTargetId,
+            instanceId,
+            url,
+            fallbackUrl: currentEnvironmentTargetUrl,
+          }));
           const input = {
             name,
             environmentTarget: environmentTargetId,
@@ -352,11 +410,18 @@ export class ConfigurationWebview {
             folderSync,
             customNodesPath: String(payload.customNodesPath || '').trim() || undefined,
             description: String(payload.description || '').trim() || undefined,
+            nativeMcp,
           };
           const savedEnvironment = environmentId
             ? configService.updateEnvironment(environmentId, input)
             : configService.addEnvironment(input);
-          this._panel.webview.postMessage({ type: 'environmentSaved', environment: savedEnvironment });
+          if (nativeMcpToken) {
+            (configService as NativeMcpConfigService).saveNativeMcpToken(savedEnvironment.id, nativeMcpToken);
+          } else if (nativeMcp && nativeMcp.enabled === false) {
+            (configService as NativeMcpConfigService).deleteNativeMcpToken(savedEnvironment.id);
+          }
+          const savedSnapshot = configService.getWorkspaceConfig().environments?.find((environment) => environment.id === savedEnvironment.id) || savedEnvironment;
+          this._panel.webview.postMessage({ type: 'environmentSaved', environment: savedSnapshot });
           this.notifySaved();
           void this._configurationController.refresh('webview-save-environment', { force: true }).catch(() => undefined);
           return;
@@ -576,6 +641,113 @@ export class ConfigurationWebview {
     if (pinned) {
       this.notifySaved();
       void this._configurationController.refresh('webview-pin-environment', { force: true }).catch(() => undefined);
+    }
+  }
+
+  private buildNativeMcpEnvironmentConfig(payload: Record<string, unknown>, existing: any, environmentHost: string) {
+    const enabled = Boolean(payload.nativeMcpEnabled);
+    const explicitUrl = normalizeHost(String(payload.nativeMcpUrl || ''));
+    const url = explicitUrl || (enabled ? defaultNativeMcpEndpointFromHost(environmentHost) : existing?.url);
+    const timeoutMs = parseNativeMcpTimeoutMs(payload.nativeMcpTimeoutMs) || existing?.timeoutMs;
+    const hasExisting = Boolean(existing);
+    const hasPayload = enabled || explicitUrl || String(payload.nativeMcpToken || '').trim() || hasExisting;
+    if (!hasPayload) return undefined;
+    return {
+      ...existing,
+      enabled,
+      mode: 'assist' as const,
+      url: url || undefined,
+      timeoutMs,
+      allowExecutionData: Boolean(payload.nativeMcpAllowExecutionData),
+      allowRemoteExposure: Boolean(payload.nativeMcpAllowRemote),
+      requireSyncBack: existing?.requireSyncBack ?? true,
+    };
+  }
+
+  private async resolveEnvironmentHostForNativeMcp(
+    configService: ConfigService,
+    globalFacade: ReturnType<typeof createN8nManagerFacade>,
+    payload: Record<string, unknown>,
+  ): Promise<string> {
+    const url = normalizeHost(String(payload.url || ''));
+    if (url) return url;
+    const fallbackUrl = normalizeHost(String(payload.fallbackUrl || ''));
+    if (fallbackUrl) return fallbackUrl;
+    const environmentTargetId = String(payload.environmentTargetId || '').trim();
+    if (environmentTargetId) {
+      const target = configService.getInstanceTarget(environmentTargetId);
+      if (target.kind === 'external-instance') return normalizeHost(target.url);
+      const instances = await globalFacade.listInstances();
+      const instance = instances.find((item) => item.id === target.managedInstanceId);
+      return normalizeHost(instance?.tunnelPublicUrl || instance?.baseUrl || '');
+    }
+    const instanceId = String(payload.instanceId || '').trim();
+    if (instanceId) {
+      const instances = await globalFacade.listInstances();
+      const instance = instances.find((item) => item.id === instanceId);
+      return normalizeHost(instance?.tunnelPublicUrl || instance?.baseUrl || '');
+    }
+    const environmentId = String(payload.environmentId || '').trim();
+    if (environmentId) {
+      return normalizeHost(configService.resolveEnvironment(environmentId).host);
+    }
+    return '';
+  }
+
+  private async probeNativeMcpTools(input: { endpoint: string; token: string; timeoutMs: number }): Promise<string[]> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), input.timeoutMs);
+    const headers: Record<string, string> = {
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+      'mcp-protocol-version': '2025-06-18',
+      authorization: `Bearer ${input.token}`,
+    };
+    try {
+      const initializeResponse = await fetch(input.endpoint, {
+        method: 'POST',
+        headers,
+        signal: controller.signal,
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-06-18',
+            capabilities: {},
+            clientInfo: { name: 'n8n-as-code-vscode', version: '1.0.0' },
+          },
+        }),
+      });
+      if (!initializeResponse.ok) throw new Error(`Native MCP initialize failed with HTTP ${initializeResponse.status}.`);
+      const sessionId = initializeResponse.headers.get('mcp-session-id') || undefined;
+      const sessionHeaders = sessionId ? { ...headers, 'mcp-session-id': sessionId } : headers;
+      await parseMcpJsonResponse(initializeResponse);
+      await fetch(input.endpoint, {
+        method: 'POST',
+        headers: sessionHeaders,
+        signal: controller.signal,
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }),
+      });
+      const toolsResponse = await fetch(input.endpoint, {
+        method: 'POST',
+        headers: sessionHeaders,
+        signal: controller.signal,
+        body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
+      });
+      if (!toolsResponse.ok) throw new Error(`Native MCP tools/list failed with HTTP ${toolsResponse.status}.`);
+      const payload = await parseMcpJsonResponse(toolsResponse);
+      if (payload?.error?.message) throw new Error(String(payload.error.message));
+      const tools = Array.isArray(payload?.result?.tools) ? payload.result.tools : [];
+      if (sessionId) {
+        void fetch(input.endpoint, { method: 'DELETE', headers: sessionHeaders }).catch(() => undefined);
+      }
+      return tools.map((tool: any) => String(tool?.name || '')).filter(Boolean);
+    } catch (error: any) {
+      if (error?.name === 'AbortError') throw new Error('Native MCP connection timed out.');
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

@@ -70,6 +70,19 @@ export interface IExternalEnvironmentTarget {
 
 export type IEnvironmentTarget = IManagedEnvironmentTarget | IExternalEnvironmentTarget;
 
+export type IWorkspaceNativeMcpMode = 'assist' | 'direct';
+
+export interface IWorkspaceNativeMcpConfig {
+    enabled?: boolean;
+    url?: string;
+    mode?: IWorkspaceNativeMcpMode;
+    timeoutMs?: number;
+    allowRemoteExposure?: boolean;
+    allowExecutionData?: boolean;
+    requireSyncBack?: boolean;
+    tokenConfigured?: boolean;
+}
+
 export interface IWorkspaceEnvironment {
     id: string;
     name: string;
@@ -95,6 +108,7 @@ export interface IWorkspaceEnvironment {
     apiKeyAvailable?: boolean;
     credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
     accessStatus?: EnvironmentAccessStatus;
+    nativeMcp?: IWorkspaceNativeMcpConfig;
 }
 
 export type EnvironmentAccessStatus =
@@ -145,6 +159,7 @@ export interface IResolvedWorkspaceEnvironment extends ILocalConfig {
     apiKeySource: 'env' | 'workspace-local' | 'global' | 'missing';
     apiKeyAvailable: boolean;
     accessStatus: EnvironmentAccessStatus;
+    nativeMcp?: IWorkspaceNativeMcpConfig;
     workflowsPath: string;
     syncFolder?: string;
     instanceIdentifier?: string;
@@ -387,6 +402,7 @@ export class ConfigService {
         folderSync?: boolean;
         customNodesPath?: string;
         description?: string;
+        nativeMcp?: IWorkspaceNativeMcpConfig;
     }): IWorkspaceEnvironment {
         const config = this.ensureV4WorkspaceConfig();
         const name = cleanRequired(input.name, 'Environment name');
@@ -415,6 +431,7 @@ export class ConfigService {
             folderSync: input.folderSync,
             customNodesPath: input.customNodesPath,
             description: input.description,
+            nativeMcp: this.sanitizeNativeMcpConfig(input.nativeMcp),
         };
         const next = {
             ...config,
@@ -425,7 +442,7 @@ export class ConfigService {
         return environment;
     }
 
-    updateEnvironment(nameOrId: string, patch: Partial<Pick<IWorkspaceEnvironment, 'name' | 'projectId' | 'projectName' | 'workflowsPath' | 'workflowDir' | 'syncFolder' | 'folderSync' | 'customNodesPath' | 'description'>> & { environmentTarget?: string }): IWorkspaceEnvironment {
+    updateEnvironment(nameOrId: string, patch: Partial<Pick<IWorkspaceEnvironment, 'name' | 'projectId' | 'projectName' | 'workflowsPath' | 'workflowDir' | 'syncFolder' | 'folderSync' | 'customNodesPath' | 'description'>> & { environmentTarget?: string; nativeMcp?: IWorkspaceNativeMcpConfig | null }): IWorkspaceEnvironment {
         const config = this.ensureV4WorkspaceConfig();
         const environment = this.findEnvironment(config, nameOrId);
         const currentTarget = this.findInstanceTarget(config, environment.environmentTargetId);
@@ -454,6 +471,7 @@ export class ConfigService {
             folderSync: patch.folderSync ?? environment.folderSync,
             customNodesPath: patch.customNodesPath ?? environment.customNodesPath,
             description: patch.description ?? environment.description,
+            nativeMcp: patch.nativeMcp !== undefined ? this.sanitizeNativeMcpConfig(patch.nativeMcp) : environment.nativeMcp,
         });
         const next = {
             ...config,
@@ -479,6 +497,7 @@ export class ConfigService {
         if (config.activeEnvironmentId === environment.id && !options.force) {
             throw new Error(`Workspace environment "${environment.name}" is active. Pin another environment first, or re-run with --force to remove it and clear the active environment.`);
         }
+        this.deleteNativeMcpToken(environment.id);
         const nextEnvironments = config.environments.filter((item) => item.id !== environment.id);
         this.writeWorkspaceConfigV4({
             ...config,
@@ -942,6 +961,27 @@ export class ConfigService {
         this.manager.saveApiKey(target.id, apiKey);
     }
 
+    getNativeMcpToken(environmentNameOrId?: string): string | undefined {
+        const environment = environmentNameOrId
+            ? this.findEnvironment(this.ensureV4WorkspaceConfig(), environmentNameOrId)
+            : this.resolveEnvironment().environment;
+        return this.manager.getApiKey(this.nativeMcpSecretKey(environment.id));
+    }
+
+    saveNativeMcpToken(environmentNameOrId: string, token: string): void {
+        const environment = this.findEnvironment(this.ensureV4WorkspaceConfig(), environmentNameOrId);
+        this.manager.saveApiKey(this.nativeMcpSecretKey(environment.id), cleanRequired(token, 'Native n8n MCP token'));
+    }
+
+    deleteNativeMcpToken(environmentNameOrId: string): void {
+        try {
+            const environment = this.findEnvironment(this.ensureV4WorkspaceConfig(), environmentNameOrId);
+            this.manager.deleteApiKey(this.nativeMcpSecretKey(environment.id));
+        } catch {
+            this.manager.deleteApiKey(this.nativeMcpSecretKey(environmentNameOrId));
+        }
+    }
+
     upsertRemoteInstancePreset(input: { host: string; apiKey?: string; name?: string }): IInstanceProfile {
         const host = cleanRequired(input.host, 'n8n URL');
         const normalized = this.normalizeHost(host);
@@ -1178,7 +1218,64 @@ export class ConfigService {
             folderSync: typeof environment.folderSync === 'boolean' ? environment.folderSync : undefined,
             customNodesPath: cleanOptional(environment.customNodesPath),
             description: cleanOptional(environment.description),
+            nativeMcp: this.sanitizeNativeMcpConfig(environment.nativeMcp),
         });
+    }
+
+    private sanitizeNativeMcpConfig(nativeMcp: unknown): IWorkspaceNativeMcpConfig | undefined {
+        if (nativeMcp === undefined || nativeMcp === null) return undefined;
+        if (!nativeMcp || typeof nativeMcp !== 'object' || Array.isArray(nativeMcp)) {
+            throw new Error('Invalid v4 workspace config: environment nativeMcp must be an object.');
+        }
+        this.assertNoNativeMcpSecrets(nativeMcp);
+        const input = nativeMcp as Record<string, unknown>;
+        const url = cleanOptional(input.url);
+        if (url) {
+            this.assertNativeMcpUrl(url);
+        }
+        const timeoutMs = this.parseOptionalPositiveInteger(input.timeoutMs, 'nativeMcp.timeoutMs');
+        const mode: IWorkspaceNativeMcpMode | undefined = input.mode === 'direct' ? 'direct' : input.mode === 'assist' ? 'assist' : undefined;
+        return stripUndefined({
+            enabled: typeof input.enabled === 'boolean' ? input.enabled : url ? true : undefined,
+            url,
+            mode,
+            timeoutMs,
+            allowRemoteExposure: typeof input.allowRemoteExposure === 'boolean' ? input.allowRemoteExposure : undefined,
+            allowExecutionData: typeof input.allowExecutionData === 'boolean' ? input.allowExecutionData : undefined,
+            requireSyncBack: typeof input.requireSyncBack === 'boolean' ? input.requireSyncBack : undefined,
+        });
+    }
+
+    private assertNoNativeMcpSecrets(value: unknown, pathLabel = 'nativeMcp'): void {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+        const secretKeys = new Set(['token', 'apikey', 'api_key', 'password', 'secret', 'authorization', 'bearertoken', 'access_token', 'accesstoken', 'clientsecret', 'client_secret']);
+        for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+            if (secretKeys.has(key.toLowerCase())) {
+                throw new Error(`Invalid v4 workspace config: ${pathLabel}.${key} must not contain secrets.`);
+            }
+            this.assertNoNativeMcpSecrets(child, `${pathLabel}.${key}`);
+        }
+    }
+
+    private assertNativeMcpUrl(url: string): void {
+        let parsed: URL;
+        try {
+            parsed = new URL(url);
+        } catch {
+            throw new Error(`Invalid v4 workspace config: nativeMcp.url must be a valid HTTP URL.`);
+        }
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+            throw new Error(`Invalid v4 workspace config: nativeMcp.url must use http or https.`);
+        }
+    }
+
+    private parseOptionalPositiveInteger(value: unknown, label: string): number | undefined {
+        if (value === undefined || value === null || value === '') return undefined;
+        const parsed = typeof value === 'number' ? value : Number.parseInt(String(value), 10);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+            throw new Error(`Invalid v4 workspace config: ${label} must be a positive integer.`);
+        }
+        return parsed;
     }
 
     private writeWorkspaceConfigV4(config: IPersistedWorkspaceConfigV4): void {
@@ -1262,6 +1359,7 @@ export class ConfigService {
                 apiKeySource: envApiKey ? 'env' : globalApiKey ? 'global' : 'missing',
                 apiKeyAvailable: Boolean(apiKey),
                 accessStatus: this.deriveAccessStatus({ host, apiKey, projectId, projectName, verification: envApiKey ? undefined : instance.verification }),
+                nativeMcp: this.nativeMcpToSnapshot(environment.nativeMcp, environment.id),
                 workflowsPath,
                 syncFolder,
                 projectId,
@@ -1303,6 +1401,7 @@ export class ConfigService {
             apiKeySource: envApiKey ? 'env' : workspaceApiKey ? 'workspace-local' : globalApiKey ? 'global' : 'missing',
             apiKeyAvailable: Boolean(apiKey),
             accessStatus: this.deriveAccessStatus({ host, apiKey, projectId: environment.projectId, projectName: environment.projectName, verification: target.verification }),
+            nativeMcp: this.nativeMcpToSnapshot(environment.nativeMcp, environment.id),
             workflowsPath,
             syncFolder,
             projectId: environment.projectId,
@@ -1405,7 +1504,20 @@ export class ConfigService {
             apiKeyAvailable: resolved.apiKeyAvailable,
             credentialSource: resolved.apiKeySource,
             accessStatus: resolved.accessStatus,
+            nativeMcp: this.nativeMcpToSnapshot(environment.nativeMcp, environment.id),
         });
+    }
+
+    private nativeMcpToSnapshot(nativeMcp: IWorkspaceNativeMcpConfig | undefined, environmentId: string): IWorkspaceNativeMcpConfig | undefined {
+        if (!nativeMcp) return undefined;
+        return stripUndefined({
+            ...nativeMcp,
+            tokenConfigured: Boolean(this.manager.getApiKey(this.nativeMcpSecretKey(environmentId))),
+        });
+    }
+
+    private nativeMcpSecretKey(environmentId: string): string {
+        return `native-mcp:${environmentId}`;
     }
 
     private environmentTargetToSnapshot(target: IEnvironmentTarget): IEnvironmentTarget {

@@ -23,6 +23,15 @@ export interface EnvironmentDraft {
   folderSync: boolean;
   customNodesPath: string;
   description: string;
+  nativeMcpEnabled: boolean;
+  nativeMcpUrl: string;
+  nativeMcpToken: string;
+  nativeMcpTokenAvailable?: boolean;
+  nativeMcpAllowExecutionData: boolean;
+  nativeMcpAllowRemote: boolean;
+  nativeMcpTimeoutMs: string;
+  nativeMcpTestPending?: boolean;
+  nativeMcpTestResult?: { ok: boolean; message: string };
   dirty: boolean;
   projectsLoading?: boolean;
   projects?: Array<{ id: string; name: string; type?: string; detail?: string; displayName?: string }>;
@@ -185,6 +194,7 @@ const uiSlice = createSlice({
 });
 
 function blankEnvironmentDraft(id: string, environment?: any): EnvironmentDraft {
+  const nativeMcp = environment?.nativeMcp || {};
   return {
     id,
     environmentId: environment?.id,
@@ -201,6 +211,13 @@ function blankEnvironmentDraft(id: string, environment?: any): EnvironmentDraft 
     folderSync: environment?.folderSync !== false,
     customNodesPath: environment?.customNodesPath || '',
     description: environment?.description || '',
+    nativeMcpEnabled: Boolean(nativeMcp.enabled),
+    nativeMcpUrl: nativeMcp.url || '',
+    nativeMcpToken: '',
+    nativeMcpTokenAvailable: nativeMcp.tokenConfigured,
+    nativeMcpAllowExecutionData: Boolean(nativeMcp.allowExecutionData),
+    nativeMcpAllowRemote: Boolean(nativeMcp.allowRemoteExposure),
+    nativeMcpTimeoutMs: nativeMcp.timeoutMs ? String(nativeMcp.timeoutMs) : '',
     dirty: false,
   };
 }
@@ -220,6 +237,18 @@ const draftsSlice = createSlice({
         patch.workflowsPath = defaultWorkflowsPath(patch.name);
       }
       state.environment[action.payload.id] = { ...existing, ...patch, dirty: true };
+    },
+    environmentDraftNativeMcpTestRequested: (state, action: PayloadAction<{ id: string }>) => {
+      const existing = state.environment[action.payload.id];
+      if (!existing) return;
+      existing.nativeMcpTestPending = true;
+      existing.nativeMcpTestResult = undefined;
+    },
+    environmentDraftNativeMcpTestReceived: (state, action: PayloadAction<{ id: string; ok: boolean; message: string }>) => {
+      const existing = state.environment[action.payload.id];
+      if (!existing) return;
+      existing.nativeMcpTestPending = false;
+      existing.nativeMcpTestResult = { ok: action.payload.ok, message: action.payload.message };
     },
     environmentDraftProjectsReceived: (state, action: PayloadAction<{ id: string; requestKey?: string; projects?: Array<{ id: string; name: string; type?: string; detail?: string; displayName?: string }>; selectedProjectId?: string; selectedProjectName?: string; error?: string }>) => {
       const existing = state.environment[action.payload.id];

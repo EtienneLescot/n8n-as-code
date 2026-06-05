@@ -39,6 +39,15 @@ function runCli(cwd: string, homeDir: string, args: string[]) {
     });
 }
 
+function runCliWithInput(cwd: string, homeDir: string, args: string[], input: string) {
+    return execFileSync('node', [cliEntry, ...args], {
+        cwd,
+        env: makeEnv(homeDir),
+        input,
+        encoding: 'utf8',
+    });
+}
+
 beforeAll(() => {
     execFileSync('npm', ['run', 'build', '--workspace=packages/cli'], {
         cwd: repoRoot,
@@ -207,6 +216,43 @@ describe('CLI workspace integration', () => {
             apiKeySource: 'workspace-local',
         });
         expect(authOutput).not.toContain('dev-key');
+    });
+
+    it('configures native MCP assist per environment without committing the token', () => {
+        const workspaceDir = createTempDir('n8nac-cli-native-mcp-workspace-');
+        const homeDir = createTempDir('n8nac-cli-native-mcp-home-');
+
+        const created = JSON.parse(runCli(workspaceDir, homeDir, [
+            'env', 'add', 'Dev',
+            '--base-url', 'https://dev.example.com',
+            '--api-key', 'dev-key',
+            '--workflows-path', 'workflows/dev',
+            '--json',
+        ]));
+        const configured = JSON.parse(runCliWithInput(workspaceDir, homeDir, [
+            'native-mcp', 'configure', 'Dev',
+            '--url', 'https://dev.example.com/mcp-server/http',
+            '--token-stdin',
+            '--allow-execution-data',
+            '--json',
+        ], 'native-secret-token'));
+
+        expect(configured).toMatchObject({
+            id: created.id,
+            nativeMcp: {
+                enabled: true,
+                url: 'https://dev.example.com/mcp-server/http',
+                allowExecutionData: true,
+                tokenConfigured: true,
+            },
+        });
+        const workspaceConfig = fs.readFileSync(path.join(workspaceDir, 'n8nac-config.json'), 'utf8');
+        expect(workspaceConfig).toContain('nativeMcp');
+        expect(workspaceConfig).not.toContain('native-secret-token');
+        expect(workspaceConfig).not.toContain('dev-key');
+
+        const disabled = JSON.parse(runCli(workspaceDir, homeDir, ['native-mcp', 'disable', 'Dev', '--json']));
+        expect(disabled.nativeMcp).toMatchObject({ enabled: false, tokenConfigured: false });
     });
 
     it('rejects env auth set for managed environments', () => {

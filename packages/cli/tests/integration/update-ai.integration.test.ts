@@ -74,6 +74,7 @@ function expectNativeMcpRoutingPolicy(content: string, cliCmd: string, skillsCmd
     expect(content).toContain('The native n8n MCP server is a separate live n8n instance endpoint.');
     expect(content).toContain(`Default to local \`${cliCmd}\` for code-first workflow authoring, validation, pull, push`);
     expect(content).toContain(`Use \`${skillsCmd}\` as the bundled offline knowledge default.`);
+    expect(content).toContain(`Native MCP assist is configured per n8n-as-code environment. When creating or updating an environment, offer to configure it with \`${cliCmd} native-mcp configure <environment> --token-stdin\`; do not ask the user to manually configure a separate MCP server for Claude Code or the VS Code Workbench.`);
     expect(content).toContain(`Check native availability with \`${cliCmd} native-mcp status --include-tools --json\` before relying on native tools.`);
     expect(content).toContain('Do not treat the presence of any MCP server as permission to call native n8n MCP tools.');
     expect(content).toContain('Native n8n MCP is used if and only if the generated execution or investigation strategy needs live n8n capabilities that local N8NAC cannot provide as well.');

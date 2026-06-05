@@ -96,6 +96,58 @@ describe('ConfigService V4 workspace environments', () => {
         expect(configService.resolveEnvironment(environment.id).workflowsPath).toBe(path.join(workspaceRoot, 'flows/prod'));
     });
 
+    it('persists native MCP environment config without secrets', () => {
+        const configService = new ConfigService(workspaceRoot);
+        const target = configService.ensureEmbeddedInstanceTarget({
+            name: 'Dev',
+            url: 'https://dev.example.test',
+        });
+
+        const environment = configService.addEnvironment({
+            name: 'Dev',
+            environmentTarget: target.id,
+            workflowsPath: 'workflows/dev',
+            nativeMcp: {
+                enabled: true,
+                url: 'https://dev.example.test/mcp-server/http',
+                timeoutMs: 1234,
+                allowExecutionData: true,
+                allowRemoteExposure: false,
+            },
+        });
+
+        expect(configService.resolveEnvironment(environment.id).nativeMcp).toMatchObject({
+            enabled: true,
+            url: 'https://dev.example.test/mcp-server/http',
+            timeoutMs: 1234,
+            allowExecutionData: true,
+            tokenConfigured: false,
+        });
+    });
+
+    it('rejects native MCP secrets in workspace config files', () => {
+        writeFileSync(path.join(workspaceRoot, 'n8nac-config.json'), JSON.stringify({
+            version: 4,
+            activeEnvironmentId: 'dev',
+            environmentTargets: [{ id: 'dev-target', name: 'Dev', kind: 'external-instance', url: 'https://dev.example.test' }],
+            environments: [{
+                id: 'dev',
+                name: 'Dev',
+                environmentTargetId: 'dev-target',
+                workflowsPath: 'workflows/dev',
+                nativeMcp: {
+                    enabled: true,
+                    url: 'https://dev.example.test/mcp-server/http',
+                    token: 'secret-token',
+                },
+            }],
+        }, null, 2));
+
+        const configService = new ConfigService(workspaceRoot);
+
+        expect(() => configService.getWorkspaceConfig()).toThrow(/nativeMcp\.token must not contain secrets/);
+    });
+
     it('prepares a string-requested workspace environment', async () => {
         const configService = new ConfigService(workspaceRoot);
         const devTarget = configService.ensureEmbeddedInstanceTarget({

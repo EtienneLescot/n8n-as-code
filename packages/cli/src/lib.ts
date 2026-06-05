@@ -20,6 +20,8 @@ export {
     type IManagedEnvironmentTarget,
     type IExternalEnvironmentTarget,
     type IEnvironmentTarget,
+    type IWorkspaceNativeMcpConfig,
+    type IWorkspaceNativeMcpMode,
     type IWorkspaceEnvironment,
     type IPersistedWorkspaceConfigV4,
     type IResolvedWorkspaceEnvironment,

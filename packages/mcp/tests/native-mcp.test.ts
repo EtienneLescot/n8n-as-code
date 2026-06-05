@@ -49,6 +49,72 @@ describe('native n8n MCP config', () => {
         expect(redacted.policy.allowRemoteExposure).toBe(false);
         expect(redacted.policy.allowExecutionData).toBe(false);
     });
+
+    test('uses workspace environment native MCP config when env vars are absent', () => {
+        const config = loadNativeMcpConfig({}, {
+            workspace: {
+                enabled: true,
+                url: 'https://n8n.example.test/mcp-server/http',
+                token: 'workspace-token',
+                timeoutMs: 4321,
+                allowExecutionData: true,
+            },
+        });
+
+        expect(config.enabled).toBe(true);
+        expect(config.endpoint).toBe('https://n8n.example.test/mcp-server/http');
+        expect(config.token).toBe('workspace-token');
+        expect(config.timeoutMs).toBe(4321);
+        expect(config.allowExecutionData).toBe(true);
+    });
+
+    test('lets env vars override workspace environment native MCP config', () => {
+        const config = loadNativeMcpConfig({
+            N8NAC_NATIVE_MCP_ENABLED: '1',
+            N8N_NATIVE_MCP_URL: 'https://override.example.test/mcp-server/http',
+            N8N_NATIVE_MCP_TOKEN: 'override-token',
+            N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA: '0',
+        }, {
+            workspace: {
+                enabled: true,
+                url: 'https://workspace.example.test/mcp-server/http',
+                token: 'workspace-token',
+                allowExecutionData: true,
+            },
+        });
+
+        expect(config.enabled).toBe(true);
+        expect(config.endpoint).toBe('https://override.example.test/mcp-server/http');
+        expect(config.token).toBe('override-token');
+        expect(config.allowExecutionData).toBe(false);
+    });
+
+    test('honors explicit env disable even when workspace config is enabled', () => {
+        const config = loadNativeMcpConfig({ N8NAC_NATIVE_MCP_ENABLED: '0' }, {
+            workspace: {
+                enabled: true,
+                url: 'https://workspace.example.test/mcp-server/http',
+                token: 'workspace-token',
+            },
+        });
+
+        expect(config.enabled).toBe(false);
+        expect(config.mode).toBe('off');
+    });
+
+    test('honors explicit workspace disable even when a URL is retained', () => {
+        const config = loadNativeMcpConfig({}, {
+            workspace: {
+                enabled: false,
+                url: 'https://workspace.example.test/mcp-server/http',
+                token: 'workspace-token',
+            },
+        });
+
+        expect(config.enabled).toBe(false);
+        expect(config.endpoint).toBe('https://workspace.example.test/mcp-server/http');
+        expect(config.mode).toBe('off');
+    });
 });
 
 describe('native n8n MCP service status', () => {
@@ -87,6 +153,25 @@ describe('native n8n MCP service status', () => {
 
         expect(service.canExposeNativeMcpRemotely()).toBe(true);
         expect(service.allowsNativeMcpExecutionData()).toBe(true);
+    });
+
+    test('reports status from injected workspace native MCP config', async () => {
+        const service = new N8nAsCodeMcpService({
+            nativeMcpEnv: {},
+            nativeMcpWorkspace: {
+                enabled: true,
+                url: 'https://dev.example.test/mcp-server/http',
+                token: 'workspace-token',
+                allowExecutionData: true,
+            },
+        });
+        const status = await service.getNativeMcpStatus();
+
+        expect(status.config.enabled).toBe(true);
+        expect(status.config.endpoint).toBe('https://dev.example.test/mcp-server/http');
+        expect(status.config.tokenConfigured).toBe(true);
+        expect(status.config.policy.allowExecutionData).toBe(true);
+        expect(status.connection.checked).toBe(false);
     });
 });
 

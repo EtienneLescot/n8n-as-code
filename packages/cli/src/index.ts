@@ -50,6 +50,17 @@ async function hydrateApiKeyFromStdin(options: { apiKey?: string; apiKeyStdin?: 
     options.apiKey = await readSecretFromStdin();
 }
 
+async function hydrateNativeMcpTokenFromStdin(options: { token?: string; tokenStdin?: boolean }): Promise<void> {
+    if (options.token || !options.tokenStdin) {
+        return;
+    }
+    options.token = await readSecretFromStdin();
+}
+
+function defaultNativeMcpEndpointFromHost(host: string): string {
+    return `${host.trim().replace(/\/+$/g, '')}/mcp-server/http`;
+}
+
 function createManagerFacadeFromOptions(options: { host?: string; apiKey?: string; projectId?: string }) {
     return createN8nManagerFacade({
         n8nHost: options.host || process.env.N8N_HOST,
@@ -240,7 +251,7 @@ const getMcpEntry = (): string => {
 
 async function runMcpDiagnosticCommand(
     kind: 'status' | 'tools' | 'doctor',
-    options: { cwd?: string; json?: boolean; includeTools?: boolean } = {},
+    options: { cwd?: string; json?: boolean; includeTools?: boolean; environmentNameOrId?: string } = {},
 ): Promise<void> {
     const mcpEntry = getMcpEntry();
     const args = [mcpEntry, `--native-mcp-${kind}`];
@@ -250,7 +261,9 @@ async function runMcpDiagnosticCommand(
 
     const child = spawn(process.execPath, args, {
         cwd: process.cwd(),
-        env: process.env,
+        env: options.environmentNameOrId
+            ? { ...process.env, N8NAC_ENVIRONMENT: options.environmentNameOrId }
+            : process.env,
         stdio: 'inherit',
     });
 
@@ -1083,40 +1096,111 @@ const nativeMcpCmd = program.command('native-mcp')
     .description('Inspect optional native n8n MCP assist configuration and capabilities');
 
 nativeMcpCmd
+    .command('configure')
+    .description('Configure optional native n8n MCP assist for a workspace environment without committing secrets')
+    .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
+    .option('--url <url>', 'Native n8n MCP HTTP endpoint; defaults to <environment-url>/mcp-server/http')
+    .option('--token <token>', 'Native n8n MCP bearer token to store locally')
+    .option('--token-stdin', 'Read the native n8n MCP bearer token from stdin')
+    .option('--timeout-ms <ms>', 'Native MCP request timeout in milliseconds', (value) => parsePositiveIntegerOption(value, '--timeout-ms'))
+    .option('--allow-execution-data', 'Allow full live execution payloads when explicitly requested')
+    .option('--deny-execution-data', 'Disallow full live execution payloads')
+    .option('--allow-remote', 'Allow exposing native wrappers through non-loopback HTTP/SSE broker transports')
+    .option('--deny-remote', 'Disallow exposing native wrappers through non-loopback HTTP/SSE broker transports')
+    .option('--json', 'Output environment as JSON')
+    .action(async (nameOrId, options) => {
+        await hydrateNativeMcpTokenFromStdin(options);
+        const configService = new ConfigService();
+        const selectedEnvironment = nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
+        const resolved = configService.resolveEnvironment(selectedEnvironment);
+        const existing = resolved.environment.nativeMcp;
+        const nativeMcp = {
+            ...existing,
+            enabled: true,
+            mode: 'assist' as const,
+            url: options.url || existing?.url || defaultNativeMcpEndpointFromHost(resolved.host),
+            timeoutMs: options.timeoutMs ?? existing?.timeoutMs,
+            allowExecutionData: options.denyExecutionData ? false : options.allowExecutionData ? true : existing?.allowExecutionData,
+            allowRemoteExposure: options.denyRemote ? false : options.allowRemote ? true : existing?.allowRemoteExposure,
+            requireSyncBack: existing?.requireSyncBack ?? true,
+        };
+        const environment = configService.updateEnvironment(resolved.environmentId, { nativeMcp });
+        if (options.token) {
+            configService.saveNativeMcpToken(environment.id, options.token);
+        }
+        const snapshot = configService.getWorkspaceConfig().environments?.find((item) => item.id === environment.id) || environment;
+        printJsonOrText(
+            options,
+            snapshot,
+            [
+                chalk.green(`✔ Native n8n MCP assist configured for environment: ${environment.name}`),
+                `Endpoint: ${snapshot.nativeMcp?.url || nativeMcp.url}`,
+                `Token   : ${snapshot.nativeMcp?.tokenConfigured ? 'stored locally' : 'not configured'}`,
+            ].join('\n'),
+        );
+    });
+
+nativeMcpCmd
+    .command('disable')
+    .description('Disable native n8n MCP assist for a workspace environment and remove its stored token')
+    .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
+    .option('--json', 'Output environment as JSON')
+    .action((nameOrId, options) => {
+        const configService = new ConfigService();
+        const selectedEnvironment = nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
+        const resolved = configService.resolveEnvironment(selectedEnvironment);
+        configService.deleteNativeMcpToken(resolved.environmentId);
+        const environment = configService.updateEnvironment(resolved.environmentId, {
+            nativeMcp: {
+                ...resolved.environment.nativeMcp,
+                enabled: false,
+            },
+        });
+        const snapshot = configService.getWorkspaceConfig().environments?.find((item) => item.id === environment.id) || environment;
+        printJsonOrText(options, snapshot, chalk.green(`✔ Native n8n MCP assist disabled for environment: ${environment.name}`));
+    });
+
+nativeMcpCmd
     .command('status')
     .description('Show native n8n MCP assist configuration status without mutating n8n')
+    .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
     .option('--cwd <path>', 'Project directory used to resolve n8n-as-code context', process.env.N8N_AS_CODE_PROJECT_DIR)
     .option('--include-tools', 'Connect to the native n8n MCP server and include discovered tools')
     .option('--json', 'Output status as JSON')
-    .action(async (options) => {
+    .action(async (nameOrId, options) => {
         await runMcpDiagnosticCommand('status', {
             cwd: options.cwd,
             json: options.json,
             includeTools: options.includeTools,
+            environmentNameOrId: nameOrId,
         });
     });
 
 nativeMcpCmd
     .command('tools')
     .description('List tools exposed by the configured native n8n MCP server')
+    .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
     .option('--cwd <path>', 'Project directory used to resolve n8n-as-code context', process.env.N8N_AS_CODE_PROJECT_DIR)
     .option('--json', 'Output status and tool list as JSON')
-    .action(async (options) => {
+    .action(async (nameOrId, options) => {
         await runMcpDiagnosticCommand('tools', {
             cwd: options.cwd,
             json: options.json,
+            environmentNameOrId: nameOrId,
         });
     });
 
 nativeMcpCmd
     .command('doctor')
     .description('Check whether native n8n MCP assist is enabled, configured, reachable, and tool-discoverable')
+    .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
     .option('--cwd <path>', 'Project directory used to resolve n8n-as-code context', process.env.N8N_AS_CODE_PROJECT_DIR)
     .option('--json', 'Output status as JSON')
-    .action(async (options) => {
+    .action(async (nameOrId, options) => {
         await runMcpDiagnosticCommand('doctor', {
             cwd: options.cwd,
             json: options.json,
+            environmentNameOrId: nameOrId,
         });
     });
 

@@ -35,6 +35,49 @@ test('settings webview store selects managed instance in existing environment dr
     assert.strictEqual(draft.instanceId, 'managed-1');
 });
 
+test('settings webview store hydrates native MCP draft fields from environment snapshots', () => {
+    const store = createSettingsWebviewStore();
+    store.dispatch(actions.environmentDraftOpened({
+        id: 'env-1',
+        environment: {
+            id: 'env-1',
+            name: 'Dev',
+            environmentTargetId: 'target-1',
+            nativeMcp: {
+                enabled: true,
+                url: 'https://dev.example.test/mcp-server/http',
+                tokenConfigured: true,
+                allowExecutionData: true,
+                allowRemoteExposure: false,
+                timeoutMs: 1234,
+            },
+        },
+    }));
+
+    const draft = store.getState().drafts.environment['env-1'];
+    assert.strictEqual(draft.nativeMcpEnabled, true);
+    assert.strictEqual(draft.nativeMcpUrl, 'https://dev.example.test/mcp-server/http');
+    assert.strictEqual(draft.nativeMcpToken, '');
+    assert.strictEqual(draft.nativeMcpTokenAvailable, true);
+    assert.strictEqual(draft.nativeMcpAllowExecutionData, true);
+    assert.strictEqual(draft.nativeMcpAllowRemote, false);
+    assert.strictEqual(draft.nativeMcpTimeoutMs, '1234');
+});
+
+test('settings webview store tracks native MCP connection test result', () => {
+    const store = createSettingsWebviewStore();
+    store.dispatch(actions.environmentDraftOpened({ id: 'new' }));
+    store.dispatch(actions.environmentDraftNativeMcpTestRequested({ id: 'new' }));
+
+    assert.strictEqual(store.getState().drafts.environment.new.nativeMcpTestPending, true);
+
+    store.dispatch(actions.environmentDraftNativeMcpTestReceived({ id: 'new', ok: true, message: 'Connected. 4 native tool(s) discovered.' }));
+
+    const draft = store.getState().drafts.environment.new;
+    assert.strictEqual(draft.nativeMcpTestPending, false);
+    assert.deepStrictEqual(draft.nativeMcpTestResult, { ok: true, message: 'Connected. 4 native tool(s) discovered.' });
+});
+
 test('settings webview store tracks managed setup job lifecycle', () => {
     const store = createSettingsWebviewStore();
     store.dispatch(actions.jobReceived({ instanceId: 'managed-1', status: 'installing' }));
