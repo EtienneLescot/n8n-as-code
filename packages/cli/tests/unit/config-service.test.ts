@@ -95,4 +95,33 @@ describe('ConfigService V4 workspace environments', () => {
 
         expect(configService.resolveEnvironment(environment.id).workflowsPath).toBe(path.join(workspaceRoot, 'flows/prod'));
     });
+
+    it('prepares a string-requested workspace environment', async () => {
+        const configService = new ConfigService(workspaceRoot);
+        const devTarget = configService.ensureEmbeddedInstanceTarget({
+            name: 'Dev',
+            url: 'https://dev.example.test',
+        });
+        const prodTarget = configService.ensureEmbeddedInstanceTarget({
+            name: 'Prod',
+            url: 'https://prod.example.test',
+        });
+        const dev = configService.addEnvironment({
+            name: 'Dev',
+            environmentTarget: devTarget.id,
+            workflowsPath: 'workflows/dev',
+        });
+        const prod = configService.addEnvironment({
+            name: 'Prod',
+            environmentTarget: prodTarget.id,
+            workflowsPath: 'workflows/prod',
+        });
+        configService.pinEnvironment(dev.id);
+
+        const context = await configService.prepareWorkspaceContext(prod.id);
+
+        expect(context.environmentId).toBe(prod.id);
+        expect(context.host).toBe('https://prod.example.test');
+        expect(context.workflowsPath).toBe(path.join(workspaceRoot, 'workflows/prod'));
+    });
 });

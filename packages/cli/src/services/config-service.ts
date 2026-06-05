@@ -620,7 +620,7 @@ export class ConfigService {
     }
 
     async prepareWorkspaceContext(input?: string | { instanceId?: string; environment?: string; consumer?: 'cli' | 'vscode' | string }): Promise<EffectiveN8nContext> {
-        const environment = typeof input === 'string' ? undefined : input?.environment;
+        const environment = typeof input === 'string' ? input : input?.environment;
         if (typeof input === 'object' && input?.instanceId) {
             throw new Error('Explicit instance context is not supported with V4 workspace environments. Resolve a workspace environment instead.');
         }
