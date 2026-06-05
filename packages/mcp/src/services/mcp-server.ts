@@ -31,12 +31,22 @@ function asJsonText(data: unknown): string {
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
 
+function isLoopbackHost(host: string): boolean {
+    return LOOPBACK_HOSTS.has(host);
+}
+
 function warnIfNonLoopback(host: string): void {
-    if (!LOOPBACK_HOSTS.has(host)) {
+    if (!isLoopbackHost(host)) {
         process.stderr.write(
             `⚠ MCP server is listening on a non-loopback interface (${host}) without authentication.\n`,
         );
     }
+}
+
+function warnNativeMcpDisabledForRemoteTransport(host: string): void {
+    process.stderr.write(
+        `Native n8n MCP live tools are disabled on non-loopback interface (${host}). Set N8NAC_NATIVE_MCP_ALLOW_REMOTE=1 only when the MCP transport is authenticated.\n`,
+    );
 }
 
 // Idle TTL for stateful HTTP sessions – if a client disconnects without
@@ -124,7 +134,7 @@ const searchLiveExecutionsSchema = {
 const getLiveExecutionSchema = {
     workflowId: z.string().min(1).describe('n8n workflow ID.'),
     executionId: z.string().min(1).describe('n8n execution ID.'),
-    includeData: z.boolean().optional().describe('Include execution data. This may expose sensitive payloads.'),
+    includeData: z.boolean().optional().describe('Include execution data. Requires N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA=1 because payloads may contain sensitive data.'),
     nodeNames: z.array(z.string()).optional().describe('Optional node-name filter for execution data.'),
     truncateData: z.boolean().optional().describe('Ask n8n to truncate large execution payloads when supported.'),
 };
@@ -153,20 +163,51 @@ const nativeValidateWorkflowCodeSchema = {
     code: z.string().min(1).describe('Complete n8n native workflow builder TypeScript/JavaScript code.'),
 };
 
+interface BuildMcpServerOptions {
+    allowNativeMcpTools?: boolean;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function asNativeMcpContent(value: unknown) {
+    if (Array.isArray(value)) return value as any;
+    return [{ type: 'text' as const, text: asJsonText(value) }];
+}
+
 function nativeToolResponse(service: N8nAsCodeMcpService, nativeToolName: string, args: Record<string, unknown>) {
-    return service.callNativeMcpTool(nativeToolName, args).then((result) => ({
-        content: [{ type: 'text' as const, text: asJsonText(result) }],
-    })).catch((error: any) => ({
+    return service.callNativeMcpTool(nativeToolName, args).then((result) => {
+        if (isRecord(result) && result.isError === true) {
+            return { isError: true, content: asNativeMcpContent(result.content ?? result) };
+        }
+        return { content: [{ type: 'text' as const, text: asJsonText(result) }] };
+    }).catch((error: any) => ({
         isError: true,
         content: [{ type: 'text' as const, text: error?.message || String(error) }],
     }));
 }
 
-function buildMcpServer(service: N8nAsCodeMcpService, telemetry: TelemetryClient): McpServer {
+function nativeExecutionToolResponse(service: N8nAsCodeMcpService, args: Record<string, unknown>) {
+    const nextArgs = { ...args };
+    if (!service.allowsNativeMcpExecutionData()) {
+        if (nextArgs.includeData === true) {
+            return Promise.resolve({
+                isError: true,
+                content: [{ type: 'text' as const, text: 'Native execution data access is disabled. Set N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA=1 to enable includeData.' }],
+            });
+        }
+        nextArgs.includeData = false;
+    }
+    return nativeToolResponse(service, NATIVE_MCP_READ_ONLY_TOOL_MAP.getLiveExecution, nextArgs);
+}
+
+function buildMcpServer(service: N8nAsCodeMcpService, telemetry: TelemetryClient, options: BuildMcpServerOptions = {}): McpServer {
     const server = new McpServer({
         name: 'n8n-as-code',
         version: '1.0.0',
     });
+    const allowNativeMcpTools = options.allowNativeMcpTools ?? true;
 
     // Cast to avoid TS2589: Zod v3 deep type inference in @modelcontextprotocol/sdk
     // causes TypeScript to exceed the instantiation depth limit. Handler parameter
@@ -324,7 +365,7 @@ function buildMcpServer(service: N8nAsCodeMcpService, telemetry: TelemetryClient
         })),
     );
 
-    if (service.isNativeMcpConfigured()) {
+    if (service.isNativeMcpConfigured() && allowNativeMcpTools) {
         s.tool(
             'search_n8n_live_workflows',
             'Search workflows on the configured native n8n MCP server. Read-only; returns live previews from the n8n instance.',
@@ -375,10 +416,10 @@ function buildMcpServer(service: N8nAsCodeMcpService, telemetry: TelemetryClient
 
         s.tool(
             'get_n8n_live_execution',
-            'Get a live n8n execution through the native MCP server. Read-only; includeData may expose sensitive workflow payloads.',
+            'Get a live n8n execution through the native MCP server. Read-only; includeData requires N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA=1.',
             getLiveExecutionSchema,
             nativeReadOnlyHints,
-            trackTool('get_n8n_live_execution', (args: Record<string, unknown>) => nativeToolResponse(service, NATIVE_MCP_READ_ONLY_TOOL_MAP.getLiveExecution, args)),
+            trackTool('get_n8n_live_execution', (args: Record<string, unknown>) => nativeExecutionToolResponse(service, args)),
         );
 
         s.tool(
@@ -420,8 +461,10 @@ function buildMcpServer(service: N8nAsCodeMcpService, telemetry: TelemetryClient
 async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpServerOptions, telemetry: TelemetryClient): Promise<void> {
     const port = httpOptions.port ?? 3000;
     const host = httpOptions.host ?? '127.0.0.1';
+    const allowNativeMcpTools = isLoopbackHost(host) || service.canExposeNativeMcpRemotely();
 
     warnIfNonLoopback(host);
+    if (service.isNativeMcpConfigured() && !allowNativeMcpTools) warnNativeMcpDisabledForRemoteTransport(host);
 
     // Map of sessionId -> transport for stateful session management
     const transports = new Map<string, StreamableHTTPServerTransport>();
@@ -493,7 +536,7 @@ async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpSe
                     }
                 };
 
-                const server = buildMcpServer(service, telemetry);
+                const server = buildMcpServer(service, telemetry, { allowNativeMcpTools });
                 await server.connect(transport);
             } else {
                 const status = sessionId ? 404 : 400;
@@ -547,8 +590,10 @@ async function startHttpServer(service: N8nAsCodeMcpService, httpOptions: HttpSe
 async function startSseServer(service: N8nAsCodeMcpService, sseOptions: SseServerOptions, telemetry: TelemetryClient): Promise<void> {
     const port = sseOptions.port ?? 3000;
     const host = sseOptions.host ?? '127.0.0.1';
+    const allowNativeMcpTools = isLoopbackHost(host) || service.canExposeNativeMcpRemotely();
 
     warnIfNonLoopback(host);
+    if (service.isNativeMcpConfigured() && !allowNativeMcpTools) warnNativeMcpDisabledForRemoteTransport(host);
 
     // Map of sessionId -> transport for routing POST messages to the right session
     const transports = new Map<string, SSEServerTransport>();
@@ -562,7 +607,7 @@ async function startSseServer(service: N8nAsCodeMcpService, sseOptions: SseServe
                 transports.delete(transport.sessionId);
             };
 
-            const server = buildMcpServer(service, telemetry);
+            const server = buildMcpServer(service, telemetry, { allowNativeMcpTools });
             await server.connect(transport);
             await transport.start();
         } else if (req.url?.startsWith('/message') && req.method === 'POST') {

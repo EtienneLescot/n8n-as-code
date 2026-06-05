@@ -10,6 +10,8 @@ export interface NativeMcpConfig {
     allowMutations: boolean;
     allowPublish: boolean;
     allowDestructive: boolean;
+    allowRemoteExposure: boolean;
+    allowExecutionData: boolean;
     requireSyncBack: boolean;
 }
 
@@ -25,6 +27,8 @@ export interface RedactedNativeMcpConfig {
         allowMutations: boolean;
         allowPublish: boolean;
         allowDestructive: boolean;
+        allowRemoteExposure: boolean;
+        allowExecutionData: boolean;
         requireSyncBack: boolean;
     };
 }
@@ -84,6 +88,8 @@ export function loadNativeMcpConfig(env: NodeJS.ProcessEnv = process.env): Nativ
         allowMutations: parseBoolean(env.N8NAC_NATIVE_MCP_ALLOW_MUTATIONS, false),
         allowPublish: parseBoolean(env.N8NAC_NATIVE_MCP_ALLOW_PUBLISH, false),
         allowDestructive: parseBoolean(env.N8NAC_NATIVE_MCP_ALLOW_DESTRUCTIVE, false),
+        allowRemoteExposure: parseBoolean(env.N8NAC_NATIVE_MCP_ALLOW_REMOTE, false),
+        allowExecutionData: parseBoolean(env.N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA, false),
         requireSyncBack: parseBoolean(env.N8NAC_NATIVE_MCP_REQUIRE_SYNC_BACK, true),
     };
 }
@@ -101,6 +107,8 @@ export function redactNativeMcpConfig(config: NativeMcpConfig): RedactedNativeMc
             allowMutations: config.allowMutations,
             allowPublish: config.allowPublish,
             allowDestructive: config.allowDestructive,
+            allowRemoteExposure: config.allowRemoteExposure,
+            allowExecutionData: config.allowExecutionData,
             requireSyncBack: config.requireSyncBack,
         },
     };

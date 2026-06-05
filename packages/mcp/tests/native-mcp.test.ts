@@ -12,6 +12,8 @@ describe('native n8n MCP config', () => {
         expect(config.allowMutations).toBe(false);
         expect(config.allowPublish).toBe(false);
         expect(config.allowDestructive).toBe(false);
+        expect(config.allowRemoteExposure).toBe(false);
+        expect(config.allowExecutionData).toBe(false);
         expect(config.requireSyncBack).toBe(true);
     });
 
@@ -22,6 +24,8 @@ describe('native n8n MCP config', () => {
             N8N_NATIVE_MCP_URL: 'https://n8n.example.test/mcp-server/http?token=secret',
             N8N_NATIVE_MCP_TOKEN: 'secret-token',
             N8NAC_NATIVE_MCP_TIMEOUT_MS: '1234',
+            N8NAC_NATIVE_MCP_ALLOW_REMOTE: 'true',
+            N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA: 'true',
         });
 
         expect(config.enabled).toBe(true);
@@ -29,6 +33,8 @@ describe('native n8n MCP config', () => {
         expect(config.endpoint).toBe('https://n8n.example.test/mcp-server/http?token=secret');
         expect(config.token).toBe('secret-token');
         expect(config.timeoutMs).toBe(1234);
+        expect(config.allowRemoteExposure).toBe(true);
+        expect(config.allowExecutionData).toBe(true);
     });
 
     test('redacts endpoint query strings and token presence', () => {
@@ -40,6 +46,8 @@ describe('native n8n MCP config', () => {
 
         expect(redacted.endpoint).toBe('https://redacted:redacted@n8n.example.test/mcp-server/http?redacted');
         expect(redacted.tokenConfigured).toBe(true);
+        expect(redacted.policy.allowRemoteExposure).toBe(false);
+        expect(redacted.policy.allowExecutionData).toBe(false);
     });
 });
 
@@ -65,6 +73,20 @@ describe('native n8n MCP service status', () => {
         expect(status.config.configured).toBe(false);
         expect(status.connection.checked).toBe(false);
         expect(status.connection.error).toContain('endpoint');
+    });
+
+    test('exposes native MCP safety policy helpers', () => {
+        const service = new N8nAsCodeMcpService({
+            nativeMcpEnv: {
+                N8NAC_NATIVE_MCP_ENABLED: '1',
+                N8N_NATIVE_MCP_URL: 'https://n8n.example.test/mcp-server/http',
+                N8NAC_NATIVE_MCP_ALLOW_REMOTE: '1',
+                N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA: '1',
+            },
+        });
+
+        expect(service.canExposeNativeMcpRemotely()).toBe(true);
+        expect(service.allowsNativeMcpExecutionData()).toBe(true);
     });
 });
 

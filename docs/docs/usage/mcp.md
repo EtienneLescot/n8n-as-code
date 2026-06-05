@@ -36,6 +36,7 @@ This integration is designed to complement the local n8n-as-code workflow, not r
 - Use native MCP assist for live discovery, server-side validation, credential metadata, execution inspection, and node definitions from the connected instance.
 - Keep `.workflow.ts` files and Git as the durable source of truth.
 - Do not store native MCP bearer tokens in project files.
+- Do not expose native MCP assist over non-loopback HTTP/SSE transports unless the MCP transport is separately authenticated and `N8NAC_NATIVE_MCP_ALLOW_REMOTE=1` is set.
 - Do not use native MCP create, update, publish, archive, or destructive data-table operations as an automatic path. This package currently exposes only read-only native wrappers.
 
 ### Enable assist mode
@@ -64,7 +65,7 @@ When `N8NAC_NATIVE_MCP_ENABLED=1` and `N8N_NATIVE_MCP_URL` is configured, the MC
 | `search_n8n_live_folders` | `search_folders` | Discover folders in a project |
 | `list_n8n_live_credentials` | `list_credentials` | List credential metadata without secrets |
 | `search_n8n_live_executions` | `search_executions` | Search execution metadata |
-| `get_n8n_live_execution` | `get_execution` | Inspect an execution, optionally with data |
+| `get_n8n_live_execution` | `get_execution` | Inspect an execution. Full execution payloads require `N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA=1` |
 | `get_n8n_native_sdk_reference` | `get_sdk_reference` | Read native workflow-builder SDK guidance |
 | `search_n8n_native_nodes` | `search_nodes` | Search live node definitions |
 | `get_n8n_native_node_types` | `get_node_types` | Fetch native TypeScript node definitions |
@@ -279,6 +280,8 @@ docker run -p 3000:3000 \
 | `N8NAC_NATIVE_MCP_MODE` | `assist` | Native MCP mode. Only read-only assist wrappers are currently exposed |
 | `N8N_NATIVE_MCP_URL` | _(unset)_ | Native n8n MCP endpoint, for example `https://host/mcp-server/http` |
 | `N8N_NATIVE_MCP_TOKEN` | _(unset)_ | Native n8n MCP bearer token. Keep this outside project files |
+| `N8NAC_NATIVE_MCP_ALLOW_REMOTE` | `0` | Allow native assist live tools on non-loopback HTTP/SSE MCP transports. Use only with transport authentication |
+| `N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA` | `0` | Allow `get_n8n_live_execution` to request full execution payloads with `includeData=true` |
 
 For the full Docker reference including all image tags, Docker Compose examples, and local build instructions, see the **[Docker README](https://github.com/EtienneLescot/n8n-as-code/blob/main/packages/mcp/docker/README.md)**.
 

@@ -241,6 +241,8 @@ Use this routing policy:
 - Default to local `{{N8NAC_CMD}}` and `{{N8NAC_SKILLS_CMD}}` tools for workflow authoring, validation, pull, push, test, credentials, executions, and presentation.
 - If native MCP assist is configured, use it only for read-only live discovery, server-side validation, live node definitions, credential metadata without secrets, execution inspection, projects, and folders.
 - Check native availability with `{{N8NAC_CMD}} native-mcp status --include-tools --json` before relying on native tools.
+- Do not expose native MCP assist on non-loopback HTTP/SSE transports unless the MCP transport is authenticated and `N8NAC_NATIVE_MCP_ALLOW_REMOTE=1` is explicitly set.
+- Do not request full live execution payloads with `includeData=true` unless the user explicitly needs payload data and `N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA=1` is set.
 - Do not use native MCP create, update, publish, unpublish, archive, execute, or destructive data-table tools unless the user explicitly requests direct native MCP mode and the tool is gated by permissions.
 - If a workflow is ever created or changed through native MCP direct mode, immediately pull it back with `{{N8NAC_CMD}} pull <workflowId>` so the `.workflow.ts` file and Git remain the source of truth.
 - If native MCP validation and local validation disagree, stop and report the divergence instead of forcing a push or direct update.

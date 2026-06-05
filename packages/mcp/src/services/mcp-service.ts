@@ -65,6 +65,14 @@ export class N8nAsCodeMcpService {
         return this.nativeMcpConfig.enabled && Boolean(this.nativeMcpConfig.endpoint);
     }
 
+    canExposeNativeMcpRemotely(): boolean {
+        return this.nativeMcpConfig.allowRemoteExposure;
+    }
+
+    allowsNativeMcpExecutionData(): boolean {
+        return this.nativeMcpConfig.allowExecutionData;
+    }
+
     async getNativeMcpStatus(options: { includeTools?: boolean } = {}) {
         const config = redactNativeMcpConfig(this.nativeMcpConfig);
         const status: {
