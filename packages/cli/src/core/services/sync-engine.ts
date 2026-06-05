@@ -6,6 +6,7 @@ import { HashUtils } from './hash-utils.js';
 import { WorkflowStateTracker } from './workflow-state-tracker.js';
 import { SyncEventJournal } from './sync-event-journal.js';
 import { WorkflowSyncStatus, IWorkflow } from '../types.js';
+import { ensureParentDirectory, normalizeWorkflowRelativePath, workflowRelativePathToAbsolute } from './workflow-path-utils.js';
 
 /**
  * Sync Engine - State Mutation Component
@@ -23,6 +24,7 @@ export class SyncEngine {
     private directory: string;
     private projectId: string;
     private syncEventJournal: SyncEventJournal | undefined;
+    private folderSync: boolean;
 
     constructor(
         client: N8nApiClient,
@@ -30,12 +32,14 @@ export class SyncEngine {
         directory: string,
         projectId: string,
         syncEventJournal?: SyncEventJournal,
+        options?: { folderSync?: boolean },
     ) {
         this.client = client;
         this.watcher = watcher;
         this.directory = directory;
         this.projectId = projectId;
         this.syncEventJournal = syncEventJournal;
+        this.folderSync = options?.folderSync ?? false;
     }
 
     /**
@@ -164,7 +168,8 @@ export class SyncEngine {
             commentStyle: 'verbose'
         });
         
-        const filePath = path.join(this.directory, filename);
+        const filePath = workflowRelativePathToAbsolute(this.directory, filename);
+        ensureParentDirectory(filePath);
         fs.writeFileSync(filePath, tsCode, 'utf-8');
 
         // Update Watcher's remote hash cache since we just fetched the workflow
@@ -177,7 +182,7 @@ export class SyncEngine {
     }
 
     private async executeUpdate(workflowId: string, filename: string, skipOcc = false): Promise<string | undefined> {
-        const filePath = path.join(this.directory, filename);
+        const filePath = workflowRelativePathToAbsolute(this.directory, filename);
         const tsContent = this.readTypeScriptFile(filePath);
         if (!tsContent) {
             throw new Error('Local file not found during push');
@@ -235,6 +240,7 @@ export class SyncEngine {
             format: true,
             commentStyle: 'verbose'
         });
+        ensureParentDirectory(filePath);
         fs.writeFileSync(filePath, tsCode, 'utf-8');
 
         // Update Watcher's remote hash cache with the updated workflow
@@ -260,7 +266,7 @@ export class SyncEngine {
     }
 
     private async executeCreate(filename: string): Promise<{ id: string, updatedAt?: string }> {
-        const filePath = path.join(this.directory, filename);
+        const filePath = workflowRelativePathToAbsolute(this.directory, filename);
         const tsContent = this.readTypeScriptFile(filePath);
         if (!tsContent) {
             throw new Error('Local file not found during creation');
@@ -287,7 +293,20 @@ export class SyncEngine {
             localWf.projectId = this.projectId;
         }
 
-        const newWf = await this.client.createWorkflow(localWf);
+        const inferredParentFolderId = await this.inferParentFolderIdFromFilename(filename);
+        if (inferredParentFolderId) {
+            localWf.parentFolderId = inferredParentFolderId;
+        }
+
+        let newWf: IWorkflow;
+        try {
+            newWf = await this.client.createWorkflow(localWf);
+        } catch (error: any) {
+            if (!localWf.parentFolderId || !this.isUnsupportedParentFolderError(error)) throw error;
+            console.warn(`[SyncEngine] n8n rejected parentFolderId while creating "${filename}"; retrying without folder assignment.`);
+            delete (localWf as any).parentFolderId;
+            newWf = await this.client.createWorkflow(localWf);
+        }
         if (!newWf || !newWf.id) {
             throw new Error('Failed to create remote workflow');
         }
@@ -298,9 +317,45 @@ export class SyncEngine {
             format: true,
             commentStyle: 'verbose'
         });
+        ensureParentDirectory(filePath);
         fs.writeFileSync(filePath, tsCode, 'utf-8');
 
         return { id: newWf.id, updatedAt: newWf.updatedAt };
+    }
+
+    private async inferParentFolderIdFromFilename(filename: string): Promise<string | undefined> {
+        if (!this.folderSync || !this.projectId || this.projectId === 'personal') return undefined;
+        const normalized = normalizeWorkflowRelativePath(filename);
+        const segments = normalized.split('/');
+        if (segments.length <= 1) return undefined;
+        const folderSegments = segments.slice(0, -1);
+        const getFolders = (this.client as any).getFolders;
+        const createFolder = (this.client as any).createFolder;
+        if (typeof getFolders !== 'function' || typeof createFolder !== 'function') return undefined;
+
+        const folders = await getFolders.call(this.client, this.projectId);
+        let parentFolderId: string | null = null;
+        for (const segment of folderSegments) {
+            let folder = folders.find((candidate: any) =>
+                candidate.name === segment && (candidate.parentFolderId ?? null) === parentFolderId,
+            );
+            if (!folder) {
+                folder = await createFolder.call(this.client, this.projectId, {
+                    name: segment,
+                    parentFolderId,
+                });
+                folders.push(folder);
+            }
+            parentFolderId = folder.id;
+        }
+
+        return parentFolderId ?? undefined;
+    }
+
+    private isUnsupportedParentFolderError(error: any): boolean {
+        const status = error?.response?.status;
+        const message = String(error?.response?.data?.message ?? error?.message ?? '').toLowerCase();
+        return [400, 404, 422].includes(status) && (message.includes('parentfolder') || message.includes('folder'));
     }
 
     private readTypeScriptFile(filePath: string): string | null {
