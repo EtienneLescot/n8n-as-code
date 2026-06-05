@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkflowCommand } from '../../src/commands/workflow.js';
+import { installV4WorkspaceFixture } from '../helpers/v4-workspace-fixture.js';
+
+installV4WorkspaceFixture();
 
 const managerMock = vi.hoisted(() => ({
     createN8nManagerFacade: vi.fn(),
@@ -26,8 +29,6 @@ vi.mock('chalk', () => {
 });
 
 function makeCommand(): WorkflowCommand {
-    process.env.N8N_HOST = 'https://n8n.test';
-    process.env.N8N_API_KEY = 'test-key';
     return new WorkflowCommand();
 }
 

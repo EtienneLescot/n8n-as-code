@@ -41,7 +41,7 @@ function apiKeyForUser(userId: string): string {
 }
 
 describe('ConfigService filesystem integration', () => {
-    it('persists global instances and rehydrates the effective workspace context from disk', () => {
+    it('persists global instances and rehydrates the V4 environment context from disk', () => {
         const workspaceDir = createWorkspaceDir();
         createManagerHome();
 
@@ -73,38 +73,59 @@ describe('ConfigService filesystem integration', () => {
 
         const reloaded = createService(workspaceDir);
         expect(reloaded.listInstances().map((instance) => instance.name).sort()).toEqual(['Production', 'Test']);
-        expect(reloaded.getActiveInstance()?.id).toBe(prodProfile.id);
-        expect(reloaded.getLocalConfig()).toMatchObject({
+        expect(reloaded.getActiveInstance()).toBeUndefined();
+        expect(reloaded.getLocalConfig()).toEqual({});
+        expect(reloaded.getApiKey('https://shared.example.com', testProfile.id)).toBe(testApiKey);
+        expect(reloaded.getApiKey('https://shared.example.com', prodProfile.id)).toBe(prodApiKey);
+
+        const target = reloaded.addInstanceTarget({
+            name: 'Production',
+            managedInstanceId: prodProfile.id,
+        });
+        const environment = reloaded.addEnvironment({
+            name: 'Production',
+            environmentTarget: target.id,
+            projectId: 'project-prod',
+            projectName: 'Production',
+            workflowsPath: 'workflows-prod',
+        });
+
+        expect(reloaded.resolveEnvironment(environment.id)).toMatchObject({
+            activeInstanceId: prodProfile.id,
+            host: 'https://shared.example.com',
+            projectId: 'project-prod',
+            projectName: 'Production',
+            workflowsPath: path.join(workspaceDir, 'workflows-prod'),
+        });
+
+        const pinned = createService(workspaceDir);
+        expect(pinned.getActiveInstance()?.id).toBe(prodProfile.id);
+        expect(pinned.getLocalConfig()).toMatchObject({
             host: 'https://shared.example.com',
             syncFolder: path.join(workspaceDir, 'workflows-prod'),
             projectId: 'project-prod',
             projectName: 'Production',
-            workflowDir: path.join(workspaceDir, 'workflows-prod', 'n8n_1bfdd27c80', 'production')
-        });
-        expect(reloaded.getApiKey('https://shared.example.com', testProfile.id)).toBe(testApiKey);
-        expect(reloaded.getApiKey('https://shared.example.com', prodProfile.id)).toBe(prodApiKey);
-
-        reloaded.pinWorkspaceInstance(testProfile.id);
-
-        const pinned = createService(workspaceDir);
-        expect(pinned.getActiveInstance()?.id).toBe(testProfile.id);
-        expect(pinned.getLocalConfig()).toMatchObject({
-            syncFolder: path.join(workspaceDir, 'workflows-prod'),
-            projectId: 'project-prod',
-            projectName: 'Production',
-            workflowDir: path.join(workspaceDir, 'workflows-prod', 'n8n_f85ac825d1', 'production')
+            workflowsPath: path.join(workspaceDir, 'workflows-prod'),
+            workflowDir: path.join(workspaceDir, 'workflows-prod'),
         });
 
         const rawConfig = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'n8nac-config.json'), 'utf-8'));
         expect(rawConfig).toMatchObject({
-            version: 3,
-            activeInstanceId: testProfile.id,
-            syncFolder: 'workflows-prod',
-            projectId: 'project-prod',
-            projectName: 'Production',
+            version: 4,
+            activeEnvironmentId: environment.id,
         });
-        expect(rawConfig.instances).toBeUndefined();
-        expect(rawConfig.workflowDir).toBeUndefined();
+        expect(rawConfig.environments[0]).toMatchObject({
+            id: environment.id,
+            environmentTargetId: target.id,
+            workflowsPath: 'workflows-prod',
+        });
+        expect(rawConfig.environmentTargets[0]).toMatchObject({
+            id: target.id,
+            kind: 'managed-instance',
+            managedInstanceId: prodProfile.id,
+        });
+        expect(rawConfig.activeInstanceId).toBeUndefined();
+        expect(rawConfig.syncFolder).toBeUndefined();
     });
 
     it('deletes a global instance, removes its scoped secret, and promotes the next active instance when needed', () => {
@@ -143,7 +164,7 @@ describe('ConfigService filesystem integration', () => {
         expect(configService.getApiKey('https://prod.example.com', prodProfile.id)).toBeUndefined();
 
         const reloaded = createService(workspaceDir);
-        expect(reloaded.getCurrentInstanceConfigId()).toBe(testProfile.id);
+        expect(reloaded.getCurrentInstanceConfigId()).toBeUndefined();
         expect(reloaded.listInstances()).toHaveLength(1);
         expect(reloaded.listInstances()[0].id).toBe(testProfile.id);
     });
@@ -164,9 +185,11 @@ describe('ConfigService filesystem integration', () => {
         const configService = createService(workspaceDir);
         const workspaceConfig = configService.getWorkspaceConfig();
 
-        expect(workspaceConfig.version).toBe(3);
+        expect(workspaceConfig.version).toBe(4);
         expect(workspaceConfig.instances).toHaveLength(0);
         expect(workspaceConfig.activeInstanceId).toBeUndefined();
+        expect(workspaceConfig.environments).toEqual([]);
+        expect(workspaceConfig.environmentTargets).toEqual([]);
         expect(fs.existsSync(path.join(workspaceDir, 'n8nac-config.json'))).toBe(false);
     });
 
@@ -183,6 +206,6 @@ describe('ConfigService filesystem integration', () => {
 
         const configService = createService(workspaceDir);
 
-        expect(() => configService.getWorkspaceConfig()).toThrow(/Unsupported legacy n8n workspace config/);
+        expect(() => configService.getWorkspaceConfig()).toThrow(/Unsupported n8nac workspace config version: missing/);
     });
 });

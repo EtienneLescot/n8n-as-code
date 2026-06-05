@@ -42,9 +42,8 @@ npm uninstall -g @n8n-as-code/cli
 | Group | Command | Purpose |
 |---|---|---|
 | Primary Usage | `n8nac env` | Workspace environments |
-| Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
+| Workspace Inspection | `n8nac workspace` | V4 workspace snapshot |
 | Managed Local Instances | `n8n-manager` | Local managed instances and tunnels |
-| Hidden Compatibility | `instance-target`, `target`, `setup`, old `workspace` mutations | Compatibility only |
 
 For a compact overview, see the [Command Glossary](/docs/usage/commands).
 
@@ -112,15 +111,12 @@ The workspace does not copy Docker paths, tunnel state, logs, or local secrets.
 
 ## `workspace`
 
-Use `workspace` for inspection and explicit migrations only.
+Use `workspace` for inspection. Use `env status` for effective runtime readiness.
 
 ```bash
-n8nac workspace status
-n8nac workspace migrate --json
-n8nac workspace migrate --write
+n8nac workspace status --json
+n8nac env status --json
 ```
-
-`migrate --json` is the dry-run for legacy config models and reports one unified `operations` list. `migrate --write` applies all required migration operations together.
 
 ## Sync Commands
 
@@ -355,7 +351,7 @@ Current config is environment-based and safe to commit when it contains no secre
 
 API keys are stored locally with `n8nac env auth set <env> --api-key-stdin`.
 
-`workflowsPath` is generated from the environment name when the environment is created. It is stable after creation, so changing the environment display name, target instance, or target project does not move the workflow directory. When `workflowsPath` is changed explicitly, n8nac moves existing workflow files to the new directory when the destination is empty. Legacy `workflowDir`, `syncFolder`, and `syncSlug` config values are still accepted for compatibility.
+`workflowsPath` is generated from the environment name when the environment is created. It is stable after creation, so changing the environment display name, target instance, or target project does not move the workflow directory. When `workflowsPath` is changed explicitly, n8nac moves existing workflow files to the new directory when the destination is empty.
 
 In config examples, `kind: "external-instance"` is the persisted target kind for a remote n8n URL. Prefer the user-facing term "remote n8n environment" outside raw config discussions.
 
@@ -373,28 +369,14 @@ n8nac push workflows/staging/my-workflow.workflow.ts --verify
 
 For multiple remote environments, create one environment per target and switch with `n8nac env use <name>`.
 
-## Compatibility Commands
-
-These commands may remain callable for old scripts, but new docs and workflows should not use them as primary setup:
-
-```bash
-n8nac instance-target ...
-n8nac target ...
-n8nac setup ...
-n8nac setup-modes ...
-n8nac workspace pin-instance ...
-n8nac workspace set-sync-folder ...
-n8nac workspace set-project ...
-```
-
 ## Troubleshooting
 
 Check the active context:
 
 ```bash
 n8nac env list
-n8nac env status
-n8nac workspace migrate --json
+n8nac env status --json
+n8nac workspace status --json
 ```
 
 Refresh a remote API key:

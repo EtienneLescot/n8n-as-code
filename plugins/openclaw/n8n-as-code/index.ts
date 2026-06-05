@@ -27,8 +27,8 @@ ${SETUP_MODE_CONTEXT}
 
 For agent-driven flows, use the installed \`n8n-manager\` and \`n8n-architect\`
 skills and their documented shell commands. Instance/auth/project management
-belongs to \`n8n-manager\`; context-root overrides and workflow sync belong
-to \`n8nac workspace\` and the n8n-as-code skills.
+belongs to \`n8n-manager\`; workflow sync belongs to V4 \`n8nac env\`
+workspace environments and the n8n-as-code skills.
 `;
 
 function buildStatusHeader(workspaceDir: string): string {
@@ -39,13 +39,13 @@ function buildStatusHeader(workspaceDir: string): string {
     "**The context root is initialized. Do NOT infer effective n8n config from this prompt.**",
     "",
     `- Context root: \`${workspaceDir}\``,
-    `- Local overrides file: \`${join(workspaceDir, "n8nac-config.json")}\``,
+    `- Workspace environment file: \`${join(workspaceDir, "n8nac-config.json")}\``,
     `- Bootstrap file: \`${join(workspaceDir, "AGENTS.md")}\``,
     "",
-    "Before n8n work, run `n8nac workspace status --json` from the context root and use the backend-resolved result.",
-    cfg.activeInstanceId || cfg.projectId || cfg.projectName || cfg.syncFolder
-      ? "The local overrides file exists, but n8n-manager plus n8nac backend resolution remains the only source of effective state."
-      : "The local overrides file is present but incomplete.",
+    "Before n8n work, run `n8nac env status --json` from the context root and use the backend-resolved result.",
+    cfg.environmentId || cfg.workflowsPath
+      ? "The workspace environment file exists, but n8nac backend resolution remains the only source of effective state."
+      : "The workspace environment file is present but incomplete.",
   ].join("\n");
 }
 

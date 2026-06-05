@@ -20,7 +20,7 @@ This guide gets you from an empty workspace to an agent-assisted n8n workflow lo
 | Group | Command | Use it for |
 |---|---|---|
 | Primary Usage | `n8nac env` | Workspace environments |
-| Workspace Maintenance | `n8nac workspace` | Readiness and unified workspace migration |
+| Workspace Inspection | `n8nac workspace status` | V4 workspace snapshot |
 | Managed Local Instances | `n8n-manager` | Local managed instances and tunnels |
 
 An environment stores the workspace-safe context: n8n endpoint, project, workflowsPath, and active selection. API keys stay local.
@@ -74,20 +74,14 @@ n8nac push workflows/dev/my-workflow.workflow.ts --verify
 
 Sync is explicit. The CLI and extension do not silently overwrite local or remote work.
 
-## Workspace Migration
-
-Existing repositories are not rewritten automatically on open.
-
-Inspect and apply required workspace migrations explicitly:
+## Check Readiness
 
 ```bash
-n8nac workspace migrate --json
-n8nac workspace migrate --write
-n8nac workspace migrate --json
 n8nac env status --json
+n8nac workspace status --json
 ```
 
-Run the JSON dry-run first and review the unified `operations` list. The `--write` form applies the migration atomically and creates a backup before updating `n8nac-config.json`.
+`env status --json` is the source of truth for the active environment, including the resolved `workflowsPath`.
 
 ## What Gets Created
 

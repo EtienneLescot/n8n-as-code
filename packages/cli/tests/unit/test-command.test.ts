@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestCommand } from '../../src/commands/test.js';
 import { ITestResult } from '../../src/core/types.js';
+import { installV4WorkspaceFixture } from '../helpers/v4-workspace-fixture.js';
+
+installV4WorkspaceFixture();
 
 // ── Mock ora (suppress spinner output) ────────────────────────────────────────
 vi.mock('ora', () => ({
@@ -25,10 +28,6 @@ vi.mock('chalk', () => {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeCommand(): TestCommand {
-    // Set env vars so BaseCommand constructor does not call process.exit
-    process.env.N8N_HOST = 'https://n8n.test';
-    process.env.N8N_API_KEY = 'test-key';
-
     const cmd = new TestCommand();
     return cmd;
 }

@@ -19,8 +19,7 @@ import { createRequire } from 'module';
 import { parsePositiveIntegerOption } from './utils/option-parsers.js';
 import { spawn } from 'child_process';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
-import { ConfigService, type ILegacyWorkspaceMigrationResult, type IWorkspaceMigrationReport } from './services/config-service.js';
-import { WorkspaceMigrationFacade } from './services/workspace-migration-facade.js';
+import { ConfigService } from './services/config-service.js';
 import {
     N8N_FACADE_SETUP_MODES,
     isN8nFacadeSetupMode,
@@ -98,96 +97,10 @@ function hideCommand<T extends Command>(command: T): T {
     return command;
 }
 
-function formatLegacyMigrationResult(result: ILegacyWorkspaceMigrationResult): string {
-    if (result.status === 'not-needed') {
-        return chalk.green(`No legacy n8nac workspace config detected at ${result.configPath}.`);
-    }
-
-    const plan = result.plan;
-    const instanceLines = plan.instances.length > 0
-        ? plan.instances.map((instance) => `- ${instance.name} (${instance.id})${instance.host ? ` -> ${instance.host}` : ''}${instance.hasApiKey ? ' [API key found]' : ''}`)
-        : ['- No instances found in the legacy config.'];
-    const workspaceLines = [
-        plan.workspace.syncFolder ? `- Sync folder: ${plan.workspace.syncFolder}` : undefined,
-        plan.workspace.projectName || plan.workspace.projectId ? `- Project: ${plan.workspace.projectName || plan.workspace.projectId}` : undefined,
-        plan.activeInstanceId ? `- Workspace-pinned instance: ${plan.activeInstanceId}` : undefined,
-    ].filter(Boolean) as string[];
-    const header = result.status === 'dry-run'
-        ? chalk.yellow('Legacy n8nac workspace config detected. No files changed.')
-        : chalk.green('Legacy n8nac workspace config migrated.');
-    const footer = result.status === 'dry-run'
-        ? ['Run `n8nac workspace migrate-v1 --write` to migrate and create a backup first.']
-        : [`Backup: ${result.backupPath}`, 'Run `n8nac workspace status --json` to verify the resolved context.'];
-
-    return [
-        header,
-        `Config: ${plan.configPath}`,
-        plan.version ? `Legacy version: ${plan.version}` : undefined,
-        '',
-        'Instances:',
-        ...instanceLines,
-        workspaceLines.length ? '' : undefined,
-        workspaceLines.length ? 'Workspace overrides:' : undefined,
-        ...workspaceLines,
-        '',
-        'Notes:',
-        ...plan.warnings.map((warning) => `- ${warning}`),
-        '',
-        ...footer,
-    ].filter(Boolean).join('\n');
-}
-
-function formatWorkspaceMigrationReport(report: IWorkspaceMigrationReport): string {
-    if (report.status === 'not-needed') {
-        return chalk.green(`No n8n workspace migration required at ${report.configPath}.`);
-    }
-
-    const header = report.status === 'dry-run'
-        ? chalk.yellow('n8n workspace migration required. No files changed.')
-        : chalk.green('n8n workspace migration completed.');
-    const footer = report.status === 'dry-run'
-        ? ['Run `n8nac workspace migrate --write` to apply the migration.']
-        : [
-            report.backupPath ? `Backup: ${report.backupPath}` : undefined,
-            `Migrated environments: ${report.migratedEnvironmentIds?.length || 0}`,
-            `Removed global external instances: ${report.deletedGlobalInstanceIds?.length || 0}`,
-            'Run `n8nac workspace status --json` to verify the resolved context.',
-        ].filter(Boolean) as string[];
-
-    return [
-        header,
-        `Config: ${report.configPath}`,
-        '',
-        'Migration operations:',
-        ...report.operations.map((operation) => `- ${operation.label}: ${operation.instanceCount} instance${operation.instanceCount === 1 ? '' : 's'}`),
-        report.warnings.length ? '' : undefined,
-        report.warnings.length ? 'Notes:' : undefined,
-        ...report.warnings.map((warning) => `- ${warning}`),
-        '',
-        ...footer,
-    ].filter(Boolean).join('\n');
-}
-
 function redactResolvedEnvironment<T extends { apiKey?: string } | undefined>(environment: T): T {
     if (!environment) return environment;
     const { apiKey: _apiKey, ...safeEnvironment } = environment;
     return safeEnvironment as T;
-}
-
-function abortIfWorkspaceMigrationRequired(configService: ConfigService, options: { json?: boolean } = {}): void {
-    const payload = new WorkspaceMigrationFacade({ configService }).inspect();
-    if (!payload) return;
-    printJsonOrText(
-        options,
-        payload,
-        [
-            chalk.yellow('n8n workspace migration required before environment commands can run.'),
-            `Config: ${payload.configPath}`,
-            'Run `n8nac workspace migrate --json` to inspect it.',
-            'After explicit confirmation, run `n8nac workspace migrate --write` to apply it.',
-        ].join('\n'),
-    );
-    process.exit(1);
 }
 
 /**
@@ -261,12 +174,12 @@ const getFirstPositionalToken = (args: string[], startIndex = 0): string | undef
             return args[index + 1];
         }
 
-        if (token === '--instance' || token === '--env' || token === '--environment') {
+        if (token === '--env' || token === '--environment') {
             index += 1;
             continue;
         }
 
-        if (token.startsWith('--instance=') || token.startsWith('--env=') || token.startsWith('--environment=')) {
+        if (token.startsWith('--env=') || token.startsWith('--environment=')) {
             continue;
         }
 
@@ -403,8 +316,7 @@ program
     .description('N8N Sync Command Line Interface - Manage n8n workflows as code')
     .version(getVersion())
     .option('--env <name>', 'Target a specific workspace environment by name or ID')
-    .addOption(new Option('--environment <name>', 'Alias for --env').hideHelp())
-    .addOption(new Option('--instance <name>', 'Deprecated; use --env').hideHelp());
+    .addOption(new Option('--environment <name>', 'Alias for --env').hideHelp());
 
 // Inject --env into the environment only for the lifetime of the command action
 // so BaseCommand can pick it up without leaking process-wide state afterwards.
@@ -490,7 +402,7 @@ telemetryProgram.command('disable')
     });
 
 const workspaceProgram = program.command('workspace')
-    .description('Inspect or migrate n8n workspace configuration');
+    .description('Inspect n8n workspace configuration');
 
 workspaceProgram.command('status')
     .alias('get')
@@ -499,26 +411,10 @@ workspaceProgram.command('status')
     .action(async (options) => {
         const configService = new ConfigService();
         const selectedEnvironment = process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
-        const migration = new WorkspaceMigrationFacade({ configService }).inspect();
-        if (migration) {
-            printJsonOrText(
-                options,
-                migration,
-                [
-                    chalk.yellow('n8n workspace migration required.'),
-                    `Config: ${migration.configPath}`,
-                    'Run `n8nac workspace migrate --json` to inspect it.',
-                    'After confirmation, run `n8nac workspace migrate --write` to apply it.',
-                ].join('\n'),
-            );
-            return;
-        }
         const workspaceConfig = configService.getWorkspaceConfig();
         const resolvedEnvironment = selectedEnvironment
             ? await configService.prepareEnvironment(selectedEnvironment)
-            : workspaceConfig.version === 4
-                ? await (async () => { try { return await configService.prepareEnvironment(); } catch { return undefined; } })()
-                : undefined;
+            : await (async () => { try { return await configService.prepareEnvironment(); } catch { return undefined; } })();
         printJsonOrText(
             options,
             resolvedEnvironment ? { ...workspaceConfig, selectedEnvironment: redactResolvedEnvironment(resolvedEnvironment) } : workspaceConfig,
@@ -527,173 +423,10 @@ workspaceProgram.command('status')
                 workspaceConfig.activeEnvironmentId ? `Env     : ${chalk.bold(resolvedEnvironment?.environmentName || workspaceConfig.activeEnvironment?.name || workspaceConfig.activeEnvironmentId)}` : undefined,
                 `Instance: ${chalk.bold(resolvedEnvironment?.activeInstanceName || workspaceConfig.activeInstanceId || '(none)')}`,
                 `Project : ${chalk.bold(resolvedEnvironment?.projectName || workspaceConfig.projectName || workspaceConfig.projectId || '(none)')}`,
-                `Workflows path: ${chalk.bold(resolvedEnvironment?.workflowsPath || workspaceConfig.workflowsPath || workspaceConfig.workflowDir || '(none)')}`,
+                `Workflows path: ${chalk.bold(resolvedEnvironment?.workflowsPath || workspaceConfig.workflowsPath || '(none)')}`,
                 '',
             ].filter(Boolean).join('\n'),
         );
-    });
-
-workspaceProgram.command('migrate')
-    .description('Inspect or run required workspace migrations')
-    .option('--write', 'Apply the migration. Without this flag, the command only reports what would change.')
-    .option('--json', 'Output migration result as JSON')
-    .action(async (options) => {
-        const report = await new WorkspaceMigrationFacade().migrate({ write: Boolean(options.write) });
-        printJsonOrText(options, report, formatWorkspaceMigrationReport(report));
-    });
-
-workspaceProgram.command('migrate-v1')
-    .description('Inspect or migrate a legacy v1/v2 n8nac-config.json into the v2 manager-backed storage model')
-    .option('--write', 'Apply the migration. Without this flag, the command only reports what would change.')
-    .option('--json', 'Output migration result as JSON')
-    .action((options) => {
-        const configService = new ConfigService();
-        const result = configService.migrateLegacyWorkspaceConfig({ write: Boolean(options.write) });
-        printJsonOrText(options, result, formatLegacyMigrationResult(result));
-    });
-
-hideCommand(workspaceProgram.command('pin-instance'))
-    .description('Pin the effective n8n instance for this workspace')
-    .requiredOption('--instance-id <id>', 'Global n8n instance ID to pin')
-    .option('--json', 'Output workspace config as JSON')
-    .action((options) => {
-        const configService = new ConfigService();
-        const instance = configService.pinWorkspaceInstance(options.instanceId);
-        const workspaceConfig = configService.getWorkspaceConfig();
-        printJsonOrText(
-            options,
-            workspaceConfig,
-            chalk.green(`✔ Workspace pinned to n8n instance: ${instance.name}`),
-        );
-    });
-
-hideCommand(workspaceProgram.command('clear-instance'))
-    .description('Clear the workspace n8n instance pin and fall back to the global active instance')
-    .option('--json', 'Output workspace config as JSON')
-    .action((options) => {
-        const configService = new ConfigService();
-        configService.clearWorkspaceInstanceOverride();
-        const workspaceConfig = configService.getWorkspaceConfig();
-        printJsonOrText(options, workspaceConfig, chalk.green('✔ Workspace instance override cleared.'));
-    });
-
-hideCommand(workspaceProgram.command('set-sync-folder'))
-    .description('Set the n8n sync folder override for this workspace')
-    .argument('<path>', 'Workspace sync folder path')
-    .option('--json', 'Output workspace config as JSON')
-    .action((syncFolder, options) => {
-        const configService = new ConfigService();
-        configService.setWorkspaceSyncFolder(syncFolder);
-        const workspaceConfig = configService.getWorkspaceConfig();
-        printJsonOrText(options, workspaceConfig, chalk.green(`✔ Workspace sync folder set to: ${syncFolder}`));
-    });
-
-hideCommand(workspaceProgram.command('clear-sync-folder'))
-    .description('Clear the workspace n8n sync folder override and fall back to the global default')
-    .option('--json', 'Output workspace config as JSON')
-    .action((options) => {
-        const configService = new ConfigService();
-        configService.clearWorkspaceSyncFolderOverride();
-        const workspaceConfig = configService.getWorkspaceConfig();
-        printJsonOrText(options, workspaceConfig, chalk.green('✔ Workspace sync folder override cleared.'));
-    });
-
-hideCommand(workspaceProgram.command('set-project'))
-    .description('Set the n8n project override for this workspace from known project values')
-    .requiredOption('--project-id <id>', 'n8n project ID to store in this workspace')
-    .requiredOption('--project-name <name>', 'n8n project display name to store in this workspace')
-    .option('--json', 'Output workspace config as JSON')
-    .action((options) => {
-        const configService = new ConfigService();
-        configService.setWorkspaceProject({
-            projectId: options.projectId,
-            projectName: options.projectName,
-        });
-        const workspaceConfig = configService.getWorkspaceConfig();
-        printJsonOrText(options, workspaceConfig, chalk.green(`✔ Workspace project set to: ${options.projectName}`));
-    });
-
-hideCommand(workspaceProgram.command('clear-project'))
-    .description('Clear the workspace n8n project override and fall back to the instance default project')
-    .option('--json', 'Output workspace config as JSON')
-    .action((options) => {
-        const configService = new ConfigService();
-        configService.clearWorkspaceProjectOverride();
-        const workspaceConfig = configService.getWorkspaceConfig();
-        printJsonOrText(options, workspaceConfig, chalk.green('✔ Workspace project override cleared.'));
-    });
-
-const environmentTargetProgram = hideCommand(program.command('instance-target')
-    .alias('target')
-    .description('Compatibility: manage low-level workspace targets used by environments'));
-
-environmentTargetProgram.command('list')
-    .description('List workspace instance targets')
-    .option('--json', 'Output targets as JSON')
-    .action((options) => {
-        const configService = new ConfigService();
-        const targets = configService.listInstanceTargets();
-        printJsonOrText(
-            options,
-            targets,
-            targets.length
-                ? targets.map((target) => `${target.id}\t${target.name}\t${target.kind}\t${target.kind === 'managed-instance' ? target.managedInstanceId : target.url}`).join('\n')
-                : 'No workspace instance targets configured.',
-        );
-    });
-
-environmentTargetProgram.command('add')
-    .description('Compatibility: add a low-level workspace target. Prefer `n8nac env add --base-url ...`.')
-    .argument('<name>', 'Target display name')
-    .option('--id <id>', 'Stable target ID')
-    .option('--instance-ref <id>', 'Global n8n-manager instance ID to reference')
-    .option('--base-url <url>', 'Public externalInstance n8n URL to embed without secrets')
-    .option('--description <text>', 'Target description')
-    .option('--json', 'Output target as JSON')
-    .action(async (name, options) => {
-        const configService = new ConfigService();
-        const managedInstanceId = options.managedInstanceId || options.instanceRef;
-        const url = options.url || options.baseUrl;
-        if (managedInstanceId) {
-            const instance = (await createManagerFacadeFromOptions({}).listInstances()).find((item) => item.id === managedInstanceId);
-            if (!instance) throw new Error(`Unknown managed local n8n instance: ${managedInstanceId}`);
-            if (instance.mode !== 'managed-local-docker') {
-                throw new Error(`Instance "${instance.name || instance.id}" is not managed locally. Prefer \`n8nac env add <name> --base-url <url> --workflows-path workflows/<name>\` for remote n8n environments.`);
-            }
-        }
-        const target = configService.addInstanceTarget({
-            name,
-            id: options.id,
-            managedInstanceId,
-            url,
-            description: options.description,
-        });
-        printJsonOrText(options, target, chalk.green(`✔ Workspace instance target added: ${target.name}`));
-    });
-
-environmentTargetProgram.command('update')
-    .description('Update a workspace instance target')
-    .argument('<name-or-id>', 'Target name or ID')
-    .option('--name <name>', 'New display name')
-    .option('--instance-ref <id>', 'New global n8n-manager instance reference for managedInstance targets')
-    .option('--base-url <url>', 'New public URL for externalInstance targets')
-    .option('--description <text>', 'New description')
-    .option('--json', 'Output target as JSON')
-    .action((nameOrId, options) => {
-        const configService = new ConfigService();
-        const target = configService.updateInstanceTarget(nameOrId, options);
-        printJsonOrText(options, target, chalk.green(`✔ Workspace instance target updated: ${target.name}`));
-    });
-
-environmentTargetProgram.command('remove')
-    .alias('rm')
-    .description('Remove an unused workspace instance target')
-    .argument('<name-or-id>', 'Target name or ID')
-    .option('--json', 'Output removed target as JSON')
-    .action((nameOrId, options) => {
-        const configService = new ConfigService();
-        const target = configService.removeInstanceTarget(nameOrId);
-        printJsonOrText(options, target, chalk.green(`✔ Workspace instance target removed: ${target.name}`));
     });
 
 const environmentProgram = program.command('env')
@@ -705,7 +438,6 @@ environmentProgram.command('list')
     .option('--json', 'Output environments as JSON')
     .action((options) => {
         const configService = new ConfigService();
-        abortIfWorkspaceMigrationRequired(configService, options);
         const config = configService.getWorkspaceConfig();
         const environments = configService.listEnvironments().map((environment) => {
             const resolved = (() => { try { return configService.resolveEnvironment(environment.id); } catch { return undefined; } })();
@@ -721,7 +453,7 @@ environmentProgram.command('list')
                     environment.name,
                     environment.resolved?.environmentTargetName || environment.environmentTargetId,
                     environment.projectName || environment.projectId || '(no project)',
-                    environment.workflowsPath || environment.workflowDir || environment.syncFolder,
+                    environment.workflowsPath,
                 ].join('\t')).join('\n')
                 : 'No workspace environments configured.',
         );
@@ -732,14 +464,11 @@ environmentProgram.command('add')
     .argument('<name>', 'Environment display name')
     .option('--base-url <url>', 'Remote n8n URL to store in this workspace environment')
     .option('--managed-instance <id>', 'Local managed n8n instance ID to reference')
-    .option('--instance-target <name-or-id>', 'Compatibility: workspace target name or ID')
     .option('--api-key <key>', 'Store a local API key for --base-url without committing it')
     .option('--api-key-stdin', 'Read the local API key for --base-url from stdin')
     .option('--project-id <id>', 'n8n project ID')
     .option('--project-name <name>', 'n8n project display name')
     .option('--workflows-path <path>', 'Directory that contains this environment workflows')
-    .option('--workflow-dir <path>', 'Compatibility alias for --workflows-path')
-    .option('--sync-folder <path>', 'Compatibility alias for --workflows-path')
     .option('--id <id>', 'Stable environment ID')
     .option('--folder-sync', 'Enable folder sync for this environment')
     .option('--custom-nodes-path <path>', 'Custom nodes path for this environment')
@@ -748,17 +477,15 @@ environmentProgram.command('add')
     .action(async (name, options) => {
         await hydrateApiKeyFromStdin(options);
         const configService = new ConfigService();
-        abortIfWorkspaceMigrationRequired(configService, options);
-        const environmentTargetOption = options.environmentTarget || options.instanceTarget;
         const urlOption = options.url || options.baseUrl;
-        const selectors = [environmentTargetOption, urlOption, options.managedInstance].filter(Boolean);
+        const selectors = [urlOption, options.managedInstance].filter(Boolean);
         if (selectors.length !== 1) {
-            throw new Error('Provide exactly one of --base-url, --managed-instance, or --instance-target.');
+            throw new Error('Provide exactly one of --base-url or --managed-instance.');
         }
         if ((options.projectId && !options.projectName) || (!options.projectId && options.projectName)) {
             throw new Error('Provide both --project-id and --project-name, or omit both.');
         }
-        let environmentTarget = environmentTargetOption;
+        let environmentTarget: string | undefined;
         if (urlOption) {
             const target = configService.ensureEmbeddedInstanceTarget({
                 name,
@@ -781,8 +508,6 @@ environmentProgram.command('add')
             projectId: options.projectId || (urlOption ? 'personal' : undefined),
             projectName: options.projectName || (urlOption ? 'Personal' : undefined),
             workflowsPath: options.workflowsPath,
-            workflowDir: options.workflowDir,
-            syncFolder: options.syncFolder,
             folderSync: Boolean(options.folderSync),
             customNodesPath: options.customNodesPath,
             description: options.description,
@@ -796,14 +521,11 @@ environmentProgram.command('update')
     .option('--name <name>', 'New display name')
     .option('--base-url <url>', 'Move this environment to a remote n8n URL')
     .option('--managed-instance <id>', 'Move this environment to a local managed n8n instance')
-    .option('--instance-target <name-or-id>', 'Workspace instance target name or ID')
     .option('--api-key <key>', 'Store a local API key for --base-url without committing it')
     .option('--api-key-stdin', 'Read the local API key for --base-url from stdin')
     .option('--project-id <id>', 'n8n project ID')
     .option('--project-name <name>', 'n8n project display name')
     .option('--workflows-path <path>', 'Directory that contains this environment workflows')
-    .option('--workflow-dir <path>', 'Compatibility alias for --workflows-path')
-    .option('--sync-folder <path>', 'Compatibility alias for --workflows-path')
     .option('--folder-sync', 'Enable folder sync for this environment')
     .option('--no-folder-sync', 'Disable folder sync for this environment')
     .option('--custom-nodes-path <path>', 'Custom nodes path for this environment')
@@ -812,14 +534,12 @@ environmentProgram.command('update')
     .action(async (nameOrId, options) => {
         await hydrateApiKeyFromStdin(options);
         const configService = new ConfigService();
-        abortIfWorkspaceMigrationRequired(configService, options);
-        const environmentTargetOption = options.environmentTarget || options.instanceTarget;
         const urlOption = options.url || options.baseUrl;
-        const selectors = [environmentTargetOption, urlOption, options.managedInstance].filter(Boolean);
+        const selectors = [urlOption, options.managedInstance].filter(Boolean);
         if (selectors.length > 1) {
-            throw new Error('Provide at most one of --base-url, --managed-instance, or --instance-target.');
+            throw new Error('Provide at most one of --base-url or --managed-instance.');
         }
-        let environmentTarget = environmentTargetOption;
+        let environmentTarget: string | undefined;
         if (urlOption) {
             const target = configService.ensureEmbeddedInstanceTarget({
                 name: options.name || nameOrId,
@@ -838,8 +558,6 @@ environmentProgram.command('update')
             projectId: options.projectId,
             projectName: options.projectName,
             workflowsPath: options.workflowsPath,
-            workflowDir: options.workflowDir,
-            syncFolder: options.syncFolder,
             folderSync: typeof options.folderSync === 'boolean' ? options.folderSync : undefined,
             customNodesPath: options.customNodesPath,
             description: options.description,
@@ -855,7 +573,6 @@ environmentProgram.command('pin')
     .option('--json', 'Output environment as JSON')
     .action((nameOrId, options) => {
         const configService = new ConfigService();
-        abortIfWorkspaceMigrationRequired(configService, options);
         const environment = configService.pinEnvironment(nameOrId);
         printJsonOrText(options, environment, chalk.green(`✔ Workspace environment pinned: ${environment.name}`));
     });
@@ -868,7 +585,6 @@ environmentProgram.command('remove')
     .option('--json', 'Output removed environment as JSON')
     .action((nameOrId, options) => {
         const configService = new ConfigService();
-        abortIfWorkspaceMigrationRequired(configService, options);
         const environment = configService.removeEnvironment(nameOrId, { force: Boolean(options.force) });
         printJsonOrText(options, environment, chalk.green(`✔ Workspace environment removed: ${environment.name}`));
     });
@@ -887,7 +603,6 @@ environmentAuthProgram.command('set')
             throw new Error('Provide --api-key or --api-key-stdin.');
         }
         const configService = new ConfigService();
-        abortIfWorkspaceMigrationRequired(configService, options);
         const environment = configService.resolveEnvironment(nameOrId);
         if (environment.sourceKind === 'managed-instance') {
             throw new Error(`Environment "${environment.environmentName}" uses managed instance "${environment.managedInstanceId}". Configure credentials through the managed n8n instance instead.`);
@@ -911,7 +626,6 @@ environmentProgram.command('status')
     .option('--json', 'Output resolved environment as JSON')
     .action((nameOrId, options) => {
         const configService = new ConfigService();
-        abortIfWorkspaceMigrationRequired(configService, options);
         const environment = configService.resolveEnvironment(nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined);
         printJsonOrText(
             options,
@@ -922,7 +636,7 @@ environmentProgram.command('status')
                 `Instance: ${chalk.bold(environment.activeInstanceName || environment.managedInstanceId || '(externalInstance)')}`,
                 `Host    : ${chalk.bold(environment.host)}`,
                 `Project : ${chalk.bold(environment.projectName || environment.projectId || '(none)')}`,
-                `Workflows path: ${chalk.bold(environment.workflowsPath || environment.workflowDir || '(unresolved)')}`,
+                `Workflows path: ${chalk.bold(environment.workflowsPath || '(unresolved)')}`,
                 `API key : ${chalk.bold(environment.apiKeyAvailable ? environment.apiKeySource : 'missing')}`,
                 '',
             ].join('\n'),

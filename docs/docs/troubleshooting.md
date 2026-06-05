@@ -71,23 +71,15 @@ n8nac env use Local
 - Confirm the API key is valid.
 - Reopen the split view.
 
-### Migration banner appears
+### Unsupported workspace config version
 
-Use the explicit button in the extension or run:
+Only V4 workspace environment configs are supported. Recreate the workspace environment explicitly:
 
 ```bash
-n8nac workspace migrate --json
-n8nac workspace migrate --write
+n8nac env add Dev --base-url https://n8n.example.com --workflows-path workflows/dev
+n8nac env auth set Dev --api-key-stdin
+n8nac env use Dev
 n8nac env status --json
-```
-
-Review the dry-run `operations` list before applying. `workspace migrate --write` applies all required migration operations together.
-
-If the migration banner remains after applying, inspect the remaining migration plan:
-
-```bash
-n8nac workspace migrate --json
-n8nac workspace migrate --write
 ```
 
 ## Sync Issues

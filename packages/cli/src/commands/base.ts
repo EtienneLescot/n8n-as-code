@@ -23,80 +23,37 @@ export class BaseCommand {
         let apiKey: string;
         let directory: string;
         let folderSync: boolean;
-        let envCredentialsProvided = false;
-
-        // If --env <name> was passed as a global option, resolve the workspace
-        // environment; otherwise fall back to the locally active environment or legacy instance config.
+        // If --env <name> was passed as a global option, resolve that workspace
+        // environment; otherwise use the V4 active environment.
         const requestedEnvironment = process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
-        const requestedInstanceName = process.env.N8NAC_INSTANCE_NAME?.trim() || undefined;
-        if (requestedInstanceName) {
-            console.error(chalk.red('❌ Direct instance targeting is no longer supported by n8nac.'));
-                    console.error(chalk.yellow('Create a workspace environment with `n8nac env add <name> --base-url <url> --workflows-path workflows/<name>`, then use `--env <name>`.'));
-            process.exit(1);
-        }
-
         const resolvedEnvironment = requestedEnvironment
             ? this.configService.resolveEnvironment(requestedEnvironment)
             : this.tryResolveEnvironment();
 
-        if (resolvedEnvironment) {
-            this.activeEnvironmentNameOrId = requestedEnvironment || resolvedEnvironment.environmentId;
-            this.activeEnvironment = resolvedEnvironment;
-            this.activeInstanceId = resolvedEnvironment.activeInstanceId;
-            host = resolvedEnvironment.host || '';
-            apiKey = resolvedEnvironment.apiKey || '';
-            const effectiveContext = this.activeInstanceId
-                ? (() => { try { return this.configService.getEffectiveContext(this.activeInstanceId); } catch { return undefined; } })()
-                : undefined;
-            const canPrepareRuntime = resolvedEnvironment.sourceKind === 'managed-instance'
-                && (!host || !apiKey || effectiveContext?.instance.mode === 'managed-local-docker');
-            if (!host || !apiKey) {
-                if (!canPrepareRuntime) {
-                    console.error(chalk.red(`❌ Environment "${resolvedEnvironment.environmentName}" needs a host and API key before this command can run.`));
-                    console.error(chalk.yellow(`Configure a local API key with \`n8nac env auth set ${resolvedEnvironment.environmentName} --api-key-stdin\` or update the environment URL.`));
-                    process.exit(1);
-                }
-                apiKey = '';
-            }
-            directory = resolvedEnvironment.workflowsPath || resolvedEnvironment.workflowDir || this.configService.resolveWorkspacePath('./workflows');
-            folderSync = resolvedEnvironment.folderSync ?? false;
-            this.instanceIdentifier = resolvedEnvironment.instanceIdentifier || null;
-            this.instanceUserIdentifier = resolvedEnvironment.instanceUserIdentifier || null;
-        } else {
-            const localConfig = this.configService.getLocalConfig();
-            this.activeInstanceId = this.configService.getActiveInstanceId();
-            const effectiveContext = this.configService.getEffectiveContext(this.activeInstanceId);
-
-            // Resolve host: explicit env override → backend-resolved config.
-            const rawEnvHost = process.env.N8N_HOST;
-            const envHost = rawEnvHost
-                ? rawEnvHost.trim().replace(/^['"]|['"]$/g, '')
-                : '';
-            host = envHost || localConfig.host || '';
-
-            // Resolve API key: explicit env override → backend-resolved secret.
-            const rawEnvApiKey = process.env.N8N_API_KEY;
-            const envApiKey = rawEnvApiKey
-                ? rawEnvApiKey.trim().replace(/^['"]|['"]$/g, '')
-                : '';
-            envCredentialsProvided = Boolean(envHost && envApiKey);
-            apiKey = envApiKey
-                || (host ? this.configService.getApiKey(host, this.activeInstanceId) : undefined)
-                || '';
-
-            const canPrepareManagedRuntime = effectiveContext?.instance.mode === 'managed-local-docker' && Boolean(host);
-            if (!host || !apiKey) {
-                if (!canPrepareManagedRuntime) {
-                    console.error(chalk.red('❌ CLI not configured.'));
-                    console.error(chalk.yellow('Create a workspace environment with `n8nac env add <name> --base-url <url> --workflows-path workflows/<name>` and store auth with `n8nac env auth set <name> --api-key-stdin`.'));
-                    process.exit(1);
-                }
-                apiKey = '';
-            }
-
-            directory = this.configService.resolveWorkspacePath(localConfig.syncFolder || './workflows');
-            folderSync = localConfig.folderSync ?? false;
+        if (!resolvedEnvironment) {
+            console.error(chalk.red('❌ CLI not configured.'));
+            console.error(chalk.yellow('Create a V4 workspace environment with `n8nac env add <name> --base-url <url> --workflows-path workflows/<name>` and store auth with `n8nac env auth set <name> --api-key-stdin`.'));
+            process.exit(1);
         }
+
+        this.activeEnvironmentNameOrId = requestedEnvironment || resolvedEnvironment.environmentId;
+        this.activeEnvironment = resolvedEnvironment;
+        this.activeInstanceId = resolvedEnvironment.activeInstanceId;
+        host = resolvedEnvironment.host || '';
+        apiKey = resolvedEnvironment.apiKey || '';
+        const canPrepareRuntime = resolvedEnvironment.sourceKind === 'managed-instance';
+        if (!host || !apiKey) {
+            if (!canPrepareRuntime) {
+                console.error(chalk.red(`❌ Environment "${resolvedEnvironment.environmentName}" needs a host and API key before this command can run.`));
+                console.error(chalk.yellow(`Configure a local API key with \`n8nac env auth set ${resolvedEnvironment.environmentName} --api-key-stdin\` or update the environment URL.`));
+                process.exit(1);
+            }
+            apiKey = '';
+        }
+        directory = resolvedEnvironment.workflowsPath;
+        folderSync = resolvedEnvironment.folderSync ?? false;
+        this.instanceIdentifier = resolvedEnvironment.instanceIdentifier || null;
+        this.instanceUserIdentifier = resolvedEnvironment.instanceUserIdentifier || null;
 
         this.client = new N8nApiClient({ host, apiKey } as IN8nCredentials);
         this.config = {
@@ -107,7 +64,7 @@ export class BaseCommand {
             apiKeyConfigured: Boolean(apiKey),
             folderSync,
         };
-        this.runtimePrepared = envCredentialsProvided && !this.activeEnvironmentNameOrId;
+        this.runtimePrepared = false;
 
         // Silently refresh AGENTS.md in the background if the installed n8nac version changed.
         // Spawned as a fully-detached child process so it never blocks the command, never
@@ -164,16 +121,12 @@ export class BaseCommand {
     protected async getSyncConfig(): Promise<any> {
         await this.prepareRuntimeContext();
         const instanceIdentifier = await this.ensureInstanceIdentifier();
-        const localConfig = this.activeEnvironmentNameOrId
-            ? (this.activeEnvironment || this.configService.getLocalConfig(this.activeEnvironmentNameOrId))
-            : this.activeInstanceId
-            ? (this.configService.getEffectiveInstanceConfig(this.activeInstanceId) ?? this.configService.getLocalConfig())
-            : this.configService.getLocalConfig();
+        const localConfig = this.activeEnvironment || this.configService.getLocalConfig(this.activeEnvironmentNameOrId);
 
         const missing: string[] = [];
         if (!localConfig.projectId) missing.push('projectId');
         if (!localConfig.projectName) missing.push('projectName');
-        if (!localConfig.workflowsPath && !localConfig.workflowDir && !localConfig.syncFolder) missing.push('workflowsPath');
+        if (!localConfig.workflowsPath) missing.push('workflowsPath');
 
         if (missing.length > 0) {
             console.error(chalk.red(`❌ Missing required project configuration: ${missing.join(', ')}.`));
@@ -185,13 +138,9 @@ export class BaseCommand {
             directory: this.config.directory,
             workflowsPath: localConfig.workflowsPath
                 ? this.configService.resolveWorkspacePath(localConfig.workflowsPath)
-                : localConfig.workflowDir
-                ? this.configService.resolveWorkspacePath(localConfig.workflowDir)
                 : undefined,
             workflowDir: localConfig.workflowsPath
                 ? this.configService.resolveWorkspacePath(localConfig.workflowsPath)
-                : localConfig.workflowDir
-                ? this.configService.resolveWorkspacePath(localConfig.workflowDir)
                 : undefined,
             syncInactive: true,
             ignoredTags: [],
@@ -213,15 +162,15 @@ export class BaseCommand {
         if (this.runtimePrepared) {
             return;
         }
+        if (process.env.N8NAC_TEST_SKIP_RUNTIME_PREPARE === '1') {
+            this.runtimePrepared = true;
+            return;
+        }
 
         try {
             const environment = this.activeEnvironmentNameOrId;
-            const preparedEnvironment = environment
-                ? await this.configService.prepareEnvironment(environment)
-                : undefined;
-            const context = preparedEnvironment
-                ? await this.configService.prepareWorkspaceContext({ environment })
-                : await this.configService.prepareWorkspaceContext(this.activeInstanceId);
+            const preparedEnvironment = await this.configService.prepareEnvironment(environment);
+            const context = await this.configService.prepareWorkspaceContext({ environment });
             if (!context.host || !context.apiKey) {
                 this.exitWithError(`Instance "${context.activeInstanceName}" needs a host and API key before this command can run`);
             }
@@ -233,7 +182,7 @@ export class BaseCommand {
             this.client = new N8nApiClient({ host: context.host, apiKey: context.apiKey } as IN8nCredentials);
             this.config = {
                 ...this.config,
-                directory: this.configService.resolveWorkspacePath((context as any).workflowsPath || (context as any).workflowDir || context.syncFolder || './workflows'),
+                directory: this.configService.resolveWorkspacePath((context as any).workflowsPath),
                 host: context.host,
                 apiKeyConfigured: true,
                 folderSync: context.folderSync ?? false,

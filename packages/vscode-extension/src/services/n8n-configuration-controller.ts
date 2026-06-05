@@ -6,7 +6,7 @@ import {
   createN8nManagerFacade,
   resolveN8nManagerConfigurationPaths,
 } from '@n8n-as-code/manager-adapter';
-import { ConfigService, WorkspaceMigrationFacade, isCanonicalUserInstanceIdentifier, resolveInstanceIdentifier, type IWorkspaceConfig, type IWorkspaceMigrationReport } from 'n8nac';
+import { ConfigService, type IWorkspaceConfig } from 'n8nac';
 
 type N8nManagerFacade = ReturnType<typeof createN8nManagerFacade>;
 type N8nGlobalConfig = Awaited<ReturnType<N8nManagerFacade['getGlobalConfig']>>;
@@ -31,7 +31,6 @@ export interface N8nConfigurationSnapshot {
   signature: string;
   runtimeSignature: string;
   error?: string;
-  migration?: IWorkspaceMigrationReport;
 }
 
 export interface N8nConfigurationChangeEvent {
@@ -118,74 +117,28 @@ export class N8nConfigurationController implements vscode.Disposable {
       : false;
 
     try {
-      let global = await facade.getGlobalConfig();
-      const migration = hasWorkspaceConfig && configService ? new WorkspaceMigrationFacade({ configService }).inspect() : undefined;
+      const global = await facade.getGlobalConfig();
       if (!hasWorkspaceConfig) {
         return this.buildSnapshot({
           workspaceRoot,
           global,
-          workspace: { version: 3 as const },
+          workspace: this.emptyWorkspaceConfig(),
           hasWorkspaceConfig: false,
           hasValidConnection: false,
         });
       }
-      if (migration?.operations.some((operation) => operation.id === 'legacy-workspace-config')) {
-        return this.buildSnapshot({
-          workspaceRoot,
-          global,
-          workspace: { version: 3 as const },
-          hasWorkspaceConfig,
-          hasValidConnection: false,
-          migration,
-        });
-      }
-      const workspace = workspaceRoot && configService ? configService.getWorkspaceConfig() : { version: 3 as const };
-      const isEnvironmentWorkspace = workspace.version === 4;
-      let prepared = isEnvironmentWorkspace ? undefined : await facade.prepareEffectiveContext({
-        workspaceRoot,
-        syncFolderDefault: 'workspace',
-        consumer: 'vscode',
-        autoStart: true,
-      }).catch(() => undefined);
-      let effective = isEnvironmentWorkspace && configService
+      const workspace = workspaceRoot && configService ? configService.getWorkspaceConfig() : this.emptyWorkspaceConfig();
+      const effective = configService
         ? await configService.prepareWorkspaceContext({ consumer: 'vscode' }).catch(() => configService.getEffectiveContext())
-        : prepared?.context;
-      if (prepared) {
-        const effectiveHost = prepared.context.apiBaseUrl ?? prepared.context.host;
-        if (effectiveHost && prepared.context.apiKey && !isCanonicalUserInstanceIdentifier(prepared.context.instanceIdentifier)) {
-          const { identifier } = await resolveInstanceIdentifier({
-            host: effectiveHost,
-            apiKey: prepared.context.apiKey,
-          });
-          await facade.upsertInstance({
-            id: prepared.context.activeInstanceId,
-            instanceIdentifier: identifier,
-          }, { setActive: false });
-          prepared = {
-            ...prepared,
-            context: {
-              ...prepared.context,
-              instanceIdentifier: identifier,
-              instance: {
-                ...prepared.context.instance,
-                instanceIdentifier: identifier,
-              },
-            },
-          };
-        }
-        global = await facade.getGlobalConfig();
-      }
-      const hasValidConnection = Boolean((effective?.apiBaseUrl ?? effective?.host) && effective?.apiKey && !prepared?.runtime.blocked);
+        : undefined;
+      const hasValidConnection = Boolean((effective?.apiBaseUrl ?? effective?.host) && effective?.apiKey);
       return this.buildSnapshot({
         workspaceRoot,
         global,
         workspace,
         effective,
-        runtime: prepared?.runtime,
-        diagnostics: prepared?.diagnostics,
         hasWorkspaceConfig,
         hasValidConnection,
-        migration,
       });
     } catch (error: any) {
       const global = await facade.getGlobalConfig().catch(() => ({
@@ -195,7 +148,7 @@ export class N8nConfigurationController implements vscode.Disposable {
       }));
       const workspace = workspaceRoot && configService
         ? this.readWorkspaceSnapshotConfig(configService)
-        : { version: 3 as const };
+        : this.emptyWorkspaceConfig();
       return this.buildSnapshot({
         workspaceRoot,
         global,
@@ -217,7 +170,6 @@ export class N8nConfigurationController implements vscode.Disposable {
     hasWorkspaceConfig: boolean;
     hasValidConnection: boolean;
     error?: string;
-    migration?: N8nConfigurationSnapshot['migration'];
   }): N8nConfigurationSnapshot {
     const workspace = input.workspace as any;
     const effective = input.effective as any;
@@ -250,15 +202,6 @@ export class N8nConfigurationController implements vscode.Disposable {
       tunnelPublicUrl: input.runtime?.tunnel?.publicUrl || '',
       tunnelRunning: Boolean(input.runtime?.tunnel?.running),
       error: input.error || '',
-      migration: input.migration ? {
-        status: input.migration.status,
-        configPath: input.migration.configPath,
-        required: input.migration.required,
-        operations: input.migration.operations.map((operation) => ({
-          id: operation.id,
-          instanceCount: operation.instanceCount,
-        })),
-      } : undefined,
     });
 
     const signature = JSON.stringify({
@@ -288,7 +231,6 @@ export class N8nConfigurationController implements vscode.Disposable {
       effective: this.sanitizeEffectiveContext(input.effective),
       signature,
       runtimeSignature,
-      migration: input.migration,
     };
   }
 
@@ -296,8 +238,17 @@ export class N8nConfigurationController implements vscode.Disposable {
     try {
       return configService.getWorkspaceConfig();
     } catch {
-      return { version: 3 as const };
+      return this.emptyWorkspaceConfig();
     }
+  }
+
+  private emptyWorkspaceConfig(): IWorkspaceConfig {
+    return {
+      version: 4,
+      instances: [],
+      environmentTargets: [],
+      environments: [],
+    };
   }
 
   private sanitizeEffectiveContext(effective?: EffectiveN8nContext): SanitizedEffectiveN8nContext | undefined {

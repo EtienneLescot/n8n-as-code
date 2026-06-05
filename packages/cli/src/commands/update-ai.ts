@@ -3,16 +3,14 @@ import chalk from 'chalk';
 import fs from 'fs';
 import { readFileSync, existsSync } from 'fs';
 import { join, dirname, resolve } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import {
     N8nApiClient,
     IN8nCredentials,
     WorkspaceSetupService,
     createProjectSlug,
 } from '../core/index.js';
-import {
-    AiContextGenerator
-} from '@n8n-as-code/skills';
+import type { AiContextGenerator as AiContextGeneratorInstance } from '@n8n-as-code/skills';
 import { ConfigService } from '../services/config-service.js';
 import dotenv from 'dotenv';
 
@@ -95,6 +93,18 @@ function inferLocalDevManagerCommand(): string | undefined {
     return undefined;
 }
 
+async function createAiContextGenerator(): Promise<AiContextGeneratorInstance> {
+    const __dir = dirname(fileURLToPath(import.meta.url));
+    const workspaceSkillsEntry = resolve(__dir, '..', '..', '..', 'skills', 'dist', 'index.js');
+    if (existsSync(workspaceSkillsEntry)) {
+        const mod = await import(pathToFileURL(workspaceSkillsEntry).href) as typeof import('@n8n-as-code/skills');
+        return new mod.AiContextGenerator();
+    }
+
+    const mod = await import('@n8n-as-code/skills');
+    return new mod.AiContextGenerator();
+}
+
 export class UpdateAiCommand {
     constructor(private program: Command) {
         this.program
@@ -166,7 +176,7 @@ export class UpdateAiCommand {
 
             // 2. Generate Context (AGENTS.md)
             if (!silent) console.log(chalk.gray('\n   - Generating AI context files (AGENTS.md + .github/agents + .agents/skills)...'));
-            const aiContextGenerator = new AiContextGenerator();
+            const aiContextGenerator = await createAiContextGenerator();
             const distTag = typeof options.cliVersion === 'string' && options.cliVersion.trim()
                 ? options.cliVersion.trim()
                 : getDistTag();
@@ -174,20 +184,21 @@ export class UpdateAiCommand {
                 cliCommandOverride: options.cliCmd || inferLocalDevCliCommand(projectRoot),
                 managerCommandOverride: options.managerCmd || inferLocalDevManagerCommand(),
                 cliVersion: getCliVersion(),
-            } as Parameters<AiContextGenerator['generate']>[3] & { managerCommandOverride?: string });
+            } as Parameters<AiContextGeneratorInstance['generate']>[3] & { managerCommandOverride?: string });
             if (!silent) console.log(chalk.green('   ✅ AI context files created.'));
 
-            // 3. Update n8n-workflows.d.ts for all configured instances
+            // 3. Update n8n-workflows.d.ts for all configured workspace environments
             if (!silent) console.log(chalk.gray('\n   - Updating TypeScript stubs (n8n-workflows.d.ts)...'));
             const configService = new ConfigService(projectRoot);
-            const instances = configService.listInstances();
+            const environments = configService.listEnvironments();
             let updatedCount = 0;
-            for (const instance of instances) {
-                const { syncFolder, instanceIdentifier, projectName } = instance;
-                if (!syncFolder || !instanceIdentifier || !projectName) continue;
+            for (const environment of environments) {
+                const resolved = configService.resolveEnvironment(environment.id);
+                const { workflowsPath, instanceIdentifier, projectName } = resolved;
+                if (!workflowsPath || !instanceIdentifier || !projectName) continue;
 
                 const instanceDir = join(
-                    resolve(projectRoot, syncFolder),
+                    workflowsPath,
                     instanceIdentifier,
                     createProjectSlug(projectName)
                 );

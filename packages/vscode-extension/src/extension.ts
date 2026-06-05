@@ -40,7 +40,6 @@ import {
     type N8nConfigurationChangeEvent,
     type N8nConfigurationSnapshot,
 } from './services/n8n-configuration-controller.js';
-import { runWorkspaceMigrationFromVscode } from './services/workspace-migration-runner.js';
 import { workflowWebviewRegistry } from './services/workflow-webview-registry.js';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
 import { createTelemetryClient, type TelemetryClient } from '@n8n-as-code/telemetry';
@@ -329,30 +328,6 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         registerTelemetryCommand('n8n.init', async () => {
             await handleInitializeCommand(context);
-        }),
-
-        registerTelemetryCommand('n8n.migrateWorkspaceConfiguration', async () => {
-            await migrateWorkspaceConfiguration(context);
-        }),
-
-        registerTelemetryCommand('n8n.migrateLegacyWorkspace', async () => {
-            await migrateWorkspaceConfiguration(context);
-        }),
-
-        registerTelemetryCommand('n8n.migrateGlobalInstancesToEnvironments', async () => {
-            await migrateWorkspaceConfiguration(context);
-        }),
-
-        registerTelemetryCommand('n8n.switchInstance', async (args?: SwitchInstanceCommandArgs) => {
-            await switchWorkspaceInstance(context, args);
-        }),
-
-        registerTelemetryCommand('n8n.pinWorkspaceInstance', async (args?: SwitchInstanceCommandArgs) => {
-            await pinWorkspaceInstance(context, args);
-        }),
-
-        registerTelemetryCommand('n8n.clearWorkspaceInstance', async () => {
-            await clearWorkspaceInstancePin(context);
         }),
 
         registerTelemetryCommand('n8n.deleteInstance', async (args?: DeleteInstanceCommandArgs) => {
@@ -738,42 +713,6 @@ export async function activate(context: vscode.ExtensionContext) {
     // ── Backend configuration snapshot initialization ────────────────────────
     getOrCreateConfigurationController().start();
 
-    // ── Settings change listener ───────────────────────────────────────────
-    context.subscriptions.push(
-        vscode.workspace.onDidChangeConfiguration(async e => {
-            const suppressOnce = context.workspaceState.get<boolean>('n8n.suppressSettingsChangedOnce');
-            if (suppressOnce) {
-                await context.workspaceState.update('n8n.suppressSettingsChangedOnce', false);
-                return;
-            }
-            if (
-                e.affectsConfiguration('n8n.host') ||
-                e.affectsConfiguration('n8n.apiKey') ||
-                e.affectsConfiguration('n8n.syncFolder') ||
-                e.affectsConfiguration('n8n.projectId') ||
-                e.affectsConfiguration('n8n.projectName')
-            ) {
-                outputChannel.appendLine('[n8n] Critical settings changed. Pausing until applied.');
-                if (syncManager) {
-                    enhancedTreeProvider.setExtensionState(ExtensionState.SETTINGS_CHANGED);
-                    statusBar.showSettingsChanged();
-                } else {
-                    const root = getWorkspaceRoot();
-                    const hasUnifiedConfig = root ? fs.existsSync(path.join(root, 'n8nac-config.json')) : false;
-                    const valid = validateN8nConfig().isValid;
-                    if (!hasUnifiedConfig || !valid) {
-                        resetExtensionRuntimeState();
-                        enhancedTreeProvider.setExtensionState(ExtensionState.CONFIGURING);
-                        statusBar.showConfiguring();
-                    } else {
-                        enhancedTreeProvider.setExtensionState(ExtensionState.UNINITIALIZED);
-                        statusBar.showNotInitialized();
-                    }
-                }
-                updateContextKeys();
-            }
-        })
-    );
     } catch (error: any) {
         outputChannel.appendLine(`[n8n] Activation completed with degraded functionality: ${error?.stack || error?.message || error}`);
         vscode.window.showErrorMessage(`n8n as code activation issue: ${error?.message || error}`);
@@ -1351,32 +1290,6 @@ function getOrCreateConfigurationController(): N8nConfigurationController {
 
 function requireConfigurationController(): N8nConfigurationController {
     return getOrCreateConfigurationController();
-}
-
-async function migrateWorkspaceConfiguration(context: vscode.ExtensionContext): Promise<void> {
-    const workspaceRoot = getWorkspaceRoot();
-    if (!workspaceRoot) {
-        vscode.window.showWarningMessage(NO_WORKSPACE_ERROR_MESSAGE, OPEN_FOLDER_ACTION).then((selection) => {
-            if (selection === OPEN_FOLDER_ACTION) void vscode.commands.executeCommand('vscode.openFolder');
-        });
-        return;
-    }
-
-    const result = await runWorkspaceMigrationFromVscode(context, workspaceRoot);
-    if (result.outcome === 'not-needed') {
-        await vscode.window.showInformationMessage('No migration required.');
-        await requireConfigurationController().refresh('migration-not-needed', { force: true });
-        return;
-    }
-    if (result.outcome === 'cancelled') return;
-
-    await requireConfigurationController().refresh('migrate-workspace-configuration-command', { force: true });
-    await determineInitialState(context);
-    updateContextKeys();
-    const backupPath = result.report.backupPath || '';
-    const migratedEnvironmentCount = result.report.migratedEnvironmentIds?.length || 0;
-    const suffix = backupPath ? ` Backup: ${backupPath}` : migratedEnvironmentCount ? ` ${migratedEnvironmentCount} environment${migratedEnvironmentCount === 1 ? '' : 's'} created.` : '';
-    await vscode.window.showInformationMessage(`Migration complete.${suffix}`);
 }
 
 function requireAgentRuntimeController(): AgentRuntimeController {

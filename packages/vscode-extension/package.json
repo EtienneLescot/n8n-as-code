@@ -24,12 +24,6 @@
     "workspaceContains:n8nac-config.json",
     "onView:n8n-explorer.workflows",
     "onCommand:n8n.configure",
-    "onCommand:n8n.migrateWorkspaceConfiguration",
-    "onCommand:n8n.migrateLegacyWorkspace",
-    "onCommand:n8n.migrateGlobalInstancesToEnvironments",
-    "onCommand:n8n.switchInstance",
-    "onCommand:n8n.pinWorkspaceInstance",
-    "onCommand:n8n.clearWorkspaceInstance",
     "onCommand:n8n.deleteInstance",
     "onCommand:n8n.init",
     "onCommand:n8n.openBoard",
@@ -95,26 +89,6 @@
         "command": "n8n.configure",
         "title": "n8n: Configure",
         "icon": "$(settings-gear)"
-      },
-      {
-        "command": "n8n.migrateWorkspaceConfiguration",
-        "title": "n8n: Run Required Migration",
-        "icon": "$(repo-sync)"
-      },
-      {
-        "command": "n8n.switchInstance",
-        "title": "n8n: Select Global Instance",
-        "icon": "$(list-selection)"
-      },
-      {
-        "command": "n8n.pinWorkspaceInstance",
-        "title": "n8n: Pin Instance for Workspace",
-        "icon": "$(pinned)"
-      },
-      {
-        "command": "n8n.clearWorkspaceInstance",
-        "title": "n8n: Clear Workspace Instance Pin",
-        "icon": "$(pinned-dirty)"
       },
       {
         "command": "n8n.deleteInstance",
@@ -336,32 +310,6 @@
     "configuration": {
       "title": "n8n as Code",
       "properties": {
-        "n8n.host": {
-          "type": "string",
-          "included": false,
-          "description": "Base URL of n8n instance"
-        },
-        "n8n.apiKey": {
-          "type": "string",
-          "included": false,
-          "description": "n8n API Key"
-        },
-        "n8n.syncFolder": {
-          "type": "string",
-          "included": false,
-          "default": "workflows",
-          "description": "Local folder to sync workflows"
-        },
-        "n8n.projectId": {
-          "type": "string",
-          "included": false,
-          "description": "Project ID to sync (managed by the extension; use the Configure command to select)"
-        },
-        "n8n.projectName": {
-          "type": "string",
-          "included": false,
-          "description": "Project name to display (managed by the extension; use the Configure command to select)"
-        },
         "n8n.agent.provider": {
           "type": "string",
           "included": false,

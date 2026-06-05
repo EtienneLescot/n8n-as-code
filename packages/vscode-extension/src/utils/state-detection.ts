@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ConfigService, isCanonicalUserInstanceIdentifier } from 'n8nac';
+import { ConfigService } from 'n8nac';
 import { ConfigValidationResult } from '../types.js';
-import { readUnifiedWorkspaceConfig } from './unified-config.js';
 
 export interface ResolvedN8nWorkspaceConfig {
   host: string;
@@ -28,16 +27,7 @@ function normalizeHost(host: string): string {
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
 }
 
-function getSettingsValue(key: 'host' | 'apiKey' | 'syncFolder' | 'projectId' | 'projectName'): string {
-  return readString(vscode.workspace.getConfiguration('n8n').get<string>(key));
-}
-
-function getEnvValue(key: 'N8N_HOST' | 'N8N_API_KEY'): string {
-  return readString(process.env[key]).replace(/^['"]|['"]$/g, '');
-}
-
 export function getResolvedN8nConfig(workspaceRoot = getWorkspaceRoot()): ResolvedN8nWorkspaceConfig {
-  const unified = workspaceRoot ? readUnifiedWorkspaceConfig(workspaceRoot) : undefined;
   const configService = workspaceRoot ? new ConfigService(workspaceRoot) : undefined;
   const environment = configService ? (() => {
     try {
@@ -48,9 +38,9 @@ export function getResolvedN8nConfig(workspaceRoot = getWorkspaceRoot()): Resolv
   })() : undefined;
   if (environment) {
     return {
-      host: normalizeHost(environment.host) || getEnvValue('N8N_HOST'),
+      host: normalizeHost(environment.host),
       apiKey: environment.apiKey || '',
-      syncFolder: environment.syncFolder || 'workflows',
+      syncFolder: environment.workflowsPath || '',
       projectId: environment.projectId || '',
       projectName: environment.projectName || '',
       activeInstanceId: environment.activeInstanceId || '',
@@ -61,22 +51,14 @@ export function getResolvedN8nConfig(workspaceRoot = getWorkspaceRoot()): Resolv
       environmentTargetName: environment.environmentTargetName,
     };
   }
-  const activeInstance = workspaceRoot && configService ? configService.getActiveInstance() : undefined;
-  const host = normalizeHost(
-    readString(unified?.host) || getSettingsValue('host') || getEnvValue('N8N_HOST')
-  );
-  const apiKey = (host && configService ? configService.getApiKey(host, activeInstance?.id) : undefined)
-    || getSettingsValue('apiKey')
-    || getEnvValue('N8N_API_KEY');
-
   return {
-    host,
-    apiKey,
-    syncFolder: readString(unified?.syncFolder) || getSettingsValue('syncFolder') || 'workflows',
-    projectId: readString(unified?.projectId) || getSettingsValue('projectId'),
-    projectName: readString(unified?.projectName) || getSettingsValue('projectName'),
-    activeInstanceId: readString(unified?.activeInstanceId) || activeInstance?.id || '',
-    activeInstanceName: activeInstance?.name || '',
+    host: '',
+    apiKey: '',
+    syncFolder: '',
+    projectId: '',
+    projectName: '',
+    activeInstanceId: '',
+    activeInstanceName: '',
   };
 }
 
@@ -107,11 +89,11 @@ export function validateN8nConfig(): ConfigValidationResult {
   const missing: string[] = [];
 
   if (!host || host.trim() === '') {
-    missing.push('n8n.host');
+    missing.push('environment host');
   }
 
   if (!apiKey || apiKey.trim() === '') {
-    missing.push('n8n.apiKey');
+    missing.push('environment API key');
   }
 
   return {
@@ -129,7 +111,11 @@ export function isFolderPreviouslyInitialized(workspaceRoot: string): boolean {
     return false;
   }
 
-  return isCanonicalUserInstanceIdentifier(readUnifiedWorkspaceConfig(workspaceRoot).instanceIdentifier);
+  try {
+    return new ConfigService(workspaceRoot).listEnvironments().length > 0;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -222,6 +208,9 @@ export function doesSyncDirectoryExist(): boolean {
  * Get the canonical instance identifier from external-instance configuration.
  */
 export function getExistingInstanceIdentifier(workspaceRoot: string): string | undefined {
-  const identifier = readUnifiedWorkspaceConfig(workspaceRoot).instanceIdentifier;
-  return isCanonicalUserInstanceIdentifier(identifier) ? identifier : undefined;
+  try {
+    return new ConfigService(workspaceRoot).resolveEnvironment().instanceIdentifier;
+  } catch {
+    return undefined;
+  }
 }

@@ -55,21 +55,6 @@ The Agent can use:
 - generated `AGENTS.md`
 - bundled n8n schemas, docs, examples, templates, and validation rules
 
-## Workspace Migration
-
-The extension can detect older config models, but it does not rewrite config on workspace open.
-
-Use the explicit button in the UI or the CLI:
-
-```bash
-n8nac workspace migrate --json
-n8nac workspace migrate --write
-```
-
-- `migrate --json` is the dry-run for legacy config models and reports one unified `operations` list.
-- `migrate --write` applies the required migration as one operation.
-- The write step creates a backup before replacing `n8nac-config.json`.
-
 ## CLI Equivalent
 
 ```bash
