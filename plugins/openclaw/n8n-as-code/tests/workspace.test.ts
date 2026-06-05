@@ -23,23 +23,45 @@ function writeConfig(workspaceDir: string, value: unknown): void {
   fs.writeFileSync(path.join(workspaceDir, "n8nac-config.json"), JSON.stringify(value, null, 2));
 }
 
+function v4Config(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    version: 4,
+    activeEnvironmentId: "prod",
+    environmentTargets: [
+      {
+        id: "prod-target",
+        name: "Production Target",
+        kind: "external-instance",
+        url: "https://prod.example.com",
+      },
+    ],
+    environments: [
+      {
+        id: "prod",
+        name: "Production",
+        environmentTargetId: "prod-target",
+        projectId: "proj_123",
+        projectName: "My Project",
+        workflowsPath: "workflows",
+      },
+    ],
+    ...overrides,
+  };
+}
+
 describe("isWorkspaceInitialized", () => {
   it("returns true when project metadata and sync folder are present", () => {
     const workspaceDir = createWorkspaceDir();
-    writeConfig(workspaceDir, {
-      version: 3,
-      activeInstanceId: "prod",
-      projectId: "proj_123",
-      projectName: "My Project",
-      syncFolder: "workflows",
-    });
+    writeConfig(workspaceDir, v4Config());
 
     expect(isWorkspaceInitialized(workspaceDir)).toBe(true);
     expect(readWorkspaceBinding(workspaceDir)).toMatchObject({
-      activeInstanceId: "prod",
+      activeEnvironmentId: "prod",
+      environmentId: "prod",
+      environmentName: "Production",
       projectId: "proj_123",
       projectName: "My Project",
-      syncFolder: "workflows",
+      workflowsPath: "workflows",
     });
   });
 
@@ -69,8 +91,16 @@ describe("isWorkspaceInitialized", () => {
     });
 
     expect(isWorkspaceInitialized(workspaceDir)).toBe(false);
-    expect(readWorkspaceBinding(workspaceDir)).toMatchObject({
-      activeInstanceId: "prod",
+    expect(readWorkspaceBinding(workspaceDir)).toEqual({});
+  });
+
+  it("does not fall back to the first environment when the active environment is stale", () => {
+    const workspaceDir = createWorkspaceDir();
+    writeConfig(workspaceDir, v4Config({ activeEnvironmentId: "missing" }));
+
+    expect(isWorkspaceInitialized(workspaceDir)).toBe(false);
+    expect(readWorkspaceBinding(workspaceDir)).toEqual({
+      activeEnvironmentId: "missing",
     });
   });
 

@@ -12,6 +12,31 @@ function writeConfig(workspaceDir: string, value: unknown): void {
   fs.writeFileSync(path.join(workspaceDir, "n8nac-config.json"), JSON.stringify(value, null, 2));
 }
 
+function v4Config(): Record<string, unknown> {
+  return {
+    version: 4,
+    activeEnvironmentId: "prod",
+    environmentTargets: [
+      {
+        id: "prod-target",
+        name: "Production Target",
+        kind: "external-instance",
+        url: "https://prod.example.com",
+      },
+    ],
+    environments: [
+      {
+        id: "prod",
+        name: "Production",
+        environmentTargetId: "prod-target",
+        projectId: "proj_123",
+        projectName: "My Project",
+        workflowsPath: "workflows",
+      },
+    ],
+  };
+}
+
 describe("buildPromptContext", () => {
   it("keeps bootstrap guidance for uninitialized workspaces", () => {
     const workspaceDir = createWorkspaceDir();
@@ -25,20 +50,14 @@ describe("buildPromptContext", () => {
   it("keeps initialized context lightweight and does not inline AGENTS.md", () => {
     const workspaceDir = createWorkspaceDir();
     try {
-      writeConfig(workspaceDir, {
-        version: 3,
-        activeInstanceId: "prod",
-        projectId: "proj_123",
-        projectName: "My Project",
-        syncFolder: "workflows",
-      });
+      writeConfig(workspaceDir, v4Config());
       fs.writeFileSync(path.join(workspaceDir, "AGENTS.md"), "# Heavy Context\nDO NOT INLINE ME");
 
       const context = buildPromptContext(workspaceDir);
 
       expect(context).toContain("n8n-architect");
       expect(context).toContain("Context root");
-      expect(context).toContain("n8nac workspace status --json");
+      expect(context).toContain("n8nac env status --json");
       expect(context).toContain("Do NOT infer effective n8n config from this prompt");
       expect(context).toContain("For unrelated requests, ignore this plugin context.");
       expect(context).toContain(path.join(workspaceDir, "AGENTS.md"));
@@ -54,13 +73,7 @@ describe("buildPromptContext", () => {
   it("tells the agent how to recover when AGENTS.md is missing", () => {
     const workspaceDir = createWorkspaceDir();
     try {
-      writeConfig(workspaceDir, {
-        version: 3,
-        activeInstanceId: "prod",
-        projectId: "proj_123",
-        projectName: "My Project",
-        syncFolder: "workflows",
-      });
+      writeConfig(workspaceDir, v4Config());
 
       const context = buildPromptContext(workspaceDir);
 
