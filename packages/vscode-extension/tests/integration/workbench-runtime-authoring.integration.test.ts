@@ -201,6 +201,26 @@ test('workbench runtime exposes native MCP read-only tools for live audits', { t
     });
     (controller as any).createLangChainModel = async () => scriptedModel;
     (controller as any).resolveContextWindow = async () => 200_000;
+    const normalizedTools = (controller as any).normalizeMcpToolsForModel([{
+      name: 'execute_workflow',
+      schema: {
+        type: 'object',
+        properties: {
+          inputs: {
+            type: ['object', 'null'],
+            properties: {
+              formData: {
+                type: ['object', 'null'],
+                additionalProperties: {},
+              },
+            },
+          },
+        },
+      },
+    }]);
+    assert.equal(normalizedTools[0].schema.properties.inputs.type, 'object');
+    assert.equal(normalizedTools[0].schema.properties.inputs.properties.formData.type, 'object');
+    assert.equal(normalizedTools[0].schema.properties.inputs.properties.formData.additionalProperties.type, 'string');
 
     await controller.sendPrompt({
       prompt: 'Audit my current n8n instance before creating a support workflow. Do not modify anything.',

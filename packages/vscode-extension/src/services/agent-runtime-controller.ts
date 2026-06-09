@@ -2208,7 +2208,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                 prefixToolNameWithServerName: servers.length > 1,
                 useStandardContentBlocks: true,
             });
-            const tools = await client.getTools();
+            const tools = this.normalizeMcpToolsForModel(await client.getTools());
             this.outputChannel.appendLine(`[n8n-agent] Loaded ${tools.length} MCP tool(s) from ${servers.length} configured Workbench MCP server(s).`);
             return { tools, client };
         } catch (error: any) {
@@ -2277,6 +2277,68 @@ export class AgentRuntimeController implements vscode.Disposable {
         return value
             .replace(/Bearer\s+[^\s,]+/gi, 'Bearer <redacted>')
             .replace(/(authorization|token|api[_-]?key|secret|password)=([^&\s]+)/gi, '$1=<redacted>');
+    }
+
+    private normalizeMcpToolsForModel(tools: any[]): any[] {
+        return tools.map((tool) => {
+            if (!tool || typeof tool !== 'object') return tool;
+            try {
+                tool.schema = this.normalizeMcpJsonSchemaForModel(tool.schema, true);
+            } catch (error: any) {
+                this.outputChannel.appendLine(`[n8n-agent] Could not normalize MCP tool schema for ${tool.name || 'unknown'}: ${error?.message || String(error)}`);
+            }
+            return tool;
+        });
+    }
+
+    private normalizeMcpJsonSchemaForModel(schema: unknown, root = false): unknown {
+        if (Array.isArray(schema)) {
+            return schema.map((item) => this.normalizeMcpJsonSchemaForModel(item));
+        }
+        if (!schema || typeof schema !== 'object') return schema;
+
+        const normalized: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(schema as Record<string, unknown>)) {
+            if (key === '$schema' || key === 'unevaluatedProperties') continue;
+            normalized[key] = this.normalizeMcpJsonSchemaForModel(value);
+        }
+
+        if (Array.isArray(normalized.type)) {
+            normalized.type = this.chooseModelJsonSchemaType(normalized.type);
+        }
+
+        if (normalized.additionalProperties && typeof normalized.additionalProperties === 'object' && !Array.isArray(normalized.additionalProperties)) {
+            const additional = normalized.additionalProperties as Record<string, unknown>;
+            if (!this.hasModelJsonSchemaType(additional)) {
+                normalized.additionalProperties = { ...additional, type: 'string' };
+            }
+        }
+
+        if (!this.hasModelJsonSchemaType(normalized)) {
+            if (normalized.properties && typeof normalized.properties === 'object') {
+                normalized.type = 'object';
+            } else if (normalized.items) {
+                normalized.type = 'array';
+            } else if (root) {
+                normalized.type = 'object';
+                normalized.properties = normalized.properties || {};
+            }
+        }
+
+        return normalized;
+    }
+
+    private hasModelJsonSchemaType(schema: Record<string, unknown>): boolean {
+        return Boolean(schema.type || schema.anyOf || schema.oneOf || schema.allOf || schema.$ref || schema.enum || schema.const);
+    }
+
+    private chooseModelJsonSchemaType(types: unknown[]): string {
+        const preferred = ['object', 'array', 'string', 'number', 'integer', 'boolean'];
+        for (const type of preferred) {
+            if (types.includes(type)) return type;
+        }
+        const first = types.find((type) => typeof type === 'string' && type !== 'null');
+        return typeof first === 'string' ? first : 'string';
     }
 
     private createInvalidToolCallRecoveryMiddleware(langchain: any, messagesModule: any): unknown {
