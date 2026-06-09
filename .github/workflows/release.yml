@@ -121,13 +121,34 @@ jobs:
           publish_npm() {
             local pkg_name="$1"
             local pkg_dir="$2"
+            local tag="${3:-latest}"
             local version
+            local publish_log
             version=$(node -p "require('./${pkg_dir}/package.json').version")
             if npm view "${pkg_name}@${version}" version >/dev/null 2>&1; then
               echo "ℹ️ ${pkg_name}@${version} already exists on npm, skipping publish."
               return 0
             fi
-            (cd "$pkg_dir" && npm publish --access public --tag latest)
+            publish_log=$(mktemp)
+            if (cd "$pkg_dir" && npm publish --access public --tag "$tag") >"$publish_log" 2>&1; then
+              cat "$publish_log"
+              rm -f "$publish_log"
+              return 0
+            fi
+            cat "$publish_log"
+            if grep -q 'TLOG_CREATE_ENTRY_ERROR' "$publish_log"; then
+              if npm view "${pkg_name}@${version}" version >/dev/null 2>&1; then
+                echo "ℹ️ ${pkg_name}@${version} became visible on npm after a provenance conflict, continuing."
+                rm -f "$publish_log"
+                return 0
+              fi
+              echo "⚠️ npm provenance transparency-log conflict for ${pkg_name}@${version}; retrying publish without provenance."
+              rm -f "$publish_log"
+              (cd "$pkg_dir" && npm publish --access public --tag "$tag" --provenance=false)
+              return 0
+            fi
+            rm -f "$publish_log"
+            return 1
           }
 
           if should_publish '@n8n-as-code/transformer'; then
@@ -633,13 +654,34 @@ jobs:
           publish_npm() {
             local pkg_name="$1"
             local pkg_dir="$2"
+            local tag="${3:-next}"
             local version
+            local publish_log
             version=$(node -p "require('./${pkg_dir}/package.json').version")
             if npm view "${pkg_name}@${version}" version >/dev/null 2>&1; then
               echo "ℹ️ ${pkg_name}@${version} already exists on npm, skipping publish."
               return 0
             fi
-            (cd "$pkg_dir" && npm publish --access public --tag next)
+            publish_log=$(mktemp)
+            if (cd "$pkg_dir" && npm publish --access public --tag "$tag") >"$publish_log" 2>&1; then
+              cat "$publish_log"
+              rm -f "$publish_log"
+              return 0
+            fi
+            cat "$publish_log"
+            if grep -q 'TLOG_CREATE_ENTRY_ERROR' "$publish_log"; then
+              if npm view "${pkg_name}@${version}" version >/dev/null 2>&1; then
+                echo "ℹ️ ${pkg_name}@${version} became visible on npm after a provenance conflict, continuing."
+                rm -f "$publish_log"
+                return 0
+              fi
+              echo "⚠️ npm provenance transparency-log conflict for ${pkg_name}@${version}; retrying publish without provenance."
+              rm -f "$publish_log"
+              (cd "$pkg_dir" && npm publish --access public --tag "$tag" --provenance=false)
+              return 0
+            fi
+            rm -f "$publish_log"
+            return 1
           }
 
           if should_publish '@n8n-as-code/transformer'; then
