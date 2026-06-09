@@ -94,3 +94,5 @@ test-results/
 
 .turbo/
 .tmp/
+
+native_mcp_config.json

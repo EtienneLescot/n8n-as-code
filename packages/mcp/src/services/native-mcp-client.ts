@@ -160,6 +160,7 @@ export class NativeMcpHttpClient {
             const headers: Record<string, string> = {
                 Accept: 'application/json, text/event-stream',
                 'Content-Type': 'application/json',
+                'mcp-protocol-version': this.config.protocolVersion,
                 'User-Agent': 'n8n-as-code',
             };
             if (this.config.token) {
@@ -205,7 +206,11 @@ export class NativeMcpHttpClient {
 
     private async close(sessionId?: string): Promise<void> {
         if (!this.config.endpoint || !sessionId) return;
-        const headers: Record<string, string> = { 'User-Agent': 'n8n-as-code', 'mcp-session-id': sessionId };
+        const headers: Record<string, string> = {
+            'User-Agent': 'n8n-as-code',
+            'mcp-session-id': sessionId,
+            'mcp-protocol-version': this.config.protocolVersion,
+        };
         if (this.config.token) {
             headers.Authorization = `Bearer ${this.config.token}`;
         }
