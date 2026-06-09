@@ -235,6 +235,9 @@ test('workbench runtime exposes native MCP read-only tools for live audits', { t
     }]);
     assert.deepEqual(normalizedSearchTools[0].schema.properties.projectId.type, ['string', 'null']);
     assert.deepEqual((controller as any).stripNullishMcpToolArgs({ limit: 50, query: 'support', projectId: null }), { limit: 50, query: 'support' });
+    const mcpArgs = { limit: 50, query: 'support', projectId: null, nested: { optional: null, value: 'kept' } };
+    (controller as any).stripNullishMcpToolArgsInPlace(mcpArgs);
+    assert.deepEqual(mcpArgs, { limit: 50, query: 'support', nested: { value: 'kept' } });
 
     await controller.sendPrompt({
       prompt: 'Audit my current n8n instance before creating a support workflow. Do not modify anything.',

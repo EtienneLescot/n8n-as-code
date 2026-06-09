@@ -2216,7 +2216,10 @@ export class AgentRuntimeController implements vscode.Disposable {
                 onConnectionError: 'ignore',
                 prefixToolNameWithServerName: servers.length > 1,
                 useStandardContentBlocks: true,
-                beforeToolCall: (toolCall: { args?: unknown }) => ({ args: this.stripNullishMcpToolArgs(toolCall.args) }),
+                beforeToolCall: (toolCall: { args?: unknown }) => {
+                    this.stripNullishMcpToolArgsInPlace(toolCall.args);
+                    return { args: toolCall.args };
+                },
             });
             const tools = this.normalizeMcpToolsForModel(await client.getTools());
             this.outputChannel.appendLine(`[n8n-agent] Loaded ${tools.length} MCP tool(s) from ${servers.length} configured Workbench MCP server(s).`);
@@ -2412,6 +2415,21 @@ export class AgentRuntimeController implements vscode.Disposable {
         return Object.fromEntries(Object.entries(value as Record<string, unknown>)
             .filter(([, entryValue]) => entryValue !== null && entryValue !== undefined)
             .map(([key, entryValue]) => [key, this.stripNullishMcpToolArgs(entryValue)]));
+    }
+
+    private stripNullishMcpToolArgsInPlace(value: unknown): void {
+        if (Array.isArray(value)) {
+            value.forEach((item) => this.stripNullishMcpToolArgsInPlace(item));
+            return;
+        }
+        if (!value || typeof value !== 'object') return;
+        for (const [key, entryValue] of Object.entries(value as Record<string, unknown>)) {
+            if (entryValue === null || entryValue === undefined) {
+                delete (value as Record<string, unknown>)[key];
+            } else {
+                this.stripNullishMcpToolArgsInPlace(entryValue);
+            }
+        }
     }
 
     private hasModelJsonSchemaType(schema: Record<string, unknown>): boolean {
