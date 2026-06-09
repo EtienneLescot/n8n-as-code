@@ -310,6 +310,20 @@ type SessionRuntime = {
 type DeepAgentHandle = {
     agent: any;
     checkpointer: unknown;
+    mcpClient?: { close(): Promise<void> };
+};
+
+type WorkbenchMcpServerConfig = {
+    id: string;
+    name: string;
+    transport: 'http' | 'sse' | 'stdio';
+    url?: string;
+    command?: string;
+    args?: string[];
+    cwd?: string;
+    env?: Record<string, string>;
+    headers?: Record<string, string>;
+    timeoutMs?: number;
 };
 
 type RuntimeCheckpointer = {
@@ -1552,14 +1566,14 @@ export class AgentRuntimeController implements vscode.Disposable {
                 onStreamEvent: emitStreamEvent,
             }),
         ]);
-        void projectionConsumers.then((results) => {
+        const logProjectionResults = (results: PromiseSettledResult<unknown>[]) => {
             this.outputChannel.appendLine(`[n8n-agent-debug] deepagents.v3.projections settled sessionId=${input.sessionId || 'none'} elapsedMs=${Date.now() - runStartedAt}`);
             for (const result of results) {
                 if (result.status === 'rejected' && !signal.aborted) {
                     this.outputChannel.appendLine(`[n8n-agent] DeepAgents v3 projection consumer failed: ${result.reason?.message || String(result.reason)}`);
                 }
             }
-        });
+        };
 
         this.outputChannel.appendLine(`[n8n-agent-debug] deepagents.v3.run.output await-start sessionId=${input.sessionId || 'none'} elapsedMs=${Date.now() - runStartedAt}`);
         const finalOutput = await this.raceAbort(Promise.resolve(run.output), signal);
@@ -1580,6 +1594,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             accumulator.thinkingText = '';
             accumulator.thinkingOperationId = undefined;
         }
+        logProjectionResults(await projectionConsumers);
         await emitFinalEvent(
             this.extractAssistantTextFromAgentOutput(finalOutput) || accumulator.responseText || this.extractAgentText(finalOutput),
             run.interrupted ? 'interrupted' : 'done',
@@ -2133,6 +2148,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         const deepagents = await importRuntimeModule('deepagents');
         const langchain = await importRuntimeModule('langchain');
         const messagesModule = await importRuntimeModule('@langchain/core/messages');
+        const workbenchMcp = await this.createWorkbenchMcpTools(rootDir);
         const memorySources = await this.getAgentMemorySources(rootDir);
         const skillSourcePaths = await this.getAgentSkillSources(rootDir);
         const key = JSON.stringify({
@@ -2143,8 +2159,10 @@ export class AgentRuntimeController implements vscode.Disposable {
             reasoningEffort: providerConfig.reasoningEffort || '',
             memorySources,
             skillSourcePaths,
+            mcpTools: workbenchMcp.tools.map((tool: any) => tool.name),
         });
         if (this.cachedAgentHandle?.key === key) {
+            if (workbenchMcp.client) await workbenchMcp.client.close().catch(() => undefined);
             return this.cachedAgentHandle.handle;
         }
 
@@ -2158,6 +2176,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         });
         const agent = deepagents.createDeepAgent({
             model,
+            tools: workbenchMcp.tools,
             checkpointer,
             backend,
             memory: memorySources,
@@ -2169,9 +2188,95 @@ export class AgentRuntimeController implements vscode.Disposable {
             ].filter(Boolean),
             systemPrompt: this.buildStaticSystemPrompt(input.workspaceRoot),
         });
-        const handle = { agent, checkpointer };
+        await this.cachedAgentHandle?.handle?.mcpClient?.close?.().catch(() => undefined);
+        const handle = { agent, checkpointer, mcpClient: workbenchMcp.client };
         this.cachedAgentHandle = { key, handle };
         return handle;
+    }
+
+    private async createWorkbenchMcpTools(rootDir: string): Promise<{ tools: any[]; client?: { close(): Promise<void> } }> {
+        const servers = await this.resolveWorkbenchMcpServers(rootDir);
+        if (!servers.length) return { tools: [] };
+
+        try {
+            const { MultiServerMCPClient } = await importRuntimeModule('@langchain/mcp-adapters');
+            const mcpServers = Object.fromEntries(servers.map((server) => [server.id, this.toLangChainMcpConnection(server)]));
+            const client = new MultiServerMCPClient({
+                mcpServers,
+                throwOnLoadError: false,
+                onConnectionError: 'ignore',
+                prefixToolNameWithServerName: servers.length > 1,
+                useStandardContentBlocks: true,
+            });
+            const tools = await client.getTools();
+            this.outputChannel.appendLine(`[n8n-agent] Loaded ${tools.length} MCP tool(s) from ${servers.length} configured Workbench MCP server(s).`);
+            return { tools, client };
+        } catch (error: any) {
+            this.outputChannel.appendLine(`[n8n-agent] Workbench MCP tools unavailable: ${this.redactMcpDiagnostic(error?.message || String(error))}`);
+            return { tools: [] };
+        }
+    }
+
+    private async resolveWorkbenchMcpServers(rootDir: string): Promise<WorkbenchMcpServerConfig[]> {
+        const native = await this.resolveNativeN8nMcpServer(rootDir);
+        return native ? [native] : [];
+    }
+
+    private async resolveNativeN8nMcpServer(rootDir: string): Promise<WorkbenchMcpServerConfig | undefined> {
+        let configService: any;
+        let environment: any;
+        try {
+            const n8nac = await importRuntimeModule('n8nac');
+            configService = new n8nac.ConfigService(rootDir);
+            environment = configService.resolveEnvironment?.() || configService.getEnvironment?.();
+        } catch (error: any) {
+            this.outputChannel.appendLine(`[n8n-agent] Native n8n MCP server config unavailable: ${error?.message || String(error)}`);
+            return undefined;
+        }
+
+        const nativeMcp = environment?.nativeMcp;
+        if (!nativeMcp?.enabled || !nativeMcp?.url) return undefined;
+        const token = typeof configService.getNativeMcpToken === 'function' ? configService.getNativeMcpToken(environment.id) : undefined;
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+        return {
+            id: `native-n8n-${this.toMcpServerId(environment.id || environment.name || 'environment')}`,
+            name: `Native n8n MCP - ${environment.name || environment.id || 'environment'}`,
+            transport: 'http',
+            url: nativeMcp.url,
+            headers,
+            timeoutMs: nativeMcp.timeoutMs,
+        };
+    }
+
+    private toLangChainMcpConnection(server: WorkbenchMcpServerConfig): Record<string, unknown> {
+        if (server.transport === 'stdio') {
+            return {
+                transport: 'stdio',
+                command: server.command,
+                args: server.args || [],
+                cwd: server.cwd,
+                env: server.env,
+                defaultToolTimeout: server.timeoutMs,
+            };
+        }
+
+        return {
+            transport: server.transport,
+            url: server.url,
+            headers: server.headers,
+            automaticSSEFallback: true,
+            defaultToolTimeout: server.timeoutMs,
+        };
+    }
+
+    private toMcpServerId(value: string): string {
+        return value.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'server';
+    }
+
+    private redactMcpDiagnostic(value: string): string {
+        return value
+            .replace(/Bearer\s+[^\s,]+/gi, 'Bearer <redacted>')
+            .replace(/(authorization|token|api[_-]?key|secret|password)=([^&\s]+)/gi, '$1=<redacted>');
     }
 
     private createInvalidToolCallRecoveryMiddleware(langchain: any, messagesModule: any): unknown {
@@ -2493,6 +2598,8 @@ export class AgentRuntimeController implements vscode.Disposable {
             'Assistant phases are part of the runtime contract: non-terminal phases such as commentary or analysis are interim only. A run may end without tool calls only when the assistant response is in a terminal final phase and the work is complete or genuinely blocked.',
             'When creating or editing n8n-as-code workflows, write TypeScript source files (.ts) using @workflow, @node, and @links decorators. Do not create raw n8n workflow JSON unless the user explicitly asks for JSON export.',
             'Do not invent workflow helper APIs such as createWorkflow. The canonical TypeScript shape is: import { workflow, node, links } from "@n8n-as-code/transformer"; then @workflow({...}) export class MyWorkflow { @node({...}) ManualTrigger = {}; @links() defineRouting() {} }.',
+            'If native n8n MCP tools are available, use their read-only tools for audits of the current/live n8n instance: existing remote workflows, connected-version node definitions, credential metadata without secrets, projects, folders, executions, drift, and duplicate discovery. For those live-audit facts, prefer native MCP read-only tools over local list/fetch/verify/skills commands.',
+            'Keep authoring and durable changes local-first: use .workflow.ts files and n8n-as-code validation/sync tools for creation, editing, push, pull, activation, and tests unless the user explicitly requests a remote operation.',
             'Do not claim to push workflows, provision credentials, or change n8n runtime state unless a tool explicitly performs that action successfully.',
             'When using the execute tool, pass exactly one argument object with a command string: {"command":"..."}. Never pass a separate path field, and never concatenate multiple JSON objects.',
             'Do not end a run with plain progress text while work remains. If todos are pending or in progress, continue with the next tool call such as read_file, execute, write_file, or write_todos. Only final answers may end without tool calls.',

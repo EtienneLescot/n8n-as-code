@@ -76,14 +76,15 @@ function expectNativeMcpRoutingPolicy(content: string, cliCmd: string, skillsCmd
     expect(content).toContain(`Use \`${skillsCmd}\` as the bundled offline knowledge default.`);
     expect(content).toContain(`Native MCP assist is configured per n8n-as-code environment. When creating or updating an environment, offer to configure it with \`${cliCmd} native-mcp configure <environment> --token-stdin\`; do not ask the user to manually configure a separate MCP server for Claude Code or the VS Code Workbench.`);
     expect(content).toContain(`Check native availability with \`${cliCmd} native-mcp status --include-tools --json\` before relying on native tools.`);
+    expect(content).toContain('For user requests about the current/live n8n instance, existing remote workflows, available nodes in this instance, credential metadata, projects, folders, executions, drift, or duplicate discovery, prefer native MCP read-only tools after the status check.');
     expect(content).toContain('Do not treat the presence of any MCP server as permission to call native n8n MCP tools.');
     expect(content).toContain('Native n8n MCP is used if and only if the generated execution or investigation strategy needs live n8n capabilities that local N8NAC cannot provide as well.');
 
     const useCases = [
         'Workflow authoring, editing, pull, push, sync, credentials, and durable workflow changes: use local',
         'Offline node knowledge, examples, documentation, and schema-first authoring: use local',
-        'Live workflow discovery, drift investigation, projects, folders, credentials metadata, and execution inspection: use native MCP assist only when it is configured and live n8n state is required.',
-        'Connected-version node definitions or server-side validation: use native MCP assist only when bundled knowledge may be stale or the user needs validation against the connected n8n version.',
+        'Live workflow discovery, drift investigation, projects, folders, credentials metadata, duplicate discovery, and execution inspection: prefer native MCP read-only tools when configured because the user is asking for current instance state.',
+        'Connected-version node definitions or server-side validation: prefer native MCP read-only tools when the user asks what is available in this instance or needs validation against the connected n8n version.',
         `Runtime execution: prefer \`${cliCmd} test\` for real webhook, chat, or form trigger contracts; prefer native runtime execution only for explicit workflow-ID execution, non-webhook testing, native pin-data preparation, or direct execution diagnostics.`,
         'Direct native workflow creation, update, publish, unpublish, archive, or destructive operations: do not use them as an automatic path; require an explicit direct-native request and sync-back plan.',
     ];

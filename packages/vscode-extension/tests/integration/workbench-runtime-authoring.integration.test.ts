@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
@@ -10,6 +12,9 @@ import { AIMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import type { ChatResult } from '@langchain/core/outputs';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { AgentRuntimeController, getAgentProviderSecretKey, type AgentWorkbenchMessage } from '../../src/services/agent-runtime-controller.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -134,6 +139,7 @@ test('workbench runtime authoring continues past non-final progress text', { tim
     const toolLabels = operationEvents.map((event) => `${event.label}:${event.status}`);
     const toolEvents = operationEvents.map((event) => `${event.operationId.split(':')[0]}:${event.status}:${event.category}`);
     const finalIndex = streamEvents.findIndex((event) => event.type === 'final');
+    const lastOperationIndex = Math.max(-1, ...streamEvents.map((event, index) => event.type === 'operation' ? index : -1));
     const writeDoneIndex = streamEvents.findIndex((event) => event.type === 'operation' && event.label === 'Write File' && event.status === 'done');
     const diagnostics = () => JSON.stringify({
       result,
@@ -154,6 +160,7 @@ test('workbench runtime authoring continues past non-final progress text', { tim
     assert.ok(toolLabels.includes('Execute:done'), diagnostics());
     assert.ok(writeDoneIndex >= 0, diagnostics());
     assert.ok(finalIndex > writeDoneIndex, diagnostics());
+    assert.ok(finalIndex > lastOperationIndex, diagnostics());
     assert.ok(fs.existsSync(workflowPath), diagnostics());
     assert.equal(result.workflowChanged, true, diagnostics());
     assert.match(workflowContent, /<workflow-map>/, diagnostics());
@@ -164,6 +171,51 @@ test('workbench runtime authoring continues past non-final progress text', { tim
     assert.match(workflowContent, /structured parser|parser structuré|Structured Output Parser/i, diagnostics());
     assert.ok(scriptedModel.callLog.some((entry) => entry.includes('N8N_NON_FINAL_ASSISTANT_PHASE_RECOVERY')), diagnostics());
   } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('workbench runtime exposes native MCP read-only tools for live audits', { timeout: 120_000 }, async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-workbench-native-mcp-tools-'));
+  const storageDir = path.join(tempDir, '.storage');
+  const workspaceRoot = path.join(tempDir, 'workspace');
+  const postedMessages: AgentWorkbenchMessage[] = [];
+  const mcpServer = await startWorkbenchMcpFixtureServer();
+  const scriptedModel = new ScriptedWorkbenchModel([new AIMessage({
+    content: 'Audit ready.',
+    additional_kwargs: { phase: 'final' },
+    response_metadata: { phase: 'final' },
+  })]);
+
+  try {
+    createWorkbenchWorkspace(workspaceRoot);
+    enableNativeMcpForWorkbenchWorkspace(workspaceRoot, mcpServer.url);
+    const controller = new AgentRuntimeController(createExtensionContext(storageDir), {
+      appendLine: () => undefined,
+    } as any);
+    (controller as any).getProviderRuntimeConfig = async () => ({
+      ready: true,
+      provider: 'openai-compatible',
+      model: 'scripted-workbench',
+      temperature: 0,
+    });
+    (controller as any).createLangChainModel = async () => scriptedModel;
+    (controller as any).resolveContextWindow = async () => 200_000;
+
+    await controller.sendPrompt({
+      prompt: 'Audit my current n8n instance before creating a support workflow. Do not modify anything.',
+      workspaceRoot,
+    }, async (message) => {
+      postedMessages.push(message);
+      return true;
+    });
+
+    const diagnostics = () => JSON.stringify({ boundTools: scriptedModel.boundTools, postedMessages }, null, 2);
+    assert.ok(scriptedModel.boundTools.includes('fixture_live_inventory'), diagnostics());
+    assert.ok(scriptedModel.boundTools.includes('fixture_native_node_lookup'), diagnostics());
+    assert.equal(scriptedModel.boundTools.includes('get_n8n_native_mcp_status'), false, diagnostics());
+  } finally {
+    await mcpServer.close();
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
@@ -509,6 +561,7 @@ export class RechercheAnnoncesLeboncoinWorkflow {
   @links()
   defineRouting() {}
 }
+
 `);
   fs.writeFileSync(path.join(rootDir, 'workflows', 'dev', 'moteur-recherche-annonces-multi-plateformes.workflow.ts'), createMultiPlatformSearchWorkflowSource());
   fs.writeFileSync(path.join(rootDir, 'n8nac-config.json'), JSON.stringify({
@@ -530,6 +583,96 @@ export class RechercheAnnoncesLeboncoinWorkflow {
       workflowsPath: 'workflows/dev',
     }],
   }, null, 2));
+}
+
+function enableNativeMcpForWorkbenchWorkspace(rootDir: string, url: string): void {
+  const configPath = path.join(rootDir, 'n8nac-config.json');
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  config.environments[0].nativeMcp = {
+    enabled: true,
+    mode: 'assist',
+    url,
+    timeoutMs: 30000,
+    allowExecutionData: false,
+    allowRemoteExposure: false,
+  };
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+}
+
+async function startWorkbenchMcpFixtureServer(): Promise<{ url: string; close(): Promise<void> }> {
+  const transports = new Map<string, StreamableHTTPServerTransport>();
+  const httpServer = http.createServer(async (req, res) => {
+    try {
+      const body = req.method === 'POST' ? await readJsonBody(req) : undefined;
+      const sessionId = req.headers['mcp-session-id'] as string | undefined;
+
+      if (req.method === 'POST') {
+        let transport: StreamableHTTPServerTransport;
+        if (sessionId && transports.has(sessionId)) {
+          transport = transports.get(sessionId)!;
+        } else if (!sessionId && isInitializeRequest(body)) {
+          transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => randomUUID(),
+            onsessioninitialized: (sid) => transports.set(sid, transport),
+          });
+          transport.onclose = () => {
+            const sid = transport.sessionId;
+            if (sid) transports.delete(sid);
+          };
+          await createWorkbenchMcpFixture().connect(transport);
+        } else {
+          res.writeHead(sessionId ? 404 : 400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32000, message: sessionId ? 'Session not found' : 'Bad Request: missing session ID' }, id: null }));
+          return;
+        }
+        await transport.handleRequest(req, res, body);
+        return;
+      }
+
+      if (req.method === 'GET' || req.method === 'DELETE') {
+        if (!sessionId || !transports.has(sessionId)) {
+          res.writeHead(sessionId ? 404 : 400).end(sessionId ? 'Session not found' : 'Missing session ID');
+          return;
+        }
+        await transports.get(sessionId)!.handleRequest(req, res);
+        return;
+      }
+
+      res.writeHead(405).end('Method Not Allowed');
+    } catch (error: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: error?.message || String(error) }));
+    }
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    httpServer.listen(0, '127.0.0.1', resolve);
+    httpServer.once('error', reject);
+  });
+  const address = httpServer.address();
+  assert.ok(address && typeof address === 'object');
+  return {
+    url: `http://127.0.0.1:${address.port}/mcp`,
+    close: async () => {
+      await Promise.all([...transports.values()].map((transport) => transport.close().catch(() => undefined)));
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    },
+  };
+}
+
+function createWorkbenchMcpFixture(): McpServer {
+  const server = new McpServer({ name: 'workbench-fixture', version: '1.0.0' });
+  const s = server as unknown as {
+    tool(name: string, description: string, schema: object, handler: (args: any) => any): void;
+  };
+  s.tool('fixture_live_inventory', 'Fixture tool discovered dynamically from an MCP server.', {}, async () => ({ content: [{ type: 'text', text: 'live inventory ok' }] }));
+  s.tool('fixture_native_node_lookup', 'Fixture node lookup tool discovered dynamically from an MCP server.', {}, async () => ({ content: [{ type: 'text', text: 'node lookup ok' }] }));
+  return server;
+}
+
+async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  const raw = Buffer.concat(chunks).toString('utf8');
+  return raw ? JSON.parse(raw) : undefined;
 }
 
 function createMultiPlatformSearchWorkflowSource(): string {

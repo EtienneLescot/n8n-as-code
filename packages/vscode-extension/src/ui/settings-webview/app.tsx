@@ -296,8 +296,15 @@ function EnvironmentFormModal({ environmentId }: { environmentId?: string }) {
       <p className="muted">Live assist for workflows, executions, credential metadata, native node definitions, and server-side validation. N8NAC remains the authoring and sync source of truth.</p>
       {draft.nativeMcpEnabled ? <>
         <div className="form-grid"><label>MCP endpoint<input value={draft.nativeMcpUrl} onChange={(event) => patch({ nativeMcpUrl: event.target.value })} placeholder="Defaults to the environment URL + /mcp-server/http" /></label><label>Token<input type="password" value={draft.nativeMcpToken} onChange={(event) => patch({ nativeMcpToken: event.target.value })} placeholder={draft.nativeMcpTokenAvailable ? 'Stored token will be reused' : 'Native MCP bearer token'} /></label></div>
-        <div className="form-grid"><label>Timeout ms<input value={draft.nativeMcpTimeoutMs} onChange={(event) => patch({ nativeMcpTimeoutMs: event.target.value })} placeholder="30000" /></label><label className="row"><input type="checkbox" checked={draft.nativeMcpAllowExecutionData} onChange={(event) => patch({ nativeMcpAllowExecutionData: event.target.checked })} /> Allow execution payload data</label></div>
-        <label className="row"><input type="checkbox" checked={draft.nativeMcpAllowRemote} onChange={(event) => patch({ nativeMcpAllowRemote: event.target.checked })} /> Allow non-loopback broker exposure</label>
+        <label>Timeout ms<input value={draft.nativeMcpTimeoutMs} onChange={(event) => patch({ nativeMcpTimeoutMs: event.target.value })} placeholder="30000" /></label>
+        <details className="stack">
+          <summary>Advanced security options</summary>
+          <p className="muted">Keep these disabled for normal VS Code usage. They are not required for n8n Cloud instances.</p>
+          <label className="row"><input type="checkbox" checked={draft.nativeMcpAllowExecutionData} onChange={(event) => patch({ nativeMcpAllowExecutionData: event.target.checked })} /> Allow reading execution input/output data</label>
+          <p className="muted">Lets the agent inspect full execution payloads when troubleshooting executions. Payloads may contain customer data, API responses, or other sensitive values.</p>
+          <label className="row"><input type="checkbox" checked={draft.nativeMcpAllowRemote} onChange={(event) => patch({ nativeMcpAllowRemote: event.target.checked })} /> Allow remote access to the local MCP bridge</label>
+          <p className="muted">Only needed if the n8n-as-code MCP bridge is deliberately exposed on a network interface instead of localhost. This does not need to be enabled just because your n8n instance is hosted in n8n Cloud.</p>
+        </details>
         <div className="toolbar"><button className="secondary" type="button" disabled={draft.nativeMcpTestPending || (!draft.nativeMcpToken && !draft.nativeMcpTokenAvailable)} onClick={testNativeMcp}>{draft.nativeMcpTestPending ? 'Testing...' : 'Test connection'}</button>{draft.nativeMcpTestResult ? <span className={`inline-message ${draft.nativeMcpTestResult.ok ? '' : 'error'}`}>{draft.nativeMcpTestResult.message}</span> : null}</div>
       </> : null}
     </section> : null}

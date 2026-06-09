@@ -214,6 +214,7 @@ Use this routing policy:
 - Native MCP assist is configured per n8n-as-code environment. When creating or updating an environment, offer to configure it with `{{N8NAC_CMD}} native-mcp configure <environment> --token-stdin`; do not ask the user to manually configure a separate MCP server for Claude Code or the VS Code Workbench.
 - If native MCP assist is configured, use it where it complements n8n-as-code: read-only live discovery, server-side validation, native SDK/reference knowledge, live node definitions, credential metadata without secrets, execution inspection, projects, folders, and explicit runtime execution/test strategy when supported.
 - Check native availability with `{{N8NAC_CMD}} native-mcp status --include-tools --json` before relying on native tools.
+- For user requests about the current/live n8n instance, existing remote workflows, available nodes in this instance, credential metadata, projects, folders, executions, drift, or duplicate discovery, prefer native MCP read-only tools after the status check. Do not fall back to local `{{N8NAC_CMD}} list`, `fetch`, `verify`, or bundled `skills` as the primary source for those live-audit facts when native MCP read-only tools are available.
 - Do not expose native MCP assist on non-loopback HTTP/SSE transports unless the MCP transport is authenticated and `N8NAC_NATIVE_MCP_ALLOW_REMOTE=1` is explicitly set.
 - Do not request full live execution payloads with `includeData=true` unless the user explicitly needs payload data and `N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA=1` is set.
 - Prefer `{{N8NAC_CMD}} test` when the execution strategy is to exercise the real webhook, chat, or form trigger contract.
@@ -228,8 +229,8 @@ Use-case routing examples:
 
 - Workflow authoring, editing, pull, push, sync, credentials, and durable workflow changes: use local `{{N8NAC_CMD}}` commands and `.workflow.ts` files.
 - Offline node knowledge, examples, documentation, and schema-first authoring: use local `{{N8NAC_SKILLS_CMD}}` commands first.
-- Live workflow discovery, drift investigation, projects, folders, credentials metadata, and execution inspection: use native MCP assist only when it is configured and live n8n state is required.
-- Connected-version node definitions or server-side validation: use native MCP assist only when bundled knowledge may be stale or the user needs validation against the connected n8n version.
+- Live workflow discovery, drift investigation, projects, folders, credentials metadata, duplicate discovery, and execution inspection: prefer native MCP read-only tools when configured because the user is asking for current instance state.
+- Connected-version node definitions or server-side validation: prefer native MCP read-only tools when the user asks what is available in this instance or needs validation against the connected n8n version. Use bundled knowledge for offline authoring when live instance state is not needed.
 - Runtime execution: prefer `{{N8NAC_CMD}} test` for real webhook, chat, or form trigger contracts; prefer native runtime execution only for explicit workflow-ID execution, non-webhook testing, native pin-data preparation, or direct execution diagnostics.
 - Direct native workflow creation, update, publish, unpublish, archive, or destructive operations: do not use them as an automatic path; require an explicit direct-native request and sync-back plan.
 

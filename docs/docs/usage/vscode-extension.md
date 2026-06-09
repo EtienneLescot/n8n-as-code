@@ -38,6 +38,8 @@ An environment is workspace context. A local managed instance is a local machine
 
 Native n8n MCP Assist is optional. It lets the Agent Workbench use live n8n state when it is better than local N8NAC knowledge, for example live workflow discovery, execution troubleshooting, credential metadata, native node definitions, and server-side validation.
 
+The Workbench acts as a generic MCP client. The native n8n MCP environment setting is a convenience shortcut that preconfigures the native n8n MCP server for the active environment; the Workbench discovers that server's tools dynamically through MCP instead of using a hardcoded n8n tool list.
+
 Configure it in **n8n: Configure** while creating or editing an environment:
 
 1. Enable **Native n8n MCP Assist**.
@@ -45,6 +47,8 @@ Configure it in **n8n: Configure** while creating or editing an environment:
 3. Enter the native MCP bearer token.
 4. Use **Test connection** to verify the endpoint and token.
 5. Save the environment.
+
+The native MCP form also includes **Advanced security options**. Leave them disabled for normal VS Code usage and for n8n Cloud instances. **Allow reading execution input/output data** lets the Agent inspect full execution payloads, which may contain sensitive data. **Allow remote access to the local MCP bridge** is only for deliberate non-localhost bridge deployments; it is not required when the n8n instance itself is remote or hosted on n8n Cloud.
 
 The extension stores only non-secret settings in `n8nac-config.json`. The native MCP token is stored locally with the environment credentials. The Agent Workbench does not require manual `.vscode/mcp.json` configuration for this feature.
 
