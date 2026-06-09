@@ -2978,11 +2978,11 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             const finalText = stripEnvironmentDetails(response);
             let chosenText = finalText;
             const assistantTexts = [];
-            let firstAssistantIdx = -1;
+            let assistantEntryId;
             for (let idx = userIdx + 1; idx < entries.length; idx += 1) {
                 const entry = entries[idx];
                 if (entry && entry.kind === 'assistant-body' && stripEnvironmentDetails(entry.text)) {
-                    if (firstAssistantIdx < 0) firstAssistantIdx = idx;
+                    if (!assistantEntryId) assistantEntryId = entry.id;
                     assistantTexts.push(stripEnvironmentDetails(entry.text));
                 }
             }
@@ -2992,20 +2992,15 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 }
             }
             const result = [];
-            let inserted = false;
             for (let idx = 0; idx < entries.length; idx += 1) {
                 const entry = entries[idx];
                 if (idx > userIdx && entry.kind === 'assistant-body') {
-                    if (!inserted && chosenText && idx === firstAssistantIdx) {
-                        result.push({ kind: 'assistant-body', id: entry.id || crypto.randomUUID(), text: chosenText, streaming: false, finalState: finalState });
-                        inserted = true;
-                    }
                     continue;
                 }
                 result.push(entry);
             }
-            if (!inserted && chosenText) {
-                result.push({ kind: 'assistant-body', id: crypto.randomUUID(), text: chosenText, streaming: false, finalState: finalState });
+            if (chosenText) {
+                result.push({ kind: 'assistant-body', id: assistantEntryId || crypto.randomUUID(), text: chosenText, streaming: false, finalState: finalState });
             }
             return result;
         }
@@ -3014,7 +3009,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             const userIdx = lastUserMessageIndex(entries);
             for (let idx = entries.length - 1; idx > userIdx; idx -= 1) {
                 const candidate = entries[idx];
-                if (candidate && candidate.kind === 'assistant-body' && !candidate.streaming) {
+                if (candidate && candidate.kind === 'assistant-body') {
                     entries.splice(idx, 0, entry);
                     return;
                 }

@@ -3884,7 +3884,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         const userIndex = this.findLastUserMessageIndex(entries);
         for (let idx = entries.length - 1; idx > userIndex; idx -= 1) {
             const candidate = entries[idx];
-            if (candidate.kind === 'assistant-body' && !candidate.streaming) {
+            if (candidate.kind === 'assistant-body') {
                 entries.splice(idx, 0, entry);
                 return;
             }
@@ -3908,14 +3908,14 @@ export class AgentRuntimeController implements vscode.Disposable {
         const userIndex = this.findLastUserMessageIndex(entries);
         const finalText = this.sanitizeAssistantText(response);
         let chosenText = finalText;
-        let firstAssistantIndex = -1;
+        let assistantEntryId: string | undefined;
 
         for (let idx = userIndex + 1; idx < entries.length; idx += 1) {
             const entry = entries[idx];
             if (entry.kind !== 'assistant-body') continue;
             const text = this.sanitizeAssistantText(entry.text);
-            if (text && firstAssistantIndex < 0) {
-                firstAssistantIndex = idx;
+            if (text && !assistantEntryId) {
+                assistantEntryId = entry.id;
             }
             if (text && finalText.includes(text) && text.length >= Math.max(80, finalText.length * 0.6)) {
                 chosenText = text;
@@ -3923,20 +3923,15 @@ export class AgentRuntimeController implements vscode.Disposable {
         }
 
         const result: AgentTimelineEntry[] = [];
-        let inserted = false;
         for (let idx = 0; idx < entries.length; idx += 1) {
             const entry = entries[idx];
             if (idx > userIndex && entry.kind === 'assistant-body') {
-                if (!inserted && chosenText && idx === firstAssistantIndex) {
-                    result.push({ kind: 'assistant-body', id: entry.id || randomUUID(), text: chosenText, streaming: false, finalState });
-                    inserted = true;
-                }
                 continue;
             }
             result.push(entry);
         }
-        if (!inserted && chosenText) {
-            result.push({ kind: 'assistant-body', id: randomUUID(), text: chosenText, streaming: false, finalState });
+        if (chosenText) {
+            result.push({ kind: 'assistant-body', id: assistantEntryId || randomUUID(), text: chosenText, streaming: false, finalState });
         }
         return result;
     }

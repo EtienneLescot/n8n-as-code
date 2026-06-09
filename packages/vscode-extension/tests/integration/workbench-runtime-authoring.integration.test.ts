@@ -313,6 +313,48 @@ test('workbench runtime keeps late operation events before the final assistant r
   }
 });
 
+test('workbench runtime moves streamed assistant text after later operations on final', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-workbench-streamed-final-order-'));
+  try {
+    const controller = new AgentRuntimeController(createExtensionContext(path.join(tempDir, '.storage')), {
+      appendLine: () => undefined,
+    } as any);
+    let entries: any[] = [
+      { kind: 'user-message', id: 'user-1', text: 'Audit my instance', timestamp: Date.now() },
+    ];
+    entries = (controller as any).applyStreamEvent(entries, {
+      type: 'text-delta',
+      sessionId: 'session-1',
+      delta: 'Final audit response',
+    });
+    entries = (controller as any).applyStreamEvent(entries, {
+      type: 'operation',
+      operationId: 'todo:late',
+      label: 'Write Todos',
+      category: 'todo',
+      status: 'done',
+      summary: 'updated todos',
+      startedAt: Date.now(),
+      endedAt: Date.now(),
+    });
+    entries = (controller as any).applyStreamEvent(entries, {
+      type: 'final',
+      sessionId: 'session-1',
+      response: 'Final audit response',
+      finalState: 'done',
+    });
+
+    const operationIndex = entries.findIndex((entry) => entry.kind === 'operation' && entry.title === 'Write Todos');
+    const finalIndex = entries.findIndex((entry) => entry.kind === 'assistant-body' && entry.text === 'Final audit response');
+    assert.ok(operationIndex >= 0, JSON.stringify(entries, null, 2));
+    assert.ok(finalIndex >= 0, JSON.stringify(entries, null, 2));
+    assert.ok(operationIndex < finalIndex, JSON.stringify(entries, null, 2));
+    assert.equal(entries.filter((entry) => entry.kind === 'assistant-body').length, 1, JSON.stringify(entries, null, 2));
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test('workbench runtime live provider generates a validated workflow', {
   skip: process.env.N8N_AGENT_WORKBENCH_LIVE_PROMPT !== '1',
   timeout: 600_000,
