@@ -277,6 +277,42 @@ test('workbench runtime formats aggregated DeepAgents errors with nested details
   }
 });
 
+test('workbench runtime keeps late operation events before the final assistant response', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-workbench-late-op-order-'));
+  try {
+    const controller = new AgentRuntimeController(createExtensionContext(path.join(tempDir, '.storage')), {
+      appendLine: () => undefined,
+    } as any);
+    let entries: any[] = [
+      { kind: 'user-message', id: 'user-1', text: 'Audit my instance', timestamp: Date.now() },
+    ];
+    entries = (controller as any).applyStreamEvent(entries, {
+      type: 'final',
+      sessionId: 'session-1',
+      response: 'Final audit response',
+      finalState: 'done',
+    });
+    entries = (controller as any).applyStreamEvent(entries, {
+      type: 'operation',
+      operationId: 'tool:late',
+      label: 'Search Workflows',
+      category: 'tool',
+      status: 'done',
+      summary: 'late MCP result',
+      startedAt: Date.now(),
+      endedAt: Date.now(),
+    });
+
+    const operationIndex = entries.findIndex((entry) => entry.kind === 'operation' && entry.title === 'Search Workflows');
+    const finalIndex = entries.findIndex((entry) => entry.kind === 'assistant-body' && entry.text === 'Final audit response');
+    assert.ok(operationIndex >= 0, JSON.stringify(entries, null, 2));
+    assert.ok(finalIndex >= 0, JSON.stringify(entries, null, 2));
+    assert.ok(operationIndex < finalIndex, JSON.stringify(entries, null, 2));
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test('workbench runtime live provider generates a validated workflow', {
   skip: process.env.N8N_AGENT_WORKBENCH_LIVE_PROMPT !== '1',
   timeout: 600_000,

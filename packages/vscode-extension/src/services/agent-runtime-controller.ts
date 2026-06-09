@@ -3817,7 +3817,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                 next[existingIndex] = operationEntry;
                 return next;
             }
-            next.push(operationEntry);
+            this.insertBeforeFinalAssistant(next, operationEntry);
             return next;
         }
         if (event.type === 'progress') {
@@ -3836,10 +3836,8 @@ export class AgentRuntimeController implements vscode.Disposable {
                 next[existingIndex] = progressEntry;
                 return next;
             }
-            return [
-                ...next,
-                progressEntry,
-            ];
+            this.insertBeforeFinalAssistant(next, progressEntry);
+            return next;
         }
         if (event.type === 'compaction') {
             return [
@@ -3880,6 +3878,18 @@ export class AgentRuntimeController implements vscode.Disposable {
             return [...this.finalizePendingOperations(entries, 'error'), this.createSystemNotice(`Error: ${event.error}`)];
         }
         return entries;
+    }
+
+    private insertBeforeFinalAssistant(entries: AgentTimelineEntry[], entry: AgentTimelineEntry): void {
+        const userIndex = this.findLastUserMessageIndex(entries);
+        for (let idx = entries.length - 1; idx > userIndex; idx -= 1) {
+            const candidate = entries[idx];
+            if (candidate.kind === 'assistant-body' && !candidate.streaming) {
+                entries.splice(idx, 0, entry);
+                return;
+            }
+        }
+        entries.push(entry);
     }
 
     private finalizePendingOperations(entries: AgentTimelineEntry[], status: 'done' | 'error'): AgentTimelineEntry[] {

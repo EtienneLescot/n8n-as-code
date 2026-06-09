@@ -3010,6 +3010,18 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
             return result;
         }
 
+        function insertBeforeFinalAssistant(entries, entry) {
+            const userIdx = lastUserMessageIndex(entries);
+            for (let idx = entries.length - 1; idx > userIdx; idx -= 1) {
+                const candidate = entries[idx];
+                if (candidate && candidate.kind === 'assistant-body' && !candidate.streaming) {
+                    entries.splice(idx, 0, entry);
+                    return;
+                }
+            }
+            entries.push(entry);
+        }
+
         function applyStreamEvent(event) {
             if (!state || !state.session) return;
             let entries = Array.isArray(state.session.entries) ? [...state.session.entries] : [];
@@ -3061,7 +3073,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                     endedAt: event.endedAt,
                 };
                 if (idx >= 0) entries[idx] = opEntry;
-                else entries.push(opEntry);
+                else insertBeforeFinalAssistant(entries, opEntry);
             } else if (event.type === 'progress') {
                 const idx = findMatchingPendingOperationIndex(entries, '', event.title, event.phase || 'phase');
                 const progressEntry = {
@@ -3074,7 +3086,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                     status: event.tone === 'error' ? 'error' : 'running',
                 };
                 if (idx >= 0) entries[idx] = progressEntry;
-                else entries.push(progressEntry);
+                else insertBeforeFinalAssistant(entries, progressEntry);
             } else if (event.type === 'compaction') {
                 const compactionEntry = { kind: 'compaction', id: crypto.randomUUID(), timestamp: Date.now(), event: event };
                 entries.push(compactionEntry);
