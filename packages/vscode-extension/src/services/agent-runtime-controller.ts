@@ -2216,6 +2216,7 @@ export class AgentRuntimeController implements vscode.Disposable {
                 onConnectionError: 'ignore',
                 prefixToolNameWithServerName: servers.length > 1,
                 useStandardContentBlocks: true,
+                beforeToolCall: (toolCall: { args?: unknown }) => ({ args: this.stripNullishMcpToolArgs(toolCall.args) }),
             });
             const tools = this.normalizeMcpToolsForModel(await client.getTools());
             this.outputChannel.appendLine(`[n8n-agent] Loaded ${tools.length} MCP tool(s) from ${servers.length} configured Workbench MCP server(s).`);
@@ -2366,7 +2367,51 @@ export class AgentRuntimeController implements vscode.Disposable {
             }
         }
 
+        if (normalized.properties && typeof normalized.properties === 'object' && !Array.isArray(normalized.properties)) {
+            const required = new Set(Array.isArray(normalized.required) ? normalized.required.filter((item): item is string => typeof item === 'string') : []);
+            const properties = normalized.properties as Record<string, unknown>;
+            for (const [propertyName, propertySchema] of Object.entries(properties)) {
+                if (!required.has(propertyName)) {
+                    properties[propertyName] = this.allowNullForOptionalMcpJsonSchema(propertySchema);
+                }
+            }
+        }
+
         return normalized;
+    }
+
+    private allowNullForOptionalMcpJsonSchema(schema: unknown): unknown {
+        if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return schema;
+        const normalized = { ...(schema as Record<string, unknown>) };
+        if (Array.isArray(normalized.type)) {
+            if (!normalized.type.includes('null')) normalized.type = [...normalized.type, 'null'];
+            return normalized;
+        }
+        if (typeof normalized.type === 'string') {
+            if (normalized.type !== 'null') normalized.type = [normalized.type, 'null'];
+            return normalized;
+        }
+        if (Array.isArray(normalized.enum)) {
+            if (!normalized.enum.includes(null)) normalized.enum = [...normalized.enum, null];
+            return normalized;
+        }
+        if (Array.isArray(normalized.anyOf)) {
+            if (!normalized.anyOf.some((item) => item && typeof item === 'object' && (item as Record<string, unknown>).type === 'null')) {
+                normalized.anyOf = [...normalized.anyOf, { type: 'null' }];
+            }
+            return normalized;
+        }
+        return { anyOf: [normalized, { type: 'null' }] };
+    }
+
+    private stripNullishMcpToolArgs(value: unknown): unknown {
+        if (Array.isArray(value)) {
+            return value.map((item) => this.stripNullishMcpToolArgs(item));
+        }
+        if (!value || typeof value !== 'object') return value;
+        return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+            .filter(([, entryValue]) => entryValue !== null && entryValue !== undefined)
+            .map(([key, entryValue]) => [key, this.stripNullishMcpToolArgs(entryValue)]));
     }
 
     private hasModelJsonSchemaType(schema: Record<string, unknown>): boolean {

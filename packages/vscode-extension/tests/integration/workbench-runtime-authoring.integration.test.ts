@@ -218,9 +218,23 @@ test('workbench runtime exposes native MCP read-only tools for live audits', { t
         },
       },
     }]);
-    assert.equal(normalizedTools[0].schema.properties.inputs.type, 'object');
-    assert.equal(normalizedTools[0].schema.properties.inputs.properties.formData.type, 'object');
+    assert.deepEqual(normalizedTools[0].schema.properties.inputs.type, ['object', 'null']);
+    assert.deepEqual(normalizedTools[0].schema.properties.inputs.properties.formData.type, ['object', 'null']);
     assert.equal(normalizedTools[0].schema.properties.inputs.properties.formData.additionalProperties.type, 'string');
+    const normalizedSearchTools = (controller as any).normalizeMcpToolsForModel([{
+      name: 'search_workflows',
+      schema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string' },
+          limit: { type: 'number' },
+          projectId: { type: 'string' },
+        },
+        required: ['query'],
+      },
+    }]);
+    assert.deepEqual(normalizedSearchTools[0].schema.properties.projectId.type, ['string', 'null']);
+    assert.deepEqual((controller as any).stripNullishMcpToolArgs({ limit: 50, query: 'support', projectId: null }), { limit: 50, query: 'support' });
 
     await controller.sendPrompt({
       prompt: 'Audit my current n8n instance before creating a support workflow. Do not modify anything.',
