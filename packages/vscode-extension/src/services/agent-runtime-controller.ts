@@ -1576,7 +1576,16 @@ export class AgentRuntimeController implements vscode.Disposable {
         };
 
         this.outputChannel.appendLine(`[n8n-agent-debug] deepagents.v3.run.output await-start sessionId=${input.sessionId || 'none'} elapsedMs=${Date.now() - runStartedAt}`);
-        const finalOutput = await this.raceAbort(Promise.resolve(run.output), signal);
+        let finalOutput: unknown;
+        try {
+            finalOutput = await this.raceAbort(Promise.resolve(run.output), signal);
+        } catch (error: any) {
+            const formatted = this.formatAgentRuntimeError(error);
+            this.outputChannel.appendLine(`[n8n-agent] DeepAgents v3 run failed: ${formatted}`);
+            logProjectionResults(await projectionConsumers);
+            await emitFinalEvent(`Run failed: ${formatted}`, 'error');
+            return { entries, workflowChanged: fileModificationDetected };
+        }
         this.outputChannel.appendLine(`[n8n-agent-debug] deepagents.v3.run.output resolved sessionId=${input.sessionId || 'none'} elapsedMs=${Date.now() - runStartedAt} output=${this.summarizeAgentOutput(finalOutput)}`);
 
         await this.throwIfAborted(signal);
@@ -2277,6 +2286,38 @@ export class AgentRuntimeController implements vscode.Disposable {
         return value
             .replace(/Bearer\s+[^\s,]+/gi, 'Bearer <redacted>')
             .replace(/(authorization|token|api[_-]?key|secret|password)=([^&\s]+)/gi, '$1=<redacted>');
+    }
+
+    private formatAgentRuntimeError(error: unknown): string {
+        const lines = this.collectAgentRuntimeErrorLines(error);
+        const message = lines.length ? lines.join('\n') : String(error);
+        return this.redactMcpDiagnostic(message).slice(0, 12_000);
+    }
+
+    private collectAgentRuntimeErrorLines(error: unknown, seen = new Set<unknown>(), prefix = ''): string[] {
+        if (!error || seen.has(error)) return [];
+        seen.add(error);
+        const lines: string[] = [];
+        const record = typeof error === 'object' ? error as Record<string, unknown> : undefined;
+        const message = typeof (record as any)?.message === 'string' ? (record as any).message : typeof error === 'string' ? error : String(error);
+        if (message) lines.push(`${prefix}${message}`);
+
+        const errors = record?.errors;
+        if (Array.isArray(errors)) {
+            errors.forEach((item, index) => {
+                lines.push(...this.collectAgentRuntimeErrorLines(item, seen, `${prefix}[${index}] `));
+            });
+        } else if (errors && typeof errors === 'object') {
+            for (const [key, value] of Object.entries(errors as Record<string, unknown>)) {
+                lines.push(...this.collectAgentRuntimeErrorLines(value, seen, `${prefix}[${key}] `));
+            }
+        }
+
+        if (record?.cause) {
+            lines.push(...this.collectAgentRuntimeErrorLines(record.cause, seen, `${prefix}cause: `));
+        }
+
+        return [...new Set(lines)].slice(0, 20);
     }
 
     private normalizeMcpToolsForModel(tools: any[]): any[] {

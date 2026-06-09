@@ -240,6 +240,26 @@ test('workbench runtime exposes native MCP read-only tools for live audits', { t
   }
 });
 
+test('workbench runtime formats aggregated DeepAgents errors with nested details', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-workbench-error-format-'));
+  try {
+    const controller = new AgentRuntimeController(createExtensionContext(path.join(tempDir, '.storage')), {
+      appendLine: () => undefined,
+    } as any);
+    const formatted = (controller as any).formatAgentRuntimeError(new AggregateError([
+      new Error('Tool call failed: search_workflows timed out'),
+      { message: 'Provider rejected tool schema', errors: { tools: new Error('tools[3].parameters missing type') } },
+    ], 'Multiple errors occurred during superstep 36'));
+
+    assert.match(formatted, /Multiple errors occurred during superstep 36/);
+    assert.match(formatted, /Tool call failed: search_workflows timed out/);
+    assert.match(formatted, /Provider rejected tool schema/);
+    assert.match(formatted, /tools\[3\]\.parameters missing type/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test('workbench runtime live provider generates a validated workflow', {
   skip: process.env.N8N_AGENT_WORKBENCH_LIVE_PROMPT !== '1',
   timeout: 600_000,
