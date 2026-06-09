@@ -1,5 +1,28 @@
 # n8n-as-code
 
+## [2.34.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.32.0...n8n-as-code@v2.34.0) (2026-06-09)
+
+### Features
+
+* **vscode:** discover native MCP tools dynamically ([57c9c03](https://github.com/EtienneLescot/n8n-as-code/commit/57c9c03c43f8501ab2e0b1753d79db9f41e61a0d))
+* **mcp:** add native MCP client protocol versioning and integration tests ([299690f](https://github.com/EtienneLescot/n8n-as-code/commit/299690fa83c28c74482d9f445ec0aba7e9a76459))
+* **mcp:** scope native assist config to environments ([f51a532](https://github.com/EtienneLescot/n8n-as-code/commit/f51a5326dfc2d905292dc685cc32b13dd4aa64fd))
+
+### Bug Fixes
+
+* **vscode:** place final response after streamed operations ([3dc982b](https://github.com/EtienneLescot/n8n-as-code/commit/3dc982bd7226387899b9a7f598bc72e8621c19d0))
+* **vscode:** keep late tool events before final response ([143c005](https://github.com/EtienneLescot/n8n-as-code/commit/143c0059292c89ed204707dede3555a99d3f34c1))
+* **vscode:** strip null MCP args before calls ([ae336d5](https://github.com/EtienneLescot/n8n-as-code/commit/ae336d53a1ab829a9e5677685cc7129adf012545))
+* **vscode:** tolerate nullable MCP tool args ([2a9a57d](https://github.com/EtienneLescot/n8n-as-code/commit/2a9a57d46fe91814aea4841300c889a237dc1546))
+* **vscode:** surface deepagents aggregate errors ([333c7fc](https://github.com/EtienneLescot/n8n-as-code/commit/333c7fcaa54244e76804d5025413239173d86428))
+* **vscode:** normalize discovered MCP tool schemas ([48ef2d8](https://github.com/EtienneLescot/n8n-as-code/commit/48ef2d8e19f6229d3996b657466db7b0b5993e79))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.2.6 to 2.3.0
+    * n8nac bumped from 2.3.6 to 2.4.0
+
 ## [2.32.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.30.0...n8n-as-code@v2.32.0) (2026-06-05)
 
 ### Bug Fixes

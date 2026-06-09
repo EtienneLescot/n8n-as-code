@@ -1,5 +1,23 @@
 # @n8n-as-code/mcp
 
+## [2.1.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/mcp@v2.0.15...@n8n-as-code/mcp@v2.1.0) (2026-06-09)
+
+### Features
+
+* **mcp:** add native MCP client protocol versioning and integration tests ([299690f](https://github.com/EtienneLescot/n8n-as-code/commit/299690fa83c28c74482d9f445ec0aba7e9a76459))
+* **mcp:** scope native assist config to environments ([f51a532](https://github.com/EtienneLescot/n8n-as-code/commit/f51a5326dfc2d905292dc685cc32b13dd4aa64fd))
+* **mcp:** add optional native n8n MCP assist ([e1d32e4](https://github.com/EtienneLescot/n8n-as-code/commit/e1d32e451145b8d42c345fe03710c91c5e9eea41))
+
+### Bug Fixes
+
+* **mcp:** address native assist review comments ([fbaa439](https://github.com/EtienneLescot/n8n-as-code/commit/fbaa439b004e1120b4eff599d3b8f8b3414e6804))
+* **mcp:** gate native assist exposure ([1252b6b](https://github.com/EtienneLescot/n8n-as-code/commit/1252b6bb2f76e1ce58ea2d64b3748a930f0c1618))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * n8nac bumped from 2.3.6 to 2.4.0
+
 ## [2.0.15](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/mcp@v2.0.14...@n8n-as-code/mcp@v2.0.15) (2026-06-05)
 
 ### Dependencies
