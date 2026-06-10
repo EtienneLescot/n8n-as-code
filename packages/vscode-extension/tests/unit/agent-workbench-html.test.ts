@@ -516,6 +516,26 @@ test('Agent Workbench state delivery: runtime states are lightweight and ordered
     assert.ok(source.includes('await this.postWorkbenchState(message.state, { enrich: false });'), 'Runtime state messages should use the lightweight path');
 });
 
+test('Agent Workbench streaming: text deltas are batched and rendered on animation frames', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const controller = fs.readFileSync(path.join(__dirname, '../../src/services/agent-runtime-controller.ts'), 'utf8');
+    const html = fs.readFileSync(path.join(__dirname, '../../src/ui/agent-workbench-html.ts'), 'utf8');
+
+    assert.ok(controller.includes('STREAM_TEXT_FLUSH_INTERVAL_MS'), 'Runtime should define a bounded stream flush interval');
+    assert.ok(controller.includes('pendingTextDelta += streamEvent.delta'), 'Runtime should coalesce text deltas before posting to the webview');
+    assert.ok(controller.includes('await flushPendingTextDelta();'), 'Runtime must flush text before non-text events and final output');
+    assert.ok(controller.includes("const delta = pendingTextDelta;\n            pendingTextDelta = '';\n            if (!delta) {\n                await textFlushChain;\n                return;\n            }\n            const flush = async () =>"), 'Runtime should snapshot buffered text and await in-flight flushes before non-text events');
+    assert.ok(controller.includes('streamClosed = true;'), 'Runtime should close the stream before cleanup');
+    assert.ok(controller.includes('clearTimeout(pendingTextFlushTimer);'), 'Runtime cleanup should cancel pending text flush timers');
+    assert.ok(controller.includes("pendingTextDelta = '';"), 'Aborted runs should drop buffered text before leaving cleanup');
+    assert.ok(html.includes('function scheduleRenderAll()'), 'Workbench webview should batch streaming renders');
+    assert.ok(html.includes('function flushScheduledRenderAll()'), 'Immediate workbench renders should cancel scheduled frames');
+    assert.ok(html.includes('cancelAnimationFrame(renderAllFrame);'), 'Scheduled render frames should be cancellable');
+    assert.ok(html.includes('requestAnimationFrame(() =>'), 'Streaming renders should align with browser frames');
+    assert.ok(html.includes('if (deferRender) scheduleRenderAll();'), 'Text-delta events should defer full feed rendering');
+});
+
 test('Agent Workbench webview: conversation deletion is confirmed and cleans panel ownership', () => {
     const fs = require('node:fs');
     const path = require('node:path');
@@ -543,9 +563,13 @@ test('Agent Workbench webview: workflow menu options preserve local file paths',
     const fs = require('node:fs');
     const path = require('node:path');
     const source = fs.readFileSync(path.join(__dirname, '../../src/ui/agent-workbench-webview.ts'), 'utf8');
+    const extensionSource = fs.readFileSync(path.join(__dirname, '../../src/extension.ts'), 'utf8');
 
-    assert.ok(source.includes('resolveWorkflow(base)'), 'Available workflows should resolve their local file targets');
-    assert.ok(source.includes('filePath: target?.workflowFilePath'), 'Available workflow options must include local file paths');
+    assert.ok(source.includes('listWorkflowOptions()'), 'Available workflow options should be provided as a lightweight list');
+    assert.ok(!source.includes('resolveWorkflow(base)'), 'Available workflows must not resolve every workflow target from the menu path');
+    assert.ok(extensionSource.includes('function listAgentWorkflowContextOptions'), 'Extension host must build lightweight workflow menu options');
+    assert.ok(extensionSource.includes('filePath: getExistingWorkflowFileUri(workflow)?.fsPath'), 'Available workflow options must include local file paths');
+    assert.ok(!extensionSource.includes('const workflows = await listAgentWorkflowOptions();\n    const workflow = workflows.find'), 'Resolving one workflow must not refresh the full remote workflow list');
     assert.ok(source.includes('workflowFilename: this._workflow?.filename'), 'Initial HTML must receive the current workflow filename');
     assert.ok(source.includes('workflowFilePath: this._workflowFilePath'), 'Initial HTML must receive the current workflow file path');
     assert.ok(source.includes("workflowFilename: workflow?.filename || ''"), 'Workflow update messages must preserve filename');

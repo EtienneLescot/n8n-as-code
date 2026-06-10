@@ -92,3 +92,32 @@ test('AI context auto-refresh requires explicit workspace configuration', () => 
         },
     }), true);
 });
+
+test('sync initialization does not force-regenerate fresh AI context', () => {
+    const updateFunction = extensionSource.slice(
+        extensionSource.indexOf('async function updateAiContextAfterSyncInitialization'),
+        extensionSource.indexOf('async function initializeSyncManager'),
+    );
+
+    assert.ok(updateFunction.includes("ensureAiContextFresh(context, 'sync-initialized'"), 'Sync init must still check AI context freshness');
+    assert.ok(!updateFunction.includes('force: true'), 'Sync init should use freshness metadata instead of forcing regeneration');
+});
+
+test('sync event journal polling skips unchanged files', () => {
+    const journalFunction = extensionSource.slice(
+        extensionSource.indexOf('async function processSyncEventJournal'),
+        extensionSource.indexOf('function trimProcessedSyncEvents'),
+    );
+    const resetFunction = extensionSource.slice(
+        extensionSource.indexOf('function resetExtensionRuntimeState'),
+        extensionSource.indexOf('async function determineInitialState'),
+    );
+
+    assert.ok(extensionSource.includes('const syncEventJournalSignatures = new Map<string, string>();'));
+    assert.ok(journalFunction.includes('const signature = getFileChangeSignature(journalUri.fsPath);'));
+    assert.ok(journalFunction.includes('syncEventJournalSignatures.get(journalUri.fsPath) === signature'));
+    assert.ok(journalFunction.includes('return;'), 'unchanged journal polls should avoid rereading JSONL');
+    assert.ok(journalFunction.includes('syncEventJournalSignatures.set(journalUri.fsPath, signature);'));
+    assert.ok(extensionSource.includes('return `${stat.mtimeMs}:${stat.size}`;'));
+    assert.ok(resetFunction.includes('syncEventJournalSignatures.clear();'));
+});

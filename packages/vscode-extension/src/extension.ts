@@ -125,6 +125,7 @@ let telemetryClient: TelemetryClient | undefined;
 
 const conflictStore = new Map<string, string>();
 const processedSyncEventIds = new Set<string>();
+const syncEventJournalSignatures = new Map<string, string>();
 
 const AI_CONTEXT_METADATA_RELATIVE_PATH = path.join('.n8nac', 'ai-context.json');
 const AI_CONTEXT_SIGNATURE_SCHEMA_VERSION = 1;
@@ -140,12 +141,19 @@ type AiContextMetadata = {
 
 async function processSyncEventJournal(journalUri: vscode.Uri, source: string, markOnly = false): Promise<void> {
     if (!fs.existsSync(journalUri.fsPath)) return;
+    const signature = getFileChangeSignature(journalUri.fsPath);
+    if (!markOnly && signature && syncEventJournalSignatures.get(journalUri.fsPath) === signature) {
+        return;
+    }
     let raw: Uint8Array;
     try {
         raw = await vscode.workspace.fs.readFile(journalUri);
     } catch (err) {
         console.error('[n8n] Failed to read sync event journal', err);
         return;
+    }
+    if (signature) {
+        syncEventJournalSignatures.set(journalUri.fsPath, signature);
     }
 
     const lines = Buffer.from(raw).toString('utf8').split('\n').filter(Boolean);
@@ -172,6 +180,15 @@ async function processSyncEventJournal(journalUri: vscode.Uri, source: string, m
         }
         const reloaded = workflowWebviewRegistry.reloadIfMatching(event.workflowId);
         outputChannel.appendLine(`[n8n-agent-debug] ${source} push success workflowId=${event.workflowId} filename=${event.filename || 'none'} reloaded=${reloaded}`);
+    }
+}
+
+function getFileChangeSignature(filePath: string): string | undefined {
+    try {
+        const stat = fs.statSync(filePath);
+        return `${stat.mtimeMs}:${stat.size}`;
+    } catch {
+        return undefined;
     }
 }
 
@@ -914,6 +931,7 @@ async function openAgentWorkbench(context: vscode.ExtensionContext, workflow?: I
             outputChannel,
             {
                 listWorkflows: listAgentWorkflowOptions,
+                listWorkflowOptions: listAgentWorkflowContextOptions,
                 resolveWorkflow: resolveAgentWorkflowTarget,
                 listWorkflowNodes: listAgentWorkflowNodes,
                 listProviderOptions: listAgentProviderOptions,
@@ -973,8 +991,24 @@ async function listAgentWorkflowOptions(): Promise<IWorkflowStatus[]> {
     return selectAllWorkflows(store.getState());
 }
 
+async function listAgentWorkflowContextOptions(): Promise<AgentWorkflowContext[]> {
+    const workflows = selectAllWorkflows(store.getState());
+    // This transient menu path may refresh through cli.list, but it must not
+    // dispatch into the global store: listAgentWorkflowOptions owns that stateful
+    // refresh, and keeping this side-effect-free avoids extra webview churn.
+    const source = cli
+        ? await cli.list({ includeArchived: true }).catch(() => workflows)
+        : workflows;
+    return source.map((workflow) => ({
+        id: workflow.id || undefined,
+        name: workflow.name || workflow.id || workflow.filename || 'Workflow',
+        filename: workflow.filename || undefined,
+        filePath: getExistingWorkflowFileUri(workflow)?.fsPath,
+    }));
+}
+
 async function resolveAgentWorkflowTarget(workflowContext: AgentWorkflowContext): Promise<{ workflow?: IWorkflowStatus; workflowFilePath?: string; workflowUrl?: string; workflowReloadUrl?: string; workflowEndpoints?: WorkflowWebviewContext['endpoints'] }> {
-    const workflows = await listAgentWorkflowOptions();
+    const workflows = selectAllWorkflows(store.getState());
     const workflow = workflows.find((candidate) => (
         Boolean(workflowContext.id && candidate.id === workflowContext.id)
         || Boolean(workflowContext.filename && candidate.filename === workflowContext.filename)
@@ -1827,6 +1861,7 @@ function resetExtensionRuntimeState(): void {
     syncManager = undefined;
     cli = undefined;
     conflictStore.clear();
+    syncEventJournalSignatures.clear();
     enhancedTreeProvider.setSyncManager(undefined);
     clearSyncManager();
     store.dispatch(setWorkflows([]));
@@ -2282,7 +2317,7 @@ async function updateAiContextAfterSyncInitialization(
 ): Promise<void> {
     const currentVersion = versionHint || await resolveAiContextVersion(context, client, undefined, true);
     try {
-        await ensureAiContextFresh(context, 'sync-initialized', { force: true, versionHint: currentVersion });
+        await ensureAiContextFresh(context, 'sync-initialized', { versionHint: currentVersion });
     } catch (error: any) {
         outputChannel.appendLine(`[n8n] Failed to auto-generate AI context: ${error.message}`);
     }

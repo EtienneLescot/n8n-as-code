@@ -26,6 +26,7 @@ interface AgentWorkflowTarget {
 
 interface AgentWorkbenchWorkflowProviders {
     listWorkflows(): Promise<IWorkflowStatus[]>;
+    listWorkflowOptions(): Promise<AgentWorkflowContext[]>;
     resolveWorkflow(workflow: AgentWorkflowContext): Promise<AgentWorkflowTarget>;
     listWorkflowNodes(workflow: AgentWorkflowContext): Promise<AgentWorkbenchNodeContext[]>;
     listProviderOptions(): Promise<Array<Record<string, unknown>>>;
@@ -744,19 +745,7 @@ export class AgentWorkbenchWebview {
     }
 
     private async getWorkflowOptions(): Promise<AgentWorkflowContext[]> {
-        const workflows = await this._workflowProviders.listWorkflows().catch(() => []);
-        return Promise.all(workflows.map(async (workflow) => {
-            const base = {
-                id: workflow.id || undefined,
-                name: workflow.name || workflow.id || workflow.filename || 'Workflow',
-                filename: workflow.filename || undefined,
-            };
-            const target = await this._workflowProviders.resolveWorkflow(base).catch(() => undefined);
-            return {
-                ...base,
-                filePath: target?.workflowFilePath,
-            };
-        }));
+        return this._workflowProviders.listWorkflowOptions().catch(() => []);
     }
 
     private async getWorkflowNodeOptions(): Promise<AgentWorkbenchNodeContext[]> {

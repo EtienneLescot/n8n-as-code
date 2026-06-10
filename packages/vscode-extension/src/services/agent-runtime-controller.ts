@@ -29,6 +29,8 @@ const ACTIVE_WORKTREE_PATH_BY_SESSION_KEY = 'n8n.agent.activeWorktreePathBySessi
 const INVALID_TOOL_CALL_RECOVERY_MARKER = 'N8N_INVALID_TOOL_CALL_RECOVERY';
 const NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER = 'N8N_NON_FINAL_ASSISTANT_PHASE_RECOVERY';
 const NON_FINAL_ASSISTANT_PHASE_MAX_RECOVERY_ATTEMPTS = 12;
+const STREAM_TEXT_FLUSH_INTERVAL_MS = 33;
+const STREAM_TEXT_FLUSH_CHAR_THRESHOLD = 512;
 
 type ActiveWorktreePathsBySession = Record<string, string | null>;
 
@@ -1512,12 +1514,16 @@ export class AgentRuntimeController implements vscode.Disposable {
         const writtenWorkflowPaths = new Set<string>();
         let authoritativeFinalEmitted = false;
         const loggedProjectionEvents = new Set<string>();
+        let pendingTextDelta = '';
+        let pendingTextFlushTimer: NodeJS.Timeout | undefined;
+        let textFlushChain = Promise.resolve();
+        let streamClosed = false;
         this.outputChannel.appendLine(`[n8n-agent-debug] deepagents.v3.run started sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'}`);
         const syncEntries = () => {
             if (!input.sessionId) return;
             this.writeSessionEntries(service, input.sessionId, entries);
         };
-        const emitStreamEvent = async (streamEvent: AgentStreamEvent) => {
+        const emitStreamEventNow = async (streamEvent: AgentStreamEvent) => {
             entries = this.applyStreamEvent(entries, streamEvent);
             syncEntries();
             await postMessage({ type: 'agent.streamEvent', event: streamEvent });
@@ -1529,9 +1535,51 @@ export class AgentRuntimeController implements vscode.Disposable {
                 }
             }
         };
+        const flushPendingTextDelta = async () => {
+            if (pendingTextFlushTimer) {
+                clearTimeout(pendingTextFlushTimer);
+                pendingTextFlushTimer = undefined;
+            }
+            const delta = pendingTextDelta;
+            pendingTextDelta = '';
+            if (!delta) {
+                await textFlushChain;
+                return;
+            }
+            const flush = async () => {
+                await emitStreamEventNow({ type: 'text-delta', delta });
+            };
+            textFlushChain = textFlushChain.then(flush, flush);
+            await textFlushChain;
+        };
+        const scheduleTextDeltaFlush = () => {
+            if (streamClosed) return;
+            if (pendingTextFlushTimer) return;
+            pendingTextFlushTimer = setTimeout(() => {
+                pendingTextFlushTimer = undefined;
+                if (streamClosed) return;
+                void flushPendingTextDelta().catch((error: any) => {
+                    this.outputChannel.appendLine(`[n8n-agent] Stream text flush failed: ${error?.message || String(error)}`);
+                });
+            }, STREAM_TEXT_FLUSH_INTERVAL_MS);
+        };
+        const emitStreamEvent = async (streamEvent: AgentStreamEvent) => {
+            if (streamEvent.type === 'text-delta') {
+                pendingTextDelta += streamEvent.delta;
+                if (pendingTextDelta.length >= STREAM_TEXT_FLUSH_CHAR_THRESHOLD) {
+                    await flushPendingTextDelta();
+                } else {
+                    scheduleTextDeltaFlush();
+                }
+                return;
+            }
+            await flushPendingTextDelta();
+            await emitStreamEventNow(streamEvent);
+        };
         const emitFinalEvent = async (response: string, finalState: string) => {
             if (authoritativeFinalEmitted) return;
             authoritativeFinalEmitted = true;
+            await flushPendingTextDelta();
             const activeRun = input.sessionId ? this.activeRuns.get(input.sessionId) : undefined;
             if (activeRun && activeRun.sessionId === input.sessionId) {
                 activeRun.visibleDone = true;
@@ -1575,47 +1623,63 @@ export class AgentRuntimeController implements vscode.Disposable {
             }
         };
 
-        this.outputChannel.appendLine(`[n8n-agent-debug] deepagents.v3.run.output await-start sessionId=${input.sessionId || 'none'} elapsedMs=${Date.now() - runStartedAt}`);
-        let finalOutput: unknown;
         try {
-            finalOutput = await this.raceAbort(Promise.resolve(run.output), signal);
-        } catch (error: any) {
-            const formatted = this.formatAgentRuntimeError(error);
-            this.outputChannel.appendLine(`[n8n-agent] DeepAgents v3 run failed: ${formatted}`);
-            logProjectionResults(await projectionConsumers);
-            await emitFinalEvent(`Run failed: ${formatted}`, 'error');
-            return { entries, workflowChanged: fileModificationDetected };
-        }
-        this.outputChannel.appendLine(`[n8n-agent-debug] deepagents.v3.run.output resolved sessionId=${input.sessionId || 'none'} elapsedMs=${Date.now() - runStartedAt} output=${this.summarizeAgentOutput(finalOutput)}`);
+            this.outputChannel.appendLine(`[n8n-agent-debug] deepagents.v3.run.output await-start sessionId=${input.sessionId || 'none'} elapsedMs=${Date.now() - runStartedAt}`);
+            let finalOutput: unknown;
+            try {
+                finalOutput = await this.raceAbort(Promise.resolve(run.output), signal);
+            } catch (error: any) {
+                const formatted = this.formatAgentRuntimeError(error);
+                this.outputChannel.appendLine(`[n8n-agent] DeepAgents v3 run failed: ${formatted}`);
+                logProjectionResults(await projectionConsumers);
+                await emitFinalEvent(`Run failed: ${formatted}`, 'error');
+                return { entries, workflowChanged: fileModificationDetected };
+            }
+            this.outputChannel.appendLine(`[n8n-agent-debug] deepagents.v3.run.output resolved sessionId=${input.sessionId || 'none'} elapsedMs=${Date.now() - runStartedAt} output=${this.summarizeAgentOutput(finalOutput)}`);
 
-        await this.throwIfAborted(signal);
-        if (accumulator.thinkingText) {
-            await emitStreamEvent({
-                type: 'operation',
-                operationId: accumulator.thinkingOperationId || `thinking:${randomUUID()}`,
-                label: 'Thinking',
-                category: 'thinking',
-                status: 'done',
-                body: accumulator.thinkingText,
-                startedAt: Date.now(),
-                endedAt: Date.now(),
-            });
-            accumulator.thinkingText = '';
-            accumulator.thinkingOperationId = undefined;
+            await this.throwIfAborted(signal);
+            if (accumulator.thinkingText) {
+                await emitStreamEvent({
+                    type: 'operation',
+                    operationId: accumulator.thinkingOperationId || `thinking:${randomUUID()}`,
+                    label: 'Thinking',
+                    category: 'thinking',
+                    status: 'done',
+                    body: accumulator.thinkingText,
+                    startedAt: Date.now(),
+                    endedAt: Date.now(),
+                });
+                accumulator.thinkingText = '';
+                accumulator.thinkingOperationId = undefined;
+            }
+            logProjectionResults(await projectionConsumers);
+            await emitFinalEvent(
+                this.extractAssistantTextFromAgentOutput(finalOutput) || accumulator.responseText || this.extractAgentText(finalOutput),
+                run.interrupted ? 'interrupted' : 'done',
+            );
+            if (fileModificationDetected) {
+                this.saveAutoCheckpointAfterFileModificationInBackground(service, input, entries);
+            }
+            const workflowContext = fileModificationDetected
+                ? await this.inferWorkflowContextFromWrittenFiles([...writtenWorkflowPaths], input.workspaceRoot)
+                : undefined;
+            this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime completed sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'} stream=v3 workflowChanged=${String(fileModificationDetected)} elapsedMs=${Date.now() - runStartedAt}`);
+            return { entries, workflowChanged: fileModificationDetected, workflowContext };
+        } finally {
+            streamClosed = true;
+            if (pendingTextFlushTimer) {
+                clearTimeout(pendingTextFlushTimer);
+                pendingTextFlushTimer = undefined;
+            }
+            if (signal.aborted) {
+                pendingTextDelta = '';
+                await textFlushChain.catch(() => undefined);
+            } else {
+                await flushPendingTextDelta().catch((error: any) => {
+                    this.outputChannel.appendLine(`[n8n-agent] Stream text flush failed during cleanup: ${error?.message || String(error)}`);
+                });
+            }
         }
-        logProjectionResults(await projectionConsumers);
-        await emitFinalEvent(
-            this.extractAssistantTextFromAgentOutput(finalOutput) || accumulator.responseText || this.extractAgentText(finalOutput),
-            run.interrupted ? 'interrupted' : 'done',
-        );
-        if (fileModificationDetected) {
-            this.saveAutoCheckpointAfterFileModificationInBackground(service, input, entries);
-        }
-        const workflowContext = fileModificationDetected
-            ? await this.inferWorkflowContextFromWrittenFiles([...writtenWorkflowPaths], input.workspaceRoot)
-            : undefined;
-        this.outputChannel.appendLine(`[n8n-agent-debug] agent runtime completed sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'} stream=v3 workflowChanged=${String(fileModificationDetected)} elapsedMs=${Date.now() - runStartedAt}`);
-        return { entries, workflowChanged: fileModificationDetected, workflowContext };
     }
 
     private async consumeDeepAgentV3MessageProjection(
