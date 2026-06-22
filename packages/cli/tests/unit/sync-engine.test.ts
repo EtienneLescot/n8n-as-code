@@ -121,4 +121,129 @@ describe('SyncEngine create payload projectId behavior', () => {
             parentFolderId: 'folder-file-processing',
         }));
     });
+
+    it('retries create without parentFolderId when n8n rejects it as an unknown field', async () => {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'Nested Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+
+        const folderError: any = new Error('Request failed with status code 400');
+        folderError.response = {
+            status: 400,
+            data: { message: "property 'parentFolderId' should not exist" },
+        };
+        const createWorkflow = vi.fn()
+            .mockRejectedValueOnce(folderError)
+            .mockImplementationOnce(async (payload) => ({ ...payload, id: 'wf-fallback' }));
+        const getFolders = vi.fn(async () => []);
+        const createFolder = vi.fn(async (_projectId, payload) => ({
+            id: 'folder-x',
+            name: payload.name,
+            parentFolderId: payload.parentFolderId,
+        }));
+
+        const { engine, filename } = createEngine({
+            projectId: 'project-1',
+            createWorkflow,
+            filename: 'X/new.workflow.ts',
+            folderSync: true,
+            getFolders,
+            createFolder,
+        });
+
+        await expect(engine.push(filename)).resolves.toBe('wf-fallback');
+
+        expect(createWorkflow).toHaveBeenCalledTimes(2);
+        expect(createWorkflow.mock.calls[0][0]).toEqual(expect.objectContaining({ parentFolderId: 'folder-x' }));
+        expect(createWorkflow.mock.calls[1][0]).not.toHaveProperty('parentFolderId');
+    });
+
+    it('does NOT retry when n8n returns a generic 400 mentioning only "folder" (regression guard for over-broad match)', async () => {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'Nested Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+
+        // A 400 whose body mentions "folder" but not "parentFolderId" / "parentFolder" must NOT be
+        // misclassified as "unsupported parentFolderId" — that would silently drop the folder assignment
+        // on n8n instances that DO support it.
+        const genericFolderError: any = new Error('Request failed with status code 400');
+        genericFolderError.response = {
+            status: 400,
+            data: { message: 'A folder with this name already exists in another project' },
+        };
+        const createWorkflow = vi.fn().mockRejectedValue(genericFolderError);
+        const getFolders = vi.fn(async () => []);
+        const createFolder = vi.fn(async (_projectId, payload) => ({
+            id: 'folder-x',
+            name: payload.name,
+            parentFolderId: payload.parentFolderId,
+        }));
+
+        const { engine, filename } = createEngine({
+            projectId: 'project-1',
+            createWorkflow,
+            filename: 'X/new.workflow.ts',
+            folderSync: true,
+            getFolders,
+            createFolder,
+        });
+
+        await expect(engine.push(filename)).rejects.toBe(genericFolderError);
+        expect(createWorkflow).toHaveBeenCalledTimes(1);
+        expect(createFolder).toHaveBeenCalledTimes(1);
+    });
+
+    it('deduplicates concurrent createFolder requests for the same parent folder', async () => {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'Concurrent Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+
+        const createWorkflow = vi.fn(async (payload: any) => ({
+            ...payload,
+            id: payload.name === 'x' ? 'wf-x' : 'wf-y',
+        }));
+
+        let createFolderCalls = 0;
+        const createFolder = vi.fn(async (_projectId: string, payload: { name: string; parentFolderId: string | null }) => {
+            createFolderCalls++;
+            // Yield to the event loop so the second push() can enter ensureFolder() before this resolves.
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            return {
+                id: `folder-${payload.name}-${createFolderCalls}`,
+                name: payload.name,
+                parentFolderId: payload.parentFolderId,
+            };
+        });
+        const getFolders = vi.fn(async () => []);
+
+        const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-sync-engine-concurrent-'));
+        const filenameX = 'Shared/Parent/x.workflow.ts';
+        const filenameY = 'Shared/Parent/y.workflow.ts';
+        fs.mkdirSync(path.join(directory, 'Shared', 'Parent'), { recursive: true });
+        fs.writeFileSync(path.join(directory, filenameX), '// x', 'utf8');
+        fs.writeFileSync(path.join(directory, filenameY), '// y', 'utf8');
+
+        const watcher = { finalizeSync: vi.fn(async () => undefined) } as any;
+        const client = { createWorkflow, getFolders, createFolder } as any;
+        const engine = new SyncEngine(client, watcher, directory, 'project-1', undefined, { folderSync: true });
+
+        await Promise.all([engine.push(filenameX), engine.push(filenameY)]);
+
+        // Both pushes share the "Shared" folder creation (parent null) and the
+        // "Parent" folder creation (parent = Shared). With the in-flight promise
+        // map, each folder must be created exactly once.
+        const sharedFolderCalls = createFolder.mock.calls.filter((call) => call[1].name === 'Shared');
+        const parentFolderCalls = createFolder.mock.calls.filter((call) => call[1].name === 'Parent');
+        expect(sharedFolderCalls).toHaveLength(1);
+        expect(parentFolderCalls).toHaveLength(1);
+    });
 });

@@ -723,13 +723,12 @@ export class WorkflowStateTracker extends EventEmitter {
         const hasWorkflowFolderFields = remoteWorkflows.some((workflow) =>
             workflow.parentFolderId !== undefined || workflow.parentFolder?.id,
         );
-        const getFolders = (this.client as any).getFolders;
-        if (!hasWorkflowFolderFields || typeof getFolders !== 'function') {
+        if (!hasWorkflowFolderFields || typeof this.client.getFolders !== 'function') {
             this.warnFolderMetadataUnavailable();
             return null;
         }
         try {
-            return new FolderPathResolver(await getFolders.call(this.client, this.projectId));
+            return new FolderPathResolver(await this.client.getFolders(this.projectId));
         } catch (error: any) {
             this.warnFolderMetadataUnavailable(error?.message);
             return null;
@@ -1334,9 +1333,9 @@ export class WorkflowStateTracker extends EventEmitter {
             this.remoteArchived.set(remoteWf.id, remoteWf.isArchived === true);
             const parentFolderId = remoteWf.parentFolderId ?? remoteWf.parentFolder?.id ?? null;
             let folderPath: string[] = [];
-            if (this.folderSync && parentFolderId && typeof (this.client as any).getFolders === 'function') {
+            if (this.folderSync && parentFolderId && typeof this.client.getFolders === 'function') {
                 try {
-                    const resolver = new FolderPathResolver(await (this.client as any).getFolders(this.projectId));
+                    const resolver = new FolderPathResolver(await this.client.getFolders(this.projectId));
                     folderPath = resolver.getPathForWorkflow(remoteWf);
                 } catch (error: any) {
                     this.warnFolderMetadataUnavailable(error?.message);
