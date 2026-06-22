@@ -135,9 +135,20 @@ describe('SyncEngine create payload projectId behavior', () => {
             status: 400,
             data: { message: "property 'parentFolderId' should not exist" },
         };
+        // Snapshot each call's payload at call time. SyncEngine mutates the same
+        // localWf object between calls (sets parentFolderId, then deletes it in
+        // the catch block), so a live reference inspected via mock.calls[0][0]
+        // would reflect the post-mutation state and miss parentFolderId.
+        const callSnapshots: any[] = [];
         const createWorkflow = vi.fn()
-            .mockRejectedValueOnce(folderError)
-            .mockImplementationOnce(async (payload) => ({ ...payload, id: 'wf-fallback' }));
+            .mockImplementationOnce(async (payload) => {
+                callSnapshots.push({ ...payload });
+                throw folderError;
+            })
+            .mockImplementationOnce(async (payload) => {
+                callSnapshots.push({ ...payload });
+                return { ...payload, id: 'wf-fallback' };
+            });
         const getFolders = vi.fn(async () => []);
         const createFolder = vi.fn(async (_projectId, payload) => ({
             id: 'folder-x',
@@ -157,8 +168,9 @@ describe('SyncEngine create payload projectId behavior', () => {
         await expect(engine.push(filename)).resolves.toBe('wf-fallback');
 
         expect(createWorkflow).toHaveBeenCalledTimes(2);
-        expect(createWorkflow.mock.calls[0][0]).toEqual(expect.objectContaining({ parentFolderId: 'folder-x' }));
-        expect(createWorkflow.mock.calls[1][0]).not.toHaveProperty('parentFolderId');
+        expect(callSnapshots).toHaveLength(2);
+        expect(callSnapshots[0]).toEqual(expect.objectContaining({ parentFolderId: 'folder-x' }));
+        expect(callSnapshots[1]).not.toHaveProperty('parentFolderId');
     });
 
     it('does NOT retry when n8n returns a generic 400 mentioning only "folder" (regression guard for over-broad match)', async () => {
