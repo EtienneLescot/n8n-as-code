@@ -5,7 +5,7 @@ import { WorkflowTransformerAdapter } from './workflow-transformer-adapter.js';
 import { HashUtils } from './hash-utils.js';
 import { WorkflowStateTracker } from './workflow-state-tracker.js';
 import { SyncEventJournal } from './sync-event-journal.js';
-import { WorkflowSyncStatus, IWorkflow } from '../types.js';
+import { WorkflowSyncStatus, IWorkflow, IFolder } from '../types.js';
 import { ensureParentDirectory, normalizeWorkflowRelativePath, workflowRelativePathToAbsolute } from './workflow-path-utils.js';
 
 /**
@@ -25,6 +25,17 @@ export class SyncEngine {
     private projectId: string;
     private syncEventJournal: SyncEventJournal | undefined;
     private folderSync: boolean;
+    /**
+     * In-flight `createFolder` requests, keyed by
+     * `${projectId}::${parentFolderId ?? ''}::${name}`.
+     *
+     * Multiple concurrent `push()` calls that need the same parent folder
+     * (e.g. `AI Chat/x.workflow.ts` and `AI Chat/y.workflow.ts`) deduplicate
+     * their `createFolder` round-trips through this map so we never POST
+     * twice for the same folder — even if two invocations interleave after
+     * `getFolders` returns an empty array.
+     */
+    private inFlightFolderCreates: Map<string, Promise<IFolder>> = new Map();
 
     constructor(
         client: N8nApiClient,
@@ -304,7 +315,8 @@ export class SyncEngine {
         } catch (error: any) {
             if (!localWf.parentFolderId || !this.isUnsupportedParentFolderError(error)) throw error;
             console.warn(`[SyncEngine] n8n rejected parentFolderId while creating "${filename}"; retrying without folder assignment.`);
-            delete (localWf as any).parentFolderId;
+            // parentFolderId is a known IWorkflow field; strip it without an `any` cast.
+            delete localWf.parentFolderId;
             newWf = await this.client.createWorkflow(localWf);
         }
         if (!newWf || !newWf.id) {
@@ -328,34 +340,87 @@ export class SyncEngine {
         const normalized = normalizeWorkflowRelativePath(filename);
         const segments = normalized.split('/');
         if (segments.length <= 1) return undefined;
-        const folderSegments = segments.slice(0, -1);
-        const getFolders = (this.client as any).getFolders;
-        const createFolder = (this.client as any).createFolder;
-        if (typeof getFolders !== 'function' || typeof createFolder !== 'function') return undefined;
 
-        const folders = await getFolders.call(this.client, this.projectId);
+        // Soft capability check: N8nApiClient exposes both methods, but mocks in
+        // unit tests may not. Skip folder inference gracefully rather than throw.
+        if (typeof this.client.getFolders !== 'function' || typeof this.client.createFolder !== 'function') {
+            return undefined;
+        }
+
+        const folderSegments = segments.slice(0, -1);
+        const folders = await this.client.getFolders(this.projectId);
         let parentFolderId: string | null = null;
         for (const segment of folderSegments) {
-            let folder = folders.find((candidate: any) =>
-                candidate.name === segment && (candidate.parentFolderId ?? null) === parentFolderId,
-            );
-            if (!folder) {
-                folder = await createFolder.call(this.client, this.projectId, {
-                    name: segment,
-                    parentFolderId,
-                });
-                folders.push(folder);
-            }
+            const folder = await this.ensureFolder(folders, this.projectId, segment, parentFolderId);
             parentFolderId = folder.id;
         }
 
         return parentFolderId ?? undefined;
     }
 
+    /**
+     * Returns the folder named `name` under `parentFolderId`, creating it if
+     * missing. Concurrent calls for the same `(projectId, parentFolderId, name)`
+     * triple share a single in-flight `createFolder` promise so we never POST
+     * twice for the same folder.
+     */
+    private async ensureFolder(
+        folders: IFolder[],
+        projectId: string,
+        name: string,
+        parentFolderId: string | null,
+    ): Promise<IFolder> {
+        const existing = folders.find(
+            (candidate) => candidate.name === name && (candidate.parentFolderId ?? null) === parentFolderId,
+        );
+        if (existing) return existing;
+
+        const key = `${projectId}::${parentFolderId ?? ''}::${name}`;
+        const inFlight = this.inFlightFolderCreates.get(key);
+        if (inFlight) return inFlight;
+
+        const promise = this.client
+            .createFolder(projectId, { name, parentFolderId })
+            .then((created) => {
+                folders.push(created);
+                return created;
+            })
+            .finally(() => {
+                this.inFlightFolderCreates.delete(key);
+            });
+        this.inFlightFolderCreates.set(key, promise);
+        return promise;
+    }
+
+    /**
+     * Returns true when n8n rejected the create call specifically because it
+     * does not understand the `parentFolderId` field — in which case we retry
+     * without it so the sync still completes against older n8n instances.
+     *
+     * Tightened from the original `'folder'` substring match (which would have
+     * silently swallowed unrelated 400/404 errors) to require either a
+     * structured `parentFolderId` / `parentFolder` field in the response body,
+     * or a message that explicitly mentions one of those tokens.
+     */
     private isUnsupportedParentFolderError(error: any): boolean {
         const status = error?.response?.status;
-        const message = String(error?.response?.data?.message ?? error?.message ?? '').toLowerCase();
-        return [400, 404, 422].includes(status) && (message.includes('parentfolder') || message.includes('folder'));
+        if (![400, 404, 422].includes(status)) return false;
+
+        const PARENT_FOLDER_PATTERN = /(parentfolderid|parent folder id|parentfolder)/i;
+        const PARENT_FOLDER_KEYS = new Set(['parentfolderid', 'parentfolder']);
+
+        const data = error?.response?.data;
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+            for (const key of Object.keys(data)) {
+                if (PARENT_FOLDER_KEYS.has(key.toLowerCase())) return true;
+            }
+            const dataMessage = String(data.message ?? '').toLowerCase();
+            if (PARENT_FOLDER_PATTERN.test(dataMessage)) return true;
+            return false;
+        }
+
+        const errorMessage = String(error?.message ?? '').toLowerCase();
+        return PARENT_FOLDER_PATTERN.test(errorMessage);
     }
 
     private readTypeScriptFile(filePath: string): string | null {
