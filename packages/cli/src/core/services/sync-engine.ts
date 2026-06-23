@@ -228,7 +228,28 @@ export class SyncEngine {
             );
         }
 
-        const updatedWf = await this.client.updateWorkflow(workflowId, localWf);
+        // Folder-aware move: when folderSync is enabled and `filename` lives under a
+        // nested folder path, mirror the create-path logic and forward parentFolderId
+        // to n8n so the existing workflow actually moves to that folder on update.
+        // Mirrors inferParentFolderIdFromFilename() usage in executeCreate().
+        const inferredParentFolderId = await this.inferParentFolderIdFromFilename(filename);
+        if (inferredParentFolderId) {
+            localWf.parentFolderId = inferredParentFolderId;
+        }
+
+        let updatedWf: IWorkflow;
+        try {
+            updatedWf = await this.client.updateWorkflow(workflowId, localWf);
+        } catch (error: any) {
+            // Retry without parentFolderId when n8n rejects it as an unknown field
+            // (older n8n instances that don't support folder assignment on update).
+            // Same fallback used by executeCreate().
+            if (!localWf.parentFolderId || !this.isUnsupportedParentFolderError(error)) throw error;
+            console.warn(`[SyncEngine] n8n rejected parentFolderId while updating "${filename}"; retrying without folder assignment.`);
+            // parentFolderId is a known IWorkflow field; strip it without an `any` cast.
+            delete localWf.parentFolderId;
+            updatedWf = await this.client.updateWorkflow(workflowId, localWf);
+        }
 
         if (!updatedWf?.id || updatedWf.id !== workflowId || !Array.isArray(updatedWf.nodes)) {
             throw new Error('Failed to update remote workflow: n8n did not return an updated workflow payload');

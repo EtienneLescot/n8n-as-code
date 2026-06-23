@@ -259,3 +259,228 @@ describe('SyncEngine create payload projectId behavior', () => {
         expect(parentFolderCalls).toHaveLength(1);
     });
 });
+
+
+// ---------------------------------------------------------------------------
+// Update path: folder-aware move (PR review fix for Codex P2 finding)
+// ---------------------------------------------------------------------------
+//
+// Mirrors the create-path folderSync tests but for executeUpdate(). The update
+// path used to drop `parentFolderId` on the floor — both because
+// `inferParentFolderIdFromFilename` was only called from executeCreate(), and
+// because `N8nApiClient.cleanWorkflowUpdatePayload()` did not include
+// `parentFolderId` in its allowedKeys set. Both are fixed; these tests guard
+// the contract.
+// ---------------------------------------------------------------------------
+
+function updateEngine(params: {
+    projectId: string;
+    updateWorkflow: ReturnType<typeof vi.fn>;
+    filename?: string;
+    folderSync?: boolean;
+    getFolders?: ReturnType<typeof vi.fn>;
+    createFolder?: ReturnType<typeof vi.fn>;
+    workflowId?: string;
+}) {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-sync-engine-update-'));
+    const filename = params.filename ?? 'existing.workflow.ts';
+    fs.mkdirSync(path.dirname(path.join(directory, filename)), { recursive: true });
+    fs.writeFileSync(path.join(directory, filename), '// workflow source', 'utf8');
+
+    const watcher = {
+        finalizeSync: vi.fn(async () => undefined),
+        setRemoteHash: vi.fn(),
+    } as any;
+
+    // Return undefined from getWorkflow to bypass OCC; tests don't exercise OCC.
+    const client = {
+        getWorkflow: vi.fn(async () => undefined),
+        updateWorkflow: params.updateWorkflow,
+        getFolders: params.getFolders,
+        createFolder: params.createFolder,
+    } as any;
+
+    const engine = new SyncEngine(client, watcher, directory, params.projectId, undefined, {
+        folderSync: params.folderSync,
+    });
+
+    return {
+        engine,
+        directory,
+        filename,
+        watcher,
+        client,
+        workflowId: params.workflowId ?? 'wf-existing',
+    };
+}
+
+describe('SyncEngine update payload folderSync behavior', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('sets parentFolderId on update for nested folderSync paths (move into folder)', async () => {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'Existing Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+
+        const updateWorkflow = vi.fn(async (id, payload) => ({
+            ...payload,
+            id,
+            updatedAt: '2026-06-23T00:00:00.000Z',
+        }));
+        const getFolders = vi.fn(async () => [
+            { id: 'folder-ai-chat', name: 'Ai Chat', parentFolderId: null },
+        ]);
+        const createFolder = vi.fn(async (_projectId, payload) => ({
+            id: 'folder-file-processing',
+            name: payload.name,
+            parentFolderId: payload.parentFolderId,
+        }));
+
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow,
+            filename: 'Ai Chat/File Processing/existing.workflow.ts',
+            folderSync: true,
+            getFolders,
+            createFolder,
+            workflowId: 'wf-existing',
+        });
+
+        await expect(engine.push(workflowId, filename)).resolves.toBe(workflowId);
+
+        expect(updateWorkflow).toHaveBeenCalledTimes(1);
+        expect(updateWorkflow).toHaveBeenCalledWith(workflowId, expect.objectContaining({
+            parentFolderId: 'folder-file-processing',
+        }));
+    });
+
+    it('does NOT send parentFolderId on update when filename has no nested folder', async () => {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'Existing Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+
+        const updateWorkflow = vi.fn(async (id, payload) => ({
+            ...payload,
+            id,
+            updatedAt: '2026-06-23T00:00:00.000Z',
+        }));
+        // folderSync: true but flat filename -> inferParentFolderIdFromFilename
+        // short-circuits before calling getFolders.
+        const getFolders = vi.fn(async () => []);
+        const createFolder = vi.fn(async () => ({ id: 'unused', name: 'unused', parentFolderId: null }));
+
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow,
+            filename: 'existing.workflow.ts',
+            folderSync: true,
+            getFolders,
+            createFolder,
+            workflowId: 'wf-existing',
+        });
+
+        await expect(engine.push(workflowId, filename)).resolves.toBe(workflowId);
+
+        expect(getFolders).not.toHaveBeenCalled();
+        expect(updateWorkflow).toHaveBeenCalledTimes(1);
+        expect(updateWorkflow).toHaveBeenCalledWith(
+            workflowId,
+            expect.not.objectContaining({ parentFolderId: expect.anything() }),
+        );
+    });
+
+    it('retries update without parentFolderId when n8n rejects it as an unknown field', async () => {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'Existing Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+
+        // First call rejects with a 400 mentioning parentFolderId; second call
+        // (without parentFolderId) succeeds.
+        const folderError: any = new Error('Request failed with status code 400');
+        folderError.response = {
+            status: 400,
+            data: { message: "property 'parentFolderId' should not exist" },
+        };
+        const updateWorkflow = vi.fn()
+            .mockRejectedValueOnce(folderError)
+            .mockImplementationOnce(async (id, payload) => ({
+                ...payload,
+                id,
+                updatedAt: '2026-06-23T00:00:00.000Z',
+            }));
+        const getFolders = vi.fn(async () => []);
+        const createFolder = vi.fn(async (_projectId, payload) => ({
+            id: 'folder-x',
+            name: payload.name,
+            parentFolderId: payload.parentFolderId,
+        }));
+
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow,
+            filename: 'X/existing.workflow.ts',
+            folderSync: true,
+            getFolders,
+            createFolder,
+            workflowId: 'wf-existing',
+        });
+
+        await expect(engine.push(workflowId, filename)).resolves.toBe(workflowId);
+
+        expect(updateWorkflow).toHaveBeenCalledTimes(2);
+        expect(updateWorkflow.mock.calls[0][0]).toBe(workflowId);
+        expect(updateWorkflow.mock.calls[0][1]).toEqual(expect.objectContaining({ parentFolderId: 'folder-x' }));
+        expect(updateWorkflow.mock.calls[1][1]).not.toHaveProperty('parentFolderId');
+    });
+
+    it('does NOT retry when n8n returns a generic 400 mentioning only "folder" (regression guard)', async () => {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'Existing Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+
+        // A 400 mentioning "folder" but NOT "parentFolderId" / "parentFolder"
+        // must NOT be misclassified as "unsupported parentFolderId". Doing so
+        // would silently drop the folder assignment on n8n instances that DO
+        // support it (the same regression the create-side fix addresses).
+        const genericFolderError: any = new Error('Request failed with status code 400');
+        genericFolderError.response = {
+            status: 400,
+            data: { message: 'A folder with this name already exists in another project' },
+        };
+        const updateWorkflow = vi.fn().mockRejectedValue(genericFolderError);
+        const getFolders = vi.fn(async () => []);
+        const createFolder = vi.fn(async (_projectId, payload) => ({
+            id: 'folder-x',
+            name: payload.name,
+            parentFolderId: payload.parentFolderId,
+        }));
+
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow,
+            filename: 'X/existing.workflow.ts',
+            folderSync: true,
+            getFolders,
+            createFolder,
+            workflowId: 'wf-existing',
+        });
+
+        await expect(engine.push(workflowId, filename)).rejects.toBe(genericFolderError);
+        expect(updateWorkflow).toHaveBeenCalledTimes(1);
+        expect(createFolder).toHaveBeenCalledTimes(1);
+    });
+});

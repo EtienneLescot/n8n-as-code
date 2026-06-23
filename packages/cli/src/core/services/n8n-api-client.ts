@@ -847,6 +847,10 @@ export class N8nApiClient {
             'settings',
             'staticData',
             'pinData',
+            // parentFolderId is forwarded on update so a folderSync push of an
+            // already-tracked workflow moves it to the inferred folder on n8n.
+            // The create path was already wired up; the update path was missing.
+            'parentFolderId',
         ]);
 
         const clean: Record<string, unknown> = {};
