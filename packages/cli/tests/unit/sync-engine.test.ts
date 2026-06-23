@@ -351,7 +351,7 @@ describe('SyncEngine update payload folderSync behavior', () => {
             workflowId: 'wf-existing',
         });
 
-        await expect(engine.push(workflowId, filename)).resolves.toBe(workflowId);
+        await expect(engine.push(filename, workflowId)).resolves.toBe(workflowId);
 
         expect(updateWorkflow).toHaveBeenCalledTimes(1);
         expect(updateWorkflow).toHaveBeenCalledWith(workflowId, expect.objectContaining({
@@ -387,7 +387,7 @@ describe('SyncEngine update payload folderSync behavior', () => {
             workflowId: 'wf-existing',
         });
 
-        await expect(engine.push(workflowId, filename)).resolves.toBe(workflowId);
+        await expect(engine.push(filename, workflowId)).resolves.toBe(workflowId);
 
         expect(getFolders).not.toHaveBeenCalled();
         expect(updateWorkflow).toHaveBeenCalledTimes(1);
@@ -436,7 +436,7 @@ describe('SyncEngine update payload folderSync behavior', () => {
             workflowId: 'wf-existing',
         });
 
-        await expect(engine.push(workflowId, filename)).resolves.toBe(workflowId);
+        await expect(engine.push(filename, workflowId)).resolves.toBe(workflowId);
 
         expect(updateWorkflow).toHaveBeenCalledTimes(2);
         expect(updateWorkflow.mock.calls[0][0]).toBe(workflowId);
@@ -479,7 +479,7 @@ describe('SyncEngine update payload folderSync behavior', () => {
             workflowId: 'wf-existing',
         });
 
-        await expect(engine.push(workflowId, filename)).rejects.toBe(genericFolderError);
+        await expect(engine.push(filename, workflowId)).rejects.toBe(genericFolderError);
         expect(updateWorkflow).toHaveBeenCalledTimes(1);
         expect(createFolder).toHaveBeenCalledTimes(1);
     });
