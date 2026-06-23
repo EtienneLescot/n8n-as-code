@@ -412,13 +412,20 @@ describe('SyncEngine update payload folderSync behavior', () => {
             status: 400,
             data: { message: "property 'parentFolderId' should not exist" },
         };
-        const updateWorkflow = vi.fn()
-            .mockRejectedValueOnce(folderError)
-            .mockImplementationOnce(async (id, payload) => ({
-                ...payload,
-                id,
-                updatedAt: '2026-06-23T00:00:00.000Z',
-            }));
+
+        // Snapshot each call's payload at call time. Vitest's vi.fn() records
+        // arguments by live reference, and SyncEngine mutates the same localWf
+        // between the two updateWorkflow calls (sets parentFolderId, then
+        // deletes it in the catch block) — so the recorded `calls` would
+        // reflect the post-mutation object by the time the assertion runs.
+        // Capturing { ...payload } at each call preserves call-time state.
+        // Same pattern as the create-side fix in commit c801ff43.
+        const callSnapshots: Array<{ id: string; payload: any }> = [];
+        const updateWorkflow = vi.fn(async (id: string, payload: any) => {
+            callSnapshots.push({ id, payload: { ...payload } });
+            if (callSnapshots.length === 1) throw folderError;
+            return { ...payload, id, updatedAt: '2026-06-23T00:00:00.000Z' };
+        });
         const getFolders = vi.fn(async () => []);
         const createFolder = vi.fn(async (_projectId, payload) => ({
             id: 'folder-x',
@@ -439,9 +446,9 @@ describe('SyncEngine update payload folderSync behavior', () => {
         await expect(engine.push(filename, workflowId)).resolves.toBe(workflowId);
 
         expect(updateWorkflow).toHaveBeenCalledTimes(2);
-        expect(updateWorkflow.mock.calls[0][0]).toBe(workflowId);
-        expect(updateWorkflow.mock.calls[0][1]).toEqual(expect.objectContaining({ parentFolderId: 'folder-x' }));
-        expect(updateWorkflow.mock.calls[1][1]).not.toHaveProperty('parentFolderId');
+        expect(callSnapshots[0].id).toBe(workflowId);
+        expect(callSnapshots[0].payload).toEqual(expect.objectContaining({ parentFolderId: 'folder-x' }));
+        expect(callSnapshots[1].payload).not.toHaveProperty('parentFolderId');
     });
 
     it('does NOT retry when n8n returns a generic 400 mentioning only "folder" (regression guard)', async () => {
