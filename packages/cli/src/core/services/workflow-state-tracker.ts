@@ -8,6 +8,7 @@ import { WorkflowSyncStatus, IWorkflowStatus, IWorkflow } from '../types.js';
 import { IWorkflowState, IInstanceState } from './state-manager.js';
 import { FolderPathResolver, sanitizePathSegment } from './folder-path-resolver.js';
 import { listWorkflowFilesRecursive, normalizeWorkflowRelativePath, workflowRelativePathToAbsolute } from './workflow-path-utils.js';
+import { RestFolderSource, RestFolderLogin } from './rest-folder-source.js';
 
 const WINDOWS_RESERVED_FILENAMES = new Set([
     'CON',
@@ -57,6 +58,15 @@ export class WorkflowStateTracker extends EventEmitter {
     private stateFilePath: string;
     private folderSync: boolean;
     private warnedFolderMetadataUnavailable = false;
+    /**
+     * Optional session-auth source for the folder hierarchy, used when the public
+     * folder API is unavailable (e.g. sub-Enterprise instances). Present only when
+     * folderSync is on and host + login creds are configured.
+     */
+    private folderSource?: RestFolderSource;
+    /** Cached session folder data (resolver + workflowId->parentFolderId map). */
+    private sessionFolders?: { resolver: FolderPathResolver; parentMap: Map<string, string> };
+    private sessionFoldersLoaded = false;
     private isConnected: boolean = true;
     /** True during the first refreshRemoteState() call — suppresses status broadcasts */
     private isInitialRemoteLoad: boolean = false;
@@ -88,6 +98,8 @@ export class WorkflowStateTracker extends EventEmitter {
             ignoredTags: string[];
             projectId: string;      // Project scope filter
             folderSync?: boolean;
+            host?: string;          // n8n base URL (for the session-auth folder source)
+            folderLogin?: RestFolderLogin; // Session creds for /rest folder reads
         }
     ) {
         super();
@@ -97,6 +109,12 @@ export class WorkflowStateTracker extends EventEmitter {
         this.ignoredTags = options.ignoredTags;
         this.projectId = options.projectId;
         this.folderSync = options.folderSync ?? false;
+        // When folderSync is on and session creds are provided, prefer reading
+        // folders over /rest — it works on every edition, including instances
+        // where the public folder API is license-gated.
+        if (this.folderSync && options.host && options.folderLogin && this.projectId) {
+            this.folderSource = new RestFolderSource(options.host, this.projectId, options.folderLogin);
+        }
         this.stateFilePath = path.join(this.directory, '.n8n-state.json');
 
         // Restore persisted mappings immediately so 'pull' and other commands can find workflows
@@ -713,8 +731,46 @@ export class WorkflowStateTracker extends EventEmitter {
         return finalName;
     }
 
+    /**
+     * Lazily load (and cache) the folder hierarchy over the session-auth `/rest`
+     * source. Returns undefined when no source is configured or the load fails,
+     * so callers fall back to the public-API path. The workflow→parentFolderId
+     * map fills the gap the public workflows API leaves (it omits that field).
+     */
+    private async ensureSessionFolders(): Promise<{ resolver: FolderPathResolver; parentMap: Map<string, string> } | undefined> {
+        if (this.sessionFoldersLoaded) return this.sessionFolders;
+        this.sessionFoldersLoaded = true;
+        if (!this.folderSource) return undefined;
+        try {
+            const { folders, workflowParentFolderId } = await this.folderSource.load();
+            this.sessionFolders = {
+                resolver: new FolderPathResolver(folders),
+                parentMap: workflowParentFolderId,
+            };
+        } catch (error: any) {
+            this.warnFolderMetadataUnavailable(error?.message);
+            this.sessionFolders = undefined;
+        }
+        return this.sessionFolders;
+    }
+
     private async createFolderResolver(remoteWorkflows: IWorkflow[]): Promise<FolderPathResolver | null> {
         if (!this.folderSync) return null;
+
+        // Creds-first: when a session folder source is configured, use it. It
+        // supplies the workflow→folder link the public API omits, so we backfill
+        // parentFolderId onto the workflow objects before path resolution.
+        const session = await this.ensureSessionFolders();
+        if (session) {
+            for (const wf of remoteWorkflows) {
+                const folderId = session.parentMap.get(wf.id);
+                if (folderId) wf.parentFolderId = folderId;
+            }
+            return session.resolver;
+        }
+
+        // Public-API path: works on Enterprise / where workflows carry folder
+        // metadata. No login required.
         const hasWorkflowFolderFields = remoteWorkflows.some((workflow) =>
             workflow.parentFolderId !== undefined || workflow.parentFolder?.id,
         );
@@ -1244,14 +1300,26 @@ export class WorkflowStateTracker extends EventEmitter {
             // Store active and archived flags
             this.remoteActive.set(remoteWf.id, remoteWf.active === true);
             this.remoteArchived.set(remoteWf.id, remoteWf.isArchived === true);
-            const parentFolderId = remoteWf.parentFolderId ?? remoteWf.parentFolder?.id ?? null;
+            let parentFolderId = remoteWf.parentFolderId ?? remoteWf.parentFolder?.id ?? null;
             let folderPath: string[] = [];
-            if (this.folderSync && parentFolderId && typeof this.client.getFolders === 'function') {
-                try {
-                    const resolver = new FolderPathResolver(await this.client.getFolders(this.projectId));
-                    folderPath = resolver.getPathForWorkflow(remoteWf);
-                } catch (error: any) {
-                    this.warnFolderMetadataUnavailable(error?.message);
+            if (this.folderSync) {
+                // Creds-first: backfill the folder link from the session source
+                // (the public workflow API omits parentFolderId).
+                const session = await this.ensureSessionFolders();
+                if (session) {
+                    const folderId = session.parentMap.get(remoteWf.id) ?? null;
+                    if (folderId) {
+                        remoteWf.parentFolderId = folderId;
+                        parentFolderId = folderId;
+                    }
+                    folderPath = session.resolver.getPathForWorkflow(remoteWf);
+                } else if (parentFolderId && typeof this.client.getFolders === 'function') {
+                    try {
+                        const resolver = new FolderPathResolver(await this.client.getFolders(this.projectId));
+                        folderPath = resolver.getPathForWorkflow(remoteWf);
+                    } catch (error: any) {
+                        this.warnFolderMetadataUnavailable(error?.message);
+                    }
                 }
             }
             this.remoteParentFolderIds.set(remoteWf.id, parentFolderId);

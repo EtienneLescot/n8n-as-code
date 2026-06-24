@@ -161,6 +161,34 @@ export class BaseCommand {
      * Get sync config with instance identifier.
      * Validates that required project fields are present; exits with a clear error if not.
      */
+    /**
+     * Resolve optional session-login credentials for reading n8n folders over the
+     * internal `/rest` API. Needed for folderSync on sub-Enterprise instances where
+     * the public folder API is unavailable; Enterprise users do not need this (the
+     * public folder path is used automatically). When present, the session source
+     * takes precedence. Read from env only — never committed:
+     *   N8NAC_ENV_<ENV>_FOLDER_USER / _FOLDER_PASS  (per-environment, preferred)
+     *   N8NAC_FOLDER_LOGIN_USER     / _PASS         (generic fallback)
+     */
+    protected resolveFolderLogin(): { user: string; pass: string } | undefined {
+        const clean = (v?: string) => v?.trim().replace(/^['"]|['"]$/g, '') || '';
+        const slugify = (v?: string) =>
+            (v || '').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        const slugs = [
+            this.activeEnvironment?.environmentName,
+            this.activeEnvironment?.environmentId,
+        ].map(slugify).filter(Boolean);
+
+        for (const slug of slugs) {
+            const user = clean(process.env[`N8NAC_ENV_${slug}_FOLDER_USER`]);
+            const pass = clean(process.env[`N8NAC_ENV_${slug}_FOLDER_PASS`]);
+            if (user && pass) return { user, pass };
+        }
+        const user = clean(process.env.N8NAC_FOLDER_LOGIN_USER);
+        const pass = clean(process.env.N8NAC_FOLDER_LOGIN_PASS);
+        return user && pass ? { user, pass } : undefined;
+    }
+
     protected async getSyncConfig(): Promise<any> {
         await this.prepareRuntimeContext();
         const instanceIdentifier = await this.ensureInstanceIdentifier();
@@ -201,6 +229,8 @@ export class BaseCommand {
             projectId: localConfig.projectId,
             projectName: localConfig.projectName,
             folderSync: localConfig.folderSync ?? false,
+            host: this.config.host,
+            folderLogin: this.resolveFolderLogin(),
             environmentId: this.activeEnvironment?.environmentId,
             environmentName: this.activeEnvironment?.environmentName,
             environmentTargetId: this.activeEnvironment?.environmentTargetId,

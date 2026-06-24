@@ -90,6 +90,9 @@ export interface ISyncConfig {
     projectId: string;           // REQUIRED: Project scope for sync
     projectName: string;         // REQUIRED: Project display name
     folderSync?: boolean;
+    host?: string;               // n8n base URL (used by the session-auth folder source)
+    /** Optional session-login creds for reading folders over /rest when folderSync is on. */
+    folderLogin?: { user: string; pass: string };
     environmentId?: string;
     environmentName?: string;
     environmentTargetId?: string;
