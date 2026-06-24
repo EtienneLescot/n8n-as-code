@@ -20,6 +20,7 @@ import { parsePositiveIntegerOption } from './utils/option-parsers.js';
 import { spawn } from 'child_process';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
 import { ConfigService, type ILegacyWorkspaceMigrationResult, type IWorkspaceMigrationReport } from './services/config-service.js';
+import { RestFolderSource } from './core/services/rest-folder-source.js';
 import { WorkspaceMigrationFacade } from './services/workspace-migration-facade.js';
 import {
     N8N_FACADE_SETUP_MODES,
@@ -902,6 +903,41 @@ environmentAuthProgram.command('set')
             options,
             redactResolvedEnvironment(resolved),
             chalk.green(`✔ Local API key stored for environment: ${resolved.environmentName}`),
+        );
+    });
+
+environmentAuthProgram.command('folder-login')
+    .description('Store a session token for folderSync on instances where the public folder API is unavailable (sub-Enterprise). Logs in once via /rest and saves the ~7-day cookie locally — never the password.')
+    .argument('<name-or-id>', 'Environment name or ID')
+    .option('--user <email>', 'Login email / identifier')
+    .option('--password <password>', 'Login password (prefer --password-stdin)')
+    .option('--password-stdin', 'Read the login password from stdin')
+    .option('--json', 'Output result as JSON')
+    .action(async (nameOrId, options) => {
+        const configService = new ConfigService();
+        abortIfWorkspaceMigrationRequired(configService, options);
+        const environment = configService.resolveEnvironment(nameOrId);
+        if (environment.sourceKind === 'managed-instance') {
+            throw new Error(`Environment "${environment.environmentName}" uses a managed instance; folder-login is for remote n8n environments.`);
+        }
+        if (!environment.host) {
+            throw new Error(`Environment "${environment.environmentName}" has no host URL to log in against.`);
+        }
+        const user = (options.user || '').trim();
+        if (!user) throw new Error('Provide --user <email>.');
+        if (options.passwordStdin) options.password = await readSecretFromStdin();
+        const password = options.password || '';
+        if (!password) throw new Error('Provide --password or --password-stdin.');
+
+        const { cookie, expiresAt } = await RestFolderSource.login(environment.host, user, password);
+        configService.saveFolderSession(environment.environmentTargetId, { cookie, expiresAt, user });
+        printJsonOrText(
+            options,
+            { environment: environment.environmentName, user, expiresAt: expiresAt ?? null },
+            chalk.green(
+                `✔ Folder-login session stored for "${environment.environmentName}"` +
+                (expiresAt ? ` (expires ${expiresAt}).` : '.'),
+            ),
         );
     });
 

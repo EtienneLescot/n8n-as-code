@@ -162,15 +162,21 @@ export class BaseCommand {
      * Validates that required project fields are present; exits with a clear error if not.
      */
     /**
-     * Resolve optional session-login credentials for reading n8n folders over the
-     * internal `/rest` API. Needed for folderSync on sub-Enterprise instances where
-     * the public folder API is unavailable; Enterprise users do not need this (the
-     * public folder path is used automatically). When present, the session source
-     * takes precedence. Read from env only — never committed:
-     *   N8NAC_ENV_<ENV>_FOLDER_USER / _FOLDER_PASS  (per-environment, preferred)
-     *   N8NAC_FOLDER_LOGIN_USER     / _PASS         (generic fallback)
+     * Resolve optional session auth for reading n8n folders over the internal
+     * `/rest` API. Needed for folderSync on sub-Enterprise instances where the
+     * public folder API is unavailable; Enterprise users need nothing (the public
+     * folder path is used automatically). When present, the session source takes
+     * precedence over the public path.
+     *
+     * A token (stored or env) is used directly; creds are used to mint a cookie
+     * when no token is present, and to silently re-login if a token has expired.
+     * Cookie precedence: stored per-target token (from `n8nac env auth
+     * folder-login`) → env token. Env vars are never committed:
+     *   N8NAC_ENV_<ENV>_FOLDER_USER / _FOLDER_PASS   (per-environment creds)
+     *   N8NAC_ENV_<ENV>_FOLDER_TOKEN                 (per-environment cookie/jwt)
+     *   N8NAC_FOLDER_LOGIN_USER / _PASS / _TOKEN     (generic fallback)
      */
-    protected resolveFolderLogin(): { user: string; pass: string } | undefined {
+    protected resolveFolderAuth(): { cookie?: string; user?: string; pass?: string } | undefined {
         const clean = (v?: string) => v?.trim().replace(/^['"]|['"]$/g, '') || '';
         const slugify = (v?: string) =>
             (v || '').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -179,14 +185,37 @@ export class BaseCommand {
             this.activeEnvironment?.environmentId,
         ].map(slugify).filter(Boolean);
 
+        let user = '';
+        let pass = '';
+        let envToken = '';
         for (const slug of slugs) {
-            const user = clean(process.env[`N8NAC_ENV_${slug}_FOLDER_USER`]);
-            const pass = clean(process.env[`N8NAC_ENV_${slug}_FOLDER_PASS`]);
-            if (user && pass) return { user, pass };
+            user = user || clean(process.env[`N8NAC_ENV_${slug}_FOLDER_USER`]);
+            pass = pass || clean(process.env[`N8NAC_ENV_${slug}_FOLDER_PASS`]);
+            envToken = envToken || clean(process.env[`N8NAC_ENV_${slug}_FOLDER_TOKEN`]);
         }
-        const user = clean(process.env.N8NAC_FOLDER_LOGIN_USER);
-        const pass = clean(process.env.N8NAC_FOLDER_LOGIN_PASS);
-        return user && pass ? { user, pass } : undefined;
+        user = user || clean(process.env.N8NAC_FOLDER_LOGIN_USER);
+        pass = pass || clean(process.env.N8NAC_FOLDER_LOGIN_PASS);
+        envToken = envToken || clean(process.env.N8NAC_FOLDER_LOGIN_TOKEN);
+
+        // Stored per-target token wins (skips a login round-trip), if unexpired.
+        let cookie = '';
+        const targetId = this.activeEnvironment?.environmentTargetId;
+        if (targetId) {
+            const session = this.configService.getFolderSession(targetId);
+            if (session?.cookie && (!session.expiresAt || Date.parse(session.expiresAt) > Date.now())) {
+                cookie = session.cookie;
+            }
+        }
+        cookie = cookie || envToken;
+        // Accept a bare JWT in the env token by adding the cookie name.
+        if (cookie && !cookie.includes('=')) cookie = `n8n-auth=${cookie}`;
+
+        if (!cookie && !(user && pass)) return undefined;
+        return {
+            cookie: cookie || undefined,
+            user: user || undefined,
+            pass: pass || undefined,
+        };
     }
 
     protected async getSyncConfig(): Promise<any> {
@@ -230,7 +259,7 @@ export class BaseCommand {
             projectName: localConfig.projectName,
             folderSync: localConfig.folderSync ?? false,
             host: this.config.host,
-            folderLogin: this.resolveFolderLogin(),
+            folderAuth: this.resolveFolderAuth(),
             environmentId: this.activeEnvironment?.environmentId,
             environmentName: this.activeEnvironment?.environmentName,
             environmentTargetId: this.activeEnvironment?.environmentTargetId,

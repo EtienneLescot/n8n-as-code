@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import Conf from 'conf';
+import type { IFolderSession } from '../core/types.js';
 import {
     N8nConfigurationService,
     N8nRuntimeOrchestrator,
@@ -1128,6 +1129,58 @@ export class ConfigService {
     saveWorkspaceTargetApiKey(targetId: string, apiKey: string): void {
         const target = this.getInstanceTarget(targetId);
         this.manager.saveApiKey(target.id, apiKey);
+    }
+
+    // ── Folder-sync session tokens ────────────────────────────────────────────
+    // Folder reads on sub-Enterprise instances use the internal /rest API, which
+    // needs session (cookie) auth. We store the resulting cookie per target — the
+    // same per-target granularity as API keys — in a local 0o600 store, alongside
+    // the existing 'credentials' conf store. The password is never persisted.
+
+    private folderSessionStore?: Conf<Record<string, unknown>>;
+
+    private getFolderSessionStore(): Conf<Record<string, unknown>> {
+        if (!this.folderSessionStore) {
+            this.folderSessionStore = new Conf<Record<string, unknown>>({
+                projectName: 'n8nac',
+                configName: 'folder-sessions',
+                configFileMode: 0o600,
+            });
+        }
+        return this.folderSessionStore;
+    }
+
+    /** Canonical target id (accepts a name or id); falls back to the input if unresolvable. */
+    private resolveFolderSessionKey(targetId: string): string {
+        try {
+            return this.getInstanceTarget(targetId).id;
+        } catch {
+            return targetId;
+        }
+    }
+
+    saveFolderSession(targetId: string, session: IFolderSession): void {
+        const key = this.resolveFolderSessionKey(targetId);
+        const store = this.getFolderSessionStore();
+        const all = (store.get('sessions') as Record<string, IFolderSession>) ?? {};
+        all[key] = session;
+        store.set('sessions', all);
+    }
+
+    getFolderSession(targetId: string): IFolderSession | undefined {
+        const key = this.resolveFolderSessionKey(targetId);
+        const all = (this.getFolderSessionStore().get('sessions') as Record<string, IFolderSession>) ?? {};
+        return all[key];
+    }
+
+    clearFolderSession(targetId: string): void {
+        const key = this.resolveFolderSessionKey(targetId);
+        const store = this.getFolderSessionStore();
+        const all = (store.get('sessions') as Record<string, IFolderSession>) ?? {};
+        if (all[key]) {
+            delete all[key];
+            store.set('sessions', all);
+        }
     }
 
     upsertRemoteInstancePreset(input: { host: string; apiKey?: string; name?: string }): IInstanceProfile {

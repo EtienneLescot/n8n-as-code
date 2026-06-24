@@ -36,6 +36,16 @@ export interface IFolder {
     updatedAt?: string;
 }
 
+/** A stored n8n `/rest` session cookie for folder reads (per target). */
+export interface IFolderSession {
+    /** Cookie header value, e.g. `n8n-auth=<jwt>`. */
+    cookie: string;
+    /** ISO expiry, if known (n8n's auth cookie lasts ~7 days). */
+    expiresAt?: string;
+    /** Login identifier used to mint it (for display / re-login hints; never the password). */
+    user?: string;
+}
+
 export interface IFolderCapability {
     folders: boolean;
     workflowFolderFields: boolean;
@@ -91,8 +101,8 @@ export interface ISyncConfig {
     projectName: string;         // REQUIRED: Project display name
     folderSync?: boolean;
     host?: string;               // n8n base URL (used by the session-auth folder source)
-    /** Optional session-login creds for reading folders over /rest when folderSync is on. */
-    folderLogin?: { user: string; pass: string };
+    /** Optional session auth (stored cookie or creds) for reading folders over /rest when folderSync is on. */
+    folderAuth?: { cookie?: string; user?: string; pass?: string };
     environmentId?: string;
     environmentName?: string;
     environmentTargetId?: string;

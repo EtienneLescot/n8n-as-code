@@ -8,7 +8,7 @@ import { WorkflowSyncStatus, IWorkflowStatus, IWorkflow } from '../types.js';
 import { IWorkflowState, IInstanceState } from './state-manager.js';
 import { FolderPathResolver, sanitizePathSegment } from './folder-path-resolver.js';
 import { listWorkflowFilesRecursive, normalizeWorkflowRelativePath, workflowRelativePathToAbsolute } from './workflow-path-utils.js';
-import { RestFolderSource, RestFolderLogin } from './rest-folder-source.js';
+import { RestFolderSource, RestFolderAuth } from './rest-folder-source.js';
 
 const WINDOWS_RESERVED_FILENAMES = new Set([
     'CON',
@@ -99,7 +99,7 @@ export class WorkflowStateTracker extends EventEmitter {
             projectId: string;      // Project scope filter
             folderSync?: boolean;
             host?: string;          // n8n base URL (for the session-auth folder source)
-            folderLogin?: RestFolderLogin; // Session creds for /rest folder reads
+            folderAuth?: RestFolderAuth; // Session token or creds for /rest folder reads
         }
     ) {
         super();
@@ -112,8 +112,8 @@ export class WorkflowStateTracker extends EventEmitter {
         // When folderSync is on and session creds are provided, prefer reading
         // folders over /rest — it works on every edition, including instances
         // where the public folder API is license-gated.
-        if (this.folderSync && options.host && options.folderLogin && this.projectId) {
-            this.folderSource = new RestFolderSource(options.host, this.projectId, options.folderLogin);
+        if (this.folderSync && options.host && options.folderAuth && this.projectId) {
+            this.folderSource = new RestFolderSource(options.host, this.projectId, options.folderAuth);
         }
         this.stateFilePath = path.join(this.directory, '.n8n-state.json');
 
