@@ -42,7 +42,7 @@
         "inquirer": "^13.1.0",
         "json-stable-stringify": "^1.3.0",
         "log-update": "^6.0.0",
-        "ora": "^7.0.1",
+        "ora": "^9.4.1",
         "zod": "^3.22.4"
     },
     "devDependencies": {
