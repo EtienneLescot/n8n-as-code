@@ -140,7 +140,7 @@ export class RestFolderSource {
     private async fetchAllPages<T>(pathname: string): Promise<T[]> {
         await this.ensureCookie();
         const all: T[] = [];
-        const take = 200;
+        const take = 100;
         let skip = 0;
         for (;;) {
             const res = await this.client.get(pathname, {
@@ -158,8 +158,13 @@ export class RestFolderSource {
                 typeof body?.count === 'number' ? body.count : undefined;
             if (data.length === 0) break;
             if (count !== undefined && all.length >= count) break;
-            if (data.length < take) break;
-            skip += take;
+            // Advance by what the server actually returned: n8n's /rest endpoints
+            // cap page size (100) regardless of the requested `take`, so neither
+            // `skip += take` nor a `data.length < take` stop are safe — they'd
+            // skip pages or stop after the first short page.
+            skip += data.length;
+            // Last-resort stop only when the server gives no count to page against.
+            if (count === undefined && data.length < take) break;
         }
         return all;
     }
