@@ -1998,6 +1998,25 @@ function getHttpStatus(error: any): number | undefined {
     return error?.response?.status;
 }
 
+const TLS_ERROR_CODES = new Set([
+    'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+    'CERT_UNTRUSTED',
+    'ERR_TLS_CERT_ALTNAME_INVALID',
+    'DEPTH_ZERO_SELF_SIGNED_CERT',
+    'SELF_SIGNED_CERT_IN_CHAIN',
+    'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+    'CERT_HAS_EXPIRED',
+]);
+
+function isTlsError(error: any): boolean {
+    return TLS_ERROR_CODES.has(error?.code) ||
+        typeof error?.message === 'string' && (
+            error.message.includes('unable to verify') ||
+            error.message.includes('certificate') ||
+            error.message.includes('self-signed')
+        );
+}
+
 function formatN8nApiError(error: any, host: string): string {
     const status = getHttpStatus(error);
     if (status === 401) {
@@ -2010,7 +2029,11 @@ function formatN8nApiError(error: any, host: string): string {
         return `The n8n workflows API is not available at "${host}". Check the instance URL.`;
     }
     if (!error?.response) {
-        return `Cannot connect to n8n at "${host}": ${error?.message || error}`;
+        const base = `Cannot connect to n8n at "${host}": ${error?.message || error}`;
+        if (isTlsError(error)) {
+            return `${base}\nIf the server uses a self-signed or internal CA certificate, set NODE_EXTRA_CA_CERTS to your CA file path, or add the CA to your system trust store and restart VS Code.`;
+        }
+        return base;
     }
     return `n8n API request failed at "${host}" with status ${status}: ${error?.message || error}`;
 }

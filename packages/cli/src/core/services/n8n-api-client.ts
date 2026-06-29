@@ -1,10 +1,56 @@
 import axios, { AxiosInstance } from 'axios';
 import * as dns from 'dns';
+import { readFileSync } from 'fs';
 import * as http from 'http';
 import * as https from 'https';
+import * as tls from 'tls';
 import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField, IExecutionDetails, IExecutionList, IExecutionSummary, ExecutionStatus } from '../types.js';
 
 type AgentLookup = NonNullable<http.AgentOptions['lookup']>;
+
+/**
+ * Builds a combined CA certificate bundle from:
+ *   1. NODE_EXTRA_CA_CERTS – manually read so the VS Code extension host
+ *      respects it even when the env var wasn't present at Node.js startup.
+ *   2. System CAs via tls.getCACertificates('system') (Node.js 22+), which
+ *      is the programmatic equivalent of the --use-system-ca CLI flag.
+ *
+ * Returns undefined when neither source provides extra certificates, in which
+ * case the caller should fall back to the permissive rejectUnauthorized:false
+ * behaviour that preserves backward compatibility for local n8n instances.
+ * When extra CAs are returned, the Node.js default Mozilla bundle is included
+ * so that ordinary HTTPS requests continue to work.
+ */
+export function buildCaBundle(): string[] | undefined {
+    const extra: string[] = [];
+
+    const extraCaPath = process.env.NODE_EXTRA_CA_CERTS;
+    if (extraCaPath) {
+        try {
+            extra.push(readFileSync(extraCaPath, 'utf8'));
+        } catch {
+            // Ignore unreadable file; fall back to defaults
+        }
+    }
+
+    // Node.js 22.14+ exposes this API; guard the call for older runtimes.
+    const getCACerts = (tls as { getCACertificates?: (store: string) => string[] }).getCACertificates;
+    if (typeof getCACerts === 'function') {
+        try {
+            extra.push(...getCACerts('system'));
+        } catch {
+            // Not supported in this build/platform
+        }
+    }
+
+    if (extra.length === 0) {
+        return undefined;
+    }
+
+    // When a custom `ca` is supplied, Node.js replaces the default Mozilla
+    // bundle, so we prepend it explicitly to preserve trust for public CAs.
+    return [...tls.rootCertificates, ...extra];
+}
 
 function createIpv4FirstLookup(): AgentLookup {
     return ((hostname, options, callback) => {
@@ -41,12 +87,22 @@ export class N8nApiClient {
             host = host.slice(0, -1);
         }
 
-        // Allow self-signed certificates by default to avoid issues in local environments.
         // Prefer IPv4 when both A and AAAA records exist; remote self-hosted n8n instances
         // often publish IPv6 records that are unreachable from the extension host.
         const lookup = createIpv4FirstLookup();
         this.httpAgent = new http.Agent({ lookup });
-        this.httpsAgent = new https.Agent({ rejectUnauthorized: false, lookup });
+
+        // Use a combined CA bundle when NODE_EXTRA_CA_CERTS or system CAs are
+        // available so that the extension respects the same certificate trust
+        // that the user configured for Node.js (--use-system-ca / NODE_EXTRA_CA_CERTS).
+        // Fall back to rejectUnauthorized:false for plain local instances that
+        // use self-signed certificates without a configured CA.
+        const caBundle = buildCaBundle();
+        this.httpsAgent = new https.Agent({
+            rejectUnauthorized: caBundle !== undefined,
+            ca: caBundle,
+            lookup,
+        });
 
         this.client = axios.create({
             baseURL: host,
