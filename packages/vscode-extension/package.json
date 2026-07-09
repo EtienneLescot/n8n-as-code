@@ -410,7 +410,7 @@
     "@vscode/test-electron": "^2.5.2",
     "esbuild": "^0.27.2",
     "tsx": "^4.19.3",
-    "typescript": "^5.3.3"
+    "typescript": "^7.0.2"
   },
   "scripts": {
     "vscode:prepublish": "npm run build && npm run prune-package-artifacts",
