@@ -1,5 +1,16 @@
 # @n8n-as-code/mcp
 
+## [2.1.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/mcp@v2.1.0...@n8n-as-code/mcp@v2.1.1) (2026-07-15)
+
+### Bug Fixes
+
+* **skills:** restore docs categorization against current docs.n8n.io llms.txt ([409dc65](https://github.com/EtienneLescot/n8n-as-code/commit/409dc65e2dafa75e868dad1b0411ffab30740af1))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * n8nac bumped from 2.4.0 to 2.4.1
+
 ## [2.1.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/mcp@v2.0.15...@n8n-as-code/mcp@v2.1.0) (2026-06-09)
 
 ### Features
