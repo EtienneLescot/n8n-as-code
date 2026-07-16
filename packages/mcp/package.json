@@ -15,7 +15,7 @@
     "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.12",
+    "@hono/node-server": "^2.0.10",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@n8n-as-code/telemetry": "2.0.1",
     "n8nac": "2.4.0",
