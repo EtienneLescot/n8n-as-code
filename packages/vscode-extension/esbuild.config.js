@@ -2,6 +2,10 @@ const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const {
+    collectRuntimeDependencyNames,
+    HOST_PROVIDED_PACKAGES,
+} = require('./scripts/runtime-dependency-names.cjs');
 
 const managerCoreAgentToolingPath = path.resolve(
     __dirname,
@@ -85,10 +89,8 @@ function collectRuntimeDependencyClosure(packageNames) {
             }
         }
         const packageJson = readPackageJson(packageDir);
-        const dependencyNames = [
-            ...Object.keys(packageJson.dependencies || {}),
-            ...Object.keys(packageJson.optionalDependencies || {}),
-        ];
+        const dependencyNames = collectRuntimeDependencyNames(packageJson)
+            .filter(dependencyName => !HOST_PROVIDED_PACKAGES.has(dependencyName));
         for (const dependencyName of dependencyNames) {
             const dependencyDir = getPackageDir(dependencyName, realPackageDir);
             if (dependencyDir && !seenPackageDirs.has(fs.realpathSync(dependencyDir))) {

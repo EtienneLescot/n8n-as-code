@@ -378,6 +378,7 @@
   ],
   "dependencies": {
     "@langchain/anthropic": "^1.3.29",
+    "@langchain/core": "^1.2.2",
     "@langchain/google-genai": "^2.1.30",
     "@langchain/langgraph": "^1.3.2",
     "@langchain/langgraph-checkpoint": "^1.0.2",
@@ -419,8 +420,9 @@
     "package-bundle": "node esbuild.config.js",
     "copy-assets": "node scripts/copy-assets.mjs",
     "prune-package-artifacts": "node scripts/prune-package-artifacts.mjs",
+    "verify-runtime-deps": "node scripts/verify-runtime-dependency-closure.mjs",
     "smoke:vsix-runtime": "node scripts/smoke-vsix-runtime.mjs",
-    "build": "npm run compile && npm run copy-assets && npm run package-bundle",
+    "build": "npm run compile && npm run copy-assets && npm run package-bundle && npm run verify-runtime-deps",
     "clean": "rm -rf out assets tsconfig.tsbuildinfo",
     "test": "npm run compile && npx tsx --test tests/unit/*.test.ts",
     "test:integration:providers": "node scripts/run-provider-stream-v3-integrations.mjs",
