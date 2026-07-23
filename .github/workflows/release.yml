@@ -198,6 +198,9 @@ jobs:
 
           cd packages/vscode-extension
           npx @vscode/vsce package --no-dependencies
+          # Activate the packaged VSIX before publishing it. Catches runtime dependencies
+          # that were built but never copied into out/node_modules (see #566).
+          npm run smoke:vsix-runtime -- "$(ls -1 *.vsix | head -n 1)"
           if npx @vscode/vsce publish --no-dependencies --pat "$VSCE_TOKEN" > vsce-publish.log 2>&1; then
             cat vsce-publish.log
           else
@@ -728,6 +731,9 @@ jobs:
 
           cd packages/vscode-extension
           npx @vscode/vsce package --no-dependencies
+          # Activate the packaged VSIX before publishing it. Catches runtime dependencies
+          # that were built but never copied into out/node_modules (see #566).
+          npm run smoke:vsix-runtime -- "$(ls -1 *.vsix | head -n 1)"
           if npx @vscode/vsce publish --no-dependencies --pre-release --pat "$VSCE_TOKEN" > vsce-publish.log 2>&1; then
             cat vsce-publish.log
           else
