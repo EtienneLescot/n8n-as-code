@@ -145,6 +145,33 @@ Status values:
 > is available, whether each side has drifted since the last sync. Use
 > `n8nac fetch <id>` for authoritative per-workflow alignment before pulling.
 
+#### Drift in `--json` output
+
+`n8nac list --json` adds a `drift` object to each workflow that has a sync record in
+`.n8n-state.json` and a remote `updatedAt`:
+
+```json
+{
+  "id": "sx19mWQeBVouBgdO",
+  "name": "Carousel",
+  "filename": "Carousel.workflow.ts",
+  "status": "TRACKED",
+  "drift": { "local": false, "remote": true },
+  "lastSyncedAt": "2026-06-16T22:25:13.933Z",
+  "remoteUpdatedAt": "2026-06-16T22:45:28.755Z"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `drift.local` | The local file's hash differs from `lastSyncedHash`. Absent when the file could not be parsed during the scan, i.e. "unknown", not "unchanged". |
+| `drift.remote` | The remote `updatedAt` is newer than `lastSyncedAt` — the workflow was edited in the n8n UI since the last sync. |
+| `drift` (whole object) | Absent when there is no sync record for the workflow (never pulled or pushed), so drift cannot be determined. |
+
+`drift.remote` is a timestamp comparison, not a content comparison: a workflow re-saved
+in the n8n UI with no effective change still reports `remote: true`. Run
+`n8nac fetch <id>` to confirm whether the payload actually differs.
+
 ### `find`
 
 ```bash

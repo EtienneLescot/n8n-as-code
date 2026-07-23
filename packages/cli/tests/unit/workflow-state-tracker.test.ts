@@ -4,6 +4,7 @@ import path from 'path';
 import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import { WorkflowStateTracker } from '../../src/core/services/workflow-state-tracker.js';
 import { N8nApiClient } from '../../src/core/services/n8n-api-client.js';
+import { WorkflowTransformerAdapter } from '../../src/core/services/workflow-transformer-adapter.js';
 import { IWorkflow } from '../../src/core/types.js';
 
 describe('WorkflowStateTracker archive filtering', () => {
@@ -250,5 +251,264 @@ export class OrderIdWorkflow {
 
         expect(tracker.getWorkflowIdForFilename('order-id.workflow.ts')).toBe('real-id');
         expect(tracker.getFilenameForId('real-id')).toBe('order-id.workflow.ts');
+    });
+});
+
+describe('WorkflowStateTracker drift detection', () => {
+    let tempDir: string | undefined;
+    let mockClient: N8nApiClient;
+
+    // Remote `updatedAt` returned by the mocked API for every test below.
+    const REMOTE_UPDATED_AT = '2026-06-16T22:45:28.755Z';
+    // A `lastSyncedAt` strictly older than REMOTE_UPDATED_AT (remote moved on since).
+    const OLDER_THAN_REMOTE = '2026-06-16T22:25:13.933Z';
+
+    /**
+     * Realistic fixture: a parseable `@workflow` class, so `refreshLocalState`
+     * computes and caches a real hash exactly as it does in production. The drift
+     * assertions below therefore run against the real local-hash path rather than a
+     * hand-seeded cache.
+     */
+    const workflowSource = (id: string, name: string, webhookPath: string) =>
+        `import { workflow, node } from '@n8n-as-code/transformer';
+
+@workflow({
+  id: '${id}',
+  name: '${name}',
+  active: false
+})
+export class ${name}Workflow {
+  @node({
+    name: 'Webhook',
+    type: 'n8n-nodes-base.webhook',
+    version: 2.1,
+    position: [0, 0]
+  })
+  Webhook = { path: '${webhookPath}', httpMethod: 'POST' };
+}
+`;
+
+    /** Writes the fixture and returns the hash the tracker will compute for it. */
+    const writeWorkflowFile = async (id: string, name: string, webhookPath = 'carousel') => {
+        const content = workflowSource(id, name, webhookPath);
+        fs.writeFileSync(path.join(tempDir!, `${name}.workflow.ts`), content, 'utf-8');
+        return WorkflowTransformerAdapter.hashWorkflow(content);
+    };
+
+    const writeState = (
+        entries: Record<string, { lastSyncedHash: string; lastSyncedAt?: string; filename?: string }>,
+    ) => {
+        fs.writeFileSync(
+            path.join(tempDir!, '.n8n-state.json'),
+            JSON.stringify({ workflows: entries }, null, 2),
+            'utf-8',
+        );
+    };
+
+    const mockRemote = (workflows: Partial<IWorkflow>[]) => {
+        mockClient = { getAllWorkflows: vi.fn().mockResolvedValue(workflows as IWorkflow[]) } as any;
+    };
+
+    /** Runs the same refresh sequence `SyncManager.listWorkflows({ fetchRemote: true })` does. */
+    const listWorkflows = async () => {
+        const tracker = new WorkflowStateTracker(mockClient, {
+            directory: tempDir!,
+            syncInactive: true,
+            ignoredTags: [],
+            projectId: 'test-project',
+        });
+        await tracker.refreshLocalState();
+        await tracker.refreshRemoteState();
+        return { tracker, results: await tracker.getLightweightList() };
+    };
+
+    beforeEach(() => {
+        vi.resetAllMocks();
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-drift-'));
+        mockRemote([
+            { id: 'wf-1', name: 'Carousel', active: true, isArchived: false, updatedAt: REMOTE_UPDATED_AT },
+        ]);
+    });
+
+    afterEach(() => {
+        if (tempDir && fs.existsSync(tempDir)) {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+        vi.resetAllMocks();
+        tempDir = undefined;
+    });
+
+    it('omits drift when there is no reference state (never synced)', async () => {
+        await writeWorkflowFile('wf-1', 'Carousel');
+        // No .n8n-state.json written.
+
+        const { results } = await listWorkflows();
+
+        expect(results).toHaveLength(1);
+        expect(results[0].status).toBe('TRACKED');
+        // No reference state => cannot determine drift.
+        expect(results[0].drift).toBeUndefined();
+        expect(results[0].lastSyncedAt).toBeUndefined();
+        // Remote timestamp is still surfaced when available.
+        expect(results[0].remoteUpdatedAt).toBe(REMOTE_UPDATED_AT);
+    });
+
+    it('reports no drift when the local hash matches and the remote has not moved', async () => {
+        const hash = await writeWorkflowFile('wf-1', 'Carousel');
+        writeState({
+            'wf-1': { lastSyncedHash: hash, lastSyncedAt: REMOTE_UPDATED_AT, filename: 'Carousel.workflow.ts' },
+        });
+
+        const { results } = await listWorkflows();
+
+        expect(results[0].drift).toEqual({ local: false, remote: false });
+    });
+
+    it('reports drift.remote=true when the remote changed since the last sync', async () => {
+        // This is the scenario from issue #537: workflow edited in the n8n UI after a pull.
+        const hash = await writeWorkflowFile('wf-1', 'Carousel');
+        writeState({
+            'wf-1': { lastSyncedHash: hash, lastSyncedAt: OLDER_THAN_REMOTE, filename: 'Carousel.workflow.ts' },
+        });
+
+        const { results } = await listWorkflows();
+
+        expect(results[0].status).toBe('TRACKED');
+        expect(results[0].drift).toEqual({ local: false, remote: true });
+        expect(results[0].lastSyncedAt).toBe(OLDER_THAN_REMOTE);
+        expect(results[0].remoteUpdatedAt).toBe(REMOTE_UPDATED_AT);
+    });
+
+    it('reports drift.local=true when the local file changed since the last sync', async () => {
+        await writeWorkflowFile('wf-1', 'Carousel');
+        writeState({
+            'wf-1': {
+                lastSyncedHash: 'hash-recorded-before-the-local-edit',
+                // Same instant as the remote => isolate the local axis.
+                lastSyncedAt: REMOTE_UPDATED_AT,
+                filename: 'Carousel.workflow.ts',
+            },
+        });
+
+        const { results } = await listWorkflows();
+
+        expect(results[0].drift).toEqual({ local: true, remote: false });
+    });
+
+    it('reports both axes when local and remote each moved since the last sync', async () => {
+        await writeWorkflowFile('wf-1', 'Carousel');
+        writeState({
+            'wf-1': {
+                lastSyncedHash: 'hash-recorded-before-the-local-edit',
+                lastSyncedAt: OLDER_THAN_REMOTE,
+                filename: 'Carousel.workflow.ts',
+            },
+        });
+
+        const { results } = await listWorkflows();
+
+        expect(results[0].drift).toEqual({ local: true, remote: true });
+    });
+
+    it('leaves drift.local undefined when the local file could not be hashed', async () => {
+        // The decorator is not attached to a class: `compileToJson` still recovers the id
+        // (so the file maps to wf-1 and lists as TRACKED) but `hashWorkflow` throws, and
+        // refreshLocalState skips the file. Drift must not claim "local unchanged" for a
+        // file whose contents were never read.
+        fs.writeFileSync(
+            path.join(tempDir!, 'Carousel.workflow.ts'),
+            [
+                "import { workflow } from '@n8n-as-code/transformer';",
+                '',
+                '@workflow({ id: "wf-1", name: "Carousel" })',
+                'export {};',
+                '',
+            ].join('\n'),
+            'utf-8',
+        );
+        writeState({
+            'wf-1': {
+                lastSyncedHash: 'hash-from-the-last-successful-sync',
+                lastSyncedAt: OLDER_THAN_REMOTE,
+                filename: 'Carousel.workflow.ts',
+            },
+        });
+
+        const { results } = await listWorkflows();
+
+        expect(results[0].drift?.local).toBeUndefined();
+        // The remote axis is independent and still reported.
+        expect(results[0].drift?.remote).toBe(true);
+    });
+
+    it('omits drift on EXIST_ONLY_LOCALLY workflows (no remote reference)', async () => {
+        await writeWorkflowFile('wf-local-only', 'Local', 'local-only');
+        mockRemote([]); // Remote returns no workflows.
+
+        const { results } = await listWorkflows();
+
+        expect(results[0].status).toBe('EXIST_ONLY_LOCALLY');
+        expect(results[0].drift).toBeUndefined();
+        expect(results[0].remoteUpdatedAt).toBeUndefined();
+    });
+
+    it('caches remote updatedAt in remoteTimestamps when refreshRemoteState runs', async () => {
+        await writeWorkflowFile('wf-1', 'Carousel');
+
+        const { tracker } = await listWorkflows();
+
+        const timestamps = (tracker as any).remoteTimestamps as Map<string, string>;
+        expect(timestamps.get('wf-1')).toBe(REMOTE_UPDATED_AT);
+    });
+
+    it('omits drift when state has lastSyncedHash but no lastSyncedAt', async () => {
+        // Defensive: should never happen in practice (finalizeSync always writes both),
+        // but if it does we skip drift rather than report a partial signal.
+        const hash = await writeWorkflowFile('wf-1', 'Carousel');
+        writeState({ 'wf-1': { lastSyncedHash: hash } });
+
+        const { results } = await listWorkflows();
+
+        expect(results[0].drift).toBeUndefined();
+    });
+
+    it('compares timestamps chronologically, not lexically', async () => {
+        // Same instant, different ISO representations. A lexical compare would rank
+        // 'Z' (0x5A) above '+' (0x2B) and report phantom remote drift.
+        const hash = await writeWorkflowFile('wf-1', 'Carousel');
+        mockRemote([
+            { id: 'wf-1', name: 'Carousel', active: true, isArchived: false, updatedAt: '2026-06-16T22:45:28.755Z' },
+        ]);
+        writeState({
+            'wf-1': {
+                lastSyncedHash: hash,
+                lastSyncedAt: '2026-06-16T22:45:28.755+00:00',
+                filename: 'Carousel.workflow.ts',
+            },
+        });
+
+        const { results } = await listWorkflows();
+
+        expect(results[0].drift).toEqual({ local: false, remote: false });
+    });
+
+    it('does not report remote drift when the remote timestamp is older in another offset', async () => {
+        // 2026-06-17T00:00:00+02:00 is 22:00Z on 06-16, i.e. older than lastSyncedAt,
+        // even though it sorts higher as a string.
+        const hash = await writeWorkflowFile('wf-1', 'Carousel');
+        mockRemote([
+            { id: 'wf-1', name: 'Carousel', active: true, isArchived: false, updatedAt: '2026-06-17T00:00:00+02:00' },
+        ]);
+        writeState({
+            'wf-1': {
+                lastSyncedHash: hash,
+                lastSyncedAt: '2026-06-16T23:00:00.000Z',
+                filename: 'Carousel.workflow.ts',
+            },
+        });
+
+        const { results } = await listWorkflows();
+
+        expect(results[0].drift).toEqual({ local: false, remote: false });
     });
 });

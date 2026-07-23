@@ -53,6 +53,42 @@ export interface IWorkflowStatus {
     projectName?: string;
     homeProject?: IProject;
     isArchived?: boolean;
+    /**
+     * Drift detected since the last sync (lightweight, best-effort).
+     *
+     * Only populated when the lightweight `list` path has enough signal to
+     * compute it cheaply: a `lastSyncedHash` / `lastSyncedAt` entry in
+     * `.n8n-state.json` AND a remote `updatedAt` returned by the current
+     * `/api/v1/workflows` listing.
+     *
+     *  - `local`:  local file hash differs from `lastSyncedHash`.
+     *  - `remote`: remote `updatedAt` is newer than `lastSyncedAt`.
+     *
+     * `status` retains its git-style meaning ("the workflow is tracked");
+     * `drift` is the orthogonal temporal axis. Authoritative alignment
+     * still requires `n8nac fetch <id>` (per-workflow hash compare).
+     */
+    drift?: IWorkflowDrift;
+    /** `lastSyncedAt` from `.n8n-state.json`, if state has a record for this id. */
+    lastSyncedAt?: string;
+    /** Remote `updatedAt` from the most recent lightweight fetch, if available. */
+    remoteUpdatedAt?: string;
+}
+
+/**
+ * Per-workflow drift indicators. Both axes are independently computed.
+ * See `IWorkflowStatus.drift` for context.
+ */
+export interface IWorkflowDrift {
+    /**
+     * Local file hash differs from `lastSyncedHash`.
+     *
+     * `undefined` when the local file could not be hashed during the scan (it failed
+     * to parse and was skipped), i.e. "unknown" rather than "unchanged".
+     */
+    local?: boolean;
+    /** Remote `updatedAt` is newer than `lastSyncedAt`. */
+    remote: boolean;
 }
 
 export interface ISyncConfig {

@@ -4,7 +4,7 @@ import EventEmitter from 'events';
 import { N8nApiClient } from './n8n-api-client.js';
 import { WorkflowTransformerAdapter } from './workflow-transformer-adapter.js';
 import { HashUtils } from './hash-utils.js';
-import { WorkflowSyncStatus, IWorkflowStatus, IWorkflow } from '../types.js';
+import { WorkflowSyncStatus, IWorkflowStatus, IWorkflow, IWorkflowDrift } from '../types.js';
 import { IWorkflowState, IInstanceState } from './state-manager.js';
 
 const WINDOWS_RESERVED_FILENAMES = new Set([
@@ -291,6 +291,11 @@ export class WorkflowStateTracker extends EventEmitter {
                 // Store active and archived flags from API
                 this.remoteActive.set(wf.id, wf.active === true);
                 this.remoteArchived.set(wf.id, wf.isArchived === true);
+                // Cache remote updatedAt for cheap drift detection in getLightweightList.
+                // The lightweight `list` path cannot afford a per-workflow hash compare,
+                // but `updatedAt` (already returned by /api/v1/workflows) is enough to
+                // detect "remote changed since last sync" without an extra API call.
+                if (wf.updatedAt) this.remoteTimestamps.set(wf.id, wf.updatedAt);
 
                 // CRITICAL: Use ID-based mapping with PERSISTED state as source of truth
                 let filename: string | undefined = this.idToFileMap.get(wf.id);
@@ -839,6 +844,14 @@ export class WorkflowStateTracker extends EventEmitter {
                 || this.readJsonFile(path.join(this.directory, filename))?.name
                 || filename.replace('.workflow.ts', '');
 
+            // Cheap drift signal: only computed when both reference state and the
+            // remote `updatedAt` from this refresh are available. See computeDrift().
+            // `remoteKnown` already implies `workflowId` is defined (see above), so the
+            // non-null assertion is safe and keeps this branch narrow.
+            const drift = remoteKnown && workflowId
+                ? this.computeDrift(filename, workflowId, state, this.remoteTimestamps.get(workflowId))
+                : undefined;
+
             results.set(filename, {
                 id: workflowId || '',
                 name: workflowName,
@@ -848,7 +861,10 @@ export class WorkflowStateTracker extends EventEmitter {
                 projectId: undefined, // Not available in lightweight mode
                 projectName: undefined, // Not available in lightweight mode
                 homeProject: undefined, // Not available in lightweight mode
-                isArchived
+                isArchived,
+                drift,
+                lastSyncedAt: workflowId ? state.workflows[workflowId]?.lastSyncedAt : undefined,
+                remoteUpdatedAt: workflowId ? this.remoteTimestamps.get(workflowId) : undefined,
             });
         }
 
@@ -885,6 +901,72 @@ export class WorkflowStateTracker extends EventEmitter {
         }
 
         return Array.from(results.values());
+    }
+
+    /**
+     * Cheap drift computation for the lightweight `list` path.
+     *
+     * Single source of truth (SSOT) for the "did either side change since last sync?"
+     * question when a remote hash is not yet cached (i.e. before `n8nac fetch <id>`
+     * runs the expensive per-workflow hash roundtrip).
+     *
+     * Returns `undefined` when there is no reference state for the workflow
+     * (never pulled / first sync), so consumers can distinguish "no drift known"
+     * from "drift checked and nothing changed".
+     *
+     * Cost: O(1) Map lookups, one string compare and one timestamp parse. No AST,
+     * no I/O, no extra API calls.
+     * The data sources are already populated by the existing lightweight refresh:
+     *   - `localHashes[filename]`  - populated by `refreshLocalState`
+     *   - `state.workflows[id]`    - read from `.n8n-state.json`
+     *   - `remoteTimestamp`        - returned by `/api/v1/workflows` (now cached by
+     *                                `refreshRemoteState` into `remoteTimestamps`)
+     */
+    private computeDrift(
+        filename: string,
+        workflowId: string,
+        state: IInstanceState,
+        remoteTimestamp: string | undefined,
+    ): IWorkflowDrift | undefined {
+        const baseState = state.workflows[workflowId];
+        const lastSyncedHash = baseState?.lastSyncedHash;
+        const lastSyncedAt = baseState?.lastSyncedAt;
+        if (!lastSyncedHash || !lastSyncedAt) return undefined;
+
+        const localHash = this.localHashes.get(filename);
+        return {
+            // `undefined` when the file has no entry in localHashes, i.e. it could not
+            // be hashed during the local scan (refreshLocalState skips files that fail
+            // to parse). Reporting `false` there would claim "matches the last sync"
+            // for a file we never actually read.
+            local: localHash === undefined ? undefined : localHash !== lastSyncedHash,
+            // Missing `remoteTimestamp` => not drifted.
+            remote: remoteTimestamp !== undefined && this.isNewerThan(remoteTimestamp, lastSyncedAt),
+        };
+    }
+
+    /**
+     * True when the remote `updatedAt` is strictly newer than the recorded `lastSyncedAt`.
+     *
+     * `lastSyncedAt` is normally a verbatim copy of the remote `updatedAt` (see
+     * `updateWorkflowState`), so both sides usually share the same representation and
+     * equality means "in sync". They can still diverge in format — the fallback in
+     * `updateWorkflowState` writes a client-side `new Date().toISOString()` when the API
+     * response carried no `updatedAt`, and n8n instances differ in how they serialise
+     * timestamps. A lexical compare across two formats misreports silently (`' '` < `'T'`
+     * makes a space-separated timestamp always look older), so compare parsed instants,
+     * consistent with the existing remote-change guard in `sync-engine.ts`.
+     */
+    private isNewerThan(remote: string, base: string): boolean {
+        const remoteMs = Date.parse(remote);
+        const baseMs = Date.parse(base);
+        if (Number.isNaN(remoteMs) || Number.isNaN(baseMs)) {
+            // Unparseable on either side: fall back to an exact-string mismatch. This errs
+            // toward reporting drift, which is the safe direction — a missed remote change
+            // is the failure this signal exists to prevent.
+            return remote !== base;
+        }
+        return remoteMs > baseMs;
     }
 
     /**
