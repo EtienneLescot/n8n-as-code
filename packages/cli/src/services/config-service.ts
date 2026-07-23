@@ -38,6 +38,10 @@ export type IInstanceVerification = N8nInstanceVerification;
  * - `workspace-environment`: key stored for this single environment (`n8nac env auth set`).
  * - `workspace-local`: key stored for the environment target, shared by every environment on it.
  * - `global`: key stored on the global n8n-manager instance that matches the host.
+ *
+ * `workspace-environment` and `workspace-local` apply to remote (external) environments only.
+ * A managed instance owns its credentials, so those environments resolve either a scoped
+ * environment variable or the managed instance key.
  */
 export type EnvironmentCredentialSource = 'env' | 'workspace-environment' | 'workspace-local' | 'global' | 'missing';
 
@@ -1368,9 +1372,10 @@ export class ConfigService {
             if (!instance) throw new Error(`Workspace environment "${environment.name}" references missing global n8n-manager instance: ${target.managedInstanceId}`);
             const host = instance.baseUrl || instance.tunnelPublicUrl || '';
             const envApiKey = this.readEnvApiKey(environment, target);
-            const environmentApiKey = this.readEnvironmentApiKey(environment);
+            // Managed instances own their credentials, so an environment-scoped key left over from
+            // a previous external target must not shadow the managed instance key.
             const globalApiKey = this.manager.getApiKey(instance.id);
-            const apiKey = envApiKey || environmentApiKey || globalApiKey;
+            const apiKey = envApiKey || globalApiKey;
             const projectId = environment.projectId || instance.defaultProject?.id;
             const projectName = environment.projectName || instance.defaultProject?.name;
             const identity = this.resolveManagedEnvironmentIdentity(instance, host, apiKey);
@@ -1390,9 +1395,9 @@ export class ConfigService {
                 instance: this.toInstanceProfile(instance),
                 host,
                 apiKey,
-                apiKeySource: envApiKey ? 'env' : environmentApiKey ? 'workspace-environment' : globalApiKey ? 'global' : 'missing',
+                apiKeySource: envApiKey ? 'env' : globalApiKey ? 'global' : 'missing',
                 apiKeyAvailable: Boolean(apiKey),
-                accessStatus: this.deriveAccessStatus({ host, apiKey, projectId, projectName, verification: envApiKey || environmentApiKey ? undefined : instance.verification }),
+                accessStatus: this.deriveAccessStatus({ host, apiKey, projectId, projectName, verification: envApiKey ? undefined : instance.verification }),
                 nativeMcp: this.nativeMcpToSnapshot(environment.nativeMcp, environment.id),
                 workflowsPath,
                 syncFolder,

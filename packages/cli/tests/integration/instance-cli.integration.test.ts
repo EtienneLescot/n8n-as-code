@@ -240,6 +240,7 @@ describe('CLI workspace integration', () => {
         const prod = JSON.parse(runCli(workspaceDir, homeDir, [
             'env', 'add', 'Prod',
             '--base-url', 'https://shared.example.com',
+            '--api-key', 'shared-key',
             '--workflows-path', 'workflows/prod',
             '--json',
         ]));
@@ -266,11 +267,29 @@ describe('CLI workspace integration', () => {
             });
         }
 
+        // Clearing an environment key falls back to the target key shared by both environments.
         const cleared = JSON.parse(runCli(workspaceDir, homeDir, ['env', 'auth', 'clear', 'Preprod', '--json']));
-        expect(cleared).toMatchObject({ environmentName: 'Preprod', apiKeyAvailable: false, apiKeySource: 'missing' });
+        expect(cleared).toMatchObject({ environmentName: 'Preprod', apiKeyAvailable: true, apiKeySource: 'workspace-local' });
+        const secretsAfterClear = JSON.parse(fs.readFileSync(path.join(homeDir, '.n8n-manager', 'secrets.json'), 'utf8'));
+        expect(secretsAfterClear.instanceApiKeys[`environment:${preprod.id}`]).toBeUndefined();
+        expect(secretsAfterClear.instanceApiKeys[prod.environmentTargetId]).toBe('shared-key');
         expect(JSON.parse(runCli(workspaceDir, homeDir, ['env', 'status', 'Prod', '--json']))).toMatchObject({
             apiKeySource: 'workspace-environment',
         });
+    });
+
+    it('rejects --api-key for managed instance environments', () => {
+        const workspaceDir = createTempDir('n8nac-cli-managed-key-workspace-');
+        const homeDir = createTempDir('n8nac-cli-managed-key-home-');
+
+        const failure = stripAnsi(runCliExpectFailure(workspaceDir, homeDir, [
+            'env', 'add', 'Local',
+            '--managed-instance', 'some-instance',
+            '--api-key', 'local-key',
+            '--workflows-path', 'workflows/local',
+            '--json',
+        ]));
+        expect(failure).toContain('Managed instance environments do not take an API key.');
     });
 
     it('configures native MCP assist per environment without committing the token', () => {

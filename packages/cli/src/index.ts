@@ -45,6 +45,8 @@ async function readSecretFromStdin(): Promise<string> {
     return Buffer.concat(chunks).toString('utf8').trim().replace(/^['"]|['"]$/g, '');
 }
 
+const MANAGED_INSTANCE_API_KEY_ERROR = 'Managed instance environments do not take an API key. Configure credentials through the managed n8n instance instead.';
+
 async function hydrateApiKeyFromStdin(options: { apiKey?: string; apiKeyStdin?: boolean }): Promise<void> {
     if (options.apiKey || !options.apiKeyStdin) {
         return;
@@ -542,6 +544,9 @@ environmentProgram.command('add')
         if ((options.projectId && !options.projectName) || (!options.projectId && options.projectName)) {
             throw new Error('Provide both --project-id and --project-name, or omit both.');
         }
+        if (options.apiKey && options.managedInstance) {
+            throw new Error(MANAGED_INSTANCE_API_KEY_ERROR);
+        }
         let environmentTarget: string | undefined;
         if (urlOption) {
             const target = configService.ensureEmbeddedInstanceTarget({
@@ -598,6 +603,9 @@ environmentProgram.command('update')
         if (selectors.length > 1) {
             throw new Error('Provide at most one of --base-url or --managed-instance.');
         }
+        if (options.apiKey && options.managedInstance) {
+            throw new Error(MANAGED_INSTANCE_API_KEY_ERROR);
+        }
         let environmentTarget: string | undefined;
         if (urlOption) {
             const target = configService.ensureEmbeddedInstanceTarget({
@@ -621,9 +629,15 @@ environmentProgram.command('update')
             customNodesPath: options.customNodesPath,
             description: options.description,
         };
+        if (options.apiKey) {
+            const nextTargetId = environmentTarget || configService.getEnvironment(nameOrId).environmentTargetId;
+            if (configService.getInstanceTarget(nextTargetId).kind === 'managed-instance') {
+                throw new Error(MANAGED_INSTANCE_API_KEY_ERROR);
+            }
+        }
         const environment = configService.updateEnvironment(nameOrId, patch);
         // Bind the key to this environment so environments sharing a base URL keep separate credentials.
-        if (options.apiKey && urlOption) configService.saveWorkspaceEnvironmentApiKey(environment.id, options.apiKey);
+        if (options.apiKey) configService.saveWorkspaceEnvironmentApiKey(environment.id, options.apiKey);
         printJsonOrText(options, environment, chalk.green(`✔ Workspace environment updated: ${environment.name}`));
     });
 

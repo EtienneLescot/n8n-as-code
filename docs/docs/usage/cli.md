@@ -111,7 +111,7 @@ printf '%s' "$PROD_N8N_API_KEY"    | n8nac env auth set Prod    --api-key-stdin
 printf '%s' "$PREPROD_N8N_API_KEY" | n8nac env auth set Preprod --api-key-stdin
 ```
 
-`n8nac env status <name> --json` reports which key an environment resolves, in `apiKeySource`:
+`n8nac env status <name> --json` reports which key a remote environment resolves, in `apiKeySource`:
 
 | `apiKeySource` | Where the key comes from |
 |---|---|
@@ -121,6 +121,8 @@ printf '%s' "$PREPROD_N8N_API_KEY" | n8nac env auth set Preprod --api-key-stdin
 | `global` | stored on the global `n8n-manager` instance matching the URL |
 
 Use `n8nac env auth clear <environment>` to drop an environment key and fall back to the entries below it.
+
+Local managed instance environments do not take a stored key: they resolve either a scoped environment variable or the managed instance credentials, so `env auth set` and `env add --api-key` are rejected for them.
 
 ### Local managed instance environments
 

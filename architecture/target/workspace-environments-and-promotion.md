@@ -1124,6 +1124,8 @@ Credentials are outside the tracked environment definition. For v4 environments,
 
 Environment-scoped storage is what keeps two environments isolated when they share one base URL, which happens when a single n8n instance hosts several accounts. Target-scoped and URL-matched lookups are shared by every environment on that target, so they are fallbacks only.
 
+Steps 2 and 3 apply to embedded targets. A managed instance owns its credentials, so environments on a global reference resolve only a scoped environment variable or the managed instance key; workspace-stored keys must not shadow it, because an environment moved from an embedded target to a managed one would otherwise keep authenticating with the old remote key.
+
 Workspace-local ignored secret files are not part of the MVP lookup order. This spec does not require n8nac to create or own a workspace-local secrets file, because secrets remain the user’s responsibility. If workspace-local secret lookup is added later, it must define exact file paths, schema, gitignore behavior, precedence, and malformed-file diagnostics.
 
 Recommended ignored files if implemented later:

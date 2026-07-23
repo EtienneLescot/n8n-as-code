@@ -228,6 +228,7 @@ describe('ConfigService V4 workspace environments', () => {
         });
         configService.saveWorkspaceEnvironmentApiKey(prod.id, 'prod-key');
 
+        const previousEnvApiKey = process.env.N8NAC_ENV_PROD_API_KEY;
         process.env.N8NAC_ENV_PROD_API_KEY = 'ci-key';
         try {
             expect(configService.resolveEnvironment(prod.id)).toMatchObject({
@@ -235,7 +236,11 @@ describe('ConfigService V4 workspace environments', () => {
                 apiKeySource: 'env',
             });
         } finally {
-            delete process.env.N8NAC_ENV_PROD_API_KEY;
+            if (previousEnvApiKey === undefined) {
+                delete process.env.N8NAC_ENV_PROD_API_KEY;
+            } else {
+                process.env.N8NAC_ENV_PROD_API_KEY = previousEnvApiKey;
+            }
         }
     });
 
