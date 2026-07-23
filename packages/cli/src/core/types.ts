@@ -56,13 +56,17 @@ export interface IWorkflowStatus {
     /**
      * Drift detected since the last sync (lightweight, best-effort).
      *
-     * Only populated when the lightweight `list` path has enough signal to
-     * compute it cheaply: a `lastSyncedHash` / `lastSyncedAt` entry in
-     * `.n8n-state.json` AND a remote `updatedAt` returned by the current
-     * `/api/v1/workflows` listing.
+     * Present only when there is a base to compare against: the workflow is
+     * `TRACKED` and `.n8n-state.json` holds both a `lastSyncedHash` and a
+     * `lastSyncedAt` for it. Absent otherwise — there is nothing to diff.
      *
      *  - `local`:  local file hash differs from `lastSyncedHash`.
      *  - `remote`: remote `updatedAt` is newer than `lastSyncedAt`.
+     *
+     * Each axis is independent and is itself omitted when its input is missing,
+     * so an absent axis means "unknown", never "unchanged". Both can be absent
+     * at once (unparseable file on an instance that reports no `updatedAt`),
+     * which reads as "there is a sync base, but nothing could be determined".
      *
      * `status` retains its git-style meaning ("the workflow is tracked");
      * `drift` is the orthogonal temporal axis. Authoritative alignment
@@ -76,7 +80,8 @@ export interface IWorkflowStatus {
 }
 
 /**
- * Per-workflow drift indicators. Both axes are independently computed.
+ * Per-workflow drift indicators. Both axes are independently computed, and each is
+ * `undefined` when the input it needs is unavailable — "unknown", never "unchanged".
  * See `IWorkflowStatus.drift` for context.
  */
 export interface IWorkflowDrift {
@@ -84,11 +89,16 @@ export interface IWorkflowDrift {
      * Local file hash differs from `lastSyncedHash`.
      *
      * `undefined` when the local file could not be hashed during the scan (it failed
-     * to parse and was skipped), i.e. "unknown" rather than "unchanged".
+     * to parse and was skipped).
      */
     local?: boolean;
-    /** Remote `updatedAt` is newer than `lastSyncedAt`. */
-    remote: boolean;
+    /**
+     * Remote `updatedAt` is newer than `lastSyncedAt`.
+     *
+     * `undefined` when the instance returned no `updatedAt` for the workflow; there is
+     * no timestamp to compare, so remote drift can be neither confirmed nor ruled out.
+     */
+    remote?: boolean;
 }
 
 export interface ISyncConfig {

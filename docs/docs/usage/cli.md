@@ -164,9 +164,15 @@ Status values:
 
 | Field | Meaning |
 |---|---|
-| `drift.local` | The local file's hash differs from `lastSyncedHash`. Absent when the file could not be parsed during the scan, i.e. "unknown", not "unchanged". |
-| `drift.remote` | The remote `updatedAt` is newer than `lastSyncedAt` — the workflow was edited in the n8n UI since the last sync. `false` when the instance returned no `updatedAt` for that workflow, in which case `remoteUpdatedAt` is also absent. |
-| `drift` (whole object) | Absent for workflows that are not `TRACKED`, and for those whose sync record lacks `lastSyncedHash` or `lastSyncedAt` — there is no base to compare against, so drift cannot be determined. |
+| `drift.local` | The local file's hash differs from `lastSyncedHash`. Absent when the file could not be parsed during the scan. |
+| `drift.remote` | The remote `updatedAt` is newer than `lastSyncedAt` — the workflow was edited in the n8n UI since the last sync. Absent when the instance returned no `updatedAt` for that workflow, in which case `remoteUpdatedAt` is absent too. |
+| `drift` (whole object) | Absent for workflows that are not `TRACKED`, and for those whose sync record lacks `lastSyncedHash` or `lastSyncedAt` — there is no base to compare against. |
+
+An absent axis means **unknown**, never "unchanged": only `false` asserts that a side
+has not moved. Both axes can be absent at once (an unparseable file on an instance
+that reports no `updatedAt`), which reads as "there is a sync base, but nothing could
+be determined". Treating a missing axis as "no drift" would recreate the very
+false-alignment this signal exists to surface.
 
 `drift.remote` is a timestamp comparison, not a content comparison: a workflow re-saved
 in the n8n UI with no effective change still reports `remote: true`. Run

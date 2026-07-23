@@ -460,10 +460,11 @@ export class ${name}Workflow {
         expect(results[0].remoteUpdatedAt).toBe(REMOTE_UPDATED_AT);
     });
 
-    it('reports remote=false when the instance returns no updatedAt', async () => {
-        // Not every deployment populates `updatedAt` on the list endpoint. Without it
-        // there is nothing to compare, so the remote axis stays false rather than
-        // guessing — and `remoteUpdatedAt` is omitted instead of reported as stale.
+    it('leaves drift.remote undefined when the instance returns no updatedAt', async () => {
+        // Not every deployment populates `updatedAt` on the list endpoint. With no
+        // timestamp to compare, remote drift can be neither confirmed nor ruled out,
+        // so the axis is omitted rather than reported as `false` — the local axis is
+        // unaffected and still reported.
         const hash = await writeWorkflowFile('wf-1', 'Carousel');
         mockRemote([{ id: 'wf-1', name: 'Carousel', active: true, isArchived: false }]);
         writeState({
@@ -473,9 +474,40 @@ export class ${name}Workflow {
         const { results } = await listWorkflows();
 
         expect(results[0].status).toBe('TRACKED');
-        expect(results[0].drift).toEqual({ local: false, remote: false });
+        expect(results[0].drift?.remote).toBeUndefined();
+        expect(results[0].drift?.local).toBe(false);
         expect(results[0].remoteUpdatedAt).toBeUndefined();
         expect(results[0].lastSyncedAt).toBe(OLDER_THAN_REMOTE);
+    });
+
+    it('reports an empty drift object when neither axis can be determined', async () => {
+        // Unparseable local file on an instance that reports no `updatedAt`. A sync base
+        // exists, so `drift` is present, but nothing about either side is knowable.
+        fs.writeFileSync(
+            path.join(tempDir!, 'Carousel.workflow.ts'),
+            [
+                "import { workflow } from '@n8n-as-code/transformer';",
+                '',
+                '@workflow({ id: "wf-1", name: "Carousel" })',
+                'export {};',
+                '',
+            ].join('\n'),
+            'utf-8',
+        );
+        mockRemote([{ id: 'wf-1', name: 'Carousel', active: true, isArchived: false }]);
+        writeState({
+            'wf-1': {
+                lastSyncedHash: 'hash-from-the-last-successful-sync',
+                lastSyncedAt: OLDER_THAN_REMOTE,
+                filename: 'Carousel.workflow.ts',
+            },
+        });
+
+        const { results } = await listWorkflows();
+
+        expect(results[0].drift).toBeDefined();
+        expect(results[0].drift?.local).toBeUndefined();
+        expect(results[0].drift?.remote).toBeUndefined();
     });
 
     it('omits drift when state has lastSyncedHash but no lastSyncedAt', async () => {

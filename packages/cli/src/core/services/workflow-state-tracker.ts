@@ -912,7 +912,9 @@ export class WorkflowStateTracker extends EventEmitter {
      *
      * Returns `undefined` when there is no reference state for the workflow
      * (never pulled / first sync), so consumers can distinguish "no drift known"
-     * from "drift checked and nothing changed".
+     * from "drift checked and nothing changed". Within the returned object each
+     * axis is likewise `undefined` when its input is missing, so an absent axis
+     * reads as "unknown" and never as "unchanged".
      *
      * Cost: O(1) Map lookups, one string compare and one timestamp parse. No AST,
      * no I/O, no extra API calls.
@@ -940,8 +942,11 @@ export class WorkflowStateTracker extends EventEmitter {
             // to parse). Reporting `false` there would claim "matches the last sync"
             // for a file we never actually read.
             local: localHash === undefined ? undefined : localHash !== lastSyncedHash,
-            // Missing `remoteTimestamp` => not drifted.
-            remote: remoteTimestamp !== undefined && this.isNewerThan(remoteTimestamp, lastSyncedAt),
+            // `undefined` when the instance returned no `updatedAt`: with nothing to
+            // compare, remote drift can be neither confirmed nor ruled out. Reporting
+            // `false` here would repeat, on the remote axis, the false "everything is
+            // aligned" this signal exists to prevent.
+            remote: remoteTimestamp === undefined ? undefined : this.isNewerThan(remoteTimestamp, lastSyncedAt),
         };
     }
 
