@@ -1,55 +1,36 @@
 import axios, { AxiosInstance } from 'axios';
 import * as dns from 'dns';
-import { readFileSync } from 'fs';
 import * as http from 'http';
 import * as https from 'https';
 import * as tls from 'tls';
+import { resolveExtraCaCertificates } from './tls-certificates.js';
 import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField, IExecutionDetails, IExecutionList, IExecutionSummary, ExecutionStatus } from '../types.js';
 
 type AgentLookup = NonNullable<http.AgentOptions['lookup']>;
 
 /**
- * Builds a combined CA certificate bundle from:
- *   1. NODE_EXTRA_CA_CERTS – manually read so the VS Code extension host
- *      respects it even when the env var wasn't present at Node.js startup.
- *   2. System CAs via tls.getCACertificates('system') (Node.js 22+), which
- *      is the programmatic equivalent of the --use-system-ca CLI flag.
+ * Builds a combined CA certificate bundle from the trust anchors the user configured
+ * (`NODE_EXTRA_CA_CERTS`, `N8NAC_EXTRA_CA_CERTS`) plus the OS trust store, which is the
+ * programmatic equivalent of the `--use-system-ca` flag.
  *
- * Returns undefined when neither source provides extra certificates, in which
- * case the caller should fall back to the permissive rejectUnauthorized:false
- * behaviour that preserves backward compatibility for local n8n instances.
- * When extra CAs are returned, the Node.js default Mozilla bundle is included
- * so that ordinary HTTPS requests continue to work.
+ * Returns undefined when no source provides extra certificates. When it does return a bundle,
+ * the Node.js default Mozilla roots are included, because supplying `ca` replaces them.
+ *
+ * Note that this only covers the axios agent. Anything reaching n8n through the global `fetch`
+ * — the manager-core health probe, project listing and credential calls — ignores `https.Agent`
+ * entirely, which is why {@link installExtraCaCertificates} applies the same anchors
+ * process-wide.
  */
 export function buildCaBundle(): string[] | undefined {
-    const extra: string[] = [];
+    return resolveAgentTrust().ca;
+}
 
-    const extraCaPath = process.env.NODE_EXTRA_CA_CERTS;
-    if (extraCaPath) {
-        try {
-            extra.push(readFileSync(extraCaPath, 'utf8'));
-        } catch {
-            // Ignore unreadable file; fall back to defaults
-        }
-    }
-
-    // Node.js 22.14+ exposes this API; guard the call for older runtimes.
-    const getCACerts = (tls as { getCACertificates?: (store: string) => string[] }).getCACertificates;
-    if (typeof getCACerts === 'function') {
-        try {
-            extra.push(...getCACerts('system'));
-        } catch {
-            // Not supported in this build/platform
-        }
-    }
-
-    if (extra.length === 0) {
-        return undefined;
-    }
-
-    // When a custom `ca` is supplied, Node.js replaces the default Mozilla
-    // bundle, so we prepend it explicitly to preserve trust for public CAs.
-    return [...tls.rootCertificates, ...extra];
+function resolveAgentTrust(): { ca: string[] | undefined; hasConfiguredAnchors: boolean } {
+    const resolution = resolveExtraCaCertificates({ useSystemCertificateAuthorities: true });
+    return {
+        ca: resolution.certificates.length ? [...tls.rootCertificates, ...resolution.certificates] : undefined,
+        hasConfiguredAnchors: resolution.hasConfiguredAnchors,
+    };
 }
 
 function createIpv4FirstLookup(): AgentLookup {
@@ -92,15 +73,15 @@ export class N8nApiClient {
         const lookup = createIpv4FirstLookup();
         this.httpAgent = new http.Agent({ lookup });
 
-        // Use a combined CA bundle when NODE_EXTRA_CA_CERTS or system CAs are
-        // available so that the extension respects the same certificate trust
-        // that the user configured for Node.js (--use-system-ca / NODE_EXTRA_CA_CERTS).
-        // Fall back to rejectUnauthorized:false for plain local instances that
-        // use self-signed certificates without a configured CA.
-        const caBundle = buildCaBundle();
+        // Trust whatever the user configured (--use-system-ca / NODE_EXTRA_CA_CERTS) instead of
+        // skipping verification outright. Verification is only enforced once they actually
+        // supplied an anchor: the OS trust store is readable on nearly every machine, so keying
+        // off the bundle merely being non-empty would turn on strict verification for every
+        // existing user and break the plain self-signed instances that work today.
+        const { ca, hasConfiguredAnchors } = resolveAgentTrust();
         this.httpsAgent = new https.Agent({
-            rejectUnauthorized: caBundle !== undefined,
-            ca: caBundle,
+            rejectUnauthorized: hasConfiguredAnchors,
+            ca,
             lookup,
         });
 
