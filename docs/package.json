@@ -54,6 +54,15 @@
     "node": ">=20.0"
   },
   "overrides": {
-    "webpack": "5.95.0"
+    "webpack": "5.95.0",
+    "@docusaurus/plugin-content-docs": "$@docusaurus/core",
+    "@docusaurus/theme-common": "$@docusaurus/core",
+    "@docusaurus/theme-translations": "$@docusaurus/core",
+    "@docusaurus/utils": "$@docusaurus/core",
+    "@docusaurus/utils-common": "$@docusaurus/core",
+    "@docusaurus/utils-validation": "$@docusaurus/core",
+    "@docusaurus/mdx-loader": "$@docusaurus/core",
+    "@docusaurus/module-type-aliases": "$@docusaurus/core",
+    "@docusaurus/types": "$@docusaurus/core"
   }
 }
