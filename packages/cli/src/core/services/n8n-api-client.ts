@@ -309,6 +309,16 @@ export class N8nApiClient {
         }
     }
 
+    /**
+     * Lists every folder in a project, following n8n's skip/take pagination.
+     *
+     * Requires an instance where folders are licensed (`feat:folders`, unlocked by
+     * the free Community registration) and n8n 2.19+; callers are expected to
+     * handle 403/404 by falling back to a flat layout.
+     *
+     * @param projectId Real project id — the endpoint does not accept the
+     * `personal` alias that folder creation does. See resolveFolderProjectId().
+     */
     async getFolders(projectId: string): Promise<IFolder[]> {
         const folders: IFolder[] = [];
         const seen = new Set<string>();
@@ -367,6 +377,14 @@ export class N8nApiClient {
         return folders;
     }
 
+    /**
+     * Creates a folder in a project.
+     *
+     * @param projectId Project id, or `personal` to target the calling user's own
+     * project (n8n 2.32+).
+     * @param input `parentFolderId` nests the new folder; omit it for a
+     * project-root folder.
+     */
     async createFolder(projectId: string, input: { name: string; parentFolderId?: string | null }): Promise<IFolder> {
         const payload: Record<string, unknown> = { name: input.name };
         if (input.parentFolderId) payload.parentFolderId = input.parentFolderId;

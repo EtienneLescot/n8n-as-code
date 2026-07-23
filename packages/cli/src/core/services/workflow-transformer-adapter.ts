@@ -224,8 +224,14 @@ export class WorkflowTransformerAdapter {
     
     /**
      * Clean workflow for pushing to n8n API
-     * 
-     * Removes read-only and organization metadata fields
+     *
+     * Removes read-only and organization metadata fields.
+     *
+     * Note the asymmetry in the folder fields: `parentFolder`, `folderPath` and
+     * `folderPathString` are display metadata and are stripped, but
+     * `parentFolderId` is deliberately kept — it is the writable field n8n uses
+     * to place a workflow in a folder (2.32+), and folderSync pushes depend on it
+     * surviving. Do not "tidy up" by adding it to the strip list.
      */
     private static cleanForPush(workflow: IWorkflow): IWorkflow {
         const { projectId, projectName, homeProject, isArchived, parentFolder, folderPath, folderPathString, ...clean } = workflow as any;

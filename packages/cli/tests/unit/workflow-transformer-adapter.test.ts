@@ -197,3 +197,44 @@ describe('WorkflowTransformerAdapter settings round-trip', () => {
         expect(hashWithMCP).not.toBe(hashWithCaller);
     });
 });
+
+describe('WorkflowTransformerAdapter folder metadata on push', () => {
+    // cleanForPush is private; folder metadata never survives a TypeScript
+    // round-trip, so exercise it directly rather than through compileToJson.
+    const cleanForPush = (workflow: any) =>
+        (WorkflowTransformerAdapter as any).cleanForPush(workflow);
+
+    it('keeps parentFolderId but strips display-only folder metadata', () => {
+        const clean = cleanForPush({
+            name: 'Foldered Workflow',
+            nodes: [],
+            connections: {},
+            settings: {},
+            // Writable: this is how n8n places a workflow in a folder.
+            parentFolderId: 'folder-1',
+            // Read-only display metadata the tracker attaches locally.
+            parentFolder: { id: 'folder-1', name: 'Reports' },
+            folderPath: ['Reports', 'Weekly'],
+            folderPathString: 'Reports/Weekly',
+        });
+
+        expect(clean).toHaveProperty('parentFolderId', 'folder-1');
+        expect(clean).not.toHaveProperty('parentFolder');
+        expect(clean).not.toHaveProperty('folderPath');
+        expect(clean).not.toHaveProperty('folderPathString');
+    });
+
+    it('preserves an explicit null parentFolderId (move to project root)', () => {
+        const clean = cleanForPush({
+            name: 'Root Workflow',
+            nodes: [],
+            connections: {},
+            settings: {},
+            parentFolderId: null,
+        });
+
+        // null and undefined mean different things to n8n: null moves the
+        // workflow to the project root, absent leaves its folder untouched.
+        expect(clean).toHaveProperty('parentFolderId', null);
+    });
+});
