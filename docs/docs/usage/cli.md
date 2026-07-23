@@ -86,6 +86,7 @@ n8nac env add Dev --base-url <url> --workflows-path workflows/dev
 n8nac env add Local --managed-instance <id> --workflows-path workflows/local
 n8nac env use Dev
 n8nac env auth set Dev --api-key-stdin
+n8nac env auth clear Dev
 n8nac env remove Dev
 ```
 
@@ -97,6 +98,29 @@ Remote environments store the URL in `n8nac-config.json`, but the API key stays 
 n8nac env add Staging --base-url https://staging.example.com --workflows-path workflows/staging
 n8nac env auth set Staging --api-key-stdin
 ```
+
+### Several accounts on one n8n URL
+
+`n8nac env auth set` binds the key to the environment, not to the URL. Two environments that point at the same base URL — for example one account per n8n user on a single instance — each keep their own key.
+
+```bash
+n8nac env add Prod    --base-url https://n8n.example.com --workflows-path workflows/prod
+n8nac env add Preprod --base-url https://n8n.example.com --workflows-path workflows/preprod
+
+printf '%s' "$PROD_N8N_API_KEY"    | n8nac env auth set Prod    --api-key-stdin
+printf '%s' "$PREPROD_N8N_API_KEY" | n8nac env auth set Preprod --api-key-stdin
+```
+
+`n8nac env status <name> --json` reports which key an environment resolves, in `apiKeySource`:
+
+| `apiKeySource` | Where the key comes from |
+|---|---|
+| `env` | `N8NAC_ENV_<ENVIRONMENT>_API_KEY` or `N8NAC_TARGET_<TARGET>_API_KEY` |
+| `workspace-environment` | stored for this environment by `env auth set` |
+| `workspace-local` | stored for the shared target by `env add --api-key`, used by environments that have no key of their own |
+| `global` | stored on the global `n8n-manager` instance matching the URL |
+
+Use `n8nac env auth clear <environment>` to drop an environment key and fall back to the entries below it.
 
 ### Local managed instance environments
 

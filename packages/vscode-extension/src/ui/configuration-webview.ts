@@ -417,6 +417,10 @@ export class ConfigurationWebview {
           const savedEnvironment = environmentId
             ? configService.updateEnvironment(environmentId, input)
             : configService.addEnvironment(input);
+          if (apiKey) {
+            // Bind the key to this environment so environments sharing a base URL keep separate credentials.
+            configService.saveWorkspaceEnvironmentApiKey(savedEnvironment.id, apiKey);
+          }
           if (nativeMcpToken) {
             (configService as NativeMcpConfigService).saveNativeMcpToken(savedEnvironment.id, nativeMcpToken);
           } else if (nativeMcp && nativeMcp.enabled === false) {

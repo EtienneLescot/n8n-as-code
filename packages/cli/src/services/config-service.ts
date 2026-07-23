@@ -32,6 +32,15 @@ export interface ILocalConfig {
 export type IInstanceVerificationStatus = N8nInstanceVerificationStatus;
 export type IInstanceVerification = N8nInstanceVerification;
 
+/**
+ * Where the API key used for an environment came from, most specific first.
+ * - `env`: `N8NAC_ENV_*` / `N8NAC_TARGET_*` environment variable.
+ * - `workspace-environment`: key stored for this single environment (`n8nac env auth set`).
+ * - `workspace-local`: key stored for the environment target, shared by every environment on it.
+ * - `global`: key stored on the global n8n-manager instance that matches the host.
+ */
+export type EnvironmentCredentialSource = 'env' | 'workspace-environment' | 'workspace-local' | 'global' | 'missing';
+
 export interface IInstanceProfile extends ILocalConfig {
     id: string;
     name: string;
@@ -50,7 +59,7 @@ export interface IManagedEnvironmentTarget {
     instanceIdentifier?: string;
     instanceUserIdentifier?: string;
     apiKeyAvailable?: boolean;
-    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+    credentialSource?: EnvironmentCredentialSource;
     accessStatus?: EnvironmentAccessStatus;
 }
 
@@ -64,7 +73,7 @@ export interface IExternalEnvironmentTarget {
     verification?: IInstanceVerification;
     description?: string;
     apiKeyAvailable?: boolean;
-    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+    credentialSource?: EnvironmentCredentialSource;
     accessStatus?: EnvironmentAccessStatus;
 }
 
@@ -106,7 +115,7 @@ export interface IWorkspaceEnvironment {
     instanceIdentifier?: string;
     instanceUserIdentifier?: string;
     apiKeyAvailable?: boolean;
-    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+    credentialSource?: EnvironmentCredentialSource;
     accessStatus?: EnvironmentAccessStatus;
     nativeMcp?: IWorkspaceNativeMcpConfig;
 }
@@ -139,7 +148,7 @@ export interface IWorkspaceConfig extends ILocalConfig {
     environmentTargetId?: string;
     environmentTargetName?: string;
     apiKeyAvailable?: boolean;
-    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+    credentialSource?: EnvironmentCredentialSource;
 }
 
 export interface IResolvedWorkspaceEnvironment extends ILocalConfig {
@@ -156,7 +165,7 @@ export interface IResolvedWorkspaceEnvironment extends ILocalConfig {
     managedInstanceId?: string;
     host: string;
     apiKey?: string;
-    apiKeySource: 'env' | 'workspace-local' | 'global' | 'missing';
+    apiKeySource: EnvironmentCredentialSource;
     apiKeyAvailable: boolean;
     accessStatus: EnvironmentAccessStatus;
     nativeMcp?: IWorkspaceNativeMcpConfig;
@@ -498,6 +507,7 @@ export class ConfigService {
             throw new Error(`Workspace environment "${environment.name}" is active. Pin another environment first, or re-run with --force to remove it and clear the active environment.`);
         }
         this.deleteNativeMcpToken(environment.id);
+        this.manager.deleteApiKey(this.environmentSecretKey(environment.id));
         const nextEnvironments = config.environments.filter((item) => item.id !== environment.id);
         this.writeWorkspaceConfigV4({
             ...config,
@@ -961,6 +971,29 @@ export class ConfigService {
         this.manager.saveApiKey(target.id, apiKey);
     }
 
+    /**
+     * API key stored for a single environment. Environments that share an environment target
+     * (for example two accounts on the same n8n base URL) keep their own key this way.
+     */
+    getWorkspaceEnvironmentApiKey(environmentNameOrId: string): string | undefined {
+        const environment = this.findEnvironment(this.ensureV4WorkspaceConfig(), environmentNameOrId);
+        return this.manager.getApiKey(this.environmentSecretKey(environment.id));
+    }
+
+    saveWorkspaceEnvironmentApiKey(environmentNameOrId: string, apiKey: string): void {
+        const environment = this.findEnvironment(this.ensureV4WorkspaceConfig(), environmentNameOrId);
+        this.manager.saveApiKey(this.environmentSecretKey(environment.id), cleanRequired(apiKey, 'n8n API key'));
+    }
+
+    deleteWorkspaceEnvironmentApiKey(environmentNameOrId: string): void {
+        try {
+            const environment = this.findEnvironment(this.ensureV4WorkspaceConfig(), environmentNameOrId);
+            this.manager.deleteApiKey(this.environmentSecretKey(environment.id));
+        } catch {
+            this.manager.deleteApiKey(this.environmentSecretKey(environmentNameOrId));
+        }
+    }
+
     getNativeMcpToken(environmentNameOrId?: string): string | undefined {
         const environment = environmentNameOrId
             ? this.findEnvironment(this.ensureV4WorkspaceConfig(), environmentNameOrId)
@@ -1335,8 +1368,9 @@ export class ConfigService {
             if (!instance) throw new Error(`Workspace environment "${environment.name}" references missing global n8n-manager instance: ${target.managedInstanceId}`);
             const host = instance.baseUrl || instance.tunnelPublicUrl || '';
             const envApiKey = this.readEnvApiKey(environment, target);
+            const environmentApiKey = this.readEnvironmentApiKey(environment);
             const globalApiKey = this.manager.getApiKey(instance.id);
-            const apiKey = envApiKey || globalApiKey;
+            const apiKey = envApiKey || environmentApiKey || globalApiKey;
             const projectId = environment.projectId || instance.defaultProject?.id;
             const projectName = environment.projectName || instance.defaultProject?.name;
             const identity = this.resolveManagedEnvironmentIdentity(instance, host, apiKey);
@@ -1356,9 +1390,9 @@ export class ConfigService {
                 instance: this.toInstanceProfile(instance),
                 host,
                 apiKey,
-                apiKeySource: envApiKey ? 'env' : globalApiKey ? 'global' : 'missing',
+                apiKeySource: envApiKey ? 'env' : environmentApiKey ? 'workspace-environment' : globalApiKey ? 'global' : 'missing',
                 apiKeyAvailable: Boolean(apiKey),
-                accessStatus: this.deriveAccessStatus({ host, apiKey, projectId, projectName, verification: envApiKey ? undefined : instance.verification }),
+                accessStatus: this.deriveAccessStatus({ host, apiKey, projectId, projectName, verification: envApiKey || environmentApiKey ? undefined : instance.verification }),
                 nativeMcp: this.nativeMcpToSnapshot(environment.nativeMcp, environment.id),
                 workflowsPath,
                 syncFolder,
@@ -1380,9 +1414,10 @@ export class ConfigService {
 
         const host = target.url;
         const envApiKey = this.readEnvApiKey(environment, target);
+        const environmentApiKey = this.readEnvironmentApiKey(environment);
         const workspaceApiKey = this.manager.getApiKey(target.id);
         const globalApiKey = this.getApiKey(host);
-        const apiKey = envApiKey || workspaceApiKey || globalApiKey;
+        const apiKey = envApiKey || environmentApiKey || workspaceApiKey || globalApiKey;
         const identity = this.resolveExternalEnvironmentIdentity(target, apiKey);
         const workflowsPath = this.resolveEnvironmentWorkflowsPath(environment);
         const syncFolder = workflowsPath;
@@ -1398,9 +1433,9 @@ export class ConfigService {
             instance: target,
             host,
             apiKey,
-            apiKeySource: envApiKey ? 'env' : workspaceApiKey ? 'workspace-local' : globalApiKey ? 'global' : 'missing',
+            apiKeySource: envApiKey ? 'env' : environmentApiKey ? 'workspace-environment' : workspaceApiKey ? 'workspace-local' : globalApiKey ? 'global' : 'missing',
             apiKeyAvailable: Boolean(apiKey),
-            accessStatus: this.deriveAccessStatus({ host, apiKey, projectId: environment.projectId, projectName: environment.projectName, verification: target.verification }),
+            accessStatus: this.deriveAccessStatus({ host, apiKey, projectId: environment.projectId, projectName: environment.projectName, verification: envApiKey || environmentApiKey ? undefined : target.verification }),
             nativeMcp: this.nativeMcpToSnapshot(environment.nativeMcp, environment.id),
             workflowsPath,
             syncFolder,
@@ -1418,6 +1453,14 @@ export class ConfigService {
                 syncFolder: 'environment',
             },
         };
+    }
+
+    private readEnvironmentApiKey(environment: IWorkspaceEnvironment): string | undefined {
+        return cleanOptional(this.manager.getApiKey(this.environmentSecretKey(environment.id)));
+    }
+
+    private environmentSecretKey(environmentId: string): string {
+        return `environment:${environmentId}`;
     }
 
     private readEnvApiKey(environment: IWorkspaceEnvironment, target: IEnvironmentTarget): string | undefined {

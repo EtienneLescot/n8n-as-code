@@ -148,6 +148,125 @@ describe('ConfigService V4 workspace environments', () => {
         expect(() => configService.getWorkspaceConfig()).toThrow(/nativeMcp\.token must not contain secrets/);
     });
 
+    it('keeps one API key per environment when environments share a base URL', () => {
+        const configService = new ConfigService(workspaceRoot);
+        const target = configService.ensureEmbeddedInstanceTarget({
+            name: 'Shared',
+            url: 'https://n8n.example.test',
+        });
+        const prod = configService.addEnvironment({
+            name: 'Prod',
+            environmentTarget: target.id,
+            workflowsPath: 'workflows/prod',
+        });
+        const preprod = configService.addEnvironment({
+            name: 'Preprod',
+            environmentTarget: target.id,
+            workflowsPath: 'workflows/preprod',
+        });
+        expect(preprod.environmentTargetId).toBe(prod.environmentTargetId);
+
+        configService.saveWorkspaceEnvironmentApiKey(prod.id, 'prod-key');
+        configService.saveWorkspaceEnvironmentApiKey(preprod.id, 'preprod-key');
+
+        expect(configService.resolveEnvironment(prod.id)).toMatchObject({
+            apiKey: 'prod-key',
+            apiKeySource: 'workspace-environment',
+        });
+        expect(configService.resolveEnvironment(preprod.id)).toMatchObject({
+            apiKey: 'preprod-key',
+            apiKeySource: 'workspace-environment',
+        });
+        expect(configService.getWorkspaceEnvironmentApiKey(preprod.id)).toBe('preprod-key');
+    });
+
+    it('falls back to the environment target API key and lets the environment key win', () => {
+        const configService = new ConfigService(workspaceRoot);
+        const target = configService.ensureEmbeddedInstanceTarget({
+            name: 'Shared',
+            url: 'https://n8n.example.test',
+        });
+        const prod = configService.addEnvironment({
+            name: 'Prod',
+            environmentTarget: target.id,
+            workflowsPath: 'workflows/prod',
+        });
+        const preprod = configService.addEnvironment({
+            name: 'Preprod',
+            environmentTarget: target.id,
+            workflowsPath: 'workflows/preprod',
+        });
+        configService.saveWorkspaceTargetApiKey(target.id, 'target-key');
+
+        expect(configService.resolveEnvironment(preprod.id)).toMatchObject({
+            apiKey: 'target-key',
+            apiKeySource: 'workspace-local',
+        });
+
+        configService.saveWorkspaceEnvironmentApiKey(prod.id, 'prod-key');
+
+        expect(configService.resolveEnvironment(prod.id)).toMatchObject({
+            apiKey: 'prod-key',
+            apiKeySource: 'workspace-environment',
+        });
+        expect(configService.resolveEnvironment(preprod.id)).toMatchObject({
+            apiKey: 'target-key',
+            apiKeySource: 'workspace-local',
+        });
+    });
+
+    it('lets an environment variable override the stored environment API key', () => {
+        const configService = new ConfigService(workspaceRoot);
+        const target = configService.ensureEmbeddedInstanceTarget({
+            name: 'Shared',
+            url: 'https://n8n.example.test',
+        });
+        const prod = configService.addEnvironment({
+            name: 'Prod',
+            environmentTarget: target.id,
+            workflowsPath: 'workflows/prod',
+        });
+        configService.saveWorkspaceEnvironmentApiKey(prod.id, 'prod-key');
+
+        process.env.N8NAC_ENV_PROD_API_KEY = 'ci-key';
+        try {
+            expect(configService.resolveEnvironment(prod.id)).toMatchObject({
+                apiKey: 'ci-key',
+                apiKeySource: 'env',
+            });
+        } finally {
+            delete process.env.N8NAC_ENV_PROD_API_KEY;
+        }
+    });
+
+    it('drops the stored API key when an environment is removed', () => {
+        const configService = new ConfigService(workspaceRoot);
+        const target = configService.ensureEmbeddedInstanceTarget({
+            name: 'Shared',
+            url: 'https://n8n.example.test',
+        });
+        configService.addEnvironment({
+            name: 'Prod',
+            id: 'prod',
+            environmentTarget: target.id,
+            workflowsPath: 'workflows/prod',
+        });
+        configService.saveWorkspaceEnvironmentApiKey('prod', 'prod-key');
+        configService.removeEnvironment('prod', { force: true });
+
+        const recreated = configService.addEnvironment({
+            name: 'Prod',
+            id: 'prod',
+            environmentTarget: target.id,
+            workflowsPath: 'workflows/prod',
+        });
+
+        expect(configService.resolveEnvironment(recreated.id)).toMatchObject({
+            apiKeyAvailable: false,
+            apiKeySource: 'missing',
+        });
+    });
+
     it('prepares a string-requested workspace environment', async () => {
         const configService = new ConfigService(workspaceRoot);
         const devTarget = configService.ensureEmbeddedInstanceTarget({

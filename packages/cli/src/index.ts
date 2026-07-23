@@ -521,8 +521,8 @@ environmentProgram.command('add')
     .argument('<name>', 'Environment display name')
     .option('--base-url <url>', 'Remote n8n URL to store in this workspace environment')
     .option('--managed-instance <id>', 'Local managed n8n instance ID to reference')
-    .option('--api-key <key>', 'Store a local API key for --base-url without committing it')
-    .option('--api-key-stdin', 'Read the local API key for --base-url from stdin')
+    .option('--api-key <key>', 'Store a local API key for this environment without committing it')
+    .option('--api-key-stdin', 'Read this environment local API key from stdin')
     .option('--project-id <id>', 'n8n project ID')
     .option('--project-name <name>', 'n8n project display name')
     .option('--workflows-path <path>', 'Directory that contains this environment workflows')
@@ -569,6 +569,8 @@ environmentProgram.command('add')
             customNodesPath: options.customNodesPath,
             description: options.description,
         });
+        // Bind the key to this environment so environments sharing a base URL keep separate credentials.
+        if (options.apiKey && urlOption) configService.saveWorkspaceEnvironmentApiKey(environment.id, options.apiKey);
         printJsonOrText(options, environment, chalk.green(`✔ Workspace environment added: ${environment.name}`));
     });
 
@@ -578,8 +580,8 @@ environmentProgram.command('update')
     .option('--name <name>', 'New display name')
     .option('--base-url <url>', 'Move this environment to a remote n8n URL')
     .option('--managed-instance <id>', 'Move this environment to a local managed n8n instance')
-    .option('--api-key <key>', 'Store a local API key for --base-url without committing it')
-    .option('--api-key-stdin', 'Read the local API key for --base-url from stdin')
+    .option('--api-key <key>', 'Store a local API key for this environment without committing it')
+    .option('--api-key-stdin', 'Read this environment local API key from stdin')
     .option('--project-id <id>', 'n8n project ID')
     .option('--project-name <name>', 'n8n project display name')
     .option('--workflows-path <path>', 'Directory that contains this environment workflows')
@@ -620,6 +622,8 @@ environmentProgram.command('update')
             description: options.description,
         };
         const environment = configService.updateEnvironment(nameOrId, patch);
+        // Bind the key to this environment so environments sharing a base URL keep separate credentials.
+        if (options.apiKey && urlOption) configService.saveWorkspaceEnvironmentApiKey(environment.id, options.apiKey);
         printJsonOrText(options, environment, chalk.green(`✔ Workspace environment updated: ${environment.name}`));
     });
 
@@ -668,12 +672,28 @@ environmentAuthProgram.command('set')
         if (!options.apiKey) {
             throw new Error('Provide --api-key or --api-key-stdin.');
         }
-        configService.saveWorkspaceTargetApiKey(environment.environmentTargetId, options.apiKey);
+        configService.saveWorkspaceEnvironmentApiKey(environment.environmentId, options.apiKey);
         const resolved = await configService.prepareEnvironment(nameOrId);
         printJsonOrText(
             options,
             redactResolvedEnvironment(resolved),
             chalk.green(`✔ Local API key stored for environment: ${resolved.environmentName}`),
+        );
+    });
+
+environmentAuthProgram.command('clear')
+    .description('Remove the API key stored for a single environment')
+    .argument('<name-or-id>', 'Environment name or ID')
+    .option('--json', 'Output resolved environment as JSON')
+    .action((nameOrId, options) => {
+        const configService = new ConfigService();
+        const environment = configService.getEnvironment(nameOrId);
+        configService.deleteWorkspaceEnvironmentApiKey(environment.id);
+        const resolved = configService.resolveEnvironment(environment.id);
+        printJsonOrText(
+            options,
+            redactResolvedEnvironment(resolved),
+            chalk.green(`✔ Local API key cleared for environment: ${resolved.environmentName}`),
         );
     });
 

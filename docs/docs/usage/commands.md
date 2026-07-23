@@ -27,6 +27,7 @@ n8nac env add <name> --base-url <url> --workflows-path <path>
 n8nac env add <name> --managed-instance <id> --workflows-path <path>
 n8nac env use <environment>
 n8nac env auth set <environment> --api-key-stdin
+n8nac env auth clear <environment>
 n8nac env remove <environment>
 ```
 

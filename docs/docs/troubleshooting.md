@@ -80,6 +80,22 @@ running Node 22.15 or newer.
 The n8n-as-code output channel lists every anchor that was loaded and every bundle that could not
 be read.
 
+### An environment sees another account's workflows
+
+This happens when two environments point at the same base URL and only one of them has its own key.
+
+```bash
+n8nac env status <environment> --json
+```
+
+`apiKeySource` tells you which key is in use. `workspace-local` or `global` means the environment falls back to a key shared with the other environments on that URL. Give it its own key:
+
+```bash
+n8nac env auth set <environment> --api-key-stdin
+```
+
+`workspace-environment` confirms the environment authenticates with its own key.
+
 ## Missing Configuration
 
 ### `n8nac-config.json` not found

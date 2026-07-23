@@ -228,10 +228,50 @@ describe('CLI workspace integration', () => {
             environmentName: 'Dev',
             sourceKind: 'external-instance',
             apiKeyAvailable: true,
-            apiKeySource: 'workspace-local',
+            apiKeySource: 'workspace-environment',
         });
         expect(authOutput).not.toContain('dev-key');
     }, INTEGRATION_TIMEOUT);
+
+    it('keeps separate API keys for two environments on the same base URL', () => {
+        const workspaceDir = createTempDir('n8nac-cli-shared-url-workspace-');
+        const homeDir = createTempDir('n8nac-cli-shared-url-home-');
+
+        const prod = JSON.parse(runCli(workspaceDir, homeDir, [
+            'env', 'add', 'Prod',
+            '--base-url', 'https://shared.example.com',
+            '--workflows-path', 'workflows/prod',
+            '--json',
+        ]));
+        const preprod = JSON.parse(runCli(workspaceDir, homeDir, [
+            'env', 'add', 'Preprod',
+            '--base-url', 'https://shared.example.com',
+            '--workflows-path', 'workflows/preprod',
+            '--json',
+        ]));
+        expect(preprod.environmentTargetId).toBe(prod.environmentTargetId);
+
+        runCliWithInput(workspaceDir, homeDir, ['env', 'auth', 'set', 'Preprod', '--api-key-stdin', '--json'], 'preprod-key');
+        runCliWithInput(workspaceDir, homeDir, ['env', 'auth', 'set', 'Prod', '--api-key-stdin', '--json'], 'prod-key');
+
+        const secrets = JSON.parse(fs.readFileSync(path.join(homeDir, '.n8n-manager', 'secrets.json'), 'utf8'));
+        expect(secrets.instanceApiKeys[`environment:${prod.id}`]).toBe('prod-key');
+        expect(secrets.instanceApiKeys[`environment:${preprod.id}`]).toBe('preprod-key');
+
+        for (const name of ['Prod', 'Preprod']) {
+            expect(JSON.parse(runCli(workspaceDir, homeDir, ['env', 'status', name, '--json']))).toMatchObject({
+                environmentName: name,
+                apiKeyAvailable: true,
+                apiKeySource: 'workspace-environment',
+            });
+        }
+
+        const cleared = JSON.parse(runCli(workspaceDir, homeDir, ['env', 'auth', 'clear', 'Preprod', '--json']));
+        expect(cleared).toMatchObject({ environmentName: 'Preprod', apiKeyAvailable: false, apiKeySource: 'missing' });
+        expect(JSON.parse(runCli(workspaceDir, homeDir, ['env', 'status', 'Prod', '--json']))).toMatchObject({
+            apiKeySource: 'workspace-environment',
+        });
+    });
 
     it('configures native MCP assist per environment without committing the token', () => {
         const workspaceDir = createTempDir('n8nac-cli-native-mcp-workspace-');
