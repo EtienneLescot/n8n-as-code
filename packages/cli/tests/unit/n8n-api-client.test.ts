@@ -98,7 +98,26 @@ describe('N8nApiClient test workflow support', () => {
         const config = mockAxiosCreate.mock.calls[0][0];
         expect(config.httpsAgent.options.rejectUnauthorized).toBe(true);
         expect(Array.isArray(config.httpsAgent.options.ca)).toBe(true);
-        expect(config.httpsAgent.options.ca).toContain('-----BEGIN CERTIFICATE-----\nextra\n-----END CERTIFICATE-----\n');
+        // Anchors are stored as trimmed PEM blocks, so the trailing newline is gone.
+        expect(config.httpsAgent.options.ca).toContain('-----BEGIN CERTIFICATE-----\nextra\n-----END CERTIFICATE-----');
+    });
+
+    it('keeps verification off when only the OS trust store is available', async () => {
+        // The regression this guards: gating rejectUnauthorized on "the bundle is non-empty"
+        // turns verification on for everyone, because tls.getCACertificates('system') returns
+        // anchors on nearly every machine — breaking the plain self-signed instances that work
+        // today without the user configuring anything.
+        const tlsMod = await import('tls');
+        vi.mocked((tlsMod as any).getCACertificates).mockReturnValue([
+            '-----BEGIN CERTIFICATE-----\nsystem-anchor\n-----END CERTIFICATE-----',
+        ]);
+
+        new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        const config = mockAxiosCreate.mock.calls[0][0];
+        expect(config.httpsAgent.options.rejectUnauthorized).toBe(false);
+        // The anchors are still trusted, they just do not force strict verification on.
+        expect(config.httpsAgent.options.ca).toContain('-----BEGIN CERTIFICATE-----\nsystem-anchor\n-----END CERTIFICATE-----');
     });
 
     it('asserts API access through the authenticated workflows endpoint', async () => {
@@ -964,7 +983,8 @@ describe('buildCaBundle', () => {
         const bundle = buildCaBundle();
 
         expect(bundle).toBeDefined();
-        expect(bundle).toContain('-----BEGIN CERTIFICATE-----\nextra-ca\n-----END CERTIFICATE-----\n');
+        // Anchors are stored as trimmed PEM blocks, so the trailing newline is gone.
+        expect(bundle).toContain('-----BEGIN CERTIFICATE-----\nextra-ca\n-----END CERTIFICATE-----');
         expect(readFileSync).toHaveBeenCalledWith('/path/to/ca.crt', 'utf8');
     });
 
@@ -975,7 +995,7 @@ describe('buildCaBundle', () => {
         const bundle = buildCaBundle();
 
         expect(bundle).toBeDefined();
-        expect(bundle).toContain('-----BEGIN CERTIFICATE-----\nsystem-ca\n-----END CERTIFICATE-----\n');
+        expect(bundle).toContain('-----BEGIN CERTIFICATE-----\nsystem-ca\n-----END CERTIFICATE-----');
     });
 
     it('includes tls.rootCertificates in the bundle so public CAs still work', async () => {

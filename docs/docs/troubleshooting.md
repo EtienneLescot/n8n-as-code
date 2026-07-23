@@ -36,6 +36,40 @@ n8nac env auth set <environment> --api-key-stdin
 - Store it again with `n8nac env auth set <environment> --api-key-stdin`.
 - Confirm the API key has access to the selected project.
 
+### Self-signed certificate or private CA
+
+Symptom: `unable to verify the first certificate`, `self-signed certificate in certificate chain`,
+or `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` when connecting to an HTTPS instance.
+
+Point n8n-as-code at the PEM bundle that holds your root CA:
+
+```bash
+export NODE_EXTRA_CA_CERTS=/path/to/root-ca.pem
+```
+
+`N8NAC_EXTRA_CA_CERTS` works the same way and accepts several paths separated by the platform
+path delimiter, a comma, or a newline.
+
+In the **VS Code extension** the environment variable is often not enough. The extension host is
+an Electron process: it ignores `NODE_EXTRA_CA_CERTS` and cannot be started with Node's
+`--use-system-ca` flag, which is why `n8nac` succeeds in the terminal while auto-load fails.
+Set the bundle in your VS Code settings instead — relative paths resolve against the workspace
+folder — and reload is not required:
+
+```json
+{
+  "n8n.tls.certificateAuthorities": ["/path/to/root-ca.pem"]
+}
+```
+
+If the root CA is only reachable from the operating system trust store, set
+`"n8n.tls.useSystemCertificateAuthorities": true` as well. It is off by default because the OS
+store holds hundreds of anchors that are re-applied to every TLS handshake, and it needs a host
+running Node 22.15 or newer.
+
+The n8n-as-code output channel lists every anchor that was loaded and every bundle that could not
+be read.
+
 ## Missing Configuration
 
 ### `n8nac-config.json` not found

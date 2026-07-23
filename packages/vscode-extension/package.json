@@ -353,6 +353,21 @@
           ],
           "default": "",
           "description": "Optional reasoning effort override for eligible OpenAI account models used by the embedded n8n Agent Workbench. Leave empty to use the provider default."
+        },
+        "n8n.tls.certificateAuthorities": {
+          "type": "array",
+          "included": false,
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "PEM bundle files holding the certificate authorities to trust when connecting to n8n, for instances served with a self-signed certificate or a private CA. Relative paths resolve against the first workspace folder. The extension host cannot read Node's `--use-system-ca` flag, so this setting is the reliable way to add a root CA there; `NODE_EXTRA_CA_CERTS` and `N8NAC_EXTRA_CA_CERTS` are honoured in addition to it."
+        },
+        "n8n.tls.useSystemCertificateAuthorities": {
+          "type": "boolean",
+          "included": false,
+          "default": false,
+          "markdownDescription": "Also trust the certificate authorities installed in the operating system store, matching Node's `--use-system-ca` flag. Off by default because the store holds hundreds of anchors that are re-applied to every TLS handshake; prefer `#n8n.tls.certificateAuthorities#` unless your root CA is only reachable from the OS store. Requires a host running Node 22.15 or newer; it is ignored on older hosts."
         }
       }
     }
