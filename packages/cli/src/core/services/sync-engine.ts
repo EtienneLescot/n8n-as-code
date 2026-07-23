@@ -36,6 +36,9 @@ export class SyncEngine {
      * `getFolders` returns an empty array.
      */
     private inFlightFolderCreates: Map<string, Promise<IFolder>> = new Map();
+    private folderSyncMoveToRoot: boolean;
+    /** Guards the "folders unavailable" warning so a bulk push logs it once. */
+    private folderUnavailableWarned = false;
 
     constructor(
         client: N8nApiClient,
@@ -43,7 +46,7 @@ export class SyncEngine {
         directory: string,
         projectId: string,
         syncEventJournal?: SyncEventJournal,
-        options?: { folderSync?: boolean },
+        options?: { folderSync?: boolean; folderSyncMoveToRoot?: boolean },
     ) {
         this.client = client;
         this.watcher = watcher;
@@ -51,6 +54,7 @@ export class SyncEngine {
         this.projectId = projectId;
         this.syncEventJournal = syncEventJournal;
         this.folderSync = options?.folderSync ?? false;
+        this.folderSyncMoveToRoot = options?.folderSyncMoveToRoot ?? false;
     }
 
     /**
@@ -233,7 +237,8 @@ export class SyncEngine {
         // to n8n so the existing workflow actually moves to that folder on update.
         // Mirrors inferParentFolderIdFromFilename() usage in executeCreate().
         const inferredParentFolderId = await this.inferParentFolderIdFromFilename(filename);
-        if (inferredParentFolderId) {
+        // `null` is meaningful here (move to project root), so only skip on undefined.
+        if (inferredParentFolderId !== undefined) {
             localWf.parentFolderId = inferredParentFolderId;
         }
 
@@ -241,11 +246,11 @@ export class SyncEngine {
         try {
             updatedWf = await this.client.updateWorkflow(workflowId, localWf);
         } catch (error: any) {
-            // Retry without parentFolderId when n8n rejects it as an unknown field
-            // (older n8n instances that don't support folder assignment on update).
-            // Same fallback used by executeCreate().
-            if (!localWf.parentFolderId || !this.isUnsupportedParentFolderError(error)) throw error;
-            console.warn(`[SyncEngine] n8n rejected parentFolderId while updating "${filename}"; retrying without folder assignment.`);
+            // Retry without parentFolderId when n8n rejects it as an unknown field.
+            // Workflow placement via the public API only exists from n8n 2.32; older
+            // instances 400 on the field. Same fallback used by executeCreate().
+            if (localWf.parentFolderId === undefined || !this.isUnsupportedParentFolderError(error)) throw error;
+            console.warn(`[SyncEngine] n8n rejected parentFolderId while updating "${filename}" (folder placement needs n8n 2.32+); retrying without folder assignment.`);
             // parentFolderId is a known IWorkflow field; strip it without an `any` cast.
             delete localWf.parentFolderId;
             updatedWf = await this.client.updateWorkflow(workflowId, localWf);
@@ -326,7 +331,8 @@ export class SyncEngine {
         }
 
         const inferredParentFolderId = await this.inferParentFolderIdFromFilename(filename);
-        if (inferredParentFolderId) {
+        // `null` is meaningful here (create at project root), so only skip on undefined.
+        if (inferredParentFolderId !== undefined) {
             localWf.parentFolderId = inferredParentFolderId;
         }
 
@@ -334,8 +340,8 @@ export class SyncEngine {
         try {
             newWf = await this.client.createWorkflow(localWf);
         } catch (error: any) {
-            if (!localWf.parentFolderId || !this.isUnsupportedParentFolderError(error)) throw error;
-            console.warn(`[SyncEngine] n8n rejected parentFolderId while creating "${filename}"; retrying without folder assignment.`);
+            if (localWf.parentFolderId === undefined || !this.isUnsupportedParentFolderError(error)) throw error;
+            console.warn(`[SyncEngine] n8n rejected parentFolderId while creating "${filename}" (folder placement needs n8n 2.32+); retrying without folder assignment.`);
             // parentFolderId is a known IWorkflow field; strip it without an `any` cast.
             delete localWf.parentFolderId;
             newWf = await this.client.createWorkflow(localWf);
@@ -356,27 +362,73 @@ export class SyncEngine {
         return { id: newWf.id, updatedAt: newWf.updatedAt };
     }
 
-    private async inferParentFolderIdFromFilename(filename: string): Promise<string | undefined> {
-        if (!this.folderSync || !this.projectId || this.projectId === 'personal') return undefined;
+    /**
+     * Maps a workflow-relative filename to the n8n folder it should live in.
+     *
+     * Three distinct outcomes, matching n8n's own `parentFolderId` semantics:
+     * - `string`   — put the workflow in that folder (creating folders as needed)
+     * - `null`     — move it to the project root (only when folderSyncMoveToRoot is on)
+     * - `undefined` — say nothing, leave the workflow where n8n has it
+     */
+    private async inferParentFolderIdFromFilename(filename: string): Promise<string | null | undefined> {
+        if (!this.folderSync) return undefined;
         const normalized = normalizeWorkflowRelativePath(filename);
         const segments = normalized.split('/');
-        if (segments.length <= 1) return undefined;
+        if (segments.length <= 1) {
+            // Flat local path. Only claim the project root when the repository is
+            // configured as the source of truth, otherwise a push would silently
+            // undo folders someone created in the n8n UI.
+            return this.folderSyncMoveToRoot ? null : undefined;
+        }
 
-        // Soft capability check: N8nApiClient exposes both methods, but mocks in
+        // Soft capability check: N8nApiClient exposes these methods, but mocks in
         // unit tests may not. Skip folder inference gracefully rather than throw.
         if (typeof this.client.getFolders !== 'function' || typeof this.client.createFolder !== 'function') {
             return undefined;
         }
 
+        // `GET /projects/:id/folders` needs a real project id: it does not accept the
+        // `personal` alias that folder creation does, and `GET /api/v1/projects` is
+        // Enterprise-gated. resolveFolderProjectId() reads it off a workflow instead.
+        const projectId = typeof this.client.resolveFolderProjectId === 'function'
+            ? await this.client.resolveFolderProjectId(this.projectId)
+            : (this.projectId && this.projectId !== 'personal' ? this.projectId : null);
+        if (!projectId) {
+            this.warnFoldersUnavailable('could not determine which n8n project this instance syncs to');
+            return undefined;
+        }
+
         const folderSegments = segments.slice(0, -1);
-        const folders = await this.client.getFolders(this.projectId);
+        let folders: IFolder[];
+        try {
+            folders = await this.client.getFolders(projectId);
+        } catch (error: any) {
+            // 403 = the instance has no `feat:folders` licence (an unregistered
+            // Community instance); 404 = n8n predates the folder endpoints.
+            // Neither is a reason to fail the push — place the workflow flat.
+            if (![403, 404].includes(error?.response?.status)) throw error;
+            this.warnFoldersUnavailable(
+                error?.response?.status === 403
+                    ? 'the n8n instance reports no folder support (register the Community instance to unlock folders)'
+                    : 'this n8n version has no folder API (needs n8n 2.19+, and 2.32+ to place workflows)'
+            );
+            return undefined;
+        }
+
         let parentFolderId: string | null = null;
         for (const segment of folderSegments) {
-            const folder = await this.ensureFolder(folders, this.projectId, segment, parentFolderId);
+            const folder = await this.ensureFolder(folders, projectId, segment, parentFolderId);
             parentFolderId = folder.id;
         }
 
         return parentFolderId ?? undefined;
+    }
+
+    /** Logs the "folderSync is on but unusable" warning at most once per engine. */
+    private warnFoldersUnavailable(reason: string): void {
+        if (this.folderUnavailableWarned) return;
+        this.folderUnavailableWarned = true;
+        console.warn(`[SyncEngine] folderSync is enabled but ${reason}. Workflows will be pushed without folder assignment.`);
     }
 
     /**

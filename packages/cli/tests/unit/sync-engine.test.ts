@@ -10,8 +10,10 @@ function createEngine(params: {
     createWorkflow: ReturnType<typeof vi.fn>;
     filename?: string;
     folderSync?: boolean;
+    folderSyncMoveToRoot?: boolean;
     getFolders?: ReturnType<typeof vi.fn>;
     createFolder?: ReturnType<typeof vi.fn>;
+    resolveFolderProjectId?: ReturnType<typeof vi.fn>;
 }) {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-sync-engine-'));
     const filename = params.filename ?? 'new.workflow.ts';
@@ -26,10 +28,12 @@ function createEngine(params: {
         createWorkflow: params.createWorkflow,
         getFolders: params.getFolders,
         createFolder: params.createFolder,
+        resolveFolderProjectId: params.resolveFolderProjectId,
     } as any;
 
     const engine = new SyncEngine(client, watcher, directory, params.projectId, undefined, {
         folderSync: params.folderSync,
+        folderSyncMoveToRoot: params.folderSyncMoveToRoot,
     });
 
     return { engine, directory, filename, watcher };
@@ -278,8 +282,10 @@ function updateEngine(params: {
     updateWorkflow: ReturnType<typeof vi.fn>;
     filename?: string;
     folderSync?: boolean;
+    folderSyncMoveToRoot?: boolean;
     getFolders?: ReturnType<typeof vi.fn>;
     createFolder?: ReturnType<typeof vi.fn>;
+    resolveFolderProjectId?: ReturnType<typeof vi.fn>;
     workflowId?: string;
 }) {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-sync-engine-update-'));
@@ -298,10 +304,12 @@ function updateEngine(params: {
         updateWorkflow: params.updateWorkflow,
         getFolders: params.getFolders,
         createFolder: params.createFolder,
+        resolveFolderProjectId: params.resolveFolderProjectId,
     } as any;
 
     const engine = new SyncEngine(client, watcher, directory, params.projectId, undefined, {
         folderSync: params.folderSync,
+        folderSyncMoveToRoot: params.folderSyncMoveToRoot,
     });
 
     return {
@@ -489,5 +497,162 @@ describe('SyncEngine update payload folderSync behavior', () => {
         await expect(engine.push(filename, workflowId)).rejects.toBe(genericFolderError);
         expect(updateWorkflow).toHaveBeenCalledTimes(1);
         expect(createFolder).toHaveBeenCalledTimes(1);
+    });
+});
+
+
+// ---------------------------------------------------------------------------
+// Push-authoritative folder placement on API-key-only instances
+// ---------------------------------------------------------------------------
+//
+// n8n's public API lets us WRITE a workflow's folder (2.32+) but never READ it
+// back: `parentFolderId` is writeOnly and no endpoint maps workflows to folders.
+// So push is the only direction that can carry folder intent, and it must behave
+// predictably on a Community instance holding nothing but an API key:
+//   - resolve the project id without the Enterprise-gated projects API
+//   - degrade to a flat push (never fail) when folders are unlicensed/absent
+//   - only claim the project root when explicitly told to
+// ---------------------------------------------------------------------------
+
+describe('SyncEngine folder placement without session auth', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('resolves a real project id when configured with the personal placeholder', async () => {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'Nested Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+
+        const createWorkflow = vi.fn(async (payload) => ({ ...payload, id: 'wf-nested' }));
+        const getFolders = vi.fn(async () => [
+            { id: 'folder-reports', name: 'Reports', parentFolderId: null },
+        ]);
+        const createFolder = vi.fn();
+        // GET /api/v1/projects is Enterprise-gated, so the client reads the id off
+        // a workflow's shared[] instead.
+        const resolveFolderProjectId = vi.fn(async () => 'personal-project-abc');
+
+        const { engine, filename } = createEngine({
+            projectId: 'personal',
+            createWorkflow,
+            filename: 'Reports/new.workflow.ts',
+            folderSync: true,
+            getFolders,
+            createFolder,
+            resolveFolderProjectId,
+        });
+
+        await expect(engine.push(filename)).resolves.toBe('wf-nested');
+
+        expect(resolveFolderProjectId).toHaveBeenCalledWith('personal');
+        expect(getFolders).toHaveBeenCalledWith('personal-project-abc');
+        expect(createFolder).not.toHaveBeenCalled();
+        expect(createWorkflow).toHaveBeenCalledWith(expect.objectContaining({
+            parentFolderId: 'folder-reports',
+        }));
+    });
+
+    it('pushes flat instead of failing when the folders API is unlicensed (403)', async () => {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'Nested Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+
+        const createWorkflow = vi.fn(async (payload) => ({ ...payload, id: 'wf-flat' }));
+        // Unregistered Community instance: no `feat:folders`, so the folder
+        // endpoints answer 403.
+        const getFolders = vi.fn().mockRejectedValue({ response: { status: 403, data: { message: 'Plan lacks license for this feature' } } });
+        const createFolder = vi.fn();
+
+        const { engine, filename } = createEngine({
+            projectId: 'project-1',
+            createWorkflow,
+            filename: 'Reports/new.workflow.ts',
+            folderSync: true,
+            getFolders,
+            createFolder,
+        });
+
+        await expect(engine.push(filename)).resolves.toBe('wf-flat');
+
+        expect(createFolder).not.toHaveBeenCalled();
+        expect(createWorkflow).toHaveBeenCalledTimes(1);
+        expect(createWorkflow).toHaveBeenCalledWith(expect.not.objectContaining({
+            parentFolderId: expect.anything(),
+        }));
+    });
+
+    it('moves a workflow to the project root only when folderSyncMoveToRoot is on', async () => {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'Existing Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+
+        const payloads: any[] = [];
+        const updateWorkflow = vi.fn(async (id, payload) => {
+            payloads.push({ ...payload });
+            return { ...payload, id, updatedAt: '2026-07-23T00:00:00.000Z' };
+        });
+        const getFolders = vi.fn(async () => []);
+
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow,
+            filename: 'existing.workflow.ts',
+            folderSync: true,
+            folderSyncMoveToRoot: true,
+            getFolders,
+            workflowId: 'wf-existing',
+        });
+
+        await expect(engine.push(filename, workflowId)).resolves.toBe(workflowId);
+
+        // null (not undefined) is what tells n8n to move the workflow out of its
+        // folder; a flat local file with the flag off leaves the remote untouched.
+        expect(getFolders).not.toHaveBeenCalled();
+        expect(payloads).toHaveLength(1);
+        expect(payloads[0]).toHaveProperty('parentFolderId', null);
+    });
+
+    it('does not send a root move when the workflow already lives in a local folder', async () => {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'Existing Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+
+        const payloads: any[] = [];
+        const updateWorkflow = vi.fn(async (id, payload) => {
+            payloads.push({ ...payload });
+            return { ...payload, id, updatedAt: '2026-07-23T00:00:00.000Z' };
+        });
+        const getFolders = vi.fn(async () => [
+            { id: 'folder-reports', name: 'Reports', parentFolderId: null },
+        ]);
+        const createFolder = vi.fn();
+
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow,
+            filename: 'Reports/existing.workflow.ts',
+            folderSync: true,
+            folderSyncMoveToRoot: true,
+            getFolders,
+            createFolder,
+            workflowId: 'wf-existing',
+        });
+
+        await expect(engine.push(filename, workflowId)).resolves.toBe(workflowId);
+
+        expect(payloads[0]).toHaveProperty('parentFolderId', 'folder-reports');
     });
 });

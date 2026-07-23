@@ -206,6 +206,51 @@ describe('N8nApiClient test workflow support', () => {
         }));
     });
 
+    it('only selects folder fields n8n accepts', async () => {
+        mockAxiosGet.mockResolvedValueOnce({ data: { count: 1, data: [{ id: 'f1', name: 'Parent', parentFolder: null }] } });
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        await client.getFolders('project-1');
+
+        // n8n's ListFolderQueryDto allow-list has `parentFolder`, not
+        // `parentFolderId` — asking for the latter 400s the whole query.
+        const select = JSON.parse(mockAxiosGet.mock.calls[0][1].params.select);
+        expect(select).toContain('parentFolder');
+        expect(select).not.toContain('parentFolderId');
+    });
+
+    it('resolves the folder project id from a workflow share when given the personal placeholder', async () => {
+        mockAxiosGet.mockResolvedValueOnce({ data: { data: [
+            { id: 'wf-1', shared: [{ projectId: 'real-project-id', role: 'workflow:owner' }] },
+        ] } });
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        // GET /api/v1/projects is Enterprise-gated, so a Community instance has to
+        // learn its own project id from a workflow payload instead.
+        await expect(client.resolveFolderProjectId('personal')).resolves.toBe('real-project-id');
+        expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/workflows', expect.objectContaining({
+            params: expect.objectContaining({ limit: 1 }),
+        }));
+
+        // Memoized: a second call must not re-hit the API.
+        await expect(client.resolveFolderProjectId('personal')).resolves.toBe('real-project-id');
+        expect(mockAxiosGet).toHaveBeenCalledTimes(1);
+    });
+
+    it('passes a real project id straight through without an API round-trip', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        await expect(client.resolveFolderProjectId('project-42')).resolves.toBe('project-42');
+        expect(mockAxiosGet).not.toHaveBeenCalled();
+    });
+
+    it('resolves to null instead of throwing when no project id can be found', async () => {
+        mockAxiosGet.mockRejectedValueOnce(Object.assign(new Error('forbidden'), { response: { status: 403 } }));
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        await expect(client.resolveFolderProjectId('personal')).resolves.toBeNull();
+    });
+
     it('preserves workflow parent folder metadata from workflow payloads', async () => {
         mockAxiosGet
             .mockResolvedValueOnce({ data: {

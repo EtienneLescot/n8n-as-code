@@ -71,6 +71,7 @@ export class SyncManager extends EventEmitter {
         this.syncEventJournal = new SyncEventJournal(instanceDir);
         this.syncEngine = new SyncEngine(this.client, this.watcher, instanceDir, this.config.projectId, this.syncEventJournal, {
             folderSync: this.config.folderSync ?? false,
+            folderSyncMoveToRoot: this.config.folderSyncMoveToRoot ?? false,
         });
         this.resolutionManager = new ResolutionManager(this.syncEngine, this.watcher, this.client);
 

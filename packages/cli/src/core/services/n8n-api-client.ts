@@ -4,7 +4,7 @@ import * as http from 'http';
 import * as https from 'https';
 import * as tls from 'tls';
 import { resolveExtraCaCertificates, shouldVerifyServerCertificate } from './tls-certificates.js';
-import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField, IExecutionDetails, IExecutionList, IExecutionSummary, ExecutionStatus, IFolder, IFolderCapability } from '../types.js';
+import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField, IExecutionDetails, IExecutionList, IExecutionSummary, ExecutionStatus, IFolder } from '../types.js';
 
 type AgentLookup = NonNullable<http.AgentOptions['lookup']>;
 
@@ -57,6 +57,8 @@ export class N8nApiClient {
     private projectsCache: Map<string, IProject> | null = null;
     private projectsCachePromise: Promise<Map<string, IProject>> | null = null;
     private static readonly PERSONAL_PROJECT_PLACEHOLDER_ID = 'personal';
+    /** Memoized result of resolveFolderProjectId(); `null` means "resolved to nothing". */
+    private folderProjectIdPromise: Promise<string | null> | null = null;
     /** Shared agents keep DNS/TLS behavior consistent for API, health, and webhook calls. */
     private httpAgent: http.Agent;
     private httpsAgent: https.Agent;
@@ -320,7 +322,13 @@ export class N8nApiClient {
                 take: String(take),
             };
             if (useSelect) {
-                params.select = JSON.stringify(['id', 'name', 'parentFolderId', 'path', 'createdAt', 'updatedAt']);
+                // Field names come from n8n's ListFolderQueryDto allow-list
+                // (id, name, createdAt, updatedAt, project, tags, parentFolder,
+                // workflowCount, subFolderCount, path). `parentFolderId` is NOT
+                // a valid select field — asking for it makes n8n reject the whole
+                // query with a 400, which used to send every call through the
+                // no-select fallback below.
+                params.select = JSON.stringify(['id', 'name', 'parentFolder', 'path', 'createdAt', 'updatedAt']);
             }
 
             let res: any;
@@ -373,28 +381,39 @@ export class N8nApiClient {
         };
     }
 
-    async getFolderCapability(projectId: string): Promise<IFolderCapability> {
-        let folders = false;
-        try {
-            await this.client.get(`/api/v1/projects/${encodeURIComponent(projectId)}/folders`, {
-                params: { take: '1' },
-            });
-            folders = true;
-        } catch (error: any) {
-            if (![403, 404].includes(error?.response?.status)) throw error;
+    /**
+     * Resolves a project id usable with the folder endpoints.
+     *
+     * `GET /api/v1/projects` is gated behind `feat:projectRole:admin` (Business /
+     * Enterprise), and `GET /projects/:id/folders` does not accept the `personal`
+     * alias that `POST` does — so on a Community instance we have no direct way to
+     * name our own project. Workflow payloads carry it though: the public API loads
+     * the `shared` relation, and `shared[0].projectId` is the owning project.
+     *
+     * Returns null when nothing could be resolved (e.g. no workflows exist yet), in
+     * which case callers should skip folder assignment rather than fail the sync.
+     */
+    async resolveFolderProjectId(preferredProjectId?: string): Promise<string | null> {
+        if (preferredProjectId && !this.isPlaceholderPersonalProjectId(preferredProjectId)) {
+            return preferredProjectId;
         }
 
-        let workflowFolderFields = false;
-        try {
-            const res = await this.client.get('/api/v1/workflows', { params: { limit: 1 } });
-            const data = res.data && res.data.data ? res.data.data : (Array.isArray(res.data) ? res.data : []);
-            const workflow = Array.isArray(data) ? data[0] : undefined;
-            workflowFolderFields = !!(workflow && ('parentFolderId' in workflow || 'parentFolder' in workflow));
-        } catch {
-            workflowFolderFields = false;
-        }
+        this.folderProjectIdPromise ??= (async () => {
+            try {
+                const res = await this.client.get('/api/v1/workflows', { params: { limit: 1 } });
+                const data = res.data?.data ?? (Array.isArray(res.data) ? res.data : []);
+                const workflow = Array.isArray(data) ? data[0] : undefined;
+                const shared = Array.isArray(workflow?.shared) ? workflow.shared[0] : undefined;
+                return shared?.projectId ?? shared?.project?.id ?? null;
+            } catch (error: any) {
+                if (process.env.DEBUG) {
+                    console.debug(`[N8nApiClient] Could not resolve project id from workflows: ${error?.message || error}`);
+                }
+                return null;
+            }
+        })();
 
-        return { folders, workflowFolderFields };
+        return await this.folderProjectIdPromise;
     }
 
     /**

@@ -108,6 +108,8 @@ export class BaseCommand {
         let apiKey: string;
         let directory: string;
         let folderSync: boolean;
+        let folderSyncMoveToRoot: boolean;
+
         // If --env <name> was passed as a global option, resolve that workspace
         // environment; otherwise use the V4 active environment.
         const requestedEnvironment = process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
@@ -135,6 +137,7 @@ export class BaseCommand {
         }
         directory = resolvedEnvironment.workflowsPath;
         folderSync = resolvedEnvironment.folderSync ?? false;
+        folderSyncMoveToRoot = resolvedEnvironment.folderSyncMoveToRoot ?? false;
         this.instanceIdentifier = resolvedEnvironment.instanceIdentifier || null;
         this.instanceUserIdentifier = resolvedEnvironment.instanceUserIdentifier || null;
 
@@ -146,6 +149,7 @@ export class BaseCommand {
             host,
             apiKeyConfigured: Boolean(apiKey),
             folderSync,
+            folderSyncMoveToRoot,
         };
         this.runtimePrepared = false;
 
@@ -233,6 +237,7 @@ export class BaseCommand {
             projectId: localConfig.projectId,
             projectName: localConfig.projectName,
             folderSync: localConfig.folderSync ?? false,
+            folderSyncMoveToRoot: localConfig.folderSyncMoveToRoot ?? false,
             environmentId: this.activeEnvironment?.environmentId,
             environmentName: this.activeEnvironment?.environmentName,
             environmentTargetId: this.activeEnvironment?.environmentTargetId,
@@ -269,6 +274,7 @@ export class BaseCommand {
                 host: context.host,
                 apiKeyConfigured: true,
                 folderSync: context.folderSync ?? false,
+                folderSyncMoveToRoot: (context as any).folderSyncMoveToRoot ?? false,
             };
             this.runtimePrepared = true;
         } catch (error) {

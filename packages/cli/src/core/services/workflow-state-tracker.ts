@@ -718,6 +718,19 @@ export class WorkflowStateTracker extends EventEmitter {
         return finalName;
     }
 
+    /**
+     * Builds the resolver that turns a remote workflow's folder into local path
+     * segments — when n8n tells us what that folder is.
+     *
+     * As of n8n 2.32 it does not: `parentFolderId` is declared `writeOnly` in the
+     * public API spec, the read handlers never load the `parentFolder` relation,
+     * and no endpoint maps workflows to folders. This holds on every edition,
+     * Enterprise included, so pull lays workflows out flat and this returns null.
+     *
+     * The detection is deliberately based on the payload rather than a version
+     * check: the day a workflow read carries folder fields, nested pulls start
+     * working with no change here.
+     */
     private async createFolderResolver(remoteWorkflows: IWorkflow[]): Promise<FolderPathResolver | null> {
         if (!this.folderSync) return null;
         const hasWorkflowFolderFields = remoteWorkflows.some((workflow) =>
@@ -739,7 +752,8 @@ export class WorkflowStateTracker extends EventEmitter {
         if (this.warnedFolderMetadataUnavailable) return;
         this.warnedFolderMetadataUnavailable = true;
         console.warn(
-            `[WorkflowStateTracker] folderSync is enabled, but public workflow folder metadata is unavailable${reason ? `: ${reason}` : ''}. Falling back to flat workflow paths.`,
+            `[WorkflowStateTracker] folderSync is enabled, but n8n's public API does not report which folder a workflow is in${reason ? ` (${reason})` : ''}. ` +
+            `Pull keeps workflows flat; push still mirrors your local folders onto n8n.`,
         );
     }
 
@@ -1335,7 +1349,12 @@ export class WorkflowStateTracker extends EventEmitter {
             let folderPath: string[] = [];
             if (this.folderSync && parentFolderId && typeof this.client.getFolders === 'function') {
                 try {
-                    const resolver = new FolderPathResolver(await this.client.getFolders(this.projectId));
+                    // Same project-id caveat as the push path: the folder list endpoint
+                    // needs a real id, not the `personal` placeholder.
+                    const folderProjectId = typeof this.client.resolveFolderProjectId === 'function'
+                        ? await this.client.resolveFolderProjectId(this.projectId)
+                        : this.projectId;
+                    const resolver = new FolderPathResolver(await this.client.getFolders(folderProjectId ?? this.projectId));
                     folderPath = resolver.getPathForWorkflow(remoteWf);
                 } catch (error: any) {
                     this.warnFolderMetadataUnavailable(error?.message);

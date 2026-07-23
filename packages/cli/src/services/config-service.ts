@@ -27,6 +27,8 @@ export interface ILocalConfig {
     workflowDir?: string;
     customNodesPath?: string;
     folderSync?: boolean;
+    /** See ISyncConfig.folderSyncMoveToRoot — opt-in, push moves workflows out of remote folders. */
+    folderSyncMoveToRoot?: boolean;
 }
 
 export type IInstanceVerificationStatus = N8nInstanceVerificationStatus;
@@ -107,6 +109,8 @@ export interface IWorkspaceEnvironment {
     workflowsPath?: string;
     syncFolder?: string;
     folderSync?: boolean;
+    /** See ISyncConfig.folderSyncMoveToRoot — opt-in, push moves workflows out of remote folders. */
+    folderSyncMoveToRoot?: boolean;
     customNodesPath?: string;
     description?: string;
     sourceKind?: 'managed-instance' | 'external-instance';
@@ -413,6 +417,7 @@ export class ConfigService {
         syncFolder?: string;
         id?: string;
         folderSync?: boolean;
+        folderSyncMoveToRoot?: boolean;
         customNodesPath?: string;
         description?: string;
         nativeMcp?: IWorkspaceNativeMcpConfig;
@@ -442,6 +447,7 @@ export class ConfigService {
             projectName: cleanOptional(input.projectName),
             workflowsPath,
             folderSync: input.folderSync,
+            folderSyncMoveToRoot: input.folderSyncMoveToRoot,
             customNodesPath: input.customNodesPath,
             description: input.description,
             nativeMcp: this.sanitizeNativeMcpConfig(input.nativeMcp),
@@ -455,7 +461,7 @@ export class ConfigService {
         return environment;
     }
 
-    updateEnvironment(nameOrId: string, patch: Partial<Pick<IWorkspaceEnvironment, 'name' | 'projectId' | 'projectName' | 'workflowsPath' | 'workflowDir' | 'syncFolder' | 'folderSync' | 'customNodesPath' | 'description'>> & { environmentTarget?: string; nativeMcp?: IWorkspaceNativeMcpConfig | null }): IWorkspaceEnvironment {
+    updateEnvironment(nameOrId: string, patch: Partial<Pick<IWorkspaceEnvironment, 'name' | 'projectId' | 'projectName' | 'workflowsPath' | 'workflowDir' | 'syncFolder' | 'folderSync' | 'folderSyncMoveToRoot' | 'customNodesPath' | 'description'>> & { environmentTarget?: string; nativeMcp?: IWorkspaceNativeMcpConfig | null }): IWorkspaceEnvironment {
         const config = this.ensureV4WorkspaceConfig();
         const environment = this.findEnvironment(config, nameOrId);
         const currentTarget = this.findInstanceTarget(config, environment.environmentTargetId);
@@ -482,6 +488,7 @@ export class ConfigService {
             projectId: patch.projectId !== undefined ? cleanOptional(patch.projectId) : environment.projectId,
             projectName: patch.projectName !== undefined ? cleanOptional(patch.projectName) : environment.projectName,
             folderSync: patch.folderSync ?? environment.folderSync,
+            folderSyncMoveToRoot: patch.folderSyncMoveToRoot ?? environment.folderSyncMoveToRoot,
             customNodesPath: patch.customNodesPath ?? environment.customNodesPath,
             description: patch.description ?? environment.description,
             nativeMcp: patch.nativeMcp !== undefined ? this.sanitizeNativeMcpConfig(patch.nativeMcp) : environment.nativeMcp,
@@ -1265,6 +1272,7 @@ export class ConfigService {
             workflowsPath,
             syncFolder,
             folderSync: typeof environment.folderSync === 'boolean' ? environment.folderSync : undefined,
+            folderSyncMoveToRoot: typeof environment.folderSyncMoveToRoot === 'boolean' ? environment.folderSyncMoveToRoot : undefined,
             customNodesPath: cleanOptional(environment.customNodesPath),
             description: cleanOptional(environment.description),
             nativeMcp: this.sanitizeNativeMcpConfig(environment.nativeMcp),
@@ -1419,6 +1427,7 @@ export class ConfigService {
                 instanceUserIdentifier: identity.instanceUserIdentifier,
                 workflowDir: workflowsPath,
                 folderSync: environment.folderSync ?? false,
+                folderSyncMoveToRoot: environment.folderSyncMoveToRoot ?? false,
                 customNodesPath: environment.customNodesPath,
                 sources: {
                     environment: source,
@@ -1462,6 +1471,7 @@ export class ConfigService {
             instanceUserIdentifier: identity.instanceUserIdentifier,
             workflowDir: workflowsPath,
             folderSync: environment.folderSync ?? false,
+            folderSyncMoveToRoot: environment.folderSyncMoveToRoot ?? false,
             customNodesPath: environment.customNodesPath,
             sources: {
                 environment: source,
@@ -1537,6 +1547,7 @@ export class ConfigService {
             instanceUserIdentifier: environment.instanceUserIdentifier,
             customNodesPath: environment.customNodesPath,
             folderSync: environment.folderSync,
+            folderSyncMoveToRoot: environment.folderSyncMoveToRoot,
         });
     }
 
@@ -1649,6 +1660,7 @@ export class ConfigService {
             instanceUserIdentifier: environment.instanceUserIdentifier,
             customNodesPath: environment.customNodesPath,
             folderSync: environment.folderSync,
+            folderSyncMoveToRoot: environment.folderSyncMoveToRoot,
         });
     }
 
@@ -1678,6 +1690,7 @@ export class ConfigService {
             instanceIdentifier: environment.instanceIdentifier,
             instanceUserIdentifier: environment.instanceUserIdentifier,
             folderSync: environment.folderSync ?? false,
+            folderSyncMoveToRoot: environment.folderSyncMoveToRoot ?? false,
             customNodesPath: environment.customNodesPath,
             environmentId: environment.environmentId,
             environmentName: environment.environmentName,

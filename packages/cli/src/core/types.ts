@@ -36,12 +36,6 @@ export interface IFolder {
     updatedAt?: string;
 }
 
-export interface IFolderCapability {
-    folders: boolean;
-    workflowFolderFields: boolean;
-    workflowParentFolderIdWritable?: boolean;
-}
-
 export interface ITag {
     id: string;
     name: string;
@@ -135,7 +129,24 @@ export interface ISyncConfig {
     instanceConfigPath?: string; // Optional: explicit path for n8nac-config.json
     projectId: string;           // REQUIRED: Project scope for sync
     projectName: string;         // REQUIRED: Project display name
+    /**
+     * Mirror the local folder structure onto n8n when pushing: a workflow stored
+     * at `Some Folder/foo.workflow.ts` is created/moved into `Some Folder` on the
+     * instance, creating the folder if needed.
+     *
+     * Push-only. n8n's public API never returns a workflow's folder, so pull
+     * cannot restore the remote layout — see docs/guides/folder-sync.md.
+     */
     folderSync?: boolean;
+    /**
+     * Also move workflows OUT of their remote folder when the local file sits at
+     * the workflows-directory root (sends `parentFolderId: null`).
+     *
+     * Off by default: with `folderSync` alone a push never undoes folders created
+     * from the n8n UI, it only ever places workflows the repository has an opinion
+     * about. Turn this on when the repository is the sole source of truth.
+     */
+    folderSyncMoveToRoot?: boolean;
     environmentId?: string;
     environmentName?: string;
     environmentTargetId?: string;
