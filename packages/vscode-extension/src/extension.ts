@@ -10,6 +10,7 @@ import {
     SyncManager, CliApi, N8nApiClient, IN8nCredentials, WorkflowSyncStatus, ConfigService,
     resolveInstanceIdentifier, isCanonicalUserInstanceIdentifier, SYNC_EVENT_JOURNAL_FILENAME, type SyncEvent,
     type ITestPlan, type IWorkflowStatus,
+    isCertificateTrustError, CERTIFICATE_TRUST_HINT,
 } from 'n8nac';
 import { AiContextGenerator, getN8nacDevConfigFilenames } from '@n8n-as-code/skills';
 
@@ -41,6 +42,7 @@ import {
     type N8nConfigurationSnapshot,
 } from './services/n8n-configuration-controller.js';
 import { workflowWebviewRegistry } from './services/workflow-webview-registry.js';
+import { applyTlsTrustSettings, registerTlsTrustSettingsWatcher } from './services/tls-trust.js';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
 import { createTelemetryClient, type TelemetryClient } from '@n8n-as-code/telemetry';
 import { ExtensionState } from './types.js';
@@ -247,6 +249,15 @@ export async function activate(context: vscode.ExtensionContext) {
     } catch {
         // Keep activation moving so command registration still happens in Cursor-compatible hosts.
     }
+
+    try {
+        // Must run before the first n8n request: the extension host ignores NODE_EXTRA_CA_CERTS.
+        applyTlsTrustSettings((message) => outputChannel.appendLine(message));
+        context.subscriptions.push(registerTlsTrustSettingsWatcher((message) => outputChannel.appendLine(message)));
+    } catch (error: any) {
+        outputChannel.appendLine(`[n8n] TLS trust setup failed: ${error?.message || error}`);
+    }
+
     const registerTelemetryCommand = (command: string, callback: (...args: any[]) => any): vscode.Disposable => (
         vscode.commands.registerCommand(command, async (...args: any[]) => {
             const telemetry = telemetryClient;
@@ -2010,7 +2021,8 @@ function formatN8nApiError(error: any, host: string): string {
         return `The n8n workflows API is not available at "${host}". Check the instance URL.`;
     }
     if (!error?.response) {
-        return `Cannot connect to n8n at "${host}": ${error?.message || error}`;
+        const hint = isCertificateTrustError(error) ? ` ${CERTIFICATE_TRUST_HINT}` : '';
+        return `Cannot connect to n8n at "${host}": ${error?.message || error}${hint}`;
     }
     return `n8n API request failed at "${host}" with status ${status}: ${error?.message || error}`;
 }
@@ -2425,7 +2437,10 @@ async function initializeSyncManager(context: vscode.ExtensionContext) {
             }, { setActive: false });
         }
     } catch (error: any) {
-        throw new Error(`Cannot connect to n8n instance at "${host}". Please check if n8n is running.`);
+        const reason = isCertificateTrustError(error)
+            ? ` ${error?.message || error} ${CERTIFICATE_TRUST_HINT}`
+            : ' Please check if n8n is running.';
+        throw new Error(`Cannot connect to n8n instance at "${host}".${reason}`);
     }
 
     // Create SyncManager (the stateful engine: WorkflowStateTracker, events, etc.)
