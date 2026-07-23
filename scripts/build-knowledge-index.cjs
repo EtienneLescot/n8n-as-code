@@ -216,7 +216,7 @@ function buildCategoryIndex(entries) {
 /**
  * Build quick lookup index
  */
-function buildQuickLookup(nodes, docs) {
+function buildQuickLookup(nodes, docs, pages) {
     const lookup = {
         nodeByName: {},
         docById: {},
@@ -228,17 +228,26 @@ function buildQuickLookup(nodes, docs) {
         lookup.nodeByName[entry.name] = entry;
     }
 
+    // buildDocSearchEntry() does not carry nodeName over, so resolve it from the
+    // source pages. Looking it up in `docs` only ever found the entry itself, which
+    // left docByNodeName permanently empty.
+    const nodeNameByPageId = new Map(
+        (pages || [])
+            .filter(page => page.nodeName)
+            .map(page => [page.id, page.nodeName])
+    );
+
     // Index docs
     for (const entry of docs) {
         lookup.docById[entry.id] = entry;
 
         // Index by node name if applicable
-        const page = docs.find(d => d.id === entry.id);
-        if (page && page.nodeName) {
-            if (!lookup.docByNodeName[page.nodeName]) {
-                lookup.docByNodeName[page.nodeName] = [];
+        const nodeName = nodeNameByPageId.get(entry.id);
+        if (nodeName) {
+            if (!lookup.docByNodeName[nodeName]) {
+                lookup.docByNodeName[nodeName] = [];
             }
-            lookup.docByNodeName[page.nodeName].push(entry.id);
+            lookup.docByNodeName[nodeName].push(entry.id);
         }
     }
 
@@ -412,7 +421,7 @@ async function main() {
 
         // Build quick lookup
         console.log('\n⚡ Building quick lookup index...');
-        const quickLookup = buildQuickLookup(nodeEntries, docEntries);
+        const quickLookup = buildQuickLookup(nodeEntries, docEntries, docsComplete.pages);
 
         // Build suggestions
         console.log('\n💡 Building suggestions...');

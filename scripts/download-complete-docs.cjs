@@ -33,8 +33,16 @@ const DELAY_BETWEEN_REQUESTS = 100; // ms
 const MAX_CONCURRENT_DOWNLOADS = 10;
 
 // Slug a section heading from llms.txt into a stable kebab-case id.
+// The result is used as a directory name under PAGES_DIR, so every character
+// outside [a-z0-9-] is replaced rather than passed through to path.join().
+// Without this a heading containing a path separator or '..' would escape the
+// cache directory. All nine section headings currently published in llms.txt
+// slug identically under this rule, so it is a hardening, not a rename.
 function slugifySection(name) {
-    return name.toLowerCase().replace(/\s+/g, '-');
+    return name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'uncategorized';
 }
 
 // Fallback category detection by URL prefix. Order matters — most specific first.
@@ -249,12 +257,23 @@ async function downloadAllPages(links, llmsHash) {
     if (fs.existsSync(METADATA_FILE)) {
         try {
             const metadata = JSON.parse(fs.readFileSync(METADATA_FILE, 'utf-8'));
-            if (metadata.llmsHash === llmsHash && metadata.totalPages > 0 && fs.existsSync(PAGES_DIR)) {
+            const cachedPages = Object.values(metadata.pages || {});
+            // A run that hit download errors still writes metadata, so the hash alone
+            // does not mean the cache is complete. Require a clean run and confirm every
+            // referenced file is still on disk before skipping the download.
+            const cacheIsComplete = metadata.llmsHash === llmsHash
+                && metadata.totalPages > 0
+                && metadata.errors === 0
+                && fs.existsSync(PAGES_DIR)
+                && cachedPages.length === metadata.totalPages
+                && cachedPages.every(page => page.filePath && fs.existsSync(path.join(OUTPUT_DIR, page.filePath)));
+
+            if (cacheIsComplete) {
                 console.log(`\n✅ Cache found with ${metadata.totalPages} pages. Skipping all downloads.`);
-                return { results: Object.values(metadata.pages), errors: [] };
+                return { results: cachedPages, errors: [] };
             }
 
-            console.log('\n🔄 llms.txt changed since the last snapshot. Refreshing documentation pages...');
+            console.log('\n🔄 Cached documentation is stale or incomplete. Refreshing documentation pages...');
             removeDirectoryIfExists(PAGES_DIR);
             await mkdir(PAGES_DIR, { recursive: true });
         } catch (e) {
@@ -283,7 +302,6 @@ async function downloadAllPages(links, llmsHash) {
 
                 // Save page to disk
                 const pageId = `page-${String(results.length + 1).padStart(4, '0')}`;
-                const safePath = link.urlPath.replace(/[^a-zA-Z0-9\/\-_.]/g, '-');
                 const pagePath = path.join(PAGES_DIR, category, `${pageId}.md`);
 
                 await mkdir(path.dirname(pagePath), { recursive: true });
