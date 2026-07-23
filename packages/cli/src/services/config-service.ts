@@ -491,6 +491,10 @@ export class ConfigService {
             environments: config.environments.map((item) => item.id === environment.id ? nextEnvironment : item),
         };
         this.writeWorkspaceConfigV4(next);
+        if (nextEnvironment.environmentTargetId !== environment.environmentTargetId) {
+            // The stored key belongs to the previous instance; it must never reach the new one.
+            this.manager.deleteApiKey(this.environmentSecretKey(environment.id));
+        }
         return nextEnvironment;
     }
 

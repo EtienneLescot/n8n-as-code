@@ -278,6 +278,30 @@ describe('CLI workspace integration', () => {
         });
     });
 
+    it('does not carry an environment API key to a new base URL', () => {
+        const workspaceDir = createTempDir('n8nac-cli-move-url-workspace-');
+        const homeDir = createTempDir('n8nac-cli-move-url-home-');
+
+        const prod = JSON.parse(runCli(workspaceDir, homeDir, [
+            'env', 'add', 'Prod',
+            '--base-url', 'https://alpha.example.com',
+            '--api-key', 'alpha-key',
+            '--workflows-path', 'workflows/prod',
+            '--json',
+        ]));
+        runCli(workspaceDir, homeDir, ['env', 'update', 'Prod', '--base-url', 'https://beta.example.com', '--json']);
+
+        expect(JSON.parse(runCli(workspaceDir, homeDir, ['env', 'status', 'Prod', '--json']))).toMatchObject({
+            host: 'https://beta.example.com',
+            apiKeyAvailable: false,
+            apiKeySource: 'missing',
+        });
+
+        runCliWithInput(workspaceDir, homeDir, ['env', 'auth', 'set', 'Prod', '--api-key-stdin', '--json'], 'beta-key');
+        const secrets = JSON.parse(fs.readFileSync(path.join(homeDir, '.n8n-manager', 'secrets.json'), 'utf8'));
+        expect(secrets.instanceApiKeys[`environment:${prod.id}`]).toBe('beta-key');
+    });
+
     it('rejects --api-key for managed instance environments', () => {
         const workspaceDir = createTempDir('n8nac-cli-managed-key-workspace-');
         const homeDir = createTempDir('n8nac-cli-managed-key-home-');

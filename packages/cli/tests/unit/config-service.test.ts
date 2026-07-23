@@ -244,6 +244,54 @@ describe('ConfigService V4 workspace environments', () => {
         }
     });
 
+    it('drops the stored API key when an environment moves to another target', () => {
+        const configService = new ConfigService(workspaceRoot);
+        const alpha = configService.ensureEmbeddedInstanceTarget({
+            name: 'Alpha',
+            url: 'https://alpha.example.test',
+        });
+        const beta = configService.ensureEmbeddedInstanceTarget({
+            name: 'Beta',
+            url: 'https://beta.example.test',
+        });
+        const environment = configService.addEnvironment({
+            name: 'Prod',
+            environmentTarget: alpha.id,
+            workflowsPath: 'workflows/prod',
+        });
+        configService.saveWorkspaceEnvironmentApiKey(environment.id, 'alpha-key');
+
+        configService.updateEnvironment(environment.id, { environmentTarget: beta.id });
+
+        expect(configService.resolveEnvironment(environment.id)).toMatchObject({
+            host: 'https://beta.example.test',
+            apiKeyAvailable: false,
+            apiKeySource: 'missing',
+        });
+        expect(configService.getWorkspaceEnvironmentApiKey(environment.id)).toBeUndefined();
+    });
+
+    it('keeps the stored API key when an environment is updated on the same target', () => {
+        const configService = new ConfigService(workspaceRoot);
+        const target = configService.ensureEmbeddedInstanceTarget({
+            name: 'Alpha',
+            url: 'https://alpha.example.test',
+        });
+        const environment = configService.addEnvironment({
+            name: 'Prod',
+            environmentTarget: target.id,
+            workflowsPath: 'workflows/prod',
+        });
+        configService.saveWorkspaceEnvironmentApiKey(environment.id, 'alpha-key');
+
+        configService.updateEnvironment(environment.id, { description: 'Production' });
+
+        expect(configService.resolveEnvironment(environment.id)).toMatchObject({
+            apiKey: 'alpha-key',
+            apiKeySource: 'workspace-environment',
+        });
+    });
+
     it('drops the stored API key when an environment is removed', () => {
         const configService = new ConfigService(workspaceRoot);
         const target = configService.ensureEmbeddedInstanceTarget({

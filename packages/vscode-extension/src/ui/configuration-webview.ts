@@ -417,17 +417,13 @@ export class ConfigurationWebview {
           const savedEnvironment = environmentId
             ? configService.updateEnvironment(environmentId, input)
             : configService.addEnvironment(input);
-          const savedTargetKind = configService.getInstanceTarget(savedEnvironment.environmentTargetId).kind;
-          const savedTargetChanged = Boolean(existingEnvironmentTargetId && savedEnvironment.environmentTargetId !== existingEnvironmentTargetId);
-          if (savedTargetKind === 'managed-instance') {
+          // Moving an environment to another target already drops its stored key in updateEnvironment.
+          if (configService.getInstanceTarget(savedEnvironment.environmentTargetId).kind === 'managed-instance') {
             // Managed instances own their credentials, so this environment must not keep a workspace key.
             configService.deleteWorkspaceEnvironmentApiKey(savedEnvironment.id);
           } else if (apiKey) {
             // Bind the key to this environment so environments sharing a base URL keep separate credentials.
             configService.saveWorkspaceEnvironmentApiKey(savedEnvironment.id, apiKey);
-          } else if (savedTargetChanged) {
-            // Moving an environment to another target must not carry the previous target credential over.
-            configService.deleteWorkspaceEnvironmentApiKey(savedEnvironment.id);
           }
           if (nativeMcpToken) {
             (configService as NativeMcpConfigService).saveNativeMcpToken(savedEnvironment.id, nativeMcpToken);
