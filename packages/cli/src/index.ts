@@ -20,6 +20,7 @@ import { parsePositiveIntegerOption } from './utils/option-parsers.js';
 import { spawn } from 'child_process';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
 import { ConfigService } from './services/config-service.js';
+import { installExtraCaCertificates } from './core/services/tls-certificates.js';
 import {
     N8N_FACADE_SETUP_MODES,
     isN8nFacadeSetupMode,
@@ -281,6 +282,12 @@ async function runMcpDiagnosticCommand(
         });
     });
 }
+
+// Trust anchors must be in place before the first outbound request. Node already applies
+// NODE_EXTRA_CA_CERTS to its own trust store, but re-reading it here keeps the CLI and the
+// VS Code extension host — which cannot honour it — on identical behaviour, and adds the
+// multi-path N8NAC_EXTRA_CA_CERTS form. The OS store stays with Node's own --use-system-ca.
+installExtraCaCertificates();
 
 const program = new Command();
 const telemetry = createTelemetryClient({ facade: 'cli', version: getVersion() });
