@@ -4,6 +4,19 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+/**
+ * Each test spawns the built CLI, and node process startup on Windows makes that take
+ * seconds — no headroom under vitest's 5s default. Applied per test because vitest 1.x
+ * silently ignores a suite-level `timeout` option on `describe`.
+ */
+const INTEGRATION_TIMEOUT = 30_000;
+
+/**
+ * `tsc -b` walks the whole project-reference graph, so on a clean checkout this builds
+ * every upstream package, not just the CLI — far past vitest's 10s default hookTimeout.
+ */
+const BUILD_TIMEOUT = 180_000;
+
 const tempDirs: string[] = [];
 const repoRoot = path.resolve(import.meta.dirname, '../../../..');
 const cliEntry = path.join(repoRoot, 'packages/cli/dist/index.js');
@@ -49,12 +62,14 @@ function runCliWithInput(cwd: string, homeDir: string, args: string[], input: st
 }
 
 beforeAll(() => {
+    // `npm` is a .cmd shim on Windows, which execFileSync cannot spawn without a shell.
     execFileSync('npm', ['run', 'build', '--workspace=packages/cli'], {
         cwd: repoRoot,
         stdio: 'pipe',
         encoding: 'utf8',
+        shell: process.platform === 'win32',
     });
-});
+}, BUILD_TIMEOUT);
 
 afterAll(() => {
     for (const dir of tempDirs) {
@@ -80,7 +95,7 @@ describe('CLI workspace integration', () => {
 
         expect(stripAnsi(output)).toContain('search [options] <query>');
         expect(stripAnsi(output)).toContain('examples');
-    });
+    }, INTEGRATION_TIMEOUT);
 
     it('does not expose legacy instance management commands and resolves workspace context non-interactively', () => {
         const workspaceDir = createTempDir('n8nac-cli-instance-workspace-');
@@ -148,7 +163,7 @@ describe('CLI workspace integration', () => {
         const workspaceConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         expect(workspaceConfig.activeInstanceId).toBe('test');
         expect(workspaceConfig.projectId).toBe('project-test');
-    });
+    }, INTEGRATION_TIMEOUT);
 
     it('creates remote environments directly without exposing low-level targets', () => {
         const workspaceDir = createTempDir('n8nac-cli-env-workspace-');
@@ -184,7 +199,7 @@ describe('CLI workspace integration', () => {
 
         const migration = runCliExpectFailure(workspaceDir, homeDir, ['workspace', 'migrate', '--json']);
         expect(stripAnsi(migration)).toContain("unknown command 'migrate'");
-    });
+    }, INTEGRATION_TIMEOUT);
 
     it('stores env auth locally for external workspace targets', () => {
         const workspaceDir = createTempDir('n8nac-cli-external-auth-workspace-');
@@ -216,7 +231,7 @@ describe('CLI workspace integration', () => {
             apiKeySource: 'workspace-local',
         });
         expect(authOutput).not.toContain('dev-key');
-    });
+    }, INTEGRATION_TIMEOUT);
 
     it('configures native MCP assist per environment without committing the token', () => {
         const workspaceDir = createTempDir('n8nac-cli-native-mcp-workspace-');
@@ -253,7 +268,7 @@ describe('CLI workspace integration', () => {
 
         const disabled = JSON.parse(runCli(workspaceDir, homeDir, ['native-mcp', 'disable', 'Dev', '--json']));
         expect(disabled.nativeMcp).toMatchObject({ enabled: false, tokenConfigured: false });
-    });
+    }, INTEGRATION_TIMEOUT);
 
     it('rejects env auth set for managed environments', () => {
         const workspaceDir = createTempDir('n8nac-cli-managed-auth-workspace-');
@@ -293,5 +308,5 @@ describe('CLI workspace integration', () => {
 
         const stdinOutput = runCliExpectFailure(workspaceDir, homeDir, ['env', 'auth', 'set', 'Dev', '--api-key-stdin']);
         expect(stripAnsi(stdinOutput)).toContain('uses managed instance "managed-dev"');
-    });
+    }, INTEGRATION_TIMEOUT);
 });
