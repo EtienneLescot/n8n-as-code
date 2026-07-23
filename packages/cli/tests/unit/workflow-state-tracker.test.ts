@@ -452,13 +452,30 @@ export class ${name}Workflow {
         expect(results[0].remoteUpdatedAt).toBeUndefined();
     });
 
-    it('caches remote updatedAt in remoteTimestamps when refreshRemoteState runs', async () => {
+    it('surfaces the remote updatedAt cached during refreshRemoteState', async () => {
         await writeWorkflowFile('wf-1', 'Carousel');
 
-        const { tracker } = await listWorkflows();
+        const { results } = await listWorkflows();
 
-        const timestamps = (tracker as any).remoteTimestamps as Map<string, string>;
-        expect(timestamps.get('wf-1')).toBe(REMOTE_UPDATED_AT);
+        expect(results[0].remoteUpdatedAt).toBe(REMOTE_UPDATED_AT);
+    });
+
+    it('reports remote=false when the instance returns no updatedAt', async () => {
+        // Not every deployment populates `updatedAt` on the list endpoint. Without it
+        // there is nothing to compare, so the remote axis stays false rather than
+        // guessing — and `remoteUpdatedAt` is omitted instead of reported as stale.
+        const hash = await writeWorkflowFile('wf-1', 'Carousel');
+        mockRemote([{ id: 'wf-1', name: 'Carousel', active: true, isArchived: false }]);
+        writeState({
+            'wf-1': { lastSyncedHash: hash, lastSyncedAt: OLDER_THAN_REMOTE, filename: 'Carousel.workflow.ts' },
+        });
+
+        const { results } = await listWorkflows();
+
+        expect(results[0].status).toBe('TRACKED');
+        expect(results[0].drift).toEqual({ local: false, remote: false });
+        expect(results[0].remoteUpdatedAt).toBeUndefined();
+        expect(results[0].lastSyncedAt).toBe(OLDER_THAN_REMOTE);
     });
 
     it('omits drift when state has lastSyncedHash but no lastSyncedAt', async () => {

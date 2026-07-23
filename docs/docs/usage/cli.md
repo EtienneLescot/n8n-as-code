@@ -147,8 +147,8 @@ Status values:
 
 #### Drift in `--json` output
 
-`n8nac list --json` adds a `drift` object to each workflow that has a sync record in
-`.n8n-state.json` and a remote `updatedAt`:
+`n8nac list --json` adds a `drift` object to each `TRACKED` workflow whose sync record in
+`.n8n-state.json` carries both a `lastSyncedHash` and a `lastSyncedAt`:
 
 ```json
 {
@@ -165,8 +165,8 @@ Status values:
 | Field | Meaning |
 |---|---|
 | `drift.local` | The local file's hash differs from `lastSyncedHash`. Absent when the file could not be parsed during the scan, i.e. "unknown", not "unchanged". |
-| `drift.remote` | The remote `updatedAt` is newer than `lastSyncedAt` — the workflow was edited in the n8n UI since the last sync. |
-| `drift` (whole object) | Absent when there is no sync record for the workflow (never pulled or pushed), so drift cannot be determined. |
+| `drift.remote` | The remote `updatedAt` is newer than `lastSyncedAt` — the workflow was edited in the n8n UI since the last sync. `false` when the instance returned no `updatedAt` for that workflow, in which case `remoteUpdatedAt` is also absent. |
+| `drift` (whole object) | Absent for workflows that are not `TRACKED`, and for those whose sync record lacks `lastSyncedHash` or `lastSyncedAt` — there is no base to compare against, so drift cannot be determined. |
 
 `drift.remote` is a timestamp comparison, not a content comparison: a workflow re-saved
 in the n8n UI with no effective change still reports `remote: true`. Run
