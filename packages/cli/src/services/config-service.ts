@@ -979,6 +979,14 @@ export class ConfigService {
         this.manager.saveApiKey(target.id, apiKey);
     }
 
+    deleteWorkspaceTargetApiKey(targetId: string): void {
+        try {
+            this.manager.deleteApiKey(this.getInstanceTarget(targetId).id);
+        } catch {
+            this.manager.deleteApiKey(targetId);
+        }
+    }
+
     /**
      * API key stored for a single environment. Environments that share an environment target
      * (for example two accounts on the same n8n base URL) keep their own key this way.

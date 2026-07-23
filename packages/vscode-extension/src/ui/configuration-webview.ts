@@ -390,7 +390,11 @@ export class ConfigurationWebview {
               });
             }
           }
-          if (environmentTargetId && url && apiKey) {
+          if (environmentTargetId && configService.getInstanceTarget(environmentTargetId).kind === 'managed-instance') {
+            // A managed instance owns its credentials, so a workspace key stored against it would
+            // never be read. Drop any legacy one instead of persisting a dead secret.
+            configService.deleteWorkspaceTargetApiKey(environmentTargetId);
+          } else if (environmentTargetId && url && apiKey) {
             configService.saveWorkspaceTargetApiKey(environmentTargetId, apiKey);
           }
           const workflowsPath = normalizeWorkflowsPath(String(payload.workflowsPath || '').trim());
