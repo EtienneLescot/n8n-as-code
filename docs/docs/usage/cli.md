@@ -117,10 +117,12 @@ printf '%s' "$PREPROD_N8N_API_KEY" | n8nac env auth set Preprod --api-key-stdin
 |---|---|
 | `env` | `N8NAC_ENV_<ENVIRONMENT>_API_KEY` or `N8NAC_TARGET_<TARGET>_API_KEY` |
 | `workspace-environment` | stored for this environment by `env auth set` |
-| `workspace-local` | stored for the shared target by `env add --api-key`, used by environments that have no key of their own |
+| `workspace-local` | stored for the shared target by the VS Code environment editor, used by environments that have no key of their own |
 | `global` | stored on the global `n8n-manager` instance matching the URL |
 
-Use `n8nac env auth clear <environment>` to drop an environment key and fall back to the entries below it.
+`env add --api-key` and `env update --api-key` bind the key to that one environment and never to the shared target, so configuring one environment cannot change the key another environment authenticates with.
+
+Use `n8nac env auth clear <environment>` to drop an environment key. The environment is then left without a credential of its own rather than borrowing one from another environment on the same URL, so commands fail with `apiKeySource: missing` until you store a new key.
 
 Local managed instance environments do not take a stored key: they resolve either a scoped environment variable or the managed instance credentials, so `env auth set` and `env add --api-key` are rejected for them.
 

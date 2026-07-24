@@ -394,9 +394,11 @@ export class ConfigurationWebview {
             // A managed instance owns its credentials, so a workspace key stored against it would
             // never be read. Drop any legacy one instead of persisting a dead secret.
             configService.deleteWorkspaceTargetApiKey(environmentTargetId);
-          } else if (environmentTargetId && url && apiKey) {
-            configService.saveWorkspaceTargetApiKey(environmentTargetId, apiKey);
           }
+          // The key entered here belongs to this one environment and is stored against it below.
+          // It must not also be written to the shared environment target, which every key-less
+          // environment on the same base URL reads: that would let one environment silently
+          // authenticate as another, and each save would repoint every environment sharing the URL.
           const workflowsPath = normalizeWorkflowsPath(String(payload.workflowsPath || '').trim());
           const folderSync = typeof payload.folderSync === 'boolean' ? payload.folderSync : undefined;
           const nativeMcpToken = String(payload.nativeMcpToken || '').trim();

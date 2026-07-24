@@ -215,6 +215,34 @@ describe('ConfigService V4 workspace environments', () => {
         });
     });
 
+    it('leaves an environment without a credential when its own key is cleared', () => {
+        const configService = new ConfigService(workspaceRoot);
+        const target = configService.ensureEmbeddedInstanceTarget({
+            name: 'Shared',
+            url: 'https://n8n.example.test',
+        });
+        const prod = configService.addEnvironment({
+            name: 'Prod',
+            environmentTarget: target.id,
+            workflowsPath: 'workflows/prod',
+        });
+        const preprod = configService.addEnvironment({
+            name: 'Preprod',
+            environmentTarget: target.id,
+            workflowsPath: 'workflows/preprod',
+        });
+        configService.saveWorkspaceEnvironmentApiKey(prod.id, 'prod-key');
+        configService.saveWorkspaceEnvironmentApiKey(preprod.id, 'preprod-key');
+
+        configService.deleteWorkspaceEnvironmentApiKey(prod.id);
+
+        // Clearing Prod must not hand Prod the credential stored for Preprod.
+        const resolved = configService.resolveEnvironment(prod.id);
+        expect(resolved.apiKey).toBeUndefined();
+        expect(resolved).toMatchObject({ apiKeyAvailable: false, apiKeySource: 'missing' });
+        expect(configService.getWorkspaceEnvironmentApiKey(preprod.id)).toBe('preprod-key');
+    });
+
     it('lets an environment variable override the stored environment API key', () => {
         const configService = new ConfigService(workspaceRoot);
         const target = configService.ensureEmbeddedInstanceTarget({

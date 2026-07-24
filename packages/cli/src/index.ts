@@ -554,7 +554,6 @@ environmentProgram.command('add')
                 url: urlOption,
             });
             environmentTarget = target.id;
-            if (options.apiKey) configService.saveWorkspaceTargetApiKey(target.id, options.apiKey);
         }
         if (options.managedInstance) {
             const target = await ensureManagedLocalTarget(configService, options.managedInstance);
@@ -574,7 +573,10 @@ environmentProgram.command('add')
             customNodesPath: options.customNodesPath,
             description: options.description,
         });
-        // Bind the key to this environment so environments sharing a base URL keep separate credentials.
+        // Bind the key to this environment only. It must never also be written to the shared
+        // environment target: that slot is read by every key-less environment on the same base URL,
+        // so copying a per-environment credential into it lets one environment silently
+        // authenticate as another (and the last `env add --api-key` would repoint them all).
         if (options.apiKey && urlOption) configService.saveWorkspaceEnvironmentApiKey(environment.id, options.apiKey);
         printJsonOrText(options, environment, chalk.green(`✔ Workspace environment added: ${environment.name}`));
     });
@@ -613,7 +615,6 @@ environmentProgram.command('update')
                 url: urlOption,
             });
             environmentTarget = target.id;
-            if (options.apiKey) configService.saveWorkspaceTargetApiKey(target.id, options.apiKey);
         }
         if (options.managedInstance) {
             const target = await ensureManagedLocalTarget(configService, options.managedInstance);
@@ -636,7 +637,7 @@ environmentProgram.command('update')
             }
         }
         const environment = configService.updateEnvironment(nameOrId, patch);
-        // Bind the key to this environment so environments sharing a base URL keep separate credentials.
+        // Bind the key to this environment only -- see the note in `env add`.
         if (options.apiKey) configService.saveWorkspaceEnvironmentApiKey(environment.id, options.apiKey);
         printJsonOrText(options, environment, chalk.green(`✔ Workspace environment updated: ${environment.name}`));
     });

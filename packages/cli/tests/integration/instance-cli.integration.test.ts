@@ -267,15 +267,91 @@ describe('CLI workspace integration', () => {
             });
         }
 
-        // Clearing an environment key falls back to the target key shared by both environments.
+        // Clearing an environment key leaves that environment with no credential. It must not fall
+        // back to `shared-key`, which was supplied as Prod's `--api-key` and belongs to Prod alone.
         const cleared = JSON.parse(runCli(workspaceDir, homeDir, ['env', 'auth', 'clear', 'Preprod', '--json']));
-        expect(cleared).toMatchObject({ environmentName: 'Preprod', apiKeyAvailable: true, apiKeySource: 'workspace-local' });
+        expect(cleared).toMatchObject({ environmentName: 'Preprod', apiKeyAvailable: false, apiKeySource: 'missing' });
         const secretsAfterClear = JSON.parse(fs.readFileSync(path.join(homeDir, '.n8n-manager', 'secrets.json'), 'utf8'));
         expect(secretsAfterClear.instanceApiKeys[`environment:${preprod.id}`]).toBeUndefined();
-        expect(secretsAfterClear.instanceApiKeys[prod.environmentTargetId]).toBe('shared-key');
+        expect(secretsAfterClear.instanceApiKeys[prod.environmentTargetId]).toBeUndefined();
         expect(JSON.parse(runCli(workspaceDir, homeDir, ['env', 'status', 'Prod', '--json']))).toMatchObject({
             apiKeySource: 'workspace-environment',
         });
+    });
+
+    it('never authenticates an environment with a credential supplied for another environment', () => {
+        const workspaceDir = createTempDir('n8nac-cli-key-leak-workspace-');
+        const homeDir = createTempDir('n8nac-cli-key-leak-home-');
+        const secretsPath = path.join(homeDir, '.n8n-manager', 'secrets.json');
+        const readSecrets = () => JSON.parse(fs.readFileSync(secretsPath, 'utf8')).instanceApiKeys;
+
+        const prod = JSON.parse(runCli(workspaceDir, homeDir, [
+            'env', 'add', 'Prod',
+            '--base-url', 'https://shared.example.com',
+            '--api-key', 'prod-key',
+            '--workflows-path', 'workflows/prod',
+            '--json',
+        ]));
+        const preprod = JSON.parse(runCli(workspaceDir, homeDir, [
+            'env', 'add', 'Preprod',
+            '--base-url', 'https://shared.example.com',
+            '--api-key', 'preprod-key',
+            '--workflows-path', 'workflows/preprod',
+            '--json',
+        ]));
+        expect(preprod.environmentTargetId).toBe(prod.environmentTargetId);
+
+        // Adding Preprod must not repoint the credential any other environment resolves.
+        expect(Object.values(readSecrets())).not.toContain('preprod-key-shared-slot');
+        expect(readSecrets()[prod.environmentTargetId]).toBeUndefined();
+        expect(JSON.parse(runCli(workspaceDir, homeDir, ['env', 'status', 'Prod', '--json']))).toMatchObject({
+            apiKeySource: 'workspace-environment',
+        });
+
+        // Clearing Prod's own key must leave Prod with no credential, never Preprod's.
+        const cleared = JSON.parse(runCli(workspaceDir, homeDir, ['env', 'auth', 'clear', 'Prod', '--json']));
+        expect(cleared).toMatchObject({
+            environmentName: 'Prod',
+            apiKeyAvailable: false,
+            apiKeySource: 'missing',
+        });
+        expect(readSecrets()[`environment:${prod.id}`]).toBeUndefined();
+        expect(readSecrets()[`environment:${preprod.id}`]).toBe('preprod-key');
+    });
+
+    it('does not repoint a key-less environment when another environment is added', () => {
+        const workspaceDir = createTempDir('n8nac-cli-key-flip-workspace-');
+        const homeDir = createTempDir('n8nac-cli-key-flip-home-');
+        const secretsPath = path.join(homeDir, '.n8n-manager', 'secrets.json');
+
+        const prod = JSON.parse(runCli(workspaceDir, homeDir, [
+            'env', 'add', 'Prod',
+            '--base-url', 'https://shared.example.com',
+            '--api-key', 'prod-key',
+            '--workflows-path', 'workflows/prod',
+            '--json',
+        ]));
+        runCli(workspaceDir, homeDir, [
+            'env', 'add', 'Shared',
+            '--base-url', 'https://shared.example.com',
+            '--workflows-path', 'workflows/shared',
+            '--json',
+        ]);
+        // The credential the key-less Shared environment would resolve, before Preprod exists.
+        const before = JSON.parse(fs.readFileSync(secretsPath, 'utf8')).instanceApiKeys[prod.environmentTargetId];
+
+        runCli(workspaceDir, homeDir, [
+            'env', 'add', 'Preprod',
+            '--base-url', 'https://shared.example.com',
+            '--api-key', 'preprod-key',
+            '--workflows-path', 'workflows/preprod',
+            '--json',
+        ]);
+        const after = JSON.parse(fs.readFileSync(secretsPath, 'utf8')).instanceApiKeys[prod.environmentTargetId];
+
+        // Adding Preprod must not change the credential the untouched Shared environment resolves.
+        expect(after).toBe(before);
+        expect(after).not.toBe('preprod-key');
     });
 
     it('does not carry an environment API key to a new base URL', () => {
