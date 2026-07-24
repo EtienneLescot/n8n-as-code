@@ -6,11 +6,14 @@ import type * as tls from 'tls';
 import {
     CERTIFICATE_TRUST_HINT,
     N8NAC_EXTRA_CA_CERTS_ENV,
+    N8NAC_INSECURE_TLS_ENV,
     extractPemCertificates,
     getInstalledExtraCaCertificates,
     installExtraCaCertificates,
     isCertificateTrustError,
+    isPrivateNetworkHost,
     resolveExtraCaCertificates,
+    shouldVerifyServerCertificate,
     splitCertificatePathList,
     uninstallExtraCaCertificates,
     type ISecureContextHost,
@@ -237,6 +240,109 @@ describe('tls-certificates', () => {
             expect(host.createSecureContext).toBe(original);
             expect(added).toEqual([]);
             expect(getInstalledExtraCaCertificates(host)).toEqual([]);
+        });
+    });
+
+    describe('isPrivateNetworkHost', () => {
+        it.each([
+            'https://localhost:5678',
+            'localhost',
+            'https://LOCALHOST/',
+            'https://n8n.localhost:5678',
+            'https://n8n.local',
+            'https://n8n.internal',
+            'https://n8n.home.arpa',
+            'https://n8n-box:5678',
+            'https://127.0.0.1:5678',
+            'https://127.5.4.3',
+            'https://10.1.2.3',
+            'https://172.16.0.1',
+            'https://172.31.255.254',
+            'https://192.168.1.10',
+            'https://169.254.10.10',
+            'https://100.101.102.103',
+            'https://[::1]:5678',
+            'https://[fd7a:115c:a1e0::1]',
+            'https://[fe80::1%25eth0]',
+            'https://[::ffff:192.168.1.10]',
+        ])('treats %s as private', (host) => {
+            expect(isPrivateNetworkHost(host)).toBe(true);
+        });
+
+        it.each([
+            'https://n8n.example.com',
+            'https://n8n.example.com:8443',
+            'n8n.example.com',
+            'https://8.8.8.8',
+            'https://172.15.0.1',
+            'https://172.32.0.1',
+            'https://192.169.1.1',
+            'https://100.128.0.1',
+            'https://local.example.com',
+            'https://n8n.local.example.com',
+            'https://[2606:4700:4700::1111]',
+            '',
+        ])('treats %s as public', (host) => {
+            expect(isPrivateNetworkHost(host)).toBe(false);
+        });
+
+        it('ignores a trailing dot on an absolute name', () => {
+            expect(isPrivateNetworkHost('https://n8n.local./')).toBe(true);
+            expect(isPrivateNetworkHost('https://n8n.example.com./')).toBe(false);
+        });
+    });
+
+    describe('shouldVerifyServerCertificate', () => {
+        it('verifies a public host even when the user configured nothing', () => {
+            const verify = shouldVerifyServerCertificate({
+                host: 'https://n8n.example.com',
+                hasConfiguredAnchors: false,
+                env: {},
+            });
+
+            expect(verify).toBe(true);
+        });
+
+        it('keeps verification off for an unconfigured loopback host so self-signed instances still work', () => {
+            const verify = shouldVerifyServerCertificate({
+                host: 'https://localhost:5678',
+                hasConfiguredAnchors: false,
+                env: {},
+            });
+
+            expect(verify).toBe(false);
+        });
+
+        it('verifies a private host once the user configured an anchor', () => {
+            // Configuring a CA means "check my certificates", including on the LAN — otherwise
+            // the anchor would be pointless for the very instance it was added for.
+            const verify = shouldVerifyServerCertificate({
+                host: 'https://localhost:5678',
+                hasConfiguredAnchors: true,
+                env: {},
+            });
+
+            expect(verify).toBe(true);
+        });
+
+        it.each(['1', 'true', 'YES'])('honours %s as an explicit opt-out', (value) => {
+            const verify = shouldVerifyServerCertificate({
+                host: 'https://n8n.example.com',
+                hasConfiguredAnchors: true,
+                env: { [N8NAC_INSECURE_TLS_ENV]: value },
+            });
+
+            expect(verify).toBe(false);
+        });
+
+        it.each(['0', 'false', '', '  '])('does not treat %s as an opt-out', (value) => {
+            const verify = shouldVerifyServerCertificate({
+                host: 'https://n8n.example.com',
+                hasConfiguredAnchors: false,
+                env: { [N8NAC_INSECURE_TLS_ENV]: value },
+            });
+
+            expect(verify).toBe(true);
         });
     });
 

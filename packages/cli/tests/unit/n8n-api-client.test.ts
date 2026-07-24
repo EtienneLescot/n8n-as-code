@@ -70,8 +70,9 @@ describe('N8nApiClient test workflow support', () => {
             put: mockAxiosPut,
             delete: mockAxiosDelete,
         }));
-        // Reset NODE_EXTRA_CA_CERTS so each test starts clean.
+        // Reset the TLS environment so each test starts clean.
         delete process.env.NODE_EXTRA_CA_CERTS;
+        delete process.env.N8NAC_INSECURE_TLS;
     });
 
     it('configures shared agents with IPv4-first DNS lookup and no extra CAs', () => {
@@ -82,8 +83,8 @@ describe('N8nApiClient test workflow support', () => {
         expect(config.httpsAgent).toBeDefined();
         expect(typeof config.httpAgent.options.lookup).toBe('function');
         expect(config.httpsAgent.options.lookup).toBe(config.httpAgent.options.lookup);
-        // Without extra CAs the agent falls back to rejectUnauthorized:false for
-        // backward compatibility with local self-signed n8n instances.
+        // `n8n.local` is a private-network name, so without extra CAs the agent falls back to
+        // rejectUnauthorized:false for backward compatibility with self-signed instances.
         expect(config.httpsAgent.options.rejectUnauthorized).toBe(false);
         expect(config.httpsAgent.options.ca).toBeUndefined();
     });
@@ -104,9 +105,9 @@ describe('N8nApiClient test workflow support', () => {
 
     it('keeps verification off when only the OS trust store is available', async () => {
         // The regression this guards: gating rejectUnauthorized on "the bundle is non-empty"
-        // turns verification on for everyone, because tls.getCACertificates('system') returns
-        // anchors on nearly every machine — breaking the plain self-signed instances that work
-        // today without the user configuring anything.
+        // turns verification on for every host, because tls.getCACertificates('system') returns
+        // anchors on nearly every machine — breaking the plain self-signed instances on the local
+        // network that work today without the user configuring anything.
         const tlsMod = await import('tls');
         vi.mocked((tlsMod as any).getCACertificates).mockReturnValue([
             '-----BEGIN CERTIFICATE-----\nsystem-anchor\n-----END CERTIFICATE-----',
@@ -118,6 +119,51 @@ describe('N8nApiClient test workflow support', () => {
         expect(config.httpsAgent.options.rejectUnauthorized).toBe(false);
         // The anchors are still trusted, they just do not force strict verification on.
         expect(config.httpsAgent.options.ca).toContain('-----BEGIN CERTIFICATE-----\nsystem-anchor\n-----END CERTIFICATE-----');
+    });
+
+    it('verifies the certificate of a public host even when no anchor is configured', () => {
+        // The hole this closes: a public n8n serves a publicly trusted certificate, so there is
+        // no compatibility reason to skip verification — skipping it just makes the API key
+        // interceptable by anyone on the path.
+        new N8nApiClient({ host: 'https://n8n.example.com/', apiKey: 'secret' });
+
+        const config = mockAxiosCreate.mock.calls[0][0];
+        expect(config.httpsAgent.options.rejectUnauthorized).toBe(true);
+    });
+
+    it('keeps verification off for an unconfigured loopback host', () => {
+        // The compatibility case: a plain self-signed n8n on localhost keeps working with no
+        // configuration, which is what the fallback exists for.
+        new N8nApiClient({ host: 'https://localhost:5678/', apiKey: 'secret' });
+
+        const config = mockAxiosCreate.mock.calls[0][0];
+        expect(config.httpsAgent.options.rejectUnauthorized).toBe(false);
+    });
+
+    it('verifies a loopback host once NODE_EXTRA_CA_CERTS is set', async () => {
+        const { readFileSync } = await import('fs');
+        vi.mocked(readFileSync).mockReturnValue('-----BEGIN CERTIFICATE-----\nextra\n-----END CERTIFICATE-----\n' as any);
+        process.env.NODE_EXTRA_CA_CERTS = '/custom/ca.pem';
+
+        new N8nApiClient({ host: 'https://localhost:5678/', apiKey: 'secret' });
+
+        const config = mockAxiosCreate.mock.calls[0][0];
+        expect(config.httpsAgent.options.rejectUnauthorized).toBe(true);
+    });
+
+    it('lets N8NAC_INSECURE_TLS opt out even when an anchor is configured', async () => {
+        // The escape hatch for a self-signed certificate on a public host name, which is the only
+        // setup the private-network fallback does not already cover. It has to win over a
+        // configured anchor too, otherwise it could not be used to unblock one.
+        const { readFileSync } = await import('fs');
+        vi.mocked(readFileSync).mockReturnValue('-----BEGIN CERTIFICATE-----\nextra\n-----END CERTIFICATE-----\n' as any);
+        process.env.NODE_EXTRA_CA_CERTS = '/custom/ca.pem';
+        process.env.N8NAC_INSECURE_TLS = '1';
+
+        new N8nApiClient({ host: 'https://n8n.example.com/', apiKey: 'secret' });
+
+        const config = mockAxiosCreate.mock.calls[0][0];
+        expect(config.httpsAgent.options.rejectUnauthorized).toBe(false);
     });
 
     it('asserts API access through the authenticated workflows endpoint', async () => {

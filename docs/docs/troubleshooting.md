@@ -50,6 +50,16 @@ export NODE_EXTRA_CA_CERTS=/path/to/root-ca.pem
 `N8NAC_EXTRA_CA_CERTS` works the same way and accepts several paths separated by the platform
 path delimiter, a comma, or a newline.
 
+Certificates are verified for every public host name. Verification is relaxed only for an
+instance on the loopback interface or a private network (`localhost`, `127.0.0.0/8`, `::1`,
+`10/8`, `172.16/12`, `192.168/16`, `100.64/10`, `*.local`, `*.internal`, `*.home.arpa`, or a
+single-label intranet name) that you have not configured a CA for, because a public CA cannot
+issue a certificate for those. Configuring a CA turns verification on for those hosts too.
+
+If your instance serves a private certificate on a *public* host name, add its CA with one of the
+settings above. Only as a last resort, `N8NAC_INSECURE_TLS=1` skips verification entirely — it
+makes the connection, and the API key it carries, interceptable by anyone on the network path.
+
 In the **VS Code extension** the environment variable is often not enough. The extension host is
 an Electron process: it ignores `NODE_EXTRA_CA_CERTS` and cannot be started with Node's
 `--use-system-ca` flag, which is why `n8nac` succeeds in the terminal while auto-load fails.

@@ -246,6 +246,123 @@ export function uninstallExtraCaCertificates(host: ISecureContextHost = getDefau
     patchedHosts.delete(host);
 }
 
+/** Set to 1/true/yes to skip certificate verification outright. Last resort, see below. */
+export const N8NAC_INSECURE_TLS_ENV = 'N8NAC_INSECURE_TLS';
+
+const PRIVATE_HOSTNAME_SUFFIXES = ['.localhost', '.local', '.internal', '.home.arpa'];
+
+/** Pull the host out of a URL by hand, for the inputs `URL` refuses (an IPv6 zone id). */
+function stripUrlDecorations(value: string): string {
+    const bare = value
+        .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+        .replace(/^[^@/]*@/, '')
+        .replace(/[/?#].*$/, '');
+
+    const bracketed = /^\[([^\]]*)\]/.exec(bare);
+    if (bracketed) return bracketed[1];
+    // A bare IPv6 literal holds several colons; a `host:port` pair holds exactly one.
+    return bare.split(':').length === 2 ? bare.replace(/:\d*$/, '') : bare;
+}
+
+/** Strip the scheme, port, brackets, IPv6 zone id and trailing dot from a configured host. */
+function normalizeHostname(hostOrUrl: string): string {
+    const value = hostOrUrl.trim();
+    if (!value) return '';
+
+    let hostname: string;
+    try {
+        hostname = new URL(value.includes('://') ? value : `https://${value}`).hostname;
+    } catch {
+        hostname = stripUrlDecorations(value);
+    }
+
+    return hostname
+        .toLowerCase()
+        .replace(/^\[|\]$/g, '')
+        .replace(/%.*$/, '')
+        .replace(/\.$/, '');
+}
+
+function isPrivateIpv4(hostname: string): boolean {
+    const octets = hostname.split('.').map(Number);
+    if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+        return false;
+    }
+    const [first, second] = octets;
+    if (first === 0) return true; // "this host on this network"
+    if (first === 10) return true; // RFC 1918
+    if (first === 127) return true; // loopback
+    if (first === 169 && second === 254) return true; // link-local
+    if (first === 172 && second >= 16 && second <= 31) return true; // RFC 1918
+    if (first === 192 && second === 168) return true; // RFC 1918
+    if (first === 100 && second >= 64 && second <= 127) return true; // CGNAT, incl. Tailscale
+    return false;
+}
+
+function isPrivateIpv6(hostname: string): boolean {
+    if (hostname === '::1' || hostname === '::') return true;
+    const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(hostname);
+    if (mapped) return isPrivateIpv4(mapped[1]);
+    // `URL` rewrites an IPv4-mapped address to its hex form (`::ffff:c0a8:10a`), so the
+    // embedded IPv4 address has to be read back out of the last two groups.
+    const mappedHex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(hostname);
+    if (mappedHex) {
+        const high = parseInt(mappedHex[1], 16);
+        const low = parseInt(mappedHex[2], 16);
+        return isPrivateIpv4([high >> 8, high & 0xff, low >> 8, low & 0xff].join('.'));
+    }
+    if (/^f[cd][0-9a-f]{2}:/.test(hostname)) return true; // fc00::/7 unique local
+    if (/^fe[89ab][0-9a-f]:/.test(hostname)) return true; // fe80::/10 link-local
+    return false;
+}
+
+/**
+ * `true` when the host can only be reached from this machine or a private network.
+ *
+ * These are precisely the destinations a public CA will not issue a certificate for, so they
+ * are the ones where a self-signed certificate is the normal setup rather than an attack.
+ * Anything else — a real domain name — is treated as public, which is the safe default: an
+ * unrecognised host fails closed into verification.
+ */
+export function isPrivateNetworkHost(hostOrUrl: string): boolean {
+    const hostname = normalizeHostname(hostOrUrl);
+    if (!hostname) return false;
+    if (hostname === 'localhost') return true;
+    if (PRIVATE_HOSTNAME_SUFFIXES.some((suffix) => hostname.endsWith(suffix))) return true;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return isPrivateIpv4(hostname);
+    if (hostname.includes(':')) return isPrivateIpv6(hostname);
+    // A single-label name ("n8n-box") is an intranet name: it has no public DNS entry and no
+    // public CA will certify it.
+    return !hostname.includes('.');
+}
+
+export interface ICertificateVerificationPolicy {
+    /** The configured n8n base URL, or a bare host. */
+    host: string;
+    /** From {@link resolveExtraCaCertificates}. */
+    hasConfiguredAnchors: boolean;
+    env?: NodeJS.ProcessEnv;
+}
+
+/**
+ * Whether the server certificate has to verify for this destination.
+ *
+ * Verification is the default. It is relaxed only where the historical zero-configuration
+ * behaviour is actually needed — a private or loopback address, which cannot hold a publicly
+ * trusted certificate — and only while the user has not configured any anchor of their own.
+ * Configuring an anchor still means "verify everywhere", so a private host does not become a
+ * hole for someone who did set the certificates up.
+ *
+ * The remaining case, a self-signed certificate on a public host name, has to opt out through
+ * {@link N8NAC_INSECURE_TLS_ENV}, because it is indistinguishable from an interception.
+ */
+export function shouldVerifyServerCertificate(policy: ICertificateVerificationPolicy): boolean {
+    const env = policy.env ?? process.env;
+    if (/^(1|true|yes)$/i.test((env[N8NAC_INSECURE_TLS_ENV] ?? '').trim())) return false;
+    if (policy.hasConfiguredAnchors) return true;
+    return !isPrivateNetworkHost(policy.host);
+}
+
 /** `true` when the error is a TLS trust failure rather than a transport or HTTP error. */
 export function isCertificateTrustError(error: any): boolean {
     const code = typeof error?.code === 'string' ? error.code : '';
@@ -267,3 +384,19 @@ export const CERTIFICATE_TRUST_HINT =
     'The certificate is not trusted by this process. Point "n8n.tls.certificateAuthorities" '
     + '(or the NODE_EXTRA_CA_CERTS environment variable) at the PEM bundle holding your root CA, then retry. '
     + 'The VS Code extension host cannot read Node\'s --use-system-ca flag, so the setting is the reliable path there.';
+
+/**
+ * The same guidance for someone running `n8nac` in a terminal.
+ *
+ * Deliberately not {@link CERTIFICATE_TRUST_HINT}: that one points at the
+ * `n8n.tls.certificateAuthorities` VS Code setting and explains extension-host behaviour, and
+ * neither exists on the command line — following it would send a CLI user to a setting they
+ * have no way to set. The environment variables are the CLI's actual levers, and
+ * `N8NAC_EXTRA_CA_CERTS` is named first because it accepts several paths while Node's own
+ * variable takes exactly one.
+ */
+export const CERTIFICATE_TRUST_HINT_CLI =
+    'The certificate presented by the n8n instance is not trusted by this process. Point '
+    + `${N8NAC_EXTRA_CA_CERTS_ENV} (accepts several paths) or NODE_EXTRA_CA_CERTS at the PEM bundle `
+    + 'holding your root CA, then retry. If the instance is genuinely only reachable over a '
+    + `self-signed certificate and you accept the risk, set ${N8NAC_INSECURE_TLS_ENV}=1 to skip verification.`;

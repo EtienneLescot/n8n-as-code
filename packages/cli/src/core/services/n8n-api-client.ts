@@ -3,7 +3,7 @@ import * as dns from 'dns';
 import * as http from 'http';
 import * as https from 'https';
 import * as tls from 'tls';
-import { resolveExtraCaCertificates } from './tls-certificates.js';
+import { resolveExtraCaCertificates, shouldVerifyServerCertificate } from './tls-certificates.js';
 import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField, IExecutionDetails, IExecutionList, IExecutionSummary, ExecutionStatus } from '../types.js';
 
 type AgentLookup = NonNullable<http.AgentOptions['lookup']>;
@@ -73,14 +73,16 @@ export class N8nApiClient {
         const lookup = createIpv4FirstLookup();
         this.httpAgent = new http.Agent({ lookup });
 
-        // Trust whatever the user configured (--use-system-ca / NODE_EXTRA_CA_CERTS) instead of
-        // skipping verification outright. Verification is only enforced once they actually
-        // supplied an anchor: the OS trust store is readable on nearly every machine, so keying
-        // off the bundle merely being non-empty would turn on strict verification for every
-        // existing user and break the plain self-signed instances that work today.
+        // Trust whatever the user configured (--use-system-ca / NODE_EXTRA_CA_CERTS) and verify
+        // against it. Verification is only relaxed for a loopback or private-network host that
+        // the user has not configured an anchor for: those cannot hold a publicly trusted
+        // certificate, so a self-signed one there is the normal setup rather than an attack, and
+        // that is the backward compatibility the fallback exists for. A public host name is
+        // always verified — there is no benign reason to skip it, and skipping it is what makes
+        // the connection interceptable. See `shouldVerifyServerCertificate` for the opt-out.
         const { ca, hasConfiguredAnchors } = resolveAgentTrust();
         this.httpsAgent = new https.Agent({
-            rejectUnauthorized: hasConfiguredAnchors,
+            rejectUnauthorized: shouldVerifyServerCertificate({ host, hasConfiguredAnchors }),
             ca,
             lookup,
         });
