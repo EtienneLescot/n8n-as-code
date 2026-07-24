@@ -10,6 +10,7 @@ import { TestPlanCommand } from './commands/test-plan.js';
 import { CredentialCommand } from './commands/credential.js';
 import { WorkflowCommand } from './commands/workflow.js';
 import { ExecutionCommand } from './commands/execution.js';
+import { formatConnectionError } from './commands/base.js';
 import chalk from 'chalk';
 
 import { readFileSync, existsSync } from 'fs';
@@ -1000,7 +1001,7 @@ program.command('promote')
                 json: options.json,
             });
         } catch (error: any) {
-            console.error(chalk.red(`❌ Promotion failed: ${error?.message || error}`));
+            console.error(chalk.red(`❌ ${formatConnectionError('Promotion failed', error)}`));
             await exitWithTelemetry(1);
         }
     });

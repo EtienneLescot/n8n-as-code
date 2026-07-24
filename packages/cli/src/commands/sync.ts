@@ -1,4 +1,4 @@
-import { BaseCommand } from './base.js';
+import { BaseCommand, captureEmittedErrors, formatConnectionError } from './base.js';
 import { SyncManager, WorkflowSyncStatus } from '../core/index.js';
 import { WorkflowValidator } from '@n8n-as-code/skills';
 import chalk from 'chalk';
@@ -10,6 +10,7 @@ export class SyncCommand extends BaseCommand {
     async pullOne(workflowId: string): Promise<void> {
         const syncConfig = await this.getSyncConfig();
         const syncManager = new SyncManager(this.client, syncConfig);
+        const lastEmittedError = captureEmittedErrors(syncManager);
 
         // Populate local hash cache FIRST — required for accurate status in CLI mode
         await syncManager.refreshLocalState();
@@ -17,7 +18,13 @@ export class SyncCommand extends BaseCommand {
         // Fetch ensures initialization, remote knowledge, and filename mapping
         const remoteExists = await syncManager.fetch(workflowId);
         if (!remoteExists) {
-            console.error(chalk.red(`❌ Workflow ${workflowId} not found on remote.`));
+            // A falsy result means "absent" OR "the request failed"; only the emitted error
+            // tells them apart, and reporting a TLS failure as a missing workflow sends the
+            // user hunting for the wrong problem.
+            const emitted = lastEmittedError();
+            console.error(chalk.red(emitted
+                ? `❌ ${formatConnectionError(`Cannot reach workflow ${workflowId}`, emitted)}`
+                : `❌ Workflow ${workflowId} not found on remote.`));
             process.exit(1);
         }
 
@@ -41,7 +48,7 @@ export class SyncCommand extends BaseCommand {
             await syncManager.pull(workflowId);
             spinner.succeed(chalk.green(`✔ Pulled workflow ${workflowId}.`));
         } catch (e: any) {
-            spinner.fail(`Pull failed: ${e.message}`);
+            spinner.fail(formatConnectionError('Pull failed', lastEmittedError() ?? e));
             process.exit(1);
         }
     }
@@ -49,6 +56,7 @@ export class SyncCommand extends BaseCommand {
     async pushOne(filename: string): Promise<string | undefined> {
         const syncConfig = await this.getSyncConfig();
         const syncManager = new SyncManager(this.client, syncConfig);
+        const lastEmittedError = captureEmittedErrors(syncManager);
 
         // Populate local hash cache FIRST — required for accurate status in CLI mode
         await syncManager.refreshLocalState();
@@ -106,27 +114,38 @@ export class SyncCommand extends BaseCommand {
                 console.log(chalk.yellow(`Archived workflows cannot receive updates via the API.`));
                 process.exit(1);
             }
-            spinner.fail(`Push failed: ${e.message}`);
+            spinner.fail(formatConnectionError('Push failed', lastEmittedError() ?? e));
             process.exit(1);
         }
     }
 
     async fetchOne(workflowId: string): Promise<void> {
         const spinner = ora(`Fetching remote state for workflow ${workflowId}...`).start();
+        // Declared out here so the catch below can still reach it.
+        let lastEmittedError: () => Error | undefined = () => undefined;
         try {
             const syncConfig = await this.getSyncConfig();
             const syncManager = new SyncManager(this.client, syncConfig);
-            
+            lastEmittedError = captureEmittedErrors(syncManager);
+
             // Fetch remote state for this specific workflow (updates internal cache)
             const success = await syncManager.fetch(workflowId);
             if (!success) {
+                // `fetch` returns false both for a genuinely absent workflow and for a failed
+                // request, so report the emitted cause when there was one — otherwise a TLS or
+                // transport failure is announced as a missing workflow.
+                const emitted = lastEmittedError();
+                if (emitted) {
+                    spinner.fail(formatConnectionError(`Failed to fetch workflow ${workflowId}`, emitted));
+                    process.exit(1);
+                }
                 spinner.fail(`Workflow ${workflowId} not found on remote.`);
                 process.exit(1);
             }
             
             spinner.succeed(chalk.green(`✔ Fetched remote state for workflow ${workflowId}.`));
         } catch (e: any) {
-            spinner.fail(`Fetch failed: ${e.message}`);
+            spinner.fail(formatConnectionError('Fetch failed', lastEmittedError() ?? e));
             process.exit(1);
         }
     }
@@ -134,9 +153,12 @@ export class SyncCommand extends BaseCommand {
     async resolveOne(workflowId: string, resolution: 'keep-current' | 'keep-incoming'): Promise<void> {
         const resLabel = resolution === 'keep-current' ? 'current (local)' : 'incoming (remote)';
         const spinner = ora(`Resolving conflict for ${workflowId} (keeping ${resLabel})...`).start();
+        // Declared out here so the catch below can still reach it.
+        let lastEmittedError: () => Error | undefined = () => undefined;
         try {
             const syncConfig = await this.getSyncConfig();
             const syncManager = new SyncManager(this.client, syncConfig);
+            lastEmittedError = captureEmittedErrors(syncManager);
 
             // Populate local hash cache and remote state
             await syncManager.refreshLocalState();
@@ -155,7 +177,7 @@ export class SyncCommand extends BaseCommand {
             await syncManager.resolveConflict(workflowId, filename, mode);
             spinner.succeed(chalk.green(`✔ Conflict resolved for ${workflowId} (kept ${resLabel}).`));
         } catch (e: any) {
-            spinner.fail(`Resolution failed: ${e.message}`);
+            spinner.fail(formatConnectionError('Resolution failed', lastEmittedError() ?? e));
             process.exit(1);
         }
     }

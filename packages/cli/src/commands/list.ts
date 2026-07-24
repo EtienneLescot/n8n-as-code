@@ -1,4 +1,4 @@
-import { BaseCommand } from './base.js';
+import { BaseCommand, formatConnectionError } from './base.js';
 import { SyncManager, WorkflowSyncStatus, IWorkflowStatus, formatWorkflowNameWithBadges } from '../core/index.js';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -165,7 +165,7 @@ export class ListCommand extends BaseCommand {
             }
 
         } catch (error: any) {
-            spinner.fail(chalk.red(`Failed to list workflows: ${error.message}`));
+            spinner.fail(chalk.red(formatConnectionError('Failed to list workflows', error)));
             process.exit(1);
         }
     }

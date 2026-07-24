@@ -1,9 +1,94 @@
-import { N8nApiClient, IN8nCredentials } from '../core/index.js';
+import { N8nApiClient, IN8nCredentials, isCertificateTrustError, CERTIFICATE_TRUST_HINT_CLI } from '../core/index.js';
 import chalk from 'chalk';
 import { ConfigService, type IResolvedWorkspaceEnvironment } from '../services/config-service.js';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+
+/**
+ * The most useful text an error carries: the remote message and status when the request
+ * reached n8n, otherwise the transport error.
+ *
+ * Exported as a free function so commands that report through `ora` rather than
+ * {@link BaseCommand.exitWithError} share one implementation, and so it is directly testable.
+ */
+export function formatErrorDetails(error: unknown): string {
+    if (error && typeof error === 'object') {
+        const response = (error as any).response;
+        const status = response?.status;
+        const responseData = response?.data;
+
+        let remoteMessage = '';
+        if (typeof responseData?.message === 'string' && responseData.message.trim().length > 0) {
+            remoteMessage = responseData.message.trim();
+        } else if (typeof responseData === 'string' && responseData.trim().length > 0) {
+            remoteMessage = responseData.trim();
+        } else if (responseData && typeof responseData === 'object') {
+            remoteMessage = JSON.stringify(responseData);
+        }
+
+        if (status && remoteMessage) {
+            return `HTTP ${status}: ${remoteMessage}`;
+        }
+        if (remoteMessage) {
+            return remoteMessage;
+        }
+        if (status) {
+            return `HTTP ${status}`;
+        }
+    }
+
+    if (error instanceof Error) {
+        return error.message;
+    }
+
+    return String(error);
+}
+
+/**
+ * `"<what failed>: <details>"`, with certificate-trust guidance appended when the failure is a
+ * TLS trust problem.
+ *
+ * Every command that talks to the n8n API should report through this. Node's bare
+ * "unable to verify the first certificate" tells a user nothing about which knob to reach for,
+ * and tightened verification for public hosts means more of them now meet it legitimately.
+ *
+ * The hint goes on its own line so the first line stays greppable and unchanged.
+ */
+export function formatConnectionError(message: string, error?: unknown): string {
+    const details = error === undefined ? '' : formatErrorDetails(error);
+    // `SyncManager` emits errors that already embed the caller's own label
+    // ("Failed to fetch workflow X: ..."), so prefixing again would say it twice.
+    const base = !details ? message
+        : details.startsWith(message) ? details
+        : `${message}: ${details}`;
+    return isCertificateTrustError(error) ? `${base}\n${CERTIFICATE_TRUST_HINT_CLI}` : base;
+}
+
+/** The part of `EventEmitter` this helper needs, so tests can pass a stub. */
+export interface IErrorEmitter {
+    on(event: 'error', listener: (error: Error) => void): unknown;
+}
+
+/**
+ * Record errors a `SyncManager` emits, and return an accessor for the most recent one.
+ *
+ * `SyncManager` reports a failed remote call by emitting `error` and returning a falsy result
+ * rather than rethrowing. Two consequences, both of which this fixes:
+ *
+ * 1. With no `error` listener, Node escalates the event into an uncaught exception, so the
+ *    command dies with a raw stack trace before its own `catch` can format anything.
+ * 2. The falsy return is indistinguishable from a legitimate "not found", so a transport or
+ *    TLS failure would otherwise be reported as a missing workflow.
+ *
+ * Callers pass the captured error to {@link formatConnectionError} in preference to whatever
+ * the promise rejected with, because the emitted one carries the real cause.
+ */
+export function captureEmittedErrors(emitter: IErrorEmitter): () => Error | undefined {
+    let last: Error | undefined;
+    emitter.on('error', (error: Error) => { last = error; });
+    return () => last;
+}
 
 export class BaseCommand {
     protected client: N8nApiClient;
@@ -195,46 +280,13 @@ export class BaseCommand {
         }
     }
 
+    /** Kept as a method for subclasses that already call it; the logic lives in the free function. */
     protected formatErrorDetails(error: unknown): string {
-        if (error && typeof error === 'object') {
-            const response = (error as any).response;
-            const status = response?.status;
-            const responseData = response?.data;
-
-            let remoteMessage = '';
-            if (typeof responseData?.message === 'string' && responseData.message.trim().length > 0) {
-                remoteMessage = responseData.message.trim();
-            } else if (typeof responseData === 'string' && responseData.trim().length > 0) {
-                remoteMessage = responseData.trim();
-            } else if (responseData && typeof responseData === 'object') {
-                remoteMessage = JSON.stringify(responseData);
-            }
-
-            if (status && remoteMessage) {
-                return `HTTP ${status}: ${remoteMessage}`;
-            }
-            if (remoteMessage) {
-                return remoteMessage;
-            }
-            if (status) {
-                return `HTTP ${status}`;
-            }
-        }
-
-        if (error instanceof Error) {
-            return error.message;
-        }
-
-        return String(error);
+        return formatErrorDetails(error);
     }
 
     protected exitWithError(message: string, error?: unknown): never {
-        if (error !== undefined) {
-            const details = this.formatErrorDetails(error);
-            console.error(chalk.red(`❌ ${message}: ${details}`));
-        } else {
-            console.error(chalk.red(`❌ ${message}`));
-        }
+        console.error(chalk.red(`❌ ${formatConnectionError(message, error)}`));
         process.exit(1);
     }
 }
