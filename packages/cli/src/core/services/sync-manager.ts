@@ -66,6 +66,9 @@ export class SyncManager extends EventEmitter {
             ignoredTags: [],
             projectId: this.config.projectId,
             folderSync: this.config.folderSync ?? false,
+            host: this.config.host,
+            folderAuth: this.config.folderAuth,
+            folderSessionAllowFlatFallback: this.config.folderSessionAllowFlatFallback ?? false,
         });
 
         this.syncEventJournal = new SyncEventJournal(instanceDir);

@@ -82,6 +82,16 @@ export interface IFolder {
     updatedAt?: string;
 }
 
+/** A stored n8n `/rest` session cookie for folder reads (per target). */
+export interface IFolderSession {
+    /** Cookie header value, e.g. `n8n-auth=<jwt>`. */
+    cookie: string;
+    /** ISO expiry parsed from the server's Set-Cookie, if provided (n8n's default is ~7 days). */
+    expiresAt?: string;
+    /** Login identifier used to mint it (for display / re-login hints; never the password). */
+    user?: string;
+}
+
 export interface ITag {
     id: string;
     name: string;
@@ -180,8 +190,9 @@ export interface ISyncConfig {
      * at `Some Folder/foo.workflow.ts` is created/moved into `Some Folder` on the
      * instance, creating the folder if needed.
      *
-     * Push-only. n8n's public API never returns a workflow's folder, so pull
-     * cannot restore the remote layout — see docs/guides/folder-sync.md.
+     * Push works over the public API. Pull cannot restore folders over the public
+     * API (it never returns a workflow's folder); an optional session-auth source
+     * can reconstruct them — see docs/usage/folder-sync.md.
      */
     folderSync?: boolean;
     /**
@@ -193,6 +204,11 @@ export interface ISyncConfig {
      * about. Turn this on when the repository is the sole source of truth.
      */
     folderSyncMoveToRoot?: boolean;
+    host?: string;               // n8n base URL (used by the session-auth folder source)
+    /** Optional session auth (stored cookie(s) or creds) for reading folders over /rest when folderSync is on. */
+    folderAuth?: { cookie?: string; cookies?: string[]; user?: string; pass?: string };
+    /** Degrade to a flat pull (with a warning) if a configured session folder source fails, instead of failing closed. */
+    folderSessionAllowFlatFallback?: boolean;
     environmentId?: string;
     environmentName?: string;
     environmentTargetId?: string;
