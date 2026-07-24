@@ -1,5 +1,14 @@
 # @n8n-as-code/skills
 
+## [2.3.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.3.1...@n8n-as-code/skills@v2.3.2) (2026-07-24)
+
+### Bug Fixes
+
+* **cli:** bind n8n API keys to environments instead of shared URL targets ([6dd92bc](https://github.com/EtienneLescot/n8n-as-code/commit/6dd92bc29bf8f5b63c60a5f0c1bcb7a136e3ccb9))
+* **skills:** update knowledge base for n8n@2.31.5 ([fd6a920](https://github.com/EtienneLescot/n8n-as-code/commit/fd6a920ed28920a4a694474a63d262e949f0156f))
+* **scripts:** pass CI through the environment so builds work on Windows ([46d2b67](https://github.com/EtienneLescot/n8n-as-code/commit/46d2b67a9a0fad1f7fc819bf1472388403cea2f9))
+* **scripts:** correct doc index lookup, slug safety and cache validation ([5fc999b](https://github.com/EtienneLescot/n8n-as-code/commit/5fc999bed46b91bd00e934c1deb23411fe630494))
+
 ## [2.3.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.3.0...@n8n-as-code/skills@v2.3.1) (2026-07-15)
 
 ### Bug Fixes

@@ -1,5 +1,25 @@
 # n8n-as-code
 
+## [2.40.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.38.0...n8n-as-code@v2.40.0) (2026-07-24)
+
+### Bug Fixes
+
+* **cli:** stop copying per-environment API keys onto the shared target ([6bd1f51](https://github.com/EtienneLescot/n8n-as-code/commit/6bd1f51938e7a85878284c21e67c2547d2c5d2af))
+* **vscode:** stop storing a workspace API key against managed targets ([ba14981](https://github.com/EtienneLescot/n8n-as-code/commit/ba14981eadfcb8de4c970575e56b64a19c0fead5))
+* **cli:** drop an environment API key when it moves to another instance ([62ec7d6](https://github.com/EtienneLescot/n8n-as-code/commit/62ec7d663664e997e003caae33b83634fe892fe3))
+* **cli:** keep workspace API keys off managed instance environments ([a508a2d](https://github.com/EtienneLescot/n8n-as-code/commit/a508a2da87da3393d2f9bfbc0136b26e716e8f64))
+* **cli:** bind n8n API keys to environments instead of shared URL targets ([6dd92bc](https://github.com/EtienneLescot/n8n-as-code/commit/6dd92bc29bf8f5b63c60a5f0c1bcb7a136e3ccb9))
+* **vscode:** trust extra CAs on the fetch path and keep self-signed working ([bcd41af](https://github.com/EtienneLescot/n8n-as-code/commit/bcd41af1ed17c03f03d9034053e9598d2df4142a))
+* respect NODE_EXTRA_CA_CERTS and system CAs in HTTPS agent ([ad814b2](https://github.com/EtienneLescot/n8n-as-code/commit/ad814b20e912d5d62b2b08970d2096f95d20b87f))
+* **vscode:** seed the packaging closure from the full root dependency set ([40966e3](https://github.com/EtienneLescot/n8n-as-code/commit/40966e3d929e92df61a8dee3160a4cecde363873))
+* **vscode:** bundle @langchain/core and other required peer dependencies ([bb269db](https://github.com/EtienneLescot/n8n-as-code/commit/bb269db9d2831996314a1a6994a33c0620e8774f))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.3.1 to 2.3.2
+    * n8nac bumped from 2.4.1 to 2.5.0
+
 ## [2.38.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.36.0...n8n-as-code@v2.38.0) (2026-07-15)
 
 ### Dependencies

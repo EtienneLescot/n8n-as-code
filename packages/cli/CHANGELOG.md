@@ -1,5 +1,40 @@
 # @n8n-as-code/cli
 
+## [2.5.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.4.1...n8nac@v2.5.0) (2026-07-24)
+
+### Features
+
+* **cli:** make folder sync push-authoritative and API-key-only ([b873b38](https://github.com/EtienneLescot/n8n-as-code/commit/b873b38ca0a2745d4369d4a2256ccb04f4e45426))
+* **cli:** support folder-aware workflow sync ([86e6b2e](https://github.com/EtienneLescot/n8n-as-code/commit/86e6b2ee8793681a91511d308b33e61ffa4c69b8))
+* **cli:** surface drift in `n8nac list --json` ([3985903](https://github.com/EtienneLescot/n8n-as-code/commit/3985903244abe92a728e67422cd96beddbb4ff61))
+
+### Bug Fixes
+
+* **cli:** degrade folder push on n8n's generic additional-properties 400 ([9f22ed0](https://github.com/EtienneLescot/n8n-as-code/commit/9f22ed0a4de4d3d03b0c91941a941c6e7d0743cc))
+* **cli:** preserve folder assignment when pushing nested-path updates ([a48fe50](https://github.com/EtienneLescot/n8n-as-code/commit/a48fe50cbcaf7758ee0e74e8106ad87ec3702166))
+* **cli:** harden folder-aware sync against concurrent folder creation ([ebf134a](https://github.com/EtienneLescot/n8n-as-code/commit/ebf134ab2d508e62c915c1c12a4a4bcaab717da7))
+* **cli:** stop copying per-environment API keys onto the shared target ([6bd1f51](https://github.com/EtienneLescot/n8n-as-code/commit/6bd1f51938e7a85878284c21e67c2547d2c5d2af))
+* **vscode:** stop storing a workspace API key against managed targets ([ba14981](https://github.com/EtienneLescot/n8n-as-code/commit/ba14981eadfcb8de4c970575e56b64a19c0fead5))
+* **cli:** drop an environment API key when it moves to another instance ([62ec7d6](https://github.com/EtienneLescot/n8n-as-code/commit/62ec7d663664e997e003caae33b83634fe892fe3))
+* **cli:** keep workspace API keys off managed instance environments ([a508a2d](https://github.com/EtienneLescot/n8n-as-code/commit/a508a2da87da3393d2f9bfbc0136b26e716e8f64))
+* **cli:** bind n8n API keys to environments instead of shared URL targets ([6dd92bc](https://github.com/EtienneLescot/n8n-as-code/commit/6dd92bc29bf8f5b63c60a5f0c1bcb7a136e3ccb9))
+* **cli:** make certificate trust failures actionable ([2e588b5](https://github.com/EtienneLescot/n8n-as-code/commit/2e588b5f051d1b64fe0de68eba671074fc717139))
+* **cli:** verify server certificates on public hosts by default ([615f1e2](https://github.com/EtienneLescot/n8n-as-code/commit/615f1e285fc9df464700b6c7dddbbbe3848a535b))
+* **vscode:** trust extra CAs on the fetch path and keep self-signed working ([bcd41af](https://github.com/EtienneLescot/n8n-as-code/commit/bcd41af1ed17c03f03d9034053e9598d2df4142a))
+* respect NODE_EXTRA_CA_CERTS and system CAs in HTTPS agent ([ad814b2](https://github.com/EtienneLescot/n8n-as-code/commit/ad814b20e912d5d62b2b08970d2096f95d20b87f))
+* **cli:** omit drift.remote when the instance reports no updatedAt ([2ee74d9](https://github.com/EtienneLescot/n8n-as-code/commit/2ee74d95ae401cbccf9638f38637a8ef6b359502))
+* **cli:** align drift docs with implementation, cover missing remote timestamp ([9745147](https://github.com/EtienneLescot/n8n-as-code/commit/974514738dc1c2f4f526f406555f3f1315345ade))
+
+### Documentation
+
+* **cli:** document the folder-sync surface and test cleanForPush ([03f52b1](https://github.com/EtienneLescot/n8n-as-code/commit/03f52b106effe83646b6aabdb5a0d5a79770d7c4))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/mcp bumped from 2.1.1 to 2.1.2
+    * @n8n-as-code/skills bumped from 2.3.1 to 2.3.2
+
 ## [2.4.1](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.4.0...n8nac@v2.4.1) (2026-07-15)
 
 ### Dependencies
