@@ -21,6 +21,7 @@ import { parsePositiveIntegerOption } from './utils/option-parsers.js';
 import { spawn } from 'child_process';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
 import { ConfigService } from './services/config-service.js';
+import { RestFolderSource } from './core/services/rest-folder-source.js';
 import { installExtraCaCertificates } from './core/services/tls-certificates.js';
 import {
     N8N_FACADE_SETUP_MODES,
@@ -697,7 +698,7 @@ environmentAuthProgram.command('set')
     });
 
 environmentAuthProgram.command('clear')
-    .description('Remove the API key stored for a single environment')
+    .description("Remove the API key for an environment, plus the folder-login session for its instance target (shared by any environment on that target)")
     .argument('<name-or-id>', 'Environment name or ID')
     .option('--json', 'Output resolved environment as JSON')
     .action((nameOrId, options) => {
@@ -705,10 +706,72 @@ environmentAuthProgram.command('clear')
         const environment = configService.getEnvironment(nameOrId);
         configService.deleteWorkspaceEnvironmentApiKey(environment.id);
         const resolved = configService.resolveEnvironment(environment.id);
+        // A folder-login cookie is a bearer credential; clear it alongside the API key.
+        // It is stored per instance target, so this also clears it for any sibling
+        // environment pointing at the same target — the message says so.
+        configService.clearFolderSession(resolved.environmentTargetId);
         printJsonOrText(
             options,
             redactResolvedEnvironment(resolved),
-            chalk.green(`✔ Local API key cleared for environment: ${resolved.environmentName}`),
+            chalk.green(
+                `✔ Cleared the local API key for environment "${resolved.environmentName}" and the ` +
+                `folder-login session for its instance target "${resolved.environmentTargetName}".`,
+            ),
+        );
+    });
+
+environmentAuthProgram.command('folder-login')
+    .description("Store a session token so folderSync's pull can reconstruct nested folders — n8n's public workflow API never reports a workflow's folder. Logs in once via /rest and saves the session cookie locally until its server-issued expiry (never the password). Clear it with `folder-logout`.")
+    .argument('<name-or-id>', 'Environment name or ID')
+    .option('--user <email>', 'Login email / identifier')
+    .option('--password <password>', 'Login password (prefer --password-stdin; --password can be exposed in process listings)')
+    .option('--password-stdin', 'Read the login password from stdin')
+    .option('--json', 'Output result as JSON')
+    .action(async (nameOrId, options) => {
+        const configService = new ConfigService();
+        const environment = configService.resolveEnvironment(nameOrId);
+        if (environment.sourceKind === 'managed-instance') {
+            throw new Error(`Environment "${environment.environmentName}" uses a managed instance; folder-login is for remote n8n environments.`);
+        }
+        if (!environment.host) {
+            throw new Error(`Environment "${environment.environmentName}" has no host URL to log in against.`);
+        }
+        const user = (options.user || '').trim();
+        if (!user) throw new Error('Provide --user <email>.');
+        // Warn whenever --password was passed on argv, even alongside --password-stdin.
+        if (options.password) {
+            console.warn(chalk.yellow('⚠ Passing --password on the command line can expose it in process listings and shell history. Prefer --password-stdin.'));
+        }
+        if (options.passwordStdin) {
+            options.password = await readSecretFromStdin();
+        }
+        const password = options.password || '';
+        if (!password) throw new Error('Provide --password or --password-stdin.');
+
+        const { cookie, expiresAt } = await RestFolderSource.login(environment.host, user, password);
+        configService.saveFolderSession(environment.environmentTargetId, { cookie, expiresAt, user });
+        printJsonOrText(
+            options,
+            { environment: environment.environmentName, user, expiresAt: expiresAt ?? null },
+            chalk.green(
+                `✔ Folder-login session stored for "${environment.environmentName}"` +
+                (expiresAt ? ` (expires ${expiresAt}).` : '.'),
+            ),
+        );
+    });
+
+environmentAuthProgram.command('folder-logout')
+    .description('Remove the stored folderSync session token for an environment (paired with folder-login).')
+    .argument('<name-or-id>', 'Environment name or ID')
+    .option('--json', 'Output result as JSON')
+    .action((nameOrId, options) => {
+        const configService = new ConfigService();
+        const environment = configService.resolveEnvironment(nameOrId);
+        configService.clearFolderSession(environment.environmentTargetId);
+        printJsonOrText(
+            options,
+            { environment: environment.environmentName },
+            chalk.green(`✔ Folder-login session cleared for "${environment.environmentName}".`),
         );
     });
 

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import type { IFolderSession } from '../core/types.js';
 import {
     N8nConfigurationService,
     N8nRuntimeOrchestrator,
@@ -1035,6 +1036,57 @@ export class ConfigService {
             this.manager.deleteApiKey(this.nativeMcpSecretKey(environment.id));
         } catch {
             this.manager.deleteApiKey(this.nativeMcpSecretKey(environmentNameOrId));
+        }
+    }
+
+    // ── Folder-sync session tokens ────────────────────────────────────────────
+    // Folder reads over the internal /rest API need session (cookie) auth. The
+    // resulting cookie is stored per target through the SAME secret store as API
+    // keys and MCP tokens (it honours N8N_MANAGER_HOME, so it is isolated in tests
+    // and lives with the other secrets rather than in a separate file). The
+    // password is never persisted.
+
+    /** Canonical target id (accepts a name or id); falls back to the input if unresolvable. */
+    private resolveFolderSessionKey(targetId: string): string {
+        try {
+            return this.getInstanceTarget(targetId).id;
+        } catch {
+            return targetId;
+        }
+    }
+
+    private folderSessionSecretKey(targetId: string): string {
+        return `folder-session:${targetId}`;
+    }
+
+    saveFolderSession(targetId: string, session: IFolderSession): void {
+        const key = this.resolveFolderSessionKey(targetId);
+        this.manager.saveApiKey(this.folderSessionSecretKey(key), JSON.stringify(session));
+    }
+
+    getFolderSession(targetId: string): IFolderSession | undefined {
+        const key = this.resolveFolderSessionKey(targetId);
+        const raw = this.manager.getApiKey(this.folderSessionSecretKey(key));
+        if (!raw) return undefined;
+        try {
+            const parsed = JSON.parse(raw);
+            // Validate the shape: a tampered/wrong value must not reach callers that
+            // assume `cookie` is a string (e.g. resolveFolderAuth's cookie normaliser).
+            if (parsed && typeof parsed === 'object' && typeof parsed.cookie === 'string') {
+                return parsed as IFolderSession;
+            }
+        } catch {
+            // fall through to undefined
+        }
+        return undefined;
+    }
+
+    clearFolderSession(targetId: string): void {
+        const key = this.resolveFolderSessionKey(targetId);
+        try {
+            this.manager.deleteApiKey(this.folderSessionSecretKey(key));
+        } catch {
+            // best-effort: nothing stored, or the secret store is unavailable
         }
     }
 
