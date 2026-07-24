@@ -177,6 +177,54 @@ describe('SyncEngine create payload projectId behavior', () => {
         expect(callSnapshots[1]).not.toHaveProperty('parentFolderId');
     });
 
+    // The test above mocks an error that NAMES the field. Real n8n 2.19-2.31 licenses
+    // folders but has no `parentFolderId` in its workflow schema, and AJV rejects it
+    // without naming anything: "request/body must NOT have additional properties".
+    // That body matched none of the patterns, so push aborted instead of degrading and
+    // left an orphaned folder -- green CI, broken live. Captured on a real 2.25.6
+    // instance and reported on #527 by @Happily-Coding.
+    it('retries create without parentFolderId on n8n\'s generic additional-properties 400', async () => {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'Nested Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+
+        const genericError: any = new Error('Request failed with status code 400');
+        genericError.response = {
+            status: 400,
+            // verbatim from n8n 2.25.6
+            data: { message: 'request/body must NOT have additional properties' },
+        };
+        const callSnapshots: any[] = [];
+        const createWorkflow = vi.fn()
+            .mockImplementationOnce(async (payload) => {
+                callSnapshots.push({ ...payload });
+                throw genericError;
+            })
+            .mockImplementationOnce(async (payload) => {
+                callSnapshots.push({ ...payload });
+                return { ...payload, id: 'wf-generic-fallback' };
+            });
+
+        const { engine, filename } = createEngine({
+            projectId: 'project-1',
+            createWorkflow,
+            filename: 'X/new.workflow.ts',
+            folderSync: true,
+            getFolders: vi.fn(async () => []),
+            createFolder: vi.fn(async (_projectId, payload) => ({
+                id: 'folder-x', name: payload.name, parentFolderId: payload.parentFolderId,
+            })),
+        });
+
+        await expect(engine.push(filename)).resolves.toBe('wf-generic-fallback');
+        expect(createWorkflow).toHaveBeenCalledTimes(2);
+        expect(callSnapshots[0]).toEqual(expect.objectContaining({ parentFolderId: 'folder-x' }));
+        expect(callSnapshots[1]).not.toHaveProperty('parentFolderId');
+    });
+
     it('does NOT retry when n8n returns a generic 400 mentioning only "folder" (regression guard for over-broad match)', async () => {
         vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
             name: 'Nested Workflow',
@@ -403,6 +451,48 @@ describe('SyncEngine update payload folderSync behavior', () => {
             workflowId,
             expect.not.objectContaining({ parentFolderId: expect.anything() }),
         );
+    });
+
+    // Update-side twin of the create-side generic-400 case: n8n 2.19-2.31 rejects the
+    // unknown `parentFolderId` without naming it, so the retry never fired and the push
+    // aborted. Real body captured on 2.25.6, reported on #527 by @Happily-Coding.
+    it('retries update without parentFolderId on n8n\'s generic additional-properties 400', async () => {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'Existing Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+
+        const genericError: any = new Error('Request failed with status code 400');
+        genericError.response = {
+            status: 400,
+            data: { message: 'request/body must NOT have additional properties' },
+        };
+
+        const callSnapshots: Array<{ id: string; payload: any }> = [];
+        const updateWorkflow = vi.fn(async (id: string, payload: any) => {
+            callSnapshots.push({ id, payload: { ...payload } });
+            if (callSnapshots.length === 1) throw genericError;
+            return { ...payload, id, updatedAt: '2026-06-23T00:00:00.000Z' };
+        });
+
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow,
+            filename: 'Reports/existing.workflow.ts',
+            folderSync: true,
+            getFolders: vi.fn(async () => []),
+            createFolder: vi.fn(async (_projectId, payload) => ({
+                id: 'folder-x', name: payload.name, parentFolderId: payload.parentFolderId,
+            })),
+        });
+
+        await engine.push(filename, workflowId);
+
+        expect(updateWorkflow).toHaveBeenCalledTimes(2);
+        expect(callSnapshots[0].payload).toEqual(expect.objectContaining({ parentFolderId: 'folder-x' }));
+        expect(callSnapshots[1].payload).not.toHaveProperty('parentFolderId');
     });
 
     it('retries update without parentFolderId when n8n rejects it as an unknown field', async () => {

@@ -481,6 +481,17 @@ export class SyncEngine {
 
         const PARENT_FOLDER_PATTERN = /(parentfolderid|parent folder id|parentfolder)/i;
         const PARENT_FOLDER_KEYS = new Set(['parentfolderid', 'parentfolder']);
+        // n8n 2.19-2.31 licenses folders but its workflow schema has no `parentFolderId`
+        // yet, and AJV's `additionalProperties: false` rejects it *without naming the
+        // field*: `request/body must NOT have additional properties`. The patterns above
+        // never match that, so the push aborted instead of degrading, leaving an orphaned
+        // folder behind. Reported with live captures on #527 by @Happily-Coding.
+        //
+        // Safe to treat as an unsupported-`parentFolderId` signal: this matcher is only
+        // consulted when we just added `parentFolderId` to an otherwise-valid payload, and
+        // the retry strips only that field. If some *other* unknown property were the real
+        // cause, the retry fails again and the error surfaces as before -- nothing is hidden.
+        const GENERIC_ADDITIONAL_PROPERTY_PATTERN = /must not have additional properties/i;
 
         const data = error?.response?.data;
         if (data && typeof data === 'object' && !Array.isArray(data)) {
@@ -489,11 +500,13 @@ export class SyncEngine {
             }
             const dataMessage = String(data.message ?? '').toLowerCase();
             if (PARENT_FOLDER_PATTERN.test(dataMessage)) return true;
+            if (GENERIC_ADDITIONAL_PROPERTY_PATTERN.test(dataMessage)) return true;
             return false;
         }
 
         const errorMessage = String(error?.message ?? '').toLowerCase();
-        return PARENT_FOLDER_PATTERN.test(errorMessage);
+        return PARENT_FOLDER_PATTERN.test(errorMessage)
+            || GENERIC_ADDITIONAL_PROPERTY_PATTERN.test(errorMessage);
     }
 
     private readTypeScriptFile(filePath: string): string | null {
