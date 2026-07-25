@@ -7,7 +7,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { execFileSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -47,7 +47,10 @@ async function getAiContextGenerator() {
   if (!fs.existsSync(distPath)) {
     throw new Error('AiContextGenerator not found in dist/. Please run "npm run build --workspace=packages/skills" first.');
   }
-  const mod = await import(distPath);
+  // A bare absolute path is a valid ESM specifier only on POSIX. On Windows the
+  // loader reads `C:\...` as a URL with the scheme `c:` and refuses it, so the
+  // path has to become a file:// URL first.
+  const mod = await import(pathToFileURL(distPath).href);
   return new mod.AiContextGenerator();
 }
 

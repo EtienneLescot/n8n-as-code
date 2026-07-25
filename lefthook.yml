@@ -25,7 +25,12 @@ pre-commit:
         - "packages/skills/src/services/ai-context-generator.ts"
         - "packages/skills/src/agent-skills/**"
         - "packages/skills/scripts/build-skill-adapters.js"
+      # `set -e` is load-bearing. Without it this block reported success with a
+      # failing `postbuild` and a failing generator — the commit went through
+      # carrying stale SKILL.md files, which is exactly what the hook exists to
+      # prevent. Verified both ways against a deliberately broken generator.
       run: |
+        set -e
         npx tsc -b packages/skills
         npm run postbuild --workspace=packages/skills
         node packages/skills/scripts/build-skill-adapters.js
