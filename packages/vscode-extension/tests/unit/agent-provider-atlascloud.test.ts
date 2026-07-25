@@ -11,6 +11,7 @@ import {
     getAtlasCloudModelCatalogUrl,
     mapAtlasCloudTextModels,
     readAgentProviderSettings,
+    readFirstEnvironmentValue,
     updateAgentProviderSettings,
 } from '../../src/services/agent-provider-settings.js';
 
@@ -65,10 +66,10 @@ test('agent provider source registers Atlas Cloud on OpenAI-compatible runtime p
     assert.deepEqual(AGENT_PROVIDER_BASE_URL_ENV_KEYS.atlascloud, ['ATLASCLOUD_BASE_URL', 'ATLAS_CLOUD_BASE_URL', 'ATLASCLOUD_API_BASE', 'ATLAS_CLOUD_API_BASE']);
     assert.ok(providerService.includes("normalized === 'atlas' || normalized === 'atlas-cloud'"), 'Provider service must normalize Atlas aliases');
 
-    assert.ok(runtimeController.includes("'atlascloud'"), 'Runtime registry must include the Atlas provider id');
     assert.ok(runtimeController.includes("atlascloud: 'Atlas Cloud'"), 'Runtime registry must expose the Atlas display name');
     assert.ok(runtimeController.includes("provider === 'atlascloud'"), 'Runtime factory must special-case the Atlas default endpoint');
-    assert.ok(runtimeController.includes('DISABLED_PROVIDERS_STATE_KEY'), 'Runtime env fallback must honor disabled providers');
+    assert.ok(runtimeController.includes('this.getDisabledProviders().has(normalizedProvider)'), 'Runtime env fallback must honor disabled providers');
+    assert.ok(runtimeController.includes('AGENT_PROVIDER_ENV_KEYS[normalizedProvider]'), 'Runtime env fallback must use shared provider env keys');
 });
 
 test('Atlas Cloud provider does not opt into provider-specific reasoning knobs', () => {
@@ -79,6 +80,22 @@ test('Atlas Cloud catalog helper derives resolved catalog endpoint', () => {
     assert.equal(getAtlasCloudModelCatalogUrl('https://regional.atlas.example/v1/'), 'https://regional.atlas.example/api/v1/models');
     assert.equal(getAtlasCloudModelCatalogUrl(ATLAS_CLOUD_DEFAULT_BASE_URL), 'https://api.atlascloud.ai/api/v1/models');
     assert.equal(getAtlasCloudModelCatalogUrl('not a url'), 'https://api.atlascloud.ai/api/v1/models');
+});
+
+test('provider environment helper prefers the first configured value and trims trailing slash', () => {
+    const previousPrimary = process.env.ATLASCLOUD_BASE_URL;
+    const previousFallback = process.env.ATLAS_CLOUD_BASE_URL;
+    process.env.ATLASCLOUD_BASE_URL = 'https://primary.atlas.example/v1/';
+    process.env.ATLAS_CLOUD_BASE_URL = 'https://fallback.atlas.example/v1/';
+
+    try {
+        assert.equal(readFirstEnvironmentValue(AGENT_PROVIDER_BASE_URL_ENV_KEYS.atlascloud ?? []), 'https://primary.atlas.example/v1');
+    } finally {
+        if (previousPrimary === undefined) delete process.env.ATLASCLOUD_BASE_URL;
+        else process.env.ATLASCLOUD_BASE_URL = previousPrimary;
+        if (previousFallback === undefined) delete process.env.ATLAS_CLOUD_BASE_URL;
+        else process.env.ATLAS_CLOUD_BASE_URL = previousFallback;
+    }
 });
 
 test('Atlas Cloud catalog helper keeps text models, model ids, dedupe, and sorted order', () => {
