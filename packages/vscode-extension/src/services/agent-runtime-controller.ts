@@ -31,6 +31,7 @@ const NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER = 'N8N_NON_FINAL_ASSISTANT_PHASE
 const NON_FINAL_ASSISTANT_PHASE_MAX_RECOVERY_ATTEMPTS = 12;
 const STREAM_TEXT_FLUSH_INTERVAL_MS = 33;
 const STREAM_TEXT_FLUSH_CHAR_THRESHOLD = 512;
+const ATLAS_CLOUD_DEFAULT_BASE_URL = 'https://api.atlascloud.ai/v1';
 
 type ActiveWorktreePathsBySession = Record<string, string | null>;
 
@@ -361,6 +362,7 @@ const AGENT_MODEL_PROVIDERS = Object.freeze([
     'google',
     'mistral',
     'openrouter',
+    'atlascloud',
     'openai-oauth',
     'copilot-proxy',
     'minimax',
@@ -374,6 +376,7 @@ const AGENT_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     google: 'Gemini API',
     mistral: 'Mistral API',
     openrouter: 'OpenRouter API',
+    atlascloud: 'Atlas Cloud',
     'openai-oauth': 'OpenAI ChatGPT OAuth',
     'copilot-proxy': 'GitHub Copilot OAuth',
     minimax: 'MiniMax API',
@@ -381,7 +384,7 @@ const AGENT_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     'openai-compatible': 'OpenAI Compatible',
 };
 
-const AGENT_API_KEY_PROVIDERS = new Set(['anthropic', 'openai', 'google', 'mistral', 'openrouter', 'minimax', 'minimax-token-plan']);
+const AGENT_API_KEY_PROVIDERS = new Set(['anthropic', 'openai', 'google', 'mistral', 'openrouter', 'atlascloud', 'minimax', 'minimax-token-plan']);
 
 function normalizeAgentProviderId(provider: string | undefined): string | undefined {
     const normalized = provider?.trim().toLowerCase();
@@ -389,6 +392,7 @@ function normalizeAgentProviderId(provider: string | undefined): string | undefi
     if (normalized === 'claude') return 'anthropic';
     if (normalized === 'anthropic-proxy') return 'anthropic';
     if (normalized === 'gemini') return 'google';
+    if (normalized === 'atlas' || normalized === 'atlas-cloud') return 'atlascloud';
     return AGENT_MODEL_PROVIDERS.includes(normalized) ? normalized : undefined;
 }
 
@@ -2179,8 +2183,9 @@ export class AgentRuntimeController implements vscode.Disposable {
             };
         }
         const model = settings.model;
-        const baseUrl = settings.baseUrl;
-        const apiKey = await this._context.secrets.get(getAgentProviderSecretKey(normalizedProvider));
+        const baseUrl = this.resolveProviderRuntimeBaseUrl(normalizedProvider, settings.baseUrl);
+        const apiKey = await this._context.secrets.get(getAgentProviderSecretKey(normalizedProvider))
+            || this.readProviderEnvironmentSecret(normalizedProvider);
         if (normalizedProvider === 'openai-oauth' && !apiKey) {
             return {
                 ready: false,
@@ -3413,7 +3418,7 @@ export class AgentRuntimeController implements vscode.Disposable {
         const baseUrl = settings.baseUrl || '';
         const reasoningEffort = settings.reasoningEffort;
         const storedSecret = await this._context.secrets.get(getAgentProviderSecretKey(provider));
-        const hasEnvSecret = this.hasProviderEnvironmentSecret(provider);
+        const hasEnvSecret = Boolean(this.readProviderEnvironmentSecret(provider));
         const secretState = storedSecret
             ? 'API key stored in VS Code Secret Storage'
             : hasEnvSecret
@@ -3422,16 +3427,37 @@ export class AgentRuntimeController implements vscode.Disposable {
         return `Agent provider: ${provider}${model ? ` / ${model}` : ''}${reasoningEffort ? ` / reasoning ${reasoningEffort}` : ''}${baseUrl ? ` / ${baseUrl}` : ''}. ${secretState}.`;
     }
 
-    private hasProviderEnvironmentSecret(provider: string): boolean {
+    private readProviderEnvironmentSecret(provider: string): string | undefined {
         const envKeys: Record<string, string[]> = {
-            anthropic: ['ANTHROPIC_API_KEY'],
-            openai: ['OPENAI_API_KEY'],
-            google: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY'],
-            mistral: ['MISTRAL_API_KEY'],
-            openrouter: ['OPENROUTER_API_KEY'],
+            anthropic: ['ANTHROPIC_LLM_API_KEY', 'ANTHROPIC_API_KEY'],
+            openai: ['OPENAI_LLM_API_KEY', 'OPENAI_API_KEY'],
+            google: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_LLM_API_KEY', 'GOOGLE_LLM_API_KEY'],
+            mistral: ['MISTRAL_API_KEY', 'MISTRAL_LLM_API_KEY'],
+            openrouter: ['OPENROUTER_API_KEY', 'OPENROUTER_LLM_API_KEY'],
+            atlascloud: ['ATLASCLOUD_API_KEY', 'ATLAS_CLOUD_API_KEY'],
             'openai-compatible': ['OPENAI_COMPATIBLE_API_KEY'],
         };
-        return (envKeys[provider] ?? []).some((key) => Boolean(process.env[key]?.trim()));
+        for (const key of envKeys[provider] ?? []) {
+            const value = process.env[key]?.trim();
+            if (value) return value;
+        }
+        return undefined;
+    }
+
+    private resolveProviderRuntimeBaseUrl(provider: string, configuredBaseUrl?: string): string | undefined {
+        if (provider === 'atlascloud') {
+            return this.readFirstEnvironmentValue(['ATLASCLOUD_BASE_URL', 'ATLAS_CLOUD_BASE_URL', 'ATLASCLOUD_API_BASE', 'ATLAS_CLOUD_API_BASE'])
+                || ATLAS_CLOUD_DEFAULT_BASE_URL;
+        }
+        return configuredBaseUrl;
+    }
+
+    private readFirstEnvironmentValue(keys: readonly string[]): string | undefined {
+        for (const key of keys) {
+            const value = process.env[key]?.trim();
+            if (value) return value.replace(/\/$/, '');
+        }
+        return undefined;
     }
 
     private async buildScaffoldResponse(input: AgentPromptInput, runtimeError?: string): Promise<string> {
@@ -4252,7 +4278,9 @@ export class AgentRuntimeController implements vscode.Disposable {
             ? providerConfig.baseUrl || 'https://openrouter.ai/api/v1'
             : provider === 'google'
                 ? providerConfig.baseUrl || 'https://generativelanguage.googleapis.com/v1beta/openai'
-                : providerConfig.baseUrl;
+                : provider === 'atlascloud'
+                    ? providerConfig.baseUrl || ATLAS_CLOUD_DEFAULT_BASE_URL
+                    : providerConfig.baseUrl;
         const modelKwargs = reasoningOptions.modelKwargs;
         return new ChatOpenAI({
             ...(providerConfig.apiKey ? { apiKey: providerConfig.apiKey } : {}),
@@ -4272,6 +4300,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             google: 'gemini-3-flash-preview',
             mistral: 'mistral-large-latest',
             openrouter: 'anthropic/claude-3.5-sonnet',
+            atlascloud: 'deepseek-ai/deepseek-v4-pro',
             'openai-oauth': 'gpt-5.4',
             'copilot-proxy': 'gpt-4.1',
             minimax: 'MiniMax-M2.7',

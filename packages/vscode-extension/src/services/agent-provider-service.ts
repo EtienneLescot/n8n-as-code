@@ -12,6 +12,7 @@ export type AgentModelProvider =
     | 'google'
     | 'mistral'
     | 'openrouter'
+    | 'atlascloud'
     | 'openai-oauth'
     | 'copilot-proxy'
     | 'minimax'
@@ -28,6 +29,7 @@ export interface AgentProviderDefinition {
     description: string;
     defaultModel: string;
     defaultBaseUrl?: string;
+    baseUrlEnvKeys?: string[];
     requiresApiKey: boolean;
     authKind: ProviderAuthKind;
     envKeys: string[];
@@ -63,6 +65,8 @@ type DeviceChallenge = {
 const OPENAI_CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const OPENAI_CODEX_DEVICE_REDIRECT_URI = 'https://auth.openai.com/deviceauth/callback';
 const DISABLED_PROVIDERS_STATE_KEY = 'n8n.agent.disabledProviders';
+const ATLAS_CLOUD_DEFAULT_BASE_URL = 'https://api.atlascloud.ai/v1';
+const ATLAS_CLOUD_MODEL_CATALOG_URL = 'https://api.atlascloud.ai/api/v1/models';
 const MINIMAX_DISCOVERY_CANDIDATE_MODELS = [
     'MiniMax-M2.7',
     'MiniMax-M2.7-highspeed',
@@ -136,6 +140,18 @@ export const AGENT_PROVIDER_DEFINITIONS: Record<AgentModelProvider, AgentProvide
         envKeys: ['OPENROUTER_API_KEY', 'OPENROUTER_LLM_API_KEY'],
         canDiscoverModels: true,
     },
+    atlascloud: {
+        id: 'atlascloud',
+        label: 'Atlas Cloud',
+        description: 'ATLASCLOUD_API_KEY',
+        defaultModel: 'deepseek-ai/deepseek-v4-pro',
+        defaultBaseUrl: ATLAS_CLOUD_DEFAULT_BASE_URL,
+        baseUrlEnvKeys: ['ATLASCLOUD_BASE_URL', 'ATLAS_CLOUD_BASE_URL', 'ATLASCLOUD_API_BASE', 'ATLAS_CLOUD_API_BASE'],
+        requiresApiKey: true,
+        authKind: 'api-key',
+        envKeys: ['ATLASCLOUD_API_KEY', 'ATLAS_CLOUD_API_KEY'],
+        canDiscoverModels: true,
+    },
     'openai-oauth': {
         id: 'openai-oauth',
         label: 'OpenAI ChatGPT OAuth',
@@ -200,6 +216,7 @@ export function normalizeAgentProviderId(provider?: string): AgentModelProvider 
     if (normalized === 'claude') return 'anthropic';
     if (normalized === 'anthropic-proxy') return 'anthropic';
     if (normalized === 'gemini') return 'google';
+    if (normalized === 'atlas' || normalized === 'atlas-cloud') return 'atlascloud';
     return normalized in AGENT_PROVIDER_DEFINITIONS ? normalized as AgentModelProvider : undefined;
 }
 
@@ -247,7 +264,7 @@ export class AgentProviderService {
                 credentialSource: hasStoredCredential ? 'secret' as const : hasEnvironmentCredential ? 'environment' as const : undefined,
                 selected: provider === selectedProvider,
                 model: provider === selectedProvider ? selectedModel : undefined,
-                baseUrl: provider === 'openai-compatible' ? configuredBaseUrl : definition.defaultBaseUrl,
+                baseUrl: provider === 'openai-compatible' ? configuredBaseUrl : this.readEnvironmentBaseUrl(provider) || definition.defaultBaseUrl,
                 supportsReasoningEffort: providerSupportsReasoningEffort(provider, provider === selectedProvider ? selectedModel : definition.defaultModel),
                 reasoningEffort: provider === selectedProvider && providerSupportsReasoningEffort(provider, selectedModel) ? selectedReasoningEffort : undefined,
             };
@@ -396,9 +413,9 @@ export class AgentProviderService {
         if (!definition.canDiscoverModels) return [];
         const apiKey = await this.getStoredCredential(provider) || this.readEnvironmentCredential(provider);
         const configuredBaseUrl = readAgentProviderSettings(this.context.globalState).baseUrl || '';
-        const baseUrl = provider === 'openai-compatible' ? configuredBaseUrl : definition.defaultBaseUrl;
+        const baseUrl = provider === 'openai-compatible' ? configuredBaseUrl : this.readEnvironmentBaseUrl(provider) || definition.defaultBaseUrl;
 
-        if ((definition.requiresApiKey || provider !== 'openai-compatible') && !apiKey && definition.authKind !== 'none') {
+        if (provider !== 'atlascloud' && (definition.requiresApiKey || provider !== 'openai-compatible') && !apiKey && definition.authKind !== 'none') {
             return [];
         }
 
@@ -419,6 +436,9 @@ export class AgentProviderService {
         if (provider === 'minimax' || provider === 'minimax-token-plan') {
             return this.probeMiniMaxModels(apiKey || '', baseUrl || definition.defaultBaseUrl);
         }
+        if (provider === 'atlascloud') {
+            return this.fetchAtlasCloudModels();
+        }
 
         const modelsUrl = provider === 'openai-compatible'
             ? (baseUrl ? `${baseUrl.replace(/\/$/, '')}/models` : undefined)
@@ -427,11 +447,32 @@ export class AgentProviderService {
         return this.fetchJsonModels(modelsUrl, apiKey ? { Authorization: `Bearer ${apiKey}` } : {});
     }
 
+    private async fetchAtlasCloudModels(): Promise<string[]> {
+        const response = await fetch(ATLAS_CLOUD_MODEL_CATALOG_URL, { headers: { Accept: 'application/json' } });
+        if (!response.ok) return [];
+        const payload = await response.json() as Record<string, unknown>;
+        const data = Array.isArray(payload.data) ? payload.data : [];
+        return [...new Set(data
+            .filter((entry) => entry && typeof entry === 'object')
+            .filter((entry) => String((entry as Record<string, unknown>).type || '').toLowerCase() === 'text')
+            .map((entry) => String((entry as Record<string, unknown>).model || (entry as Record<string, unknown>).id || '').trim())
+            .filter(Boolean))]
+            .sort((left, right) => left.localeCompare(right));
+    }
+
     private readEnvironmentCredential(provider: AgentModelProvider): string | undefined {
         if (this.getDisabledProviders().has(provider)) return undefined;
         for (const key of AGENT_PROVIDER_DEFINITIONS[provider].envKeys) {
             const value = process.env[key]?.trim();
             if (value) return value;
+        }
+        return undefined;
+    }
+
+    private readEnvironmentBaseUrl(provider: AgentModelProvider): string | undefined {
+        for (const key of AGENT_PROVIDER_DEFINITIONS[provider].baseUrlEnvKeys ?? []) {
+            const value = process.env[key]?.trim();
+            if (value) return value.replace(/\/$/, '');
         }
         return undefined;
     }

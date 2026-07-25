@@ -12,7 +12,7 @@ import { createMiddleware } from 'langchain';
 import { LocalShellBackend, createDeepAgent } from 'deepagents';
 import { shouldDisableModelStreamingForToolCalling } from '../../src/services/agent-provider-capabilities.js';
 
-type ProviderId = 'openai' | 'mistral' | 'anthropic' | 'google' | 'openrouter' | 'openai-compatible';
+type ProviderId = 'openai' | 'mistral' | 'anthropic' | 'google' | 'openrouter' | 'atlascloud' | 'openai-compatible';
 
 interface ProviderCase {
   id: ProviderId;
@@ -87,6 +87,14 @@ const providerCases: ProviderCase[] = [
     envKeys: ['OPENROUTER_API_KEY', 'OPENROUTER_LLM_API_KEY', 'OPEN_ROUTEUR_KEY'],
     model: process.env.OPENROUTER_MODEL || process.env.N8N_AGENT_TEST_OPENROUTER_MODEL || 'openai/gpt-4o-mini',
     baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+    createModel: ({ apiKey, model, baseUrl }) => new ChatOpenAI({ apiKey, model, temperature: 0, configuration: { baseURL: baseUrl } }),
+  },
+  {
+    id: 'atlascloud',
+    label: 'Atlas Cloud',
+    envKeys: ['ATLASCLOUD_API_KEY', 'ATLAS_CLOUD_API_KEY'],
+    model: process.env.ATLASCLOUD_MODEL || process.env.ATLAS_CLOUD_MODEL || process.env.N8N_AGENT_TEST_ATLASCLOUD_MODEL || 'deepseek-ai/deepseek-v4-pro',
+    baseUrl: process.env.ATLASCLOUD_BASE_URL || process.env.ATLAS_CLOUD_BASE_URL || 'https://api.atlascloud.ai/v1',
     createModel: ({ apiKey, model, baseUrl }) => new ChatOpenAI({ apiKey, model, temperature: 0, configuration: { baseURL: baseUrl } }),
   },
   {

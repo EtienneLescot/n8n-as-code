@@ -6,6 +6,7 @@ export type AgentProviderId =
     | 'google'
     | 'mistral'
     | 'openrouter'
+    | 'atlascloud'
     | 'openai-oauth'
     | 'copilot-proxy'
     | 'minimax'
@@ -20,6 +21,7 @@ const AGENT_PROVIDER_IDS = new Set<AgentProviderId>([
     'google',
     'mistral',
     'openrouter',
+    'atlascloud',
     'openai-oauth',
     'copilot-proxy',
     'minimax',
@@ -88,6 +90,7 @@ function normalizeAgentProviderId(provider?: string): AgentProviderId | undefine
     if (normalized === 'claude') return 'anthropic';
     if (normalized === 'anthropic-proxy') return 'anthropic';
     if (normalized === 'gemini') return 'google';
+    if (normalized === 'atlas' || normalized === 'atlas-cloud') return 'atlascloud';
     return AGENT_PROVIDER_IDS.has(normalized as AgentProviderId) ? normalized as AgentProviderId : undefined;
 }
 

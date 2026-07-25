@@ -13,7 +13,7 @@ import { shouldDisableModelStreamingForToolCalling } from '../../src/services/ag
 import { N8nAsCodeMcpService } from '../../../mcp/src/services/mcp-service.js';
 import { NATIVE_MCP_READ_ONLY_TOOL_MAP } from '../../../mcp/src/services/native-mcp-tools.js';
 
-type ProviderId = 'openai' | 'mistral' | 'anthropic' | 'google' | 'openrouter' | 'openai-compatible';
+type ProviderId = 'openai' | 'mistral' | 'anthropic' | 'google' | 'openrouter' | 'atlascloud' | 'openai-compatible';
 type BenchmarkMode = 'mcp-off' | 'mcp-on';
 
 interface ProviderCase {
@@ -134,6 +134,13 @@ const providerCases: ProviderCase[] = [
     envKeys: ['OPENROUTER_API_KEY', 'OPENROUTER_LLM_API_KEY', 'OPEN_ROUTEUR_KEY'],
     model: process.env.OPENROUTER_MODEL || process.env.N8N_NATIVE_MCP_AGENT_BENCHMARK_OPENROUTER_MODEL || process.env.N8N_AGENT_TEST_OPENROUTER_MODEL || 'openai/gpt-4o-mini',
     baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+    createModel: ({ apiKey, model, baseUrl }) => new ChatOpenAI({ apiKey, model, temperature: 0, configuration: { baseURL: baseUrl } }),
+  },
+  {
+    id: 'atlascloud',
+    envKeys: ['ATLASCLOUD_API_KEY', 'ATLAS_CLOUD_API_KEY'],
+    model: process.env.ATLASCLOUD_MODEL || process.env.ATLAS_CLOUD_MODEL || process.env.N8N_NATIVE_MCP_AGENT_BENCHMARK_ATLASCLOUD_MODEL || process.env.N8N_AGENT_TEST_ATLASCLOUD_MODEL || 'deepseek-ai/deepseek-v4-pro',
+    baseUrl: process.env.ATLASCLOUD_BASE_URL || process.env.ATLAS_CLOUD_BASE_URL || 'https://api.atlascloud.ai/v1',
     createModel: ({ apiKey, model, baseUrl }) => new ChatOpenAI({ apiKey, model, temperature: 0, configuration: { baseURL: baseUrl } }),
   },
   {
