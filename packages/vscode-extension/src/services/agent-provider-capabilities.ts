@@ -4,6 +4,7 @@ export type AgentCapabilityProvider =
     | 'google'
     | 'mistral'
     | 'openrouter'
+    | 'atlascloud'
     | 'openai-oauth'
     | 'copilot-proxy'
     | 'minimax'

@@ -881,6 +881,7 @@ function liveProviderEnvKeys(provider: string): string[] {
     case 'mistral': return ['MISTRAL_API_KEY', 'MISTRAL_LLM_API_KEY'];
     case 'google': return ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY'];
     case 'openrouter': return ['OPENROUTER_API_KEY', 'OPENROUTER_LLM_API_KEY'];
+    case 'atlascloud': return ['ATLASCLOUD_API_KEY', 'ATLAS_CLOUD_API_KEY'];
     case 'openai-oauth': return ['N8N_AGENT_WORKBENCH_LIVE_OPENAI_OAUTH_TOKEN', 'N8N_AGENT_WORKBENCH_OPENAI_OAUTH_TOKEN', 'OPENAI_OAUTH_ACCESS_TOKEN', 'OPENAI_CODEX_ACCESS_TOKEN'];
     case 'openai-compatible': return ['OPENAI_COMPATIBLE_API_KEY', 'OPENAI_API_KEY'];
     default: return ['OPENAI_API_KEY', 'OPENAI_LLM_API_KEY', 'OPENAI_KEY'];
@@ -890,7 +891,7 @@ function liveProviderEnvKeys(provider: string): string[] {
 function chooseLiveProvider(): string {
   const configured = process.env.N8N_AGENT_WORKBENCH_LIVE_PROVIDER?.trim();
   if (configured) return configured;
-  const candidates = ['google', 'openai', 'anthropic', 'mistral', 'openrouter', 'openai-compatible', 'openai-oauth'];
+  const candidates = ['google', 'openai', 'anthropic', 'mistral', 'openrouter', 'atlascloud', 'openai-compatible', 'openai-oauth'];
   return candidates.find((provider) => Boolean(readFirstEnv(liveProviderEnvKeys(provider)))) || 'openai';
 }
 
