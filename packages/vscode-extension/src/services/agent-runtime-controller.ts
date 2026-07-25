@@ -4,7 +4,16 @@ import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { WorkspaceSnapshotService } from './workspace-snapshot-service.js';
 import { createLocalProviderLangChainModel } from './agent-provider-runtime/create-langchain-model.js';
-import { readAgentProviderSettings } from './agent-provider-settings.js';
+import {
+    AGENT_PROVIDER_BASE_URL_ENV_KEYS,
+    AGENT_PROVIDER_ENV_KEYS,
+    ATLAS_CLOUD_DEFAULT_BASE_URL,
+    DISABLED_PROVIDERS_STATE_KEY,
+    normalizeAgentProviderId as normalizeManagedAgentProviderId,
+    readAgentProviderSettings,
+    readFirstEnvironmentValue,
+    type AgentProviderId,
+} from './agent-provider-settings.js';
 import { buildLangChainReasoningOptions, getReasoningCapability, getReasoningOptions, normalizeReasoningEffortForCapability, shouldDisableModelStreamingForToolCalling, type AgentReasoningEffort as AgentProviderReasoningEffort } from './agent-provider-capabilities.js';
 import type { WorktreeInfo } from './worktree-service.js';
 
@@ -31,7 +40,6 @@ const NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER = 'N8N_NON_FINAL_ASSISTANT_PHASE
 const NON_FINAL_ASSISTANT_PHASE_MAX_RECOVERY_ATTEMPTS = 12;
 const STREAM_TEXT_FLUSH_INTERVAL_MS = 33;
 const STREAM_TEXT_FLUSH_CHAR_THRESHOLD = 512;
-const ATLAS_CLOUD_DEFAULT_BASE_URL = 'https://api.atlascloud.ai/v1';
 
 type ActiveWorktreePathsBySession = Record<string, string | null>;
 
@@ -3428,36 +3436,25 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     private readProviderEnvironmentSecret(provider: string): string | undefined {
-        const envKeys: Record<string, string[]> = {
-            anthropic: ['ANTHROPIC_LLM_API_KEY', 'ANTHROPIC_API_KEY'],
-            openai: ['OPENAI_LLM_API_KEY', 'OPENAI_API_KEY'],
-            google: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_LLM_API_KEY', 'GOOGLE_LLM_API_KEY'],
-            mistral: ['MISTRAL_API_KEY', 'MISTRAL_LLM_API_KEY'],
-            openrouter: ['OPENROUTER_API_KEY', 'OPENROUTER_LLM_API_KEY'],
-            atlascloud: ['ATLASCLOUD_API_KEY', 'ATLAS_CLOUD_API_KEY'],
-            'openai-compatible': ['OPENAI_COMPATIBLE_API_KEY'],
-        };
-        for (const key of envKeys[provider] ?? []) {
-            const value = process.env[key]?.trim();
-            if (value) return value;
-        }
-        return undefined;
+        const normalizedProvider = normalizeManagedAgentProviderId(provider);
+        if (!normalizedProvider || this.getDisabledProviders().has(normalizedProvider)) return undefined;
+        return readFirstEnvironmentValue(AGENT_PROVIDER_ENV_KEYS[normalizedProvider] ?? []);
     }
 
     private resolveProviderRuntimeBaseUrl(provider: string, configuredBaseUrl?: string): string | undefined {
-        if (provider === 'atlascloud') {
-            return this.readFirstEnvironmentValue(['ATLASCLOUD_BASE_URL', 'ATLAS_CLOUD_BASE_URL', 'ATLASCLOUD_API_BASE', 'ATLAS_CLOUD_API_BASE'])
-                || ATLAS_CLOUD_DEFAULT_BASE_URL;
-        }
-        return configuredBaseUrl;
+        const configured = configuredBaseUrl?.trim().replace(/\/$/, '') || undefined;
+        if (configured) return configured;
+        const normalizedProvider = normalizeManagedAgentProviderId(provider);
+        const environmentBaseUrl = normalizedProvider
+            ? readFirstEnvironmentValue(AGENT_PROVIDER_BASE_URL_ENV_KEYS[normalizedProvider] ?? [])
+            : undefined;
+        if (environmentBaseUrl) return environmentBaseUrl;
+        return normalizedProvider === 'atlascloud' ? ATLAS_CLOUD_DEFAULT_BASE_URL : undefined;
     }
 
-    private readFirstEnvironmentValue(keys: readonly string[]): string | undefined {
-        for (const key of keys) {
-            const value = process.env[key]?.trim();
-            if (value) return value.replace(/\/$/, '');
-        }
-        return undefined;
+    private getDisabledProviders(): Set<AgentProviderId> {
+        const disabled = this._context.globalState.get<string[]>(DISABLED_PROVIDERS_STATE_KEY, []);
+        return new Set(disabled.map((provider) => normalizeManagedAgentProviderId(provider)).filter((provider): provider is AgentProviderId => Boolean(provider)));
     }
 
     private async buildScaffoldResponse(input: AgentPromptInput, runtimeError?: string): Promise<string> {

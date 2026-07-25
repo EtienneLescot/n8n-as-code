@@ -11,6 +11,7 @@ const providers = [
   { id: 'anthropic', envKeys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_LLM_API_KEY', 'ANTHROPIC_KEY', 'CLAUDE_API_KEY'] },
   { id: 'google', envKeys: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_LLM_API_KEY', 'GOOGLE_LLM_API_KEY'] },
   { id: 'openrouter', envKeys: ['OPENROUTER_API_KEY', 'OPENROUTER_LLM_API_KEY', 'OPEN_ROUTEUR_KEY'] },
+  { id: 'atlascloud', envKeys: ['ATLASCLOUD_API_KEY', 'ATLAS_CLOUD_API_KEY'] },
   { id: 'openai-compatible', envKeys: ['OPENAI_COMPATIBLE_API_KEY', 'OPENAI_API_KEY', 'OPENAI_LLM_API_KEY', 'OPENAI_KEY'] },
 ];
 
