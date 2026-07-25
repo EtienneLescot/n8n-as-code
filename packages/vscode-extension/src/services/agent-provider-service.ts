@@ -1,7 +1,17 @@
 import * as vscode from 'vscode';
 import { getAgentProviderSecretKey } from './agent-runtime-controller.js';
 import { fetchGitHubCopilotModels } from './agent-provider-runtime/copilot-account.js';
-import { readAgentProviderSettings, updateAgentProviderSettings } from './agent-provider-settings.js';
+import {
+    AGENT_PROVIDER_BASE_URL_ENV_KEYS,
+    AGENT_PROVIDER_ENV_KEYS,
+    ATLAS_CLOUD_DEFAULT_BASE_URL,
+    DISABLED_PROVIDERS_STATE_KEY,
+    getAtlasCloudModelCatalogUrl,
+    mapAtlasCloudTextModels,
+    readAgentProviderSettings,
+    readFirstEnvironmentValue,
+    updateAgentProviderSettings,
+} from './agent-provider-settings.js';
 import { getReasoningCapability, normalizeReasoningEffortForCapability, type AgentReasoningEffort } from './agent-provider-capabilities.js';
 
 export { AGENT_REASONING_EFFORTS } from './agent-provider-capabilities.js';
@@ -64,9 +74,6 @@ type DeviceChallenge = {
 
 const OPENAI_CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const OPENAI_CODEX_DEVICE_REDIRECT_URI = 'https://auth.openai.com/deviceauth/callback';
-const DISABLED_PROVIDERS_STATE_KEY = 'n8n.agent.disabledProviders';
-const ATLAS_CLOUD_DEFAULT_BASE_URL = 'https://api.atlascloud.ai/v1';
-const ATLAS_CLOUD_MODEL_CATALOG_URL = 'https://api.atlascloud.ai/api/v1/models';
 const MINIMAX_DISCOVERY_CANDIDATE_MODELS = [
     'MiniMax-M2.7',
     'MiniMax-M2.7-highspeed',
@@ -76,6 +83,7 @@ const MINIMAX_DISCOVERY_CANDIDATE_MODELS = [
     'MiniMax-M2.1-highspeed',
     'MiniMax-M2',
 ] as const;
+const PROVIDERS_WITH_PUBLIC_MODEL_CATALOG = new Set<AgentModelProvider>(['atlascloud']);
 
 const MODEL_LIST_MAPPER = (payload: Record<string, unknown>): string[] => {
     const data = Array.isArray(payload.data) ? payload.data : [];
@@ -93,7 +101,7 @@ export const AGENT_PROVIDER_DEFINITIONS: Record<AgentModelProvider, AgentProvide
         defaultModel: 'claude-haiku-4-5',
         requiresApiKey: true,
         authKind: 'api-key',
-        envKeys: ['ANTHROPIC_LLM_API_KEY', 'ANTHROPIC_API_KEY'],
+        envKeys: [...AGENT_PROVIDER_ENV_KEYS.anthropic],
         canDiscoverModels: true,
     },
     openai: {
@@ -104,7 +112,7 @@ export const AGENT_PROVIDER_DEFINITIONS: Record<AgentModelProvider, AgentProvide
         defaultBaseUrl: 'https://api.openai.com/v1',
         requiresApiKey: true,
         authKind: 'api-key',
-        envKeys: ['OPENAI_LLM_API_KEY', 'OPENAI_API_KEY'],
+        envKeys: [...AGENT_PROVIDER_ENV_KEYS.openai],
         canDiscoverModels: true,
     },
     google: {
@@ -115,7 +123,7 @@ export const AGENT_PROVIDER_DEFINITIONS: Record<AgentModelProvider, AgentProvide
         defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
         requiresApiKey: true,
         authKind: 'api-key',
-        envKeys: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_LLM_API_KEY', 'GOOGLE_LLM_API_KEY'],
+        envKeys: [...AGENT_PROVIDER_ENV_KEYS.google],
         canDiscoverModels: true,
     },
     mistral: {
@@ -126,7 +134,7 @@ export const AGENT_PROVIDER_DEFINITIONS: Record<AgentModelProvider, AgentProvide
         defaultBaseUrl: 'https://api.mistral.ai/v1',
         requiresApiKey: true,
         authKind: 'api-key',
-        envKeys: ['MISTRAL_API_KEY', 'MISTRAL_LLM_API_KEY'],
+        envKeys: [...AGENT_PROVIDER_ENV_KEYS.mistral],
         canDiscoverModels: true,
     },
     openrouter: {
@@ -137,7 +145,7 @@ export const AGENT_PROVIDER_DEFINITIONS: Record<AgentModelProvider, AgentProvide
         defaultBaseUrl: 'https://openrouter.ai/api/v1',
         requiresApiKey: true,
         authKind: 'api-key',
-        envKeys: ['OPENROUTER_API_KEY', 'OPENROUTER_LLM_API_KEY'],
+        envKeys: [...AGENT_PROVIDER_ENV_KEYS.openrouter],
         canDiscoverModels: true,
     },
     atlascloud: {
@@ -146,10 +154,10 @@ export const AGENT_PROVIDER_DEFINITIONS: Record<AgentModelProvider, AgentProvide
         description: 'ATLASCLOUD_API_KEY',
         defaultModel: 'deepseek-ai/deepseek-v4-pro',
         defaultBaseUrl: ATLAS_CLOUD_DEFAULT_BASE_URL,
-        baseUrlEnvKeys: ['ATLASCLOUD_BASE_URL', 'ATLAS_CLOUD_BASE_URL', 'ATLASCLOUD_API_BASE', 'ATLAS_CLOUD_API_BASE'],
+        baseUrlEnvKeys: [...(AGENT_PROVIDER_BASE_URL_ENV_KEYS.atlascloud ?? [])],
         requiresApiKey: true,
         authKind: 'api-key',
-        envKeys: ['ATLASCLOUD_API_KEY', 'ATLAS_CLOUD_API_KEY'],
+        envKeys: [...AGENT_PROVIDER_ENV_KEYS.atlascloud],
         canDiscoverModels: true,
     },
     'openai-oauth': {
@@ -160,7 +168,7 @@ export const AGENT_PROVIDER_DEFINITIONS: Record<AgentModelProvider, AgentProvide
         defaultBaseUrl: 'https://chatgpt.com/backend-api',
         requiresApiKey: false,
         authKind: 'oauth-device',
-        envKeys: [],
+        envKeys: [...AGENT_PROVIDER_ENV_KEYS['openai-oauth']],
         canDiscoverModels: true,
     },
     'copilot-proxy': {
@@ -171,7 +179,7 @@ export const AGENT_PROVIDER_DEFINITIONS: Record<AgentModelProvider, AgentProvide
         defaultBaseUrl: 'https://api.individual.githubcopilot.com',
         requiresApiKey: false,
         authKind: 'oauth-device',
-        envKeys: ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'],
+        envKeys: [...AGENT_PROVIDER_ENV_KEYS['copilot-proxy']],
         canDiscoverModels: true,
     },
     minimax: {
@@ -182,7 +190,7 @@ export const AGENT_PROVIDER_DEFINITIONS: Record<AgentModelProvider, AgentProvide
         defaultBaseUrl: 'https://api.minimax.io/anthropic',
         requiresApiKey: true,
         authKind: 'api-key',
-        envKeys: ['MINIMAX_API_KEY'],
+        envKeys: [...AGENT_PROVIDER_ENV_KEYS.minimax],
         canDiscoverModels: true,
     },
     'minimax-token-plan': {
@@ -193,7 +201,7 @@ export const AGENT_PROVIDER_DEFINITIONS: Record<AgentModelProvider, AgentProvide
         defaultBaseUrl: 'https://api.minimax.io/anthropic',
         requiresApiKey: true,
         authKind: 'api-key',
-        envKeys: ['MINIMAX_TOKEN_PLAN_API_KEY'],
+        envKeys: [...AGENT_PROVIDER_ENV_KEYS['minimax-token-plan']],
         canDiscoverModels: true,
     },
     'openai-compatible': {
@@ -203,7 +211,7 @@ export const AGENT_PROVIDER_DEFINITIONS: Record<AgentModelProvider, AgentProvide
         defaultModel: '',
         requiresApiKey: false,
         authKind: 'api-key',
-        envKeys: ['OPENAI_COMPATIBLE_API_KEY'],
+        envKeys: [...AGENT_PROVIDER_ENV_KEYS['openai-compatible']],
         canDiscoverModels: true,
     },
 };
@@ -411,11 +419,12 @@ export class AgentProviderService {
     async fetchAvailableModels(provider: AgentModelProvider): Promise<string[]> {
         const definition = AGENT_PROVIDER_DEFINITIONS[provider];
         if (!definition.canDiscoverModels) return [];
+        if (this.getDisabledProviders().has(provider)) return [];
         const apiKey = await this.getStoredCredential(provider) || this.readEnvironmentCredential(provider);
         const configuredBaseUrl = readAgentProviderSettings(this.context.globalState).baseUrl || '';
-        const baseUrl = provider === 'openai-compatible' ? configuredBaseUrl : this.readEnvironmentBaseUrl(provider) || definition.defaultBaseUrl;
+        const baseUrl = this.resolveProviderBaseUrl(provider, configuredBaseUrl);
 
-        if (provider !== 'atlascloud' && (definition.requiresApiKey || provider !== 'openai-compatible') && !apiKey && definition.authKind !== 'none') {
+        if (!PROVIDERS_WITH_PUBLIC_MODEL_CATALOG.has(provider) && (definition.requiresApiKey || provider !== 'openai-compatible') && !apiKey && definition.authKind !== 'none') {
             return [];
         }
 
@@ -437,7 +446,7 @@ export class AgentProviderService {
             return this.probeMiniMaxModels(apiKey || '', baseUrl || definition.defaultBaseUrl);
         }
         if (provider === 'atlascloud') {
-            return this.fetchAtlasCloudModels();
+            return this.fetchAtlasCloudModels(baseUrl, apiKey);
         }
 
         const modelsUrl = provider === 'openai-compatible'
@@ -447,17 +456,16 @@ export class AgentProviderService {
         return this.fetchJsonModels(modelsUrl, apiKey ? { Authorization: `Bearer ${apiKey}` } : {});
     }
 
-    private async fetchAtlasCloudModels(): Promise<string[]> {
-        const response = await fetch(ATLAS_CLOUD_MODEL_CATALOG_URL, { headers: { Accept: 'application/json' } });
+    private async fetchAtlasCloudModels(baseUrl?: string, apiKey?: string): Promise<string[]> {
+        const response = await fetch(getAtlasCloudModelCatalogUrl(baseUrl), {
+            headers: {
+                Accept: 'application/json',
+                ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+            },
+        });
         if (!response.ok) return [];
         const payload = await response.json() as Record<string, unknown>;
-        const data = Array.isArray(payload.data) ? payload.data : [];
-        return [...new Set(data
-            .filter((entry) => entry && typeof entry === 'object')
-            .filter((entry) => String((entry as Record<string, unknown>).type || '').toLowerCase() === 'text')
-            .map((entry) => String((entry as Record<string, unknown>).model || (entry as Record<string, unknown>).id || '').trim())
-            .filter(Boolean))]
-            .sort((left, right) => left.localeCompare(right));
+        return mapAtlasCloudTextModels(payload);
     }
 
     private readEnvironmentCredential(provider: AgentModelProvider): string | undefined {
@@ -470,11 +478,14 @@ export class AgentProviderService {
     }
 
     private readEnvironmentBaseUrl(provider: AgentModelProvider): string | undefined {
-        for (const key of AGENT_PROVIDER_DEFINITIONS[provider].baseUrlEnvKeys ?? []) {
-            const value = process.env[key]?.trim();
-            if (value) return value.replace(/\/$/, '');
-        }
-        return undefined;
+        return readFirstEnvironmentValue(AGENT_PROVIDER_BASE_URL_ENV_KEYS[provider] ?? []);
+    }
+
+    private resolveProviderBaseUrl(provider: AgentModelProvider, configuredBaseUrl?: string): string | undefined {
+        const configured = configuredBaseUrl?.trim().replace(/\/$/, '') || undefined;
+        if (provider === 'openai-compatible') return configured;
+        if (provider === 'atlascloud') return configured || this.readEnvironmentBaseUrl(provider) || AGENT_PROVIDER_DEFINITIONS[provider].defaultBaseUrl;
+        return this.readEnvironmentBaseUrl(provider) || AGENT_PROVIDER_DEFINITIONS[provider].defaultBaseUrl;
     }
 
     private async probeMiniMaxModels(apiKey: string, baseUrl?: string): Promise<string[]> {

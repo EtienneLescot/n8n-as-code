@@ -35,6 +35,27 @@ const SELECTED_MODEL_STATE_KEY = 'n8n.agent.model';
 const BASE_URL_STATE_KEY = 'n8n.agent.baseUrl';
 const REASONING_EFFORT_STATE_KEY = 'n8n.agent.reasoningEffort';
 const MANAGED_SETTINGS_STATE_KEY = 'n8n.agent.settingsManaged';
+export const DISABLED_PROVIDERS_STATE_KEY = 'n8n.agent.disabledProviders';
+export const ATLAS_CLOUD_DEFAULT_BASE_URL = 'https://api.atlascloud.ai/v1';
+export const ATLAS_CLOUD_MODEL_CATALOG_URL = 'https://api.atlascloud.ai/api/v1/models';
+
+export const AGENT_PROVIDER_ENV_KEYS: Record<AgentProviderId, readonly string[]> = {
+    anthropic: ['ANTHROPIC_LLM_API_KEY', 'ANTHROPIC_API_KEY'],
+    openai: ['OPENAI_LLM_API_KEY', 'OPENAI_API_KEY'],
+    google: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_LLM_API_KEY', 'GOOGLE_LLM_API_KEY'],
+    mistral: ['MISTRAL_API_KEY', 'MISTRAL_LLM_API_KEY'],
+    openrouter: ['OPENROUTER_API_KEY', 'OPENROUTER_LLM_API_KEY'],
+    atlascloud: ['ATLASCLOUD_API_KEY', 'ATLAS_CLOUD_API_KEY'],
+    'openai-oauth': [],
+    'copilot-proxy': ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'],
+    minimax: ['MINIMAX_API_KEY'],
+    'minimax-token-plan': ['MINIMAX_TOKEN_PLAN_API_KEY'],
+    'openai-compatible': ['OPENAI_COMPATIBLE_API_KEY'],
+};
+
+export const AGENT_PROVIDER_BASE_URL_ENV_KEYS: Partial<Record<AgentProviderId, readonly string[]>> = {
+    atlascloud: ['ATLASCLOUD_BASE_URL', 'ATLAS_CLOUD_BASE_URL', 'ATLASCLOUD_API_BASE', 'ATLAS_CLOUD_API_BASE'],
+};
 
 export interface AgentProviderSettings {
     provider: AgentProviderId;
@@ -84,7 +105,7 @@ function getLegacyAgentConfiguration(): LegacyConfiguration {
     }
 }
 
-function normalizeAgentProviderId(provider?: string): AgentProviderId | undefined {
+export function normalizeAgentProviderId(provider?: string): AgentProviderId | undefined {
     const normalized = provider?.trim().toLowerCase();
     if (!normalized) return undefined;
     if (normalized === 'claude') return 'anthropic';
@@ -109,4 +130,31 @@ function readPersistedString(state: vscode.Memento, key: string, legacyValue: un
 
 function readOptionalString(value: unknown): string {
     return String(value ?? '').trim();
+}
+
+export function readFirstEnvironmentValue(keys: readonly string[]): string | undefined {
+    for (const key of keys) {
+        const value = process.env[key]?.trim();
+        if (value) return value.replace(/\/$/, '');
+    }
+    return undefined;
+}
+
+export function getAtlasCloudModelCatalogUrl(baseUrl?: string): string {
+    try {
+        const parsed = new URL(baseUrl || ATLAS_CLOUD_DEFAULT_BASE_URL);
+        return `${parsed.origin}/api/v1/models`;
+    } catch {
+        return ATLAS_CLOUD_MODEL_CATALOG_URL;
+    }
+}
+
+export function mapAtlasCloudTextModels(payload: Record<string, unknown>): string[] {
+    const data = Array.isArray(payload.data) ? payload.data : [];
+    return [...new Set(data
+        .filter((entry) => entry && typeof entry === 'object')
+        .filter((entry) => String((entry as Record<string, unknown>).type || '').toLowerCase() === 'text')
+        .map((entry) => String((entry as Record<string, unknown>).model || (entry as Record<string, unknown>).id || '').trim())
+        .filter(Boolean))]
+        .sort((left, right) => left.localeCompare(right));
 }
