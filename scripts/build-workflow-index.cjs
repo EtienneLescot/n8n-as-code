@@ -232,7 +232,9 @@ function buildIndex() {
         })
     };
 
-    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(outputData, null, 2));
+    // Minified: this asset is machine-read and shipped in the npm package, where
+    // pretty-printing costs ~19% of the file size for no reader benefit.
+    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(outputData));
     console.log(`💾 Saved index to: ${OUTPUT_FILE}`);
 
     // Calculate size

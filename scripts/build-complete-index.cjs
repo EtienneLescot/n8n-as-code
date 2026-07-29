@@ -461,7 +461,8 @@ async function main() {
 
         // Write to file
         console.log('\n💾 Writing complete index...');
-        await writeFile(OUTPUT_FILE, JSON.stringify(completeIndex, null, 2));
+        // Minified: machine-read asset shipped in the npm package.
+        await writeFile(OUTPUT_FILE, JSON.stringify(completeIndex));
         console.log('✅ Complete index written');
 
         // Summary

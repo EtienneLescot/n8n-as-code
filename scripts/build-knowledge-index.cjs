@@ -449,7 +449,8 @@ async function main() {
 
         // Write to file
         console.log('\n💾 Writing knowledge index...');
-        await writeFile(OUTPUT_FILE, JSON.stringify(knowledgeIndex, null, 2));
+        // Minified: machine-read asset shipped in the npm package.
+        await writeFile(OUTPUT_FILE, JSON.stringify(knowledgeIndex));
         console.log('✅ Knowledge index written (FlexSearch included)');
 
         // Summary
