@@ -500,7 +500,8 @@ async function enrichNodesIndex() {
         fs.mkdirSync(outputDir, { recursive: true });
     }
 
-    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(output, null, 2));
+    // Minified: machine-read asset shipped in the npm package.
+    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(output));
 
     console.log('\n✨ Enrichment complete!');
     console.log(`📊 Statistics:`);

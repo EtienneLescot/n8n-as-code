@@ -398,7 +398,8 @@ async function extractNodes() {
         nodes: Array.from(resultsMap.values())
     };
 
-    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(outputData, null, 2));
+    // Minified: build intermediate consumed only by the enrichment scripts.
+    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(outputData));
     console.log(`💾 Saved index to: ${OUTPUT_FILE}`);
 }
 
