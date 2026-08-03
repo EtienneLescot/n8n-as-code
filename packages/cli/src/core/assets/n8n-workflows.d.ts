@@ -133,31 +133,38 @@ declare module '@n8n-as-code/transformer' {
         readonly output: NodeOutput;
     }
 
+    /**
+     * Sub-nodes declared with `.uses()`.
+     *
+     * Single-valued roles also accept an array, where the position is the target
+     * input index — that is how n8n wires a fallback model or a Model Selector:
+     *   ai_languageModel: [this.Model.output, this.FallbackModel.output]
+     */
     export interface AIDependencyMap {
-        /** Language model (e.g. OpenAI, Anthropic) */
-        ai_languageModel?: NodeOutput;
+        /** Language model (e.g. OpenAI, Anthropic); array = one per input index */
+        ai_languageModel?: NodeOutput | NodeOutput[];
         /** Conversation memory */
-        ai_memory?: NodeOutput;
+        ai_memory?: NodeOutput | NodeOutput[];
         /** Structured output parser */
-        ai_outputParser?: NodeOutput;
-        /** Tool nodes (can be multiple) */
+        ai_outputParser?: NodeOutput | NodeOutput[];
+        /** Tool nodes (can be multiple, all on input 0) */
         ai_tool?: NodeOutput[];
         /** Sub-agent */
-        ai_agent?: NodeOutput;
+        ai_agent?: NodeOutput | NodeOutput[];
         /** LangChain chain */
-        ai_chain?: NodeOutput;
-        /** Document loaders (can be multiple) */
+        ai_chain?: NodeOutput | NodeOutput[];
+        /** Document loaders (can be multiple, all on input 0) */
         ai_document?: NodeOutput[];
         /** Text splitter */
-        ai_textSplitter?: NodeOutput;
+        ai_textSplitter?: NodeOutput | NodeOutput[];
         /** Embedding model */
-        ai_embedding?: NodeOutput;
+        ai_embedding?: NodeOutput | NodeOutput[];
         /** Vector store retriever */
-        ai_retriever?: NodeOutput;
+        ai_retriever?: NodeOutput | NodeOutput[];
         /** Result reranker */
-        ai_reranker?: NodeOutput;
+        ai_reranker?: NodeOutput | NodeOutput[];
         /** Vector store */
-        ai_vectorStore?: NodeOutput;
+        ai_vectorStore?: NodeOutput | NodeOutput[];
     }
 
     // =========================================================================
