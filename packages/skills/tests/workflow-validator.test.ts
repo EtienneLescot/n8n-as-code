@@ -149,6 +149,70 @@ describe('WorkflowValidator', () => {
             w.message.includes('@tavily/n8n-nodes-tavily.tavily')
         )).toBe(true);
     });
+
+    it('does not flag parameters when the schema declares no properties', async () => {
+        // A schema with an empty property list carries no information about what is known —
+        // that is how a custom-node override opts out of parameter validation.
+        const workflow = {
+            nodes: [
+                {
+                    id: '1',
+                    name: 'Start',
+                    type: 'n8n-nodes-base.start',
+                    typeVersion: 1,
+                    position: [0, 0],
+                    parameters: { whatever: true }
+                }
+            ],
+            connections: {}
+        };
+
+        const result = await validator.validateWorkflow(workflow);
+        expect(result.valid).toBe(true);
+        expect(result.warnings.filter(w => w.message.includes('Unknown parameter'))).toEqual([]);
+    });
+
+    // Regression: the validator used to truncate node.type to its last dot-segment, so
+    // "@n8n/n8n-nodes-langchain.code" was validated against "n8n-nodes-base.code".
+    it('validates a LangChain node against its own schema when a base node shares the short name', async () => {
+        const workflow = {
+            nodes: [
+                {
+                    id: '1',
+                    name: 'LLM',
+                    type: '@n8n/n8n-nodes-langchain.code',
+                    typeVersion: 1,
+                    position: [0, 0],
+                    parameters: { code: {}, inputs: {}, outputs: {} }
+                }
+            ],
+            connections: {}
+        };
+
+        const result = await validator.validateWorkflow(workflow);
+        expect(result.valid).toBe(true);
+        expect(result.warnings.filter(w => w.message.includes('Unknown parameter'))).toEqual([]);
+    });
+
+    it('still resolves the base node for its own full type', async () => {
+        const workflow = {
+            nodes: [
+                {
+                    id: '1',
+                    name: 'Code',
+                    type: 'n8n-nodes-base.code',
+                    typeVersion: 2,
+                    position: [0, 0],
+                    parameters: { mode: 'runOnceForAllItems', jsCode: 'return items;' }
+                }
+            ],
+            connections: {}
+        };
+
+        const result = await validator.validateWorkflow(workflow);
+        expect(result.valid).toBe(true);
+        expect(result.warnings.filter(w => w.message.includes('Unknown parameter'))).toEqual([]);
+    });
 });
 
 describe('WorkflowValidator - custom nodes', () => {
@@ -239,6 +303,35 @@ describe('WorkflowValidator - custom nodes', () => {
         expect(result.valid).toBe(true);
         expect(result.errors.length).toBe(0);
         expect(result.warnings.some(w => w.message.includes('not in the schema'))).toBe(true);
+    });
+
+    // Regression: `n8nac push --verify` builds the validator without paths, which used to
+    // ignore the sidecar entirely.
+    it('resolves the sidecar from the project directory when no path is passed', async () => {
+        const previousCwd = process.cwd();
+        process.chdir(tempDir);
+        try {
+            const validator = new WorkflowValidator(indexPath);
+            const workflow = {
+                nodes: [
+                    {
+                        id: '1',
+                        name: 'MyCustom',
+                        type: 'n8n-nodes-custom.myCustomNode',
+                        typeVersion: 1,
+                        position: [0, 0],
+                        parameters: { endpoint: 'https://api.example.com' }
+                    }
+                ],
+                connections: {}
+            };
+
+            const result = await validator.validateWorkflow(workflow);
+            expect(result.errors.length).toBe(0);
+            expect(result.warnings.some(w => w.message.includes('not in the schema'))).toBe(false);
+        } finally {
+            process.chdir(previousCwd);
+        }
     });
 
     it('should validate required parameters from custom node schema', async () => {

@@ -1,4 +1,5 @@
 import { NodeSchemaProvider } from './node-schema-provider.js';
+import { resolveCustomNodesConfig } from './custom-nodes-config.js';
 import { TypeScriptParser, WorkflowBuilder } from '@n8n-as-code/transformer';
 
 export interface ValidationResult {
@@ -26,8 +27,17 @@ export interface ValidationWarning {
 export class WorkflowValidator {
   private provider: NodeSchemaProvider;
 
+  /**
+   * @param customIndexPath - Path to the technical node index (defaults to the bundled asset)
+   * @param customNodesPath - Path to the custom-node sidecar. When omitted it is resolved from
+   *   the current project (n8nac-config.json / n8nac-custom-nodes.json), so embedders such as
+   *   `n8nac push --verify` honour the sidecar without wiring it themselves.
+   */
   constructor(customIndexPath?: string, customNodesPath?: string) {
-    this.provider = new NodeSchemaProvider(customIndexPath, customNodesPath);
+    this.provider = new NodeSchemaProvider(
+      customIndexPath,
+      customNodesPath ?? resolveCustomNodesConfig().resolvedPath
+    );
   }
 
   /**
@@ -137,9 +147,6 @@ export class WorkflowValidator {
         continue; // Can't validate further without type
       }
 
-      // Extract node name from type (e.g., "n8n-nodes-base.httpRequest" -> "httpRequest")
-      const nodeTypeName = node.type.split('.').pop();
-
       // Detect if this is a community node
       // Community nodes formats:
       // - @scope/n8n-nodes-* (where scope is NOT 'n8n')
@@ -151,8 +158,10 @@ export class WorkflowValidator {
         (node.type.startsWith('@') && !node.type.startsWith('@n8n/')) ||
         (node.type.startsWith('n8n-nodes-') && !node.type.startsWith('n8n-nodes-base.') && !node.type.startsWith('n8n-nodes-langchain.'));
 
-      // Check if node type exists
-      const nodeSchema = this.provider.getNodeSchema(nodeTypeName);
+      // Check if node type exists. Look up by full type — the provider falls back to the
+      // short name itself, and truncating here would resolve "@n8n/n8n-nodes-langchain.code"
+      // to the unrelated "n8n-nodes-base.code" schema.
+      const nodeSchema = this.provider.getNodeSchema(node.type);
       if (!nodeSchema) {
         if (isCommunityNode) {
           // Community nodes: emit a warning but don't fail validation
@@ -360,8 +369,10 @@ export class WorkflowValidator {
       }
     }
 
-    // Check for unknown parameters (might be typos)
-    if (warnUnknownParameters) {
+    // Check for unknown parameters (might be typos).
+    // A schema declaring no properties says nothing about what is known, so flagging every
+    // parameter would be noise — that is how a custom-node override opts out of the check.
+    if (warnUnknownParameters && schemaProps.length > 0) {
       const knownParamNames = new Set(schemaProps.map((p: any) => p.name));
       for (const paramName of Object.keys(params)) {
         if (!knownParamNames.has(paramName)) {

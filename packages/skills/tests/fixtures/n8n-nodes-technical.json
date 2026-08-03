@@ -773,6 +773,75 @@
         "useCases": [],
         "keywordScore": 30
       }
+    },
+    "code": {
+      "name": "code",
+      "displayName": "Code",
+      "type": "n8n-nodes-base.code",
+      "version": 2,
+      "description": "Run custom JavaScript or Python code",
+      "schema": {
+        "properties": [
+          {
+            "name": "mode",
+            "type": "options",
+            "options": [
+              {
+                "name": "Run Once for All Items",
+                "value": "runOnceForAllItems"
+              },
+              {
+                "name": "Run Once for Each Item",
+                "value": "runOnceForEachItem"
+              }
+            ],
+            "default": "runOnceForAllItems"
+          },
+          {
+            "name": "jsCode",
+            "type": "string",
+            "default": ""
+          }
+        ]
+      },
+      "metadata": {
+        "keywords": [],
+        "operations": [],
+        "useCases": [],
+        "keywordScore": 0
+      }
+    },
+    "@n8n/n8n-nodes-langchain.code": {
+      "name": "code",
+      "displayName": "LangChain Code",
+      "type": "@n8n/n8n-nodes-langchain.code",
+      "version": 1,
+      "description": "LangChain Code node",
+      "schema": {
+        "properties": [
+          {
+            "name": "code",
+            "type": "json",
+            "default": {}
+          },
+          {
+            "name": "inputs",
+            "type": "json",
+            "default": {}
+          },
+          {
+            "name": "outputs",
+            "type": "json",
+            "default": {}
+          }
+        ]
+      },
+      "metadata": {
+        "keywords": [],
+        "operations": [],
+        "useCases": [],
+        "keywordScore": 0
+      }
     }
   }
 }
