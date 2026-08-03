@@ -266,6 +266,7 @@ npx --yes n8nac skills examples download <id>
 - AI sub-nodes connect with `.uses()`, never `.out().to()`.
 - `ai_tool` and `ai_document` connections are arrays: `ai_tool: [this.Tool.output]`.
 - Other AI connection types are single refs, such as `ai_languageModel: this.Model.output`.
+- They also accept an array when a node exposes several inputs of the same type, where the position is the input index: `ai_languageModel: [this.Model.output, this.FallbackModel.output]` (fallback model, Model Selector).
 - Check `node-info` for connection-dependent boolean flags before declaring `.uses()` connections.
 
 Every `.workflow.ts` file starts with a `<workflow-map>` block. Read that map first, locate the property name you need, then read only the relevant class section.
@@ -372,8 +373,9 @@ defineRouting() {
 
 - Use `.uses()` for language models, memory, tools, parsers, embeddings, vector stores, retrievers, and other AI sub-nodes.
 - Never connect AI sub-nodes with `.out().to()`.
-- `ai_tool` and `ai_document` must be arrays.
-- Most other AI connection types are single refs.
+- `ai_tool` and `ai_document` must be arrays; every entry lands on input index 0.
+- Most other AI connection types are single refs, or an array when the node exposes several inputs of the same type — position = input index.
+- `needsFallback: true` (Agent, Basic LLM Chain) needs a second model on input 1: `ai_languageModel: [this.Model.output, this.FallbackModel.output]`. Same for the Model Selector node.
 - Some nodes require boolean flags to expose AI ports or gated parameters. Check `node-info` before declaring `.uses()`.
 
 ## Common Mistakes To Avoid
