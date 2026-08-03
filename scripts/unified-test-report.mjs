@@ -15,6 +15,7 @@ const testSuites = [
     { section: 'Unit Tests', name: 'cli', pkg: 'n8nac', cmd: 'npm', args: ['test', '--workspace=n8nac'] },
     { section: 'Unit Tests', name: 'openclaw', pkg: '@n8n-as-code/n8nac', cmd: 'npm', args: ['test', '--workspace=@n8n-as-code/n8nac'] },
     { section: 'Unit Tests', name: 'vscode-unit', pkg: 'n8n-as-code', cmd: 'npm', args: ['run', 'test', '--workspace=packages/vscode-extension'] },
+    { section: 'Unit Tests', name: 'mcp', pkg: '@n8n-as-code/mcp', cmd: 'npm', args: ['test', '--workspace=@n8n-as-code/mcp'] },
     { section: 'Integration Tests', name: 'cli-live', pkg: 'n8nac', cmd: 'npm', args: ['run', 'test:integration', '--workspace=n8nac'] }
 ];
 
@@ -66,7 +67,9 @@ async function runTest(suite) {
             }
 
             // Parse counts (even if it failed, we want the stats if available)
-            if (scenarioMatches.length === 0 && (suite.name === 'transformer' || suite.name === 'skills' || suite.name === 'cli' || suite.name === 'openclaw' || suite.name === 'vscode-unit')) {
+            // Derived from the section rather than a second hand-maintained name list, so a new
+            // unit suite only has to be added to testSuites above.
+            if (scenarioMatches.length === 0 && suite.section === 'Unit Tests') {
                 // Support both Vitest and Jest formats:
                 // Vitest: "Tests  53 passed (53)"
                 // Jest: "Tests:       29 passed, 29 total"
