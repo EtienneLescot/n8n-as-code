@@ -4,7 +4,7 @@
  * Converts n8n workflow JSON to intermediate AST representation
  */
 
-import { N8nWorkflow, WorkflowAST, NodeAST, ConnectionAST, PropertyNameContext } from '../types.js';
+import { N8nWorkflow, WorkflowAST, NodeAST, ConnectionAST, PropertyNameContext, AI_ARRAY_ROLES, AI_SINGLE_ROLES } from '../types.js';
 import { createPropertyNameContext, generatePropertyName } from '../utils/naming.js';
 
 // AI connection types are handled separately by extractAIDependencies()
@@ -243,34 +243,31 @@ export class JsonToAstParser {
                             targetNode.aiDependencies = {};
                         }
                         
-                        // Add dependency based on type
-                        if (outputType === 'ai_languageModel') {
-                            targetNode.aiDependencies.ai_languageModel = sourcePropertyName;
-                        } else if (outputType === 'ai_memory') {
-                            targetNode.aiDependencies.ai_memory = sourcePropertyName;
-                        } else if (outputType === 'ai_outputParser') {
-                            targetNode.aiDependencies.ai_outputParser = sourcePropertyName;
-                        } else if (outputType === 'ai_agent') {
-                            targetNode.aiDependencies.ai_agent = sourcePropertyName;
-                        } else if (outputType === 'ai_chain') {
-                            targetNode.aiDependencies.ai_chain = sourcePropertyName;
-                        } else if (outputType === 'ai_textSplitter') {
-                            targetNode.aiDependencies.ai_textSplitter = sourcePropertyName;
-                        } else if (outputType === 'ai_embedding') {
-                            targetNode.aiDependencies.ai_embedding = sourcePropertyName;
-                        } else if (outputType === 'ai_retriever') {
-                            targetNode.aiDependencies.ai_retriever = sourcePropertyName;
-                        } else if (outputType === 'ai_reranker') {
-                            targetNode.aiDependencies.ai_reranker = sourcePropertyName;
-                        } else if (outputType === 'ai_vectorStore') {
-                            targetNode.aiDependencies.ai_vectorStore = sourcePropertyName;
-                        } else if (outputType === 'ai_tool' || outputType === 'ai_document') {
-                            // ai_tool and ai_document are arrays
-                            const arrayKey = outputType as 'ai_tool' | 'ai_document';
-                            if (!targetNode.aiDependencies[arrayKey]) {
-                                (targetNode.aiDependencies as any)[arrayKey] = [];
+                        const deps = targetNode.aiDependencies as Record<string, string | string[]>;
+
+                        if ((AI_ARRAY_ROLES as readonly string[]).includes(outputType)) {
+                            // ai_tool and ai_document fan in: order of appearance
+                            if (!deps[outputType]) {
+                                deps[outputType] = [];
                             }
-                            (targetNode.aiDependencies[arrayKey] as string[]).push(sourcePropertyName);
+                            (deps[outputType] as string[]).push(sourcePropertyName);
+                        } else if ((AI_SINGLE_ROLES as readonly string[]).includes(outputType)) {
+                            // One sub-node per input index: index > 0 means a second slot
+                            // (fallback model, Model Selector), so keep both.
+                            const inputIndex = target.index ?? 0;
+                            const existing = deps[outputType];
+                            if (inputIndex === 0 && existing === undefined) {
+                                deps[outputType] = sourcePropertyName;
+                            } else {
+                                const slots = Array.isArray(existing)
+                                    ? existing
+                                    : existing !== undefined ? [existing] : [];
+                                while (slots.length < inputIndex) {
+                                    slots.push('');
+                                }
+                                slots[inputIndex] = sourcePropertyName;
+                                deps[outputType] = slots;
+                            }
                         }
                     });
                 });

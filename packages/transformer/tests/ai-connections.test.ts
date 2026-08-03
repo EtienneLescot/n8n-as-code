@@ -11,6 +11,8 @@
 import { describe, it, expect } from 'vitest';
 import { TypeScriptParser } from '../src/compiler/typescript-parser.js';
 import { WorkflowBuilder } from '../src/compiler/workflow-builder.js';
+import { JsonToAstParser } from '../src/parser/json-to-ast.js';
+import { AstToTypeScriptGenerator } from '../src/parser/ast-to-typescript.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -201,5 +203,85 @@ describe('AI connections — JSON generation', () => {
         for (const t of expected) {
             expect(connTypes.has(t), `Missing connection type: ${t}`).toBe(true);
         }
+    });
+});
+
+// ─── Multi-slot single roles (fallback model, Model Selector) ─────────────────
+
+describe('AI connections — one sub-node per input index', () => {
+    const fallbackNodes = `
+        @node({ name: 'Fallback Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', version: 1, position: [100, 200] })
+        FallbackModel = {};
+    `;
+
+    it('parses an ai_languageModel array without dropping the second model', async () => {
+        const ast = await parse(makeWorkflow(
+            `this.Agent.uses({ ai_languageModel: [this.Model.output, this.FallbackModel.output] });`,
+            fallbackNodes
+        ));
+        const deps = ast.nodes.find(n => n.propertyName === 'Agent')!.aiDependencies!;
+        expect(deps.ai_languageModel).toEqual(['Model', 'FallbackModel']);
+    });
+
+    it('wires array position to the target input index', async () => {
+        const { workflow } = await build(makeWorkflow(
+            `this.Agent.uses({ ai_languageModel: [this.Model.output, this.FallbackModel.output] });`,
+            fallbackNodes
+        ));
+        expect(workflow.connections['Model']['ai_languageModel'][0][0])
+            .toMatchObject({ node: 'Agent', type: 'ai_languageModel', index: 0 });
+        expect(workflow.connections['Fallback Model']['ai_languageModel'][0][0])
+            .toMatchObject({ node: 'Agent', type: 'ai_languageModel', index: 1 });
+    });
+
+    it('keeps ai_tool entries on input index 0 (fan-in, not one per index)', async () => {
+        const { workflow } = await build(makeWorkflow(
+            `this.Agent.uses({ ai_tool: [this.Tool1.output, this.Tool2.output] });`
+        ));
+        expect(workflow.connections['Tool1']['ai_tool'][0][0].index).toBe(0);
+        expect(workflow.connections['Tool2']['ai_tool'][0][0].index).toBe(0);
+    });
+
+    it('normalises a one-entry array on a single role back to a plain reference', async () => {
+        const ast = await parse(makeWorkflow(
+            `this.Agent.uses({ ai_languageModel: [this.Model.output] });`
+        ));
+        const deps = ast.nodes.find(n => n.propertyName === 'Agent')!.aiDependencies!;
+        expect(deps.ai_languageModel).toBe('Model');
+    });
+
+    it('leaves an elided slot unconnected instead of shifting the next one', async () => {
+        const { workflow } = await build(makeWorkflow(
+            `this.Agent.uses({ ai_languageModel: [, this.FallbackModel.output] });`,
+            fallbackNodes
+        ));
+        expect(workflow.connections['Model']).toBeUndefined();
+        expect(workflow.connections['Fallback Model']['ai_languageModel'][0][0].index).toBe(1);
+    });
+
+    it('round-trips a fallback model pulled from n8n JSON', async () => {
+        const aiConn = (node: string, index: number) => ({
+            ai_languageModel: [[{ node, type: 'ai_languageModel', index }]]
+        });
+        const json: any = {
+            id: 'wf', name: 'Fallback', active: false,
+            nodes: [
+                { id: '1', name: 'Agent', type: '@n8n/n8n-nodes-langchain.agent', typeVersion: 1, position: [0, 0], parameters: { needsFallback: true } },
+                { id: '2', name: 'Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1, position: [0, 200], parameters: {} },
+                { id: '3', name: 'Fallback Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1, position: [200, 200], parameters: {} },
+            ],
+            connections: { 'Model': aiConn('Agent', 0), 'Fallback Model': aiConn('Agent', 1) }
+        };
+
+        const ast = new JsonToAstParser().parse(json);
+        expect(ast.nodes.find(n => n.propertyName === 'Agent')!.aiDependencies!.ai_languageModel)
+            .toEqual(['Model', 'FallbackModel']);
+
+        const code = await new AstToTypeScriptGenerator().generate(ast);
+        expect(code).toContain('ai_languageModel: [this.Model.output, this.FallbackModel.output]');
+
+        const { workflow } = await build(code);
+        expect(workflow.connections['Model']['ai_languageModel'][0][0].index).toBe(0);
+        expect(workflow.connections['Fallback Model']['ai_languageModel'][0][0].index).toBe(1);
     });
 });

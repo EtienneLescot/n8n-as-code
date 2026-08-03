@@ -6,7 +6,7 @@
  */
 
 import { Project, SourceFile, SyntaxKind, ClassDeclaration, PropertyDeclaration, MethodDeclaration, Node } from 'ts-morph';
-import { WorkflowAST, NodeAST, ConnectionAST, WorkflowMetadata } from '../types.js';
+import { WorkflowAST, NodeAST, ConnectionAST, WorkflowMetadata, AI_ARRAY_ROLES } from '../types.js';
 
 /**
  * Parse TypeScript workflow file
@@ -335,12 +335,15 @@ export class TypeScriptParser {
             const key = trimmed.substring(0, colonIndex).trim();
             const value = trimmed.substring(colonIndex + 1).trim();
             
-            // Check if it's an array type (ai_tool or ai_document)
-            if ((key === 'ai_tool' || key === 'ai_document') && value.startsWith('[')) {
+            // Arrays are allowed on every role: fan-in for ai_tool/ai_document,
+            // one entry per input index for the rest (fallback model, model selector).
+            if (value.startsWith('[')) {
                 // Parse array: [this.Tool1.output, this.Tool2.output]
                 const itemNames = this.parseToolArray(value);
-                if (itemNames.length > 0) {
+                if (itemNames.length > 1 || (itemNames.length === 1 && AI_ARRAY_ROLES.includes(key as any))) {
                     result[key] = itemNames;
+                } else if (itemNames.length === 1) {
+                    result[key] = itemNames[0];
                 }
             } else {
                 // Parse single reference: this.NodeName.output
@@ -383,27 +386,33 @@ export class TypeScriptParser {
     }
     
     /**
-     * Parse tool array
-     * 
+     * Parse an AI sub-node array
+     *
      * Input: "[this.Tool1.output, this.Tool2.output]"
      * Output: ["Tool1", "Tool2"]
+     *
+     * Positions are preserved, so an elision keeps the following entries on their
+     * own input index: "[, this.Fallback.output]" → ["", "Fallback"].
      */
     private parseToolArray(arrayText: string): string[] {
         const result: string[] = [];
-        
+
         // Remove brackets
         const content = arrayText.replace(/^\[|\]$/g, '').trim();
-        
+
         // Split by comma
         const items = content.split(',');
-        
+
         for (const item of items) {
             const nodeMatch = item.trim().match(TypeScriptParser.OUTPUT_REF_PATTERN);
-            if (nodeMatch) {
-                result.push(nodeMatch[1]);
-            }
+            result.push(nodeMatch ? nodeMatch[1] : '');
         }
-        
+
+        // Drop trailing empties (trailing comma, empty array)
+        while (result.length > 0 && !result[result.length - 1]) {
+            result.pop();
+        }
+
         return result;
     }
     

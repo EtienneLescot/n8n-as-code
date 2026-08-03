@@ -134,20 +134,29 @@ export interface InputConnection {
 
 /**
  * AI dependency map (for .uses())
+ *
+ * Single-valued roles also accept an array, where the position is the target
+ * input index — that is how n8n wires a fallback model or a Model Selector:
+ *   ai_languageModel: [this.Model.output, this.FallbackModel.output]
  */
 export interface AIDependencyMap {
-    ai_languageModel?: { output: any };
-    ai_memory?: { output: any };
-    ai_outputParser?: { output: any };
-    ai_tool?: Array<{ output: any }>;
-    ai_agent?: { output: any };
-    ai_chain?: { output: any };
-    ai_document?: Array<{ output: any }>;
-    ai_textSplitter?: { output: any };
-    ai_embedding?: { output: any };
-    ai_retriever?: { output: any };
-    ai_reranker?: { output: any };
-    ai_vectorStore?: { output: any };
+    ai_languageModel?: AIRef | AIRef[];
+    ai_memory?: AIRef | AIRef[];
+    ai_outputParser?: AIRef | AIRef[];
+    ai_tool?: AIRef[];
+    ai_agent?: AIRef | AIRef[];
+    ai_chain?: AIRef | AIRef[];
+    ai_document?: AIRef[];
+    ai_textSplitter?: AIRef | AIRef[];
+    ai_embedding?: AIRef | AIRef[];
+    ai_retriever?: AIRef | AIRef[];
+    ai_reranker?: AIRef | AIRef[];
+    ai_vectorStore?: AIRef | AIRef[];
+}
+
+/** Reference to an AI sub-node output (`this.Model.output`) */
+export interface AIRef {
+    output: any;
 }
 
 // =====================================================================
