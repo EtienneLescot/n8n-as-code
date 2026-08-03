@@ -230,6 +230,7 @@ export class WorkflowValidator {
     // 4. Validate connections
     if (workflow.connections) {
       this.validateConnections(workflow.connections, nodeMap, errors, warnings);
+      this.validateFallbackModels(workflow.connections, nodeMap, errors);
     }
 
     return {
@@ -570,6 +571,39 @@ export class WorkflowValidator {
       }
 
       this.validateDefaultShape(node, nestedDefault, actualValue[key], nestedPath, errors);
+    }
+  }
+
+  /**
+   * `needsFallback: true` requires a second model on ai_languageModel input 1.
+   * Without it the node fails at run time with "A Fallback Model sub-node must
+   * be connected and enabled" — and with onError: continueRegularOutput that
+   * failure is invisible, so refuse to push it.
+   */
+  private validateFallbackModels(
+    connections: any,
+    nodeMap: Map<string, any>,
+    errors: ValidationError[]
+  ): void {
+    const connectedSlots = new Set<string>();
+    for (const sourceConnections of Object.values(connections)) {
+      for (const group of (sourceConnections as any)?.ai_languageModel ?? []) {
+        for (const conn of group ?? []) {
+          connectedSlots.add(`${conn.node}#${conn.index ?? 0}`);
+        }
+      }
+    }
+
+    for (const [name, node] of nodeMap) {
+      if (node.parameters?.needsFallback !== true) continue;
+      if (connectedSlots.has(`${name}#1`)) continue;
+      errors.push({
+        type: 'error',
+        nodeId: node.id,
+        nodeName: name,
+        message: `Node "${name}" has needsFallback: true but no fallback model on ai_languageModel input 1. Declare both models: .uses({ ai_languageModel: [this.Model.output, this.FallbackModel.output] })`,
+        path: `nodes[${name}].parameters.needsFallback`,
+      });
     }
   }
 

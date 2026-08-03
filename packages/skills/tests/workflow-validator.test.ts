@@ -540,3 +540,46 @@ describe('WorkflowValidator - nested parameter validation', () => {
         expect(result.errors[0].path).toBe('nodes[Switch].parameters.rules.values[1].outputKey');
     });
 });
+
+describe('WorkflowValidator - fallback model', () => {
+    const createValidator = (): WorkflowValidator => {
+        const indexPath = path.resolve(_dirname, 'fixtures/n8n-nodes-technical.json');
+        const validator = new WorkflowValidator(indexPath);
+        // Schema lookup is irrelevant here: the rule reads parameters + connections
+        jest.spyOn(validator['provider'], 'getNodeSchema').mockReturnValue({
+            name: 'chainLlm',
+            type: '@n8n/n8n-nodes-langchain.chainLlm',
+            version: 1.7,
+            schema: { properties: [] },
+        } as any);
+        return validator;
+    };
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    const workflowWithFallback = (connections: any) => ({
+        nodes: [
+            { id: '1', name: 'Classify', type: '@n8n/n8n-nodes-langchain.chainLlm', typeVersion: 1.7, position: [0, 0], parameters: { needsFallback: true } },
+            { id: '2', name: 'Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.3, position: [0, 200], parameters: {} },
+            { id: '3', name: 'Fallback Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.3, position: [200, 200], parameters: {} },
+        ],
+        connections,
+    });
+
+    const aiConn = (index: number) => ({ ai_languageModel: [[{ node: 'Classify', type: 'ai_languageModel', index }]] });
+
+    it('rejects needsFallback: true without a model on input 1', async () => {
+        const result = await createValidator().validateWorkflow(workflowWithFallback({ 'Model': aiConn(0) }));
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.message.includes('needsFallback'))).toBe(true);
+    });
+
+    it('accepts needsFallback: true when a fallback model is wired to input 1', async () => {
+        const result = await createValidator().validateWorkflow(
+            workflowWithFallback({ 'Model': aiConn(0), 'Fallback Model': aiConn(1) })
+        );
+        expect(result.errors.some(e => e.message.includes('needsFallback'))).toBe(false);
+    });
+});
