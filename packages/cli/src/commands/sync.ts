@@ -1,5 +1,5 @@
 import { BaseCommand, captureEmittedErrors, formatConnectionError } from './base.js';
-import { SyncManager, WorkflowSyncStatus } from '../core/index.js';
+import { SyncManager, WorkflowSyncStatus, type IPushPublishReport } from '../core/index.js';
 import { WorkflowValidator } from '@n8n-as-code/skills';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -53,7 +53,7 @@ export class SyncCommand extends BaseCommand {
         }
     }
 
-    async pushOne(filename: string): Promise<string | undefined> {
+    async pushOne(filename: string, options?: { draft?: boolean }): Promise<string | undefined> {
         const syncConfig = await this.getSyncConfig();
         const syncManager = new SyncManager(this.client, syncConfig);
         const lastEmittedError = captureEmittedErrors(syncManager);
@@ -93,9 +93,21 @@ export class SyncCommand extends BaseCommand {
         }
 
         const spinner = ora(`Pushing workflow ${filename}...`).start();
+
+        // The engine emits this before the update lands, so the "this goes live"
+        // notice is printed while it is still news rather than after the fact.
+        let publishReport: IPushPublishReport | undefined;
+        syncManager.on('publishState', (report: IPushPublishReport) => {
+            publishReport = report;
+            if (report.outcome !== 'goes-live') return;
+            spinner.info(chalk.yellow(`⚠  "${filename}" is published — this push releases it to production.`));
+            spinner.start(`Pushing workflow ${filename}...`);
+        });
+
         try {
-            const finalWorkflowId = await syncManager.push(filename);
+            const finalWorkflowId = await syncManager.push(filename, { draft: options?.draft === true });
             spinner.succeed(chalk.green(`✔ Pushed workflow ${filename}.`));
+            this.reportPublishState(publishReport, finalWorkflowId);
             return finalWorkflowId;
         } catch (e: any) {
             if (e.message.includes('modified in the n8n UI')) {
@@ -116,6 +128,29 @@ export class SyncCommand extends BaseCommand {
             }
             spinner.fail(formatConnectionError('Push failed', lastEmittedError() ?? e));
             process.exit(1);
+        }
+    }
+
+    /**
+     * States what the push did to production, once it is done.
+     *
+     * `goes-live` is absent on purpose: it was already announced before the
+     * update, which is the only moment where saying it is useful.
+     */
+    private reportPublishState(report: IPushPublishReport | undefined, workflowId: string | undefined): void {
+        switch (report?.outcome) {
+            case 'restores':
+                console.log(chalk.dim(`📝 Draft updated — production still runs version ${report.versionId}.`));
+                console.log(chalk.dim(`   Release it by pushing again without --draft.`));
+                break;
+            case 'not-published':
+                console.log(chalk.dim(`📝 This workflow is not published, so nothing changed in production.`));
+                break;
+            case 'unknown':
+                console.log(chalk.yellow(`⚠  Could not read the published version before pushing.`));
+                console.log(chalk.yellow(`   If this workflow was published, production now runs the pushed content.`));
+                if (workflowId) console.log(chalk.dim(`   Check its version history in the n8n UI (workflow ${workflowId}).`));
+                break;
         }
     }
 

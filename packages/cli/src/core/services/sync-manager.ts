@@ -7,7 +7,7 @@ import { WorkflowStateTracker } from './workflow-state-tracker.js';
 import { SyncEngine } from './sync-engine.js';
 import { SyncEventJournal } from './sync-event-journal.js';
 import { ResolutionManager } from './resolution-manager.js';
-import { ISyncConfig, IWorkflow, WorkflowSyncStatus, IWorkflowStatus } from '../types.js';
+import { ISyncConfig, IWorkflow, WorkflowSyncStatus, IWorkflowStatus, IPushPublishReport } from '../types.js';
 import { createProjectSlug } from './directory-utils.js';
 import { WorkspaceSetupService } from './workspace-setup-service.js';
 import { normalizeWorkflowRelativePath, relativePathFromAbsolute, workflowRelativePathToAbsolute } from './workflow-path-utils.js';
@@ -72,6 +72,7 @@ export class SyncManager extends EventEmitter {
         this.syncEngine = new SyncEngine(this.client, this.watcher, instanceDir, this.config.projectId, this.syncEventJournal, {
             folderSync: this.config.folderSync ?? false,
             folderSyncMoveToRoot: this.config.folderSyncMoveToRoot ?? false,
+            onPublishState: (report) => this.emit('publishState', report),
         });
         this.resolutionManager = new ResolutionManager(this.syncEngine, this.watcher, this.client);
 
@@ -280,9 +281,14 @@ export class SyncManager extends EventEmitter {
      *  2. EXIST_ONLY_LOCALLY with an ID     → CREATE on remote (POST) — e.g. remote was deleted
      *  3. Known on both sides               → UPDATE on remote (PUT, with OCC check)
      *
+     * On n8n 2.x, pushing to a published workflow also releases the pushed
+     * content — see `SyncEngine.executeUpdate`. That is announced before the
+     * update lands, as a `publishState` event ({@link IPushPublishReport}).
+     *
      * @param filename - Filename inside the active sync scope
+     * @param options.draft - Restore the previously published version afterwards.
      */
-    public async push(filename: string): Promise<string> {
+    public async push(filename: string, options?: { draft?: boolean }): Promise<string> {
         await this.ensureInitialized();
 
         let targetFilename: string | undefined;
@@ -309,7 +315,7 @@ export class SyncManager extends EventEmitter {
 
             if (!effectiveId) {
                 // Case 1: brand-new workflow (no ID mapping yet) — let SyncEngine create it
-                return await this.syncEngine!.push(targetFilename, undefined, undefined);
+                return await this.syncEngine!.push(targetFilename, undefined, undefined, options);
             }
 
             // Case 2 & 3: workflow has an ID locally
@@ -320,11 +326,11 @@ export class SyncManager extends EventEmitter {
 
             if (!this.watcher!.isRemoteKnown(effectiveId)) {
                 // Truly doesn't exist on remote → create
-                return await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.EXIST_ONLY_LOCALLY);
+                return await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.EXIST_ONLY_LOCALLY, options);
             }
 
             // Known on both sides → update (with OCC check)
-            return await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.TRACKED);
+            return await this.syncEngine!.push(targetFilename, effectiveId, WorkflowSyncStatus.TRACKED, options);
         } catch (error: any) {
             this.recordWorkflowPushFailure(targetFilename || path.basename(filename), effectiveId, error);
             throw error;
