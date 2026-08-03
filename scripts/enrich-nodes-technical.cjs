@@ -388,7 +388,9 @@ async function enrichNodesIndex() {
     let enrichedCount = 0;
 
     for (const node of nodesIndex.nodes) {
-        const nodeKey = node.name;
+        // Nodes whose short name is taken by another package are keyed by full type
+        // (see generate-n8n-index.cjs), so both variants survive in the index.
+        const nodeKey = node.indexKey || node.name;
 
         // Find matching documentation
         let docData = null;
