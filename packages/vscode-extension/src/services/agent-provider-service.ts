@@ -8,6 +8,7 @@ import {
     DISABLED_PROVIDERS_STATE_KEY,
     getAtlasCloudModelCatalogUrl,
     mapAtlasCloudTextModels,
+    readAgentProviderEnvironmentSecret,
     readAgentProviderSettings,
     readFirstEnvironmentValue,
     updateAgentProviderSettings,
@@ -469,12 +470,7 @@ export class AgentProviderService {
     }
 
     private readEnvironmentCredential(provider: AgentModelProvider): string | undefined {
-        if (this.getDisabledProviders().has(provider)) return undefined;
-        for (const key of AGENT_PROVIDER_DEFINITIONS[provider].envKeys) {
-            const value = process.env[key]?.trim();
-            if (value) return value;
-        }
-        return undefined;
+        return readAgentProviderEnvironmentSecret(this.context.globalState, provider);
     }
 
     private readEnvironmentBaseUrl(provider: AgentModelProvider): string | undefined {

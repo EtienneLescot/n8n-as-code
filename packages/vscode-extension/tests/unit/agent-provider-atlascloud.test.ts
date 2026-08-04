@@ -3,13 +3,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { getReasoningCapability } from '../../src/services/agent-provider-capabilities.js';
+import { buildLangChainReasoningOptions, getReasoningCapability } from '../../src/services/agent-provider-capabilities.js';
 import {
     AGENT_PROVIDER_BASE_URL_ENV_KEYS,
     AGENT_PROVIDER_ENV_KEYS,
     ATLAS_CLOUD_DEFAULT_BASE_URL,
+    DISABLED_PROVIDERS_STATE_KEY,
     getAtlasCloudModelCatalogUrl,
     mapAtlasCloudTextModels,
+    readAgentProviderEnvironmentSecret,
     readAgentProviderSettings,
     readFirstEnvironmentValue,
     updateAgentProviderSettings,
@@ -68,12 +70,40 @@ test('agent provider source registers Atlas Cloud on OpenAI-compatible runtime p
 
     assert.ok(runtimeController.includes("atlascloud: 'Atlas Cloud'"), 'Runtime registry must expose the Atlas display name');
     assert.ok(runtimeController.includes("provider === 'atlascloud'"), 'Runtime factory must special-case the Atlas default endpoint');
-    assert.ok(runtimeController.includes('this.getDisabledProviders().has(normalizedProvider)'), 'Runtime env fallback must honor disabled providers');
-    assert.ok(runtimeController.includes('AGENT_PROVIDER_ENV_KEYS[normalizedProvider]'), 'Runtime env fallback must use shared provider env keys');
+    assert.ok(runtimeController.includes('readAgentProviderEnvironmentSecret(this._context.globalState, provider)'), 'Runtime env fallback must use the shared credential helper');
 });
 
-test('Atlas Cloud provider does not opt into provider-specific reasoning knobs', () => {
-    assert.equal(getReasoningCapability('atlascloud', 'deepseek-ai/deepseek-v4-pro').supported, false);
+test('Atlas Cloud DeepSeek V4 Pro uses OpenAI-compatible reasoning options', () => {
+    assert.deepEqual(getReasoningCapability('atlascloud', 'deepseek-ai/deepseek-v4-pro'), {
+        supported: true,
+        efforts: ['none', 'low', 'medium', 'high'],
+        defaultEffort: 'medium',
+        strategy: 'openrouter-reasoning',
+    });
+    assert.deepEqual(buildLangChainReasoningOptions('atlascloud', 'deepseek-ai/deepseek-v4-pro', 'low'), {
+        modelKwargs: {
+            reasoning: { effort: 'low' },
+            include_reasoning: true,
+        },
+    });
+});
+
+test('disabled providers do not read environment credentials', () => {
+    const previousApiKey = process.env.ATLASCLOUD_API_KEY;
+    process.env.ATLASCLOUD_API_KEY = 'test-atlas-key';
+
+    try {
+        const enabledState = new MemoryMemento();
+        assert.equal(readAgentProviderEnvironmentSecret(enabledState as any, 'atlascloud'), 'test-atlas-key');
+
+        const disabledState = new MemoryMemento({
+            [DISABLED_PROVIDERS_STATE_KEY]: ['atlas-cloud'],
+        });
+        assert.equal(readAgentProviderEnvironmentSecret(disabledState as any, 'atlascloud'), undefined);
+    } finally {
+        if (previousApiKey === undefined) delete process.env.ATLASCLOUD_API_KEY;
+        else process.env.ATLASCLOUD_API_KEY = previousApiKey;
+    }
 });
 
 test('Atlas Cloud catalog helper derives resolved catalog endpoint', () => {

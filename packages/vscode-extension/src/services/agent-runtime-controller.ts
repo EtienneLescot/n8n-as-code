@@ -6,13 +6,11 @@ import { WorkspaceSnapshotService } from './workspace-snapshot-service.js';
 import { createLocalProviderLangChainModel } from './agent-provider-runtime/create-langchain-model.js';
 import {
     AGENT_PROVIDER_BASE_URL_ENV_KEYS,
-    AGENT_PROVIDER_ENV_KEYS,
     ATLAS_CLOUD_DEFAULT_BASE_URL,
-    DISABLED_PROVIDERS_STATE_KEY,
     normalizeAgentProviderId as normalizeManagedAgentProviderId,
+    readAgentProviderEnvironmentSecret,
     readAgentProviderSettings,
     readFirstEnvironmentValue,
-    type AgentProviderId,
 } from './agent-provider-settings.js';
 import { buildLangChainReasoningOptions, getReasoningCapability, getReasoningOptions, normalizeReasoningEffortForCapability, shouldDisableModelStreamingForToolCalling, type AgentReasoningEffort as AgentProviderReasoningEffort } from './agent-provider-capabilities.js';
 import type { WorktreeInfo } from './worktree-service.js';
@@ -3436,9 +3434,7 @@ export class AgentRuntimeController implements vscode.Disposable {
     }
 
     private readProviderEnvironmentSecret(provider: string): string | undefined {
-        const normalizedProvider = normalizeManagedAgentProviderId(provider);
-        if (!normalizedProvider || this.getDisabledProviders().has(normalizedProvider)) return undefined;
-        return readFirstEnvironmentValue(AGENT_PROVIDER_ENV_KEYS[normalizedProvider] ?? []);
+        return readAgentProviderEnvironmentSecret(this._context.globalState, provider);
     }
 
     private resolveProviderRuntimeBaseUrl(provider: string, configuredBaseUrl?: string): string | undefined {
@@ -3450,11 +3446,6 @@ export class AgentRuntimeController implements vscode.Disposable {
             : undefined;
         if (environmentBaseUrl) return environmentBaseUrl;
         return normalizedProvider === 'atlascloud' ? ATLAS_CLOUD_DEFAULT_BASE_URL : undefined;
-    }
-
-    private getDisabledProviders(): Set<AgentProviderId> {
-        const disabled = this._context.globalState.get<string[]>(DISABLED_PROVIDERS_STATE_KEY, []);
-        return new Set(disabled.map((provider) => normalizeManagedAgentProviderId(provider)).filter((provider): provider is AgentProviderId => Boolean(provider)));
     }
 
     private async buildScaffoldResponse(input: AgentPromptInput, runtimeError?: string): Promise<string> {

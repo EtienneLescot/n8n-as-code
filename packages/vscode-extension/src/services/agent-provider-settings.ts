@@ -140,6 +140,19 @@ export function readFirstEnvironmentValue(keys: readonly string[]): string | und
     return undefined;
 }
 
+export function readAgentProviderEnvironmentSecret(state: vscode.Memento, provider: string): string | undefined {
+    const normalizedProvider = normalizeAgentProviderId(provider);
+    if (!normalizedProvider) return undefined;
+    const disabledProviders = state.get<string[]>(DISABLED_PROVIDERS_STATE_KEY, [])
+        .map((disabledProvider) => normalizeAgentProviderId(disabledProvider));
+    if (disabledProviders.includes(normalizedProvider)) return undefined;
+    for (const key of AGENT_PROVIDER_ENV_KEYS[normalizedProvider]) {
+        const value = process.env[key]?.trim();
+        if (value) return value;
+    }
+    return undefined;
+}
+
 export function getAtlasCloudModelCatalogUrl(baseUrl?: string): string {
     try {
         const parsed = new URL(baseUrl || ATLAS_CLOUD_DEFAULT_BASE_URL);
