@@ -50,6 +50,9 @@ export function getReasoningCapability(provider: string, model?: string): Reason
     if (normalizedProvider === 'openrouter' && isOpenRouterReasoningModel(model)) {
         return { supported: true, efforts: OPENROUTER_REASONING_EFFORTS, defaultEffort: 'medium', strategy: 'openrouter-reasoning' };
     }
+    if (normalizedProvider === 'atlascloud' && isAtlasCloudReasoningModel(model)) {
+        return { supported: true, efforts: OPENROUTER_REASONING_EFFORTS, defaultEffort: 'medium', strategy: 'openrouter-reasoning' };
+    }
     if (normalizedProvider === 'google' && isGeminiThinkingModel(model)) {
         return { supported: true, efforts: GOOGLE_REASONING_EFFORTS, defaultEffort: 'medium', strategy: 'google-thinking' };
     }
@@ -140,6 +143,10 @@ function buildAnthropicReasoningOptions(model: string | undefined, effort: Agent
 function isOpenAIReasoningModel(model?: string): boolean {
     const normalized = normalizeModelName(model);
     return /^(o\d|o\d-|o\d\.|gpt-5|gpt-5-|gpt-5\.)/.test(normalized);
+}
+
+function isAtlasCloudReasoningModel(model?: string): boolean {
+    return normalizeModelName(model) === 'deepseek-ai/deepseek-v4-pro';
 }
 
 function isAnthropicReasoningModel(model?: string): boolean {
