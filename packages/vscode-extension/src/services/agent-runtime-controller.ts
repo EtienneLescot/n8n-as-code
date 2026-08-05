@@ -4266,9 +4266,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             ? providerConfig.baseUrl || 'https://openrouter.ai/api/v1'
             : provider === 'google'
                 ? providerConfig.baseUrl || 'https://generativelanguage.googleapis.com/v1beta/openai'
-                : provider === 'atlascloud'
-                    ? providerConfig.baseUrl || ATLAS_CLOUD_DEFAULT_BASE_URL
-                    : providerConfig.baseUrl;
+                : providerConfig.baseUrl;
         const modelKwargs = reasoningOptions.modelKwargs;
         return new ChatOpenAI({
             ...(providerConfig.apiKey ? { apiKey: providerConfig.apiKey } : {}),
