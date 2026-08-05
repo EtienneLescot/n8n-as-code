@@ -69,7 +69,7 @@ test('agent provider source registers Atlas Cloud on OpenAI-compatible runtime p
     assert.ok(providerService.includes("normalized === 'atlas' || normalized === 'atlas-cloud'"), 'Provider service must normalize Atlas aliases');
 
     assert.ok(runtimeController.includes("atlascloud: 'Atlas Cloud'"), 'Runtime registry must expose the Atlas display name');
-    assert.ok(runtimeController.includes("provider === 'atlascloud'"), 'Runtime factory must special-case the Atlas default endpoint');
+    assert.ok(runtimeController.includes("normalizedProvider === 'atlascloud' ? ATLAS_CLOUD_DEFAULT_BASE_URL : undefined"), 'Runtime base URL resolver must apply the Atlas default endpoint');
     assert.ok(runtimeController.includes('readAgentProviderEnvironmentSecret(this._context.globalState, provider)'), 'Runtime env fallback must use the shared credential helper');
 });
 
