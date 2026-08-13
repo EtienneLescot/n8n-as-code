@@ -402,7 +402,7 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@types/http-proxy": "^1.17.17",
-    "@types/node": "^18.0.0",
+    "@types/node": "^26.2.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@types/vscode": "^1.85.0",
