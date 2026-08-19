@@ -245,6 +245,36 @@ table td {
   }
 }
 
+@media (max-width: 600px) {
+  /* Tables keep Infima's own horizontal scrolling; just tighten the
+     cells so more of the content is visible before scrolling. */
+  table th,
+  table td {
+    padding: 0.6rem 0.7rem;
+  }
+}
+
+/* Long identifiers, URLs and code spans must wrap rather than widen
+   the page on narrow screens. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  overflow-wrap: break-word;
+}
+
+.markdown a,
+.markdown code {
+  overflow-wrap: break-word;
+}
+
+/* Keep iOS from inflating text in landscape. */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 /* Print styles */
 @media print {
   .navbar,

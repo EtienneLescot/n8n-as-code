@@ -121,6 +121,7 @@
 
 .features :global(h3) {
   margin-bottom: 0.75rem;
+  overflow-wrap: break-word;
   color: #131313;
   font-family: 'Space Grotesk', 'IBM Plex Sans', 'Avenir Next', sans-serif;
 }
@@ -169,11 +170,60 @@
 }
 
 @media screen and (max-width: 996px) {
+  /* Horizontal insets come from .container, so they are not doubled here. */
   .features {
-    padding: 3rem 1rem;
+    padding: 3.5rem 0;
   }
 
   .header h2 {
     font-size: 2.2rem;
+  }
+}
+
+@media screen and (max-width: 600px) {
+  .features {
+    padding: 2.75rem 0;
+  }
+
+  .header {
+    margin-bottom: 1.5rem;
+  }
+
+  .header h2 {
+    font-size: clamp(1.75rem, 7.4vw, 2.2rem);
+    line-height: 1.1;
+  }
+
+  .eyebrow {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+  }
+
+  .featureCard {
+    padding: 1.1rem;
+    border-radius: 1.25rem;
+  }
+
+  .featureMedia {
+    min-height: 9.5rem;
+  }
+
+  .featureMedia::before {
+    width: 9rem;
+    height: 6rem;
+  }
+
+  .featureImage {
+    width: min(100%, 190px);
+  }
+
+  .features :global(.row) {
+    row-gap: 1rem;
+  }
+
+  .features :global(p) {
+    font-size: 0.95rem;
+    line-height: 1.6;
   }
 }

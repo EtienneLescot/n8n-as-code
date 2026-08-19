@@ -62,6 +62,7 @@
 .heroCopy {
   position: relative;
   z-index: 1;
+  min-width: 0;
   max-width: 42rem;
 }
 
@@ -98,13 +99,14 @@
 .sectionTitle,
 .ctaTitle {
   margin: 1.25rem 0 1rem;
+  overflow-wrap: break-word;
   font-family: 'Space Grotesk', 'IBM Plex Sans', 'Avenir Next', sans-serif;
   letter-spacing: -0.04em;
 }
 
 .heroTitle {
   max-width: 10ch;
-  font-size: clamp(3rem, 7vw, 5.5rem);
+  font-size: clamp(2.25rem, 7vw, 5.5rem);
   line-height: 0.92;
 }
 
@@ -189,6 +191,7 @@
 .heroPanel {
   position: relative;
   z-index: 1;
+  min-width: 0;
 }
 
 .heroPanel::before,
@@ -220,6 +223,8 @@
 
 .panelWindow {
   position: relative;
+  min-width: 0;
+  max-width: 100%;
   padding: 1.1rem;
   border-radius: 1.75rem;
   background: rgba(18, 18, 18, 0.92);
@@ -274,6 +279,7 @@
 
 .commandBlock {
   margin: 0.9rem 0 1rem;
+  max-width: 100%;
   padding: 1rem 1.1rem;
   border-radius: 1.1rem;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
@@ -379,7 +385,7 @@
 }
 
 .statsGrid {
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
 }
 
 .statCard,
@@ -660,13 +666,18 @@
   }
 }
 
+/* Tablet / stacked layout. Horizontal insets are left to .container so
+   the section padding does not double up on narrow screens. */
 @media screen and (max-width: 996px) {
-  .heroBanner,
+  .heroBanner {
+    padding: 3.5rem 0 3rem;
+  }
+
   .proofSection,
   .entrySection,
   .workflowSection,
   .ctaSection {
-    padding: 3rem 1rem;
+    padding: 3.5rem 0;
   }
 
   .heroGrid,
@@ -681,13 +692,12 @@
     max-width: none;
   }
 
-  .panelCardGrid {
-    grid-template-columns: 1fr;
+  .heroCopy {
+    max-width: none;
   }
 
-  .buttons {
-    flex-direction: column;
-    align-items: stretch;
+  .panelCardGrid {
+    grid-template-columns: 1fr;
   }
 
   .heroCopy::after,
@@ -695,6 +705,10 @@
   .heroPanel::before,
   .heroPanel::after {
     display: none;
+  }
+
+  .workflowStack {
+    padding-left: 0;
   }
 
   .workflowCard {
@@ -705,5 +719,225 @@
   .workflowCard span {
     width: 2.75rem;
     height: 2.75rem;
+  }
+}
+
+/* Phone portrait. */
+@media screen and (max-width: 600px) {
+  .heroBanner {
+    padding: 2.25rem 0 2.5rem;
+  }
+
+  .proofSection,
+  .entrySection,
+  .workflowSection,
+  .ctaSection {
+    padding: 2.75rem 0;
+  }
+
+  .heroGrid {
+    gap: 2.25rem;
+  }
+
+  .eyebrow,
+  .sectionEyebrow {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+  }
+
+  .heroTitle,
+  .sectionTitle,
+  .ctaTitle {
+    margin: 1rem 0 0.85rem;
+  }
+
+  .heroTitle {
+    font-size: clamp(2rem, 8.8vw, 2.7rem);
+    line-height: 1.04;
+  }
+
+  .sectionTitle,
+  .ctaTitle {
+    font-size: clamp(1.75rem, 7.4vw, 2.3rem);
+    line-height: 1.1;
+  }
+
+  .heroSubtitle,
+  .sectionLead,
+  .ctaLead {
+    font-size: 1rem;
+    line-height: 1.65;
+  }
+
+  .proofHeader,
+  .entryHeader {
+    margin-bottom: 1.5rem;
+  }
+
+  /* The accent span is inline-block, so keep it from being orphaned
+     tight against the preceding word on a wrapped line. */
+  .heroAccent {
+    display: inline;
+  }
+
+  .heroPills {
+    gap: 0.5rem;
+    margin: 1.25rem 0 1.5rem;
+  }
+
+  .heroPill {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.92rem;
+  }
+
+  /* Full-width CTAs are only appropriate at phone widths. */
+  .buttons {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .buttons > a {
+    width: 100%;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    font-size: 1rem;
+    text-align: center;
+    white-space: normal;
+  }
+
+  /* Sit the panel flush on small screens: the tilt and float only cost
+     clipped corners once the panel spans the full width. */
+  .panelWindow {
+    padding: 0.9rem;
+    border-radius: 1.25rem;
+    transform: none;
+    animation: none;
+  }
+
+  .panelLabel {
+    margin-top: 0.75rem;
+    font-size: 0.74rem;
+  }
+
+  .commandBlock {
+    margin: 0.75rem 0 0.85rem;
+    padding: 0.8rem 0.85rem;
+    border-radius: 0.9rem;
+  }
+
+  /* Wrap the commands instead of forcing a horizontal scroll inside
+     the hero. */
+  .commandBlock code {
+    font-size: 0.8rem;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .panelCard {
+    padding: 0.85rem;
+  }
+
+  .panelCard p {
+    font-size: 0.88rem;
+  }
+
+  .statCard {
+    padding: 1.1rem;
+    border-radius: 1.25rem;
+  }
+
+  .statTop {
+    gap: 0.65rem;
+  }
+
+  .statIcon {
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 0.85rem;
+    font-size: 1.1rem;
+  }
+
+  .statCard strong {
+    font-size: 1.15rem;
+  }
+
+  .statLabel {
+    margin-top: 0.75rem;
+    font-size: 0.98rem;
+  }
+
+  .statDetail {
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  /* Give the counter its own line rather than a 4.4rem gutter that
+     eats a third of the card on a phone. */
+  .entryCard {
+    padding: 3.85rem 1.15rem 1.35rem;
+    border-radius: 1.25rem;
+  }
+
+  .entryCard::before {
+    left: 1.15rem;
+    top: 1.2rem;
+  }
+
+  .entryCard::after {
+    display: none;
+  }
+
+  .workflowCard {
+    gap: 0.75rem;
+    padding: 1.1rem;
+    border-radius: 1.25rem;
+  }
+
+  .ctaCard {
+    padding: 1.5rem 1.25rem;
+    border-radius: 1.25rem;
+  }
+
+  .ctaLead {
+    margin-bottom: 1.25rem;
+  }
+}
+
+/* Small phones (<=360px logical width). */
+@media screen and (max-width: 380px) {
+  .heroTitle {
+    font-size: 1.9rem;
+  }
+
+  .sectionTitle,
+  .ctaTitle {
+    font-size: 1.65rem;
+  }
+
+  .heroPill {
+    padding: 0.45rem 0.65rem;
+    font-size: 0.86rem;
+  }
+
+  .commandBlock code {
+    font-size: 0.74rem;
+  }
+
+  .statCard,
+  .workflowCard {
+    padding: 1rem;
+  }
+
+  .entryCard {
+    padding: 3.6rem 1rem 1.2rem;
+  }
+
+  .statIcon {
+    width: 2.2rem;
+    height: 2.2rem;
+    font-size: 1rem;
   }
 }

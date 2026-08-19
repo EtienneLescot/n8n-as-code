@@ -96,8 +96,8 @@ function HomepageHeader() {
           <div className={styles.heroCopy}>
             <div className={styles.eyebrow}>GitOps · AI Skills · TypeScript Workflows</div>
             <Heading as="h1" className={styles.heroTitle}>
-              The AI Skill that gives your coding agent
-              <span className={styles.heroAccent}> n8n superpowers.</span>
+              The AI Skill that gives your coding agent{' '}
+              <span className={styles.heroAccent}>n8n superpowers.</span>
             </Heading>
             <p className={styles.heroSubtitle}>
               Give your coding agent the full n8n ontology: nodes, schemas, docs, templates, validation,
