@@ -5,14 +5,20 @@
 
 /* You can override the default Infima variables here. */
 :root {
-  /* n8n Brand Colors - Primary palette */
-  --ifm-color-primary: #ff6b35; /* n8n orange */
-  --ifm-color-primary-dark: #e65a2a;
-  --ifm-color-primary-darker: #d95226;
-  --ifm-color-primary-darkest: #b3431f;
-  --ifm-color-primary-light: #ff7c4d;
-  --ifm-color-primary-lighter: #ff8559;
-  --ifm-color-primary-lightest: #ffa07d;
+  /* Brand palette: the rose the logo and the landing page already use.
+     #d92f68 is the deepest rose that still clears 4.5:1 on white, so links
+     and body-sized primary text stay readable. */
+  --ifm-color-primary: #d92f68;
+  --ifm-color-primary-dark: #c32a5e;
+  --ifm-color-primary-darker: #b82858;
+  --ifm-color-primary-darkest: #982149;
+  --ifm-color-primary-light: #dd4477;
+  --ifm-color-primary-lighter: #df4e7f;
+  --ifm-color-primary-lightest: #e46d95;
+
+  /* Channel triplet for the tinted surfaces below, so a future palette
+     change does not leave a second copy of the brand colour behind. */
+  --n8nac-primary-rgb: 255, 59, 122;
   
   /* Secondary colors */
   --ifm-color-secondary: #6c757d;
@@ -54,10 +60,10 @@
   
   /* Links */
   --ifm-link-color: var(--ifm-color-primary);
-  --ifm-link-hover-color: var(--ifm-color-primary-dark);
+  --ifm-link-hover-color: #ab1f4d;
   
   /* Highlighted code lines */
-  --docusaurus-highlighted-code-line-bg: rgba(255, 107, 53, 0.1);
+  --docusaurus-highlighted-code-line-bg: rgba(var(--n8nac-primary-rgb), 0.1);
   
   /* Spacing */
   --ifm-spacing-horizontal: 1.5rem;
@@ -71,13 +77,15 @@
 
 /* Dark mode overrides */
 [data-theme='dark'] {
-  --ifm-color-primary: #ff6b35; /* Keep n8n orange */
-  --ifm-color-primary-dark: #ff7c4d;
-  --ifm-color-primary-darker: #ff8559;
-  --ifm-color-primary-darkest: #ffa07d;
-  --ifm-color-primary-light: #e65a2a;
-  --ifm-color-primary-lighter: #d95226;
-  --ifm-color-primary-lightest: #b3431f;
+  /* Brighter rose on dark, and the ladder inverted so hover states lift
+     off the background instead of sinking into it. */
+  --ifm-color-primary: #ff3b7a;
+  --ifm-color-primary-dark: #ff4f87;
+  --ifm-color-primary-darker: #ff588e;
+  --ifm-color-primary-darkest: #ff76a2;
+  --ifm-color-primary-light: #e6356e;
+  --ifm-color-primary-lighter: #d93268;
+  --ifm-color-primary-lightest: #b32955;
   
   --ifm-background-color: #1a1a1a;
   --ifm-background-surface-color: #2d2d2d;
@@ -92,7 +100,7 @@
   --ifm-navbar-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   --ifm-footer-background-color: #0a0c10;
   
-  --docusaurus-highlighted-code-line-bg: rgba(255, 107, 53, 0.2);
+  --docusaurus-highlighted-code-line-bg: rgba(var(--n8nac-primary-rgb), 0.2);
 }
 
 /* Custom utility classes */
@@ -138,7 +146,7 @@
 .button--primary:hover {
   background: linear-gradient(135deg, var(--ifm-color-primary-dark) 0%, var(--ifm-color-primary) 100%);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+  box-shadow: 0 4px 12px rgba(var(--n8nac-primary-rgb), 0.3);
 }
 
 /* Code block enhancements */
@@ -205,11 +213,11 @@ table td {
 }
 
 .menu__link:hover {
-  background: rgba(255, 107, 53, 0.1);
+  background: rgba(var(--n8nac-primary-rgb), 0.1);
 }
 
 .menu__link--active {
-  background: rgba(255, 107, 53, 0.15);
+  background: rgba(var(--n8nac-primary-rgb), 0.15);
   color: var(--ifm-color-primary);
   font-weight: 600;
 }
@@ -301,7 +309,7 @@ body {
 
 /* Custom scrollbar */
 html {
-  scrollbar-color: #1f7ae6 var(--ifm-background-surface-color);
+  scrollbar-color: var(--ifm-color-primary) var(--ifm-background-surface-color);
 }
 
 ::-webkit-scrollbar {
@@ -314,12 +322,12 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1f7ae6;
+  background: var(--ifm-color-primary);
   border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #1761b8;
+  background: var(--ifm-color-primary-dark);
 }
 
 /* Animation for page transitions */

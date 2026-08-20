@@ -88,9 +88,9 @@ graph TD
     W -. no dependency .- M
     M --> E[n8n API]
     
-    style A fill:#ff6b35
-    style C fill:#ff6b35
-    style D fill:#ff6b35
+    style A fill:#ff3b7a
+    style C fill:#ff3b7a
+    style D fill:#ff3b7a
     style W fill:#2c3e50
     style M fill:#2c3e50
 ```

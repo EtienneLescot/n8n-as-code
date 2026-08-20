@@ -56,7 +56,7 @@ graph TD
     D --> J[AI Services]
     H --> K[@n8n-as-code/transformer]
     
-    style A fill:#ff6b35
+    style A fill:#ff3b7a
     style B fill:#3498db
     style C fill:#2ecc71
     style D fill:#9b59b6
