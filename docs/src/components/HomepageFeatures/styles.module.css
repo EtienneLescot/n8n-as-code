@@ -1,229 +1,488 @@
+/**
+ * Feature grid.
+ *
+ * Each card carries a functional illustration drawn in markup — a terminal,
+ * a schema lookup, a snippet, a canvas, a three-way diff, a file tree —
+ * rather than a rendered image, so the artifact stays sharp, searchable,
+ * and cheap to ship.
+ */
+
 .features {
-  position: relative;
-  padding: 5rem 0;
-  width: 100%;
-  background: linear-gradient(180deg, #fff8fb 0%, #f8f3ff 52%, #f3f8ff 100%);
+  border-bottom: 1px solid rgba(18, 19, 26, 0.09);
+  background: #fbf9f8;
+  color: #12131a;
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
-.features::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 12% 18%, rgba(255, 59, 122, 0.12), transparent 20%),
-    radial-gradient(circle at 88% 34%, rgba(31, 122, 230, 0.1), transparent 18%);
-  pointer-events: none;
+.shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 76px 24px;
 }
 
-.header {
-  max-width: 52rem;
-  margin-bottom: 2rem;
-}
-
-.header h2 {
-  margin: 1rem 0 0;
-  color: #131313;
-  font-family: 'Space Grotesk', 'IBM Plex Sans', 'Avenir Next', sans-serif;
-  font-size: clamp(2.2rem, 4vw, 3.4rem);
-  line-height: 1;
-  letter-spacing: -0.04em;
-}
-
-.eyebrow {
-  display: inline-flex;
-  padding: 0.45rem 0.8rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(230, 61, 122, 0.16);
-  color: #7a3355;
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+.kicker {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+  color: #8a3a5c;
 }
 
-.featureSvg {
-  height: 200px;
-  width: 200px;
+.title {
+  margin: 16px 0 8px;
+  max-width: 24ch;
+  font-family: 'Space Grotesk', 'IBM Plex Sans', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(30px, 3.4vw, 44px);
+  line-height: 1.04;
+  letter-spacing: -0.04em;
+  color: #12131a;
+  text-wrap: pretty;
 }
 
-.features :global(.row) {
-  row-gap: 1.5rem;
+.lead {
+  margin: 0 0 40px;
+  max-width: 52ch;
+  font-size: 16.5px;
+  line-height: 1.7;
+  color: #4d5666;
 }
 
-.features :global(.col) {
-  display: flex;
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr));
 }
 
-.featureCard {
-  position: relative;
+.card {
   display: flex;
   flex-direction: column;
-  width: 100%;
-  padding: 1.35rem;
-  border: 1px solid rgba(28, 36, 48, 0.1);
-  border-radius: 1.5rem;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 14px 32px rgba(19, 19, 19, 0.05);
   overflow: hidden;
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  border: 1px solid rgba(18, 19, 26, 0.1);
+  border-radius: 16px;
+  background: #fff;
+
+  /* The illustrations are fixed-width artifacts and the grid is auto-fit,
+     so they have to answer to the column they land in, not the viewport. */
+  container-type: inline-size;
 }
 
-.featureCard::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 0.28rem;
-  background: linear-gradient(90deg, #ff3b7a, #cf2c63);
+.media {
+  padding: 16px;
+  border-bottom: 1px solid rgba(18, 19, 26, 0.08);
+  background: #f4f2f0;
 }
 
-.featureCard::after {
-  content: '';
-  position: absolute;
-  right: -2.4rem;
-  top: -2.4rem;
-  width: 8rem;
-  height: 8rem;
+.body {
+  padding: 22px;
+}
+
+.body h3 {
+  margin: 0 0 8px;
+  font-family: 'Space Grotesk', 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #12131a;
+}
+
+.body p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: #4d5666;
+}
+
+/* ------------------------------------------------------- shot chrome --- */
+
+.shotDark {
+  overflow: hidden;
+  border-radius: 11px;
+  background: #0e1015;
+  box-shadow: 0 12px 24px -14px rgba(18, 19, 26, 0.55);
+}
+
+.shotLight {
+  overflow: hidden;
+  border: 1px solid rgba(18, 19, 26, 0.1);
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 12px 24px -18px rgba(18, 19, 26, 0.4);
+}
+
+.barDark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.barLight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(18, 19, 26, 0.08);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 12px;
+  color: #2a3340;
+}
+
+/* Uppercase metadata variant of the light bar. */
+.barMeta {
+  composes: barLight;
+  justify-content: space-between;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #7b8494;
+}
+
+.barDot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.72), transparent 66%);
-  pointer-events: none;
 }
 
-.featureCard:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 22px 44px rgba(56, 51, 91, 0.12);
+.codeDark {
+  display: grid;
+  padding: 13px 12px 15px;
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.95;
+  color: #dcdfe6;
+  overflow-wrap: anywhere;
 }
 
-.featureMedia {
+/* ------------------------------------------------------------- inks --- */
+
+.pink {
+  color: #ff9ec0;
+}
+
+.rose {
+  color: #ff7ba6;
+}
+
+.blue {
+  color: #6bb6ff;
+}
+
+.green {
+  color: #4ec9a0;
+}
+
+.amber {
+  color: #e6c07b;
+}
+
+.dim {
+  color: #7f8798;
+}
+
+.string {
+  color: #e6c07b;
+}
+
+.indent1 {
+  padding-left: 14px;
+}
+
+.indent2 {
+  padding-left: 28px;
+}
+
+.indent3 {
+  padding-left: 42px;
+}
+
+/* ---------------------------------------------------- 1 · status list --- */
+
+.statusRow {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.statusRow span:nth-child(2) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Below roughly a 360px card the filename and its state stop sharing a line
+   at a readable size. Drop the state under the name instead of letting the
+   filename break mid-token. */
+@container (max-width: 364px) {
+  .statusRow {
+    grid-template-columns: 12px minmax(0, 1fr);
+  }
+
+  .statusRow span:last-child {
+    grid-column: 2;
+  }
+}
+
+/* ------------------------------------------------- 2 · schema lookup --- */
+
+.schemaBody {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px 12px;
+}
+
+.schemaRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: #f6f4f2;
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 12px;
+  color: #2a3340;
+  overflow-wrap: anywhere;
+}
+
+.schemaType {
+  flex: 0 0 auto;
+  color: #1f7ae6;
+}
+
+.schemaNote {
+  padding: 4px 9px 0;
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 11.5px;
+  color: #7b8494;
+}
+
+/* ------------------------------------------------------- 4 · canvas --- */
+
+.canvas {
+  padding: 18px 14px;
+  background-image: radial-gradient(rgba(18, 19, 26, 0.13) 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+
+.canvasFlow {
+  display: flex;
+  align-items: flex-start;
+}
+
+.node {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid rgba(18, 19, 26, 0.16);
+  border-radius: 8px;
+  background: #fff;
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 11px;
+  color: #12131a;
+  white-space: nowrap;
+}
+
+.nodeRoot {
+  composes: node;
+  flex: 0 0 auto;
+  box-shadow: 0 2px 6px rgba(18, 19, 26, 0.07);
+}
+
+.nodeGate {
+  composes: node;
+  box-shadow: 0 2px 6px rgba(18, 19, 26, 0.07);
+}
+
+.nodeDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.wire {
+  flex: 1 1 12px;
+  min-width: 12px;
+  height: 2px;
+  margin-top: 15px;
+  background: rgba(18, 19, 26, 0.22);
+}
+
+.branchColumn {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* The trunk stops short of the last branch so the elbow reads as a join. */
+.branches {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+  padding-left: 32px;
+}
+
+.branches::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  top: 0;
+  bottom: 22%;
+  width: 2px;
+  background: rgba(18, 19, 26, 0.22);
+}
+
+.branch {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: 12rem;
-  margin-bottom: 0.25rem;
+  gap: 7px;
 }
 
-.featureMedia::before {
+.branch::before {
   content: '';
   position: absolute;
-  width: 12rem;
-  height: 8rem;
+  left: -18px;
+  width: 18px;
+  height: 2px;
+  background: rgba(18, 19, 26, 0.22);
+}
+
+.branchLabel {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 10px;
+  color: #7b8494;
+}
+
+.canvasBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 5px 10px;
+  border: 1px solid rgba(18, 19, 26, 0.12);
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(31, 122, 230, 0.14), rgba(101, 184, 255, 0.12));
-  filter: blur(4px);
+  background: #fff;
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 11px;
+  color: #2a3340;
 }
 
-.featureBody {
-  text-align: left;
-  position: relative;
-  z-index: 1;
+/* -------------------------------------------------- 5 · three-way diff --- */
+
+.conflictCount {
+  color: #d92f68;
 }
 
-.features :global(h3) {
-  margin-bottom: 0.75rem;
-  overflow-wrap: break-word;
-  color: #131313;
-  font-family: 'Space Grotesk', 'IBM Plex Sans', 'Avenir Next', sans-serif;
+.diff {
+  display: grid;
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 11.5px;
 }
 
-.features :global(p) {
-  margin-bottom: 0;
-  color: #4a5668;
-  line-height: 1.7;
+/* 1px gaps over the darker backdrop draw the cell rules. */
+.diffRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: rgba(18, 19, 26, 0.08);
 }
 
-.featureImage {
-  position: relative;
-  z-index: 1;
-  height: auto;
-  width: min(100%, 240px);
-  object-fit: contain;
-  filter: drop-shadow(0 10px 20px rgba(69, 53, 43, 0.12));
+.diffCell {
+  padding: 7px 9px;
+  background: #fff;
+  color: #2a3340;
+  overflow-wrap: anywhere;
 }
 
-.features :global(.col:nth-child(3n + 1)) .featureCard {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 243, 248, 0.98));
+.diffHead {
+  composes: diffCell;
+  background: #faf8f7;
+  color: #7b8494;
 }
 
-.features :global(.col:nth-child(3n + 2)) .featureCard {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(242, 248, 255, 0.98));
+.diffBase {
+  composes: diffCell;
+  color: #7b8494;
 }
 
-.features :global(.col:nth-child(3n)) .featureCard {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 244, 255, 0.98));
+.diffLocal {
+  composes: diffCell;
+  background: rgba(255, 59, 122, 0.1);
+  color: #a01f4d;
 }
 
-.features :global(.col:nth-child(3n + 2)) .featureCard::before {
-  background: linear-gradient(90deg, rgba(31, 122, 230, 0.88), rgba(101, 184, 255, 0.78));
+.diffRemote {
+  composes: diffCell;
+  background: rgba(31, 122, 230, 0.09);
+  color: #155ca8;
 }
 
-.features :global(.col:nth-child(3n)) .featureCard::before {
-  background: linear-gradient(90deg, #ff3b7a, #cf2c63);
+.diffActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 11px 9px;
+  border-top: 1px solid rgba(18, 19, 26, 0.08);
 }
 
-.features :global(.col:nth-child(2n)) .featureImage {
-  transform: rotate(1.25deg);
+.chipSolid {
+  padding: 5px 10px;
+  border-radius: 7px;
+  background: #12131a;
+  color: #fff;
+  font-size: 11px;
 }
 
-.features :global(.col:nth-child(2n + 1)) .featureImage {
-  transform: rotate(-1.25deg);
+.chipOutline {
+  padding: 5px 10px;
+  border: 1px solid rgba(18, 19, 26, 0.16);
+  border-radius: 7px;
+  background: #fff;
+  color: #2a3340;
+  font-size: 11px;
 }
 
-@media screen and (max-width: 996px) {
-  /* Horizontal insets come from .container, so they are not doubled here. */
-  .features {
-    padding: 3.5rem 0;
-  }
-
-  .header h2 {
-    font-size: 2.2rem;
-  }
-}
+/* --------------------------------------------------------- narrow view --- */
 
 @media screen and (max-width: 600px) {
-  .features {
-    padding: 2.75rem 0;
+  .shell {
+    padding: 52px 18px;
   }
 
-  .header {
-    margin-bottom: 1.5rem;
+  .lead {
+    margin-bottom: 28px;
   }
 
-  .header h2 {
-    font-size: clamp(1.75rem, 7.4vw, 2.2rem);
-    line-height: 1.1;
+  .media {
+    padding: 12px;
   }
 
-  .eyebrow {
-    padding: 0.4rem 0.7rem;
-    font-size: 0.7rem;
-    letter-spacing: 0.05em;
+  .body {
+    padding: 18px;
+  }
+}
+
+/* Small phones: step the fixed-width type down so the longest line — the
+   decorated Slack call — still lands on a single row. */
+@container (max-width: 336px) {
+  .codeDark {
+    padding: 11px 11px 13px;
+    font-size: 10.5px;
+    line-height: 1.9;
   }
 
-  .featureCard {
-    padding: 1.1rem;
-    border-radius: 1.25rem;
-  }
-
-  .featureMedia {
-    min-height: 9.5rem;
-  }
-
-  .featureMedia::before {
-    width: 9rem;
-    height: 6rem;
-  }
-
-  .featureImage {
-    width: min(100%, 190px);
-  }
-
-  .features :global(.row) {
-    row-gap: 1rem;
-  }
-
-  .features :global(p) {
-    font-size: 0.95rem;
-    line-height: 1.6;
+  .schemaRow,
+  .schemaNote,
+  .diff {
+    font-size: 10.5px;
   }
 }

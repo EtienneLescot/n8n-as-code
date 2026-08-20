@@ -50,7 +50,7 @@
   /* Navigation */
   --ifm-navbar-background-color: #ffffff;
   --ifm-navbar-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  --ifm-footer-background-color: #1a1a1a;
+  --ifm-footer-background-color: #0a0c10;
   
   /* Links */
   --ifm-link-color: var(--ifm-color-primary);
@@ -90,7 +90,7 @@
   
   --ifm-navbar-background-color: #1a1a1a;
   --ifm-navbar-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  --ifm-footer-background-color: #0d0d0d;
+  --ifm-footer-background-color: #0a0c10;
   
   --docusaurus-highlighted-code-line-bg: rgba(255, 107, 53, 0.2);
 }
@@ -273,6 +273,11 @@ h6 {
 /* Keep iOS from inflating text in landscape. */
 html {
   -webkit-text-size-adjust: 100%;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Print styles */
