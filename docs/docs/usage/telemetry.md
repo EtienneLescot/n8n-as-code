@@ -2,8 +2,6 @@
 title: Telemetry
 ---
 
-import TelemetryToggle from '@site/src/components/TelemetryToggle';
-
 # Telemetry
 
 n8n-as-code collects anonymous, privacy-first product telemetry to understand active usage across the CLI, VS Code/Cursor extension, MCP server, skills commands, and OpenClaw plugin.
@@ -49,14 +47,17 @@ The VS Code extension also respects VS Code's telemetry setting.
 
 ### Documentation site
 
-The documentation site is separate from the CLI: it counts anonymous page views
-so we can see which guides get used, and nothing else. It does not read your
-workspace, your n8n instance, or your CLI telemetry setting.
+This documentation site collects nothing. No analytics, no page-view counting,
+no cookies, no browser storage. There is no setting to change here because
+nothing is running.
 
-<TelemetryToggle />
+Everything described on the rest of this page concerns the CLI, the VS
+Code/Cursor extension, the MCP server, the skills commands, and the OpenClaw
+plugin. Reading the documentation is not measured.
 
-Setting `DO_NOT_TRACK` at the browser level, or blocking site storage, turns it
-off without any action here.
+The site does load its typefaces from Google Fonts, which means your browser
+makes a request to `fonts.googleapis.com` and `fonts.gstatic.com`. That request
+carries your IP address to Google, as any third-party asset would.
 
 ## Connect PostHog Cloud
 
