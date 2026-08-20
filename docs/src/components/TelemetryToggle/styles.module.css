@@ -1,0 +1,62 @@
+.panel {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-card-border-radius);
+  background: var(--ifm-background-surface-color);
+  /* Reserve the height of the resolved panel so the page does not jump when
+     the browser-only preference lands. */
+  min-height: 8.5rem;
+}
+
+.status {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.dotOn,
+.dotOff {
+  flex: 0 0 auto;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  transform: translateY(-0.1em);
+}
+
+.dotOn {
+  background: var(--ifm-color-primary);
+}
+
+.dotOff {
+  background: var(--ifm-color-emphasis-500);
+}
+
+.button {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--ifm-color-primary);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--ifm-color-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.button:hover,
+.button:focus-visible {
+  background: var(--ifm-color-primary);
+  color: #fff;
+}
+
+.note {
+  margin: 0;
+  color: var(--ifm-font-color-secondary);
+  font-size: 0.85rem;
+}

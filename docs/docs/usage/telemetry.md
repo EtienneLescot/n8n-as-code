@@ -2,6 +2,8 @@
 title: Telemetry
 ---
 
+import TelemetryToggle from '@site/src/components/TelemetryToggle';
+
 # Telemetry
 
 n8n-as-code collects anonymous, privacy-first product telemetry to understand active usage across the CLI, VS Code/Cursor extension, MCP server, skills commands, and OpenClaw plugin.
@@ -45,7 +47,16 @@ CI=true
 
 The VS Code extension also respects VS Code's telemetry setting.
 
-On the documentation site, use the telemetry control in the bottom-right corner to disable or re-enable anonymous docs telemetry in your browser.
+### Documentation site
+
+The documentation site is separate from the CLI: it counts anonymous page views
+so we can see which guides get used, and nothing else. It does not read your
+workspace, your n8n instance, or your CLI telemetry setting.
+
+<TelemetryToggle />
+
+Setting `DO_NOT_TRACK` at the browser level, or blocking site storage, turns it
+off without any action here.
 
 ## Connect PostHog Cloud
 

@@ -1,33 +1,38 @@
 import siteConfig from '@generated/docusaurus.config';
 
+import {
+  ANONYMOUS_ID_KEY,
+  DISABLED_KEY,
+  NOTICE_KEY,
+  isDoNotTrack,
+  isStorageAvailable,
+  readFlag,
+  readValue,
+  writeFlag,
+  writeValue,
+} from './preferences';
+
 const customFields = siteConfig.customFields as { posthogKey?: string; posthogHost?: string; telemetryEnvironment?: string };
 const POSTHOG_KEY = customFields.posthogKey;
 const POSTHOG_HOST = (customFields.posthogHost || 'https://eu.i.posthog.com').replace(/\/$/, '');
 const TELEMETRY_ENVIRONMENT = customFields.telemetryEnvironment || 'dev';
-const STORAGE_KEY = 'n8n-as-code:docs-telemetry-id';
-const DISABLED_KEY = 'n8n-as-code:telemetry-disabled';
+const NOTICE_ID = 'n8n-as-code-telemetry-notice';
+const TELEMETRY_DOC_PATH = '/docs/usage/telemetry/';
 
 function isTelemetryDisabled(): boolean {
   if (!POSTHOG_KEY) return true;
-  if (navigator.doNotTrack === '1') return true;
-  if (localStorage.getItem(DISABLED_KEY) === '1') return true;
-  return false;
-}
-
-function setTelemetryDisabled(disabled: boolean): void {
-  if (disabled) {
-    localStorage.setItem(DISABLED_KEY, '1');
-  } else {
-    localStorage.removeItem(DISABLED_KEY);
-  }
+  if (isDoNotTrack()) return true;
+  // Without storage we cannot remember an opt-out, so do not start one.
+  if (!isStorageAvailable()) return true;
+  return readFlag(DISABLED_KEY);
 }
 
 function getAnonymousId(): string {
-  const existing = localStorage.getItem(STORAGE_KEY);
+  const existing = readValue(ANONYMOUS_ID_KEY);
   if (existing) return existing;
 
   const generated = crypto.randomUUID();
-  localStorage.setItem(STORAGE_KEY, generated);
+  writeValue(ANONYMOUS_ID_KEY, generated);
   return generated;
 }
 
@@ -79,58 +84,68 @@ function installRouteTracking(): void {
   window.addEventListener('popstate', notifyIfChanged);
 }
 
-function installTelemetryControl(): void {
-  if (document.getElementById('n8n-as-code-telemetry-control')) return;
+/**
+ * A one-time notice, not a permanent fixture.
+ *
+ * It appears only when there is genuinely something to consent to, and once
+ * the reader answers in either direction it never comes back. The durable
+ * control lives next to the explanation, on the telemetry page.
+ */
+function installTelemetryNotice(): void {
+  // Nothing to disclose: no project token is configured for this build, the
+  // browser already refused tracking, or we cannot record an answer anyway.
+  if (!POSTHOG_KEY || isDoNotTrack() || !isStorageAvailable()) return;
+  // The reader has already answered, in either direction.
+  if (readFlag(NOTICE_KEY) || readFlag(DISABLED_KEY)) return;
+  if (document.getElementById(NOTICE_ID)) return;
 
   const root = document.createElement('div');
-  root.id = 'n8n-as-code-telemetry-control';
-  root.style.position = 'fixed';
-  root.style.right = '1rem';
-  root.style.bottom = '1rem';
-  root.style.zIndex = '9999';
-  root.style.maxWidth = '18rem';
-  root.style.padding = '0.75rem';
-  root.style.border = '1px solid var(--ifm-color-emphasis-300)';
-  root.style.borderRadius = '0.5rem';
-  root.style.background = 'var(--ifm-background-surface-color)';
-  root.style.boxShadow = 'var(--ifm-global-shadow-md)';
-  root.style.fontSize = '0.8rem';
+  root.id = NOTICE_ID;
+  root.className = 'n8nacTelemetryNotice';
+  root.setAttribute('role', 'status');
 
-  const text = document.createElement('div');
-  text.style.marginBottom = '0.5rem';
+  const text = document.createElement('p');
+  text.className = 'n8nacTelemetryNotice__text';
+  text.textContent =
+    'This site counts anonymous page views to see which guides get used. No account, no cross-site tracking.';
 
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.style.cursor = 'pointer';
-  button.style.border = '1px solid var(--ifm-color-primary)';
-  button.style.borderRadius = '0.35rem';
-  button.style.background = 'var(--ifm-color-primary)';
-  button.style.color = 'var(--ifm-color-primary-contrast-foreground)';
-  button.style.padding = '0.35rem 0.5rem';
+  const link = document.createElement('a');
+  link.className = 'n8nacTelemetryNotice__link';
+  link.href = TELEMETRY_DOC_PATH;
+  link.textContent = 'What gets collected';
 
-  const render = () => {
-    const disabled = localStorage.getItem(DISABLED_KEY) === '1' || navigator.doNotTrack === '1' || !POSTHOG_KEY;
-    text.textContent = disabled
-      ? 'Anonymous docs telemetry is disabled.'
-      : 'Anonymous docs telemetry is enabled.';
-    button.textContent = disabled ? 'Enable telemetry' : 'Disable telemetry';
-    button.disabled = navigator.doNotTrack === '1' || !POSTHOG_KEY;
+  const actions = document.createElement('div');
+  actions.className = 'n8nacTelemetryNotice__actions';
+
+  const dismiss = () => {
+    writeFlag(NOTICE_KEY, true);
+    root.remove();
   };
 
-  button.addEventListener('click', () => {
-    setTelemetryDisabled(localStorage.getItem(DISABLED_KEY) !== '1');
-    render();
+  const accept = document.createElement('button');
+  accept.type = 'button';
+  accept.className = 'n8nacTelemetryNotice__button n8nacTelemetryNotice__button--primary';
+  accept.textContent = 'Got it';
+  accept.addEventListener('click', dismiss);
+
+  const optOut = document.createElement('button');
+  optOut.type = 'button';
+  optOut.className = 'n8nacTelemetryNotice__button';
+  optOut.textContent = 'Turn it off';
+  optOut.addEventListener('click', () => {
+    writeFlag(DISABLED_KEY, true);
+    dismiss();
   });
 
-  root.append(text, button);
+  actions.append(accept, optOut);
+  root.append(text, link, actions);
   document.body.append(root);
-  render();
 }
 
 function initializeTelemetry(): void {
-    trackDocsPageView();
-    installRouteTracking();
-    installTelemetryControl();
+  trackDocsPageView();
+  installRouteTracking();
+  installTelemetryNotice();
 }
 
 if (typeof window !== 'undefined') {
