@@ -22,26 +22,6 @@ const config: Config = {
 
   onBrokenLinks: 'warn',
 
-  // Typefaces used by the landing page. Preconnect first so the stylesheet
-  // request does not pay for the TLS handshake.
-  headTags: [
-    {
-      tagName: 'link',
-      attributes: { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-    },
-    {
-      tagName: 'link',
-      attributes: { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: 'anonymous' },
-    },
-    {
-      tagName: 'link',
-      attributes: {
-        rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap',
-      },
-    },
-  ],
-
   markdown: {
     mermaid: true,
     hooks: {

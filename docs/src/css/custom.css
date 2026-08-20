@@ -3,6 +3,19 @@
  * Custom CSS for Docusaurus with n8n branding
  */
 
+/* Self-hosted typefaces. The weight files carry per-subset unicode-range, so
+   an English reader only ever downloads the latin cut, and the site makes no
+   third-party request for them. Weights match what the landing page uses. */
+@import '@fontsource/space-grotesk/500.css';
+@import '@fontsource/space-grotesk/600.css';
+@import '@fontsource/space-grotesk/700.css';
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+
 /* You can override the default Infima variables here. */
 :root {
   /* Brand palette: the rose the logo and the landing page already use.

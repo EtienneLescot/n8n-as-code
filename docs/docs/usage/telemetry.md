@@ -55,9 +55,8 @@ Everything described on the rest of this page concerns the CLI, the VS
 Code/Cursor extension, the MCP server, the skills commands, and the OpenClaw
 plugin. Reading the documentation is not measured.
 
-The site does load its typefaces from Google Fonts, which means your browser
-makes a request to `fonts.googleapis.com` and `fonts.gstatic.com`. That request
-carries your IP address to Google, as any third-party asset would.
+The site makes no third-party requests at all: the typefaces are served from
+this domain alongside the pages.
 
 ## Connect PostHog Cloud
 
