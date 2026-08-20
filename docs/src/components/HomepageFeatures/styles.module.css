@@ -4,13 +4,18 @@
  * Each card carries a functional illustration drawn in markup — a terminal,
  * a schema lookup, a snippet, a canvas, a three-way diff, a file tree —
  * rather than a rendered image, so the artifact stays sharp, searchable,
- * and cheap to ship.
+ * cheap to ship, and able to follow the theme.
+ *
+ * Two kinds of surface live here. A "dark shot" is a screenshot of a
+ * terminal: dark in either theme, carrying its own fixed inks. A "light
+ * shot" is an editor panel, which follows the page and flips with it.
+ * Everything resolves through the shared --n8nac-* palette in custom.css.
  */
 
 .features {
-  border-bottom: 1px solid rgba(18, 19, 26, 0.09);
-  background: #fbf9f8;
-  color: #12131a;
+  border-bottom: 1px solid var(--n8nac-line);
+  background: var(--n8nac-bg);
+  color: var(--n8nac-ink);
   font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
@@ -26,7 +31,7 @@
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #8a3a5c;
+  color: var(--n8nac-accent-quiet);
 }
 
 .title {
@@ -37,7 +42,7 @@
   font-size: clamp(30px, 3.4vw, 44px);
   line-height: 1.04;
   letter-spacing: -0.04em;
-  color: #12131a;
+  color: var(--n8nac-ink);
   text-wrap: pretty;
 }
 
@@ -46,7 +51,7 @@
   max-width: 52ch;
   font-size: 16.5px;
   line-height: 1.7;
-  color: #4d5666;
+  color: var(--n8nac-ink-muted);
 }
 
 .grid {
@@ -59,9 +64,9 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(18, 19, 26, 0.1);
+  border: 1px solid var(--n8nac-line-strong);
   border-radius: 16px;
-  background: #fff;
+  background: var(--n8nac-bg-raised);
 
   /* The illustrations are fixed-width artifacts and the grid is auto-fit,
      so they have to answer to the column they land in, not the viewport. */
@@ -70,8 +75,8 @@
 
 .media {
   padding: 16px;
-  border-bottom: 1px solid rgba(18, 19, 26, 0.08);
-  background: #f4f2f0;
+  border-bottom: 1px solid var(--n8nac-line);
+  background: var(--n8nac-bg-sunken);
 }
 
 .body {
@@ -84,31 +89,32 @@
   font-size: 19px;
   font-weight: 600;
   letter-spacing: -0.02em;
-  color: #12131a;
+  color: var(--n8nac-ink);
 }
 
 .body p {
   margin: 0;
   font-size: 15px;
   line-height: 1.65;
-  color: #4d5666;
+  color: var(--n8nac-ink-muted);
 }
 
 /* ------------------------------------------------------- shot chrome --- */
 
 .shotDark {
   overflow: hidden;
+  border: 1px solid var(--n8nac-shot-dark-border);
   border-radius: 11px;
-  background: #0e1015;
-  box-shadow: 0 12px 24px -14px rgba(18, 19, 26, 0.55);
+  background: var(--n8nac-shot-dark-bg);
+  box-shadow: 0 12px 24px -14px var(--n8nac-shadow-hard);
 }
 
 .shotLight {
   overflow: hidden;
-  border: 1px solid rgba(18, 19, 26, 0.1);
+  border: 1px solid var(--n8nac-line-strong);
   border-radius: 11px;
-  background: #fff;
-  box-shadow: 0 12px 24px -18px rgba(18, 19, 26, 0.4);
+  background: var(--n8nac-shot-light-bg);
+  box-shadow: 0 12px 24px -18px var(--n8nac-shadow-soft);
 }
 
 .barDark {
@@ -116,12 +122,12 @@
   align-items: center;
   gap: 8px;
   padding: 9px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--n8nac-shot-dark-border);
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
   font-size: 10.5px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--n8nac-shot-chrome-ink);
 }
 
 .barLight {
@@ -129,10 +135,10 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(18, 19, 26, 0.08);
+  border-bottom: 1px solid var(--n8nac-line);
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
   font-size: 12px;
-  color: #2a3340;
+  color: var(--n8nac-panel-ink);
 }
 
 /* Uppercase metadata variant of the light bar. */
@@ -142,7 +148,11 @@
   font-size: 11px;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: #7b8494;
+  color: var(--n8nac-ink-faint);
+}
+
+.barLabel {
+  color: var(--n8nac-accent-quiet);
 }
 
 .barDot {
@@ -158,38 +168,58 @@
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
   font-size: 12.5px;
   line-height: 1.95;
-  color: #dcdfe6;
+  color: var(--n8nac-code-ink);
   overflow-wrap: anywhere;
 }
 
-/* ------------------------------------------------------------- inks --- */
+/* --------------------------------------------------------------- inks --- */
+
+/* Syntax colours sit on a dark shot in either theme, so they are fixed. */
 
 .pink {
-  color: #ff9ec0;
+  color: var(--n8nac-code-pink);
 }
 
 .rose {
-  color: #ff7ba6;
+  color: var(--n8nac-code-rose);
 }
 
 .blue {
-  color: #6bb6ff;
+  color: var(--n8nac-code-blue);
 }
 
 .green {
-  color: #4ec9a0;
+  color: var(--n8nac-code-green);
 }
 
 .amber {
-  color: #e6c07b;
+  color: var(--n8nac-code-amber);
 }
 
 .dim {
-  color: #7f8798;
+  color: var(--n8nac-code-dim);
 }
 
 .string {
-  color: #e6c07b;
+  color: var(--n8nac-code-amber);
+}
+
+/* Node swatches read as small solid marks, so they keep one value in both
+   themes rather than shifting hue with the surface. */
+.markRose {
+  background: #ff3b7a;
+}
+
+.markBlue {
+  background: #1f7ae6;
+}
+
+.markGreen {
+  background: #4ec9a0;
+}
+
+.markAmber {
+  background: #e6c07b;
 }
 
 .indent1 {
@@ -245,30 +275,30 @@
   gap: 10px;
   padding: 6px 9px;
   border-radius: 7px;
-  background: #f6f4f2;
+  background: var(--n8nac-bg-well);
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
   font-size: 12px;
-  color: #2a3340;
+  color: var(--n8nac-panel-ink);
   overflow-wrap: anywhere;
 }
 
 .schemaType {
   flex: 0 0 auto;
-  color: #1f7ae6;
+  color: var(--n8nac-blue);
 }
 
 .schemaNote {
   padding: 4px 9px 0;
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
   font-size: 11.5px;
-  color: #7b8494;
+  color: var(--n8nac-ink-faint);
 }
 
 /* ------------------------------------------------------- 4 · canvas --- */
 
 .canvas {
   padding: 18px 14px;
-  background-image: radial-gradient(rgba(18, 19, 26, 0.13) 1px, transparent 1px);
+  background-image: radial-gradient(var(--n8nac-canvas-dot) 1px, transparent 1px);
   background-size: 14px 14px;
 }
 
@@ -282,24 +312,24 @@
   align-items: center;
   gap: 7px;
   padding: 7px 10px;
-  border: 1px solid rgba(18, 19, 26, 0.16);
+  border: 1px solid var(--n8nac-line-strong);
   border-radius: 8px;
-  background: #fff;
+  background: var(--n8nac-bg-raised);
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
   font-size: 11px;
-  color: #12131a;
+  color: var(--n8nac-ink);
   white-space: nowrap;
 }
 
 .nodeRoot {
   composes: node;
   flex: 0 0 auto;
-  box-shadow: 0 2px 6px rgba(18, 19, 26, 0.07);
+  box-shadow: 0 2px 6px -2px var(--n8nac-shadow-soft);
 }
 
 .nodeGate {
   composes: node;
-  box-shadow: 0 2px 6px rgba(18, 19, 26, 0.07);
+  box-shadow: 0 2px 6px -2px var(--n8nac-shadow-soft);
 }
 
 .nodeDot {
@@ -313,7 +343,7 @@
   min-width: 12px;
   height: 2px;
   margin-top: 15px;
-  background: rgba(18, 19, 26, 0.22);
+  background: var(--n8nac-canvas-wire);
 }
 
 .branchColumn {
@@ -337,7 +367,7 @@
   top: 0;
   bottom: 22%;
   width: 2px;
-  background: rgba(18, 19, 26, 0.22);
+  background: var(--n8nac-canvas-wire);
 }
 
 .branch {
@@ -353,13 +383,13 @@
   left: -18px;
   width: 18px;
   height: 2px;
-  background: rgba(18, 19, 26, 0.22);
+  background: var(--n8nac-canvas-wire);
 }
 
 .branchLabel {
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
   font-size: 10px;
-  color: #7b8494;
+  color: var(--n8nac-ink-faint);
 }
 
 .canvasBadge {
@@ -368,18 +398,22 @@
   gap: 8px;
   margin-top: 14px;
   padding: 5px 10px;
-  border: 1px solid rgba(18, 19, 26, 0.12);
+  border: 1px solid var(--n8nac-line-strong);
   border-radius: 999px;
-  background: #fff;
+  background: var(--n8nac-bg-raised);
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
   font-size: 11px;
-  color: #2a3340;
+  color: var(--n8nac-panel-ink);
+}
+
+.canvasTick {
+  color: var(--n8nac-green);
 }
 
 /* -------------------------------------------------- 5 · three-way diff --- */
 
 .conflictCount {
-  color: #d92f68;
+  color: var(--n8nac-accent);
 }
 
 .diff {
@@ -393,37 +427,37 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
-  background: rgba(18, 19, 26, 0.08);
+  background: var(--n8nac-line);
 }
 
 .diffCell {
   padding: 7px 9px;
-  background: #fff;
-  color: #2a3340;
+  background: var(--n8nac-shot-light-bg);
+  color: var(--n8nac-panel-ink);
   overflow-wrap: anywhere;
 }
 
 .diffHead {
   composes: diffCell;
-  background: #faf8f7;
-  color: #7b8494;
+  background: var(--n8nac-bg-sunken);
+  color: var(--n8nac-ink-faint);
 }
 
 .diffBase {
   composes: diffCell;
-  color: #7b8494;
+  color: var(--n8nac-ink-faint);
 }
 
 .diffLocal {
   composes: diffCell;
-  background: rgba(255, 59, 122, 0.1);
-  color: #a01f4d;
+  background: var(--n8nac-diff-local-bg);
+  color: var(--n8nac-diff-local-ink);
 }
 
 .diffRemote {
   composes: diffCell;
-  background: rgba(31, 122, 230, 0.09);
-  color: #155ca8;
+  background: var(--n8nac-diff-remote-bg);
+  color: var(--n8nac-diff-remote-ink);
 }
 
 .diffActions {
@@ -431,23 +465,23 @@
   flex-wrap: wrap;
   gap: 8px;
   padding: 11px 9px;
-  border-top: 1px solid rgba(18, 19, 26, 0.08);
+  border-top: 1px solid var(--n8nac-line);
 }
 
 .chipSolid {
   padding: 5px 10px;
   border-radius: 7px;
-  background: #12131a;
-  color: #fff;
+  background: var(--n8nac-ink);
+  color: var(--n8nac-bg);
   font-size: 11px;
 }
 
 .chipOutline {
   padding: 5px 10px;
-  border: 1px solid rgba(18, 19, 26, 0.16);
+  border: 1px solid var(--n8nac-line-strong);
   border-radius: 7px;
-  background: #fff;
-  color: #2a3340;
+  background: var(--n8nac-bg-raised);
+  color: var(--n8nac-panel-ink);
   font-size: 11px;
 }
 

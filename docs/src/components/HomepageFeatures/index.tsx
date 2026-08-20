@@ -14,7 +14,7 @@ function StatusShot(): ReactNode {
   return (
     <div className={styles.shotDark}>
       <div className={styles.barDark}>
-        <span className={styles.barDot} style={{background: '#ff3b7a'}} aria-hidden="true" />
+        <span className={`${styles.barDot} ${styles.markRose}`} aria-hidden="true" />
         n8nac status
       </div>
       <div className={styles.codeDark}>
@@ -44,7 +44,7 @@ function SchemaShot(): ReactNode {
   return (
     <div className={styles.shotLight}>
       <div className={styles.barLight}>
-        <span style={{color: '#8a3a5c'}}>skill ▸</span>
+        <span className={styles.barLabel}>skill ▸</span>
         httpRequest.authentication
       </div>
       <div className={styles.schemaBody}>
@@ -64,7 +64,7 @@ function WorkflowCodeShot(): ReactNode {
   return (
     <div className={styles.shotDark}>
       <div className={styles.barDark}>
-        <span className={styles.barDot} style={{background: '#1f7ae6'}} aria-hidden="true" />
+        <span className={`${styles.barDot} ${styles.markBlue}`} aria-hidden="true" />
         order-alert.workflow.ts
       </div>
       <div className={styles.codeDark}>
@@ -107,34 +107,26 @@ function CanvasShot(): ReactNode {
       <div className={styles.canvas}>
         <div className={styles.canvasFlow}>
           <span className={styles.nodeRoot}>
-            <span className={styles.nodeDot} style={{background: '#ff3b7a'}} aria-hidden="true" />
+            <span className={`${styles.nodeDot} ${styles.markRose}`} aria-hidden="true" />
             Webhook
           </span>
           <span className={styles.wire} aria-hidden="true" />
           <div className={styles.branchColumn}>
             <span className={styles.nodeGate}>
-              <span className={styles.nodeDot} style={{background: '#1f7ae6'}} aria-hidden="true" />
+              <span className={`${styles.nodeDot} ${styles.markBlue}`} aria-hidden="true" />
               If
             </span>
             <div className={styles.branches}>
               <div className={styles.branch}>
                 <span className={styles.node}>
-                  <span
-                    className={styles.nodeDot}
-                    style={{background: '#4ec9a0'}}
-                    aria-hidden="true"
-                  />
+                  <span className={`${styles.nodeDot} ${styles.markGreen}`} aria-hidden="true" />
                   Slack
                 </span>
                 <span className={styles.branchLabel}>true</span>
               </div>
               <div className={styles.branch}>
                 <span className={styles.node}>
-                  <span
-                    className={styles.nodeDot}
-                    style={{background: '#e6c07b'}}
-                    aria-hidden="true"
-                  />
+                  <span className={`${styles.nodeDot} ${styles.markAmber}`} aria-hidden="true" />
                   NoOp
                 </span>
                 <span className={styles.branchLabel}>false</span>
@@ -143,7 +135,7 @@ function CanvasShot(): ReactNode {
           </div>
         </div>
         <div className={styles.canvasBadge}>
-          <span style={{color: '#4ec9a0'}}>✓</span>structure valid · 4 nodes
+          <span className={styles.canvasTick}>✓</span>structure valid · 4 nodes
         </div>
       </div>
     </div>
@@ -186,7 +178,7 @@ function TreeShot(): ReactNode {
   return (
     <div className={styles.shotDark}>
       <div className={styles.barDark}>
-        <span className={styles.barDot} style={{background: '#e6c07b'}} aria-hidden="true" />
+        <span className={`${styles.barDot} ${styles.markAmber}`} aria-hidden="true" />
         instance / project / workflow
       </div>
       <div className={styles.codeDark}>

@@ -1,26 +1,32 @@
 /**
  * Landing page.
  *
- * The page is a fixed light design with two dark anchor sections, so the
- * colours are literal rather than Infima variables: it must read the same
- * whichever colour mode the rest of the site is in.
+ * Short local names for the shared --n8nac-* palette defined in custom.css,
+ * so the rules below read as design intent rather than plumbing. Both themes
+ * come for free: only the primitives are redefined for dark mode.
+ *
+ * The two "night" bands — the dataset manifest and the closing call to
+ * action — are dark in either theme, so their inks do not change between
+ * modes; only the band lifts enough to separate from a dark page.
  */
 
 .page {
-  --ink: #12131a;
-  --muted: #4d5666;
-  --faint: #7b8494;
-  --paper: #fbf9f8;
-  --hairline: rgba(18, 19, 26, 0.09);
-  --hairline-strong: rgba(18, 19, 26, 0.14);
+  --ink: var(--n8nac-ink);
+  --muted: var(--n8nac-ink-muted);
+  --faint: var(--n8nac-ink-faint);
+  --paper: var(--n8nac-bg);
+  --raised: var(--n8nac-bg-raised);
+  --hairline: var(--n8nac-line);
+  --hairline-strong: var(--n8nac-line-strong);
   --accent: #ff3b7a;
-  --accent-deep: #d92f68;
-  --accent-ink: #8a3a5c;
-  --night: #0e1015;
-  --night-raised: #12141a;
-  --night-ink: #f2f0ee;
-  --night-muted: rgba(242, 240, 238, 0.66);
-  --night-faint: #7f8798;
+  --accent-deep: var(--n8nac-accent);
+  --accent-ink: var(--n8nac-accent-quiet);
+  --night: var(--n8nac-anchor-bg);
+  --night-raised: var(--n8nac-anchor-raised);
+  --night-ink: var(--n8nac-anchor-ink);
+  --night-muted: var(--n8nac-anchor-muted);
+  --night-faint: var(--n8nac-anchor-faint);
+  --night-line: var(--n8nac-anchor-line);
   --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --display: 'Space Grotesk', 'IBM Plex Sans', system-ui, sans-serif;
   --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
@@ -68,9 +74,10 @@
   text-wrap: pretty;
 }
 
-/* Dark sections re-declare the ink rather than inherit, so a stray global
-   colour cannot leave text unreadable on #0e1015. */
+/* The band re-declares its ink rather than inherit, so the page's themed
+   text colour cannot leak onto a surface that is dark in both modes. */
 .night {
+  border-block: 1px solid var(--hairline);
   background: var(--night);
   color: var(--night-ink);
 }
@@ -112,20 +119,21 @@
   text-decoration: none;
 }
 
+/* Inverts with the theme: near-black on paper, near-white on a dark page. */
 .btnPrimary {
   composes: btn;
   background: var(--ink);
-  color: #fff;
+  color: var(--paper);
 }
 
 .btnPrimary:hover {
-  background: #000;
+  background: var(--accent-deep);
   color: #fff;
 }
 
 .btnSecondary {
   composes: btn;
-  background: #fff;
+  background: var(--raised);
   border: 1px solid var(--hairline-strong);
   color: var(--ink);
 }
@@ -135,15 +143,17 @@
   color: var(--ink);
 }
 
+/* Rose is a light surface in either theme, so this label stays dark rather
+   than following the page ink. */
 .btnAccent {
   composes: btn;
   background: var(--accent);
-  color: var(--ink);
+  color: #12131a;
 }
 
 .btnAccent:hover {
   background: #ff5f93;
-  color: var(--ink);
+  color: #12131a;
 }
 
 .btnGhost {
@@ -164,7 +174,7 @@
   position: relative;
   overflow: hidden;
   border-bottom: 1px solid var(--hairline);
-  background: linear-gradient(180deg, #fffdfc 0%, var(--paper) 100%);
+  background: linear-gradient(180deg, var(--n8nac-bg-raised) 0%, var(--paper) 100%);
 }
 
 /* Vertical rules, drawn once behind the whole hero. */
@@ -172,7 +182,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(90deg, rgba(18, 19, 26, 0.045) 1px, transparent 1px);
+  background-image: linear-gradient(90deg, var(--n8nac-hairline-grid) 1px, transparent 1px);
   background-size: 92px 100%;
   pointer-events: none;
 }
@@ -191,9 +201,9 @@
   align-items: center;
   gap: 10px;
   padding: 7px 12px;
-  border: 1px solid rgba(230, 61, 122, 0.2);
+  border: 1px solid rgba(var(--n8nac-primary-rgb), 0.28);
   border-radius: 999px;
-  background: #fff;
+  background: var(--raised);
   font-family: var(--mono);
   font-size: 11.5px;
   font-weight: 500;
@@ -243,12 +253,12 @@
 
 .chip {
   padding: 7px 12px;
-  border: 1px solid rgba(18, 19, 26, 0.11);
+  border: 1px solid var(--hairline-strong);
   border-radius: 8px;
-  background: #fff;
+  background: var(--raised);
   font-family: var(--mono);
   font-size: 13px;
-  color: #2a3340;
+  color: var(--n8nac-panel-ink);
 }
 
 .heroStage {
@@ -265,20 +275,23 @@
   right: -14px;
   top: 20px;
   bottom: -16px;
-  border: 1px solid rgba(31, 122, 230, 0.28);
+  border: 1px solid rgba(31, 122, 230, 0.3);
   border-radius: 18px;
-  background: rgba(31, 122, 230, 0.05);
+  background: rgba(31, 122, 230, 0.06);
 }
 
 /* -------------------------------------------------------- terminal art --- */
 
+/* A screenshot of a dark terminal: it stays dark in both themes and carries
+   its own inks rather than the page's. */
 .terminal {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--n8nac-shot-dark-border);
   border-radius: 16px;
-  background: var(--night);
-  box-shadow: 0 30px 60px -24px rgba(18, 19, 26, 0.5);
+  background: var(--n8nac-shot-dark-bg);
+  color: var(--n8nac-code-ink);
+  box-shadow: 0 30px 60px -24px var(--n8nac-shadow-drop);
 }
 
 .terminalBar {
@@ -286,7 +299,7 @@
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--n8nac-shot-dark-border);
 }
 
 .trafficLights {
@@ -306,7 +319,7 @@
 }
 
 .trafficLights span:nth-child(2) {
-  background: #e6c07b;
+  background: var(--n8nac-code-amber);
 }
 
 .trafficLights span:nth-child(3) {
@@ -318,7 +331,7 @@
   font-size: 11.5px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.44);
+  color: var(--n8nac-shot-chrome-ink);
 }
 
 .terminalBody {
@@ -327,24 +340,24 @@
   font-family: var(--mono);
   font-size: 13.5px;
   line-height: 2;
-  color: #dcdfe6;
+  color: var(--n8nac-code-ink);
   overflow-wrap: anywhere;
 }
 
 .prompt {
-  color: #ff7ba6;
+  color: var(--n8nac-code-rose);
 }
 
 .dim {
-  color: var(--night-faint);
+  color: var(--n8nac-code-dim);
 }
 
 .ok {
-  color: #4ec9a0;
+  color: var(--n8nac-code-green);
 }
 
 .info {
-  color: #6bb6ff;
+  color: var(--n8nac-code-blue);
 }
 
 .resultLine {
@@ -352,7 +365,7 @@
   flex-wrap: wrap;
   gap: 10px;
   align-items: baseline;
-  color: var(--night-faint);
+  color: var(--n8nac-code-dim);
 }
 
 /* ------------------------------------------------------------ manifest --- */
@@ -383,7 +396,7 @@
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--night-line);
   border-radius: 999px;
   font-family: var(--mono);
   font-size: 12.5px;
@@ -394,7 +407,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #4ec9a0;
+  background: var(--n8nac-code-green);
 }
 
 /* The 1px gap over a lighter backdrop draws the row separators. */
@@ -402,9 +415,9 @@
   display: grid;
   gap: 1px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.11);
+  border: 1px solid var(--night-line);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.11);
+  background: var(--night-line);
 }
 
 .manifestRow {
@@ -433,7 +446,7 @@
   font-family: var(--mono);
   font-size: 19px;
   font-weight: 500;
-  color: #ff9ec0;
+  color: var(--n8nac-code-pink);
   white-space: nowrap;
 }
 
@@ -441,7 +454,7 @@
 
 .audienceSection {
   border-bottom: 1px solid var(--hairline);
-  background: #fff;
+  background: var(--raised);
 }
 
 .audienceInner {
@@ -461,9 +474,9 @@
   gap: 1px;
   overflow: hidden;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border: 1px solid rgba(18, 19, 26, 0.1);
+  border: 1px solid var(--hairline-strong);
   border-radius: 16px;
-  background: rgba(18, 19, 26, 0.1);
+  background: var(--hairline-strong);
 }
 
 .audienceCard {
@@ -471,7 +484,7 @@
   flex-direction: column;
   gap: 10px;
   padding: 26px 24px 24px;
-  background: #fff;
+  background: var(--raised);
 }
 
 .audienceKicker {
@@ -508,7 +521,7 @@
 }
 
 .audienceLink:hover {
-  color: #ab1f4d;
+  color: var(--ifm-link-hover-color);
   text-decoration: none;
 }
 
@@ -545,7 +558,7 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: 18px;
   padding: 18px 0;
-  border-top: 1px solid rgba(18, 19, 26, 0.11);
+  border-top: 1px solid var(--hairline-strong);
 }
 
 .loopIndex {
@@ -597,19 +610,19 @@
 
 .installPanel {
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--night-line);
   border-radius: 14px;
   background: var(--night-raised);
 }
 
 .installLabel {
   padding: 11px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--night-line);
   font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--n8nac-shot-chrome-ink);
 }
 
 .installBody {
@@ -618,7 +631,7 @@
   font-family: var(--mono);
   font-size: 13.5px;
   line-height: 2;
-  color: #dcdfe6;
+  color: var(--n8nac-code-ink);
   overflow-wrap: anywhere;
 }
 

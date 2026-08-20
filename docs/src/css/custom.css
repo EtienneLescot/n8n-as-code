@@ -16,24 +16,90 @@
 @import '@fontsource/ibm-plex-mono/500.css';
 @import '@fontsource/ibm-plex-mono/600.css';
 
-/* You can override the default Infima variables here. */
+/**
+ * One palette, two themes.
+ *
+ * Every surface, ink and rule on this site — landing page and documentation
+ * alike — resolves through the --n8nac-* primitives below. Only those
+ * primitives are redefined for dark mode; the Infima mappings and the page
+ * stylesheets reference them, so a colour is written down once.
+ *
+ * The "anchor" family is the exception worth explaining. On the landing page
+ * two bands (the dataset manifest and the closing call to action) invert to
+ * near-black for emphasis. They are dark in either theme, so their foreground
+ * tokens do not change between modes — only the band lifts slightly in dark
+ * so it still separates from the page around it.
+ */
 :root {
-  /* Brand palette: the rose the logo and the landing page already use.
-     #d92f68 is the deepest rose that still clears 4.5:1 on white, so links
-     and body-sized primary text stay readable. */
-  --ifm-color-primary: #d92f68;
-  --ifm-color-primary-dark: #c32a5e;
-  --ifm-color-primary-darker: #b82858;
-  --ifm-color-primary-darkest: #982149;
-  --ifm-color-primary-light: #dd4477;
-  --ifm-color-primary-lighter: #df4e7f;
-  --ifm-color-primary-lightest: #e46d95;
+  /* --- brand ---------------------------------------------------------- */
 
-  /* Channel triplet for the tinted surfaces below, so a future palette
-     change does not leave a second copy of the brand colour behind. */
+  /* #d92f68 is the deepest rose that still clears 4.5:1 on white, so links
+     and body-sized primary text stay readable. */
+  --ifm-color-primary: #d02a62;
+  --ifm-color-primary-dark: #bb2658;
+  --ifm-color-primary-darker: #b12453;
+  --ifm-color-primary-darkest: #921d45;
+  --ifm-color-primary-light: #d53f72;
+  --ifm-color-primary-lighter: #d74a7a;
+  --ifm-color-primary-lightest: #de6a91;
+
+  /* Channel triplet for tinted surfaces, so a future palette change does not
+     leave a second copy of the brand colour behind. */
   --n8nac-primary-rgb: 255, 59, 122;
-  
-  /* Secondary colors */
+  --n8nac-accent: #d02a62;
+  --n8nac-accent-quiet: #8a3a5c;
+  --n8nac-blue: #1565c0;
+  --n8nac-green: #1f9c74;
+  --n8nac-amber: #a97a1f;
+
+  /* --- surfaces and ink ----------------------------------------------- */
+
+  --n8nac-bg: #fbf9f8;
+  --n8nac-bg-raised: #ffffff;
+  --n8nac-bg-sunken: #f4f2f0;
+  --n8nac-bg-well: #f6f4f2;
+  --n8nac-ink: #12131a;
+  --n8nac-ink-muted: #4d5666;
+  --n8nac-ink-faint: #646d7b;
+  --n8nac-line: rgba(18, 19, 26, 0.09);
+  --n8nac-line-strong: rgba(18, 19, 26, 0.14);
+  --n8nac-hairline-grid: rgba(18, 19, 26, 0.045);
+  --n8nac-shadow-soft: rgba(18, 19, 26, 0.4);
+  --n8nac-shadow-hard: rgba(18, 19, 26, 0.55);
+  --n8nac-shadow-drop: rgba(18, 19, 26, 0.5);
+
+  /* --- inverted bands (dark in both themes) --------------------------- */
+
+  --n8nac-anchor-bg: #0e1015;
+  --n8nac-anchor-raised: #12141a;
+  --n8nac-anchor-ink: #f2f0ee;
+  --n8nac-anchor-muted: rgba(242, 240, 238, 0.66);
+  --n8nac-anchor-faint: #7f8798;
+  --n8nac-anchor-line: rgba(255, 255, 255, 0.11);
+
+  /* --- terminal and editor illustrations ------------------------------ */
+
+  --n8nac-shot-dark-bg: #0e1015;
+  --n8nac-shot-dark-border: rgba(255, 255, 255, 0.1);
+  --n8nac-shot-chrome-ink: rgba(255, 255, 255, 0.56);
+  --n8nac-shot-light-bg: #ffffff;
+  --n8nac-code-ink: #dcdfe6;
+  --n8nac-code-dim: #8b93a4;
+  --n8nac-code-rose: #ff7ba6;
+  --n8nac-code-pink: #ff9ec0;
+  --n8nac-code-blue: #6bb6ff;
+  --n8nac-code-green: #4ec9a0;
+  --n8nac-code-amber: #e6c07b;
+  --n8nac-panel-ink: #2a3340;
+  --n8nac-diff-local-bg: rgba(255, 59, 122, 0.1);
+  --n8nac-diff-local-ink: #a01f4d;
+  --n8nac-diff-remote-bg: rgba(31, 122, 230, 0.09);
+  --n8nac-diff-remote-ink: #155ca8;
+  --n8nac-canvas-dot: rgba(18, 19, 26, 0.13);
+  --n8nac-canvas-wire: rgba(18, 19, 26, 0.22);
+
+  /* --- Infima, mapped onto the primitives above ----------------------- */
+
   --ifm-color-secondary: #6c757d;
   --ifm-color-secondary-dark: #5a6268;
   --ifm-color-secondary-darker: #545b62;
@@ -41,57 +107,63 @@
   --ifm-color-secondary-light: #868e96;
   --ifm-color-secondary-lighter: #9198a0;
   --ifm-color-secondary-lightest: #acb3ba;
-  
-  /* Success, Info, Warning, Danger */
+
   --ifm-color-success: #28a745;
   --ifm-color-info: #17a2b8;
   --ifm-color-warning: #ffc107;
   --ifm-color-danger: #dc3545;
-  
-  /* Background and text */
-  --ifm-background-color: #ffffff;
-  --ifm-background-surface-color: #f8f9fa;
-  --ifm-font-color-base: #212529;
-  --ifm-font-color-secondary: #6c757d;
-  
-  /* Code */
+
+  --ifm-background-color: var(--n8nac-bg);
+  --ifm-background-surface-color: var(--n8nac-bg-sunken);
+  --ifm-font-color-base: var(--n8nac-ink);
+  --ifm-font-color-secondary: var(--n8nac-ink-muted);
+
   --ifm-code-font-size: 95%;
-  --ifm-code-background: #f8f9fa;
+  --ifm-code-background: var(--n8nac-bg-sunken);
   --ifm-code-border-radius: 6px;
   --ifm-code-padding-vertical: 0.2rem;
   --ifm-code-padding-horizontal: 0.4rem;
-  
-  /* Cards and containers */
-  --ifm-card-background-color: #ffffff;
+
+  --ifm-card-background-color: var(--n8nac-bg-raised);
   --ifm-card-border-radius: 12px;
   --ifm-card-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  
-  /* Navigation */
-  --ifm-navbar-background-color: #ffffff;
-  --ifm-navbar-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  --ifm-footer-background-color: #0a0c10;
-  
-  /* Links */
+
+  --ifm-navbar-background-color: var(--n8nac-bg-raised);
+  --ifm-navbar-shadow: none;
+  --ifm-toc-border-color: var(--n8nac-line);
+  --ifm-hr-border-color: var(--n8nac-line);
+  --ifm-table-border-color: var(--n8nac-line);
+  --ifm-blockquote-border-color: var(--n8nac-line-strong);
+
+  /* The foot of the page is deeper than the page in both themes. */
+  --n8nac-footer-bg: #0a0c10;
+  --ifm-footer-background-color: var(--n8nac-footer-bg);
+
   --ifm-link-color: var(--ifm-color-primary);
   --ifm-link-hover-color: #ab1f4d;
-  
-  /* Highlighted code lines */
+
   --docusaurus-highlighted-code-line-bg: rgba(var(--n8nac-primary-rgb), 0.1);
-  
-  /* Spacing */
+
   --ifm-spacing-horizontal: 1.5rem;
   --ifm-spacing-vertical: 1rem;
-  
-  /* Typography */
+
   --ifm-heading-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --ifm-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --ifm-font-family-monospace: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  --ifm-font-family-monospace: 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
 }
 
-/* Dark mode overrides */
-[data-theme='dark'] {
-  /* Brighter rose on dark, and the ladder inverted so hover states lift
-     off the background instead of sinking into it. */
+/**
+ * Dark mode redefines the primitives only; everything mapped above follows.
+ *
+ * The selector is html[data-theme='dark'] rather than [data-theme='dark']
+ * on purpose: Infima ships its own html[data-theme='dark'] block, and a bare
+ * attribute selector loses to it on specificity. That is what left the
+ * documentation on Infima's #1b1b1d while the landing page used this
+ * palette's #0c0e12.
+ */
+html[data-theme='dark'] {
+  /* Brighter rose on dark, and the ladder inverted so hover states lift off
+     the background instead of sinking into it. */
   --ifm-color-primary: #ff3b7a;
   --ifm-color-primary-dark: #ff4f87;
   --ifm-color-primary-darker: #ff588e;
@@ -99,21 +171,78 @@
   --ifm-color-primary-light: #e6356e;
   --ifm-color-primary-lighter: #d93268;
   --ifm-color-primary-lightest: #b32955;
-  
-  --ifm-background-color: #1a1a1a;
-  --ifm-background-surface-color: #2d2d2d;
-  --ifm-font-color-base: #e9ecef;
-  --ifm-font-color-secondary: #adb5bd;
-  
-  --ifm-code-background: #2d2d2d;
-  --ifm-card-background-color: #2d2d2d;
-  --ifm-card-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  
-  --ifm-navbar-background-color: #1a1a1a;
-  --ifm-navbar-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  --ifm-footer-background-color: #0a0c10;
-  
+
+  --n8nac-accent: #ff5f93;
+  --n8nac-accent-quiet: #ff9ec0;
+  --n8nac-blue: #6bb6ff;
+  --n8nac-green: #4ec9a0;
+  --n8nac-amber: #e6c07b;
+
+  /* A four-step ladder rather than an inversion of the light values: page,
+     recessed well, raised card, and the sunken frame an illustration sits in. */
+  --n8nac-bg: #0c0e12;
+  --n8nac-bg-raised: #161a21;
+  --n8nac-bg-sunken: #101319;
+  --n8nac-bg-well: #1d222b;
+  --n8nac-ink: #f2f0ee;
+  --n8nac-ink-muted: #a8b0bd;
+  --n8nac-ink-faint: #838c9b;
+  --n8nac-line: rgba(255, 255, 255, 0.1);
+  --n8nac-line-strong: rgba(255, 255, 255, 0.17);
+  --n8nac-hairline-grid: rgba(255, 255, 255, 0.05);
+  --n8nac-shadow-soft: rgba(0, 0, 0, 0.6);
+  --n8nac-shadow-hard: rgba(0, 0, 0, 0.75);
+  --n8nac-shadow-drop: rgba(0, 0, 0, 0.7);
+
+  /* Already dark in light mode, so these barely move: the band just lifts
+     enough to stay legible as a band against a dark page. */
+  --n8nac-anchor-bg: #14171e;
+  --n8nac-anchor-raised: #191d26;
+  --n8nac-anchor-line: rgba(255, 255, 255, 0.13);
+
+  --n8nac-shot-dark-bg: #0a0c11;
+  --n8nac-shot-light-bg: #161a21;
+  --n8nac-panel-ink: #c3ccd9;
+  --n8nac-diff-local-ink: #ff9ec0;
+  --n8nac-diff-remote-bg: rgba(31, 122, 230, 0.18);
+  --n8nac-diff-remote-ink: #8ec5ff;
+  --n8nac-canvas-dot: rgba(255, 255, 255, 0.14);
+  --n8nac-canvas-wire: rgba(255, 255, 255, 0.24);
+
+  --n8nac-footer-bg: #08090d;
+
+  /* Infima sets these itself under the same selector, so they are restated
+     here rather than inherited from the :root mapping. */
+  --ifm-background-color: var(--n8nac-bg);
+  --ifm-background-surface-color: var(--n8nac-bg-sunken);
+  --ifm-font-color-base: var(--n8nac-ink);
+  --ifm-font-color-secondary: var(--n8nac-ink-muted);
+  --ifm-color-content: var(--n8nac-ink);
+  --ifm-color-content-secondary: var(--n8nac-ink-muted);
+  --ifm-code-background: var(--n8nac-bg-sunken);
+  --ifm-card-background-color: var(--n8nac-bg-raised);
+  --ifm-navbar-background-color: var(--n8nac-bg-raised);
+  --ifm-footer-background-color: var(--n8nac-footer-bg);
+  --ifm-toc-border-color: var(--n8nac-line);
+  --ifm-hr-border-color: var(--n8nac-line);
+  --ifm-table-border-color: var(--n8nac-line);
+  --ifm-blockquote-border-color: var(--n8nac-line-strong);
+
+  --ifm-card-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --ifm-navbar-shadow: none;
+  --ifm-link-hover-color: var(--ifm-color-primary-dark);
+
   --docusaurus-highlighted-code-line-bg: rgba(var(--n8nac-primary-rgb), 0.2);
+}
+
+/* The navbar and footer are the frame around every page, so they take the
+   same hairline the content uses rather than a drop shadow. */
+.navbar {
+  border-bottom: 1px solid var(--n8nac-line);
+}
+
+.footer {
+  border-top: 1px solid var(--n8nac-line);
 }
 
 /* Custom utility classes */
@@ -165,11 +294,7 @@
 /* Code block enhancements */
 .prism-code {
   border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-[data-theme='dark'] .prism-code {
-  border-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--n8nac-line);
 }
 
 /* Table styles */
@@ -190,11 +315,7 @@ table th {
 
 table td {
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-[data-theme='dark'] table td {
-  border-bottom-color: rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--n8nac-line);
 }
 
 /* Alert customization */
@@ -235,23 +356,24 @@ table td {
   font-weight: 600;
 }
 
-/* Footer customization */
+/* Footer customization. The foot is dark in both themes, so its inks are
+   fixed rather than themed. */
 .footer {
-  background: var(--ifm-footer-background-color);
-  color: #adb5bd;
+  background: var(--n8nac-footer-bg);
+  color: rgba(242, 240, 238, 0.66);
 }
 
 .footer__title {
-  color: #ffffff;
+  color: #f2f0ee;
 }
 
 .footer__link-item {
-  color: #adb5bd;
+  color: rgba(242, 240, 238, 0.68);
   transition: color 0.2s ease;
 }
 
 .footer__link-item:hover {
-  color: #ffffff;
+  color: #f2f0ee;
 }
 
 /* Responsive adjustments */
@@ -320,6 +442,17 @@ body {
   }
 }
 
+/* The search button's keyboard hint ships far below AA in both themes. */
+.DocSearch-Button-Key,
+.navbar__search kbd,
+kbd.search-hint {
+  color: var(--n8nac-ink-muted);
+  background: var(--n8nac-bg-sunken);
+  border: 1px solid var(--n8nac-line-strong);
+  box-shadow: none;
+  opacity: 1;
+}
+
 /* Custom scrollbar */
 html {
   scrollbar-color: var(--ifm-color-primary) var(--ifm-background-surface-color);
@@ -359,13 +492,29 @@ html {
   animation: fadeIn 0.3s ease-out;
 }
 
-/* Mermaid diagram styling */
-.mermaid {
+/* Mermaid diagram styling. The rendered container is
+   .docusaurus-mermaid-container, not .mermaid — the bare .mermaid selector
+   these rules used to carry never matched anything, so neither the centring
+   nor the max-width was in effect. */
+.mermaid,
+.docusaurus-mermaid-container {
   margin: var(--ifm-spacing-vertical) 0;
   text-align: center;
 }
 
-.mermaid svg {
+.mermaid svg,
+.docusaurus-mermaid-container svg {
   max-width: 100%;
   height: auto;
+}
+
+/* Mermaid's dark theme draws edge labels as #ccc on #585858 — 4.43:1, just
+   under AA. It injects those rules as an ID-scoped <style> inside each
+   generated SVG, so a class selector cannot outrank them: !important is the
+   only lever short of forking the diagram theme. */
+html[data-theme='dark'] .docusaurus-mermaid-container .edgeLabel,
+html[data-theme='dark'] .docusaurus-mermaid-container .edgeLabel p,
+html[data-theme='dark'] .docusaurus-mermaid-container .labelBkg {
+  color: var(--n8nac-ink) !important;
+  background-color: var(--n8nac-bg) !important;
 }
