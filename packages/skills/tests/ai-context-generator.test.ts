@@ -41,6 +41,10 @@ describe('AiContextGenerator', () => {
             expect(agentsContent).toContain('.github/agents/n8n-architect.agent.md');
             expect(agentsContent).toContain('.agents/skills/n8n-architect/SKILL.md');
             expect(agentsContent).toContain('n8nac backend resolution remains the only source');
+            expect(agentsContent).toContain('- Context root: the current Git worktree root.');
+            expect(agentsContent).toContain('cd \"$(git rev-parse --show-toplevel)\"');
+            expect(agentsContent).not.toContain(tempDir);
+            expect(agentsContent).not.toContain('/home/dennis/Projects/n8n');
             expect(agentsContent).toContain('env status --json');
             expect(agentsContent).not.toContain('workspace migrate --json');
             expect(agentsContent).not.toContain('workspace status --json');
@@ -176,6 +180,25 @@ describe('AiContextGenerator', () => {
             expect(fs.existsSync(path.join(tempDir, 'n8nac.cmd'))).toBe(false);
         });
     });
+        test('generates copy-safe guidance in a linked Git worktree', async () => {
+            const mainRoot = path.join(tempDir, 'main');
+            const linkedWorktree = path.join(tempDir, 'linked');
+            fs.mkdirSync(mainRoot);
+            execFileSync('git', ['init', '-b', 'main'], { cwd: mainRoot });
+            execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: mainRoot });
+            execFileSync('git', ['config', 'user.name', 'Test User'], { cwd: mainRoot });
+            fs.writeFileSync(path.join(mainRoot, 'README.md'), 'fixture\n');
+            execFileSync('git', ['add', 'README.md'], { cwd: mainRoot });
+            execFileSync('git', ['commit', '-m', 'fixture'], { cwd: mainRoot });
+            execFileSync('git', ['worktree', 'add', '-b', 'linked', linkedWorktree], { cwd: mainRoot });
+
+            await generator.generate(linkedWorktree, '1.0.0');
+
+            const agentsContent = fs.readFileSync(path.join(linkedWorktree, 'AGENTS.md'), 'utf-8');
+            expect(agentsContent).toContain('cd \"$(git rev-parse --show-toplevel)\"');
+            expect(agentsContent).not.toContain(mainRoot);
+            expect(agentsContent).not.toContain(linkedWorktree);
+        });
 
     describe('Canonical skill', () => {
         test('n8n-architect skill contains runtime/auth guardrails', () => {
