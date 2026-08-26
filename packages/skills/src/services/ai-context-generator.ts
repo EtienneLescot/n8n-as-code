@@ -32,9 +32,7 @@ export class AiContextGenerator {
   ): string {
     const { cliCmd, skillsCmd } = this.getCommandRefs(distTag, options.cliCommandOverride, projectRoot);
     const managerCmd = resolveN8nManagerCommand(distTag, options.managerCommandOverride, projectRoot ? process.env : {});
-    const contextRootHint = projectRoot
-      ? `Generated context root hint: \`${path.resolve(projectRoot)}\`. If this path exists, run workspace commands from there.`
-      : 'Generated context root hint: not embedded. Use the shell launch directory or the workspace path explicitly given by the user.';
+    const contextRootHint = 'Generated context root hint: not embedded. Use the shell launch directory or the workspace path explicitly given by the user.';
     return this.readCanonicalAgentSkill(skillName)
       .replaceAll('{{N8NAC_CMD}}', cliCmd)
       .replaceAll('{{N8NAC_SKILLS_CMD}}', skillsCmd)

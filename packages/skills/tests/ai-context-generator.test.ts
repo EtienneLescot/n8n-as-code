@@ -194,10 +194,16 @@ describe('AiContextGenerator', () => {
 
             await generator.generate(linkedWorktree, '1.0.0');
 
-            const agentsContent = fs.readFileSync(path.join(linkedWorktree, 'AGENTS.md'), 'utf-8');
-            expect(agentsContent).toContain('cd \"$(git rev-parse --show-toplevel)\"');
-            expect(agentsContent).not.toContain(mainRoot);
-            expect(agentsContent).not.toContain(linkedWorktree);
+            const generatedGuidance = [
+                fs.readFileSync(path.join(linkedWorktree, 'AGENTS.md'), 'utf-8'),
+                fs.readFileSync(path.join(linkedWorktree, '.github/agents/n8n-architect.agent.md'), 'utf-8'),
+                fs.readFileSync(path.join(linkedWorktree, '.agents/skills/n8n-architect/SKILL.md'), 'utf-8'),
+            ];
+            expect(generatedGuidance[0]).toContain('cd \"$(git rev-parse --show-toplevel)\"');
+            for (const content of generatedGuidance) {
+                expect(content).not.toContain(mainRoot);
+                expect(content).not.toContain(linkedWorktree);
+            }
         });
 
     describe('Canonical skill', () => {
