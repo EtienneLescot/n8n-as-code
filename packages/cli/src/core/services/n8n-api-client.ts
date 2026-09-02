@@ -4,7 +4,7 @@ import * as http from 'http';
 import * as https from 'https';
 import * as tls from 'tls';
 import { resolveExtraCaCertificates, shouldVerifyServerCertificate } from './tls-certificates.js';
-import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField, IExecutionDetails, IExecutionList, IExecutionSummary, ExecutionStatus, IFolder } from '../types.js';
+import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField, IExecutionDetails, IExecutionList, IExecutionSummary, ExecutionStatus, IFolder, IPublishedVersion } from '../types.js';
 
 type AgentLookup = NonNullable<http.AgentOptions['lookup']>;
 
@@ -908,6 +908,45 @@ export class N8nApiClient {
             console.error(`Failed to delete workflow ${id}:`, error);
             return false;
         }
+    }
+
+    /**
+     * Reads which version of a workflow currently runs in production.
+     *
+     * Deliberately a bare GET: this runs on the push hot path, and the project
+     * and tag enrichment `getWorkflow` performs is irrelevant here.
+     *
+     * Throws on transport failures — the caller decides whether an unreadable
+     * pointer should block a push or only warn.
+     */
+    async getPublishedVersion(id: string): Promise<IPublishedVersion> {
+        const res = await this.client.get(`/api/v1/workflows/${id}`);
+        const workflow = (res.data ?? {}) as IWorkflow;
+
+        // n8n has exposed the pointer under both names across 2.x releases, and
+        // neither exists on 1.x. Absent means "nothing to restore", not an error.
+        const versionId = workflow.activeVersionId ?? workflow.activeVersion?.id;
+
+        return {
+            published: workflow.active === true,
+            versionId: typeof versionId === 'string' && versionId.length > 0 ? versionId : undefined,
+        };
+    }
+
+    /**
+     * Publishes a specific version of a workflow, i.e. points production at it.
+     *
+     * Without `versionId` n8n publishes the latest version — which is what
+     * `workflow activate` wants, and never what publish-restoration wants.
+     *
+     * Unlike {@link activateWorkflow} this throws: callers use it to undo an
+     * unwanted publish, and a silent failure there leaves production running
+     * content the user never released.
+     */
+    async publishWorkflowVersion(id: string, versionId?: string): Promise<IWorkflow | null> {
+        const body = versionId ? { versionId } : {};
+        const res = await this.client.post(`/api/v1/workflows/${id}/activate`, body);
+        return res.data && typeof res.data === 'object' ? (res.data as IWorkflow) : null;
     }
 
     async activateWorkflow(id: string, active: boolean): Promise<IWorkflow | null> {

@@ -13,6 +13,7 @@
 [![npm: cli](https://img.shields.io/npm/v/n8nac?label=cli&logo=npm)](https://www.npmjs.com/package/n8nac)
 [![npm: skills](https://img.shields.io/npm/v/@n8n-as-code/skills?label=skills&logo=npm)](https://www.npmjs.com/package/@n8n-as-code/skills)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Beta%20%2F%20Pending%20Review-orange)](https://n8nascode.dev/docs/usage/claude-plugin/)
+[![Sponsor](https://img.shields.io/github/sponsors/EtienneLescot?logo=githubsponsors&label=Sponsor)](https://github.com/sponsors/EtienneLescot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 <br>
@@ -234,9 +235,9 @@ n8nac convert-batch workflows/ --format typescript
 - **`n8n-manager`**: local managed instances, Docker lifecycle, tunnels, and machine-local secrets.
 - **Skills and MCP**: grounded n8n knowledge for agents.
 
-## Star History
+## Sponsor
 
-[![Star History Chart](https://api.star-history.com/svg?repos=EtienneLescot/n8n-as-code&type=date&legend=top-left)](https://www.star-history.com/#EtienneLescot/n8n-as-code&type=date&legend=top-left)
+If `n8n-as-code` saves you time, you can support its development through [GitHub Sponsors](https://github.com/sponsors/EtienneLescot).
 
 ## Contributing
 

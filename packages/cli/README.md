@@ -97,6 +97,7 @@ Use `env status --json` as the source of truth for active environment readiness.
 n8nac list
 n8nac pull <workflow-id>
 n8nac push workflows/dev/my-workflow.workflow.ts --verify
+n8nac push workflows/dev/my-workflow.workflow.ts --draft
 n8nac promote workflows/dev/my-workflow.workflow.ts --from Dev --to Prod --dry-run
 n8nac promote --from Dev --to Prod --dry-run
 n8nac resolve <workflow-id> --mode keep-current
@@ -104,6 +105,12 @@ n8nac resolve <workflow-id> --mode keep-incoming
 ```
 
 Sync is Git-like and explicit. `pull` and `push` block on conflicts instead of silently overwriting work.
+
+On n8n 2.x, pushing to a **published** workflow also releases it — the API
+re-publishes on update and offers no opt-out. `push` announces that before the
+update lands, and `--draft` re-pins the previously published version so a change
+can be checked in n8n first. See
+[On a published workflow, push also releases](https://n8nascode.dev/docs/usage/cli/#on-a-published-workflow-push-also-releases).
 
 ### Promote Between Environments
 

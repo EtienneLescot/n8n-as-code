@@ -999,12 +999,13 @@ program.command('pull')
 
 // push - Upload a single local workflow file to n8n
 program.command('push')
-    .description('Upload a single local workflow to n8n')
+    .description('Upload a single local workflow to n8n (on a published workflow, this also releases it)')
     .argument('<path>', 'Path to a local workflow file inside the active sync scope (absolute or relative)')
     .option('--verify', 'After pushing, fetch the workflow from n8n and validate it against the local schema')
+    .option('--draft', 'Keep production on the version it already ran, so the change can be checked in n8n first')
     .action(async (pathArg, options) => {
         const cmd = new SyncCommand();
-        const workflowId = await cmd.pushOne(pathArg);
+        const workflowId = await cmd.pushOne(pathArg, { draft: options.draft === true });
         if (options.verify && workflowId) {
             console.log(chalk.dim('\n── Post-push verification ──────────────────────────────'));
             const ok = await cmd.verifyRemote(workflowId);

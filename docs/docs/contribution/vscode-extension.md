@@ -47,7 +47,7 @@ graph TD
     D --> G[n8n API]
     E --> H[VS Code API]
     
-    style A fill:#ff6b35
+    style A fill:#ff3b7a
     style B fill:#3498db
     style C fill:#2ecc71
     style D fill:#9b59b6

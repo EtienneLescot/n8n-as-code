@@ -227,9 +227,65 @@ Pull downloads one workflow and refuses to overwrite when a conflict is detected
 ```bash
 n8nac push workflows/dev/my-workflow.workflow.ts
 n8nac push workflows/dev/my-workflow.workflow.ts --verify
+n8nac push workflows/dev/my-workflow.workflow.ts --draft
 ```
 
 Push uploads one local workflow and uses optimistic concurrency checks.
+
+#### On a published workflow, push also releases
+
+On n8n 2.x a workflow is two things at once:
+
+- a **draft** — its content, rewritten by every save and by every push;
+- a **published version** — a pointer to the version production actually runs.
+
+`PUT /workflows/:id` writes the draft *and* moves the pointer when the workflow
+is published, and the public API offers no opt-out. So the same `n8nac push`
+does two different things depending on a state you cannot see from the terminal:
+
+| Workflow state | What `push` does |
+|---|---|
+| not published | writes the draft; nothing runs in production |
+| published | writes the draft **and** releases it — the UI equivalent of Save + Publish |
+
+That is the default, and push announces it before the update lands:
+
+```text
+⚠  "my-workflow.workflow.ts" is published — this push releases it to production.
+✔ Pushed workflow my-workflow.workflow.ts.
+```
+
+#### `--draft`: keep production on the version it already ran
+
+`--draft` is for checking a change in n8n before it goes live — open the
+workflow, hit *Execute workflow*, look at the result — without real triggers
+firing against it:
+
+```bash
+n8nac push workflows/dev/my-workflow.workflow.ts --draft
+```
+
+```text
+✔ Pushed workflow my-workflow.workflow.ts.
+📝 Draft updated — production still runs version 8f3c1e2a.
+   Release it by pushing again without --draft.
+```
+
+**It is a rollback, not a no-op.** Since the API always re-publishes, `--draft`
+pushes and then re-pins the previous version. Two consequences:
+
+- there is a brief window between the update and the re-pin in which the pushed
+  content is live, so a webhook or schedule firing at that instant can run it;
+- each `--draft` push against a published workflow leaves two entries in n8n's
+  version history.
+
+If the re-pin fails, the push fails with the version id to re-publish manually —
+it never reports success while leaving unreleased content in production.
+
+`--draft` refuses rather than pretending when it cannot keep its promise: on n8n
+1.x, which has no version pointer (an active workflow runs the content it
+holds), and when the published version cannot be read before the push. In both
+cases nothing has been sent yet, so the refusal costs nothing.
 
 ### `promote`
 
