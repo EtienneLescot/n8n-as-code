@@ -1017,7 +1017,11 @@ describe('SyncEngine publish handling on push', () => {
         const push = () => engine.push(filename, workflowId, undefined, { draft: true });
         await expect(push()).rejects.toThrow(/now live in production/);
         await expect(push()).rejects.toThrow(/v-live/);
-        expect(watcher.finalizeSync).not.toHaveBeenCalled();
+        // The PUT already moved the remote, so local state is reconciled and the
+        // sync base advances even though the push fails — otherwise the next
+        // push false-conflicts against its own update.
+        expect(watcher.setRemoteHash).toHaveBeenCalled();
+        expect(watcher.finalizeSync).toHaveBeenCalledWith(workflowId, '2026-07-01T00:00:00.000Z');
     });
 
     // n8n creates workflows unpublished, so a create never touches production

@@ -307,13 +307,10 @@ export class SyncEngine {
             );
         }
 
-        const remoteUpdatedAt = outcome === 'restores'
-            ? await this.restorePublishedVersion(workflowId, filename, published!.versionId!, updatedWf)
-            : updatedWf.updatedAt;
-
         // CRITICAL: Write the API response back to local file to ensure consistency
-        // This ensures local and remote have identical content after push
-        // Convert the updated workflow back to TypeScript
+        // This ensures local and remote have identical content after push.
+        // It happens BEFORE the restore attempt below: the PUT already changed
+        // the remote, so local must reflect it even when the re-pin fails.
         const tsCode = await WorkflowTransformerAdapter.convertToTypeScript(updatedWf, {
             format: true,
             commentStyle: 'verbose'
@@ -325,7 +322,19 @@ export class SyncEngine {
         const hash = await WorkflowTransformerAdapter.hashWorkflow(tsCode);
         this.watcher.setRemoteHash(workflowId, hash);
 
-        return remoteUpdatedAt;
+        if (outcome !== 'restores') {
+            return updatedWf.updatedAt;
+        }
+
+        try {
+            return await this.restorePublishedVersion(workflowId, filename, published!.versionId!, updatedWf);
+        } catch (error) {
+            // The loud failure above stops the regular finalize path, yet the
+            // remote did move (our own PUT). Advance the sync base here so the
+            // next push does not false-conflict against its own update.
+            await this.watcher.finalizeSync(workflowId, updatedWf.updatedAt);
+            throw error;
+        }
     }
 
     /**
