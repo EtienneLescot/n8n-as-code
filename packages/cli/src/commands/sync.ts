@@ -39,7 +39,7 @@ export class SyncCommand extends BaseCommand {
                 console.log(chalk.yellow(`To resolve the conflict you can either:`));
                 console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
                 console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
-                return;
+                process.exit(1);
             }
         }
 
@@ -88,7 +88,7 @@ export class SyncCommand extends BaseCommand {
                 console.log(chalk.yellow(`To resolve the conflict you can either:`));
                 console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
                 console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
-                return undefined;
+                process.exit(1);
             }
         }
 
@@ -117,8 +117,8 @@ export class SyncCommand extends BaseCommand {
                 if (workflowId) {
                     console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
                     console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
-                    return undefined;
                 }
+                process.exit(1);
             }
             if (e.message.includes('archived on n8n') || e.message.includes('isArchived')) {
                 spinner.stop();
