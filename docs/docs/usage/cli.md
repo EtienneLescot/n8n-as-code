@@ -250,7 +250,7 @@ does two different things depending on a state you cannot see from the terminal:
 
 That is the default, and push announces it before the update lands:
 
-```
+```text
 ⚠  "my-workflow.workflow.ts" is published — this push releases it to production.
 ✔ Pushed workflow my-workflow.workflow.ts.
 ```
@@ -265,7 +265,7 @@ firing against it:
 n8nac push workflows/dev/my-workflow.workflow.ts --draft
 ```
 
-```
+```text
 ✔ Pushed workflow my-workflow.workflow.ts.
 📝 Draft updated — production still runs version 8f3c1e2a.
    Release it by pushing again without --draft.

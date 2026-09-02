@@ -1,4 +1,4 @@
-﻿import fs from 'fs';
+import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -238,7 +238,7 @@ describe('SyncEngine create payload projectId behavior', () => {
         vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
 
         // A 400 whose body mentions "folder" but not "parentFolderId" / "parentFolder" must NOT be
-        // misclassified as "unsupported parentFolderId" â€” that would silently drop the folder assignment
+        // misclassified as "unsupported parentFolderId" — that would silently drop the folder assignment
         // on n8n instances that DO support it.
         const genericFolderError: any = new Error('Request failed with status code 400');
         genericFolderError.response = {
@@ -322,7 +322,7 @@ describe('SyncEngine create payload projectId behavior', () => {
 // ---------------------------------------------------------------------------
 //
 // Mirrors the create-path folderSync tests but for executeUpdate(). The update
-// path used to drop `parentFolderId` on the floor â€” both because
+// path used to drop `parentFolderId` on the floor — both because
 // `inferParentFolderIdFromFilename` was only called from executeCreate(), and
 // because `N8nApiClient.cleanWorkflowUpdatePayload()` did not include
 // `parentFolderId` in its allowedKeys set. Both are fixed; these tests guard
@@ -529,7 +529,7 @@ describe('SyncEngine update payload folderSync behavior', () => {
         // Snapshot each call's payload at call time. Vitest's vi.fn() records
         // arguments by live reference, and SyncEngine mutates the same localWf
         // between the two updateWorkflow calls (sets parentFolderId, then
-        // deletes it in the catch block) â€” so the recorded `calls` would
+        // deletes it in the catch block) — so the recorded `calls` would
         // reflect the post-mutation object by the time the assertion runs.
         // Capturing { ...payload } at each call preserves call-time state.
         // Same pattern as the create-side fix in commit c801ff43.
