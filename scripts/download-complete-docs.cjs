@@ -32,25 +32,30 @@ const LLMS_TXT_FILE = path.join(OUTPUT_DIR, 'llms.txt');
 const DELAY_BETWEEN_REQUESTS = 100; // ms
 const MAX_CONCURRENT_DOWNLOADS = 10;
 
-// Category detection patterns (order matters - most specific first)
-// Note: urlPath doesn't start with /, so patterns match without leading slash
+// Slug a section heading from llms.txt into a stable kebab-case id.
+// The result is used as a directory name under PAGES_DIR, so every character
+// outside [a-z0-9-] is replaced rather than passed through to path.join().
+// Without this a heading containing a path separator or '..' would escape the
+// cache directory. All nine section headings currently published in llms.txt
+// slug identically under this rule, so it is a hardening, not a rename.
+function slugifySection(name) {
+    return name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'uncategorized';
+}
+
+// Fallback category detection by URL prefix. Order matters — most specific first.
 const CATEGORY_PATTERNS = {
-    'advanced-ai': /^advanced-ai\//,
-    credentials: /^credentials\//,
-    tutorials: /^courses\/|^video-courses\/|^tutorials\//,
-    hosting: /^hosting\//,
-    api: /^api\//,
-    integrations: /^integrations\/builtin\/app-nodes\//,
-    'trigger-nodes': /^integrations\/builtin\/trigger-nodes\//,
-    'sync-nodes': /^integrations\/builtin\/sync-nodes\//,
-    'cluster-nodes': /^integrations\/builtin\/cluster-nodes\//,
-    'flow-logic': /^flow-logic\//,
-    data: /^data\//,
-    workflows: /^workflows\//,
-    code: /^code\/|\/code\//,
-    expressions: /^expressions\//,
-    concepts: /^concepts\//,
-    'try-it-out': /^try-it-out\//,
+    'get-started': /^(welcome|choose-how-to-use-n8n|build-your-first-workflow|learning-paths|key-concept-glossary)\.md$/,
+    'deploy': /^deploy\//,
+    'build': /^build\//,
+    'nodes': /^integrations\//,
+    'connect': /^connect\//,
+    'administer': /^administer\//,
+    'contribute': /^contribute\//,
+    'privacy-and-security': /^privacy-and-security\//,
+    'release-notes': /^release-notes\//,
 };
 
 /**
@@ -84,21 +89,30 @@ function downloadContent(url) {
 }
 
 /**
- * Parse llms.txt and extract all documentation links
+ * Parse llms.txt and extract all documentation links, attaching the current
+ * `## Section` heading so consumers can use it as the page category directly.
  */
 function parseLlmsTxt(content) {
     const links = [];
     const lines = content.split('\n');
+    let currentSection = null;
 
     for (const line of lines) {
-        // Match markdown links: - [Title](https://docs.n8n.io/path/index.md)
-        const match = line.match(/^- \[(.+?)\]\((https:\/\/docs\.n8n\.io\/(.+?))\)$/);
-        if (match) {
-            const [, title, url, urlPath] = match;
+        const sectionMatch = line.match(/^##\s+(.+?)\s*$/);
+        if (sectionMatch) {
+            currentSection = slugifySection(sectionMatch[1]);
+            continue;
+        }
+
+        // Allow optional `: description` after the URL (llms.txt format).
+        const linkMatch = line.match(/^- \[(.+?)\]\((https:\/\/docs\.n8n\.io\/([^)]+))\)(?::\s*.*)?$/);
+        if (linkMatch) {
+            const [, title, url, urlPath] = linkMatch;
             links.push({
                 title: title.trim(),
                 url: url.trim(),
-                urlPath: urlPath.trim()
+                urlPath: urlPath.trim(),
+                section: currentSection
             });
         }
     }
@@ -107,7 +121,8 @@ function parseLlmsTxt(content) {
 }
 
 /**
- * Detect category from URL path
+ * Detect category from URL path. Used as a fallback when the parser couldn't
+ * attach a section heading to a link.
  */
 function detectCategory(urlPath) {
     for (const [category, pattern] of Object.entries(CATEGORY_PATTERNS)) {
@@ -119,25 +134,30 @@ function detectCategory(urlPath) {
 }
 
 /**
- * Extract subcategory from URL path
+ * Extract subcategory from URL path within the section-based category.
  */
 function extractSubcategory(urlPath, category) {
-    if (category === 'integrations') {
+    if (category === 'nodes') {
+        if (urlPath.includes('/core-nodes/')) return 'core-nodes';
         if (urlPath.includes('/app-nodes/')) return 'app-nodes';
         if (urlPath.includes('/trigger-nodes/')) return 'trigger-nodes';
-        if (urlPath.includes('/sync-nodes/')) return 'sync-nodes';
+        if (urlPath.includes('/cluster-nodes/')) return 'cluster-nodes';
         if (urlPath.includes('/credentials/')) return 'credentials';
     }
 
-    if (category === 'advanced-ai') {
-        if (urlPath.includes('/examples/')) return 'examples';
-        if (urlPath.includes('/langchain/')) return 'langchain';
-        if (urlPath.includes('/evaluations/')) return 'evaluations';
+    if (category === 'build') {
+        if (urlPath.includes('/integrate-ai/ai-examples/')) return 'examples';
+        if (urlPath.includes('/integrate-ai/')) return 'integrate-ai';
+        if (urlPath.includes('/code-in-n8n/cookbook/')) return 'cookbook';
+        if (urlPath.includes('/code-in-n8n/')) return 'code';
+        if (urlPath.includes('/flow-logic')) return 'flow-logic';
+        if (urlPath.includes('/work-with-data/')) return 'data';
     }
 
-    if (category === 'code') {
-        if (urlPath.includes('/builtin/')) return 'builtin';
-        if (urlPath.includes('/cookbook/')) return 'cookbook';
+    if (category === 'deploy') {
+        if (urlPath.includes('/configure-n8n/')) return 'configuration';
+        if (urlPath.includes('/scaling/')) return 'scaling';
+        if (urlPath.includes('/security/')) return 'security';
     }
 
     return null;
@@ -237,12 +257,23 @@ async function downloadAllPages(links, llmsHash) {
     if (fs.existsSync(METADATA_FILE)) {
         try {
             const metadata = JSON.parse(fs.readFileSync(METADATA_FILE, 'utf-8'));
-            if (metadata.llmsHash === llmsHash && metadata.totalPages > 0 && fs.existsSync(PAGES_DIR)) {
+            const cachedPages = Object.values(metadata.pages || {});
+            // A run that hit download errors still writes metadata, so the hash alone
+            // does not mean the cache is complete. Require a clean run and confirm every
+            // referenced file is still on disk before skipping the download.
+            const cacheIsComplete = metadata.llmsHash === llmsHash
+                && metadata.totalPages > 0
+                && metadata.errors === 0
+                && fs.existsSync(PAGES_DIR)
+                && cachedPages.length === metadata.totalPages
+                && cachedPages.every(page => page.filePath && fs.existsSync(path.join(OUTPUT_DIR, page.filePath)));
+
+            if (cacheIsComplete) {
                 console.log(`\n✅ Cache found with ${metadata.totalPages} pages. Skipping all downloads.`);
-                return { results: Object.values(metadata.pages), errors: [] };
+                return { results: cachedPages, errors: [] };
             }
 
-            console.log('\n🔄 llms.txt changed since the last snapshot. Refreshing documentation pages...');
+            console.log('\n🔄 Cached documentation is stale or incomplete. Refreshing documentation pages...');
             removeDirectoryIfExists(PAGES_DIR);
             await mkdir(PAGES_DIR, { recursive: true });
         } catch (e) {
@@ -261,7 +292,9 @@ async function downloadAllPages(links, llmsHash) {
                 await sleep(DELAY_BETWEEN_REQUESTS * index);
 
                 const content = await downloadContent(link.url);
-                const category = detectCategory(link.urlPath);
+                const category = link.section && link.section !== 'other'
+                    ? link.section
+                    : detectCategory(link.urlPath);
                 const subcategory = extractSubcategory(link.urlPath, category);
                 const nodeName = extractNodeName(link.urlPath);
                 const keywords = extractKeywords(link.title, content);
@@ -269,7 +302,6 @@ async function downloadAllPages(links, llmsHash) {
 
                 // Save page to disk
                 const pageId = `page-${String(results.length + 1).padStart(4, '0')}`;
-                const safePath = link.urlPath.replace(/[^a-zA-Z0-9\/\-_.]/g, '-');
                 const pagePath = path.join(PAGES_DIR, category, `${pageId}.md`);
 
                 await mkdir(path.dirname(pagePath), { recursive: true });

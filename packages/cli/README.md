@@ -49,6 +49,15 @@ printf '%s' "$N8N_API_KEY" | n8nac env auth set Dev --api-key-stdin
 n8nac env use Dev
 ```
 
+`env auth set` binds the key to the environment, so two environments on the same base URL — one per n8n account on a single instance — keep separate credentials:
+
+```bash
+n8nac env add Prod    --base-url https://n8n.example.com --workflows-path workflows/prod
+n8nac env add Preprod --base-url https://n8n.example.com --workflows-path workflows/preprod
+printf '%s' "$PROD_N8N_API_KEY"    | n8nac env auth set Prod    --api-key-stdin
+printf '%s' "$PREPROD_N8N_API_KEY" | n8nac env auth set Preprod --api-key-stdin
+```
+
 Attach a workspace environment to a local managed instance:
 
 ```bash

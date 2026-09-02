@@ -4,8 +4,10 @@ import EventEmitter from 'events';
 import { N8nApiClient } from './n8n-api-client.js';
 import { WorkflowTransformerAdapter } from './workflow-transformer-adapter.js';
 import { HashUtils } from './hash-utils.js';
-import { WorkflowSyncStatus, IWorkflowStatus, IWorkflow } from '../types.js';
+import { WorkflowSyncStatus, IWorkflowStatus, IWorkflow, IWorkflowDrift } from '../types.js';
 import { IWorkflowState, IInstanceState } from './state-manager.js';
+import { FolderPathResolver, sanitizePathSegment } from './folder-path-resolver.js';
+import { listWorkflowFilesRecursive, normalizeWorkflowRelativePath, workflowRelativePathToAbsolute } from './workflow-path-utils.js';
 
 const WINDOWS_RESERVED_FILENAMES = new Set([
     'CON',
@@ -53,6 +55,8 @@ export class WorkflowStateTracker extends EventEmitter {
     private ignoredTags: string[];
     private projectId: string;
     private stateFilePath: string;
+    private folderSync: boolean;
+    private warnedFolderMetadataUnavailable = false;
     private isConnected: boolean = true;
     /** True during the first refreshRemoteState() call — suppresses status broadcasts */
     private isInitialRemoteLoad: boolean = false;
@@ -73,6 +77,8 @@ export class WorkflowStateTracker extends EventEmitter {
     private remoteActive: Map<string, boolean> = new Map(); // workflowId -> active
     /** Remote archived flag per workflow (populated by refreshRemoteState / updateSingleRemoteState). */
     private remoteArchived: Map<string, boolean> = new Map(); // workflowId -> isArchived
+    private remoteParentFolderIds: Map<string, string | null> = new Map(); // workflowId -> parentFolderId
+    private remoteFolderPaths: Map<string, string[]> = new Map(); // workflowId -> folder path segments
 
     constructor(
         client: N8nApiClient,
@@ -81,6 +87,7 @@ export class WorkflowStateTracker extends EventEmitter {
             syncInactive: boolean;
             ignoredTags: string[];
             projectId: string;      // Project scope filter
+            folderSync?: boolean;
         }
     ) {
         super();
@@ -89,6 +96,7 @@ export class WorkflowStateTracker extends EventEmitter {
         this.syncInactive = options.syncInactive;
         this.ignoredTags = options.ignoredTags;
         this.projectId = options.projectId;
+        this.folderSync = options.folderSync ?? false;
         this.stateFilePath = path.join(this.directory, '.n8n-state.json');
 
         // Restore persisted mappings immediately so 'pull' and other commands can find workflows
@@ -115,7 +123,7 @@ export class WorkflowStateTracker extends EventEmitter {
             return;
         }
 
-        const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.workflow.ts') && !f.startsWith('.'));
+        const files = listWorkflowFilesRecursive(this.directory);
         const currentFiles = new Set(files);
 
         // Remove entries for files that no longer exist
@@ -134,7 +142,7 @@ export class WorkflowStateTracker extends EventEmitter {
         const fileContents: Array<{ filename: string; content: any }> = [];
         const newlyTracked: string[] = [];
         for (const filename of files) {
-            const filePath = path.join(this.directory, filename);
+            const filePath = workflowRelativePathToAbsolute(this.directory, filename);
             const content = this.readJsonFile(filePath); // Quick ID extraction
             if (content) {
                 fileContents.push({ filename, content });
@@ -278,6 +286,11 @@ export class WorkflowStateTracker extends EventEmitter {
             this.remoteNames.clear();
             this.remoteActive.clear();
             this.remoteArchived.clear();
+            this.remoteParentFolderIds.clear();
+            this.remoteFolderPaths.clear();
+
+            const folderResolver = await this.createFolderResolver(remoteWorkflows);
+            const state = this.loadState();
 
             // Build set of already-assigned filenames to prevent collisions
             const assignedFilenames = new Set<string>();
@@ -291,9 +304,29 @@ export class WorkflowStateTracker extends EventEmitter {
                 // Store active and archived flags from API
                 this.remoteActive.set(wf.id, wf.active === true);
                 this.remoteArchived.set(wf.id, wf.isArchived === true);
+                // Cache remote updatedAt for cheap drift detection in getLightweightList.
+                // The lightweight `list` path cannot afford a per-workflow hash compare,
+                // but `updatedAt` (already returned by /api/v1/workflows) is enough to
+                // detect "remote changed since last sync" without an extra API call.
+                if (wf.updatedAt) this.remoteTimestamps.set(wf.id, wf.updatedAt);
+                const parentFolderId = wf.parentFolderId ?? wf.parentFolder?.id ?? null;
+                const folderPath = folderResolver ? folderResolver.getPathForWorkflow(wf) : [];
+                this.remoteParentFolderIds.set(wf.id, parentFolderId);
+                this.remoteFolderPaths.set(wf.id, folderPath);
 
                 // CRITICAL: Use ID-based mapping with PERSISTED state as source of truth
                 let filename: string | undefined = this.idToFileMap.get(wf.id);
+
+                if (!filename) {
+                    const persistedFilename = state.workflows[wf.id]?.filename;
+                    if (persistedFilename) {
+                        try {
+                            filename = normalizeWorkflowRelativePath(persistedFilename);
+                        } catch {
+                            filename = undefined;
+                        }
+                    }
+                }
 
                 // If no valid mapping, scan local files to discover/rediscover the workflow
                 if (!filename) {
@@ -307,13 +340,13 @@ export class WorkflowStateTracker extends EventEmitter {
 
                 // If still not found, this is a NEW remote workflow - generate filename
                 if (!filename) {
-                    const baseName = `${this.safeName(wf.name)}.workflow.ts`;
+                    const baseName = this.buildRelativeFilename(wf, folderPath);
 
                     // Check if this base name is already assigned to another workflow
                     if (assignedFilenames.has(baseName)) {
                         // Name collision - generate unique filename with ID suffix
                         const idSuffix = wf.id.substring(0, 8);
-                        filename = `${this.safeName(wf.name)}_${idSuffix}.workflow.ts`;
+                        filename = this.buildRelativeFilename(wf, folderPath, idSuffix);
                     } else {
                         // Name is free - use it
                         filename = baseName;
@@ -397,9 +430,9 @@ export class WorkflowStateTracker extends EventEmitter {
         // If workflow not tracked yet (first sync of local-only workflow),
         // scan directory to find the file with this ID
         if (!filename) {
-            const files = fs.readdirSync(this.directory).filter(f => f.endsWith('.workflow.ts') && !f.startsWith('.'));
+            const files = listWorkflowFilesRecursive(this.directory);
             for (const file of files) {
-                const filePath = path.join(this.directory, file);
+                const filePath = workflowRelativePathToAbsolute(this.directory, file);
                 const content = this.readJsonFile(filePath);
                 if (content?.id === workflowId) {
                     filename = file;
@@ -416,7 +449,7 @@ export class WorkflowStateTracker extends EventEmitter {
         }
 
         // Get current reality
-        const filePath = path.join(this.directory, filename);
+        const filePath = workflowRelativePathToAbsolute(this.directory, filename);
         const content = this.readJsonFile(filePath);
 
         if (!content) {
@@ -476,6 +509,8 @@ export class WorkflowStateTracker extends EventEmitter {
         this.remoteNames.delete(id);
         this.remoteActive.delete(id);
         this.remoteArchived.delete(id);
+        this.remoteParentFolderIds.delete(id);
+        this.remoteFolderPaths.delete(id);
         this.remoteIds.delete(id);
     }
 
@@ -504,16 +539,22 @@ export class WorkflowStateTracker extends EventEmitter {
         for (const [workflowId, workflowState] of Object.entries(state.workflows)) {
             const filename = workflowState?.filename;
             if (!filename) continue;
+            let normalizedFilename: string;
+            try {
+                normalizedFilename = normalizeWorkflowRelativePath(filename);
+            } catch {
+                continue;
+            }
 
-            const filePath = path.join(this.directory, filename);
+            const filePath = workflowRelativePathToAbsolute(this.directory, normalizedFilename);
             if (!fs.existsSync(filePath)) continue;
 
             if (!this.idToFileMap.has(workflowId)) {
-                this.idToFileMap.set(workflowId, filename);
+                this.idToFileMap.set(workflowId, normalizedFilename);
             }
 
-            if (!this.fileToIdMap.has(filename)) {
-                this.fileToIdMap.set(filename, workflowId);
+            if (!this.fileToIdMap.has(normalizedFilename)) {
+                this.fileToIdMap.set(normalizedFilename, workflowId);
             }
         }
     }
@@ -678,6 +719,51 @@ export class WorkflowStateTracker extends EventEmitter {
     }
 
     /**
+     * Builds the resolver that turns a remote workflow's folder into local path
+     * segments — when n8n tells us what that folder is.
+     *
+     * As of n8n 2.32 it does not: `parentFolderId` is declared `writeOnly` in the
+     * public API spec, the read handlers never load the `parentFolder` relation,
+     * and no endpoint maps workflows to folders. This holds on every edition,
+     * Enterprise included, so pull lays workflows out flat and this returns null.
+     *
+     * The detection is deliberately based on the payload rather than a version
+     * check: the day a workflow read carries folder fields, nested pulls start
+     * working with no change here.
+     */
+    private async createFolderResolver(remoteWorkflows: IWorkflow[]): Promise<FolderPathResolver | null> {
+        if (!this.folderSync) return null;
+        const hasWorkflowFolderFields = remoteWorkflows.some((workflow) =>
+            workflow.parentFolderId !== undefined || workflow.parentFolder?.id,
+        );
+        if (!hasWorkflowFolderFields || typeof this.client.getFolders !== 'function') {
+            this.warnFolderMetadataUnavailable();
+            return null;
+        }
+        try {
+            return new FolderPathResolver(await this.client.getFolders(this.projectId));
+        } catch (error: any) {
+            this.warnFolderMetadataUnavailable(error?.message);
+            return null;
+        }
+    }
+
+    private warnFolderMetadataUnavailable(reason?: string): void {
+        if (this.warnedFolderMetadataUnavailable) return;
+        this.warnedFolderMetadataUnavailable = true;
+        console.warn(
+            `[WorkflowStateTracker] folderSync is enabled, but n8n's public API does not report which folder a workflow is in${reason ? ` (${reason})` : ''}. ` +
+            `Pull keeps workflows flat; push still mirrors your local folders onto n8n.`,
+        );
+    }
+
+    private buildRelativeFilename(workflow: IWorkflow, folderPath: string[] = [], idSuffix?: string): string {
+        const baseName = `${this.safeName(workflow.name)}${idSuffix ? `_${idSuffix}` : ''}.workflow.ts`;
+        if (!this.folderSync || folderPath.length === 0) return baseName;
+        return normalizeWorkflowRelativePath([...folderPath.map(sanitizePathSegment), baseName].join('/'));
+    }
+
+    /**
      * Find local file that contains a specific workflow ID
      * Used when we have an ID but no filename mapping yet (e.g., after file rename)
      */
@@ -686,11 +772,10 @@ export class WorkflowStateTracker extends EventEmitter {
             return undefined;
         }
 
-        const files = fs.readdirSync(this.directory)
-            .filter(f => f.endsWith('.workflow.ts') && !f.startsWith('.'));
+        const files = listWorkflowFilesRecursive(this.directory);
 
         for (const file of files) {
-            const content = this.readJsonFile(path.join(this.directory, file));
+            const content = this.readJsonFile(workflowRelativePathToAbsolute(this.directory, file));
             if (content?.id === workflowId) {
                 return file;
             }
@@ -836,8 +921,16 @@ export class WorkflowStateTracker extends EventEmitter {
             // For local-only files, extract the name from the @workflow decorator for an accurate display.
             // Fall back to filename-derived name as last resort.
             const workflowName = (workflowId && this.remoteNames.get(workflowId))
-                || this.readJsonFile(path.join(this.directory, filename))?.name
+                || this.readJsonFile(workflowRelativePathToAbsolute(this.directory, filename))?.name
                 || filename.replace('.workflow.ts', '');
+
+            // Cheap drift signal: only computed when both reference state and the
+            // remote `updatedAt` from this refresh are available. See computeDrift().
+            // `remoteKnown` already implies `workflowId` is defined (see above), so the
+            // non-null assertion is safe and keeps this branch narrow.
+            const drift = remoteKnown && workflowId
+                ? this.computeDrift(filename, workflowId, state, this.remoteTimestamps.get(workflowId))
+                : undefined;
 
             results.set(filename, {
                 id: workflowId || '',
@@ -848,7 +941,13 @@ export class WorkflowStateTracker extends EventEmitter {
                 projectId: undefined, // Not available in lightweight mode
                 projectName: undefined, // Not available in lightweight mode
                 homeProject: undefined, // Not available in lightweight mode
-                isArchived
+                isArchived,
+                drift,
+                lastSyncedAt: workflowId ? state.workflows[workflowId]?.lastSyncedAt : undefined,
+                remoteUpdatedAt: workflowId ? this.remoteTimestamps.get(workflowId) : undefined,
+                parentFolderId: workflowId ? this.remoteParentFolderIds.get(workflowId) : undefined,
+                folderPath: workflowId ? this.remoteFolderPaths.get(workflowId) : undefined,
+                folderPathString: workflowId ? this.remoteFolderPaths.get(workflowId)?.join('/') : undefined,
             });
         }
 
@@ -879,7 +978,10 @@ export class WorkflowStateTracker extends EventEmitter {
                     projectId: undefined, // Not available in lightweight mode
                     projectName: undefined, // Not available in lightweight mode
                     homeProject: undefined, // Not available in lightweight mode
-                    isArchived
+                    isArchived,
+                    parentFolderId: this.remoteParentFolderIds.get(workflowId),
+                    folderPath: this.remoteFolderPaths.get(workflowId),
+                    folderPathString: this.remoteFolderPaths.get(workflowId)?.join('/'),
                 });
             }
         }
@@ -888,21 +990,86 @@ export class WorkflowStateTracker extends EventEmitter {
     }
 
     /**
+     * Cheap drift computation for the lightweight `list` path.
+     *
+     * Single source of truth (SSOT) for the "did either side change since last sync?"
+     * question when a remote hash is not yet cached (i.e. before `n8nac fetch <id>`
+     * runs the expensive per-workflow hash roundtrip).
+     *
+     * Returns `undefined` when there is no reference state for the workflow
+     * (never pulled / first sync), so consumers can distinguish "no drift known"
+     * from "drift checked and nothing changed". Within the returned object each
+     * axis is likewise `undefined` when its input is missing, so an absent axis
+     * reads as "unknown" and never as "unchanged".
+     *
+     * Cost: O(1) Map lookups, one string compare and one timestamp parse. No AST,
+     * no I/O, no extra API calls.
+     * The data sources are already populated by the existing lightweight refresh:
+     *   - `localHashes[filename]`  - populated by `refreshLocalState`
+     *   - `state.workflows[id]`    - read from `.n8n-state.json`
+     *   - `remoteTimestamp`        - returned by `/api/v1/workflows` (now cached by
+     *                                `refreshRemoteState` into `remoteTimestamps`)
+     */
+    private computeDrift(
+        filename: string,
+        workflowId: string,
+        state: IInstanceState,
+        remoteTimestamp: string | undefined,
+    ): IWorkflowDrift | undefined {
+        const baseState = state.workflows[workflowId];
+        const lastSyncedHash = baseState?.lastSyncedHash;
+        const lastSyncedAt = baseState?.lastSyncedAt;
+        if (!lastSyncedHash || !lastSyncedAt) return undefined;
+
+        const localHash = this.localHashes.get(filename);
+        return {
+            // `undefined` when the file has no entry in localHashes, i.e. it could not
+            // be hashed during the local scan (refreshLocalState skips files that fail
+            // to parse). Reporting `false` there would claim "matches the last sync"
+            // for a file we never actually read.
+            local: localHash === undefined ? undefined : localHash !== lastSyncedHash,
+            // `undefined` when the instance returned no `updatedAt`: with nothing to
+            // compare, remote drift can be neither confirmed nor ruled out. Reporting
+            // `false` here would repeat, on the remote axis, the false "everything is
+            // aligned" this signal exists to prevent.
+            remote: remoteTimestamp === undefined ? undefined : this.isNewerThan(remoteTimestamp, lastSyncedAt),
+        };
+    }
+
+    /**
+     * True when the remote `updatedAt` is strictly newer than the recorded `lastSyncedAt`.
+     *
+     * `lastSyncedAt` is normally a verbatim copy of the remote `updatedAt` (see
+     * `updateWorkflowState`), so both sides usually share the same representation and
+     * equality means "in sync". They can still diverge in format — the fallback in
+     * `updateWorkflowState` writes a client-side `new Date().toISOString()` when the API
+     * response carried no `updatedAt`, and n8n instances differ in how they serialise
+     * timestamps. A lexical compare across two formats misreports silently (`' '` < `'T'`
+     * makes a space-separated timestamp always look older), so compare parsed instants,
+     * consistent with the existing remote-change guard in `sync-engine.ts`.
+     */
+    private isNewerThan(remote: string, base: string): boolean {
+        const remoteMs = Date.parse(remote);
+        const baseMs = Date.parse(base);
+        if (Number.isNaN(remoteMs) || Number.isNaN(baseMs)) {
+            // Unparseable on either side: fall back to an exact-string mismatch. This errs
+            // toward reporting drift, which is the safe direction — a missed remote change
+            // is the failure this signal exists to prevent.
+            return remote !== base;
+        }
+        return remoteMs > baseMs;
+    }
+
+    /**
      * Get list of local workflow filenames (just checks file system, no parsing)
      */
     private getLocalWorkflowFilenames(): string[] {
-        const filenames: string[] = [];
         try {
-            const files = fs.readdirSync(this.directory);
-            for (const file of files) {
-                if (file.endsWith('.workflow.ts')) {
-                    filenames.push(file);
-                }
-            }
+            return listWorkflowFilesRecursive(this.directory);
         } catch (error) {
             console.debug('[WorkflowStateTracker] Failed to read local directory:', error);
         }
-        return filenames;
+        return [];
     }
 
     public async getStatusMatrix(): Promise<IWorkflowStatus[]> {
@@ -914,7 +1081,7 @@ export class WorkflowStateTracker extends EventEmitter {
         try {
             // Read local workflows
             for (const [filename] of this.localHashes.entries()) {
-                const filePath = path.join(this.directory, filename);
+                const filePath = workflowRelativePathToAbsolute(this.directory, filename);
                 if (fs.existsSync(filePath)) {
                     try {
                         const workflow = await this.readWorkflowFile(filePath);
@@ -952,7 +1119,10 @@ export class WorkflowStateTracker extends EventEmitter {
                 projectId: workflow?.projectId,
                 projectName: workflow?.projectName,
                 homeProject: workflow?.homeProject,
-                isArchived
+                isArchived,
+                parentFolderId: workflowId ? this.remoteParentFolderIds.get(workflowId) : undefined,
+                folderPath: workflowId ? this.remoteFolderPaths.get(workflowId) : undefined,
+                folderPathString: workflowId ? this.remoteFolderPaths.get(workflowId)?.join('/') : undefined,
             });
         }
 
@@ -977,7 +1147,10 @@ export class WorkflowStateTracker extends EventEmitter {
                     projectId: workflow?.projectId,
                     projectName: workflow?.projectName,
                     homeProject: workflow?.homeProject,
-                    isArchived: workflow?.isArchived ?? false
+                    isArchived: workflow?.isArchived ?? false,
+                    parentFolderId: this.remoteParentFolderIds.get(workflowId),
+                    folderPath: this.remoteFolderPaths.get(workflowId),
+                    folderPathString: this.remoteFolderPaths.get(workflowId)?.join('/'),
                 });
             }
         }
@@ -1003,7 +1176,10 @@ export class WorkflowStateTracker extends EventEmitter {
                     projectId: workflow?.projectId,
                     projectName: workflow?.projectName,
                     homeProject: workflow?.homeProject,
-                    isArchived: workflow?.isArchived ?? false
+                    isArchived: workflow?.isArchived ?? false,
+                    parentFolderId: this.remoteParentFolderIds.get(id),
+                    folderPath: this.remoteFolderPaths.get(id),
+                    folderPathString: this.remoteFolderPaths.get(id)?.join('/'),
                 });
             }
         }
@@ -1053,7 +1229,7 @@ export class WorkflowStateTracker extends EventEmitter {
 
         // 1. Get all local workflows
         for (const [filename, _] of this.localHashes.entries()) {
-            const filepath = path.join(this.directory, filename);
+            const filepath = workflowRelativePathToAbsolute(this.directory, filename);
             try {
                 const workflow = await this.readWorkflowFile(filepath);
                 if (workflow) {
@@ -1123,6 +1299,18 @@ export class WorkflowStateTracker extends EventEmitter {
             this.remoteNames.set(newId, name);
         }
 
+        const parentFolderId = this.remoteParentFolderIds.get(oldId);
+        if (parentFolderId !== undefined) {
+            this.remoteParentFolderIds.delete(oldId);
+            this.remoteParentFolderIds.set(newId, parentFolderId);
+        }
+
+        const folderPath = this.remoteFolderPaths.get(oldId);
+        if (folderPath) {
+            this.remoteFolderPaths.delete(oldId);
+            this.remoteFolderPaths.set(newId, folderPath);
+        }
+
         // Migrate remote ID set
         if (this.remoteIds.has(oldId)) {
             this.remoteIds.delete(oldId);
@@ -1157,18 +1345,35 @@ export class WorkflowStateTracker extends EventEmitter {
             // Store active and archived flags
             this.remoteActive.set(remoteWf.id, remoteWf.active === true);
             this.remoteArchived.set(remoteWf.id, remoteWf.isArchived === true);
+            const parentFolderId = remoteWf.parentFolderId ?? remoteWf.parentFolder?.id ?? null;
+            let folderPath: string[] = [];
+            if (this.folderSync && parentFolderId && typeof this.client.getFolders === 'function') {
+                try {
+                    // Same project-id caveat as the push path: the folder list endpoint
+                    // needs a real id, not the `personal` placeholder.
+                    const folderProjectId = typeof this.client.resolveFolderProjectId === 'function'
+                        ? await this.client.resolveFolderProjectId(this.projectId)
+                        : this.projectId;
+                    const resolver = new FolderPathResolver(await this.client.getFolders(folderProjectId ?? this.projectId));
+                    folderPath = resolver.getPathForWorkflow(remoteWf);
+                } catch (error: any) {
+                    this.warnFolderMetadataUnavailable(error?.message);
+                }
+            }
+            this.remoteParentFolderIds.set(remoteWf.id, parentFolderId);
+            this.remoteFolderPaths.set(remoteWf.id, folderPath);
 
             // Establish mapping if it doesn't exist yet (allows 'pull' after single 'fetch')
             if (!this.idToFileMap.has(remoteWf.id)) {
                 let filename = this.findFilenameByWorkflowId(remoteWf.id);
                 
                 if (!filename) {
-                    const baseName = `${this.safeName(remoteWf.name || remoteWf.id)}.workflow.ts`;
+                    const baseName = this.buildRelativeFilename(remoteWf, folderPath);
                     filename = baseName;
                     
                     // Simple collision check against existing mappings
                     if (this.fileToIdMap.has(filename)) {
-                        filename = `${this.safeName(remoteWf.name || remoteWf.id)}_${remoteWf.id.substring(0, 8)}.workflow.ts`;
+                        filename = this.buildRelativeFilename(remoteWf, folderPath, remoteWf.id.substring(0, 8));
                     }
                 }
                 

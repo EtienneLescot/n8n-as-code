@@ -1,4 +1,4 @@
-import { BaseCommand } from './base.js';
+import { BaseCommand, formatConnectionError } from './base.js';
 import { ITestResult } from '../core/index.js';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -62,7 +62,7 @@ export class TestCommand extends BaseCommand {
                 prod: options.prod ?? false,
             });
         } catch (err: any) {
-            spinner.fail(`Unexpected error: ${String(err?.message ?? err)}`);
+            spinner.fail(formatConnectionError('Unexpected error', err));
             return 1;
         }
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { N8nApiClient } from '../../src/core/services/n8n-api-client.js';
+import { N8nApiClient, buildCaBundle } from '../../src/core/services/n8n-api-client.js';
 import { createMockWorkflow } from '../helpers/test-helpers.js';
 
 const { mockAxiosCall, mockAxiosGet, mockAxiosPost, mockAxiosPut, mockAxiosDelete, mockAxiosCreate } = vi.hoisted(() => ({
@@ -35,6 +35,25 @@ vi.mock('axios', () => {
     };
 });
 
+// Mock tls to control getCACertificates behaviour across tests.
+// By default, no system CAs are returned so the baseline tests remain deterministic.
+vi.mock('tls', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('tls')>();
+    return {
+        ...actual,
+        getCACertificates: vi.fn().mockReturnValue([]),
+    };
+});
+
+// Mock fs to control NODE_EXTRA_CA_CERTS file reads.
+vi.mock('fs', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('fs')>();
+    return {
+        ...actual,
+        readFileSync: vi.fn().mockImplementation(actual.readFileSync),
+    };
+});
+
 describe('N8nApiClient test workflow support', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -51,9 +70,12 @@ describe('N8nApiClient test workflow support', () => {
             put: mockAxiosPut,
             delete: mockAxiosDelete,
         }));
+        // Reset the TLS environment so each test starts clean.
+        delete process.env.NODE_EXTRA_CA_CERTS;
+        delete process.env.N8NAC_INSECURE_TLS;
     });
 
-    it('configures shared agents with IPv4-first DNS lookup', () => {
+    it('configures shared agents with IPv4-first DNS lookup and no extra CAs', () => {
         new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
 
         const config = mockAxiosCreate.mock.calls[0][0];
@@ -61,6 +83,86 @@ describe('N8nApiClient test workflow support', () => {
         expect(config.httpsAgent).toBeDefined();
         expect(typeof config.httpAgent.options.lookup).toBe('function');
         expect(config.httpsAgent.options.lookup).toBe(config.httpAgent.options.lookup);
+        // `n8n.local` is a private-network name, so without extra CAs the agent falls back to
+        // rejectUnauthorized:false for backward compatibility with self-signed instances.
+        expect(config.httpsAgent.options.rejectUnauthorized).toBe(false);
+        expect(config.httpsAgent.options.ca).toBeUndefined();
+    });
+
+    it('enables certificate validation when NODE_EXTRA_CA_CERTS is set', async () => {
+        const { readFileSync } = await import('fs');
+        vi.mocked(readFileSync).mockReturnValue('-----BEGIN CERTIFICATE-----\nextra\n-----END CERTIFICATE-----\n' as any);
+        process.env.NODE_EXTRA_CA_CERTS = '/custom/ca.pem';
+
+        new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        const config = mockAxiosCreate.mock.calls[0][0];
+        expect(config.httpsAgent.options.rejectUnauthorized).toBe(true);
+        expect(Array.isArray(config.httpsAgent.options.ca)).toBe(true);
+        // Anchors are stored as trimmed PEM blocks, so the trailing newline is gone.
+        expect(config.httpsAgent.options.ca).toContain('-----BEGIN CERTIFICATE-----\nextra\n-----END CERTIFICATE-----');
+    });
+
+    it('keeps verification off when only the OS trust store is available', async () => {
+        // The regression this guards: gating rejectUnauthorized on "the bundle is non-empty"
+        // turns verification on for every host, because tls.getCACertificates('system') returns
+        // anchors on nearly every machine — breaking the plain self-signed instances on the local
+        // network that work today without the user configuring anything.
+        const tlsMod = await import('tls');
+        vi.mocked((tlsMod as any).getCACertificates).mockReturnValue([
+            '-----BEGIN CERTIFICATE-----\nsystem-anchor\n-----END CERTIFICATE-----',
+        ]);
+
+        new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        const config = mockAxiosCreate.mock.calls[0][0];
+        expect(config.httpsAgent.options.rejectUnauthorized).toBe(false);
+        // The anchors are still trusted, they just do not force strict verification on.
+        expect(config.httpsAgent.options.ca).toContain('-----BEGIN CERTIFICATE-----\nsystem-anchor\n-----END CERTIFICATE-----');
+    });
+
+    it('verifies the certificate of a public host even when no anchor is configured', () => {
+        // The hole this closes: a public n8n serves a publicly trusted certificate, so there is
+        // no compatibility reason to skip verification — skipping it just makes the API key
+        // interceptable by anyone on the path.
+        new N8nApiClient({ host: 'https://n8n.example.com/', apiKey: 'secret' });
+
+        const config = mockAxiosCreate.mock.calls[0][0];
+        expect(config.httpsAgent.options.rejectUnauthorized).toBe(true);
+    });
+
+    it('keeps verification off for an unconfigured loopback host', () => {
+        // The compatibility case: a plain self-signed n8n on localhost keeps working with no
+        // configuration, which is what the fallback exists for.
+        new N8nApiClient({ host: 'https://localhost:5678/', apiKey: 'secret' });
+
+        const config = mockAxiosCreate.mock.calls[0][0];
+        expect(config.httpsAgent.options.rejectUnauthorized).toBe(false);
+    });
+
+    it('verifies a loopback host once NODE_EXTRA_CA_CERTS is set', async () => {
+        const { readFileSync } = await import('fs');
+        vi.mocked(readFileSync).mockReturnValue('-----BEGIN CERTIFICATE-----\nextra\n-----END CERTIFICATE-----\n' as any);
+        process.env.NODE_EXTRA_CA_CERTS = '/custom/ca.pem';
+
+        new N8nApiClient({ host: 'https://localhost:5678/', apiKey: 'secret' });
+
+        const config = mockAxiosCreate.mock.calls[0][0];
+        expect(config.httpsAgent.options.rejectUnauthorized).toBe(true);
+    });
+
+    it('lets N8NAC_INSECURE_TLS opt out even when an anchor is configured', async () => {
+        // The escape hatch for a self-signed certificate on a public host name, which is the only
+        // setup the private-network fallback does not already cover. It has to win over a
+        // configured anchor too, otherwise it could not be used to unblock one.
+        const { readFileSync } = await import('fs');
+        vi.mocked(readFileSync).mockReturnValue('-----BEGIN CERTIFICATE-----\nextra\n-----END CERTIFICATE-----\n' as any);
+        process.env.NODE_EXTRA_CA_CERTS = '/custom/ca.pem';
+        process.env.N8NAC_INSECURE_TLS = '1';
+
+        new N8nApiClient({ host: 'https://n8n.example.com/', apiKey: 'secret' });
+
+        const config = mockAxiosCreate.mock.calls[0][0];
         expect(config.httpsAgent.options.rejectUnauthorized).toBe(false);
     });
 
@@ -83,6 +185,92 @@ describe('N8nApiClient test workflow support', () => {
         await expect(client.assertApiAccess()).rejects.toMatchObject({
             response: { status: 401 },
         });
+    });
+
+    it('fetches public project folders with pagination', async () => {
+        mockAxiosGet
+            .mockResolvedValueOnce({ data: { count: 2, data: [{ id: 'f1', name: 'Parent', parentFolderId: null }] } })
+            .mockResolvedValueOnce({ data: { count: 2, data: [{ id: 'f2', name: 'Child', parentFolderId: 'f1' }] } });
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        await expect(client.getFolders('project-1')).resolves.toEqual([
+            expect.objectContaining({ id: 'f1', name: 'Parent', parentFolderId: null }),
+            expect.objectContaining({ id: 'f2', name: 'Child', parentFolderId: 'f1' }),
+        ]);
+
+        expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/projects/project-1/folders', expect.objectContaining({
+            params: expect.objectContaining({ skip: '0', take: '100' }),
+        }));
+        expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/projects/project-1/folders', expect.objectContaining({
+            params: expect.objectContaining({ skip: '100', take: '100' }),
+        }));
+    });
+
+    it('only selects folder fields n8n accepts', async () => {
+        mockAxiosGet.mockResolvedValueOnce({ data: { count: 1, data: [{ id: 'f1', name: 'Parent', parentFolder: null }] } });
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        await client.getFolders('project-1');
+
+        // n8n's ListFolderQueryDto allow-list has `parentFolder`, not
+        // `parentFolderId` — asking for the latter 400s the whole query.
+        const select = JSON.parse(mockAxiosGet.mock.calls[0][1].params.select);
+        expect(select).toContain('parentFolder');
+        expect(select).not.toContain('parentFolderId');
+    });
+
+    it('resolves the folder project id from a workflow share when given the personal placeholder', async () => {
+        mockAxiosGet.mockResolvedValueOnce({ data: { data: [
+            { id: 'wf-1', shared: [{ projectId: 'real-project-id', role: 'workflow:owner' }] },
+        ] } });
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        // GET /api/v1/projects is Enterprise-gated, so a Community instance has to
+        // learn its own project id from a workflow payload instead.
+        await expect(client.resolveFolderProjectId('personal')).resolves.toBe('real-project-id');
+        expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/workflows', expect.objectContaining({
+            params: expect.objectContaining({ limit: 1 }),
+        }));
+
+        // Memoized: a second call must not re-hit the API.
+        await expect(client.resolveFolderProjectId('personal')).resolves.toBe('real-project-id');
+        expect(mockAxiosGet).toHaveBeenCalledTimes(1);
+    });
+
+    it('passes a real project id straight through without an API round-trip', async () => {
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        await expect(client.resolveFolderProjectId('project-42')).resolves.toBe('project-42');
+        expect(mockAxiosGet).not.toHaveBeenCalled();
+    });
+
+    it('resolves to null instead of throwing when no project id can be found', async () => {
+        mockAxiosGet.mockRejectedValueOnce(Object.assign(new Error('forbidden'), { response: { status: 403 } }));
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        await expect(client.resolveFolderProjectId('personal')).resolves.toBeNull();
+    });
+
+    it('preserves workflow parent folder metadata from workflow payloads', async () => {
+        mockAxiosGet
+            .mockResolvedValueOnce({ data: {
+                id: 'wf-1',
+                name: 'Foldered Workflow',
+                active: true,
+                nodes: [],
+                connections: {},
+                shared: [],
+                parentFolderId: 'folder-1',
+                parentFolder: { id: 'folder-1', name: 'Folder' },
+            } })
+            .mockRejectedValueOnce(new Error('tags unavailable'))
+            .mockResolvedValueOnce({ data: { data: [] } });
+        const client = new N8nApiClient({ host: 'https://n8n.local/', apiKey: 'secret' });
+
+        await expect(client.getWorkflow('wf-1')).resolves.toEqual(expect.objectContaining({
+            parentFolderId: 'folder-1',
+            parentFolder: { id: 'folder-1', name: 'Folder' },
+        }));
     });
 
     it('uses a bounded text request for HTML instance identity fallback', async () => {
@@ -902,5 +1090,72 @@ describe('N8nApiClient test workflow support', () => {
         expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/executions/42', {
             params: { includeData: true },
         });
+    });
+});
+
+describe('buildCaBundle', () => {
+    beforeEach(async () => {
+        vi.clearAllMocks();
+        delete process.env.NODE_EXTRA_CA_CERTS;
+        // Ensure getCACertificates returns [] by default so each test starts clean.
+        const tlsMod = await import('tls');
+        vi.mocked((tlsMod as any).getCACertificates).mockReturnValue([]);
+    });
+
+    it('returns undefined when no extra CA sources are available', () => {
+        // tls mock returns [] and NODE_EXTRA_CA_CERTS is unset
+        expect(buildCaBundle()).toBeUndefined();
+    });
+
+    it('returns a CA bundle including the extra CA file when NODE_EXTRA_CA_CERTS is set', async () => {
+        const { readFileSync } = await import('fs');
+        vi.mocked(readFileSync).mockReturnValue('-----BEGIN CERTIFICATE-----\nextra-ca\n-----END CERTIFICATE-----\n' as any);
+        process.env.NODE_EXTRA_CA_CERTS = '/path/to/ca.crt';
+
+        const bundle = buildCaBundle();
+
+        expect(bundle).toBeDefined();
+        // Anchors are stored as trimmed PEM blocks, so the trailing newline is gone.
+        expect(bundle).toContain('-----BEGIN CERTIFICATE-----\nextra-ca\n-----END CERTIFICATE-----');
+        expect(readFileSync).toHaveBeenCalledWith('/path/to/ca.crt', 'utf8');
+    });
+
+    it('returns a CA bundle including system CAs when getCACertificates provides them', async () => {
+        const tlsMod = await import('tls');
+        vi.mocked((tlsMod as any).getCACertificates).mockReturnValue(['-----BEGIN CERTIFICATE-----\nsystem-ca\n-----END CERTIFICATE-----\n']);
+
+        const bundle = buildCaBundle();
+
+        expect(bundle).toBeDefined();
+        expect(bundle).toContain('-----BEGIN CERTIFICATE-----\nsystem-ca\n-----END CERTIFICATE-----');
+    });
+
+    it('includes tls.rootCertificates in the bundle so public CAs still work', async () => {
+        const tlsMod = await import('tls');
+        vi.mocked((tlsMod as any).getCACertificates).mockReturnValue(['system-cert']);
+
+        const bundle = buildCaBundle();
+
+        // The Mozilla bundle is prepended; check at least one expected entry format
+        expect(bundle).toBeDefined();
+        expect(Array.isArray(bundle)).toBe(true);
+        // Root certs + system cert should be present
+        expect(bundle!.length).toBeGreaterThan(1);
+    });
+
+    it('falls back gracefully when readFileSync throws', async () => {
+        const { readFileSync } = await import('fs');
+        vi.mocked(readFileSync).mockImplementation(() => { throw new Error('ENOENT'); });
+        process.env.NODE_EXTRA_CA_CERTS = '/missing/ca.crt';
+
+        // Should return undefined (no system CAs from mock, file read failed)
+        expect(buildCaBundle()).toBeUndefined();
+    });
+
+    it('falls back gracefully when getCACertificates throws', async () => {
+        const tlsMod = await import('tls');
+        vi.mocked((tlsMod as any).getCACertificates).mockImplementation(() => { throw new Error('unsupported'); });
+
+        expect(buildCaBundle()).toBeUndefined();
     });
 });

@@ -300,27 +300,23 @@ export class DocsProvider {
     }
 
     /**
-     * Get guides (tutorials/advanced-ai/workflows pages)
+     * Get guides (Build and Nodes sections, plus any page marked subcategory: examples).
+     * These sections mirror the "how to" docs on docs.n8n.io.
      */
     getGuides(query?: string, limit: number = 10): DocPage[] {
         this.loadDocs();
 
-        // If no query, return unfiltered list (limited)
+        const isGuide = (page: DocPage) =>
+            page.category === 'build' ||
+            page.category === 'nodes' ||
+            page.subcategory === 'examples';
+
         if (!query) {
             if (!this.docs) return [];
-            return this.docs.pages.filter(p =>
-                ['tutorials', 'advanced-ai', 'workflows'].includes(p.category) ||
-                p.subcategory === 'examples'
-            ).slice(0, limit);
+            return this.docs.pages.filter(isGuide).slice(0, limit);
         }
 
-        // Use fuzzy search with category filter
-        return this.searchDocs(query, {
-            limit,
-            filter: (page) =>
-                ['tutorials', 'advanced-ai', 'workflows'].includes(page.category) ||
-                page.subcategory === 'examples'
-        });
+        return this.searchDocs(query, { limit, filter: isGuide });
     }
 
     /**

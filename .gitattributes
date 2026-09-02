@@ -1,0 +1,16 @@
+# Check text files out with LF on every platform.
+#
+# Several unit tests assert on exact source snippets read from disk with
+# fs.readFileSync (see tests/unit/agent-workbench-html.test.ts), so a Windows
+# checkout with core.autocrlf=true fails tests that pass on Linux CI. Pinning the
+# working-tree line endings keeps local runs identical to CI.
+* text=auto eol=lf
+
+# Windows shims must keep CRLF to stay executable by cmd.exe.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Never line-ending-convert binary assets.
+*.png binary
+*.gif binary
+*.ico binary

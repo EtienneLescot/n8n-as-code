@@ -1,4 +1,4 @@
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 import type { TelemetryClient } from "@n8n-as-code/telemetry";
 import { isWorkspaceInitialized } from "./workspace.js";
 

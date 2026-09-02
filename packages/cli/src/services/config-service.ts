@@ -27,10 +27,25 @@ export interface ILocalConfig {
     workflowDir?: string;
     customNodesPath?: string;
     folderSync?: boolean;
+    /** See ISyncConfig.folderSyncMoveToRoot — opt-in, push moves workflows out of remote folders. */
+    folderSyncMoveToRoot?: boolean;
 }
 
 export type IInstanceVerificationStatus = N8nInstanceVerificationStatus;
 export type IInstanceVerification = N8nInstanceVerification;
+
+/**
+ * Where the API key used for an environment came from, most specific first.
+ * - `env`: `N8NAC_ENV_*` / `N8NAC_TARGET_*` environment variable.
+ * - `workspace-environment`: key stored for this single environment (`n8nac env auth set`).
+ * - `workspace-local`: key stored for the environment target, shared by every environment on it.
+ * - `global`: key stored on the global n8n-manager instance that matches the host.
+ *
+ * `workspace-environment` and `workspace-local` apply to remote (external) environments only.
+ * A managed instance owns its credentials, so those environments resolve either a scoped
+ * environment variable or the managed instance key.
+ */
+export type EnvironmentCredentialSource = 'env' | 'workspace-environment' | 'workspace-local' | 'global' | 'missing';
 
 export interface IInstanceProfile extends ILocalConfig {
     id: string;
@@ -50,7 +65,7 @@ export interface IManagedEnvironmentTarget {
     instanceIdentifier?: string;
     instanceUserIdentifier?: string;
     apiKeyAvailable?: boolean;
-    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+    credentialSource?: EnvironmentCredentialSource;
     accessStatus?: EnvironmentAccessStatus;
 }
 
@@ -64,7 +79,7 @@ export interface IExternalEnvironmentTarget {
     verification?: IInstanceVerification;
     description?: string;
     apiKeyAvailable?: boolean;
-    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+    credentialSource?: EnvironmentCredentialSource;
     accessStatus?: EnvironmentAccessStatus;
 }
 
@@ -94,6 +109,8 @@ export interface IWorkspaceEnvironment {
     workflowsPath?: string;
     syncFolder?: string;
     folderSync?: boolean;
+    /** See ISyncConfig.folderSyncMoveToRoot — opt-in, push moves workflows out of remote folders. */
+    folderSyncMoveToRoot?: boolean;
     customNodesPath?: string;
     description?: string;
     sourceKind?: 'managed-instance' | 'external-instance';
@@ -106,7 +123,7 @@ export interface IWorkspaceEnvironment {
     instanceIdentifier?: string;
     instanceUserIdentifier?: string;
     apiKeyAvailable?: boolean;
-    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+    credentialSource?: EnvironmentCredentialSource;
     accessStatus?: EnvironmentAccessStatus;
     nativeMcp?: IWorkspaceNativeMcpConfig;
 }
@@ -139,7 +156,7 @@ export interface IWorkspaceConfig extends ILocalConfig {
     environmentTargetId?: string;
     environmentTargetName?: string;
     apiKeyAvailable?: boolean;
-    credentialSource?: 'env' | 'workspace-local' | 'global' | 'missing';
+    credentialSource?: EnvironmentCredentialSource;
 }
 
 export interface IResolvedWorkspaceEnvironment extends ILocalConfig {
@@ -156,7 +173,7 @@ export interface IResolvedWorkspaceEnvironment extends ILocalConfig {
     managedInstanceId?: string;
     host: string;
     apiKey?: string;
-    apiKeySource: 'env' | 'workspace-local' | 'global' | 'missing';
+    apiKeySource: EnvironmentCredentialSource;
     apiKeyAvailable: boolean;
     accessStatus: EnvironmentAccessStatus;
     nativeMcp?: IWorkspaceNativeMcpConfig;
@@ -400,6 +417,7 @@ export class ConfigService {
         syncFolder?: string;
         id?: string;
         folderSync?: boolean;
+        folderSyncMoveToRoot?: boolean;
         customNodesPath?: string;
         description?: string;
         nativeMcp?: IWorkspaceNativeMcpConfig;
@@ -429,6 +447,7 @@ export class ConfigService {
             projectName: cleanOptional(input.projectName),
             workflowsPath,
             folderSync: input.folderSync,
+            folderSyncMoveToRoot: input.folderSyncMoveToRoot,
             customNodesPath: input.customNodesPath,
             description: input.description,
             nativeMcp: this.sanitizeNativeMcpConfig(input.nativeMcp),
@@ -442,7 +461,7 @@ export class ConfigService {
         return environment;
     }
 
-    updateEnvironment(nameOrId: string, patch: Partial<Pick<IWorkspaceEnvironment, 'name' | 'projectId' | 'projectName' | 'workflowsPath' | 'workflowDir' | 'syncFolder' | 'folderSync' | 'customNodesPath' | 'description'>> & { environmentTarget?: string; nativeMcp?: IWorkspaceNativeMcpConfig | null }): IWorkspaceEnvironment {
+    updateEnvironment(nameOrId: string, patch: Partial<Pick<IWorkspaceEnvironment, 'name' | 'projectId' | 'projectName' | 'workflowsPath' | 'workflowDir' | 'syncFolder' | 'folderSync' | 'folderSyncMoveToRoot' | 'customNodesPath' | 'description'>> & { environmentTarget?: string; nativeMcp?: IWorkspaceNativeMcpConfig | null }): IWorkspaceEnvironment {
         const config = this.ensureV4WorkspaceConfig();
         const environment = this.findEnvironment(config, nameOrId);
         const currentTarget = this.findInstanceTarget(config, environment.environmentTargetId);
@@ -469,6 +488,7 @@ export class ConfigService {
             projectId: patch.projectId !== undefined ? cleanOptional(patch.projectId) : environment.projectId,
             projectName: patch.projectName !== undefined ? cleanOptional(patch.projectName) : environment.projectName,
             folderSync: patch.folderSync ?? environment.folderSync,
+            folderSyncMoveToRoot: patch.folderSyncMoveToRoot ?? environment.folderSyncMoveToRoot,
             customNodesPath: patch.customNodesPath ?? environment.customNodesPath,
             description: patch.description ?? environment.description,
             nativeMcp: patch.nativeMcp !== undefined ? this.sanitizeNativeMcpConfig(patch.nativeMcp) : environment.nativeMcp,
@@ -478,6 +498,10 @@ export class ConfigService {
             environments: config.environments.map((item) => item.id === environment.id ? nextEnvironment : item),
         };
         this.writeWorkspaceConfigV4(next);
+        if (nextEnvironment.environmentTargetId !== environment.environmentTargetId) {
+            // The stored key belongs to the previous instance; it must never reach the new one.
+            this.manager.deleteApiKey(this.environmentSecretKey(environment.id));
+        }
         return nextEnvironment;
     }
 
@@ -498,6 +522,7 @@ export class ConfigService {
             throw new Error(`Workspace environment "${environment.name}" is active. Pin another environment first, or re-run with --force to remove it and clear the active environment.`);
         }
         this.deleteNativeMcpToken(environment.id);
+        this.manager.deleteApiKey(this.environmentSecretKey(environment.id));
         const nextEnvironments = config.environments.filter((item) => item.id !== environment.id);
         this.writeWorkspaceConfigV4({
             ...config,
@@ -961,6 +986,37 @@ export class ConfigService {
         this.manager.saveApiKey(target.id, apiKey);
     }
 
+    deleteWorkspaceTargetApiKey(targetId: string): void {
+        try {
+            this.manager.deleteApiKey(this.getInstanceTarget(targetId).id);
+        } catch {
+            this.manager.deleteApiKey(targetId);
+        }
+    }
+
+    /**
+     * API key stored for a single environment. Environments that share an environment target
+     * (for example two accounts on the same n8n base URL) keep their own key this way.
+     */
+    getWorkspaceEnvironmentApiKey(environmentNameOrId: string): string | undefined {
+        const environment = this.findEnvironment(this.ensureV4WorkspaceConfig(), environmentNameOrId);
+        return this.manager.getApiKey(this.environmentSecretKey(environment.id));
+    }
+
+    saveWorkspaceEnvironmentApiKey(environmentNameOrId: string, apiKey: string): void {
+        const environment = this.findEnvironment(this.ensureV4WorkspaceConfig(), environmentNameOrId);
+        this.manager.saveApiKey(this.environmentSecretKey(environment.id), cleanRequired(apiKey, 'n8n API key'));
+    }
+
+    deleteWorkspaceEnvironmentApiKey(environmentNameOrId: string): void {
+        try {
+            const environment = this.findEnvironment(this.ensureV4WorkspaceConfig(), environmentNameOrId);
+            this.manager.deleteApiKey(this.environmentSecretKey(environment.id));
+        } catch {
+            this.manager.deleteApiKey(this.environmentSecretKey(environmentNameOrId));
+        }
+    }
+
     getNativeMcpToken(environmentNameOrId?: string): string | undefined {
         const environment = environmentNameOrId
             ? this.findEnvironment(this.ensureV4WorkspaceConfig(), environmentNameOrId)
@@ -1216,6 +1272,7 @@ export class ConfigService {
             workflowsPath,
             syncFolder,
             folderSync: typeof environment.folderSync === 'boolean' ? environment.folderSync : undefined,
+            folderSyncMoveToRoot: typeof environment.folderSyncMoveToRoot === 'boolean' ? environment.folderSyncMoveToRoot : undefined,
             customNodesPath: cleanOptional(environment.customNodesPath),
             description: cleanOptional(environment.description),
             nativeMcp: this.sanitizeNativeMcpConfig(environment.nativeMcp),
@@ -1335,6 +1392,8 @@ export class ConfigService {
             if (!instance) throw new Error(`Workspace environment "${environment.name}" references missing global n8n-manager instance: ${target.managedInstanceId}`);
             const host = instance.baseUrl || instance.tunnelPublicUrl || '';
             const envApiKey = this.readEnvApiKey(environment, target);
+            // Managed instances own their credentials, so an environment-scoped key left over from
+            // a previous external target must not shadow the managed instance key.
             const globalApiKey = this.manager.getApiKey(instance.id);
             const apiKey = envApiKey || globalApiKey;
             const projectId = environment.projectId || instance.defaultProject?.id;
@@ -1368,6 +1427,7 @@ export class ConfigService {
                 instanceUserIdentifier: identity.instanceUserIdentifier,
                 workflowDir: workflowsPath,
                 folderSync: environment.folderSync ?? false,
+                folderSyncMoveToRoot: environment.folderSyncMoveToRoot ?? false,
                 customNodesPath: environment.customNodesPath,
                 sources: {
                     environment: source,
@@ -1380,9 +1440,10 @@ export class ConfigService {
 
         const host = target.url;
         const envApiKey = this.readEnvApiKey(environment, target);
+        const environmentApiKey = this.readEnvironmentApiKey(environment);
         const workspaceApiKey = this.manager.getApiKey(target.id);
         const globalApiKey = this.getApiKey(host);
-        const apiKey = envApiKey || workspaceApiKey || globalApiKey;
+        const apiKey = envApiKey || environmentApiKey || workspaceApiKey || globalApiKey;
         const identity = this.resolveExternalEnvironmentIdentity(target, apiKey);
         const workflowsPath = this.resolveEnvironmentWorkflowsPath(environment);
         const syncFolder = workflowsPath;
@@ -1398,9 +1459,9 @@ export class ConfigService {
             instance: target,
             host,
             apiKey,
-            apiKeySource: envApiKey ? 'env' : workspaceApiKey ? 'workspace-local' : globalApiKey ? 'global' : 'missing',
+            apiKeySource: envApiKey ? 'env' : environmentApiKey ? 'workspace-environment' : workspaceApiKey ? 'workspace-local' : globalApiKey ? 'global' : 'missing',
             apiKeyAvailable: Boolean(apiKey),
-            accessStatus: this.deriveAccessStatus({ host, apiKey, projectId: environment.projectId, projectName: environment.projectName, verification: target.verification }),
+            accessStatus: this.deriveAccessStatus({ host, apiKey, projectId: environment.projectId, projectName: environment.projectName, verification: envApiKey || environmentApiKey ? undefined : target.verification }),
             nativeMcp: this.nativeMcpToSnapshot(environment.nativeMcp, environment.id),
             workflowsPath,
             syncFolder,
@@ -1410,6 +1471,7 @@ export class ConfigService {
             instanceUserIdentifier: identity.instanceUserIdentifier,
             workflowDir: workflowsPath,
             folderSync: environment.folderSync ?? false,
+            folderSyncMoveToRoot: environment.folderSyncMoveToRoot ?? false,
             customNodesPath: environment.customNodesPath,
             sources: {
                 environment: source,
@@ -1418,6 +1480,14 @@ export class ConfigService {
                 syncFolder: 'environment',
             },
         };
+    }
+
+    private readEnvironmentApiKey(environment: IWorkspaceEnvironment): string | undefined {
+        return cleanOptional(this.manager.getApiKey(this.environmentSecretKey(environment.id)));
+    }
+
+    private environmentSecretKey(environmentId: string): string {
+        return `environment:${environmentId}`;
     }
 
     private readEnvApiKey(environment: IWorkspaceEnvironment, target: IEnvironmentTarget): string | undefined {
@@ -1477,6 +1547,7 @@ export class ConfigService {
             instanceUserIdentifier: environment.instanceUserIdentifier,
             customNodesPath: environment.customNodesPath,
             folderSync: environment.folderSync,
+            folderSyncMoveToRoot: environment.folderSyncMoveToRoot,
         });
     }
 
@@ -1589,6 +1660,7 @@ export class ConfigService {
             instanceUserIdentifier: environment.instanceUserIdentifier,
             customNodesPath: environment.customNodesPath,
             folderSync: environment.folderSync,
+            folderSyncMoveToRoot: environment.folderSyncMoveToRoot,
         });
     }
 
@@ -1618,6 +1690,7 @@ export class ConfigService {
             instanceIdentifier: environment.instanceIdentifier,
             instanceUserIdentifier: environment.instanceUserIdentifier,
             folderSync: environment.folderSync ?? false,
+            folderSyncMoveToRoot: environment.folderSyncMoveToRoot ?? false,
             customNodesPath: environment.customNodesPath,
             environmentId: environment.environmentId,
             environmentName: environment.environmentName,

@@ -1,5 +1,4 @@
 import fs from 'fs';
-import path from 'path';
 import { SyncEngine } from './sync-engine.js';
 import { WorkflowStateTracker } from './workflow-state-tracker.js';
 import { WorkflowSanitizer } from './workflow-sanitizer.js';
@@ -7,6 +6,7 @@ import { HashUtils } from './hash-utils.js';
 import { WorkflowTransformerAdapter } from './workflow-transformer-adapter.js';
 import { WorkflowSyncStatus } from '../types.js';
 import { N8nApiClient } from './n8n-api-client.js';
+import { workflowRelativePathToAbsolute } from './workflow-path-utils.js';
 
 /**
  * Resolution & Validation Manager
@@ -67,7 +67,7 @@ export class ResolutionManager {
         remoteHash: string;
     }> {
         // Get local content
-        const filePath = path.join(this.directory, filename);
+        const filePath = workflowRelativePathToAbsolute(this.directory, filename);
         const localContent = this.readJsonFile(filePath);
         
         // Get remote content
@@ -147,7 +147,7 @@ export class ResolutionManager {
     }> {
         // Recompute local hash from disk — do NOT use the in-memory cache which may be
         // stale in VSCode mode (change events are suppressed by the file system watcher).
-        const filePath = path.join(this.directory, filename);
+        const filePath = workflowRelativePathToAbsolute(this.directory, filename);
         let localHash: string | undefined;
         if (fs.existsSync(filePath)) {
             try {
@@ -168,7 +168,7 @@ export class ResolutionManager {
 
         return {
             status,
-            localExists: !!localHash || fs.existsSync(path.join(this.directory, filename)),
+            localExists: !!localHash || fs.existsSync(workflowRelativePathToAbsolute(this.directory, filename)),
             remoteExists: !!remoteHash || (this.watcher as any).remoteIds?.has(workflowId),
             lastSyncedHash,
             localHash,

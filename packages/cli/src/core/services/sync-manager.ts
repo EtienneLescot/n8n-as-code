@@ -10,6 +10,7 @@ import { ResolutionManager } from './resolution-manager.js';
 import { ISyncConfig, IWorkflow, WorkflowSyncStatus, IWorkflowStatus } from '../types.js';
 import { createProjectSlug } from './directory-utils.js';
 import { WorkspaceSetupService } from './workspace-setup-service.js';
+import { normalizeWorkflowRelativePath, relativePathFromAbsolute, workflowRelativePathToAbsolute } from './workflow-path-utils.js';
 
 export class SyncManager extends EventEmitter {
     private client: N8nApiClient;
@@ -63,11 +64,15 @@ export class SyncManager extends EventEmitter {
             directory: instanceDir,
             syncInactive: true,
             ignoredTags: [],
-            projectId: this.config.projectId
+            projectId: this.config.projectId,
+            folderSync: this.config.folderSync ?? false,
         });
 
         this.syncEventJournal = new SyncEventJournal(instanceDir);
-        this.syncEngine = new SyncEngine(this.client, this.watcher, instanceDir, this.config.projectId, this.syncEventJournal);
+        this.syncEngine = new SyncEngine(this.client, this.watcher, instanceDir, this.config.projectId, this.syncEventJournal, {
+            folderSync: this.config.folderSync ?? false,
+            folderSyncMoveToRoot: this.config.folderSyncMoveToRoot ?? false,
+        });
         this.resolutionManager = new ResolutionManager(this.syncEngine, this.watcher, this.client);
 
         this.watcher.on('statusChange', (data) => {
@@ -413,16 +418,11 @@ export class SyncManager extends EventEmitter {
             );
         }
 
-        if (relativePath.includes(path.sep)) {
-            throw new Error(
-                `Cannot push "${trimmed}": nested workflow paths inside the sync scope are not supported.\n` +
-                `Expected a workflow file at the scope root, for example ${this.quoteShellArg(path.join(normalizedScopeDir, path.basename(normalizedAbsolutePath)))}`
-            );
-        }
+        const workflowRelativePath = normalizeWorkflowRelativePath(relativePathFromAbsolute(normalizedScopeDir, normalizedAbsolutePath));
 
         return {
-            filename: path.basename(normalizedAbsolutePath),
-            filePath: path.join(syncScopeDir, path.basename(normalizedAbsolutePath)),
+            filename: workflowRelativePath,
+            filePath: workflowRelativePathToAbsolute(syncScopeDir, workflowRelativePath),
             absolutePath: normalizedAbsolutePath
         };
     }

@@ -10,6 +10,7 @@ import { TestPlanCommand } from './commands/test-plan.js';
 import { CredentialCommand } from './commands/credential.js';
 import { WorkflowCommand } from './commands/workflow.js';
 import { ExecutionCommand } from './commands/execution.js';
+import { formatConnectionError } from './commands/base.js';
 import chalk from 'chalk';
 
 import { readFileSync, existsSync } from 'fs';
@@ -20,6 +21,7 @@ import { parsePositiveIntegerOption } from './utils/option-parsers.js';
 import { spawn } from 'child_process';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
 import { ConfigService } from './services/config-service.js';
+import { installExtraCaCertificates } from './core/services/tls-certificates.js';
 import {
     N8N_FACADE_SETUP_MODES,
     isN8nFacadeSetupMode,
@@ -42,6 +44,8 @@ async function readSecretFromStdin(): Promise<string> {
     }
     return Buffer.concat(chunks).toString('utf8').trim().replace(/^['"]|['"]$/g, '');
 }
+
+const MANAGED_INSTANCE_API_KEY_ERROR = 'Managed instance environments do not take an API key. Configure credentials through the managed n8n instance instead.';
 
 async function hydrateApiKeyFromStdin(options: { apiKey?: string; apiKeyStdin?: boolean }): Promise<void> {
     if (options.apiKey || !options.apiKeyStdin) {
@@ -282,6 +286,12 @@ async function runMcpDiagnosticCommand(
     });
 }
 
+// Trust anchors must be in place before the first outbound request. Node already applies
+// NODE_EXTRA_CA_CERTS to its own trust store, but re-reading it here keeps the CLI and the
+// VS Code extension host — which cannot honour it — on identical behaviour, and adds the
+// multi-path N8NAC_EXTRA_CA_CERTS form. The OS store stays with Node's own --use-system-ca.
+installExtraCaCertificates();
+
 const program = new Command();
 const telemetry = createTelemetryClient({ facade: 'cli', version: getVersion() });
 const commandStartTimes = new WeakMap<Command, number>();
@@ -513,8 +523,8 @@ environmentProgram.command('add')
     .argument('<name>', 'Environment display name')
     .option('--base-url <url>', 'Remote n8n URL to store in this workspace environment')
     .option('--managed-instance <id>', 'Local managed n8n instance ID to reference')
-    .option('--api-key <key>', 'Store a local API key for --base-url without committing it')
-    .option('--api-key-stdin', 'Read the local API key for --base-url from stdin')
+    .option('--api-key <key>', 'Store a local API key for this environment without committing it')
+    .option('--api-key-stdin', 'Read this environment local API key from stdin')
     .option('--project-id <id>', 'n8n project ID')
     .option('--project-name <name>', 'n8n project display name')
     .option('--workflows-path <path>', 'Directory that contains this environment workflows')
@@ -534,6 +544,9 @@ environmentProgram.command('add')
         if ((options.projectId && !options.projectName) || (!options.projectId && options.projectName)) {
             throw new Error('Provide both --project-id and --project-name, or omit both.');
         }
+        if (options.apiKey && options.managedInstance) {
+            throw new Error(MANAGED_INSTANCE_API_KEY_ERROR);
+        }
         let environmentTarget: string | undefined;
         if (urlOption) {
             const target = configService.ensureEmbeddedInstanceTarget({
@@ -541,7 +554,6 @@ environmentProgram.command('add')
                 url: urlOption,
             });
             environmentTarget = target.id;
-            if (options.apiKey) configService.saveWorkspaceTargetApiKey(target.id, options.apiKey);
         }
         if (options.managedInstance) {
             const target = await ensureManagedLocalTarget(configService, options.managedInstance);
@@ -561,6 +573,11 @@ environmentProgram.command('add')
             customNodesPath: options.customNodesPath,
             description: options.description,
         });
+        // Bind the key to this environment only. It must never also be written to the shared
+        // environment target: that slot is read by every key-less environment on the same base URL,
+        // so copying a per-environment credential into it lets one environment silently
+        // authenticate as another (and the last `env add --api-key` would repoint them all).
+        if (options.apiKey && urlOption) configService.saveWorkspaceEnvironmentApiKey(environment.id, options.apiKey);
         printJsonOrText(options, environment, chalk.green(`✔ Workspace environment added: ${environment.name}`));
     });
 
@@ -570,8 +587,8 @@ environmentProgram.command('update')
     .option('--name <name>', 'New display name')
     .option('--base-url <url>', 'Move this environment to a remote n8n URL')
     .option('--managed-instance <id>', 'Move this environment to a local managed n8n instance')
-    .option('--api-key <key>', 'Store a local API key for --base-url without committing it')
-    .option('--api-key-stdin', 'Read the local API key for --base-url from stdin')
+    .option('--api-key <key>', 'Store a local API key for this environment without committing it')
+    .option('--api-key-stdin', 'Read this environment local API key from stdin')
     .option('--project-id <id>', 'n8n project ID')
     .option('--project-name <name>', 'n8n project display name')
     .option('--workflows-path <path>', 'Directory that contains this environment workflows')
@@ -588,6 +605,9 @@ environmentProgram.command('update')
         if (selectors.length > 1) {
             throw new Error('Provide at most one of --base-url or --managed-instance.');
         }
+        if (options.apiKey && options.managedInstance) {
+            throw new Error(MANAGED_INSTANCE_API_KEY_ERROR);
+        }
         let environmentTarget: string | undefined;
         if (urlOption) {
             const target = configService.ensureEmbeddedInstanceTarget({
@@ -595,7 +615,6 @@ environmentProgram.command('update')
                 url: urlOption,
             });
             environmentTarget = target.id;
-            if (options.apiKey) configService.saveWorkspaceTargetApiKey(target.id, options.apiKey);
         }
         if (options.managedInstance) {
             const target = await ensureManagedLocalTarget(configService, options.managedInstance);
@@ -611,7 +630,15 @@ environmentProgram.command('update')
             customNodesPath: options.customNodesPath,
             description: options.description,
         };
+        if (options.apiKey) {
+            const nextTargetId = environmentTarget || configService.getEnvironment(nameOrId).environmentTargetId;
+            if (configService.getInstanceTarget(nextTargetId).kind === 'managed-instance') {
+                throw new Error(MANAGED_INSTANCE_API_KEY_ERROR);
+            }
+        }
         const environment = configService.updateEnvironment(nameOrId, patch);
+        // Bind the key to this environment only -- see the note in `env add`.
+        if (options.apiKey) configService.saveWorkspaceEnvironmentApiKey(environment.id, options.apiKey);
         printJsonOrText(options, environment, chalk.green(`✔ Workspace environment updated: ${environment.name}`));
     });
 
@@ -660,12 +687,28 @@ environmentAuthProgram.command('set')
         if (!options.apiKey) {
             throw new Error('Provide --api-key or --api-key-stdin.');
         }
-        configService.saveWorkspaceTargetApiKey(environment.environmentTargetId, options.apiKey);
+        configService.saveWorkspaceEnvironmentApiKey(environment.environmentId, options.apiKey);
         const resolved = await configService.prepareEnvironment(nameOrId);
         printJsonOrText(
             options,
             redactResolvedEnvironment(resolved),
             chalk.green(`✔ Local API key stored for environment: ${resolved.environmentName}`),
+        );
+    });
+
+environmentAuthProgram.command('clear')
+    .description('Remove the API key stored for a single environment')
+    .argument('<name-or-id>', 'Environment name or ID')
+    .option('--json', 'Output resolved environment as JSON')
+    .action((nameOrId, options) => {
+        const configService = new ConfigService();
+        const environment = configService.getEnvironment(nameOrId);
+        configService.deleteWorkspaceEnvironmentApiKey(environment.id);
+        const resolved = configService.resolveEnvironment(environment.id);
+        printJsonOrText(
+            options,
+            redactResolvedEnvironment(resolved),
+            chalk.green(`✔ Local API key cleared for environment: ${resolved.environmentName}`),
         );
     });
 
@@ -993,7 +1036,7 @@ program.command('promote')
                 json: options.json,
             });
         } catch (error: any) {
-            console.error(chalk.red(`❌ Promotion failed: ${error?.message || error}`));
+            console.error(chalk.red(`❌ ${formatConnectionError('Promotion failed', error)}`));
             await exitWithTelemetry(1);
         }
     });

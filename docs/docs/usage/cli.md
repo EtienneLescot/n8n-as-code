@@ -86,6 +86,7 @@ n8nac env add Dev --base-url <url> --workflows-path workflows/dev
 n8nac env add Local --managed-instance <id> --workflows-path workflows/local
 n8nac env use Dev
 n8nac env auth set Dev --api-key-stdin
+n8nac env auth clear Dev
 n8nac env remove Dev
 ```
 
@@ -97,6 +98,33 @@ Remote environments store the URL in `n8nac-config.json`, but the API key stays 
 n8nac env add Staging --base-url https://staging.example.com --workflows-path workflows/staging
 n8nac env auth set Staging --api-key-stdin
 ```
+
+### Several accounts on one n8n URL
+
+`n8nac env auth set` binds the key to the environment, not to the URL. Two environments that point at the same base URL — for example one account per n8n user on a single instance — each keep their own key.
+
+```bash
+n8nac env add Prod    --base-url https://n8n.example.com --workflows-path workflows/prod
+n8nac env add Preprod --base-url https://n8n.example.com --workflows-path workflows/preprod
+
+printf '%s' "$PROD_N8N_API_KEY"    | n8nac env auth set Prod    --api-key-stdin
+printf '%s' "$PREPROD_N8N_API_KEY" | n8nac env auth set Preprod --api-key-stdin
+```
+
+`n8nac env status <name> --json` reports which key a remote environment resolves, in `apiKeySource`:
+
+| `apiKeySource` | Where the key comes from |
+|---|---|
+| `env` | `N8NAC_ENV_<ENVIRONMENT>_API_KEY` or `N8NAC_TARGET_<TARGET>_API_KEY` |
+| `workspace-environment` | stored for this environment by `env auth set` |
+| `workspace-local` | stored for the shared target by the VS Code environment editor, used by environments that have no key of their own |
+| `global` | stored on the global `n8n-manager` instance matching the URL |
+
+`env add --api-key` and `env update --api-key` bind the key to that one environment and never to the shared target, so configuring one environment cannot change the key another environment authenticates with.
+
+Use `n8nac env auth clear <environment>` to drop an environment key. The environment is then left without a credential of its own rather than borrowing one from another environment on the same URL, so commands fail with `apiKeySource: missing` until you store a new key.
+
+Local managed instance environments do not take a stored key: they resolve either a scoped environment variable or the managed instance credentials, so `env auth set` and `env add --api-key` are rejected for them.
 
 ### Local managed instance environments
 
@@ -135,10 +163,48 @@ Status values:
 
 | Status | Meaning |
 |---|---|
-| `TRACKED` | Local and remote workflow exist and are aligned |
-| `CONFLICT` | Both sides changed since the last synced base |
+| `TRACKED` | Local and remote workflow exist (git-style "tracked"). Alignment is checked explicitly by `n8nac fetch <id>`, and implicitly at `pull`/`push` time via direct hash comparison. `n8nac list` may also surface a `drift` flag in `--json` output when local or remote changes are detected since the last sync. |
+| `CONFLICT` | Both local and remote changed since the last synced base (detected at `pull`/`push`) |
 | `EXIST_ONLY_LOCALLY` | Local workflow has not been pushed |
 | `EXIST_ONLY_REMOTELY` | Remote workflow has not been pulled |
+
+> Note: `n8nac list` is intentionally lightweight (no full payload diff, no TypeScript
+> roundtrip per workflow). It reports which workflows are tracked and, when state
+> is available, whether each side has drifted since the last sync. Use
+> `n8nac fetch <id>` for authoritative per-workflow alignment before pulling.
+
+#### Drift in `--json` output
+
+`n8nac list --json` adds a `drift` object to each `TRACKED` workflow whose sync record in
+`.n8n-state.json` carries both a `lastSyncedHash` and a `lastSyncedAt`:
+
+```json
+{
+  "id": "sx19mWQeBVouBgdO",
+  "name": "Carousel",
+  "filename": "Carousel.workflow.ts",
+  "status": "TRACKED",
+  "drift": { "local": false, "remote": true },
+  "lastSyncedAt": "2026-06-16T22:25:13.933Z",
+  "remoteUpdatedAt": "2026-06-16T22:45:28.755Z"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `drift.local` | The local file's hash differs from `lastSyncedHash`. Absent when the file could not be parsed during the scan. |
+| `drift.remote` | The remote `updatedAt` is newer than `lastSyncedAt` — the workflow was edited in the n8n UI since the last sync. Absent when the instance returned no `updatedAt` for that workflow, in which case `remoteUpdatedAt` is absent too. |
+| `drift` (whole object) | Absent for workflows that are not `TRACKED`, and for those whose sync record lacks `lastSyncedHash` or `lastSyncedAt` — there is no base to compare against. |
+
+An absent axis means **unknown**, never "unchanged": only `false` asserts that a side
+has not moved. Both axes can be absent at once (an unparseable file on an instance
+that reports no `updatedAt`), which reads as "there is a sync base, but nothing could
+be determined". Treating a missing axis as "no drift" would recreate the very
+false-alignment this signal exists to surface.
+
+`drift.remote` is a timestamp comparison, not a content comparison: a workflow re-saved
+in the n8n UI with no effective change still reports `remote: true`. Run
+`n8nac fetch <id>` to confirm whether the payload actually differs.
 
 ### `find`
 

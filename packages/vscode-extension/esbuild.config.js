@@ -2,6 +2,10 @@ const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const {
+    collectRuntimeDependencyNames,
+    HOST_PROVIDED_PACKAGES,
+} = require('./scripts/runtime-dependency-names.cjs');
 
 const managerCoreAgentToolingPath = path.resolve(
     __dirname,
@@ -17,9 +21,11 @@ const managerCoreAgentToolingPaths = new Set([
     managerCoreAgentToolingPath,
     fs.existsSync(managerCoreAgentToolingPath) ? fs.realpathSync(managerCoreAgentToolingPath) : managerCoreAgentToolingPath,
 ]);
-const runtimeDependencyRoots = Object.keys(
-    JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).dependencies || {}
-);
+// Seed the traversal the same way it walks every other node, so the extension's own
+// required peers and installed optional dependencies are copied too.
+const runtimeDependencyRoots = collectRuntimeDependencyNames(
+    JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'))
+).filter(packageName => !HOST_PROVIDED_PACKAGES.has(packageName));
 const legacyBundledSkillsAssetFiles = new Set([
     'n8n-docs-complete.json',
     'n8n-knowledge-index.json',
@@ -85,10 +91,8 @@ function collectRuntimeDependencyClosure(packageNames) {
             }
         }
         const packageJson = readPackageJson(packageDir);
-        const dependencyNames = [
-            ...Object.keys(packageJson.dependencies || {}),
-            ...Object.keys(packageJson.optionalDependencies || {}),
-        ];
+        const dependencyNames = collectRuntimeDependencyNames(packageJson)
+            .filter(dependencyName => !HOST_PROVIDED_PACKAGES.has(dependencyName));
         for (const dependencyName of dependencyNames) {
             const dependencyDir = getPackageDir(dependencyName, realPackageDir);
             if (dependencyDir && !seenPackageDirs.has(fs.realpathSync(dependencyDir))) {

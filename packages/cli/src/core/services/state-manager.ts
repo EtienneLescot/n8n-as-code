@@ -5,7 +5,7 @@ import { IWorkflow } from '../types.js';
 export interface IWorkflowState {
     lastSyncedHash: string;
     lastSyncedAt: string;
-    /** Recovery hint: last known local filename for this workflow ID. */
+    /** Recovery hint: sync-root-relative local workflow path for this workflow ID. */
     filename?: string;
 }
 

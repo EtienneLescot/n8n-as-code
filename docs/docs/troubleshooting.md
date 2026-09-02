@@ -36,6 +36,66 @@ n8nac env auth set <environment> --api-key-stdin
 - Store it again with `n8nac env auth set <environment> --api-key-stdin`.
 - Confirm the API key has access to the selected project.
 
+### Self-signed certificate or private CA
+
+Symptom: `unable to verify the first certificate`, `self-signed certificate in certificate chain`,
+or `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` when connecting to an HTTPS instance.
+
+Point n8n-as-code at the PEM bundle that holds your root CA:
+
+```bash
+export NODE_EXTRA_CA_CERTS=/path/to/root-ca.pem
+```
+
+`N8NAC_EXTRA_CA_CERTS` works the same way and accepts several paths separated by the platform
+path delimiter, a comma, or a newline.
+
+Certificates are verified for every public host name. Verification is relaxed only for an
+instance on the loopback interface or a private network (`localhost`, `127.0.0.0/8`, `::1`,
+`10/8`, `172.16/12`, `192.168/16`, `100.64/10`, `*.local`, `*.internal`, `*.home.arpa`, or a
+single-label intranet name) that you have not configured a CA for, because a public CA cannot
+issue a certificate for those. Configuring a CA turns verification on for those hosts too.
+
+If your instance serves a private certificate on a *public* host name, add its CA with one of the
+settings above. Only as a last resort, `N8NAC_INSECURE_TLS=1` skips verification entirely — it
+makes the connection, and the API key it carries, interceptable by anyone on the network path.
+
+In the **VS Code extension** the environment variable is often not enough. The extension host is
+an Electron process: it ignores `NODE_EXTRA_CA_CERTS` and cannot be started with Node's
+`--use-system-ca` flag, which is why `n8nac` succeeds in the terminal while auto-load fails.
+Set the bundle in your VS Code settings instead — relative paths resolve against the workspace
+folder — and reload is not required:
+
+```json
+{
+  "n8n.tls.certificateAuthorities": ["/path/to/root-ca.pem"]
+}
+```
+
+If the root CA is only reachable from the operating system trust store, set
+`"n8n.tls.useSystemCertificateAuthorities": true` as well. It is off by default because the OS
+store holds hundreds of anchors that are re-applied to every TLS handshake, and it needs a host
+running Node 22.15 or newer.
+
+The n8n-as-code output channel lists every anchor that was loaded and every bundle that could not
+be read.
+
+### An environment sees another account's workflows
+
+This happens when two environments point at the same base URL and only one of them has its own key.
+
+```bash
+n8nac env status <environment> --json
+```
+
+`apiKeySource` tells you which key is in use. `workspace-local` or `global` means the environment falls back to a key shared with the other environments on that URL. Give it its own key:
+
+```bash
+n8nac env auth set <environment> --api-key-stdin
+```
+
+`workspace-environment` confirms the environment authenticates with its own key.
+
 ## Missing Configuration
 
 ### `n8nac-config.json` not found

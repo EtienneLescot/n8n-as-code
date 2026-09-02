@@ -5,7 +5,8 @@ import { WorkflowTransformerAdapter } from './workflow-transformer-adapter.js';
 import { HashUtils } from './hash-utils.js';
 import { WorkflowStateTracker } from './workflow-state-tracker.js';
 import { SyncEventJournal } from './sync-event-journal.js';
-import { WorkflowSyncStatus, IWorkflow } from '../types.js';
+import { WorkflowSyncStatus, IWorkflow, IFolder } from '../types.js';
+import { ensureParentDirectory, normalizeWorkflowRelativePath, workflowRelativePathToAbsolute } from './workflow-path-utils.js';
 
 /**
  * Sync Engine - State Mutation Component
@@ -23,6 +24,21 @@ export class SyncEngine {
     private directory: string;
     private projectId: string;
     private syncEventJournal: SyncEventJournal | undefined;
+    private folderSync: boolean;
+    /**
+     * In-flight `createFolder` requests, keyed by
+     * `${projectId}::${parentFolderId ?? ''}::${name}`.
+     *
+     * Multiple concurrent `push()` calls that need the same parent folder
+     * (e.g. `AI Chat/x.workflow.ts` and `AI Chat/y.workflow.ts`) deduplicate
+     * their `createFolder` round-trips through this map so we never POST
+     * twice for the same folder — even if two invocations interleave after
+     * `getFolders` returns an empty array.
+     */
+    private inFlightFolderCreates: Map<string, Promise<IFolder>> = new Map();
+    private folderSyncMoveToRoot: boolean;
+    /** Guards the "folders unavailable" warning so a bulk push logs it once. */
+    private folderUnavailableWarned = false;
 
     constructor(
         client: N8nApiClient,
@@ -30,12 +46,15 @@ export class SyncEngine {
         directory: string,
         projectId: string,
         syncEventJournal?: SyncEventJournal,
+        options?: { folderSync?: boolean; folderSyncMoveToRoot?: boolean },
     ) {
         this.client = client;
         this.watcher = watcher;
         this.directory = directory;
         this.projectId = projectId;
         this.syncEventJournal = syncEventJournal;
+        this.folderSync = options?.folderSync ?? false;
+        this.folderSyncMoveToRoot = options?.folderSyncMoveToRoot ?? false;
     }
 
     /**
@@ -164,7 +183,8 @@ export class SyncEngine {
             commentStyle: 'verbose'
         });
         
-        const filePath = path.join(this.directory, filename);
+        const filePath = workflowRelativePathToAbsolute(this.directory, filename);
+        ensureParentDirectory(filePath);
         fs.writeFileSync(filePath, tsCode, 'utf-8');
 
         // Update Watcher's remote hash cache since we just fetched the workflow
@@ -177,7 +197,7 @@ export class SyncEngine {
     }
 
     private async executeUpdate(workflowId: string, filename: string, skipOcc = false): Promise<string | undefined> {
-        const filePath = path.join(this.directory, filename);
+        const filePath = workflowRelativePathToAbsolute(this.directory, filename);
         const tsContent = this.readTypeScriptFile(filePath);
         if (!tsContent) {
             throw new Error('Local file not found during push');
@@ -212,7 +232,29 @@ export class SyncEngine {
             );
         }
 
-        const updatedWf = await this.client.updateWorkflow(workflowId, localWf);
+        // Folder-aware move: when folderSync is enabled and `filename` lives under a
+        // nested folder path, mirror the create-path logic and forward parentFolderId
+        // to n8n so the existing workflow actually moves to that folder on update.
+        // Mirrors inferParentFolderIdFromFilename() usage in executeCreate().
+        const inferredParentFolderId = await this.inferParentFolderIdFromFilename(filename);
+        // `null` is meaningful here (move to project root), so only skip on undefined.
+        if (inferredParentFolderId !== undefined) {
+            localWf.parentFolderId = inferredParentFolderId;
+        }
+
+        let updatedWf: IWorkflow;
+        try {
+            updatedWf = await this.client.updateWorkflow(workflowId, localWf);
+        } catch (error: any) {
+            // Retry without parentFolderId when n8n rejects it as an unknown field.
+            // Workflow placement via the public API only exists from n8n 2.32; older
+            // instances 400 on the field. Same fallback used by executeCreate().
+            if (localWf.parentFolderId === undefined || !this.isUnsupportedParentFolderError(error)) throw error;
+            console.warn(`[SyncEngine] n8n rejected parentFolderId while updating "${filename}" (folder placement needs n8n 2.32+); retrying without folder assignment.`);
+            // parentFolderId is a known IWorkflow field; strip it without an `any` cast.
+            delete localWf.parentFolderId;
+            updatedWf = await this.client.updateWorkflow(workflowId, localWf);
+        }
 
         if (!updatedWf?.id || updatedWf.id !== workflowId || !Array.isArray(updatedWf.nodes)) {
             throw new Error('Failed to update remote workflow: n8n did not return an updated workflow payload');
@@ -235,6 +277,7 @@ export class SyncEngine {
             format: true,
             commentStyle: 'verbose'
         });
+        ensureParentDirectory(filePath);
         fs.writeFileSync(filePath, tsCode, 'utf-8');
 
         // Update Watcher's remote hash cache with the updated workflow
@@ -260,7 +303,7 @@ export class SyncEngine {
     }
 
     private async executeCreate(filename: string): Promise<{ id: string, updatedAt?: string }> {
-        const filePath = path.join(this.directory, filename);
+        const filePath = workflowRelativePathToAbsolute(this.directory, filename);
         const tsContent = this.readTypeScriptFile(filePath);
         if (!tsContent) {
             throw new Error('Local file not found during creation');
@@ -287,7 +330,22 @@ export class SyncEngine {
             localWf.projectId = this.projectId;
         }
 
-        const newWf = await this.client.createWorkflow(localWf);
+        const inferredParentFolderId = await this.inferParentFolderIdFromFilename(filename);
+        // `null` is meaningful here (create at project root), so only skip on undefined.
+        if (inferredParentFolderId !== undefined) {
+            localWf.parentFolderId = inferredParentFolderId;
+        }
+
+        let newWf: IWorkflow;
+        try {
+            newWf = await this.client.createWorkflow(localWf);
+        } catch (error: any) {
+            if (localWf.parentFolderId === undefined || !this.isUnsupportedParentFolderError(error)) throw error;
+            console.warn(`[SyncEngine] n8n rejected parentFolderId while creating "${filename}" (folder placement needs n8n 2.32+); retrying without folder assignment.`);
+            // parentFolderId is a known IWorkflow field; strip it without an `any` cast.
+            delete localWf.parentFolderId;
+            newWf = await this.client.createWorkflow(localWf);
+        }
         if (!newWf || !newWf.id) {
             throw new Error('Failed to create remote workflow');
         }
@@ -298,9 +356,157 @@ export class SyncEngine {
             format: true,
             commentStyle: 'verbose'
         });
+        ensureParentDirectory(filePath);
         fs.writeFileSync(filePath, tsCode, 'utf-8');
 
         return { id: newWf.id, updatedAt: newWf.updatedAt };
+    }
+
+    /**
+     * Maps a workflow-relative filename to the n8n folder it should live in.
+     *
+     * Three distinct outcomes, matching n8n's own `parentFolderId` semantics:
+     * - `string`   — put the workflow in that folder (creating folders as needed)
+     * - `null`     — move it to the project root (only when folderSyncMoveToRoot is on)
+     * - `undefined` — say nothing, leave the workflow where n8n has it
+     */
+    private async inferParentFolderIdFromFilename(filename: string): Promise<string | null | undefined> {
+        if (!this.folderSync) return undefined;
+        const normalized = normalizeWorkflowRelativePath(filename);
+        const segments = normalized.split('/');
+        if (segments.length <= 1) {
+            // Flat local path. Only claim the project root when the repository is
+            // configured as the source of truth, otherwise a push would silently
+            // undo folders someone created in the n8n UI.
+            return this.folderSyncMoveToRoot ? null : undefined;
+        }
+
+        // Soft capability check: N8nApiClient exposes these methods, but mocks in
+        // unit tests may not. Skip folder inference gracefully rather than throw.
+        if (typeof this.client.getFolders !== 'function' || typeof this.client.createFolder !== 'function') {
+            return undefined;
+        }
+
+        // `GET /projects/:id/folders` needs a real project id: it does not accept the
+        // `personal` alias that folder creation does, and `GET /api/v1/projects` is
+        // Enterprise-gated. resolveFolderProjectId() reads it off a workflow instead.
+        const projectId = typeof this.client.resolveFolderProjectId === 'function'
+            ? await this.client.resolveFolderProjectId(this.projectId)
+            : (this.projectId && this.projectId !== 'personal' ? this.projectId : null);
+        if (!projectId) {
+            this.warnFoldersUnavailable('could not determine which n8n project this instance syncs to');
+            return undefined;
+        }
+
+        const folderSegments = segments.slice(0, -1);
+        let folders: IFolder[];
+        try {
+            folders = await this.client.getFolders(projectId);
+        } catch (error: any) {
+            // 403 = the instance has no `feat:folders` licence (an unregistered
+            // Community instance); 404 = n8n predates the folder endpoints.
+            // Neither is a reason to fail the push — place the workflow flat.
+            if (![403, 404].includes(error?.response?.status)) throw error;
+            this.warnFoldersUnavailable(
+                error?.response?.status === 403
+                    ? 'the n8n instance reports no folder support (register the Community instance to unlock folders)'
+                    : 'this n8n version has no folder API (needs n8n 2.19+, and 2.32+ to place workflows)'
+            );
+            return undefined;
+        }
+
+        let parentFolderId: string | null = null;
+        for (const segment of folderSegments) {
+            const folder = await this.ensureFolder(folders, projectId, segment, parentFolderId);
+            parentFolderId = folder.id;
+        }
+
+        return parentFolderId ?? undefined;
+    }
+
+    /** Logs the "folderSync is on but unusable" warning at most once per engine. */
+    private warnFoldersUnavailable(reason: string): void {
+        if (this.folderUnavailableWarned) return;
+        this.folderUnavailableWarned = true;
+        console.warn(`[SyncEngine] folderSync is enabled but ${reason}. Workflows will be pushed without folder assignment.`);
+    }
+
+    /**
+     * Returns the folder named `name` under `parentFolderId`, creating it if
+     * missing. Concurrent calls for the same `(projectId, parentFolderId, name)`
+     * triple share a single in-flight `createFolder` promise so we never POST
+     * twice for the same folder.
+     */
+    private async ensureFolder(
+        folders: IFolder[],
+        projectId: string,
+        name: string,
+        parentFolderId: string | null,
+    ): Promise<IFolder> {
+        const existing = folders.find(
+            (candidate) => candidate.name === name && (candidate.parentFolderId ?? null) === parentFolderId,
+        );
+        if (existing) return existing;
+
+        const key = `${projectId}::${parentFolderId ?? ''}::${name}`;
+        const inFlight = this.inFlightFolderCreates.get(key);
+        if (inFlight) return inFlight;
+
+        const promise = this.client
+            .createFolder(projectId, { name, parentFolderId })
+            .then((created) => {
+                folders.push(created);
+                return created;
+            })
+            .finally(() => {
+                this.inFlightFolderCreates.delete(key);
+            });
+        this.inFlightFolderCreates.set(key, promise);
+        return promise;
+    }
+
+    /**
+     * Returns true when n8n rejected the create call specifically because it
+     * does not understand the `parentFolderId` field — in which case we retry
+     * without it so the sync still completes against older n8n instances.
+     *
+     * Tightened from the original `'folder'` substring match (which would have
+     * silently swallowed unrelated 400/404 errors) to require either a
+     * structured `parentFolderId` / `parentFolder` field in the response body,
+     * or a message that explicitly mentions one of those tokens.
+     */
+    private isUnsupportedParentFolderError(error: any): boolean {
+        const status = error?.response?.status;
+        if (![400, 404, 422].includes(status)) return false;
+
+        const PARENT_FOLDER_PATTERN = /(parentfolderid|parent folder id|parentfolder)/i;
+        const PARENT_FOLDER_KEYS = new Set(['parentfolderid', 'parentfolder']);
+        // n8n 2.19-2.31 licenses folders but its workflow schema has no `parentFolderId`
+        // yet, and AJV's `additionalProperties: false` rejects it *without naming the
+        // field*: `request/body must NOT have additional properties`. The patterns above
+        // never match that, so the push aborted instead of degrading, leaving an orphaned
+        // folder behind. Reported with live captures on #527 by @Happily-Coding.
+        //
+        // Safe to treat as an unsupported-`parentFolderId` signal: this matcher is only
+        // consulted when we just added `parentFolderId` to an otherwise-valid payload, and
+        // the retry strips only that field. If some *other* unknown property were the real
+        // cause, the retry fails again and the error surfaces as before -- nothing is hidden.
+        const GENERIC_ADDITIONAL_PROPERTY_PATTERN = /must not have additional properties/i;
+
+        const data = error?.response?.data;
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+            for (const key of Object.keys(data)) {
+                if (PARENT_FOLDER_KEYS.has(key.toLowerCase())) return true;
+            }
+            const dataMessage = String(data.message ?? '').toLowerCase();
+            if (PARENT_FOLDER_PATTERN.test(dataMessage)) return true;
+            if (GENERIC_ADDITIONAL_PROPERTY_PATTERN.test(dataMessage)) return true;
+            return false;
+        }
+
+        const errorMessage = String(error?.message ?? '').toLowerCase();
+        return PARENT_FOLDER_PATTERN.test(errorMessage)
+            || GENERIC_ADDITIONAL_PROPERTY_PATTERN.test(errorMessage);
     }
 
     private readTypeScriptFile(filePath: string): string | null {

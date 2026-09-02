@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
+import { resolvePackageJsonFrom, verifyRuntimeDependencyClosure } from './verify-runtime-dependency-closure.mjs';
 
 const vsixPath = process.argv[2];
 if (!vsixPath) {
@@ -27,21 +29,35 @@ try {
   assertFile(path.join(outDir, 'extension-runtime.mjs'));
   assertMissing(path.join(outDir, 'extension-runtime.js'));
   assertFile(path.join(nodeModulesDir, 'n8nac', 'dist', 'lib.js'));
-  assertFile(path.join(nodeModulesDir, 'is-network-error', 'index.js'));
-  assertFile(path.join(nodeModulesDir, '@langchain', 'langgraph-sdk', 'node_modules', 'p-retry', 'index.js'));
+  // Peer-only dependency of every bundled LangChain package; absent from 2.38.0. See #566.
+  assertFile(path.join(nodeModulesDir, '@langchain', 'core', 'package.json'));
+
+  // `p-retry` and `is-network-error` are ESM-only and have historically failed to load
+  // from the VSIX. Resolve them the way Node will rather than asserting a fixed path:
+  // whether npm hoists them or nests them under @langchain/langgraph-sdk varies per
+  // install, and the repo does not commit a lockfile.
+  const langgraphSdkDir = assertResolvable(nodeModulesDir, outDir, '@langchain/langgraph-sdk');
+  const pRetryDir = assertResolvable(nodeModulesDir, langgraphSdkDir, 'p-retry');
+  assertResolvable(nodeModulesDir, pRetryDir, 'is-network-error');
+  assertFile(path.join(pRetryDir, 'index.js'));
 
   installVscodeMock(extensionRoot);
-  verifyDependencyClosure(nodeModulesDir);
+  verifyRuntimeDependencyClosure(nodeModulesDir);
 
   globalThis.__vscodeSmokeOutput = [];
   const extension = await import(pathToFileURL(path.join(outDir, 'extension.js')).href);
   const context = createExtensionContext(extensionRoot);
   await extension.activate(context);
   const activationLog = globalThis.__vscodeSmokeOutput.join('\n');
+  // `activate` swallows a runtime import failure and only reports it on the output
+  // channel, so activation resolving is not on its own proof that the VSIX loads (#566).
+  if (activationLog.includes('Failed to load extension runtime')) {
+    throw new Error(`Extension runtime failed to load during VSIX smoke test:\n${activationLog}`);
+  }
   if (activationLog.includes('Activation completed with degraded functionality')) {
     throw new Error(`Extension activation degraded during VSIX smoke test:\n${activationLog}`);
   }
-  await import(pathToFileURL(path.join(nodeModulesDir, '@langchain', 'langgraph-sdk', 'node_modules', 'p-retry', 'index.js')).href);
+  await import(pathToFileURL(path.join(pRetryDir, 'index.js')).href);
 
   console.log('VSIX runtime smoke test passed.');
 } finally {
@@ -54,70 +70,25 @@ function assertFile(filePath) {
   }
 }
 
+/** @returns the resolved package directory, so callers can chain from it. */
+function assertResolvable(rootNodeModulesDir, fromDir, packageName) {
+  const packageJsonPath = resolvePackageJsonFrom(fromDir, packageName, rootNodeModulesDir);
+  if (!packageJsonPath) {
+    throw new Error(`Expected ${packageName} to be resolvable from ${fromDir}`);
+  }
+  return path.dirname(packageJsonPath);
+}
+
 function assertMissing(filePath) {
   if (fs.existsSync(filePath)) {
     throw new Error(`Unexpected stale file in VSIX: ${filePath}`);
   }
 }
 
-function verifyDependencyClosure(rootNodeModulesDir) {
-  const packageJsonPaths = collectPackageJsonPaths(rootNodeModulesDir);
-  const missing = [];
-  for (const packageJsonPath of packageJsonPaths) {
-    const packageDir = path.dirname(packageJsonPath);
-    const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-    for (const dependencyName of Object.keys(pkg.dependencies || {})) {
-      if (!resolvePackageJsonFrom(packageDir, dependencyName, rootNodeModulesDir)) {
-        missing.push(`${pkg.name || packageDir} -> ${dependencyName}`);
-      }
-    }
-  }
-  if (missing.length) {
-    throw new Error(`Missing packaged runtime dependencies:\n${missing.map((item) => `  - ${item}`).join('\n')}`);
-  }
-}
-
-function collectPackageJsonPaths(directory) {
-  const results = [];
-  const entries = fs.existsSync(directory) ? fs.readdirSync(directory, { withFileTypes: true }) : [];
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const entryPath = path.join(directory, entry.name);
-    if (entry.name.startsWith('@')) {
-      results.push(...collectPackageJsonPaths(entryPath));
-      continue;
-    }
-    const packageJsonPath = path.join(entryPath, 'package.json');
-    if (fs.existsSync(packageJsonPath)) {
-      results.push(packageJsonPath);
-    }
-    const nestedNodeModules = path.join(entryPath, 'node_modules');
-    if (fs.existsSync(nestedNodeModules)) {
-      results.push(...collectPackageJsonPaths(nestedNodeModules));
-    }
-  }
-  return results;
-}
-
-function resolvePackageJsonFrom(fromDir, packageName, rootNodeModulesDir) {
-  const parts = packageName.startsWith('@') ? packageName.split('/') : [packageName];
-  let current = fromDir;
-  while (current.startsWith(path.dirname(rootNodeModulesDir))) {
-    const candidate = path.join(current, 'node_modules', ...parts, 'package.json');
-    if (fs.existsSync(candidate)) return candidate;
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-  const rootCandidate = path.join(rootNodeModulesDir, ...parts, 'package.json');
-  return fs.existsSync(rootCandidate) ? rootCandidate : undefined;
-}
-
 function installVscodeMock(extensionRoot) {
   const vscodeDir = path.join(extensionRoot, 'node_modules', 'vscode');
   fs.mkdirSync(vscodeDir, { recursive: true });
-  fs.writeFileSync(path.join(vscodeDir, 'package.json'), JSON.stringify({ name: 'vscode', version: '0.0.0', main: 'index.js' }));
-  fs.writeFileSync(path.join(vscodeDir, 'index.js'), `
+  fs.writeFileSync(path.join(vscodeDir, 'index.cjs'), `
 const path = require('node:path');
 class EventEmitter {
   constructor() { this.listeners = new Set(); this.event = (listener) => { this.listeners.add(listener); return { dispose: () => this.listeners.delete(listener) }; }; }
@@ -168,12 +139,30 @@ module.exports = {
     registerTextDocumentContentProvider() { return disposable; },
     createFileSystemWatcher() { return { ...disposable, onDidCreate: () => disposable, onDidChange: () => disposable, onDidDelete: () => disposable }; },
     onDidChangeConfiguration() { return disposable; },
+    onDidChangeWorkspaceFolders() { return disposable; },
     openTextDocument: async () => ({}),
   },
   commands: { registerCommand() { return disposable; }, executeCommand: async () => undefined },
   env: { isTelemetryEnabled: false, onDidChangeTelemetryEnabled: () => disposable, clipboard: { readText: async () => '', writeText: async () => undefined }, asExternalUri: async (uri) => uri, openExternal: async () => true },
 };
 `);
+
+  // out/extension.js uses `require('vscode')`, but out/extension-runtime.mjs uses
+  // `import * as vscode`. Node's CJS named-export detection gives up on an object literal
+  // this large, so the ESM side would see only a default export and `class extends
+  // vscode.TreeItem` would throw. Generate an explicit ESM facade from the mock's own
+  // keys so both module systems see the same surface.
+  const mock = createRequire(import.meta.url)(path.join(vscodeDir, 'index.cjs'));
+  fs.writeFileSync(path.join(vscodeDir, 'index.mjs'), `import vscode from './index.cjs';
+export default vscode;
+export const { ${Object.keys(mock).join(', ')} } = vscode;
+`);
+  fs.writeFileSync(path.join(vscodeDir, 'package.json'), JSON.stringify({
+    name: 'vscode',
+    version: '0.0.0',
+    main: 'index.cjs',
+    exports: { '.': { import: './index.mjs', require: './index.cjs', default: './index.cjs' } },
+  }));
 }
 
 function createExtensionContext(extensionRoot) {

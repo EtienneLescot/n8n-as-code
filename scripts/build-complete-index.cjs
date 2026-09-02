@@ -330,21 +330,20 @@ function buildCategoriesStructure(pages) {
 }
 
 /**
- * Get category description
+ * Get category description. Mirrors the section headings in docs.n8n.io/llms.txt.
  */
 function getCategoryDescription(category) {
     const descriptions = {
-        integrations: 'Node integrations and app-specific documentation',
-        credentials: 'Authentication and credentials setup guides',
-        triggers: 'Trigger nodes for workflow activation',
-        'sync-nodes': 'Sync n8n nodes (logic, data manipulation, etc.)',
-        'advanced-ai': 'AI agents, chains, RAG, memory, and LangChain integration',
-        code: 'Code node, expressions, and built-in methods',
-        tutorials: 'Step-by-step guides and learning resources',
-        concepts: 'Workflow concepts, patterns, and best practices',
-        hosting: 'Self-hosting, deployment, and infrastructure',
-        api: 'n8n API documentation and usage',
-        other: 'General documentation and guides'
+        'get-started': 'Welcome, onboarding, and first steps with n8n',
+        'deploy': 'Self-hosting, deployment, scaling, and infrastructure',
+        'build': 'Workflow concepts, flow logic, data, code, and AI integration',
+        'nodes': 'Built-in and community node documentation',
+        'connect': 'Connect n8n to external services and APIs',
+        'administer': 'Instance administration, users, and settings',
+        'contribute': 'Contributing to n8n',
+        'privacy-and-security': 'Privacy, security, and compliance',
+        'release-notes': 'Changelog and release notes',
+        'other': 'General documentation and guides'
     };
 
     return descriptions[category] || 'Documentation pages';

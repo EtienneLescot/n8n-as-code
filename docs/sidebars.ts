@@ -65,6 +65,11 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'doc',
+          id: 'usage/folder-sync',
+          label: 'Folder Sync',
+        },
+        {
+          type: 'doc',
           id: 'usage/claude-plugin-privacy',
           label: 'Claude Plugin Privacy',
         },

@@ -390,9 +390,15 @@ export class ConfigurationWebview {
               });
             }
           }
-          if (environmentTargetId && url && apiKey) {
-            configService.saveWorkspaceTargetApiKey(environmentTargetId, apiKey);
+          if (environmentTargetId && configService.getInstanceTarget(environmentTargetId).kind === 'managed-instance') {
+            // A managed instance owns its credentials, so a workspace key stored against it would
+            // never be read. Drop any legacy one instead of persisting a dead secret.
+            configService.deleteWorkspaceTargetApiKey(environmentTargetId);
           }
+          // The key entered here belongs to this one environment and is stored against it below.
+          // It must not also be written to the shared environment target, which every key-less
+          // environment on the same base URL reads: that would let one environment silently
+          // authenticate as another, and each save would repoint every environment sharing the URL.
           const workflowsPath = normalizeWorkflowsPath(String(payload.workflowsPath || '').trim());
           const folderSync = typeof payload.folderSync === 'boolean' ? payload.folderSync : undefined;
           const nativeMcpToken = String(payload.nativeMcpToken || '').trim();
@@ -417,6 +423,14 @@ export class ConfigurationWebview {
           const savedEnvironment = environmentId
             ? configService.updateEnvironment(environmentId, input)
             : configService.addEnvironment(input);
+          // Moving an environment to another target already drops its stored key in updateEnvironment.
+          if (configService.getInstanceTarget(savedEnvironment.environmentTargetId).kind === 'managed-instance') {
+            // Managed instances own their credentials, so this environment must not keep a workspace key.
+            configService.deleteWorkspaceEnvironmentApiKey(savedEnvironment.id);
+          } else if (apiKey) {
+            // Bind the key to this environment so environments sharing a base URL keep separate credentials.
+            configService.saveWorkspaceEnvironmentApiKey(savedEnvironment.id, apiKey);
+          }
           if (nativeMcpToken) {
             (configService as NativeMcpConfigService).saveNativeMcpToken(savedEnvironment.id, nativeMcpToken);
           } else if (nativeMcp && nativeMcp.enabled === false) {

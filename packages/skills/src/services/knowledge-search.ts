@@ -13,6 +13,17 @@ const _dirname = typeof __dirname !== 'undefined'
     ? __dirname
     : (_filename ? path.dirname(_filename) : '');
 
+/**
+ * A doc counts as an "example" when it lives in the Build section (workflow
+ * concepts, AI integration, code cookbook) or is explicitly tagged as an
+ * examples subcategory. Mirrors docs.n8n.io's section organization.
+ */
+function isExampleDoc(category: string | null | undefined, subcategory: string | null | undefined): boolean {
+    if (subcategory === 'examples') return true;
+    if (category === 'build' && (subcategory === 'cookbook' || subcategory === 'integrate-ai')) return true;
+    return false;
+}
+
 export interface UnifiedSearchResult {
     query: string;
     totalResults: number;
@@ -138,7 +149,7 @@ export class KnowledgeSearch {
 
                 seenIds.add(uniqueId);
 
-                const resultType = (doc.category === 'tutorials' || doc.category === 'advanced-ai') ? 'example' : doc.type;
+                const resultType = isExampleDoc(doc.category, doc.subcategory) ? 'example' : doc.type;
 
                 results.push({
                     type: resultType as 'node' | 'documentation' | 'example',
@@ -159,7 +170,7 @@ export class KnowledgeSearch {
         if (results.length === 0) {
             const deepResults = this.docsProvider.searchDocs(query, { limit: options.limit });
             for (const page of deepResults) {
-                const resultType = (page.category === 'tutorials' || page.category === 'advanced-ai') ? 'example' : 'documentation';
+                const resultType = isExampleDoc(page.category, page.subcategory) ? 'example' : 'documentation';
                 results.push({
                     type: resultType as any,
                     id: page.id,

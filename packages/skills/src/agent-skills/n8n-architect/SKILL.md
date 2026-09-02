@@ -82,6 +82,7 @@ Use `{{N8NAC_CMD}} env ...` for workspace environments, remote URLs, active envi
 
 - Prefer `--api-key-stdin` for API keys.
 - Do not pass secrets inline in shell arguments.
+- `env auth set` binds the key to one environment, so several environments may share a base URL with one key each. Run it once per environment; `apiKeySource` in `env status --json` is `workspace-environment` when the environment uses its own key.
 - Do not ask for host/API key when the user wants a managed local Docker instance.
 - Do not print API keys or credential secret values back to the user.
 - If a command or flag is unfamiliar, run `{{N8NAC_CMD}} env --help` or `{{N8NAC_CMD}} env <subcommand> --help`.

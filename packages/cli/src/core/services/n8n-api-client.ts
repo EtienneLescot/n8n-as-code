@@ -2,9 +2,36 @@ import axios, { AxiosInstance } from 'axios';
 import * as dns from 'dns';
 import * as http from 'http';
 import * as https from 'https';
-import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField, IExecutionDetails, IExecutionList, IExecutionSummary, ExecutionStatus } from '../types.js';
+import * as tls from 'tls';
+import { resolveExtraCaCertificates, shouldVerifyServerCertificate } from './tls-certificates.js';
+import { IN8nCredentials, IWorkflow, IProject, ITag, ITriggerInfo, ITestPlan, ITestResult, TriggerType, IInferredPayload, IInferredPayloadField, IExecutionDetails, IExecutionList, IExecutionSummary, ExecutionStatus, IFolder } from '../types.js';
 
 type AgentLookup = NonNullable<http.AgentOptions['lookup']>;
+
+/**
+ * Builds a combined CA certificate bundle from the trust anchors the user configured
+ * (`NODE_EXTRA_CA_CERTS`, `N8NAC_EXTRA_CA_CERTS`) plus the OS trust store, which is the
+ * programmatic equivalent of the `--use-system-ca` flag.
+ *
+ * Returns undefined when no source provides extra certificates. When it does return a bundle,
+ * the Node.js default Mozilla roots are included, because supplying `ca` replaces them.
+ *
+ * Note that this only covers the axios agent. Anything reaching n8n through the global `fetch`
+ * — the manager-core health probe, project listing and credential calls — ignores `https.Agent`
+ * entirely, which is why {@link installExtraCaCertificates} applies the same anchors
+ * process-wide.
+ */
+export function buildCaBundle(): string[] | undefined {
+    return resolveAgentTrust().ca;
+}
+
+function resolveAgentTrust(): { ca: string[] | undefined; hasConfiguredAnchors: boolean } {
+    const resolution = resolveExtraCaCertificates({ useSystemCertificateAuthorities: true });
+    return {
+        ca: resolution.certificates.length ? [...tls.rootCertificates, ...resolution.certificates] : undefined,
+        hasConfiguredAnchors: resolution.hasConfiguredAnchors,
+    };
+}
 
 function createIpv4FirstLookup(): AgentLookup {
     return ((hostname, options, callback) => {
@@ -30,6 +57,8 @@ export class N8nApiClient {
     private projectsCache: Map<string, IProject> | null = null;
     private projectsCachePromise: Promise<Map<string, IProject>> | null = null;
     private static readonly PERSONAL_PROJECT_PLACEHOLDER_ID = 'personal';
+    /** Memoized result of resolveFolderProjectId(); `null` means "resolved to nothing". */
+    private folderProjectIdPromise: Promise<string | null> | null = null;
     /** Shared agents keep DNS/TLS behavior consistent for API, health, and webhook calls. */
     private httpAgent: http.Agent;
     private httpsAgent: https.Agent;
@@ -41,12 +70,24 @@ export class N8nApiClient {
             host = host.slice(0, -1);
         }
 
-        // Allow self-signed certificates by default to avoid issues in local environments.
         // Prefer IPv4 when both A and AAAA records exist; remote self-hosted n8n instances
         // often publish IPv6 records that are unreachable from the extension host.
         const lookup = createIpv4FirstLookup();
         this.httpAgent = new http.Agent({ lookup });
-        this.httpsAgent = new https.Agent({ rejectUnauthorized: false, lookup });
+
+        // Trust whatever the user configured (--use-system-ca / NODE_EXTRA_CA_CERTS) and verify
+        // against it. Verification is only relaxed for a loopback or private-network host that
+        // the user has not configured an anchor for: those cannot hold a publicly trusted
+        // certificate, so a self-signed one there is the normal setup rather than an attack, and
+        // that is the backward compatibility the fallback exists for. A public host name is
+        // always verified — there is no benign reason to skip it, and skipping it is what makes
+        // the connection interceptable. See `shouldVerifyServerCertificate` for the opt-out.
+        const { ca, hasConfiguredAnchors } = resolveAgentTrust();
+        this.httpsAgent = new https.Agent({
+            rejectUnauthorized: shouldVerifyServerCertificate({ host, hasConfiguredAnchors }),
+            ca,
+            lookup,
+        });
 
         this.client = axios.create({
             baseURL: host,
@@ -266,6 +307,131 @@ export class N8nApiClient {
             console.error(`[N8nApiClient] Failed to fetch projects: ${error.message}`);
             return [];
         }
+    }
+
+    /**
+     * Lists every folder in a project, following n8n's skip/take pagination.
+     *
+     * Requires an instance where folders are licensed (`feat:folders`, unlocked by
+     * the free Community registration) and n8n 2.19+; callers are expected to
+     * handle 403/404 by falling back to a flat layout.
+     *
+     * @param projectId Real project id — the endpoint does not accept the
+     * `personal` alias that folder creation does. See resolveFolderProjectId().
+     */
+    async getFolders(projectId: string): Promise<IFolder[]> {
+        const folders: IFolder[] = [];
+        const seen = new Set<string>();
+        let skip = 0;
+        const take = 100;
+        let useSelect = true;
+
+        while (true) {
+            const params: Record<string, string> = {
+                skip: String(skip),
+                take: String(take),
+            };
+            if (useSelect) {
+                // Field names come from n8n's ListFolderQueryDto allow-list
+                // (id, name, createdAt, updatedAt, project, tags, parentFolder,
+                // workflowCount, subFolderCount, path). `parentFolderId` is NOT
+                // a valid select field — asking for it makes n8n reject the whole
+                // query with a 400, which used to send every call through the
+                // no-select fallback below.
+                params.select = JSON.stringify(['id', 'name', 'parentFolder', 'path', 'createdAt', 'updatedAt']);
+            }
+
+            let res: any;
+            try {
+                res = await this.client.get(`/api/v1/projects/${encodeURIComponent(projectId)}/folders`, { params });
+            } catch (error: any) {
+                if (useSelect && error?.response?.status === 400) {
+                    useSelect = false;
+                    continue;
+                }
+                throw error;
+            }
+
+            const data = Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+            const beforeCount = folders.length;
+            for (const folder of data) {
+                if (!folder?.id || seen.has(folder.id)) continue;
+                seen.add(folder.id);
+                folders.push({
+                    id: folder.id,
+                    name: folder.name ?? 'Folder',
+                    parentFolderId: folder.parentFolderId ?? folder.parentFolder?.id ?? null,
+                    path: folder.path,
+                    createdAt: folder.createdAt,
+                    updatedAt: folder.updatedAt,
+                });
+            }
+
+            const count = typeof res.data?.count === 'number' ? res.data.count : undefined;
+            if (count !== undefined && folders.length >= count) break;
+            if (folders.length === beforeCount) break;
+            if (data.length === 0 || (count === undefined && data.length < take)) break;
+            skip += take;
+        }
+
+        return folders;
+    }
+
+    /**
+     * Creates a folder in a project.
+     *
+     * @param projectId Project id, or `personal` to target the calling user's own
+     * project (n8n 2.32+).
+     * @param input `parentFolderId` nests the new folder; omit it for a
+     * project-root folder.
+     */
+    async createFolder(projectId: string, input: { name: string; parentFolderId?: string | null }): Promise<IFolder> {
+        const payload: Record<string, unknown> = { name: input.name };
+        if (input.parentFolderId) payload.parentFolderId = input.parentFolderId;
+        const res = await this.client.post(`/api/v1/projects/${encodeURIComponent(projectId)}/folders`, payload);
+        return {
+            id: res.data.id,
+            name: res.data.name,
+            parentFolderId: res.data.parentFolderId ?? res.data.parentFolder?.id ?? null,
+            path: res.data.path,
+            createdAt: res.data.createdAt,
+            updatedAt: res.data.updatedAt,
+        };
+    }
+
+    /**
+     * Resolves a project id usable with the folder endpoints.
+     *
+     * `GET /api/v1/projects` is gated behind `feat:projectRole:admin` (Business /
+     * Enterprise), and `GET /projects/:id/folders` does not accept the `personal`
+     * alias that `POST` does — so on a Community instance we have no direct way to
+     * name our own project. Workflow payloads carry it though: the public API loads
+     * the `shared` relation, and `shared[0].projectId` is the owning project.
+     *
+     * Returns null when nothing could be resolved (e.g. no workflows exist yet), in
+     * which case callers should skip folder assignment rather than fail the sync.
+     */
+    async resolveFolderProjectId(preferredProjectId?: string): Promise<string | null> {
+        if (preferredProjectId && !this.isPlaceholderPersonalProjectId(preferredProjectId)) {
+            return preferredProjectId;
+        }
+
+        this.folderProjectIdPromise ??= (async () => {
+            try {
+                const res = await this.client.get('/api/v1/workflows', { params: { limit: 1 } });
+                const data = res.data?.data ?? (Array.isArray(res.data) ? res.data : []);
+                const workflow = Array.isArray(data) ? data[0] : undefined;
+                const shared = Array.isArray(workflow?.shared) ? workflow.shared[0] : undefined;
+                return shared?.projectId ?? shared?.project?.id ?? null;
+            } catch (error: any) {
+                if (process.env.DEBUG) {
+                    console.debug(`[N8nApiClient] Could not resolve project id from workflows: ${error?.message || error}`);
+                }
+                return null;
+            }
+        })();
+
+        return await this.folderProjectIdPromise;
     }
 
     /**
@@ -545,6 +711,23 @@ export class N8nApiClient {
         if (workflow.isArchived !== undefined) {
             enriched.isArchived = workflow.isArchived;
         }
+
+        if ('parentFolderId' in workflow) {
+            enriched.parentFolderId = workflow.parentFolderId ?? null;
+        } else if (workflow.parentFolder?.id) {
+            enriched.parentFolderId = workflow.parentFolder.id;
+        }
+
+        if ('parentFolder' in workflow) {
+            enriched.parentFolder = workflow.parentFolder ?? null;
+        }
+        if (workflow.folderPath && Array.isArray(workflow.folderPath)) {
+            enriched.folderPath = workflow.folderPath;
+            enriched.folderPathString = workflow.folderPath.join('/');
+        } else if (typeof workflow.folderPathString === 'string') {
+            enriched.folderPathString = workflow.folderPathString;
+            enriched.folderPath = workflow.folderPathString.split('/').filter(Boolean);
+        }
         
         return enriched;
     }
@@ -585,6 +768,7 @@ export class N8nApiClient {
             'settings',
             'staticData',
             'projectId',
+            'parentFolderId',
         ]);
 
         const clean: Record<string, unknown> = {};
@@ -700,6 +884,10 @@ export class N8nApiClient {
             'settings',
             'staticData',
             'pinData',
+            // parentFolderId is forwarded on update so a folderSync push of an
+            // already-tracked workflow moves it to the inferred folder on n8n.
+            // The create path was already wired up; the update path was missing.
+            'parentFolderId',
         ]);
 
         const clean: Record<string, unknown> = {};
