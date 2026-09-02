@@ -103,6 +103,15 @@ export class WorkflowBuilder {
             if (node.waitBetweenTries !== undefined) {
                 n8nNode.waitBetweenTries = node.waitBetweenTries;
             }
+            if (node.disabled !== undefined) {
+                n8nNode.disabled = node.disabled;
+            }
+            if (node.notes !== undefined) {
+                n8nNode.notes = node.notes;
+            }
+            if (node.notesInFlow !== undefined) {
+                n8nNode.notesInFlow = node.notesInFlow;
+            }
             
             return n8nNode;
         });

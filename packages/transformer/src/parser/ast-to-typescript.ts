@@ -109,6 +109,7 @@ export class AstToTypeScriptGenerator {
             if (n.alwaysOutputData) flags.push('[alwaysOutput]');
             if (n.executeOnce) flags.push('[executeOnce]');
             if (n.retryOnFail) flags.push('[retry]');
+            if (n.disabled) flags.push('[disabled]');
             for (const role of subNodeRoles.get(n.propertyName) ?? []) flags.push(`[${role}]`);
             lines.push(`// ${prop} ${t} ${flags.join(' ')}`);
         }
@@ -350,6 +351,16 @@ export class AstToTypeScriptGenerator {
         }
         if (node.waitBetweenTries !== undefined) {
             parts.push(`waitBetweenTries: ${node.waitBetweenTries}`);
+        }
+        
+        if (node.disabled !== undefined) {
+            parts.push(`disabled: ${node.disabled}`);
+        }
+        if (node.notes !== undefined) {
+            parts.push(`notes: ${JSON.stringify(node.notes)}`);
+        }
+        if (node.notesInFlow !== undefined) {
+            parts.push(`notesInFlow: ${node.notesInFlow}`);
         }
         
         return `{\n        ${parts.join(',\n        ')}\n    }`;

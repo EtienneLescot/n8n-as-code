@@ -82,6 +82,11 @@ export interface NodeAST {
     retryOnFail?: boolean;
     maxTries?: number;
     waitBetweenTries?: number;
+
+    // Node state & documentation
+    disabled?: boolean;
+    notes?: string;
+    notesInFlow?: boolean;
     
     // Node parameters (property value in TypeScript)
     parameters: Record<string, any>;
@@ -190,7 +195,18 @@ export interface N8nNode {
     retryOnFail?: boolean;
     maxTries?: number;
     waitBetweenTries?: number;
+
+    // Node state & documentation
+    disabled?: boolean;
+    notes?: string;
+    notesInFlow?: boolean;
 }
+
+/**
+ * Type aliases for AST / Metadata nodes
+ */
+export type IAstNode = NodeAST;
+export type INodeMetadata = NodeAST;
 
 /**
  * n8n connections structure

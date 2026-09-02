@@ -116,6 +116,12 @@ declare module '@n8n-as-code/transformer' {
         maxTries?: number;
         /** Milliseconds to wait between retries (used with retryOnFail) */
         waitBetweenTries?: number;
+        /** Whether the node is disabled */
+        disabled?: boolean;
+        /** Notes/documentation for this node */
+        notes?: string;
+        /** Display notes directly on the workflow canvas */
+        notesInFlow?: boolean;
     }
 
     // =========================================================================

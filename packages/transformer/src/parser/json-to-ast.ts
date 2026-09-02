@@ -96,6 +96,9 @@ export class JsonToAstParser {
             ...(node.retryOnFail !== undefined && { retryOnFail: node.retryOnFail }),
             ...(node.maxTries !== undefined && { maxTries: node.maxTries }),
             ...(node.waitBetweenTries !== undefined && { waitBetweenTries: node.waitBetweenTries }),
+            ...(node.disabled !== undefined && { disabled: node.disabled }),
+            ...(node.notes !== undefined && { notes: node.notes }),
+            ...(node.notesInFlow !== undefined && { notesInFlow: node.notesInFlow }),
         };
     }
     
