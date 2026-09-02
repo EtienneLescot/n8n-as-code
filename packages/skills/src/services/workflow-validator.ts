@@ -586,9 +586,19 @@ export class WorkflowValidator {
     errors: ValidationError[]
   ): void {
     const connectedSlots = new Set<string>();
-    for (const sourceConnections of Object.values(connections)) {
-      for (const group of (sourceConnections as any)?.ai_languageModel ?? []) {
-        for (const conn of group ?? []) {
+    for (const [sourceName, sourceConnections] of Object.entries(connections)) {
+      // A disabled model never runs, so it cannot satisfy the fallback
+      // requirement — n8n rejects it at run time with "must be connected
+      // and enabled".
+      if (nodeMap.get(sourceName)?.disabled === true) continue;
+      const roleGroups = (sourceConnections as any)?.ai_languageModel;
+      if (!Array.isArray(roleGroups)) continue;
+      for (const group of roleGroups) {
+        if (!Array.isArray(group)) continue;
+        // Malformed entries count as disconnected; validateConnections has
+        // already reported the shape error.
+        for (const conn of group) {
+          if (!conn || typeof conn !== 'object' || typeof conn.node !== 'string') continue;
           connectedSlots.add(`${conn.node}#${conn.index ?? 0}`);
         }
       }

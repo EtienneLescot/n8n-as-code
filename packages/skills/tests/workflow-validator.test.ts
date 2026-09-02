@@ -562,8 +562,8 @@ describe('WorkflowValidator - fallback model', () => {
     const workflowWithFallback = (connections: any) => ({
         nodes: [
             { id: '1', name: 'Classify', type: '@n8n/n8n-nodes-langchain.chainLlm', typeVersion: 1.7, position: [0, 0], parameters: { needsFallback: true } },
-            { id: '2', name: 'Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.3, position: [0, 200], parameters: {} },
-            { id: '3', name: 'Fallback Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.3, position: [200, 200], parameters: {} },
+            { id: '2', name: 'Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.7, position: [0, 200], parameters: {} },
+            { id: '3', name: 'Fallback Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.7, position: [200, 200], parameters: {} },
         ],
         connections,
     });
@@ -581,5 +581,14 @@ describe('WorkflowValidator - fallback model', () => {
             workflowWithFallback({ 'Model': aiConn(0), 'Fallback Model': aiConn(1) })
         );
         expect(result.errors.some(e => e.message.includes('needsFallback'))).toBe(false);
+        expect(result.valid).toBe(true);
+    });
+
+    it('rejects needsFallback: true when the fallback model is disabled', async () => {
+        const workflow = workflowWithFallback({ 'Model': aiConn(0), 'Fallback Model': aiConn(1) });
+        workflow.nodes[2].disabled = true;
+        const result = await createValidator().validateWorkflow(workflow);
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.message.includes('needsFallback'))).toBe(true);
     });
 });
