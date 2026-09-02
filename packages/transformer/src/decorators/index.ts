@@ -12,6 +12,7 @@ export { createNodeProxy, createOutputReference } from './helpers.js';
 export type {
     WorkflowDecoratorMetadata,
     NodeDecoratorMetadata,
+    NodeDecoratorOptions,
     NodeProxy,
     OutputConnection,
     InputConnection,
