@@ -2,4 +2,4 @@
 
 **Related issue (if any):** #
 
-> ⚠️ All PRs must target the `next` branch as base.
+> ⚠️ All PRs must target the `main` branch as base.
