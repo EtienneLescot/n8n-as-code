@@ -322,6 +322,172 @@ export class NestedWorkflow {
             parentFolderId: 'folder-file-processing',
         }));
     });
+
+    it('updates state filename on rename and prioritizes disk scan result in refreshLocalState', async () => {
+        const tracker = createTracker();
+        const workflowId = 'wf-rename-test';
+        const initialPath = path.join(tempDir!, 'initial.workflow.ts');
+        const renamedPath = path.join(tempDir!, 'renamed.workflow.ts');
+
+        fs.writeFileSync(
+            initialPath,
+            `import { workflow, node } from '@n8n-as-code/transformer';
+
+@workflow({
+  id: '${workflowId}',
+  name: 'Rename Test Workflow',
+  active: false
+})
+export class RenameTestWorkflow {
+  @node({
+    name: 'Webhook',
+    type: 'n8n-nodes-base.webhook',
+    version: 2.1,
+    position: [0, 0]
+  })
+  Webhook = { path: 'rename-test', httpMethod: 'POST' };
+}
+`,
+            'utf-8',
+        );
+
+        fs.writeFileSync(
+            path.join(tempDir!, '.n8n-state.json'),
+            JSON.stringify({
+                workflows: {
+                    [workflowId]: {
+                        lastSyncedHash: 'hash123',
+                        lastSyncedAt: '2026-03-30T12:00:00.000Z',
+                        filename: 'initial.workflow.ts',
+                    },
+                },
+            }),
+            'utf-8',
+        );
+
+        // Rename file on disk
+        fs.renameSync(initialPath, renamedPath);
+
+        await tracker.refreshLocalState();
+
+        expect(tracker.getFilenameForId(workflowId)).toBe('renamed.workflow.ts');
+        const state = JSON.parse(fs.readFileSync(path.join(tempDir!, '.n8n-state.json'), 'utf-8'));
+        expect(state.workflows[workflowId]?.filename).toBe('renamed.workflow.ts');
+    });
+
+    it('discovers renamed file during refreshRemoteState if persistedFilename is missing on disk', async () => {
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-tracker-'));
+        const workflowId = 'wf-remote-rename';
+        const mockApiClient = {
+            getAllWorkflows: vi.fn().mockResolvedValue([
+                { id: workflowId, name: 'Remote Rename Workflow', active: true } as IWorkflow,
+            ]),
+        } as any;
+
+        const tracker = new WorkflowStateTracker(mockApiClient, {
+            directory: tempDir,
+            syncInactive: false,
+            ignoredTags: [],
+            projectId: 'test-project',
+        });
+
+        fs.writeFileSync(
+            path.join(tempDir!, 'renamed.workflow.ts'),
+            `import { workflow, node } from '@n8n-as-code/transformer';
+
+@workflow({
+  id: '${workflowId}',
+  name: 'Remote Rename Workflow',
+  active: true
+})
+export class RemoteRenameWorkflow {
+  @node({
+    name: 'Webhook',
+    type: 'n8n-nodes-base.webhook',
+    version: 2.1,
+    position: [0, 0]
+  })
+  Webhook = { path: 'remote-rename', httpMethod: 'POST' };
+}
+`,
+            'utf-8',
+        );
+
+        fs.writeFileSync(
+            path.join(tempDir!, '.n8n-state.json'),
+            JSON.stringify({
+                workflows: {
+                    [workflowId]: {
+                        lastSyncedHash: 'hash123',
+                        lastSyncedAt: '2026-03-30T12:00:00.000Z',
+                        filename: 'initial.workflow.ts',
+                    },
+                },
+            }),
+            'utf-8',
+        );
+
+        await tracker.refreshRemoteState();
+
+        expect(tracker.getFilenameForId(workflowId)).toBe('renamed.workflow.ts');
+    });
+
+    it('re-scans to find the real file in finalizeSync if mapped filename was renamed on disk', async () => {
+        const tracker = createTracker();
+        const workflowId = 'wf-finalize-rename';
+        const initialPath = path.join(tempDir!, 'initial.workflow.ts');
+        const renamedPath = path.join(tempDir!, 'renamed.workflow.ts');
+
+        fs.writeFileSync(
+            initialPath,
+            `import { workflow, node } from '@n8n-as-code/transformer';
+
+@workflow({
+  id: '${workflowId}',
+  name: 'Finalize Rename Workflow',
+  active: false
+})
+export class FinalizeRenameWorkflow {
+  @node({
+    name: 'Webhook',
+    type: 'n8n-nodes-base.webhook',
+    version: 2.1,
+    position: [0, 0]
+  })
+  Webhook = { path: 'finalize-test', httpMethod: 'POST' };
+}
+`,
+            'utf-8',
+        );
+
+        fs.writeFileSync(
+            path.join(tempDir!, '.n8n-state.json'),
+            JSON.stringify({
+                workflows: {
+                    [workflowId]: {
+                        lastSyncedHash: 'hash-abc',
+                        lastSyncedAt: '2026-03-30T12:00:00.000Z',
+                        filename: 'initial.workflow.ts',
+                    },
+                },
+            }),
+            'utf-8',
+        );
+
+        // Populate initial tracker state
+        await tracker.refreshLocalState();
+        expect(tracker.getFilenameForId(workflowId)).toBe('initial.workflow.ts');
+
+        // Rename file on disk without calling refreshLocalState first
+        fs.renameSync(initialPath, renamedPath);
+
+        // finalizeSync should detect that initial.workflow.ts is gone and re-scan
+        await tracker.finalizeSync(workflowId);
+
+        expect(tracker.getFilenameForId(workflowId)).toBe('renamed.workflow.ts');
+        const state = JSON.parse(fs.readFileSync(path.join(tempDir!, '.n8n-state.json'), 'utf-8'));
+        expect(state.workflows[workflowId]?.filename).toBe('renamed.workflow.ts');
+    });
 });
 
 describe('WorkflowStateTracker drift detection', () => {
@@ -631,3 +797,4 @@ export class ${name}Workflow {
         expect(results[0].drift).toEqual({ local: false, remote: false });
     });
 });
+

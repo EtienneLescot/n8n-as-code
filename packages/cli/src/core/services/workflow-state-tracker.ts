@@ -36,6 +36,10 @@ const WINDOWS_RESERVED_FILENAMES = new Set([
 
 const EXPLICIT_WORKFLOW_ID_FIELD = '__n8nacExplicitWorkflowId';
 
+function workflowRelativePathToAbsolute(directory: string, filename: string): string {
+    return path.isAbsolute(filename) ? filename : path.join(directory, filename);
+}
+
 /**
  * Watcher - State Observation Component
  * 
@@ -185,6 +189,9 @@ export class WorkflowStateTracker extends EventEmitter {
             }
         }
 
+        const state = this.loadState();
+        let stateChanged = false;
+
         for (const [id, claimants] of idClaims) {
             // Remove the stale filename entry for this ID before setting the scan result
             const staleFilename = this.idToFileMap.get(id);
@@ -202,6 +209,15 @@ export class WorkflowStateTracker extends EventEmitter {
             }
             this.fileToIdMap.set(winner, id);
             this.idToFileMap.set(id, winner);
+
+            if (state.workflows[id] && state.workflows[id].filename !== winner) {
+                state.workflows[id].filename = winner;
+                stateChanged = true;
+            }
+        }
+
+        if (stateChanged) {
+            this.saveState(state);
         }
 
         // Explicit id: undefined/null means "create a new remote workflow". Do not
@@ -219,7 +235,7 @@ export class WorkflowStateTracker extends EventEmitter {
         // Recovery path: if a tracked file lost its decorator ID after a manual rewrite,
         // reconnect it using the last known filename hint from state.
         const claimedIds = new Set(idClaims.keys());
-        const state = this.loadState();
+
         for (const { filename, content } of fileContents) {
             if (content?.id) continue;
             if (content?.[EXPLICIT_WORKFLOW_ID_FIELD]) continue;
@@ -291,6 +307,7 @@ export class WorkflowStateTracker extends EventEmitter {
 
             const folderResolver = await this.createFolderResolver(remoteWorkflows);
             const state = this.loadState();
+            let stateChanged = false;
 
             // Build set of already-assigned filenames to prevent collisions
             const assignedFilenames = new Set<string>();
@@ -326,6 +343,10 @@ export class WorkflowStateTracker extends EventEmitter {
                             filename = undefined;
                         }
                     }
+                }
+
+                if (filename && !fs.existsSync(workflowRelativePathToAbsolute(this.directory, filename))) {
+                    filename = undefined;
                 }
 
                 // If no valid mapping, scan local files to discover/rediscover the workflow
@@ -372,9 +393,18 @@ export class WorkflowStateTracker extends EventEmitter {
                     this.fileToIdMap.set(filename, wf.id);
                 }
 
+                if (state.workflows[wf.id] && filename && state.workflows[wf.id].filename !== filename) {
+                    state.workflows[wf.id].filename = filename;
+                    stateChanged = true;
+                }
+
                 // In lightweight mode, we don't fetch full content or compute hashes here.
                 // We just broadcast that the workflow exists remotely.
                 this.broadcastStatus(filename, wf.id);
+            }
+
+            if (stateChanged) {
+                this.saveState(state);
             }
 
             // Prune remoteHashes and timestamps for deleted workflows
@@ -428,19 +458,19 @@ export class WorkflowStateTracker extends EventEmitter {
         let filename = this.idToFileMap.get(workflowId);
 
         // If workflow not tracked yet (first sync of local-only workflow),
-        // scan directory to find the file with this ID
-        if (!filename) {
-            const files = listWorkflowFilesRecursive(this.directory);
-            for (const file of files) {
-                const filePath = workflowRelativePathToAbsolute(this.directory, file);
-                const content = this.readJsonFile(filePath);
-                if (content?.id === workflowId) {
-                    filename = file;
-                    // Initialize tracking for this workflow
-                    this.fileToIdMap.set(filename, workflowId);
-                    this.idToFileMap.set(workflowId, filename);
-                    break;
+        // or if filename points to a file that does not exist on disk,
+        // scan directory to find the real file with this ID
+        if (!filename || !fs.existsSync(workflowRelativePathToAbsolute(this.directory, filename))) {
+            const staleFilename = filename;
+            filename = this.findFilenameByWorkflowId(workflowId);
+
+            if (filename) {
+                if (staleFilename && staleFilename !== filename) {
+                    this.fileToIdMap.delete(staleFilename);
+                    this.localHashes.delete(staleFilename);
                 }
+                this.fileToIdMap.set(filename, workflowId);
+                this.idToFileMap.set(workflowId, filename);
             }
 
             if (!filename) {
