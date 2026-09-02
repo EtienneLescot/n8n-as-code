@@ -2,7 +2,7 @@ import { accessSync, constants, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { N8N_FACADE_SETUP_MODES } from "@n8n-as-code/workflow-core";
 import { createTelemetryClient } from "@n8n-as-code/telemetry";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 import { registerN8nAcCli } from "./src/cli.js";
 import { getWorkspaceDir, isWorkspaceInitialized, readWorkspaceBinding } from "./src/workspace.js";
 
