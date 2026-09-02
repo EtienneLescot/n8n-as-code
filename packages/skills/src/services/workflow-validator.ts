@@ -594,11 +594,25 @@ export class WorkflowValidator {
       const roleGroups = (sourceConnections as any)?.ai_languageModel;
       if (!Array.isArray(roleGroups)) continue;
       for (const group of roleGroups) {
-        if (!Array.isArray(group)) continue;
-        // Malformed entries count as disconnected; validateConnections has
-        // already reported the shape error.
+        if (!Array.isArray(group)) {
+          // validateConnections only traverses "main"; nothing else reports
+          // malformed ai_languageModel wiring, so it must be rejected here.
+          errors.push({
+            type: 'error',
+            nodeName: sourceName,
+            message: `Malformed ai_languageModel connection group on node "${sourceName}": expected an array of connections`,
+          });
+          continue;
+        }
         for (const conn of group) {
-          if (!conn || typeof conn !== 'object' || typeof conn.node !== 'string') continue;
+          if (!conn || typeof conn !== 'object' || typeof conn.node !== 'string') {
+            errors.push({
+              type: 'error',
+              nodeName: sourceName,
+              message: `Malformed ai_languageModel connection on node "${sourceName}": missing or invalid "node" field`,
+            });
+            continue;
+          }
           connectedSlots.add(`${conn.node}#${conn.index ?? 0}`);
         }
       }

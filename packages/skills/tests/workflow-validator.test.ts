@@ -591,4 +591,25 @@ describe('WorkflowValidator - fallback model', () => {
         expect(result.valid).toBe(false);
         expect(result.errors.some(e => e.message.includes('needsFallback'))).toBe(true);
     });
+
+    it('reports malformed ai_languageModel connections even with a valid fallback slot', async () => {
+        const result = await createValidator().validateWorkflow(
+            workflowWithFallback({
+                'Model': { ai_languageModel: [[{ node: 'Classify', type: 'ai_languageModel', index: 0 }], 'not-an-array'] },
+                'Fallback Model': aiConn(1),
+            })
+        );
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.message.includes('Malformed ai_languageModel connection group'))).toBe(true);
+        // The fallback slot itself is valid, so the needsFallback rule must not fire.
+        expect(result.errors.some(e => e.message.includes('needsFallback'))).toBe(false);
+    });
+
+    it('reports ai_languageModel connections with an invalid node field', async () => {
+        const result = await createValidator().validateWorkflow(
+            workflowWithFallback({ 'Model': { ai_languageModel: [[{ type: 'ai_languageModel', index: 0 }]] }, 'Fallback Model': aiConn(1) })
+        );
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.message.includes('Malformed ai_languageModel connection on node "Model"'))).toBe(true);
+    });
 });
