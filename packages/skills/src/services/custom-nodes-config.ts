@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'fs';
-import { join, resolve } from 'path';
+import { dirname, join, resolve } from 'path';
 
 export interface CustomNodesResolution {
     cwd: string;
@@ -17,16 +17,21 @@ export interface CustomNodesResolution {
 /**
  * Resolve the path to the user-provided custom nodes file.
  * Lookup order:
- *   1. `customNodesPath` field in n8nac-config.json (relative to CWD)
- *   2. n8nac-custom-nodes.json in CWD (default sidecar file)
+ *   1. `customNodesPath` field in n8nac-config.json (relative to the directory
+ *      containing that config)
+ *   2. n8nac-custom-nodes.json (default sidecar file)
+ * When neither file exists in `cwd`, ancestor directories are walked up to the
+ * filesystem root, so a CLI run from a workflow subfolder still finds the
+ * sidecar sitting at the workspace root.
  * Returns resolution details, warnings, and the selected path when found.
  */
 export function resolveCustomNodesConfig(cwd: string = process.cwd()): CustomNodesResolution {
     const warnings: string[] = [];
-    const configPath = join(cwd, 'n8nac-config.json');
-    const defaultPath = join(cwd, 'n8nac-custom-nodes.json');
+    const searchDir = findSidecarDirectory(cwd);
+    const configPath = join(searchDir, 'n8nac-config.json');
+    const defaultPath = join(searchDir, 'n8nac-custom-nodes.json');
     const resolution: CustomNodesResolution = {
-        cwd,
+        cwd: searchDir,
         configPath,
         configExists: existsSync(configPath),
         defaultPath,
@@ -43,7 +48,7 @@ export function resolveCustomNodesConfig(cwd: string = process.cwd()): CustomNod
                 : '';
             if (trimmedCustomNodesPath) {
                 resolution.configuredPath = trimmedCustomNodesPath;
-                resolution.resolvedConfiguredPath = resolve(cwd, trimmedCustomNodesPath);
+                resolution.resolvedConfiguredPath = resolve(searchDir, trimmedCustomNodesPath);
                 const resolved = resolution.resolvedConfiguredPath;
                 if (existsSync(resolved)) {
                     resolution.resolvedPath = resolved;
@@ -65,4 +70,19 @@ export function resolveCustomNodesConfig(cwd: string = process.cwd()): CustomNod
     }
 
     return resolution;
+}
+
+function findSidecarDirectory(cwd: string): string {
+    let currentDir = resolve(cwd);
+    for (;;) {
+        if (
+            existsSync(join(currentDir, 'n8nac-config.json')) ||
+            existsSync(join(currentDir, 'n8nac-custom-nodes.json'))
+        ) {
+            return currentDir;
+        }
+        const parentDir = dirname(currentDir);
+        if (parentDir === currentDir) return resolve(cwd);
+        currentDir = parentDir;
+    }
 }
