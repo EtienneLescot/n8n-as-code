@@ -16,8 +16,10 @@ const distDir = path.join(packageDir, 'dist');
 const agentSkillsDist = path.join(distDir, 'agent-skills');
 const assetsDist = path.join(distDir, 'assets');
 
-// Rebuilt from scratch so a renamed or deleted skill does not linger in dist.
+// Both are rebuilt from scratch so a renamed or deleted skill or asset does
+// not linger in dist on incremental builds.
 fs.rmSync(agentSkillsDist, { recursive: true, force: true });
+fs.rmSync(assetsDist, { recursive: true, force: true });
 fs.mkdirSync(agentSkillsDist, { recursive: true });
 fs.mkdirSync(assetsDist, { recursive: true });
 
