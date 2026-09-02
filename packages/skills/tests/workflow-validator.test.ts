@@ -634,6 +634,335 @@ describe('WorkflowValidator - nested parameter validation', () => {
     });
 });
 
+describe('WorkflowValidator - Issue #609 false-positives', () => {
+    const createValidatorWithNodeSchema = (nodeSchema: any): WorkflowValidator => {
+        const indexPath = path.resolve(_dirname, 'fixtures/n8n-nodes-technical.json');
+        const validator = new WorkflowValidator(indexPath);
+        jest.spyOn(validator['provider'], 'getNodeSchema').mockReturnValue(nodeSchema);
+        return validator;
+    };
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    describe('multiOptions validation', () => {
+        const multiOptionsSchema = {
+            name: 'webhook',
+            type: 'n8n-nodes-base.webhook',
+            version: 1,
+            schema: {
+                properties: [
+                    {
+                        name: 'httpMethod',
+                        type: 'multiOptions',
+                        options: [
+                            { name: 'GET', value: 'GET' },
+                            { name: 'POST', value: 'POST' },
+                            { name: 'PUT', value: 'PUT' },
+                            { name: 'DELETE', value: 'DELETE' },
+                        ],
+                    },
+                ],
+            },
+        };
+
+        it('passes valid multiOptions array', async () => {
+            const validator = createValidatorWithNodeSchema(multiOptionsSchema);
+            const result = await validator.validateWorkflow({
+                nodes: [
+                    {
+                        id: '1',
+                        name: 'Webhook',
+                        type: 'n8n-nodes-base.webhook',
+                        typeVersion: 1,
+                        position: [0, 0],
+                        parameters: {
+                            httpMethod: ['GET', 'POST'],
+                        },
+                    },
+                ],
+                connections: {},
+            });
+
+            expect(result.valid).toBe(true);
+            expect(result.errors).toHaveLength(0);
+        });
+
+        it('rejects invalid array entries in multiOptions', async () => {
+            const validator = createValidatorWithNodeSchema(multiOptionsSchema);
+            const result = await validator.validateWorkflow({
+                nodes: [
+                    {
+                        id: '1',
+                        name: 'Webhook',
+                        type: 'n8n-nodes-base.webhook',
+                        typeVersion: 1,
+                        position: [0, 0],
+                        parameters: {
+                            httpMethod: ['POST', 'INVALID_METHOD'],
+                        },
+                    },
+                ],
+                connections: {},
+            });
+
+            expect(result.valid).toBe(false);
+            expect(result.errors.length).toBeGreaterThan(0);
+            expect(result.errors[0].message).toContain('Invalid value(s) [INVALID_METHOD] for parameter "httpMethod"');
+            expect(result.errors[0].path).toBe('nodes[Webhook].parameters.httpMethod');
+        });
+    });
+
+    describe('ResourceLocator values', () => {
+        it('skips ResourceLocator object without error', async () => {
+            const validator = createValidatorWithNodeSchema({
+                name: 'slack',
+                type: 'n8n-nodes-base.slack',
+                version: 1,
+                schema: {
+                    properties: [
+                        {
+                            name: 'channel',
+                            type: 'options',
+                            options: [
+                                { name: 'General', value: 'general' },
+                                { name: 'Random', value: 'random' },
+                            ],
+                        },
+                    ],
+                },
+            });
+
+            const result = await validator.validateWorkflow({
+                nodes: [
+                    {
+                        id: '1',
+                        name: 'Slack',
+                        type: 'n8n-nodes-base.slack',
+                        typeVersion: 1,
+                        position: [0, 0],
+                        parameters: {
+                            channel: {
+                                __rl: true,
+                                value: 'C01234567',
+                                mode: 'id',
+                            },
+                        },
+                    },
+                ],
+                connections: {},
+            });
+
+            expect(result.valid).toBe(true);
+            expect(result.errors).toHaveLength(0);
+        });
+    });
+
+    describe('@version-scoped properties', () => {
+        const versionedNodeSchema = {
+            name: 'myVersionedNode',
+            type: 'n8n-nodes-base.myVersionedNode',
+            version: [1, 1.1, 1.2, 2],
+            schema: {
+                properties: [
+                    {
+                        name: 'operation',
+                        type: 'options',
+                        displayOptions: {
+                            show: {
+                                '@version': [1, 1.1],
+                            },
+                        },
+                        options: [
+                            { name: 'Old Op', value: 'oldOp' },
+                        ],
+                    },
+                    {
+                        name: 'operation',
+                        type: 'options',
+                        displayOptions: {
+                            show: {
+                                '@version': [{ _cnd: { gte: 2 } }],
+                            },
+                        },
+                        options: [
+                            { name: 'New Op', value: 'newOp' },
+                        ],
+                    },
+                    {
+                        name: 'legacyField',
+                        type: 'string',
+                        required: true,
+                        displayOptions: {
+                            show: {
+                                '@version': { lte: 1.2 },
+                            },
+                        },
+                    },
+                ],
+            },
+        };
+
+        it('does not validate newer typeVersions against obsolete version options', async () => {
+            const validator = createValidatorWithNodeSchema(versionedNodeSchema);
+
+            // typeVersion 2 with newOp is valid
+            const validV2Result = await validator.validateWorkflow({
+                nodes: [
+                    {
+                        id: '1',
+                        name: 'MyNode',
+                        type: 'n8n-nodes-base.myVersionedNode',
+                        typeVersion: 2,
+                        position: [0, 0],
+                        parameters: {
+                            operation: 'newOp',
+                        },
+                    },
+                ],
+                connections: {},
+            });
+            expect(validV2Result.valid).toBe(true);
+            expect(validV2Result.errors).toHaveLength(0);
+
+            // typeVersion 2 with oldOp is invalid because oldOp is obsolete in v2
+            const invalidV2Result = await validator.validateWorkflow({
+                nodes: [
+                    {
+                        id: '1',
+                        name: 'MyNode',
+                        type: 'n8n-nodes-base.myVersionedNode',
+                        typeVersion: 2,
+                        position: [0, 0],
+                        parameters: {
+                            operation: 'oldOp',
+                        },
+                    },
+                ],
+                connections: {},
+            });
+            expect(invalidV2Result.valid).toBe(false);
+            expect(invalidV2Result.errors.some(e => e.message.includes('Invalid value "oldOp" for parameter "operation"'))).toBe(true);
+
+            // typeVersion 1 with oldOp is valid (and requires legacyField because v1 <= 1.2)
+            const validV1Result = await validator.validateWorkflow({
+                nodes: [
+                    {
+                        id: '1',
+                        name: 'MyNode',
+                        type: 'n8n-nodes-base.myVersionedNode',
+                        typeVersion: 1,
+                        position: [0, 0],
+                        parameters: {
+                            operation: 'oldOp',
+                            legacyField: 'legacy-val',
+                        },
+                    },
+                ],
+                connections: {},
+            });
+            expect(validV1Result.valid).toBe(true);
+            expect(validV1Result.errors).toHaveLength(0);
+
+            // typeVersion 2 does NOT require legacyField because it is scoped to { lte: 1.2 }
+            const legacyCheckResult = await validator.validateWorkflow({
+                nodes: [
+                    {
+                        id: '1',
+                        name: 'MyNode',
+                        type: 'n8n-nodes-base.myVersionedNode',
+                        typeVersion: 2,
+                        position: [0, 0],
+                        parameters: {
+                            operation: 'newOp',
+                        },
+                    },
+                ],
+                connections: {},
+            });
+            expect(legacyCheckResult.errors.some(e => e.message.includes('legacyField'))).toBe(false);
+        });
+    });
+
+    describe('required properties with defaults', () => {
+        it('does not report an error when required: true properties with a default are omitted', async () => {
+            const validator = createValidatorWithNodeSchema({
+                name: 'stickyNote',
+                type: 'n8n-nodes-base.stickyNote',
+                version: 1,
+                schema: {
+                    properties: [
+                        {
+                            name: 'height',
+                            type: 'number',
+                            required: true,
+                            default: 160,
+                        },
+                        {
+                            name: 'width',
+                            type: 'number',
+                            required: true,
+                            default: 240,
+                        },
+                        {
+                            name: 'color',
+                            type: 'number',
+                            required: true,
+                            default: 1,
+                        },
+                        {
+                            name: 'title',
+                            type: 'string',
+                            required: true,
+                            // no default
+                        },
+                    ],
+                },
+            });
+
+            // When title is provided, height/width/color have schema defaults and are omitted -> valid!
+            const validResult = await validator.validateWorkflow({
+                nodes: [
+                    {
+                        id: '1',
+                        name: 'Sticky Note',
+                        type: 'n8n-nodes-base.stickyNote',
+                        typeVersion: 1,
+                        position: [0, 0],
+                        parameters: {
+                            title: 'My Note',
+                        },
+                    },
+                ],
+                connections: {},
+            });
+
+            expect(validResult.valid).toBe(true);
+            expect(validResult.errors).toHaveLength(0);
+
+            // When title (which has no default) is omitted -> invalid!
+            const invalidResult = await validator.validateWorkflow({
+                nodes: [
+                    {
+                        id: '1',
+                        name: 'Sticky Note',
+                        type: 'n8n-nodes-base.stickyNote',
+                        typeVersion: 1,
+                        position: [0, 0],
+                        parameters: {},
+                    },
+                ],
+                connections: {},
+            });
+
+            expect(invalidResult.valid).toBe(false);
+            expect(invalidResult.errors).toHaveLength(1);
+            expect(invalidResult.errors[0].message).toBe('Missing required parameter: "title"');
+        });
+    });
+});
+
 describe('WorkflowValidator - fallback model', () => {
     const createValidator = (): WorkflowValidator => {
         const indexPath = path.resolve(_dirname, 'fixtures/n8n-nodes-technical.json');
