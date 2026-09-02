@@ -383,7 +383,8 @@ async function extractNodes() {
         nodes: Array.from(resultsMap.values())
     };
 
-    // Minified: build intermediate consumed only by the enrichment scripts.
+    // Minified: build intermediate consumed only by build-time scripts
+    // (enrich-nodes-technical.cjs, generate-credential-ontology.cjs).
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(outputData));
     console.log(`💾 Saved index to: ${OUTPUT_FILE}`);
 }
