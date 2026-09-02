@@ -14,6 +14,8 @@ function createEngine(params: {
     getFolders?: ReturnType<typeof vi.fn>;
     createFolder?: ReturnType<typeof vi.fn>;
     resolveFolderProjectId?: ReturnType<typeof vi.fn>;
+    publishWorkflowVersion?: ReturnType<typeof vi.fn>;
+    onPublishState?: (report: any) => void;
 }) {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-sync-engine-'));
     const filename = params.filename ?? 'new.workflow.ts';
@@ -29,14 +31,16 @@ function createEngine(params: {
         getFolders: params.getFolders,
         createFolder: params.createFolder,
         resolveFolderProjectId: params.resolveFolderProjectId,
+        publishWorkflowVersion: params.publishWorkflowVersion ?? vi.fn(async () => null),
     } as any;
 
     const engine = new SyncEngine(client, watcher, directory, params.projectId, undefined, {
         folderSync: params.folderSync,
         folderSyncMoveToRoot: params.folderSyncMoveToRoot,
+        onPublishState: params.onPublishState,
     });
 
-    return { engine, directory, filename, watcher };
+    return { engine, directory, filename, watcher, client };
 }
 
 describe('SyncEngine create payload projectId behavior', () => {
@@ -335,6 +339,9 @@ function updateEngine(params: {
     createFolder?: ReturnType<typeof vi.fn>;
     resolveFolderProjectId?: ReturnType<typeof vi.fn>;
     workflowId?: string;
+    getPublishedVersion?: ReturnType<typeof vi.fn>;
+    publishWorkflowVersion?: ReturnType<typeof vi.fn>;
+    onPublishState?: (report: any) => void;
 }) {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-sync-engine-update-'));
     const filename = params.filename ?? 'existing.workflow.ts';
@@ -344,6 +351,9 @@ function updateEngine(params: {
     const watcher = {
         finalizeSync: vi.fn(async () => undefined),
         setRemoteHash: vi.fn(),
+        // No sync base recorded, so the OCC check passes whatever `getWorkflow`
+        // returns — tests that stub it for other reasons stay unaffected.
+        getLastSyncedAt: vi.fn(() => undefined),
     } as any;
 
     // Return undefined from getWorkflow to bypass OCC; tests don't exercise OCC.
@@ -353,11 +363,16 @@ function updateEngine(params: {
         getFolders: params.getFolders,
         createFolder: params.createFolder,
         resolveFolderProjectId: params.resolveFolderProjectId,
+        // Unpublished by default: most update tests are about the payload, and an
+        // unpublished workflow is the case where the push touches nothing else.
+        getPublishedVersion: params.getPublishedVersion ?? vi.fn(async () => ({ published: false })),
+        publishWorkflowVersion: params.publishWorkflowVersion ?? vi.fn(async () => null),
     } as any;
 
     const engine = new SyncEngine(client, watcher, directory, params.projectId, undefined, {
         folderSync: params.folderSync,
         folderSyncMoveToRoot: params.folderSyncMoveToRoot,
+        onPublishState: params.onPublishState,
     });
 
     return {
@@ -746,3 +761,290 @@ describe('SyncEngine folder placement without session auth', () => {
         expect(payloads[0]).toHaveProperty('parentFolderId', 'folder-reports');
     });
 });
+
+/**
+ * n8n 2.x publishing model.
+ *
+ * A workflow is a draft (its content) plus a pointer to the version production
+ * runs. `PUT /workflows/:id` rewrites the draft and, when the workflow is
+ * published, drags the pointer along with no opt-out — so a push to a published
+ * workflow is a save *and* a publish. That stays the default; it is announced
+ * up front, and `--draft` opts into putting the pointer back (#563).
+ */
+describe('SyncEngine publish handling on push', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    function mockTransformer() {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'Existing Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+    }
+
+    const updateOk = () => vi.fn(async (id, payload) => ({
+        ...payload,
+        id,
+        updatedAt: '2026-07-01T00:00:00.000Z',
+    }));
+
+    const publishedAt = (versionId?: string) => vi.fn(async () => ({ published: true, versionId }));
+
+    it('releases the pushed content by default on a published workflow', async () => {
+        mockTransformer();
+
+        const publishWorkflowVersion = vi.fn(async () => null);
+        const reports: any[] = [];
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow: updateOk(),
+            getPublishedVersion: publishedAt('v-live'),
+            publishWorkflowVersion,
+            onPublishState: (r) => reports.push(r),
+        });
+
+        await expect(engine.push(filename, workflowId)).resolves.toBe(workflowId);
+
+        // The PUT already published; nothing is undone behind the user's back.
+        expect(publishWorkflowVersion).not.toHaveBeenCalled();
+        expect(reports).toEqual([expect.objectContaining({ outcome: 'goes-live', workflowId })]);
+    });
+
+    // "Your push changed production" after the fact is a notification, not a
+    // warning. The whole point of the default path is that it is announced.
+    it('announces going live before the update lands', async () => {
+        mockTransformer();
+
+        const updateWorkflow = updateOk();
+        let updatesAtAnnounce: number | undefined;
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow,
+            getPublishedVersion: publishedAt('v-live'),
+            onPublishState: () => { updatesAtAnnounce = updateWorkflow.mock.calls.length; },
+        });
+
+        await engine.push(filename, workflowId);
+
+        expect(updatesAtAnnounce).toBe(0);
+        expect(updateWorkflow).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-pins the previously published version with --draft', async () => {
+        mockTransformer();
+
+        const publishWorkflowVersion = vi.fn(async () => ({ id: 'wf-existing', updatedAt: '2026-07-01T00:00:05.000Z' }));
+        const reports: any[] = [];
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow: updateOk(),
+            getPublishedVersion: publishedAt('v-live'),
+            publishWorkflowVersion,
+            onPublishState: (r) => reports.push(r),
+        });
+
+        await expect(engine.push(filename, workflowId, undefined, { draft: true })).resolves.toBe(workflowId);
+
+        expect(publishWorkflowVersion).toHaveBeenCalledWith(workflowId, 'v-live');
+        expect(reports).toEqual([
+            expect.objectContaining({ outcome: 'restores', versionId: 'v-live', workflowId }),
+        ]);
+    });
+
+    // The pointer has to be read before the PUT — afterwards it already names
+    // the version we just uploaded, so restoring it would be a no-op.
+    it('reads the published version before updating', async () => {
+        mockTransformer();
+
+        const updateWorkflow = updateOk();
+        const getPublishedVersion = publishedAt('v-live');
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow,
+            getPublishedVersion,
+            publishWorkflowVersion: vi.fn(async () => null),
+        });
+
+        await engine.push(filename, workflowId, undefined, { draft: true });
+
+        expect(getPublishedVersion.mock.invocationCallOrder[0])
+            .toBeLessThan(updateWorkflow.mock.invocationCallOrder[0]);
+    });
+
+    // Re-pinning touches the workflow again, so the PUT's timestamp is stale by
+    // the time the push ends. Recording it would make the next push believe the
+    // workflow had been edited in the n8n UI.
+    it('records the post-restore updatedAt as the sync base', async () => {
+        mockTransformer();
+
+        const { engine, filename, workflowId, watcher } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow: updateOk(),
+            getPublishedVersion: publishedAt('v-live'),
+            publishWorkflowVersion: vi.fn(async () => ({ id: 'wf-existing', updatedAt: '2026-07-01T00:00:05.000Z' })),
+        });
+
+        await engine.push(filename, workflowId, undefined, { draft: true });
+
+        expect(watcher.finalizeSync).toHaveBeenCalledWith(workflowId, '2026-07-01T00:00:05.000Z');
+    });
+
+    it('falls back to a fresh read when the activate response carries no timestamp', async () => {
+        mockTransformer();
+
+        const { engine, filename, workflowId, watcher, client } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow: updateOk(),
+            getPublishedVersion: publishedAt('v-live'),
+            publishWorkflowVersion: vi.fn(async () => null),
+        });
+        client.getWorkflow = vi.fn(async () => ({ id: workflowId, updatedAt: '2026-07-01T00:00:09.000Z' }));
+
+        await engine.push(filename, workflowId, undefined, { draft: true });
+
+        expect(watcher.finalizeSync).toHaveBeenCalledWith(workflowId, '2026-07-01T00:00:09.000Z');
+    });
+
+    it('leaves an unpublished workflow alone', async () => {
+        mockTransformer();
+
+        const publishWorkflowVersion = vi.fn(async () => null);
+        const reports: any[] = [];
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow: updateOk(),
+            getPublishedVersion: vi.fn(async () => ({ published: false })),
+            publishWorkflowVersion,
+            onPublishState: (r) => reports.push(r),
+        });
+
+        await engine.push(filename, workflowId);
+
+        expect(publishWorkflowVersion).not.toHaveBeenCalled();
+        expect(reports).toEqual([expect.objectContaining({ outcome: 'not-published' })]);
+    });
+
+    it('reports unknown when the published version cannot be read', async () => {
+        mockTransformer();
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+        const updateWorkflow = updateOk();
+        const reports: any[] = [];
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow,
+            getPublishedVersion: vi.fn(async () => { throw new Error('ECONNRESET'); }),
+            onPublishState: (r) => reports.push(r),
+        });
+
+        // A failed pre-read must not block a default push: the PUT that follows
+        // would fail on the same transport if the instance were unreachable.
+        await expect(engine.push(filename, workflowId)).resolves.toBe(workflowId);
+
+        expect(updateWorkflow).toHaveBeenCalledTimes(1);
+        expect(reports).toEqual([expect.objectContaining({ outcome: 'unknown' })]);
+    });
+
+    // `--draft` is a promise about production. When it cannot be kept, refusing
+    // costs nothing (the PUT has not happened) and silently doing the opposite
+    // is the worst available option.
+    it('refuses --draft when the published version cannot be read', async () => {
+        mockTransformer();
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+        const updateWorkflow = updateOk();
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow,
+            getPublishedVersion: vi.fn(async () => { throw new Error('ECONNRESET'); }),
+        });
+
+        await expect(engine.push(filename, workflowId, undefined, { draft: true }))
+            .rejects.toThrow(/could not be read/);
+        expect(updateWorkflow).not.toHaveBeenCalled();
+    });
+
+    // n8n 1.x has no version pointer: an active workflow runs the content it
+    // holds, so there is nothing to restore and `--draft` cannot be honoured.
+    it('refuses --draft on an instance without a version pointer', async () => {
+        mockTransformer();
+
+        const updateWorkflow = updateOk();
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow,
+            getPublishedVersion: publishedAt(undefined),
+        });
+
+        await expect(engine.push(filename, workflowId, undefined, { draft: true }))
+            .rejects.toThrow(/n8n 1\.x/);
+        expect(updateWorkflow).not.toHaveBeenCalled();
+    });
+
+    it('still pushes to an unversioned instance without --draft', async () => {
+        mockTransformer();
+
+        const updateWorkflow = updateOk();
+        const reports: any[] = [];
+        const { engine, filename, workflowId } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow,
+            getPublishedVersion: publishedAt(undefined),
+            onPublishState: (r) => reports.push(r),
+        });
+
+        await expect(engine.push(filename, workflowId)).resolves.toBe(workflowId);
+
+        expect(updateWorkflow).toHaveBeenCalledTimes(1);
+        expect(reports).toEqual([expect.objectContaining({ outcome: 'goes-live' })]);
+    });
+
+    // Restoration is a compensating call, not an atomic one. When it fails the
+    // pushed content stays live, so the push must not report success.
+    it('fails loudly when the published version cannot be restored', async () => {
+        mockTransformer();
+
+        const { engine, filename, workflowId, watcher } = updateEngine({
+            projectId: 'project-1',
+            updateWorkflow: updateOk(),
+            getPublishedVersion: publishedAt('v-live'),
+            publishWorkflowVersion: vi.fn(async () => { throw new Error('403 Forbidden'); }),
+        });
+
+        const push = () => engine.push(filename, workflowId, undefined, { draft: true });
+        await expect(push()).rejects.toThrow(/now live in production/);
+        await expect(push()).rejects.toThrow(/v-live/);
+        // The PUT already moved the remote, so local state is reconciled and the
+        // sync base advances even though the push fails — otherwise the next
+        // push false-conflicts against its own update.
+        expect(watcher.setRemoteHash).toHaveBeenCalled();
+        expect(watcher.finalizeSync).toHaveBeenCalledWith(workflowId, '2026-07-01T00:00:00.000Z');
+    });
+
+    // n8n creates workflows unpublished, so a create never touches production
+    // and neither mode has anything to publish or restore.
+    it('never publishes a newly created workflow', async () => {
+        vi.spyOn(WorkflowTransformerAdapter, 'compileToJson').mockResolvedValue({
+            name: 'New Workflow',
+            nodes: [{ id: 'n1' }],
+            connections: {},
+        } as any);
+        vi.spyOn(WorkflowTransformerAdapter, 'convertToTypeScript').mockResolvedValue('// generated');
+
+        const publishWorkflowVersion = vi.fn(async () => null);
+        const { engine, filename } = createEngine({
+            projectId: 'personal',
+            createWorkflow: vi.fn(async (payload) => ({ ...payload, id: 'wf-new' })),
+            publishWorkflowVersion,
+        });
+
+        await expect(engine.push(filename)).resolves.toBe('wf-new');
+        await expect(engine.push(filename, undefined, undefined, { draft: true })).resolves.toBe('wf-new');
+
+        expect(publishWorkflowVersion).not.toHaveBeenCalled();
+    });
+});
+

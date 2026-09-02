@@ -5,7 +5,7 @@ import { WorkflowTransformerAdapter } from './workflow-transformer-adapter.js';
 import { HashUtils } from './hash-utils.js';
 import { WorkflowStateTracker } from './workflow-state-tracker.js';
 import { SyncEventJournal } from './sync-event-journal.js';
-import { WorkflowSyncStatus, IWorkflow, IFolder } from '../types.js';
+import { WorkflowSyncStatus, IWorkflow, IFolder, IPublishedVersion, IPushPublishReport } from '../types.js';
 import { ensureParentDirectory, normalizeWorkflowRelativePath, workflowRelativePathToAbsolute } from './workflow-path-utils.js';
 
 /**
@@ -39,6 +39,8 @@ export class SyncEngine {
     private folderSyncMoveToRoot: boolean;
     /** Guards the "folders unavailable" warning so a bulk push logs it once. */
     private folderUnavailableWarned = false;
+    /** Reports what each update did to the published version, for the CLI to surface. */
+    private onPublishState: ((report: IPushPublishReport) => void) | undefined;
 
     constructor(
         client: N8nApiClient,
@@ -46,7 +48,11 @@ export class SyncEngine {
         directory: string,
         projectId: string,
         syncEventJournal?: SyncEventJournal,
-        options?: { folderSync?: boolean; folderSyncMoveToRoot?: boolean },
+        options?: {
+            folderSync?: boolean;
+            folderSyncMoveToRoot?: boolean;
+            onPublishState?: (report: IPushPublishReport) => void;
+        },
     ) {
         this.client = client;
         this.watcher = watcher;
@@ -55,6 +61,7 @@ export class SyncEngine {
         this.syncEventJournal = syncEventJournal;
         this.folderSync = options?.folderSync ?? false;
         this.folderSyncMoveToRoot = options?.folderSyncMoveToRoot ?? false;
+        this.onPublishState = options?.onPublishState;
     }
 
     /**
@@ -89,14 +96,19 @@ export class SyncEngine {
      * PUSH Strategy: Local -> Remote
      * Based on spec 5.3 PUSH Strategy table
      */
-    public async push(filename: string, workflowId?: string, status?: WorkflowSyncStatus): Promise<string> {
+    public async push(
+        filename: string,
+        workflowId?: string,
+        status?: WorkflowSyncStatus,
+        options?: { draft?: boolean },
+    ): Promise<string> {
         // If we have an ID, we ALWAYS try to update first (robustness for git-like sync)
             if (workflowId) {
                 try {
                     // PUT to API (Update)
                     // We bypass OCC check if the status is EXIST_ONLY_LOCALLY (meaning we think it's new but it might not be)
                     const skipOcc = status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY;
-                    const updateUpdatedAt = await this.executeUpdate(workflowId, filename, skipOcc);
+                    const updateUpdatedAt = await this.executeUpdate(workflowId, filename, skipOcc, options?.draft === true);
                     
                     // Update lastSyncedHash via finalizeSync
                     await this.watcher.finalizeSync(workflowId, updateUpdatedAt);
@@ -113,8 +125,10 @@ export class SyncEngine {
             }
 
             // No ID or Update failed with 404 -> POST to API (Create)
+            // n8n creates workflows unpublished, so a create never touches
+            // production and `--draft` has nothing to protect here.
             const { id: newWorkflowId, updatedAt } = await this.executeCreate(filename);
-            
+
             // Initialize lastSyncedHash via finalizeSync
             await this.watcher.finalizeSync(newWorkflowId, updatedAt);
             this.recordPushSuccess(newWorkflowId, filename, updatedAt);
@@ -196,7 +210,24 @@ export class SyncEngine {
         return fullWf.updatedAt;
     }
 
-    private async executeUpdate(workflowId: string, filename: string, skipOcc = false): Promise<string | undefined> {
+    /**
+     * PUT the local workflow to n8n.
+     *
+     * On n8n 2.x a workflow is a draft (the content) plus a pointer to the
+     * version production runs. `PUT /workflows/:id` rewrites the draft *and*
+     * moves the pointer when the workflow is published, with no opt-out — so on
+     * a published workflow a push is a save *and* a publish.
+     *
+     * That stays the default: `push` is a deploy command, and the API is not
+     * worked around behind the user's back. It is announced before the update
+     * lands, through `onPublishState`.
+     *
+     * `draft` opts into the workaround: capture the pointer, PUT, re-pin. It is
+     * a compensating call, not an atomic one — between the two the pushed
+     * content is briefly live — which is why it is opt-in rather than the path
+     * everyone silently depends on.
+     */
+    private async executeUpdate(workflowId: string, filename: string, skipOcc = false, draft = false): Promise<string | undefined> {
         const filePath = workflowRelativePathToAbsolute(this.directory, filename);
         const tsContent = this.readTypeScriptFile(filePath);
         if (!tsContent) {
@@ -242,6 +273,12 @@ export class SyncEngine {
             localWf.parentFolderId = inferredParentFolderId;
         }
 
+        // Read the published version *before* the PUT — afterwards it already
+        // points at the content we are about to send, and the warning would come
+        // too late to be one.
+        const published = await this.capturePublishedVersion(workflowId);
+        const outcome = this.announcePublishIntent(workflowId, filename, draft, published);
+
         let updatedWf: IWorkflow;
         try {
             updatedWf = await this.client.updateWorkflow(workflowId, localWf);
@@ -271,8 +308,9 @@ export class SyncEngine {
         }
 
         // CRITICAL: Write the API response back to local file to ensure consistency
-        // This ensures local and remote have identical content after push
-        // Convert the updated workflow back to TypeScript
+        // This ensures local and remote have identical content after push.
+        // It happens BEFORE the restore attempt below: the PUT already changed
+        // the remote, so local must reflect it even when the re-pin fails.
         const tsCode = await WorkflowTransformerAdapter.convertToTypeScript(updatedWf, {
             format: true,
             commentStyle: 'verbose'
@@ -283,8 +321,126 @@ export class SyncEngine {
         // Update Watcher's remote hash cache with the updated workflow
         const hash = await WorkflowTransformerAdapter.hashWorkflow(tsCode);
         this.watcher.setRemoteHash(workflowId, hash);
-        
-        return updatedWf.updatedAt;
+
+        if (outcome !== 'restores') {
+            return updatedWf.updatedAt;
+        }
+
+        try {
+            return await this.restorePublishedVersion(workflowId, filename, published!.versionId!, updatedWf);
+        } catch (error) {
+            // The loud failure above stops the regular finalize path, yet the
+            // remote did move (our own PUT). Advance the sync base here so the
+            // next push does not false-conflict against its own update.
+            await this.watcher.finalizeSync(workflowId, updatedWf.updatedAt);
+            throw error;
+        }
+    }
+
+    /**
+     * Says what this push is about to do to production, before it does it.
+     *
+     * `--draft` on a workflow whose published version cannot be read or re-pinned
+     * throws here rather than pushing: the user asked for a guarantee, nothing
+     * has happened yet, and silently doing the opposite is the worst option.
+     */
+    private announcePublishIntent(
+        workflowId: string,
+        filename: string,
+        draft: boolean,
+        published: IPublishedVersion | undefined,
+    ): IPushPublishReport['outcome'] {
+        const outcome = ((): IPushPublishReport['outcome'] => {
+            if (!published) {
+                if (draft) {
+                    throw new Error(
+                        `Refusing to push "${filename}" with --draft: the published version could not be read, ` +
+                        `so it could not be restored either. Retry, or push without --draft to release the change.`
+                    );
+                }
+                return 'unknown';
+            }
+
+            // Nothing runs in production, so the update releases nothing.
+            if (!published.published) return 'not-published';
+
+            if (!draft) return 'goes-live';
+
+            // n8n 1.x: no version pointer, the workflow content *is* what runs.
+            if (!published.versionId) {
+                throw new Error(
+                    `Refusing to push "${filename}" with --draft: this n8n instance exposes no published-version ` +
+                    `pointer (n8n 1.x), where an active workflow runs the content it holds. There is nothing to ` +
+                    `restore, so the push would go live. Unpublish the workflow first, or push without --draft.`
+                );
+            }
+            return 'restores';
+        })();
+
+        try {
+            this.onPublishState?.({ workflowId, filename, outcome, versionId: published?.versionId });
+        } catch (error: any) {
+            console.warn(`[SyncEngine] Publish-state listener threw: ${error?.message || error}`);
+        }
+        return outcome;
+    }
+
+    /**
+     * Reads the published version before an update, tolerating failure.
+     *
+     * A pointer we cannot read is a pointer we cannot restore, but refusing the
+     * push over a failed GET helps nobody — the PUT that follows would fail on
+     * the same transport. The push proceeds and reports `unknown` instead.
+     */
+    private async capturePublishedVersion(workflowId: string): Promise<IPublishedVersion | undefined> {
+        try {
+            return await this.client.getPublishedVersion(workflowId);
+        } catch (error: any) {
+            console.warn(
+                `[SyncEngine] Could not read the published version of ${workflowId} ` +
+                `(${error?.message || error}). This push may change what runs in production.`
+            );
+            return undefined;
+        }
+    }
+
+    /**
+     * Puts the published version back where the PUT moved it from.
+     *
+     * Returns the `updatedAt` to record as the sync base. Re-pinning a version
+     * touches the workflow again, so the timestamp from the PUT response is
+     * already stale by then — keeping it would make the next push think someone
+     * edited the workflow in the n8n UI.
+     */
+    private async restorePublishedVersion(
+        workflowId: string,
+        filename: string,
+        versionId: string,
+        updatedWf: IWorkflow,
+    ): Promise<string | undefined> {
+        try {
+            const restored = await this.client.publishWorkflowVersion(workflowId, versionId);
+            return restored?.updatedAt ?? (await this.readRemoteUpdatedAt(workflowId)) ?? updatedWf.updatedAt;
+        } catch (error: any) {
+            throw new Error(
+                `Pushed "${filename}", but failed to restore the published version ${versionId}: ` +
+                `${error?.message || error}. n8n re-publishes on update, so the content you just pushed is ` +
+                `now live in production. Re-publish version ${versionId} from the n8n UI to roll back, ` +
+                `or drop --draft if the new version is what you want live.`
+            );
+        }
+    }
+
+    /** Best-effort re-read of `updatedAt` when the activate response omits it. */
+    private async readRemoteUpdatedAt(workflowId: string): Promise<string | undefined> {
+        try {
+            const wf = await this.client.getWorkflow(workflowId);
+            return wf?.updatedAt;
+        } catch {
+            // The sync base stays on the PUT timestamp; the next push falls back
+            // to the normal conflict prompt rather than failing here.
+            return undefined;
+        }
     }
 
     private recordPushSuccess(workflowId: string, filename: string, remoteUpdatedAt?: string): void {

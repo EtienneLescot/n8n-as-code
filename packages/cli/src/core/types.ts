@@ -25,6 +25,52 @@ export interface IWorkflow {
     parentFolder?: { id: string; name: string } | null;
     folderPath?: string[];
     folderPathString?: string;
+
+    // n8n 2.x publishing model. `active` says whether *a* version runs in
+    // production; these say *which* one. Absent on 1.x, where the workflow
+    // content and the running content are the same thing.
+    activeVersionId?: string;
+    activeVersion?: { id?: string } | null;
+}
+
+/**
+ * Which version of a workflow n8n runs in production, read before a push.
+ *
+ * n8n 2.x splits a workflow in two: the draft (the content, rewritten by every
+ * save) and the published version (a pointer to the version production runs).
+ * `PUT /workflows/:id` moves the pointer to the new content when the workflow
+ * is published, with no opt-out — so a push has to put the pointer back itself.
+ */
+export interface IPublishedVersion {
+    /** `true` when a version of this workflow currently runs in production. */
+    published: boolean;
+    /**
+     * The published version's id, when the instance exposes one.
+     *
+     * Undefined on n8n 1.x, which has no version pointer to restore: there the
+     * workflow content *is* what runs, and a push necessarily changes it.
+     */
+    versionId?: string;
+}
+
+/**
+ * What a push is about to do to the published version.
+ *
+ * Emitted *before* the update lands, on purpose: "your push just changed
+ * production" arrives too late to be a warning.
+ */
+export interface IPushPublishReport {
+    workflowId: string;
+    filename: string;
+    /**
+     * - `goes-live`     — the workflow is published, so this push releases the pushed content.
+     * - `restores`      — `--draft`: the previously published version is re-pinned after the update.
+     * - `not-published` — nothing runs in production, so the push changes no live behaviour.
+     * - `unknown`       — the published version could not be read.
+     */
+    outcome: 'goes-live' | 'restores' | 'not-published' | 'unknown';
+    /** The version re-pinned on `restores`. */
+    versionId?: string;
 }
 
 export interface IFolder {

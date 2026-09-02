@@ -1,709 +1,733 @@
-.heroBanner {
-  --home-ink: #131313;
-  --home-muted: #485365;
-  --home-border: rgba(28, 36, 48, 0.12);
-  --home-accent-deep: #e63d7a;
-  padding: 5.5rem 0 4rem;
-  position: relative;
-  overflow: hidden;
-  background:
-    linear-gradient(115deg, rgba(255, 255, 255, 0.16) 0%, transparent 38%),
-    repeating-linear-gradient(
-      90deg,
-      rgba(19, 19, 19, 0.03) 0,
-      rgba(19, 19, 19, 0.03) 1px,
-      transparent 1px,
-      transparent 90px
-    ),
-    radial-gradient(circle at top left, rgba(255, 59, 122, 0.2), transparent 30%),
-    radial-gradient(circle at 85% 15%, rgba(31, 122, 230, 0.18), transparent 24%),
-    radial-gradient(circle at 74% 74%, rgba(31, 122, 230, 0.1), transparent 24%),
-    linear-gradient(135deg, #fff8fb 0%, #fff2ea 45%, #eef6ff 100%);
-  color: #131313;
+/**
+ * Landing page.
+ *
+ * Short local names for the shared --n8nac-* palette defined in custom.css,
+ * so the rules below read as design intent rather than plumbing. Both themes
+ * come for free: only the primitives are redefined for dark mode.
+ *
+ * The two "night" bands — the dataset manifest and the closing call to
+ * action — are dark in either theme, so their inks do not change between
+ * modes; only the band lifts enough to separate from a dark page.
+ */
+
+.page {
+  --ink: var(--n8nac-ink);
+  --muted: var(--n8nac-ink-muted);
+  --faint: var(--n8nac-ink-faint);
+  --paper: var(--n8nac-bg);
+  --raised: var(--n8nac-bg-raised);
+  --hairline: var(--n8nac-line);
+  --hairline-strong: var(--n8nac-line-strong);
+  --accent: #ff3b7a;
+  --accent-deep: var(--n8nac-accent);
+  --accent-ink: var(--n8nac-accent-quiet);
+  --night: var(--n8nac-anchor-bg);
+  --night-raised: var(--n8nac-anchor-raised);
+  --night-ink: var(--n8nac-anchor-ink);
+  --night-muted: var(--n8nac-anchor-muted);
+  --night-faint: var(--n8nac-anchor-faint);
+  --night-line: var(--n8nac-anchor-line);
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display: 'Space Grotesk', 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
 }
 
-.heroBanner :global(.container) {
-  position: relative;
+/* Own container: Infima's .container is width-capped per breakpoint, and the
+   design wants a single 1180px measure with flat 24px gutters throughout. */
+.shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px;
 }
 
-.heroBanner::before,
-.heroBanner::after {
-  content: '';
-  position: absolute;
-  border-radius: 999px;
-  pointer-events: none;
-}
+/* ---------------------------------------------------------------- type --- */
 
-.heroBanner::before {
-  width: 22rem;
-  height: 22rem;
-  right: -6rem;
-  top: -10rem;
-  background: rgba(255, 255, 255, 0.42);
-  filter: blur(12px);
-}
-
-.heroBanner::after {
-  width: 18rem;
-  height: 18rem;
-  left: -8rem;
-  bottom: -8rem;
-  background: rgba(255, 59, 122, 0.12);
-  filter: blur(10px);
-}
-
-.heroGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
-  gap: 2rem;
-  align-items: center;
-}
-
-.heroCopy {
-  position: relative;
-  z-index: 1;
-  max-width: 42rem;
-}
-
-.heroCopy::after {
-  content: '';
-  position: absolute;
-  left: -1rem;
-  top: 4.8rem;
-  width: 0.35rem;
-  height: 9rem;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #ff3b7a, #cf2c63);
-  box-shadow: 0 0 0 0.4rem rgba(255, 255, 255, 0.24);
-}
-
-.eyebrow,
-.sectionEyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.45rem 0.8rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(230, 61, 122, 0.16);
-  color: #7a3355;
-  font-family: 'IBM Plex Sans', 'Avenir Next', 'Segoe UI', sans-serif;
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+.kicker {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-}
-
-.heroTitle,
-.sectionTitle,
-.ctaTitle {
-  margin: 1.25rem 0 1rem;
-  font-family: 'Space Grotesk', 'IBM Plex Sans', 'Avenir Next', sans-serif;
-  letter-spacing: -0.04em;
-}
-
-.heroTitle {
-  max-width: 10ch;
-  font-size: clamp(3rem, 7vw, 5.5rem);
-  line-height: 0.92;
-}
-
-.heroAccent {
-  display: inline-block;
-  color: #e63d7a;
-}
-
-.heroSubtitle,
-.sectionLead,
-.ctaLead {
-  max-width: 42rem;
-  color: #485365;
-  font-size: 1.12rem;
-  line-height: 1.75;
-}
-
-.heroPills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin: 1.75rem 0 2rem;
-}
-
-.heroPill {
-  padding: 0.6rem 0.85rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(28, 36, 48, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  color: #273243;
-  font-weight: 600;
-}
-
-.buttons {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.primaryButton,
-.secondaryButton,
-.ghostButton {
-  border-radius: 999px;
-  border: none;
-  font-weight: 700;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
-}
-
-.primaryButton {
-  background: linear-gradient(135deg, #ff3b7a 0%, #d92f68 100%);
-  box-shadow: 0 14px 32px rgba(230, 61, 122, 0.24);
-  color: #fff;
-}
-
-.secondaryButton {
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(31, 122, 230, 0.14);
-  color: #1e2d42;
-  box-shadow: 0 10px 24px rgba(31, 122, 230, 0.08);
-}
-
-.ghostButton {
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  color: #fff;
-}
-
-.primaryButton:hover,
-.secondaryButton:hover,
-.ghostButton:hover {
-  color: inherit;
-  transform: translateY(-2px) scale(1.01);
-}
-
-.primaryButton:hover {
-  color: #fff;
-}
-
-.heroPanel {
-  position: relative;
-  z-index: 1;
-}
-
-.heroPanel::before,
-.heroPanel::after {
-  content: '';
-  position: absolute;
-  inset: auto;
-  border-radius: 1.8rem;
-  pointer-events: none;
-}
-
-.heroPanel::before {
-  width: 72%;
-  height: 78%;
-  right: -1.1rem;
-  top: 1.2rem;
-  background: linear-gradient(135deg, rgba(31, 122, 230, 0.18), rgba(94, 188, 255, 0.12));
-  transform: rotate(8deg);
-}
-
-.heroPanel::after {
-  width: 48%;
-  height: 26%;
-  left: -0.8rem;
-  bottom: -0.8rem;
-  background: rgba(255, 255, 255, 0.42);
-  filter: blur(8px);
-}
-
-.panelWindow {
-  position: relative;
-  padding: 1.1rem;
-  border-radius: 1.75rem;
-  background: rgba(18, 18, 18, 0.92);
-  color: #f5efe6;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 28px 60px rgba(71, 37, 18, 0.22);
-  backdrop-filter: blur(18px);
-  animation: floatPanel 6s ease-in-out infinite;
-  transform: rotate(-1.5deg);
-}
-
-.panelWindow::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.08), transparent 45%);
-  pointer-events: none;
-}
-
-.panelDots {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.panelDots span {
-  width: 0.72rem;
-  height: 0.72rem;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.32);
-}
-
-.panelDots span:first-child {
-  background: #ff3b7a;
-}
-
-.panelDots span:nth-child(2) {
-  background: #6bb6ff;
-}
-
-.panelDots span:nth-child(3) {
-  background: #1f7ae6;
-}
-
-.panelLabel {
-  margin-top: 0.9rem;
-  font-size: 0.82rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: rgba(245, 239, 230, 0.72);
-}
-
-.commandBlock {
-  margin: 0.9rem 0 1rem;
-  padding: 1rem 1.1rem;
-  border-radius: 1.1rem;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
-  overflow-x: auto;
-}
-
-.commandBlock code {
-  color: #fff3da;
-  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
-  font-size: 0.95rem;
-  line-height: 1.8;
-}
-
-.panelCardGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
-}
-
-.panelCard {
-  position: relative;
-  padding: 1rem;
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-}
-
-.panelCard::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 0.22rem;
-  background: linear-gradient(180deg, #ff3b7a, #cf2c63);
-}
-
-.panelCard strong {
-  display: block;
-  margin: 0.3rem 0 0.45rem;
-  font-size: 1rem;
-}
-
-.panelCard p {
-  margin: 0;
-  color: rgba(245, 239, 230, 0.74);
-  font-size: 0.93rem;
-  line-height: 1.55;
-}
-
-.cardKicker {
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #8ec5ff;
-}
-
-.proofSection,
-.entrySection,
-.workflowSection,
-.ctaSection {
-  padding: 5rem 0;
-}
-
-.proofSection {
-  position: relative;
-  background: linear-gradient(180deg, #fffafd 0%, #f7f3ff 54%, #f4f9ff 100%);
-}
-
-.proofSection::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 14% 20%, rgba(255, 59, 122, 0.12), transparent 20%),
-    repeating-linear-gradient(
-      0deg,
-      rgba(19, 19, 19, 0.02) 0,
-      rgba(19, 19, 19, 0.02) 1px,
-      transparent 1px,
-      transparent 84px
-    );
-  pointer-events: none;
-}
-
-.proofHeader,
-.entryHeader {
-  max-width: 48rem;
-  margin-bottom: 2rem;
+  color: var(--accent-ink);
 }
 
 .sectionTitle {
-  max-width: 14ch;
-  font-size: clamp(2.2rem, 4vw, 3.5rem);
-  line-height: 1;
-  color: #1b2533;
-}
-
-.statsGrid,
-.entryGrid {
-  display: grid;
-  gap: 1rem;
-}
-
-.statsGrid {
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-}
-
-.statCard,
-.entryCard,
-.workflowCard,
-.ctaCard {
-  border: 1px solid rgba(19, 19, 19, 0.12);
-  border-radius: 1.5rem;
-}
-
-.statCard {
-  position: relative;
-  padding: 1.25rem;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10px 30px rgba(19, 19, 19, 0.04);
-  overflow: hidden;
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
-}
-
-.statCard::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 0.32rem;
-  background: linear-gradient(90deg, #ff3b7a, #cf2c63);
-}
-
-.statCard:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 18px 36px rgba(85, 56, 33, 0.1);
-}
-
-.statCard:nth-child(2n) {
-  background: rgba(255, 255, 255, 0.96);
-}
-
-.statCard:nth-child(3n)::before {
-  background: linear-gradient(90deg, rgba(31, 122, 230, 0.9), rgba(94, 188, 255, 0.76));
-}
-
-.statCard:nth-child(4n)::before {
-  background: linear-gradient(90deg, #ff3b7a, #cf2c63);
-}
-
-.statTop {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-}
-
-.statIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.8rem;
-  height: 2.8rem;
-  border-radius: 1rem;
-  background: linear-gradient(135deg, rgba(255, 59, 122, 0.12), rgba(255, 59, 122, 0.22));
-  font-size: 1.25rem;
-}
-
-.statCard strong {
-  display: block;
-  font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
-  font-size: 1.35rem;
-  line-height: 1.1;
-  color: #1f2a3b;
-}
-
-.statLabel {
-  margin-top: 1rem;
-  font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
-  font-size: 1.02rem;
+  margin: 16px 0 8px;
+  font-family: var(--display);
   font-weight: 700;
-  color: #1e2c40;
+  font-size: clamp(30px, 3.4vw, 44px);
+  line-height: 1.04;
+  letter-spacing: -0.04em;
+  color: var(--ink);
+  text-wrap: pretty;
 }
 
-.statDetail {
-  margin: 0.65rem 0 0;
-  color: #4a5668;
-  line-height: 1.65;
-}
-
-.entrySection {
-  position: relative;
-  background: linear-gradient(180deg, #fff5f8 0%, #f8f3ff 54%, #f1f8ff 100%);
-}
-
-.entryGrid {
-  counter-reset: entry-card;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.entryCard {
-  position: relative;
-  padding: 1.5rem 1.5rem 1.5rem 4.4rem;
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 14px 28px rgba(19, 19, 19, 0.05);
-  overflow: hidden;
-}
-
-.entryCard::before {
-  counter-increment: entry-card;
-  content: counter(entry-card);
-  position: absolute;
-  left: 1.2rem;
-  top: 1.25rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.15rem;
-  height: 2.15rem;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #ff3b7a 0%, #d92f68 100%);
-  color: #131313;
-  font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
-  font-weight: 700;
-}
-
-.entryCard::after {
-  content: '';
-  position: absolute;
-  right: -2rem;
-  bottom: -2rem;
-  width: 7rem;
-  height: 7rem;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(31, 122, 230, 0.12), transparent 66%);
-}
-
-.entryCard h3,
-.workflowCard h3 {
-  margin-bottom: 0.75rem;
-  font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
-  color: #1d2737;
-}
-
-.entryCard p,
-.workflowCard p {
-  margin-bottom: 0;
-  color: #4a5668;
+.sectionLead {
+  margin: 0;
+  font-size: 16.5px;
   line-height: 1.7;
+  color: var(--muted);
+  text-wrap: pretty;
 }
 
-.inlineLink {
-  display: inline-block;
-  margin-top: 1rem;
-  color: #e63d7a;
-  font-weight: 700;
+/* The band re-declares its ink rather than inherit, so the page's themed
+   text colour cannot leak onto a surface that is dark in both modes. */
+.night {
+  border-block: 1px solid var(--hairline);
+  background: var(--night);
+  color: var(--night-ink);
 }
 
-.inlineLink:hover {
-  color: #c12d65;
+.kickerNight {
+  composes: kicker;
+  color: #ff7ba6;
 }
 
-.workflowSection {
-  background:
-    radial-gradient(circle at 10% 20%, rgba(255, 59, 122, 0.12), transparent 22%),
-    radial-gradient(circle at 88% 30%, rgba(31, 122, 230, 0.12), transparent 20%),
-    linear-gradient(180deg, #fffafd 0%, #fff7f2 42%, #f3f8ff 100%);
+.titleNight {
+  composes: sectionTitle;
+  color: var(--night-ink);
 }
 
-.workflowLayout {
-  display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
-  gap: 2rem;
-  align-items: start;
+.leadNight {
+  composes: sectionLead;
+  color: var(--night-muted);
 }
 
-.workflowStack {
-  position: relative;
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: 1fr;
-  padding-left: 1.25rem;
+/* ------------------------------------------------------------- buttons --- */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.workflowStack::before {
-  content: '';
-  position: absolute;
-  left: 1.5rem;
-  top: 1rem;
-  bottom: 1rem;
-  width: 2px;
-  background: linear-gradient(180deg, rgba(255, 59, 122, 0.48), rgba(255, 59, 122, 0.12));
+.btn {
+  padding: 14px 22px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 15.5px;
+  line-height: 1.2;
+  text-align: center;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
-.workflowCard {
-  position: relative;
-  display: grid;
-  grid-template-columns: 3rem minmax(0, 1fr);
-  gap: 1rem;
-  padding: 1.25rem;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 10px 30px rgba(19, 19, 19, 0.04);
-  margin-left: 1rem;
+.btn:hover {
+  text-decoration: none;
 }
 
-.workflowCard span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 3rem;
-  height: 3rem;
-  border-radius: 1rem;
-  background: linear-gradient(135deg, #ff3b7a 0%, #d92f68 100%);
-  color: #111;
-  font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
-  font-size: 1.25rem;
-  font-weight: 700;
-  box-shadow: 0 10px 20px rgba(230, 61, 122, 0.2);
+/* Inverts with the theme: near-black on paper, near-white on a dark page. */
+.btnPrimary {
+  composes: btn;
+  background: var(--ink);
+  color: var(--paper);
 }
 
-.ctaSection {
-  background: linear-gradient(135deg, #11131a 0%, #29152a 44%, #173764 100%);
+.btnPrimary:hover {
+  background: var(--accent-deep);
   color: #fff;
 }
 
-.ctaCard {
+.btnSecondary {
+  composes: btn;
+  background: var(--raised);
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink);
+}
+
+.btnSecondary:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+/* Rose is a light surface in either theme, so this label stays dark rather
+   than following the page ink. */
+.btnAccent {
+  composes: btn;
+  background: var(--accent);
+  color: #12131a;
+}
+
+.btnAccent:hover {
+  background: #ff5f93;
+  color: #12131a;
+}
+
+.btnGhost {
+  composes: btn;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  color: var(--night-ink);
+}
+
+.btnGhost:hover {
+  border-color: var(--night-ink);
+  color: var(--night-ink);
+}
+
+/* ---------------------------------------------------------------- hero --- */
+
+.hero {
   position: relative;
-  padding: 2.25rem;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.04));
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.22);
   overflow: hidden;
+  border-bottom: 1px solid var(--hairline);
+  background: linear-gradient(180deg, var(--n8nac-bg-raised) 0%, var(--paper) 100%);
 }
 
-.ctaCard::before {
-  content: '';
-  position: absolute;
-  right: -3rem;
-  top: -3rem;
-  width: 12rem;
-  height: 12rem;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 59, 122, 0.22), transparent 64%);
-}
-
-.ctaCard::after {
+/* Vertical rules, drawn once behind the whole hero. */
+.hero::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.02) 0,
-    rgba(255, 255, 255, 0.02) 8px,
-    transparent 8px,
-    transparent 26px
-  );
+  background-image: linear-gradient(90deg, var(--n8nac-hairline-grid) 1px, transparent 1px);
+  background-size: 92px 100%;
   pointer-events: none;
 }
 
-.ctaTitle {
-  max-width: 13ch;
-  font-size: clamp(2.2rem, 4vw, 4rem);
-  line-height: 0.98;
+.heroGrid {
+  position: relative;
+  display: grid;
+  gap: 56px;
+  grid-template-columns: repeat(auto-fit, minmax(min(430px, 100%), 1fr));
+  align-items: center;
+  padding: 88px 0 76px;
 }
 
-.ctaLead {
-  margin-bottom: 1.75rem;
-  color: rgba(255, 255, 255, 0.78);
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border: 1px solid rgba(var(--n8nac-primary-rgb), 0.28);
+  border-radius: 999px;
+  background: var(--raised);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
 }
 
-@keyframes floatPanel {
-  0%,
-  100% {
-    transform: translateY(0);
+.badgeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.heroTitle {
+  margin: 22px 0 20px;
+  max-width: 15ch;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(40px, 5.4vw, 68px);
+  line-height: 0.96;
+  letter-spacing: -0.042em;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+
+.heroAccent {
+  color: var(--accent-deep);
+}
+
+.heroLead {
+  margin: 0 0 28px;
+  max-width: 46ch;
+  font-size: 17.5px;
+  line-height: 1.7;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 30px;
+}
+
+.chip {
+  padding: 7px 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  background: var(--raised);
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--n8nac-panel-ink);
+}
+
+.heroStage {
+  position: relative;
+  min-width: 0;
+}
+
+/* Offset outline behind the terminal. Decorative only, so it drops out
+   before it can collide with anything at narrow widths. */
+.heroStage::before {
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: -14px;
+  top: 20px;
+  bottom: -16px;
+  border: 1px solid rgba(31, 122, 230, 0.3);
+  border-radius: 18px;
+  background: rgba(31, 122, 230, 0.06);
+}
+
+/* -------------------------------------------------------- terminal art --- */
+
+/* A screenshot of a dark terminal: it stays dark in both themes and carries
+   its own inks rather than the page's. */
+.terminal {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--n8nac-shot-dark-border);
+  border-radius: 16px;
+  background: var(--n8nac-shot-dark-bg);
+  color: var(--n8nac-code-ink);
+  box-shadow: 0 30px 60px -24px var(--n8nac-shadow-drop);
+}
+
+.terminalBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--n8nac-shot-dark-border);
+}
+
+.trafficLights {
+  display: flex;
+  gap: 6px;
+}
+
+.trafficLights span {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.trafficLights span:nth-child(1) {
+  background: var(--accent);
+}
+
+.trafficLights span:nth-child(2) {
+  background: var(--n8nac-code-amber);
+}
+
+.trafficLights span:nth-child(3) {
+  background: #1f7ae6;
+}
+
+.terminalLabel {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--n8nac-shot-chrome-ink);
+}
+
+.terminalBody {
+  display: grid;
+  padding: 18px 18px 20px;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 2;
+  color: var(--n8nac-code-ink);
+  overflow-wrap: anywhere;
+}
+
+.prompt {
+  color: var(--n8nac-code-rose);
+}
+
+.dim {
+  color: var(--n8nac-code-dim);
+}
+
+.ok {
+  color: var(--n8nac-code-green);
+}
+
+.info {
+  color: var(--n8nac-code-blue);
+}
+
+.resultLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  color: var(--n8nac-code-dim);
+}
+
+/* ------------------------------------------------------------ manifest --- */
+
+.manifestGrid {
+  display: grid;
+  gap: 40px;
+  grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
+  align-items: start;
+  padding: 80px 0;
+}
+
+.manifestCopy .titleNight {
+  margin: 18px 0 16px;
+  max-width: 16ch;
+  font-size: clamp(32px, 3.6vw, 46px);
+  line-height: 1.02;
+}
+
+.manifestCopy .leadNight {
+  max-width: 44ch;
+  margin-bottom: 24px;
+  line-height: 1.75;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border: 1px solid var(--night-line);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: rgba(242, 240, 238, 0.7);
+}
+
+.tagDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--n8nac-code-green);
+}
+
+/* The 1px gap over a lighter backdrop draws the row separators. */
+.manifestList {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--night-line);
+  border-radius: 14px;
+  background: var(--night-line);
+}
+
+.manifestRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: baseline;
+  padding: 16px 18px;
+  background: var(--night-raised);
+}
+
+.rowLabel {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--night-ink);
+}
+
+.rowDetail {
+  margin-top: 3px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: rgba(242, 240, 238, 0.52);
+}
+
+.rowValue {
+  font-family: var(--mono);
+  font-size: 19px;
+  font-weight: 500;
+  color: var(--n8nac-code-pink);
+  white-space: nowrap;
+}
+
+/* ----------------------------------------------------------- audiences --- */
+
+.audienceSection {
+  border-bottom: 1px solid var(--hairline);
+  background: var(--raised);
+}
+
+.audienceInner {
+  padding: 72px 0;
+}
+
+.audienceInner .sectionTitle {
+  margin-bottom: 36px;
+  max-width: 26ch;
+}
+
+/* Explicit tracks rather than auto-fit: there are exactly three cards, and
+   the 1px-gap hairline technique would otherwise paint an empty cell
+   whenever the column count does not divide them. */
+.audienceGrid {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--hairline-strong);
+  border-radius: 16px;
+  background: var(--hairline-strong);
+}
+
+.audienceCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 26px 24px 24px;
+  background: var(--raised);
+}
+
+.audienceKicker {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.audienceCard h3 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.audienceCard p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+/* margin-top:auto keeps the links on one baseline when the copy differs. */
+.audienceLink {
+  margin-top: auto;
+  padding-top: 14px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--accent-deep);
+}
+
+.audienceLink:hover {
+  color: var(--ifm-link-hover-color);
+  text-decoration: none;
+}
+
+/* ---------------------------------------------------------------- loop --- */
+
+.loopSection {
+  border-bottom: 1px solid var(--hairline);
+}
+
+.loopGrid {
+  display: grid;
+  gap: 44px;
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+  align-items: start;
+  padding: 76px 0;
+}
+
+.loopGrid .sectionTitle {
+  margin-bottom: 16px;
+  max-width: 18ch;
+}
+
+.loopGrid .sectionLead {
+  max-width: 46ch;
+  line-height: 1.75;
+}
+
+.loopSteps {
+  display: grid;
+}
+
+.loopStep {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px;
+  padding: 18px 0;
+  border-top: 1px solid var(--hairline-strong);
+}
+
+.loopIndex {
+  padding-top: 3px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--accent-deep);
+}
+
+.loopStep h3 {
+  margin: 0 0 5px;
+  font-family: var(--display);
+  font-size: 17.5px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.loopStep p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* ----------------------------------------------------------------- cta --- */
+
+.ctaGrid {
+  display: grid;
+  gap: 40px;
+  grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr));
+  align-items: center;
+  padding: 84px 0;
+}
+
+.ctaGrid .titleNight {
+  margin: 18px 0 16px;
+  max-width: 16ch;
+  font-size: clamp(32px, 3.8vw, 50px);
+  line-height: 1;
+}
+
+.ctaGrid .leadNight {
+  max-width: 44ch;
+  margin-bottom: 28px;
+  line-height: 1.75;
+}
+
+.installPanel {
+  overflow: hidden;
+  border: 1px solid var(--night-line);
+  border-radius: 14px;
+  background: var(--night-raised);
+}
+
+.installLabel {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--night-line);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--n8nac-shot-chrome-ink);
+}
+
+.installBody {
+  display: grid;
+  padding: 16px;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 2;
+  color: var(--n8nac-code-ink);
+  overflow-wrap: anywhere;
+}
+
+/* Two columns cannot hold three cards evenly, so the last one runs full
+   width instead of leaving a gap in the hairline grid. */
+@media screen and (max-width: 940px) {
+  .audienceGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  50% {
-    transform: translateY(-8px);
+  .audienceCard:last-child {
+    grid-column: 1 / -1;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .panelWindow {
-    animation: none;
+@media screen and (max-width: 640px) {
+  .audienceGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .audienceCard:last-child {
+    grid-column: auto;
   }
 }
 
-@media screen and (max-width: 996px) {
-  .heroBanner,
-  .proofSection,
-  .entrySection,
-  .workflowSection,
-  .ctaSection {
-    padding: 3rem 1rem;
+/* --------------------------------------------------------- narrow view --- */
+
+/* The grids above are all auto-fit, so they collapse on their own. What is
+   left is trimming the vertical rhythm and dropping decoration that only
+   works when the terminal has room beside the copy. */
+@media screen and (max-width: 900px) {
+  .heroStage::before {
+    display: none;
+  }
+}
+
+@media screen and (max-width: 600px) {
+  .shell {
+    padding: 0 18px;
   }
 
-  .heroGrid,
-  .workflowLayout,
-  .entryGrid {
-    grid-template-columns: 1fr;
+  .heroGrid {
+    gap: 40px;
+    padding: 56px 0 52px;
   }
 
-  .heroTitle,
-  .sectionTitle,
-  .ctaTitle {
+  .heroTitle {
+    margin: 18px 0 16px;
     max-width: none;
   }
 
-  .panelCardGrid {
-    grid-template-columns: 1fr;
+  .heroLead {
+    margin-bottom: 24px;
+    font-size: 16.5px;
   }
 
-  .buttons {
+  .manifestGrid,
+  .ctaGrid {
+    gap: 32px;
+    padding: 56px 0;
+  }
+
+  .audienceInner,
+  .loopGrid {
+    padding: 52px 0;
+  }
+
+  .loopGrid {
+    gap: 28px;
+  }
+
+  .sectionTitle {
+    max-width: none;
+  }
+
+  /* Full-bleed CTAs read better than two half-width pills on a phone. */
+  .actions {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .heroCopy::after,
-  .workflowStack::before,
-  .heroPanel::before,
-  .heroPanel::after {
-    display: none;
+  .terminalBody,
+  .installBody {
+    font-size: 12.5px;
+    line-height: 1.85;
   }
 
-  .workflowCard {
-    grid-template-columns: 1fr;
-    margin-left: 0;
+  .manifestRow {
+    padding: 14px 15px;
   }
 
-  .workflowCard span {
-    width: 2.75rem;
-    height: 2.75rem;
+  .rowValue {
+    font-size: 17px;
+  }
+
+  .audienceCard {
+    padding: 22px 20px;
   }
 }

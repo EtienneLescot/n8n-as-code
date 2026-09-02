@@ -1,31 +1,52 @@
-import { themes as prismThemes } from 'prism-react-renderer';
+import type { PrismTheme } from 'prism-react-renderer';
 import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
-function getTelemetryEnvironment(): string {
-  const explicit = process.env.N8NAC_TELEMETRY_ENV?.trim();
-  if (explicit) return explicit;
+/**
+ * Code blocks share the palette the landing page uses for its terminal and
+ * editor illustrations, so a snippet in the docs reads as the same artifact
+ * as a snippet on the home page.
+ *
+ * The bundled github/dracula pairing was replaced because several of its
+ * light-mode tokens sat below 4.5:1 on the code surface — shell parameters
+ * and assignment targets were the worst, at 2.58:1.
+ */
+const codeThemeLight: PrismTheme = {
+  plain: { color: '#12131a', backgroundColor: '#f4f2f0' },
+  styles: [
+    { types: ['comment', 'prolog', 'cdata'], style: { color: '#646d7b', fontStyle: 'italic' } },
+    { types: ['punctuation', 'operator', 'entity'], style: { color: '#4d5666' } },
+    { types: ['keyword', 'selector', 'tag', 'atrule', 'important', 'builtin'], style: { color: '#1565c0' } },
+    { types: ['function', 'class-name', 'function-variable', 'method'], style: { color: '#b12453' } },
+    { types: ['string', 'attr-value', 'char', 'regex', 'url'], style: { color: '#106b4a' } },
+    { types: ['number', 'boolean', 'constant', 'symbol'], style: { color: '#8a5200' } },
+    { types: ['variable', 'property', 'attr-name', 'parameter', 'assign-left'], style: { color: '#12131a' } },
+    { types: ['deleted'], style: { color: '#b12453' } },
+    { types: ['inserted'], style: { color: '#106b4a' } },
+  ],
+};
 
-  const refName = process.env.GITHUB_REF_NAME || process.env.GITHUB_REF?.replace(/^refs\/heads\//, '');
-  if (refName === 'main') return 'prod';
-  if (refName === 'next') return 'next';
-  if (process.env.NODE_ENV === 'test') return 'test';
-  if (process.env.CI === 'true') return 'ci';
-  return 'dev';
-}
+const codeThemeDark: PrismTheme = {
+  plain: { color: '#dcdfe6', backgroundColor: '#0a0c11' },
+  styles: [
+    { types: ['comment', 'prolog', 'cdata'], style: { color: '#8b93a4', fontStyle: 'italic' } },
+    { types: ['punctuation', 'operator', 'entity'], style: { color: '#8b93a4' } },
+    { types: ['keyword', 'selector', 'tag', 'atrule', 'important', 'builtin'], style: { color: '#6bb6ff' } },
+    { types: ['function', 'class-name', 'function-variable', 'method'], style: { color: '#ff9ec0' } },
+    { types: ['string', 'attr-value', 'char', 'regex', 'url'], style: { color: '#e6c07b' } },
+    { types: ['number', 'boolean', 'constant', 'symbol'], style: { color: '#4ec9a0' } },
+    { types: ['variable', 'property', 'attr-name', 'parameter', 'assign-left'], style: { color: '#dcdfe6' } },
+    { types: ['deleted'], style: { color: '#ff9ec0' } },
+    { types: ['inserted'], style: { color: '#4ec9a0' } },
+  ],
+};
 
 const config: Config = {
   title: 'n8n-as-code',
   tagline: 'Manage n8n workflows as code with version control and AI assistance',
   favicon: 'img/favicon.ico',
-  customFields: {
-    posthogKey: process.env.N8NAC_POSTHOG_KEY || process.env.POSTHOG_KEY || '',
-    posthogHost: process.env.N8NAC_POSTHOG_HOST || process.env.POSTHOG_HOST || 'https://eu.i.posthog.com',
-    telemetryEnvironment: getTelemetryEnvironment(),
-  },
-
 
   // Set the production url of your site here
   url: 'https://n8nascode.dev',
@@ -39,6 +60,7 @@ const config: Config = {
   trailingSlash: true,
 
   onBrokenLinks: 'warn',
+
   markdown: {
     mermaid: true,
     hooks: {
@@ -109,8 +131,6 @@ const config: Config = {
     // ],
   ],
 
-  clientModules: [require.resolve('./src/telemetry/posthog.ts')],
-
   themeConfig: {
     // Replace with your project's social card
     image: 'img/og-image.png',
@@ -131,6 +151,11 @@ const config: Config = {
           sidebarId: 'docs',
           position: 'left',
           label: 'Documentation',
+        },
+        {
+          to: '/docs/usage/vscode-extension',
+          label: 'VS Code',
+          position: 'left',
         },
         {
           href: 'https://github.com/EtienneLescot/n8n-as-code',
@@ -189,8 +214,8 @@ const config: Config = {
       copyright: `Copyright © ${new Date().getFullYear()} n8n-as-code. Built with Docusaurus.`,
     },
     prism: {
-      theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
+      theme: codeThemeLight,
+      darkTheme: codeThemeDark,
       additionalLanguages: ['bash', 'json', 'typescript'],
     },
     docs: {

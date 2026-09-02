@@ -170,7 +170,36 @@ describe('SyncManager push filename contract', () => {
         expect(refreshLocalState).toHaveBeenCalledOnce();
         expect(getWorkflowIdForFilename).toHaveBeenCalledWith(workflowFilename);
         expect(refreshLocalState.mock.invocationCallOrder[0]).toBeLessThan(getWorkflowIdForFilename.mock.invocationCallOrder[0]);
-        expect(push).toHaveBeenCalledWith(workflowFilename, 'wf-123', expect.any(String));
+        expect(push).toHaveBeenCalledWith(workflowFilename, 'wf-123', expect.any(String), undefined);
+    });
+
+    // Dropping this argument would silently turn every `--draft` push into a
+    // release, which is the one thing the flag exists to prevent.
+    it('forwards draft intent to the sync engine', async () => {
+        const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-sync-manager-'));
+        const manager = new SyncManager(new MockN8nApiClient() as any, {
+            directory: workspaceDir,
+            workflowsPath: workspaceDir,
+            projectId: 'personal',
+            projectName: 'Personal',
+        } as any);
+
+        const workflowFilename = 'draftable.workflow.ts';
+        fs.writeFileSync(path.join(workspaceDir, workflowFilename), '// workflow placeholder', 'utf-8');
+
+        const push = vi.fn(async () => 'wf-123');
+        (manager as any).ensureInitialized = vi.fn(async () => undefined);
+        (manager as any).watcher = {
+            getDirectory: () => workspaceDir,
+            refreshLocalState: vi.fn(async () => undefined),
+            getWorkflowIdForFilename: vi.fn(() => 'wf-123'),
+            isRemoteKnown: vi.fn(() => true),
+        };
+        (manager as any).syncEngine = { push };
+
+        await manager.push(path.join(workspaceDir, workflowFilename), { draft: true });
+
+        expect(push).toHaveBeenCalledWith(workflowFilename, 'wf-123', expect.any(String), { draft: true });
     });
 
     it('uses an explicit workflowsPath as the active sync scope', async () => {

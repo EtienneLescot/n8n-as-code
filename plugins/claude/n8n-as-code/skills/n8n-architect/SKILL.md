@@ -168,6 +168,7 @@ npx --yes n8nac push <path-to-workflow.workflow.ts> --verify
 ```
 
 - `push` requires the full workflow file path, either absolute or context-root-relative. Do not pass a bare filename.
+- On n8n 2.x, pushing to a **published** workflow also releases it to production — the API re-publishes on update. Treat every push to a published workflow as a deploy. Use `push --draft` when the user wants to check the change in n8n first: it re-pins the previously published version so production keeps running what it already ran.
 - For a new workflow, create the file inside the `workflowsPath` returned by `env status --json`, then confirm it with `npx --yes n8nac list --local`.
 - If push/pull reports a conflict, use explicit resolution commands. Do not overwrite remote changes blindly.
 - `pull` and conflict resolution operate on a single workflow ID.
