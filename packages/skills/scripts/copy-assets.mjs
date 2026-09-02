@@ -45,7 +45,10 @@ if (!existsSync(srcSkills)) {
     process.exit(1);
 }
 
+// Clean both targets so an asset dropped from the allowlist — or staged by an
+// older glob-based build — cannot linger in dist and ship again.
 rmSync(distSkills, { recursive: true, force: true });
+rmSync(distAssets, { recursive: true, force: true });
 mkdirSync(distAssets, { recursive: true });
 mkdirSync(distSkills, { recursive: true });
 
