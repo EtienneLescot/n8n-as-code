@@ -8,7 +8,7 @@ import { WorkflowSyncStatus, IWorkflowStatus, IWorkflow, IWorkflowDrift } from '
 import { IWorkflowState, IInstanceState } from './state-manager.js';
 import { FolderPathResolver, sanitizePathSegment } from './folder-path-resolver.js';
 import { listWorkflowFilesRecursive, normalizeWorkflowRelativePath, workflowRelativePathToAbsolute } from './workflow-path-utils.js';
-import { RestFolderSource, RestFolderAuth } from './rest-folder-source.js';
+import { RestFolderSource, RestFolderAuth, isLoopbackHost } from './rest-folder-source.js';
 
 const WINDOWS_RESERVED_FILENAMES = new Set([
     'CON',
@@ -125,8 +125,25 @@ export class WorkflowStateTracker extends EventEmitter {
         this.folderSessionAllowFlatFallback = options.folderSessionAllowFlatFallback ?? false;
         // When folderSync is on and session creds are provided, prefer reading
         // folders over /rest when folders are licensed on the instance.
+        // Plain HTTP over non-loopback hosts is blocked to prevent credential leaks,
+        // unless explicitly opted into with N8NAC_ALLOW_INSECURE_HTTP=1.
         if (this.folderSync && options.host && options.folderAuth && this.projectId) {
-            this.folderSource = new RestFolderSource(options.host, this.projectId, options.folderAuth);
+            let isInsecureHttp = false;
+            try {
+                const parsedUrl = new URL(options.host);
+                isInsecureHttp = parsedUrl.protocol === 'http:' && !isLoopbackHost(parsedUrl.hostname);
+            } catch {
+                isInsecureHttp = true;
+            }
+
+            if (isInsecureHttp && process.env.N8NAC_ALLOW_INSECURE_HTTP !== '1') {
+                console.warn(
+                    `[WorkflowStateTracker] Refusing to pass folderAuth to RestFolderSource over non-loopback plain HTTP (${options.host}). ` +
+                    `Use HTTPS or loopback, or set N8NAC_ALLOW_INSECURE_HTTP=1 to allow cleartext transmission.`,
+                );
+            } else {
+                this.folderSource = new RestFolderSource(options.host, this.projectId, options.folderAuth);
+            }
         }
         this.stateFilePath = path.join(this.directory, '.n8n-state.json');
 

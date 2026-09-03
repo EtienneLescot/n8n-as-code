@@ -234,4 +234,52 @@ describe('WorkflowStateTracker session folder source', () => {
         expect(mockLoad).not.toHaveBeenCalled();
         expect(tracker.getFilenameForId('wf-foldered')).toBe('Normalize Attachments.workflow.ts');
     });
+
+    it('refuses to pass folderAuth to RestFolderSource over non-loopback plain HTTP without opt-in', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        try {
+            const tracker = new WorkflowStateTracker(makeClient(), {
+                directory: tempDir,
+                syncInactive: false,
+                ignoredTags: [],
+                projectId: 'project-1',
+                folderSync: true,
+                host: 'http://insecure.example.test',
+                folderAuth: { cookies: ['n8n-auth=t'] },
+            });
+
+            await tracker.refreshRemoteState();
+
+            expect(mockLoad).not.toHaveBeenCalled();
+            expect(warn).toHaveBeenCalledWith(expect.stringMatching(/Refusing to pass folderAuth/i));
+            expect(tracker.getFilenameForId('wf-foldered')).toBe('Normalize Attachments.workflow.ts');
+        } finally {
+            warn.mockRestore();
+        }
+    });
+
+    it('allows RestFolderSource over non-loopback plain HTTP when N8NAC_ALLOW_INSECURE_HTTP is set', async () => {
+        const prevEnv = process.env.N8NAC_ALLOW_INSECURE_HTTP;
+        process.env.N8NAC_ALLOW_INSECURE_HTTP = '1';
+        mockLoad.mockResolvedValue(sessionData());
+        try {
+            const tracker = new WorkflowStateTracker(makeClient(), {
+                directory: tempDir,
+                syncInactive: false,
+                ignoredTags: [],
+                projectId: 'project-1',
+                folderSync: true,
+                host: 'http://insecure.example.test',
+                folderAuth: { cookies: ['n8n-auth=t'] },
+            });
+
+            await tracker.refreshRemoteState();
+
+            expect(mockLoad).toHaveBeenCalledTimes(1);
+            expect(tracker.getFilenameForId('wf-foldered')).toBe('Ai Chat/File Processing/Normalize Attachments.workflow.ts');
+        } finally {
+            if (prevEnv === undefined) delete process.env.N8NAC_ALLOW_INSECURE_HTTP;
+            else process.env.N8NAC_ALLOW_INSECURE_HTTP = prevEnv;
+        }
+    });
 });
