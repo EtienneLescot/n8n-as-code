@@ -735,15 +735,25 @@ function computeStablePlan() {
 function computeRcPlan({ bump, rcNumber, targetVersion }) {
   const stablePlan = computeStablePlan();
 
-  if (targetVersion) {
-    if (!parseVersion(targetVersion)) {
-      throw new Error(`Unsupported --target-version: ${targetVersion}`);
-    }
-    const flagship = stablePlan.packages.find(pkg => pkg.name === 'n8nac');
-    if (flagship && compareVersions(parseVersion(targetVersion), parseVersion(flagship.targetVersion)) < 0) {
+  if (targetVersion && !/^\d+\.\d+\.\d+$/.test(targetVersion)) {
+    throw new Error(`Unsupported --target-version (must be a plain X.Y.Z stable version): ${targetVersion}`);
+  }
+
+  const flagship = stablePlan.packages.find(pkg => pkg.name === 'n8nac');
+  if (flagship && targetVersion) {
+    if (compareVersions(parseVersion(targetVersion), parseVersion(flagship.targetVersion)) < 0) {
       throw new Error(
         `--target-version ${targetVersion} is below the computed n8nac target ${flagship.targetVersion}`
       );
+    }
+  }
+
+  // The requested bump is a floor for the n8nac anchor, never a downgrade:
+  // commit history may already justify a higher version.
+  if (flagship && flagship.changed && !targetVersion) {
+    const requested = incrementVersion(parseVersion(flagship.currentVersion), bump);
+    if (compareVersions(requested, parseVersion(flagship.targetVersion)) > 0) {
+      flagship.targetVersion = formatVersion(requested);
     }
   }
 
@@ -764,11 +774,17 @@ function computeRcPlan({ bump, rcNumber, targetVersion }) {
   });
 
   const rcTagPackage = packages.find(pkg => pkg.name === 'n8nac');
+  if (!rcTagPackage?.rcVersion) {
+    throw new Error(
+      'n8nac has no changes since its last stable tag, so it cannot anchor the release version. ' +
+      'Companion-only releases are not supported: either merge a CLI change, or pass --target-version.'
+    );
+  }
   return {
     mode: 'rc',
     changed: packages.some(pkg => pkg.changed),
     rcNumber: Number(rcNumber),
-    releaseVersion: rcTagPackage?.rcVersion ?? null,
+    releaseVersion: rcTagPackage.rcVersion,
     packages,
   };
 }

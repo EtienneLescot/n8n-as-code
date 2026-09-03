@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: 'Stable bump for this release (n8nac anchor, unless target_version is set)'
+        description: 'Minimum stable bump for the n8nac anchor (commit history may justify higher; target_version overrides)'
         type: choice
         options: [patch, minor, major]
         default: minor
@@ -47,6 +47,11 @@ jobs:
       N8NAC_POSTHOG_KEY: ${{ vars.N8NAC_POSTHOG_KEY }}
       N8NAC_POSTHOG_HOST: ${{ vars.N8NAC_POSTHOG_HOST }}
       N8NAC_TELEMETRY_ENV: rc
+      # Inputs are routed through env vars (never interpolated into run:
+      # scripts directly) to rule out template injection.
+      RC_BUMP: ${{ inputs.bump }}
+      RC_NUMBER: ${{ inputs.rc_number }}
+      RC_TARGET_VERSION: ${{ inputs.target_version }}
     outputs:
       release_branch: ${{ steps.plan.outputs.release_branch }}
       rc_tag: ${{ steps.plan.outputs.rc_tag }}
@@ -76,9 +81,9 @@ jobs:
       - name: Compute RC plan
         id: plan
         run: |
-          ARGS=(--bump "${{ inputs.bump }}" --rc "${{ inputs.rc_number }}")
-          if [[ -n "${{ inputs.target_version }}" ]]; then
-            ARGS+=(--target-version "${{ inputs.target_version }}")
+          ARGS=(--bump "$RC_BUMP" --rc "$RC_NUMBER")
+          if [[ -n "$RC_TARGET_VERSION" ]]; then
+            ARGS+=(--target-version "$RC_TARGET_VERSION")
           fi
           node scripts/release/workspace-release.mjs rc "${ARGS[@]}" > rc-plan.json
           if [[ "$(node -p "require('./rc-plan.json').changed")" != 'true' ]]; then
@@ -87,12 +92,11 @@ jobs:
           fi
           RELEASE_VERSION=$(node -p "require('./rc-plan.json').releaseVersion.replace(/-rc\.\d+$/, '')")
           echo "release_branch=release/v${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "rc_tag=$(node -p "require('./rc-plan.json').releaseVersion && 'v' + require('./rc-plan.json').releaseVersion")" >> "$GITHUB_OUTPUT"
+          echo "rc_tag=v$(node -p "require('./rc-plan.json').releaseVersion")" >> "$GITHUB_OUTPUT"
 
       - name: Create or reuse release branch
         run: |
           BRANCH="${{ steps.plan.outputs.release_branch }}"
-          RC_NUMBER=${{ inputs.rc_number }}
           if [[ "$RC_NUMBER" -gt 1 ]]; then
             if ! git fetch origin "$BRANCH"; then
               echo "❌ $BRANCH does not exist. Re-cutting rc.$RC_NUMBER requires the branch created by rc.1 (it carries cherry-picks)."
@@ -105,9 +109,9 @@ jobs:
 
       - name: Apply RC versions
         run: |
-          ARGS=(--bump "${{ inputs.bump }}" --rc "${{ inputs.rc_number }}")
-          if [[ -n "${{ inputs.target_version }}" ]]; then
-            ARGS+=(--target-version "${{ inputs.target_version }}")
+          ARGS=(--bump "$RC_BUMP" --rc "$RC_NUMBER")
+          if [[ -n "$RC_TARGET_VERSION" ]]; then
+            ARGS+=(--target-version "$RC_TARGET_VERSION")
           fi
           node scripts/release/workspace-release.mjs rc "${ARGS[@]}" --apply > rc-plan.json
 
