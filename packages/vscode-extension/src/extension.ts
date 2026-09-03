@@ -937,7 +937,7 @@ async function resolveWorkflowBrowserUrl(workflow: IWorkflowStatus): Promise<str
     }
 
     const base = n8nBaseUrl.endsWith('/') ? n8nBaseUrl : `${n8nBaseUrl}/`;
-    return new URL(`/workflow/${encodeURIComponent(workflow.id)}`, base).toString();
+    return new URL(`workflow/${encodeURIComponent(workflow.id)}`, base).toString();
 }
 
 async function openWorkflowInBrowser(workflow: IWorkflowStatus): Promise<void> {

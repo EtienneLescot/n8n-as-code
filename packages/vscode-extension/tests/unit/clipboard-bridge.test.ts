@@ -542,6 +542,10 @@ test('Bridge script: includes SSO endpoint interception', () => {
     assert.ok(script.includes('/sso/saml/initsso'), 'Bridge script must monitor saml initsso endpoint');
     assert.ok(script.includes('/sso/oidc/login'), 'Bridge script must monitor oidc login endpoint');
     assert.ok(script.includes('n8n-sso-detected'), 'Bridge script must notify parent webview on SSO detection');
+    assert.ok(
+        script.includes('origXhrOpen') && script.includes('readystatechange') && script.includes('ssoHandled'),
+        'Bridge script must set up XHR interception at open() time before caller listeners attach',
+    );
 });
 
 test('Parent webview HTML: renders SSO overlay modal and action buttons', () => {
@@ -549,8 +553,12 @@ test('Parent webview HTML: renders SSO overlay modal and action buttons', () => 
     const html: string = buildWebviewHtml('wf-1', 'http://localhost:5678/workflow/wf-1');
 
     assert.ok(html.includes('id="sso-overlay"'), 'Parent webview must contain SSO overlay');
+    assert.ok(html.includes('role="dialog"'), 'Parent webview must include dialog role for accessibility');
+    assert.ok(html.includes('aria-modal="true"'), 'Parent webview must declare modal dialog');
     assert.ok(html.includes('id="sso-btn-browser"'), 'Parent webview must contain open browser button');
     assert.ok(html.includes('id="sso-btn-cookie"'), 'Parent webview must contain enter session cookie button');
+    assert.ok(html.includes('ssoBtnBrowser.focus()'), 'Parent webview must focus primary action on open');
+    assert.ok(html.includes('hideSsoOverlay()'), 'Parent webview must restore focus on close');
     assert.ok(html.includes('open-workflow-in-browser'), 'Parent webview script must wire up open in browser message');
     assert.ok(html.includes('prompt-session-cookie'), 'Parent webview script must wire up prompt session cookie message');
     assert.ok(html.includes('n8n-sso-detected'), 'Parent webview must listen for n8n-sso-detected message');
