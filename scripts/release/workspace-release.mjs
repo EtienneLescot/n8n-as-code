@@ -740,7 +740,27 @@ function computeRcPlan({ bump, rcNumber, targetVersion }) {
   }
 
   const flagship = stablePlan.packages.find(pkg => pkg.name === 'n8nac');
-  if (flagship && targetVersion) {
+
+  // Re-cut (rc.2+): the release branch already carries X.Y.Z-rc.(N-1) versions.
+  // The stable component of that suffix is the committed release line — keep
+  // it, or computeStablePlan would re-increment the version-ahead-of-tag and
+  // drift the branch name. An explicit target must match it exactly.
+  const existingFlagshipLine = flagship ? /^(\d+\.\d+\.\d+)-rc\.\d+$/.exec(flagship.currentVersion)?.[1] : null;
+  if (existingFlagshipLine) {
+    if (targetVersion && targetVersion !== existingFlagshipLine) {
+      throw new Error(
+        `--target-version ${targetVersion} does not match the existing release line ${existingFlagshipLine} on this branch`
+      );
+    }
+    for (const pkg of stablePlan.packages) {
+      const line = /^(\d+\.\d+\.\d+)-rc\.\d+$/.exec(pkg.currentVersion)?.[1];
+      if (line) {
+        pkg.targetVersion = line;
+      }
+    }
+  }
+
+  if (flagship && targetVersion && !existingFlagshipLine) {
     if (compareVersions(parseVersion(targetVersion), parseVersion(flagship.targetVersion)) < 0) {
       throw new Error(
         `--target-version ${targetVersion} is below the computed n8nac target ${flagship.targetVersion}`
@@ -750,7 +770,7 @@ function computeRcPlan({ bump, rcNumber, targetVersion }) {
 
   // The requested bump is a floor for the n8nac anchor, never a downgrade:
   // commit history may already justify a higher version.
-  if (flagship && flagship.changed && !targetVersion) {
+  if (flagship && flagship.changed && !targetVersion && !existingFlagshipLine) {
     const requested = incrementVersion(parseVersion(flagship.currentVersion), bump);
     if (compareVersions(requested, parseVersion(flagship.targetVersion)) > 0) {
       flagship.targetVersion = formatVersion(requested);
@@ -910,8 +930,8 @@ async function main() {
     if (!args.bump) {
       throw new Error('rc mode requires --bump <patch|minor|major> (applies to n8nac unless --target-version is given)');
     }
-    if (!args.rc || Number.isNaN(Number(args.rc)) || Number(args.rc) < 1) {
-      throw new Error('rc mode requires --rc <N> with N >= 1');
+    if (!args.rc || !/^[1-9]\d*$/.test(String(args.rc).trim())) {
+      throw new Error('rc mode requires --rc <N> with N a positive integer (1, 2, 3…)');
     }
     plan = computeRcPlan({ bump: args.bump, rcNumber: Number(args.rc), targetVersion: args['target-version'] || null });
     if (apply) {
