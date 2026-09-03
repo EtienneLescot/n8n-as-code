@@ -535,6 +535,44 @@ test('ProxyService: loadCookies automatically picks up N8NAC_FOLDER_LOGIN_TOKEN'
     }
 });
 
+test('ProxyService: setSessionToken rejects unencrypted remote HTTP targets', async () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const service = new ProxyService();
+    (service as any).target = 'http://n8n.example.test:5678';
+    (service as any).secrets = {
+        store: async () => {},
+        get: async () => null,
+    };
+
+    await assert.rejects(
+        async () => {
+            await service.setSessionToken('jwt-session-token-123');
+        },
+        /cannot be forwarded to unencrypted remote HTTP targets/,
+    );
+});
+
+test('ProxyService: buildMergedCookieHeader suppresses sensitive n8n-auth on remote HTTP targets', async () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const service = new ProxyService();
+    (service as any).target = 'http://n8n.example.test:5678';
+    (service as any).cookieJar.set('n8n-auth', 'n8n-auth=sensitive-token');
+    (service as any).cookieJar.set('regular-cookie', 'regular-cookie=safe-value');
+
+    const header = (service as any).buildMergedCookieHeader();
+    assert.equal(header, 'regular-cookie=safe-value');
+});
+
+test('ProxyService: allows credentials on localhost loopback HTTP targets', async () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const service = new ProxyService();
+    (service as any).target = 'http://localhost:5678';
+    (service as any).cookieJar.set('n8n-auth', 'n8n-auth=local-token');
+
+    const header = (service as any).buildMergedCookieHeader();
+    assert.equal(header, 'n8n-auth=local-token');
+});
+
 test('Bridge script: includes SSO endpoint interception', () => {
     const { ProxyService } = require('../../src/services/proxy-service.js');
     const script = ProxyService.buildBridgeScript();
