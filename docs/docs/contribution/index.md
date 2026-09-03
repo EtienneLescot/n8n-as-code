@@ -215,10 +215,10 @@ CI automatically:
 - Write comprehensive tests for new features
 
 ### Pull Request Process
-1. Create a feature branch from `next`
+1. Create a feature branch from `main`
 2. Make your changes with tests
 3. Ensure all tests pass
-4. Submit a pull request with clear description targeting `next`
+4. Submit a pull request with clear description targeting `main`
 
 ### Documentation
 - Update relevant documentation when adding features
