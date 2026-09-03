@@ -160,11 +160,13 @@ If dependency alignment fails, run `npm run sync:deps`, review the manifest diff
 Let's say you fix a bug in the sync engine (embedded in `n8nac`):
 
 ```bash
-# 1. Push a conventional commit to next
+# 1. Create a feature branch from main, commit, and submit a PR targeting main
+git checkout -b fix/cli-sync-edge-case main
 git commit -m "fix(cli): handle sync edge case"
+gh pr create --base main
 
-# 2. Merge next into main
-# 3. Let the release PR bump versions automatically
+# 2. Maintainer merges PR into main
+# 3. Release workflow creates/updates release PR and publishes versions
 ```
 
 **Result:**
@@ -177,11 +179,9 @@ All packages that depend on `n8nac` will have their `package.json` updated to re
 ### Workflow Summary Diagram
 
 ```
-Developer pushes conventional commits to next
+Developer opens PR targeting main
        ↓
-CI publishes prereleases from next
-       ↓
-next is merged into main
+Maintainer merges PR into main
        ↓
 CI creates or updates a release PR
        ↓
@@ -218,7 +218,7 @@ CI automatically:
 1. Create a feature branch from `main`
 2. Make your changes with tests
 3. Ensure all tests pass
-4. Submit a pull request with clear description targeting `main`
+4. Submit a pull request with clear description targeting `main` (`next` is reserved for the automated prerelease release workflow; all contributor pull requests must target `main`)
 
 ### Documentation
 - Update relevant documentation when adding features

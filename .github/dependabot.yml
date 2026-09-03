@@ -2,7 +2,7 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
-    target-branch: next
+    target-branch: main
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
