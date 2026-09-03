@@ -56,6 +56,14 @@ export class WorkflowWebview {
                     features: typeof message.features === 'string' ? message.features : undefined,
                 });
             }
+            if (message.type === 'open-workflow-in-browser') {
+                void vscode.commands.executeCommand('n8n.openInBrowser', {
+                    workflow: { id: this._workflowId, name: this._workflowName },
+                });
+            }
+            if (message.type === 'prompt-session-cookie') {
+                void vscode.commands.executeCommand('n8n.setSessionCookie');
+            }
         }, null, this._disposables);
     }
 
@@ -102,6 +110,13 @@ export class WorkflowWebview {
      */
     public static reloadIfMatching(workflowId: string, _outputChannel?: vscode.OutputChannel) {
         return workflowWebviewRegistry.reloadIfMatching(workflowId);
+    }
+
+    /**
+     * Trigger a reload of all active workflow webviews.
+     */
+    public static reloadAll(_outputChannel?: vscode.OutputChannel) {
+        return workflowWebviewRegistry.reloadAll();
     }
 
     public update(workflow: IWorkflowStatus, url: string, endpoints?: WorkflowWebviewEndpoints) {

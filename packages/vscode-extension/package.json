@@ -106,6 +106,16 @@
         "icon": "$(browser)"
       },
       {
+        "command": "n8n.openInBrowser",
+        "title": "Open in External Browser",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "n8n.setSessionCookie",
+        "title": "n8n: Set SSO Session Cookie",
+        "icon": "$(key)"
+      },
+      {
         "command": "n8n.openJson",
         "title": "Open File",
         "icon": "$(go-to-file)"
@@ -293,6 +303,11 @@
         {
           "command": "n8n.openAgentWorkbench",
           "group": "1_open@4",
+          "when": "viewItem =~ /^workflow-(tracked|tracked-archived|cloud-only)$/"
+        },
+        {
+          "command": "n8n.openInBrowser",
+          "group": "1_open@5",
           "when": "viewItem =~ /^workflow-(tracked|tracked-archived|cloud-only)$/"
         },
         {

@@ -98,12 +98,112 @@ export function buildWebviewHtml(workflowId: string, url: string, endpointsOrFor
                     color: #666;
                     text-align: center;
                 }
+                .sso-overlay {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.78);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 200;
+                }
+                .sso-modal {
+                    max-width: 440px;
+                    margin: 20px;
+                    padding: 24px;
+                    background: var(--vscode-editor-background, #1e1e1e);
+                    border: 1px solid var(--vscode-widget-border, #3c3c3c);
+                    border-radius: 8px;
+                    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+                    font-family: system-ui, -apple-system, sans-serif;
+                    color: var(--vscode-editor-foreground, #cccccc);
+                    text-align: center;
+                }
+                .sso-badge {
+                    display: inline-block;
+                    padding: 3px 9px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    background: var(--vscode-badge-background, #3a3d41);
+                    color: var(--vscode-badge-foreground, #ffffff);
+                    border-radius: 12px;
+                    margin-bottom: 12px;
+                }
+                .sso-modal h3 {
+                    margin: 0 0 10px;
+                    font-size: 17px;
+                    color: var(--vscode-editor-foreground, #ffffff);
+                    font-weight: 600;
+                }
+                .sso-modal p {
+                    font-size: 13px;
+                    line-height: 1.5;
+                    margin: 0 0 12px;
+                    color: var(--vscode-descriptionForeground, #999999);
+                }
+                .sso-hint {
+                    margin-bottom: 18px !important;
+                    font-weight: 500;
+                    color: var(--vscode-editor-foreground, #dddddd) !important;
+                }
+                .sso-buttons {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+                .sso-btn {
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    border: none;
+                    transition: opacity 0.15s ease;
+                }
+                .sso-btn:hover {
+                    opacity: 0.9;
+                }
+                .sso-btn.primary {
+                    background: var(--vscode-button-background, #0e639c);
+                    color: var(--vscode-button-foreground, #ffffff);
+                }
+                .sso-btn.secondary {
+                    background: var(--vscode-button-secondaryBackground, #3a3d41);
+                    color: var(--vscode-button-secondaryForeground, #ffffff);
+                }
+                .sso-btn.text {
+                    background: transparent;
+                    color: var(--vscode-textLink-foreground, #3794ff);
+                    margin-top: 4px;
+                }
+                .sso-btn.text:hover {
+                    text-decoration: underline;
+                }
             </style>
         </head>
         <body>
             <div id="loading-overlay" class="loading-overlay">Refreshing n8n...</div>
             <div id="initial-loading" class="initial-loading">Loading n8n workflow...</div>
             
+            <div id="sso-overlay" class="sso-overlay" style="display: none;">
+                <div class="sso-modal">
+                    <div class="sso-badge">Single Sign-On</div>
+                    <h3>SSO Authentication Required</h3>
+                    <p>Enterprise identity providers (Microsoft Entra ID, Okta, etc.) prohibit iframe embedding for security.</p>
+                    <p class="sso-hint">Sign in opened in your browser. Choose how you would like to work:</p>
+                    <div class="sso-buttons">
+                        <button id="sso-btn-browser" class="sso-btn primary">Open Workflow in External Browser</button>
+                        <button id="sso-btn-cookie" class="sso-btn secondary">Enter Session Cookie (n8n-auth)</button>
+                        <button id="sso-btn-retry" class="sso-btn text">Retry Workflow</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="iframe-container">
                 <iframe 
                     id="frame-1"
@@ -128,6 +228,34 @@ export function buildWebviewHtml(workflowId: string, url: string, endpointsOrFor
                 const workflowId = ${safeWorkflowIdJs};
                 const workflowEndpoints = ${workflowEndpointsJs};
                 const formTestUrl = ${formTestUrlJs};
+                const ssoOverlay = document.getElementById('sso-overlay');
+                const ssoBtnBrowser = document.getElementById('sso-btn-browser');
+                const ssoBtnCookie = document.getElementById('sso-btn-cookie');
+                const ssoBtnRetry = document.getElementById('sso-btn-retry');
+
+                if (ssoBtnBrowser) {
+                    ssoBtnBrowser.onclick = () => {
+                        vscode.postMessage({ type: 'open-workflow-in-browser' });
+                    };
+                }
+                if (ssoBtnCookie) {
+                    ssoBtnCookie.onclick = () => {
+                        vscode.postMessage({ type: 'prompt-session-cookie' });
+                    };
+                }
+                if (ssoBtnRetry) {
+                    ssoBtnRetry.onclick = () => {
+                        if (ssoOverlay) ssoOverlay.style.display = 'none';
+                        performSeamlessRefresh();
+                    };
+                }
+
+                function showSsoOverlay() {
+                    if (ssoOverlay) {
+                        ssoOverlay.style.display = 'flex';
+                        if (initialLoading) initialLoading.style.display = 'none';
+                    }
+                }
                 
                 function focusActiveFrame() {
                     try {
@@ -252,10 +380,16 @@ export function buildWebviewHtml(workflowId: string, url: string, endpointsOrFor
                     if (!message || typeof message !== 'object') return;
 
                     if (message.type === ${reloadMessageTypeJs}) {
+                        if (ssoOverlay) ssoOverlay.style.display = 'none';
                         const softRefreshWorked = attemptSoftRefresh();
                         if (!softRefreshWorked) {
                             performSeamlessRefresh();
                         }
+                        return;
+                    }
+
+                    if (message.type === 'n8n-sso-detected') {
+                        showSsoOverlay();
                         return;
                     }
 

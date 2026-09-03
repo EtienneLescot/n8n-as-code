@@ -494,3 +494,64 @@ test('registerClipboardHandler: guard skips registration on non-darwin platforms
         'Must return false on non-macOS platforms — handler must not be registered'
     );
 });
+
+// ── 5 : SSO Authentication & Session Token Support ────────────────────────────
+
+test('ProxyService: setSessionToken sets n8n-auth cookie and merged header', async () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const service = new ProxyService();
+    (service as any).target = 'https://n8n.example.test';
+    (service as any).secrets = {
+        store: async () => {},
+        get: async () => null,
+    };
+
+    await service.setSessionToken('jwt-session-token-123');
+    const cookieHeader = (service as any).buildMergedCookieHeader();
+    assert.equal(cookieHeader, 'n8n-auth=jwt-session-token-123');
+});
+
+test('ProxyService: loadCookies automatically picks up N8NAC_FOLDER_LOGIN_TOKEN', async () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const service = new ProxyService();
+    (service as any).target = 'https://n8n.example.test';
+    (service as any).secrets = {
+        store: async () => {},
+        get: async () => null,
+    };
+
+    const prevEnv = process.env.N8NAC_FOLDER_LOGIN_TOKEN;
+    try {
+        process.env.N8NAC_FOLDER_LOGIN_TOKEN = 'n8n-auth=jwt-from-env; Path=/; HttpOnly';
+        await (service as any).loadCookies();
+        const cookieHeader = (service as any).buildMergedCookieHeader();
+        assert.equal(cookieHeader, 'n8n-auth=jwt-from-env');
+    } finally {
+        if (prevEnv !== undefined) {
+            process.env.N8NAC_FOLDER_LOGIN_TOKEN = prevEnv;
+        } else {
+            delete process.env.N8NAC_FOLDER_LOGIN_TOKEN;
+        }
+    }
+});
+
+test('Bridge script: includes SSO endpoint interception', () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const script = ProxyService.buildBridgeScript();
+
+    assert.ok(script.includes('/sso/saml/initsso'), 'Bridge script must monitor saml initsso endpoint');
+    assert.ok(script.includes('/sso/oidc/login'), 'Bridge script must monitor oidc login endpoint');
+    assert.ok(script.includes('n8n-sso-detected'), 'Bridge script must notify parent webview on SSO detection');
+});
+
+test('Parent webview HTML: renders SSO overlay modal and action buttons', () => {
+    const { buildWebviewHtml } = require('../../src/ui/webview-html.js');
+    const html: string = buildWebviewHtml('wf-1', 'http://localhost:5678/workflow/wf-1');
+
+    assert.ok(html.includes('id="sso-overlay"'), 'Parent webview must contain SSO overlay');
+    assert.ok(html.includes('id="sso-btn-browser"'), 'Parent webview must contain open browser button');
+    assert.ok(html.includes('id="sso-btn-cookie"'), 'Parent webview must contain enter session cookie button');
+    assert.ok(html.includes('open-workflow-in-browser'), 'Parent webview script must wire up open in browser message');
+    assert.ok(html.includes('prompt-session-cookie'), 'Parent webview script must wire up prompt session cookie message');
+    assert.ok(html.includes('n8n-sso-detected'), 'Parent webview must listen for n8n-sso-detected message');
+});
