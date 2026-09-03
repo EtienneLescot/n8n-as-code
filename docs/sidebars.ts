@@ -123,6 +123,11 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'doc',
+          id: 'contribution/release',
+          label: 'Release Operations',
+        },
+        {
+          type: 'doc',
           id: 'contribution/local-dev-workspace',
           label: 'Local Dev Workspace',
         },

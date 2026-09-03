@@ -2,4 +2,4 @@
 
 **Related issue (if any):** #
 
-> ⚠️ All PRs must target the `main` branch as base.
+> ⚠️ All PRs — human and automated — must target the `main` branch as base.

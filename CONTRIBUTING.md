@@ -31,6 +31,6 @@ This command rewrites matching workspace `package.json` files and refreshes the 
 - Keep PRs focused — one thing at a time
 - Write tests if you're adding new behavior
 - Don't worry too much about formatting, CI will catch style issues
-- All pull requests must target the `main` branch as base
+- All pull requests — human and automated — must target the `main` branch as base
 
 That's it. No CLA, no bureaucracy.
