@@ -36,10 +36,6 @@ const WINDOWS_RESERVED_FILENAMES = new Set([
 
 const EXPLICIT_WORKFLOW_ID_FIELD = '__n8nacExplicitWorkflowId';
 
-function workflowRelativePathToAbsolute(directory: string, filename: string): string {
-    return path.isAbsolute(filename) ? filename : path.join(directory, filename);
-}
-
 /**
  * Watcher - State Observation Component
  * 
