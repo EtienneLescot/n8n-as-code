@@ -190,10 +190,10 @@ export function buildWebviewHtml(workflowId: string, url: string, endpointsOrFor
             <div id="loading-overlay" class="loading-overlay">Refreshing n8n...</div>
             <div id="initial-loading" class="initial-loading">Loading n8n workflow...</div>
             
-            <div id="sso-overlay" class="sso-overlay" style="display: none;">
+            <div id="sso-overlay" class="sso-overlay" role="dialog" aria-modal="true" aria-labelledby="sso-title" style="display: none;">
                 <div class="sso-modal">
                     <div class="sso-badge">Single Sign-On</div>
-                    <h3>SSO Authentication Required</h3>
+                    <h3 id="sso-title">SSO Authentication Required</h3>
                     <p>Enterprise identity providers (Microsoft Entra ID, Okta, etc.) prohibit iframe embedding for security.</p>
                     <p class="sso-hint">Sign in opened in your browser. Choose how you would like to work:</p>
                     <div class="sso-buttons">
@@ -232,6 +232,7 @@ export function buildWebviewHtml(workflowId: string, url: string, endpointsOrFor
                 const ssoBtnBrowser = document.getElementById('sso-btn-browser');
                 const ssoBtnCookie = document.getElementById('sso-btn-cookie');
                 const ssoBtnRetry = document.getElementById('sso-btn-retry');
+                let previousFocusedElement = null;
 
                 if (ssoBtnBrowser) {
                     ssoBtnBrowser.onclick = () => {
@@ -245,15 +246,27 @@ export function buildWebviewHtml(workflowId: string, url: string, endpointsOrFor
                 }
                 if (ssoBtnRetry) {
                     ssoBtnRetry.onclick = () => {
-                        if (ssoOverlay) ssoOverlay.style.display = 'none';
+                        hideSsoOverlay();
                         performSeamlessRefresh();
                     };
                 }
 
                 function showSsoOverlay() {
                     if (ssoOverlay) {
+                        previousFocusedElement = document.activeElement;
                         ssoOverlay.style.display = 'flex';
                         if (initialLoading) initialLoading.style.display = 'none';
+                        if (ssoBtnBrowser) ssoBtnBrowser.focus();
+                    }
+                }
+
+                function hideSsoOverlay() {
+                    if (ssoOverlay && ssoOverlay.style.display !== 'none') {
+                        ssoOverlay.style.display = 'none';
+                        if (previousFocusedElement && typeof previousFocusedElement.focus === 'function') {
+                            try { previousFocusedElement.focus(); } catch (e) {}
+                        }
+                        previousFocusedElement = null;
                     }
                 }
                 
@@ -380,7 +393,7 @@ export function buildWebviewHtml(workflowId: string, url: string, endpointsOrFor
                     if (!message || typeof message !== 'object') return;
 
                     if (message.type === ${reloadMessageTypeJs}) {
-                        if (ssoOverlay) ssoOverlay.style.display = 'none';
+                        hideSsoOverlay();
                         const softRefreshWorked = attemptSoftRefresh();
                         if (!softRefreshWorked) {
                             performSeamlessRefresh();

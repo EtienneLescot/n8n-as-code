@@ -1055,16 +1055,15 @@ export class ProxyService {
 
     if (typeof window.XMLHttpRequest === "function" && window.XMLHttpRequest.prototype) {
       var origXhrOpen = window.XMLHttpRequest.prototype.open;
-      var origXhrSend = window.XMLHttpRequest.prototype.send;
       window.XMLHttpRequest.prototype.open = function(method, url) {
-        this.__n8nacIsSso = isSsoInitUrl(url);
-        return origXhrOpen.apply(this, arguments);
-      };
-      window.XMLHttpRequest.prototype.send = function() {
-        if (this.__n8nacIsSso) {
+        var isSso = isSsoInitUrl(url);
+        this.__n8nacIsSso = isSso;
+        if (isSso) {
           var xhr = this;
-          xhr.addEventListener("load", function() {
-            if (xhr.status >= 200 && xhr.status < 300) {
+          var ssoHandled = false;
+          var onDone = function() {
+            if (!ssoHandled && xhr.status >= 200 && xhr.status < 300) {
+              ssoHandled = true;
               try {
                 var text = xhr.responseText;
                 handleSsoInitUrl(text);
@@ -1074,9 +1073,13 @@ export class ProxyService {
                 Object.defineProperty(xhr, "response", { value: "", configurable: true });
               } catch(e) {}
             }
+          };
+          xhr.addEventListener("readystatechange", function() {
+            if (xhr.readyState === 4) onDone();
           }, true);
+          xhr.addEventListener("load", onDone, true);
         }
-        return origXhrSend.apply(this, arguments);
+        return origXhrOpen.apply(this, arguments);
       };
     }
   }
