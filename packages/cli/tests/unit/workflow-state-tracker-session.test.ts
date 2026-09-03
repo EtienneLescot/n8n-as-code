@@ -144,6 +144,23 @@ describe('WorkflowStateTracker session folder source', () => {
         }
     });
 
+    it('degrades to flat pull with a warning when the instance reports no folder support (403 license)', async () => {
+        mockLoad.mockResolvedValue({
+            folders: [],
+            workflowParentFolderId: new Map(),
+            licenseUnavailableReason: 'the n8n instance reports no folder support (register the Community instance to unlock folders)',
+        });
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        try {
+            const tracker = makeTracker();
+            await tracker.refreshRemoteState();
+            expect(tracker.getFilenameForId('wf-foldered')).toBe('Normalize Attachments.workflow.ts');
+            expect(warn).toHaveBeenCalledWith(expect.stringMatching(/register the Community instance to unlock folders/i));
+        } finally {
+            warn.mockRestore();
+        }
+    });
+
     it('re-reads the folder tree on every refresh (failures stay retryable, moves are seen)', async () => {
         mockLoad.mockResolvedValue(sessionData());
         const tracker = makeTracker();

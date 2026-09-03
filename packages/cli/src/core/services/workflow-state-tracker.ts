@@ -71,7 +71,7 @@ export class WorkflowStateTracker extends EventEmitter {
      * the next read. A failed load clears the entry (only if still current) so it
      * stays retryable rather than being cached as a permanent miss.
      */
-    private sessionFolders?: { generation: number; promise: Promise<{ resolver: FolderPathResolver; parentMap: Map<string, string> }> };
+    private sessionFolders?: { generation: number; promise: Promise<{ resolver: FolderPathResolver; parentMap: Map<string, string> } | undefined> };
     private folderGeneration = 0;
     /**
      * When true, a configured session source that fails to load degrades to a flat
@@ -110,8 +110,8 @@ export class WorkflowStateTracker extends EventEmitter {
             ignoredTags: string[];
             projectId: string;      // Project scope filter
             folderSync?: boolean;
-            host?: string;          // n8n base URL (for the session-auth folder source)
-            folderAuth?: RestFolderAuth; // Session token or creds for /rest folder reads
+            host?: string;          // Target instance URL (needed for session folderSync)
+            folderAuth?: RestFolderAuth; // Session credentials/token (opt-in; pull uses public API without them)
             folderSessionAllowFlatFallback?: boolean; // degrade to flat pull if the session source fails
         }
     ) {
@@ -124,8 +124,7 @@ export class WorkflowStateTracker extends EventEmitter {
         this.folderSync = options.folderSync ?? false;
         this.folderSessionAllowFlatFallback = options.folderSessionAllowFlatFallback ?? false;
         // When folderSync is on and session creds are provided, prefer reading
-        // folders over /rest — it works on every edition, including instances
-        // where the public folder API is license-gated.
+        // folders over /rest when folders are licensed on the instance.
         if (this.folderSync && options.host && options.folderAuth && this.projectId) {
             this.folderSource = new RestFolderSource(options.host, this.projectId, options.folderAuth);
         }
@@ -820,8 +819,12 @@ export class WorkflowStateTracker extends EventEmitter {
         }
     }
 
-    private async loadSessionFolders(): Promise<{ resolver: FolderPathResolver; parentMap: Map<string, string> }> {
-        const { folders, workflowParentFolderId } = await this.folderSource!.load();
+    private async loadSessionFolders(): Promise<{ resolver: FolderPathResolver; parentMap: Map<string, string> } | undefined> {
+        const { folders, workflowParentFolderId, licenseUnavailableReason } = await this.folderSource!.load();
+        if (licenseUnavailableReason) {
+            this.warnFolderMetadataUnavailable(licenseUnavailableReason);
+            return undefined;
+        }
         return { resolver: new FolderPathResolver(folders), parentMap: workflowParentFolderId };
     }
 
@@ -876,6 +879,13 @@ export class WorkflowStateTracker extends EventEmitter {
     private warnFolderMetadataUnavailable(reason?: string): void {
         if (this.warnedFolderMetadataUnavailable) return;
         this.warnedFolderMetadataUnavailable = true;
+        if (reason?.includes('reports no folder support') || reason?.includes('no folder API')) {
+            console.warn(
+                `[WorkflowStateTracker] folderSync is enabled but ${reason}. ` +
+                `Workflows will be pulled flat without folder assignment.`,
+            );
+            return;
+        }
         console.warn(
             `[WorkflowStateTracker] folderSync is enabled, but n8n's public API does not report which folder a workflow is in${reason ? ` (${reason})` : ''}. ` +
             `Pull keeps workflows flat; push still mirrors your local folders onto n8n.`,

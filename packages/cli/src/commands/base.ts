@@ -228,12 +228,20 @@ export class BaseCommand {
         let pass = '';
         let envToken = '';
         for (const slug of slugs) {
-            user = user || clean(process.env[`N8NAC_ENV_${slug}_FOLDER_USER`]);
-            pass = pass || clean(process.env[`N8NAC_ENV_${slug}_FOLDER_PASS`]);
+            const scopedUser = clean(process.env[`N8NAC_ENV_${slug}_FOLDER_USER`]);
+            const scopedPass = clean(process.env[`N8NAC_ENV_${slug}_FOLDER_PASS`]);
+            if (!user && !pass && scopedUser && scopedPass) {
+                user = scopedUser;
+                pass = scopedPass;
+            }
             envToken = envToken || clean(process.env[`N8NAC_ENV_${slug}_FOLDER_TOKEN`]);
         }
-        user = user || clean(process.env.N8NAC_FOLDER_LOGIN_USER);
-        pass = pass || clean(process.env.N8NAC_FOLDER_LOGIN_PASS);
+        const genericUser = clean(process.env.N8NAC_FOLDER_LOGIN_USER);
+        const genericPass = clean(process.env.N8NAC_FOLDER_LOGIN_PASS);
+        if (!user && !pass && genericUser && genericPass) {
+            user = genericUser;
+            pass = genericPass;
+        }
         envToken = envToken || clean(process.env.N8NAC_FOLDER_LOGIN_TOKEN);
 
         // Accept a bare JWT by adding the cookie name.

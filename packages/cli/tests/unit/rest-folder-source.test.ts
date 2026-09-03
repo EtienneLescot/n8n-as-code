@@ -327,4 +327,31 @@ describe('RestFolderSource.load auth + scoping', () => {
             warn.mockRestore();
         }
     });
+
+    it('degrades with licenseUnavailableReason when the folders endpoint returns 403 (unregistered instance)', async () => {
+        mockAxiosGet.mockImplementation((pathname: string) => {
+            if (pathname.includes('/folders')) {
+                return Promise.reject({ response: { status: 403, data: { message: 'Plan lacks license for this feature' } } });
+            }
+            return Promise.resolve({ data: { data: [{ id: 'wf-1', name: 'W1' }], count: 1 } });
+        });
+
+        const source = new RestFolderSource(HOST, PROJECT, { cookie: 'n8n-auth=t' });
+        const result = await source.load();
+
+        expect(result.folders).toEqual([]);
+        expect(result.licenseUnavailableReason).toMatch(/register the Community instance/i);
+    });
+
+    it('throws when /rest/workflows returns 403 (real auth/permissions failure)', async () => {
+        mockAxiosGet.mockImplementation((pathname: string) => {
+            if (String(pathname).includes('/workflows')) {
+                return Promise.reject({ response: { status: 403 } });
+            }
+            return Promise.resolve({ data: { data: [], count: 0 } });
+        });
+
+        const source = new RestFolderSource(HOST, PROJECT, { cookie: 'n8n-auth=t' });
+        await expect(source.load()).rejects.toMatchObject({ response: { status: 403 } });
+    });
 });
