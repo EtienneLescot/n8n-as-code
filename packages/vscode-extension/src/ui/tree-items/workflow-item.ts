@@ -102,18 +102,18 @@ export class WorkflowItem extends BaseTreeItem {
 
       case WorkflowSyncStatus.EXIST_ONLY_REMOTELY:
         // Remote-only: no local file, so no OPEN or PUSH
-        // BOARD and PULL always available (archived or not)
-        return [ActionItemType.BOARD, ActionItemType.PULL];
+        // BOARD, BROWSER and PULL always available (archived or not)
+        return [ActionItemType.BOARD, ActionItemType.BROWSER, ActionItemType.PULL];
 
       case WorkflowSyncStatus.TRACKED:
         // Tracked: has both local and remote
         if (isArchived) {
           // Archived workflows are read-only on remote side
           // Local file exists but shouldn't be opened for editing since remote is archived
-          return [ActionItemType.BOARD, ActionItemType.PULL];
+          return [ActionItemType.BOARD, ActionItemType.BROWSER, ActionItemType.PULL];
         } else {
           // Normal tracked workflow: all actions available
-          return [ActionItemType.BOARD, ActionItemType.OPEN, ActionItemType.PULL, ActionItemType.PUSH];
+          return [ActionItemType.BOARD, ActionItemType.BROWSER, ActionItemType.OPEN, ActionItemType.PULL, ActionItemType.PUSH];
         }
 
       default:

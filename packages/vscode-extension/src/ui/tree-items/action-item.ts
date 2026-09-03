@@ -13,6 +13,7 @@ export enum ActionItemType {
   
   // Standard workflow actions
   BOARD = 'board',     // Open workflow in n8n UI (requires remote id)
+  BROWSER = 'browser', // Open workflow in external browser (requires remote id)
   PULL = 'pull',       // Pull from remote to local (requires remote id)
   PUSH = 'push',       // Push from local to remote (requires local file)
   OPEN = 'open',       // Open local file in editor (requires local file)
@@ -48,6 +49,8 @@ export class ActionItem extends BaseTreeItem {
         return '⬇️ Keep Incoming (remote)';
       case ActionItemType.BOARD:
         return '🌐 Board';
+      case ActionItemType.BROWSER:
+        return '🔗 Browser';
       case ActionItemType.PULL:
         return '⬇️ Pull';
       case ActionItemType.PUSH:
@@ -71,6 +74,8 @@ export class ActionItem extends BaseTreeItem {
         return new vscode.ThemeIcon('cloud-download');
       case ActionItemType.BOARD:
         return new vscode.ThemeIcon('globe');
+      case ActionItemType.BROWSER:
+        return new vscode.ThemeIcon('link-external');
       case ActionItemType.OPEN:
         return new vscode.ThemeIcon('go-to-file');
       default:
@@ -102,6 +107,12 @@ export class ActionItem extends BaseTreeItem {
         return {
           command: 'n8n.openBoard',
           title: 'Open Board',
+          arguments: [workflow]
+        };
+      case ActionItemType.BROWSER:
+        return {
+          command: 'n8n.openInBrowser',
+          title: 'Open in Browser',
           arguments: [workflow]
         };
       case ActionItemType.PULL:
@@ -137,6 +148,8 @@ export class ActionItem extends BaseTreeItem {
         return 'Keep the incoming remote version — overwrite local file';
       case ActionItemType.BOARD:
         return 'Open workflow in n8n web UI';
+      case ActionItemType.BROWSER:
+        return 'Open workflow in external browser';
       case ActionItemType.PULL:
         return 'Pull latest from n8n to local file';
       case ActionItemType.PUSH:
@@ -150,8 +163,8 @@ export class ActionItem extends BaseTreeItem {
   
   // Enabled/disabled state for actions
   static isEnabledForArchived(actionType: ActionItemType): boolean {
-    // Only PULL and BOARD are allowed for archived workflows
-    return actionType === ActionItemType.PULL || actionType === ActionItemType.BOARD;
+    // PULL, BOARD, and BROWSER are allowed for archived workflows
+    return actionType === ActionItemType.PULL || actionType === ActionItemType.BOARD || actionType === ActionItemType.BROWSER;
   }
   
   static isLocalOnlyAction(actionType: ActionItemType): boolean {

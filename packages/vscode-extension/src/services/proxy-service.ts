@@ -366,6 +366,13 @@ export class ProxyService {
         }
     }
 
+    public async setSessionToken(token: string): Promise<void> {
+        const cleanToken = token.trim();
+        this.cookieJar.set('n8n-auth', `n8n-auth=${cleanToken}`);
+        await this.saveCookies();
+        this.log(`[Proxy] Session token saved for ${this.target}`);
+    }
+
     private async loadCookies() {
         if (!this.secrets || !this.target) return;
         try {
@@ -376,6 +383,17 @@ export class ProxyService {
                     this.cookieJar.set(key, value);
                 }
                 this.log(`[Proxy] Loaded ${this.cookieJar.size} persisted cookies for ${this.target}`);
+            }
+            if (!this.cookieJar.has('n8n-auth') && process.env.N8NAC_FOLDER_LOGIN_TOKEN) {
+                let envToken = process.env.N8NAC_FOLDER_LOGIN_TOKEN.trim();
+                if (envToken.startsWith('n8n-auth=')) {
+                    envToken = envToken.slice('n8n-auth='.length).trim();
+                }
+                if (envToken.includes(';')) envToken = envToken.split(';')[0].trim();
+                if (envToken) {
+                    this.cookieJar.set('n8n-auth', `n8n-auth=${envToken}`);
+                    this.log(`[Proxy] Loaded n8n-auth session cookie from N8NAC_FOLDER_LOGIN_TOKEN`);
+                }
             }
         } catch (e: any) {
             this.log(`[Proxy] Error loading persisted cookies: ${e.message}`);
@@ -456,7 +474,7 @@ export class ProxyService {
                     const handoff = this.createExternalAuthHandoff(location, returnUrl);
                     if (handoff) {
                         const httpRes = res as http.ServerResponse;
-                        void this.openExternalUrl(handoff.authProxyUrl);
+                        void this.openExternalUrl(location);
                         proxyRes.resume();
                         httpRes.writeHead(200, {
                             'content-type': 'text/html; charset=utf-8',
@@ -987,6 +1005,83 @@ export class ProxyService {
   }
 
   installPopupBridge();
+
+  function isSsoInitUrl(url) {
+    if (!url) return false;
+    var s = String(url);
+    return s.indexOf('/sso/saml/initsso') !== -1
+      || s.indexOf('/sso/oidc/login') !== -1
+      || s.indexOf('/rest/sso/saml/initsso') !== -1
+      || s.indexOf('/rest/sso/oidc/login') !== -1;
+  }
+
+  function handleSsoInitUrl(rawUrl) {
+    if (!rawUrl || typeof rawUrl !== "string") return;
+    var target = rawUrl.trim();
+    if (target.startsWith('"') && target.endsWith('"')) {
+      try { target = JSON.parse(target); } catch(e) {}
+    }
+    if (!target || (!target.startsWith("http://") && !target.startsWith("https://"))) return;
+    window.parent.postMessage({
+      type: "n8n-sso-detected",
+      idpUrl: target,
+      workflowId: String(window.location.pathname)
+    }, "*");
+    postOpenExternal(target, "_blank", "oauth", "", "sso.initsso");
+  }
+
+  function installSsoBridge() {
+    if (typeof window.fetch === "function") {
+      var origFetch = window.fetch;
+      window.fetch = function(input, init) {
+        var url = typeof input === "string" ? input : (input && input.url ? input.url : "");
+        if (isSsoInitUrl(url)) {
+          return origFetch.apply(this, arguments).then(function(res) {
+            if (res.ok) {
+              try {
+                var clone = res.clone();
+                return clone.text().then(function(text) {
+                  handleSsoInitUrl(text);
+                  return new Response("", { status: 200, statusText: "OK", headers: res.headers });
+                });
+              } catch(e) {}
+            }
+            return res;
+          });
+        }
+        return origFetch.apply(this, arguments);
+      };
+    }
+
+    if (typeof window.XMLHttpRequest === "function" && window.XMLHttpRequest.prototype) {
+      var origXhrOpen = window.XMLHttpRequest.prototype.open;
+      var origXhrSend = window.XMLHttpRequest.prototype.send;
+      window.XMLHttpRequest.prototype.open = function(method, url) {
+        this.__n8nacIsSso = isSsoInitUrl(url);
+        return origXhrOpen.apply(this, arguments);
+      };
+      window.XMLHttpRequest.prototype.send = function() {
+        if (this.__n8nacIsSso) {
+          var xhr = this;
+          xhr.addEventListener("load", function() {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                var text = xhr.responseText;
+                handleSsoInitUrl(text);
+              } catch(e) {}
+              try {
+                Object.defineProperty(xhr, "responseText", { value: "", configurable: true });
+                Object.defineProperty(xhr, "response", { value: "", configurable: true });
+              } catch(e) {}
+            }
+          }, true);
+        }
+        return origXhrSend.apply(this, arguments);
+      };
+    }
+  }
+
+  installSsoBridge();
 
   function coerceNode(value) {
     var record = asRecord(value);

@@ -41,6 +41,16 @@ export class WorkflowWebviewRegistry {
         this.debugLogger?.(`[workflow-registry] reloadIfMatching result workflowId=${workflowId} reloaded=${reloaded}`);
         return reloaded;
     }
+
+    reloadAll(): boolean {
+        let reloaded = false;
+        this.debugLogger?.(`[workflow-registry] reloadAll targets=${this.targets.size}`);
+        for (const target of [...this.targets]) {
+            reloaded = true;
+            void Promise.resolve(target.reloadWorkflow()).catch(() => {});
+        }
+        return reloaded;
+    }
 }
 
 export const workflowWebviewRegistry = new WorkflowWebviewRegistry();
