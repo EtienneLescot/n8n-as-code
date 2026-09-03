@@ -129,7 +129,7 @@ const CROSS_PACKAGE_RULES = [
   },
   {
     matches(file) {
-      return file === '.github/workflows/release.yml';
+      return file === '.github/workflows/prerelease.yml' || file === '.github/workflows/promote.yml';
     },
     packages: ['@n8n-as-code/skills'],
   },
@@ -315,119 +315,6 @@ function syncClaudePluginVersion(changedVersions) {
     pluginEntry.version = skillsVersion;
   }
   writeJson('.claude-plugin/marketplace.json', marketplace);
-}
-
-function getNextEvenMinor(minor) {
-  return minor % 2 === 0 ? minor + 2 : minor + 1;
-}
-
-function getNextOddMinor(minor) {
-  return minor % 2 === 0 ? minor + 1 : minor + 2;
-}
-
-function buildNextVscodeStableVersion(version, bump) {
-  if (bump === 'major') {
-    return {
-      major: version.major + 1,
-      minor: 0,
-      patch: 0,
-    };
-  }
-
-  return {
-    major: version.major,
-    minor: getNextEvenMinor(version.minor),
-    patch: 0,
-  };
-}
-
-function buildVscodePrereleaseVersion(baseVersion, sequence) {
-  return formatVersion({
-    major: baseVersion.major,
-    minor: baseVersion.minor % 2 === 0 ? getNextOddMinor(baseVersion.minor) : baseVersion.minor,
-    patch: Math.max(1, sequence),
-  });
-}
-
-function getVscodeMarketplaceVersions() {
-  const extensionPackageJson = readJson(getExtensionPackage().packageJsonPath);
-  const publisher = extensionPackageJson.publisher;
-  const extensionName = extensionPackageJson.name;
-  if (!publisher || !extensionName) {
-    return [];
-  }
-
-  try {
-    const response = execFileSync('curl', [
-      '-fsS',
-      '-X', 'POST',
-      'https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery?api-version=7.2-preview.1',
-      '-H', 'Content-Type: application/json',
-      '-d', JSON.stringify({
-        filters: [{ criteria: [{ filterType: 7, value: `${publisher}.${extensionName}` }] }],
-        flags: 529,
-      }),
-    ], {
-      cwd: workspaceRoot,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    const payload = JSON.parse(response);
-    return payload.results?.[0]?.extensions?.[0]?.versions?.map(version => version.version).filter(Boolean) || [];
-  } catch {
-    return [];
-  }
-}
-
-function getLatestMarketplaceVscodePrereleaseSequence(baseVersion) {
-  const prereleaseLine = parseVersion(buildVscodePrereleaseVersion(baseVersion, 1));
-  if (!prereleaseLine) {
-    return 0;
-  }
-
-  return getVscodeMarketplaceVersions().reduce((max, version) => {
-    const parsed = parseVersion(version);
-    if (!parsed || parsed.major !== prereleaseLine.major || parsed.minor !== prereleaseLine.minor) {
-      return max;
-    }
-    return Math.max(max, parsed.patch);
-  }, 0);
-}
-
-function assertVscodeStableLine(version, context) {
-  const parsed = parseVersion(version);
-  if (!parsed) {
-    throw new Error(`Unsupported VS Code stable version in ${context}: ${version}`);
-  }
-  if (parsed.minor % 2 !== 0) {
-    throw new Error(`VS Code stable releases must use even minor versions in ${context}: ${version}`);
-  }
-}
-
-function assertVscodePrereleaseLine(version, context) {
-  const parsed = parseVersion(version);
-  if (!parsed) {
-    throw new Error(`Unsupported VS Code prerelease version in ${context}: ${version}`);
-  }
-  if (parsed.minor % 2 === 0) {
-    throw new Error(`VS Code prereleases must use odd minor versions in ${context}: ${version}`);
-  }
-}
-
-function assertVscodeVersionLines(plan) {
-  const extensionPlan = plan.packages.find(pkg => pkg.publishTarget === 'vscode');
-  if (!extensionPlan) {
-    return plan;
-  }
-
-  if (extensionPlan.targetVersion) {
-    assertVscodeStableLine(extensionPlan.targetVersion, `${plan.mode} targetVersion`);
-  }
-  if (extensionPlan.prereleaseVersion) {
-    assertVscodePrereleaseLine(extensionPlan.prereleaseVersion, `${plan.mode} prereleaseVersion`);
-  }
-
-  return plan;
 }
 
 function parseTagVersion(tag, prefix) {
@@ -807,14 +694,6 @@ function computeStablePlan() {
     const changed = Boolean(bumpInfo.bump) || versionAheadOfTag || initialRelease || releaseTrainChanged;
     const targetVersion = releaseTrain
       ? releaseTrain.version
-      : pkg.publishTarget === 'vscode'
-      ? (
-          versionAheadOfTag
-            ? currentStableString
-            : changed
-              ? formatVersion(buildNextVscodeStableVersion(currentStableVersion, bumpInfo.bump))
-              : currentStableString
-        )
       : (bumpInfo.bump ? formatVersion(incrementVersion(currentStableVersion, bumpInfo.bump)) : currentStableString);
     const reasons = [...bumpInfo.reasons];
     const commits = [...directInfo.commits];
@@ -832,10 +711,6 @@ function computeStablePlan() {
     if (versionAheadOfTag && !reasons.includes('version-ahead-of-tag')) {
       reasons.push('version-ahead-of-tag');
     }
-    if (pkg.publishTarget === 'vscode' && changed && !versionAheadOfTag && !reasons.includes('stable-vscode-even-minor-line')) {
-      reasons.push('stable-vscode-even-minor-line');
-    }
-
     return {
       ...pkg,
       currentVersion,
@@ -850,81 +725,101 @@ function computeStablePlan() {
     };
   });
 
-  return assertVscodeVersionLines({
+  return {
     mode: 'stable',
     changed: packages.some(pkg => pkg.changed),
     packages,
-  });
+  };
 }
 
-function getPrereleaseSequence(stablePlan) {
-  const latestTag = getLatestStableTag(getExtensionPackage());
-  const commitCount = latestTag
-    ? Number(git(['rev-list', '--count', `${latestTag.tag}..HEAD`]) || '0')
-    : 1;
-  const extensionPlan = stablePlan.packages.find(pkg => pkg.publishTarget === 'vscode');
-  const latestMarketplaceSequence = extensionPlan?.changed
-    ? getLatestMarketplaceVscodePrereleaseSequence(parseVersion(extensionPlan.currentVersion))
-    : 0;
-
-  return Math.max(1, commitCount, latestMarketplaceSequence + 1);
-}
-
-function computePrereleasePlan() {
+function computeRcPlan({ bump, rcNumber, targetVersion }) {
   const stablePlan = computeStablePlan();
-  const sequence = getPrereleaseSequence(stablePlan);
+
+  if (targetVersion) {
+    if (!parseVersion(targetVersion)) {
+      throw new Error(`Unsupported --target-version: ${targetVersion}`);
+    }
+    const flagship = stablePlan.packages.find(pkg => pkg.name === 'n8nac');
+    if (flagship && compareVersions(parseVersion(targetVersion), parseVersion(flagship.targetVersion)) < 0) {
+      throw new Error(
+        `--target-version ${targetVersion} is below the computed n8nac target ${flagship.targetVersion}`
+      );
+    }
+  }
+
   const packages = stablePlan.packages.map(pkg => {
     if (!pkg.changed) {
       return {
         ...pkg,
-        prereleaseVersion: null,
+        rcVersion: null,
       };
     }
 
+    const stableTarget = pkg.name === 'n8nac' && targetVersion ? targetVersion : pkg.targetVersion;
     return {
       ...pkg,
-      prereleaseVersion: pkg.publishTarget === 'vscode'
-        ? buildVscodePrereleaseVersion(parseVersion(pkg.currentVersion), sequence)
-        : `${pkg.targetVersion}-next.${sequence}`,
+      targetVersion: stableTarget,
+      rcVersion: `${stableTarget}-rc.${rcNumber}`,
     };
   });
 
-  return assertVscodeVersionLines({
-    mode: 'prerelease',
+  const rcTagPackage = packages.find(pkg => pkg.name === 'n8nac');
+  return {
+    mode: 'rc',
     changed: packages.some(pkg => pkg.changed),
-    sequence,
+    rcNumber: Number(rcNumber),
+    releaseVersion: rcTagPackage?.rcVersion ?? null,
     packages,
-  });
+  };
 }
 
-function computePendingStablePlan() {
+function computePromotePlan() {
+  // Runs on a release/vX.Y.Z branch: every package whose version still carries
+  // an -rc.N suffix is promoted to its final stable version, and the changelog
+  // entry is computed from the commits on the branch since the last stable tag
+  // (which includes cherry-picked fixes landed between RCs).
+  const directBumps = buildDirectBumps();
+
   const packages = getPackages().map(pkg => {
     const packageJson = readJson(pkg.packageJsonPath);
     const currentVersion = packageJson.version;
-    const currentStableVersion = parseVersion(currentVersion);
-    if (!currentStableVersion) {
-      throw new Error(`Unsupported version in ${pkg.packageJsonPath}: ${currentVersion}`);
+    const match = /^(\d+\.\d+\.\d+)-rc\.\d+$/.exec(currentVersion);
+    if (!match) {
+      const latestTag = getLatestStableTag(pkg);
+      return {
+        ...pkg,
+        currentVersion,
+        latestStableTag: latestTag?.tag ?? null,
+        latestStableVersion: latestTag ? formatVersion(latestTag.version) : null,
+        changed: false,
+        targetVersion: formatVersion(parseVersion(currentVersion)),
+        commits: [],
+        reasons: [],
+      };
     }
 
     const latestTag = getLatestStableTag(pkg);
-    const latestStableVersion = latestTag ? formatVersion(latestTag.version) : null;
-    const changed = latestTag ? currentVersion !== latestStableVersion : true;
-
+    const directInfo = directBumps.get(pkg.name) || { bump: null, commits: [] };
     return {
       ...pkg,
       currentVersion,
       latestStableTag: latestTag?.tag ?? null,
-      latestStableVersion,
-      targetVersion: formatVersion(currentStableVersion),
-      changed,
+      latestStableVersion: latestTag ? formatVersion(latestTag.version) : null,
+      changed: true,
+      bump: directInfo.bump || 'patch',
+      targetVersion: match[1],
+      commits: [...directInfo.commits],
+      reasons: ['promote-from-rc'],
     };
   });
 
-  return assertVscodeVersionLines({
-    mode: 'pending-stable',
+  const flagship = packages.find(pkg => pkg.name === 'n8nac');
+  return {
+    mode: 'promote',
     changed: packages.some(pkg => pkg.changed),
+    releaseVersion: flagship?.targetVersion ?? null,
     packages,
-  });
+  };
 }
 
 function applyPlan(plan, versionKey) {
@@ -995,20 +890,24 @@ async function main() {
   const apply = Boolean(args.apply);
   let plan;
 
-  if (command === 'stable-pr') {
-    plan = computeStablePlan();
+  if (command === 'rc') {
+    if (!args.bump) {
+      throw new Error('rc mode requires --bump <patch|minor|major> (applies to n8nac unless --target-version is given)');
+    }
+    if (!args.rc || Number.isNaN(Number(args.rc)) || Number(args.rc) < 1) {
+      throw new Error('rc mode requires --rc <N> with N >= 1');
+    }
+    plan = computeRcPlan({ bump: args.bump, rcNumber: Number(args.rc), targetVersion: args['target-version'] || null });
+    if (apply) {
+      applyPlan(plan, 'rcVersion');
+    }
+  } else if (command === 'promote') {
+    plan = computePromotePlan();
     if (apply) {
       applyPlan(plan, 'targetVersion');
     }
-  } else if (command === 'prerelease') {
-    plan = computePrereleasePlan();
-    if (apply) {
-      applyPlan(plan, 'prereleaseVersion');
-    }
-  } else if (command === 'pending-stable') {
-    plan = computePendingStablePlan();
   } else {
-    console.error('Usage: node scripts/release/workspace-release.mjs <stable-pr|prerelease|pending-stable> [--apply]');
+    console.error('Usage: node scripts/release/workspace-release.mjs <rc --bump <patch|minor|major> --rc <N> [--target-version X.Y.Z]|promote> [--apply]');
     process.exit(1);
   }
 

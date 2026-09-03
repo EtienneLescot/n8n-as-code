@@ -1,0 +1,558 @@
+name: Promote RC to Stable
+
+# Promote a release candidate to the stable release, openscreen-style:
+#   1. Checkout the frozen release/vX.Y.Z branch carrying the RC.
+#   2. Strip the -rc.N suffixes, write the final CHANGELOGs, commit, push.
+#   3. Publish npm with the `latest` dist-tag, VS Code Marketplace stable +
+#      Open VSX, push per-package tags + the vX.Y.Z repo tag, publish the
+#      GitHub release marked latest.
+#   4. Sync main: open a PR from release/vX.Y.Z-sync and merge it (rebase) so
+#      main carries the released versions and changelogs. Release branches are
+#      kept for forensics and backports.
+# ORDER MATTERS: everything that publishes runs before the main sync, so a
+# sync failure can never mask a failed or missing release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rc_tag:
+        description: 'RC tag to promote (e.g. v2.6.0-rc.2)'
+        type: string
+        required: true
+
+concurrency: promote
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  promote:
+    name: Promote to stable
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      N8NAC_POSTHOG_KEY: ${{ vars.N8NAC_POSTHOG_KEY }}
+      N8NAC_POSTHOG_HOST: ${{ vars.N8NAC_POSTHOG_HOST }}
+      N8NAC_TELEMETRY_ENV: prod
+    outputs:
+      release_branch: ${{ steps.resolve.outputs.release_branch }}
+      stable_tag: ${{ steps.resolve.outputs.stable_tag }}
+    steps:
+      - name: Resolve RC tag
+        id: resolve
+        run: |
+          RC_TAG="${{ inputs.rc_tag }}"
+          if ! [[ "$RC_TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-rc\.[0-9]+$ ]]; then
+            echo "❌ rc_tag must match vX.Y.Z-rc.N, got: $RC_TAG"
+            exit 1
+          fi
+          STABLE_VERSION="${BASH_REMATCH[1]}"
+          echo "release_branch=release/v${STABLE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "stable_version=${STABLE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "stable_tag=v${STABLE_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.release_branch }}
+          fetch-depth: 0
+
+      - name: Verify the RC tag exists on the release branch
+        run: |
+          RC_TAG="${{ inputs.rc_tag }}"
+          if ! git rev-parse -q --verify "refs/tags/${RC_TAG}" >/dev/null; then
+            git fetch origin "refs/tags/${RC_TAG}:refs/tags/${RC_TAG}"
+          fi
+          if ! git merge-base --is-ancestor "$RC_TAG" HEAD; then
+            echo "❌ $RC_TAG is not an ancestor of ${{ steps.resolve.outputs.release_branch }} — cut the RC before promoting it."
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.14'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Upgrade npm for trusted publishing
+        run: |
+          npm install -g npm@^11.5.1
+          npm --version
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Promote versions and changelogs
+        run: |
+          node scripts/release/workspace-release.mjs promote --apply > promote-plan.json
+          if [[ "$(node -p "require('./promote-plan.json').changed")" != 'true' ]]; then
+            echo '❌ No package carries an -rc.N version on this branch — was this release already promoted?'
+            exit 1
+          fi
+
+      - name: Commit final versions
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          STABLE_VERSION=${{ steps.resolve.outputs.stable_version }}
+          git add -A
+          if git diff --cached --quiet; then
+            echo "ℹ️ Nothing to commit — $STABLE_VERSION already applied on ${{ steps.resolve.outputs.release_branch }}."
+          else
+            git commit -m "chore(release): bump to $STABLE_VERSION [skip ci]"
+          fi
+
+      - name: Verify telemetry release configuration
+        run: |
+          if [[ -z "${N8NAC_POSTHOG_KEY:-}" ]]; then
+            echo "❌ N8NAC_POSTHOG_KEY is missing in prod environment variables."
+            exit 1
+          fi
+          if [[ -z "${N8NAC_POSTHOG_HOST:-}" ]]; then
+            echo "❌ N8NAC_POSTHOG_HOST is missing in prod environment variables."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Resolve n8n stable tag
+        id: n8n-tag
+        run: echo "tag=$(node scripts/ensure-n8n-cache.cjs --print-tag)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache n8n repository
+        uses: actions/cache@v4
+        with:
+          path: .n8n-cache
+          key: ${{ runner.os }}-n8n-cache-${{ steps.n8n-tag.outputs.tag }}-${{ hashFiles('scripts/ensure-n8n-cache.cjs') }}
+          restore-keys: |
+            ${{ runner.os }}-n8n-cache-
+
+      - name: Build all packages
+        run: npm run build
+
+      - name: Verify release build is reproducible
+        run: |
+          if ! git diff --quiet --exit-code -- . ':(exclude)package-lock.json'; then
+            echo '❌ Release build modified tracked files other than the lockfile.'
+            git status --short
+            git diff --stat
+            exit 1
+          fi
+
+      - name: Push release branch
+        run: |
+          git push origin "${{ steps.resolve.outputs.release_branch }}"
+
+      - name: Guard package versions against the stable tag
+        run: |
+          STABLE_VERSION=${{ steps.resolve.outputs.stable_version }}
+          node -e "
+            const plan = require('./promote-plan.json');
+            let ok = true;
+            for (const pkg of plan.packages.filter(p => p.changed)) {
+              const version = require('./' + pkg.packageJsonPath).version;
+              const expected = pkg.targetVersion;
+              if (version !== expected) {
+                console.error('❌ ' + pkg.name + ' is ' + version + ', expected ' + expected);
+                ok = false;
+              }
+              if (expected !== '$STABLE_VERSION' && !expected.startsWith('$STABLE_VERSION' + '.')) {
+                // Companion packages may ride a different patch line than n8nac; only
+                // assert each package matches its own plan target, done above.
+              }
+            }
+            process.exit(ok ? 0 : 1);
+          "
+
+      - name: Detect extension publish
+        id: extension
+        run: |
+          CHANGED=$(node -e "const fs=require('fs'); const plan=JSON.parse(fs.readFileSync('promote-plan.json','utf8')); const pkg=plan.packages.find(item => item.name === 'n8n-as-code'); process.stdout.write(pkg && pkg.changed ? 'true' : 'false');")
+          echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
+
+      - name: Publish npm packages
+        run: |
+          should_publish() {
+            node -e "const fs=require('fs'); const plan=JSON.parse(fs.readFileSync('promote-plan.json','utf8')); const pkg=plan.packages.find(item => item.name === process.argv[1]); process.exit(pkg && pkg.changed ? 0 : 1);" "$1"
+          }
+
+          publish_npm() {
+            local pkg_name="$1"
+            local pkg_dir="$2"
+            local tag="latest"
+            local version
+            local publish_log
+            version=$(node -p "require('./${pkg_dir}/package.json').version")
+            if npm view "${pkg_name}@${version}" version >/dev/null 2>&1; then
+              echo "ℹ️ ${pkg_name}@${version} already exists on npm, skipping publish."
+              return 0
+            fi
+            publish_log=$(mktemp)
+            if (cd "$pkg_dir" && npm publish --access public --tag "$tag") >"$publish_log" 2>&1; then
+              cat "$publish_log"
+              rm -f "$publish_log"
+              return 0
+            fi
+            cat "$publish_log"
+            if grep -q 'TLOG_CREATE_ENTRY_ERROR' "$publish_log"; then
+              if npm view "${pkg_name}@${version}" version >/dev/null 2>&1; then
+                echo "ℹ️ ${pkg_name}@${version} became visible on npm after a provenance conflict, continuing."
+                rm -f "$publish_log"
+                return 0
+              fi
+              echo "⚠️ npm provenance transparency-log conflict for ${pkg_name}@${version}; retrying publish without provenance."
+              rm -f "$publish_log"
+              (cd "$pkg_dir" && npm publish --access public --tag "$tag" --provenance=false)
+              return 0
+            fi
+            rm -f "$publish_log"
+            return 1
+          }
+
+          if should_publish '@n8n-as-code/transformer'; then
+            publish_npm '@n8n-as-code/transformer' 'packages/transformer'
+          fi
+          if should_publish '@n8n-as-code/telemetry'; then
+            publish_npm '@n8n-as-code/telemetry' 'packages/telemetry'
+          fi
+          if should_publish '@n8n-as-code/workflow-core'; then
+            publish_npm '@n8n-as-code/workflow-core' 'packages/workflow-core'
+          fi
+          if should_publish '@n8n-as-code/manager-adapter'; then
+            publish_npm '@n8n-as-code/manager-adapter' 'packages/manager-adapter'
+          fi
+          if should_publish '@n8n-as-code/skills'; then
+            publish_npm '@n8n-as-code/skills' 'packages/skills'
+          fi
+          if should_publish 'n8nac'; then
+            publish_npm 'n8nac' 'packages/cli'
+          fi
+          if should_publish '@n8n-as-code/mcp'; then
+            publish_npm '@n8n-as-code/mcp' 'packages/mcp'
+          fi
+          if should_publish '@n8n-as-code/n8nac'; then
+            publish_npm '@n8n-as-code/n8nac' 'plugins/openclaw/n8n-as-code'
+          fi
+
+      - name: Remove private flag for extension packaging
+        if: steps.extension.outputs.changed == 'true'
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('packages/vscode-extension/package.json', 'utf8'));
+            delete pkg.private;
+            fs.writeFileSync('packages/vscode-extension/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Publish VS Code Marketplace stable release
+        if: steps.extension.outputs.changed == 'true'
+        env:
+          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
+        run: |
+          if [[ -z "$VSCE_TOKEN" ]]; then
+            echo "❌ VSCE_TOKEN is missing in prod secrets."
+            exit 1
+          fi
+
+          cd packages/vscode-extension
+          npx @vscode/vsce package --no-dependencies
+          # Activate the packaged VSIX before publishing it. Catches runtime dependencies
+          # that were built but never copied into out/node_modules (see #566).
+          npm run smoke:vsix-runtime -- "$(ls -1 *.vsix | head -n 1)"
+          if npx @vscode/vsce publish --no-dependencies --pat "$VSCE_TOKEN" > vsce-publish.log 2>&1; then
+            cat vsce-publish.log
+          else
+            status=$?
+            cat vsce-publish.log
+            if grep -qi 'already exists' vsce-publish.log; then
+              VERSION=$(node -p "require('./package.json').version")
+              echo "ℹ️ VS Code Marketplace already contains $VERSION, skipping publish."
+            else
+              exit "$status"
+            fi
+          fi
+
+      - name: Publish Open VSX stable release
+        if: steps.extension.outputs.changed == 'true'
+        env:
+          OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
+        run: |
+          if [[ -z "$OVSX_TOKEN" ]]; then
+            echo "⚠️ OVSX_TOKEN is missing, skipping Open VSX publish."
+            exit 0
+          fi
+          cd packages/vscode-extension
+          if compgen -G "*.vsix" > /dev/null; then
+            max_attempts=3
+            attempt=1
+            while true; do
+              if npx ovsx publish *.vsix -p "$OVSX_TOKEN" > ovsx-publish.log 2>&1; then
+                cat ovsx-publish.log
+                break
+              fi
+
+              status=$?
+              cat ovsx-publish.log
+              if grep -Eqi 'already (exists|published)|version .* already' ovsx-publish.log; then
+                VERSION=$(node -p "require('./package.json').version")
+                echo "ℹ️ Open VSX already contains $VERSION, skipping publish."
+                break
+              fi
+              if grep -Eqi 'status 5[0-9][0-9]|Service Unavailable|Bad Gateway|Gateway Timeout|ETIMEDOUT|ECONNRESET|ECONNREFUSED|socket hang up' ovsx-publish.log && [[ "$attempt" -lt "$max_attempts" ]]; then
+                delay=$((attempt * 30))
+                echo "⚠️ Open VSX publish failed with a transient error. Retrying in ${delay}s (attempt ${attempt}/${max_attempts})..."
+                sleep "$delay"
+                attempt=$((attempt + 1))
+                continue
+              fi
+              exit "$status"
+            done
+          else
+            echo "⚠️ No VSIX artifact found, skipping Open VSX publish."
+          fi
+
+      - name: Push stable tags
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          node <<'NODE'
+          const fs = require('fs');
+          const { execFileSync } = require('child_process');
+          const plan = JSON.parse(fs.readFileSync('promote-plan.json', 'utf8'));
+          const prefixByName = {
+            '@n8n-as-code/transformer': '@n8n-as-code/transformer@v',
+            '@n8n-as-code/telemetry': '@n8n-as-code/telemetry@v',
+            '@n8n-as-code/workflow-core': '@n8n-as-code/workflow-core@v',
+            '@n8n-as-code/manager-adapter': '@n8n-as-code/manager-adapter@v',
+            '@n8n-as-code/skills': '@n8n-as-code/skills@v',
+            '@n8n-as-code/mcp': '@n8n-as-code/mcp@v',
+            '@n8n-as-code/n8nac': '@n8n-as-code/n8nac@v',
+            'n8nac': 'n8nac@v',
+            'n8n-as-code': 'n8n-as-code@v',
+          };
+          const changedPackages = plan.packages.filter(pkg => pkg.changed);
+          for (const pkg of plan.packages) {
+            if (!pkg.changed) continue;
+            const tag = `${prefixByName[pkg.name]}${pkg.targetVersion}`;
+            try {
+              execFileSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], { stdio: 'ignore' });
+            } catch {
+              execFileSync('git', ['tag', tag], { stdio: 'inherit' });
+            }
+          }
+
+          const releasePkg = plan.packages.find(pkg => pkg.name === 'n8nac' && pkg.changed);
+          if (changedPackages.length > 0 && releasePkg) {
+            const repoTag = `v${releasePkg.targetVersion}`;
+            try {
+              execFileSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${repoTag}`], { stdio: 'ignore' });
+            } catch {
+              execFileSync('git', ['tag', repoTag], { stdio: 'inherit' });
+            }
+          }
+          NODE
+          git push origin --tags
+
+      - name: Build GitHub release metadata
+        id: github-release
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const plan = JSON.parse(fs.readFileSync('promote-plan.json', 'utf8'));
+          const pkg = plan.packages.find(item => item.name === 'n8nac');
+          const changedPackages = plan.packages.filter(item => item.changed);
+
+          if (changedPackages.length === 0 || !pkg?.changed) {
+            fs.writeFileSync('github-release-meta.json', JSON.stringify({ publish: false }, null, 2));
+            process.exit(0);
+          }
+
+          const packageMeta = new Map([
+            ['n8n-as-code', {
+              label: 'Editor Integrations',
+              summary: 'Marketplace and Open VSX editor integration for browsing, searching, syncing, and validating n8n workflows.',
+            }],
+            ['n8nac', {
+              label: 'CLI',
+              summary: 'Shared command-line backbone for workspace bootstrap, GitOps sync, search, and automation.',
+            }],
+            ['@n8n-as-code/skills', {
+              label: 'AI Skills and Claude Integration',
+              summary: 'Embedded n8n ontology, AGENTS.md generation, and Claude-oriented workflow tooling.',
+            }],
+            ['@n8n-as-code/transformer', {
+              label: 'TypeScript Transformer',
+              summary: 'Decorator-based round-trip conversion between n8n JSON and TypeScript workflows.',
+            }],
+            ['@n8n-as-code/telemetry', {
+              label: 'Telemetry Primitives',
+              summary: 'Privacy-first telemetry primitives shared across n8n-as-code facades.',
+            }],
+            ['@n8n-as-code/workflow-core', {
+              label: 'Workflow Core',
+              summary: 'Shared workflow intelligence contracts and public workflow authoring API.',
+            }],
+            ['@n8n-as-code/manager-adapter', {
+              label: 'Manager Adapter',
+              summary: 'Facade adapter from n8n-as-code surfaces to the independent n8n-manager runtime engine.',
+            }],
+            ['@n8n-as-code/mcp', {
+              label: 'MCP Server',
+              summary: 'Dedicated Model Context Protocol server exposing n8n-as-code tools to MCP clients.',
+            }],
+            ['@n8n-as-code/n8nac', {
+              label: 'OpenClaw Plugin',
+              summary: 'Native OpenClaw setup and workflow operations powered by the same n8nac stack.',
+            }],
+          ]);
+
+          function escapeRegExp(value) {
+            return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          }
+
+          function extractChangelogSection(changelog, version) {
+            const escapedVersion = escapeRegExp(version);
+            return changelog.match(new RegExp(`## \\[${escapedVersion}\\][\\s\\S]*?(?=\\n## \\[|$)`))?.[0]?.trim() || '';
+          }
+
+          function stripSectionTitle(section) {
+            const lines = section.split('\n');
+            if (lines[0]?.startsWith('## [')) {
+              lines.shift();
+            }
+            while (lines[0] === '') {
+              lines.shift();
+            }
+            return lines.join('\n').trim();
+          }
+
+          const version = pkg.targetVersion;
+          const tag = `v${version}`;
+          const title = `n8n-as-code v${version}`;
+
+          const notesLines = [
+            `## n8n-as-code ${version}`,
+            '',
+            '### Product Surface',
+            '',
+            '- Editor integrations published via Microsoft Marketplace and Open VSX',
+            '- Shared n8nac CLI for workspace bootstrap, sync, and automation',
+            '- AI Skills and Claude-ready agent context generation',
+            '- MCP server for Model Context Protocol clients',
+            '- OpenClaw plugin support',
+            '- TypeScript transformer for n8n workflow code',
+            '',
+            '### Included in this release',
+            '',
+            ...changedPackages.map(item => {
+              const meta = packageMeta.get(item.name);
+              return `- ${meta?.label || item.name}: ${item.currentVersion} -> ${item.targetVersion}`;
+            }),
+            '',
+          ];
+
+          for (const item of changedPackages) {
+            const meta = packageMeta.get(item.name);
+            const changelog = fs.readFileSync(item.changelogPath, 'utf8');
+            const section = stripSectionTitle(extractChangelogSection(changelog, item.targetVersion));
+
+            notesLines.push(`## ${meta?.label || item.name}`);
+            notesLines.push('');
+            notesLines.push(`Package: ${item.name}@${item.targetVersion}`);
+            notesLines.push('');
+            if (meta?.summary) {
+              notesLines.push(meta.summary);
+              notesLines.push('');
+            }
+            if (section) {
+              notesLines.push(section);
+              notesLines.push('');
+            }
+          }
+
+          const notes = `${notesLines.join('\n').trim()}\n`;
+
+          fs.writeFileSync('github-release-notes.md', `${notes}\n`);
+          fs.writeFileSync('github-release-meta.json', JSON.stringify({
+            publish: true,
+            tag,
+            title,
+          }, null, 2));
+          NODE
+
+          PUBLISH=$(node -p "require('./github-release-meta.json').publish ? 'true' : 'false'")
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+          if [[ "$PUBLISH" == 'true' ]]; then
+            TAG=$(node -p "require('./github-release-meta.json').tag")
+            TITLE=$(node -p "require('./github-release-meta.json').title")
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish GitHub release
+        if: steps.github-release.outputs.publish == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.github-release.outputs.tag }}
+          name: ${{ steps.github-release.outputs.title }}
+          body_path: github-release-notes.md
+          make_latest: true
+
+  sync-main:
+    name: Sync main with the release
+    runs-on: ubuntu-latest
+    needs: promote
+    # A sync failure must never mask the release: report loudly, continue on error.
+    continue-on-error: true
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.promote.outputs.release_branch }}
+          fetch-depth: 0
+
+      - name: Open and merge the sync pull request
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="${{ needs.promote.outputs.release_branch }}"
+          SYNC_BRANCH="${BRANCH}-sync"
+          STABLE_TAG="${{ needs.promote.outputs.stable_tag }}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git push origin "HEAD:refs/heads/${SYNC_BRANCH}" --force
+
+          # GitHub computes mergeability asynchronously; poll until it settles.
+          for attempt in $(seq 1 10); do
+            STATE=$(gh pr view --repo "$GITHUB_REPOSITORY" --json state,mergeStateStatus \
+              --jq 'select(.state == "OPEN") | .mergeStateStatus' 2>/dev/null || true)
+            if [[ -n "$STATE" && "$STATE" != "UNKNOWN" && "$STATE" != "BLOCKED" ]]; then
+              break
+            fi
+            sleep 6
+          done
+
+          if ! gh pr create --repo "$GITHUB_REPOSITORY" \
+              --head "$SYNC_BRANCH" --base main \
+              --title "chore(release): release ${STABLE_TAG} into main" \
+              --body "Automated sync of ${BRANCH} into main after promoting ${STABLE_TAG} to stable." 2>/dev/null; then
+            echo "ℹ️ Sync PR already exists, reusing it."
+          fi
+
+          for attempt in $(seq 1 3); do
+            if gh pr merge --repo "$GITHUB_REPOSITORY" "$SYNC_BRANCH" --rebase --delete-branch --admin; then
+              echo "✅ main synced with ${STABLE_TAG}."
+              exit 0
+            fi
+            echo "⚠️ Merge attempt ${attempt} failed, retrying in 15s…"
+            sleep 15
+          done
+          echo "❌ Could not merge the sync PR automatically — merge it manually: ${SYNC_BRANCH} -> main."
+          exit 1

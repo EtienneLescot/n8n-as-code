@@ -1,0 +1,302 @@
+name: Prerelease (RC)
+
+# Cut a release candidate from main, openscreen-style:
+#   1. Create (rc.1) or reuse (rc.2+, carries cherry-picks) the frozen branch
+#      release/vX.Y.Z — named for the STABLE version, never suffixed with -rc.N.
+#   2. Bump every changed package to X.Y.Z-rc.N on that branch only.
+#   3. Publish to npm with the `rc` dist-tag and the VS Code Marketplace as
+#      pre-release. Open VSX is never published for RCs.
+#   4. Tag vX.Y.Z-rc.N and publish a GitHub prerelease.
+# Promotion to stable is a separate workflow: promote.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Stable bump for this release (n8nac anchor, unless target_version is set)'
+        type: choice
+        options: [patch, minor, major]
+        default: minor
+        required: true
+      rc_number:
+        description: 'RC iteration (1 for the first cut, 2+ re-cuts the existing release branch)'
+        type: string
+        default: '1'
+        required: true
+      target_version:
+        description: 'Optional explicit X.Y.Z for n8nac (overrides the computed bump)'
+        type: string
+        default: ''
+        required: false
+
+concurrency: prerelease
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  cut-rc:
+    name: Cut RC
+    runs-on: ubuntu-latest
+    # Reuses the prod environment for its npm/VS Code credentials; telemetry is
+    # stamped as `rc`. A dedicated `rc` environment can replace this later.
+    environment: prod
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      N8NAC_POSTHOG_KEY: ${{ vars.N8NAC_POSTHOG_KEY }}
+      N8NAC_POSTHOG_HOST: ${{ vars.N8NAC_POSTHOG_HOST }}
+      N8NAC_TELEMETRY_ENV: rc
+    outputs:
+      release_branch: ${{ steps.plan.outputs.release_branch }}
+      rc_tag: ${{ steps.plan.outputs.rc_tag }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.14'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Upgrade npm for trusted publishing
+        run: |
+          npm install -g npm@^11.5.1
+          npm --version
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Compute RC plan
+        id: plan
+        run: |
+          ARGS=(--bump "${{ inputs.bump }}" --rc "${{ inputs.rc_number }}")
+          if [[ -n "${{ inputs.target_version }}" ]]; then
+            ARGS+=(--target-version "${{ inputs.target_version }}")
+          fi
+          node scripts/release/workspace-release.mjs rc "${ARGS[@]}" > rc-plan.json
+          if [[ "$(node -p "require('./rc-plan.json').changed")" != 'true' ]]; then
+            echo '❌ Nothing to release: no package has changes since its last stable tag.'
+            exit 1
+          fi
+          RELEASE_VERSION=$(node -p "require('./rc-plan.json').releaseVersion.replace(/-rc\.\d+$/, '')")
+          echo "release_branch=release/v${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "rc_tag=$(node -p "require('./rc-plan.json').releaseVersion && 'v' + require('./rc-plan.json').releaseVersion")" >> "$GITHUB_OUTPUT"
+
+      - name: Create or reuse release branch
+        run: |
+          BRANCH="${{ steps.plan.outputs.release_branch }}"
+          RC_NUMBER=${{ inputs.rc_number }}
+          if [[ "$RC_NUMBER" -gt 1 ]]; then
+            if ! git fetch origin "$BRANCH"; then
+              echo "❌ $BRANCH does not exist. Re-cutting rc.$RC_NUMBER requires the branch created by rc.1 (it carries cherry-picks)."
+              exit 1
+            fi
+            git checkout "$BRANCH"
+          else
+            git checkout -B "$BRANCH" origin/main
+          fi
+
+      - name: Apply RC versions
+        run: |
+          ARGS=(--bump "${{ inputs.bump }}" --rc "${{ inputs.rc_number }}")
+          if [[ -n "${{ inputs.target_version }}" ]]; then
+            ARGS+=(--target-version "${{ inputs.target_version }}")
+          fi
+          node scripts/release/workspace-release.mjs rc "${ARGS[@]}" --apply > rc-plan.json
+
+      - name: Verify plan consistency with the release branch
+        run: |
+          APPLIED=$(node -p "require('./rc-plan.json').releaseVersion.replace(/-rc\.\d+$/, '')")
+          if [[ "release/v${APPLIED}" != "${{ steps.plan.outputs.release_branch }}" ]]; then
+            echo "❌ Recomputed release ${APPLIED} does not match branch ${{ steps.plan.outputs.release_branch }}."
+            echo "   Cherry-picks on the release branch likely changed the computed bump."
+            echo "   Re-run with target_version pinned to the branch's stable version."
+            exit 1
+          fi
+
+      - name: Commit RC versions
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          RC_VERSION=$(node -p "require('./rc-plan.json').releaseVersion")
+          git add -A
+          if git diff --cached --quiet; then
+            echo "ℹ️ Nothing to commit — $RC_VERSION versions are already on ${{ steps.plan.outputs.release_branch }}."
+          else
+            git commit -m "chore(release): bump to $RC_VERSION [skip ci]"
+          fi
+
+      - name: Verify telemetry release configuration
+        run: |
+          if [[ -z "${N8NAC_POSTHOG_KEY:-}" ]]; then
+            echo "❌ N8NAC_POSTHOG_KEY is missing in prod environment variables."
+            exit 1
+          fi
+          if [[ -z "${N8NAC_POSTHOG_HOST:-}" ]]; then
+            echo "❌ N8NAC_POSTHOG_HOST is missing in prod environment variables."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Resolve n8n stable tag
+        id: n8n-tag
+        run: echo "tag=$(node scripts/ensure-n8n-cache.cjs --print-tag)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache n8n repository
+        uses: actions/cache@v4
+        with:
+          path: .n8n-cache
+          key: ${{ runner.os }}-n8n-cache-${{ steps.n8n-tag.outputs.tag }}-${{ hashFiles('scripts/ensure-n8n-cache.cjs') }}
+          restore-keys: |
+            ${{ runner.os }}-n8n-cache-
+
+      - name: Build all packages
+        run: npm run build
+
+      - name: Verify release build is reproducible
+        run: |
+          if ! git diff --quiet --exit-code -- . ':(exclude)package-lock.json'; then
+            echo '❌ Release build modified tracked files other than the lockfile.'
+            git status --short
+            git diff --stat
+            exit 1
+          fi
+
+      - name: Push release branch
+        run: |
+          git push origin "${{ steps.plan.outputs.release_branch }}"
+
+      - name: Detect extension publish
+        id: extension
+        run: |
+          CHANGED=$(node -e "const fs=require('fs'); const plan=JSON.parse(fs.readFileSync('rc-plan.json','utf8')); const pkg=plan.packages.find(item => item.name === 'n8n-as-code'); process.stdout.write(pkg && pkg.changed ? 'true' : 'false');")
+          echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
+
+      - name: Publish npm release candidates
+        run: |
+          should_publish() {
+            node -e "const fs=require('fs'); const plan=JSON.parse(fs.readFileSync('rc-plan.json','utf8')); const pkg=plan.packages.find(item => item.name === process.argv[1]); process.exit(pkg && pkg.changed ? 0 : 1);" "$1"
+          }
+
+          publish_npm() {
+            local pkg_name="$1"
+            local pkg_dir="$2"
+            local tag="rc"
+            local version
+            local publish_log
+            version=$(node -p "require('./${pkg_dir}/package.json').version")
+            if npm view "${pkg_name}@${version}" version >/dev/null 2>&1; then
+              echo "ℹ️ ${pkg_name}@${version} already exists on npm, skipping publish."
+              return 0
+            fi
+            publish_log=$(mktemp)
+            if (cd "$pkg_dir" && npm publish --access public --tag "$tag") >"$publish_log" 2>&1; then
+              cat "$publish_log"
+              rm -f "$publish_log"
+              return 0
+            fi
+            cat "$publish_log"
+            if grep -q 'TLOG_CREATE_ENTRY_ERROR' "$publish_log"; then
+              if npm view "${pkg_name}@${version}" version >/dev/null 2>&1; then
+                echo "ℹ️ ${pkg_name}@${version} became visible on npm after a provenance conflict, continuing."
+                rm -f "$publish_log"
+                return 0
+              fi
+              echo "⚠️ npm provenance transparency-log conflict for ${pkg_name}@${version}; retrying publish without provenance."
+              rm -f "$publish_log"
+              (cd "$pkg_dir" && npm publish --access public --tag "$tag" --provenance=false)
+              return 0
+            fi
+            rm -f "$publish_log"
+            return 1
+          }
+
+          if should_publish '@n8n-as-code/transformer'; then
+            publish_npm '@n8n-as-code/transformer' 'packages/transformer'
+          fi
+          if should_publish '@n8n-as-code/telemetry'; then
+            publish_npm '@n8n-as-code/telemetry' 'packages/telemetry'
+          fi
+          if should_publish '@n8n-as-code/workflow-core'; then
+            publish_npm '@n8n-as-code/workflow-core' 'packages/workflow-core'
+          fi
+          if should_publish '@n8n-as-code/manager-adapter'; then
+            publish_npm '@n8n-as-code/manager-adapter' 'packages/manager-adapter'
+          fi
+          if should_publish '@n8n-as-code/skills'; then
+            publish_npm '@n8n-as-code/skills' 'packages/skills'
+          fi
+          if should_publish 'n8nac'; then
+            publish_npm 'n8nac' 'packages/cli'
+          fi
+          if should_publish '@n8n-as-code/mcp'; then
+            publish_npm '@n8n-as-code/mcp' 'packages/mcp'
+          fi
+          if should_publish '@n8n-as-code/n8nac'; then
+            publish_npm '@n8n-as-code/n8nac' 'plugins/openclaw/n8n-as-code'
+          fi
+
+      - name: Remove private flag for extension packaging
+        if: steps.extension.outputs.changed == 'true'
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('packages/vscode-extension/package.json', 'utf8'));
+            delete pkg.private;
+            fs.writeFileSync('packages/vscode-extension/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Publish VS Code Marketplace pre-release
+        if: steps.extension.outputs.changed == 'true'
+        env:
+          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
+        run: |
+          if [[ -z "$VSCE_TOKEN" ]]; then
+            echo "❌ VSCE_TOKEN is missing in prod secrets."
+            exit 1
+          fi
+
+          cd packages/vscode-extension
+          npx @vscode/vsce package --no-dependencies
+          # Activate the packaged VSIX before publishing it. Catches runtime dependencies
+          # that were built but never copied into out/node_modules (see #566).
+          npm run smoke:vsix-runtime -- "$(ls -1 *.vsix | head -n 1)"
+          if npx @vscode/vsce publish --no-dependencies --pre-release --pat "$VSCE_TOKEN" > vsce-publish.log 2>&1; then
+            cat vsce-publish.log
+          else
+            status=$?
+            cat vsce-publish.log
+            if grep -qi 'already exists' vsce-publish.log; then
+              VERSION=$(node -p "require('./package.json').version")
+              echo "ℹ️ VS Code Marketplace already contains $VERSION, skipping publish."
+            else
+              exit "$status"
+            fi
+          fi
+
+      - name: Push RC tag
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          RC_TAG="${{ steps.plan.outputs.rc_tag }}"
+          # Delete-first for idempotent re-runs of the same rc number.
+          git push origin ":refs/tags/${RC_TAG}" 2>/dev/null || true
+          git tag -f "$RC_TAG"
+          git push origin "refs/tags/${RC_TAG}"
+
+      - name: Publish GitHub prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.plan.outputs.rc_tag }}
+          name: n8n-as-code ${{ steps.plan.outputs.rc_tag }}
+          prerelease: true
+          generate_release_notes: true
