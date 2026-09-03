@@ -62,7 +62,7 @@ function parseCookieExpiry(setCookie: string[] | undefined, now: number): string
 const warnedInsecureHosts = new Set<string>();
 
 /** True for loopback hosts, where plain HTTP does not leave the machine. */
-function isLoopbackHost(hostname: string): boolean {
+export function isLoopbackHost(hostname: string): boolean {
     return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
 }
 
