@@ -292,10 +292,20 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           RC_TAG="${{ steps.plan.outputs.rc_tag }}"
-          # Delete-first for idempotent re-runs of the same rc number.
-          git push origin ":refs/tags/${RC_TAG}" 2>/dev/null || true
-          git tag -f "$RC_TAG"
-          git push origin "refs/tags/${RC_TAG}"
+          # Tags identify published artifacts: never move an existing one.
+          if git rev-parse -q --verify "refs/tags/${RC_TAG}" >/dev/null; then
+            TAG_COMMIT=$(git rev-parse "${RC_TAG}^{commit}")
+            HEAD_COMMIT=$(git rev-parse HEAD)
+            if [[ "$TAG_COMMIT" != "$HEAD_COMMIT" ]]; then
+              echo "❌ ${RC_TAG} already exists and points at different content."
+              echo "   Reuse of an RC number after the branch moved is not allowed — cut the next RC number."
+              exit 1
+            fi
+            echo "ℹ️ ${RC_TAG} already points at HEAD, leaving it unchanged."
+          else
+            git tag "$RC_TAG"
+            git push origin "refs/tags/${RC_TAG}"
+          fi
 
       - name: Publish GitHub prerelease
         uses: softprops/action-gh-release@v2
