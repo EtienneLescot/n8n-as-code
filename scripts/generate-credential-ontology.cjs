@@ -134,13 +134,14 @@ async function generate() {
     }));
 
   fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
+  // Minified: machine-read asset shipped in the npm package.
   fs.writeFileSync(OUTPUT_FILE, JSON.stringify({
     generatedAt: new Date().toISOString(),
     n8nVersion: readN8nVersion(),
     sourceFileCount: files.length,
     scanDirectories: SCAN_DIRS,
     credentials,
-  }, null, 2));
+  }));
 
   console.log(`💾 Saved credential ontology to: ${OUTPUT_FILE}`);
   console.log(`🔐 Extracted ${credentials.length} credential types from n8n.`);
