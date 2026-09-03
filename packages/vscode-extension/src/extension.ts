@@ -419,10 +419,13 @@ export async function activate(context: vscode.ExtensionContext) {
             }
             if (!token) return;
 
-            await proxyService.setSessionToken(token);
-            vscode.window.showInformationMessage('n8n SSO session cookie saved. Reloading workflow view...');
-
-            WorkflowWebview.reloadAll(outputChannel);
+            try {
+                await proxyService.setSessionToken(token);
+                vscode.window.showInformationMessage('n8n SSO session cookie saved. Reloading workflow view...');
+                WorkflowWebview.reloadAll(outputChannel);
+            } catch (e: any) {
+                vscode.window.showErrorMessage(e.message || 'Failed to save SSO session cookie');
+            }
         }),
 
         registerTelemetryCommand('n8n.openJson', async (arg: any) => {

@@ -18,6 +18,28 @@ type ExternalAuthSession = {
     expectedTargetUrl: string;
 };
 
+function isLoopbackTarget(targetUrl?: string): boolean {
+    if (!targetUrl) return false;
+    try {
+        const u = new URL(targetUrl);
+        const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+        return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '0.0.0.0';
+    } catch {
+        return false;
+    }
+}
+
+function shouldVerifyTargetTls(targetUrl?: string): boolean {
+    if (!targetUrl) return true;
+    try {
+        const u = new URL(targetUrl);
+        if (u.protocol !== 'https:') return false;
+        return !/^(0|false|no)$/i.test(process.env.NODE_TLS_REJECT_UNAUTHORIZED ?? '1');
+    } catch {
+        return true;
+    }
+}
+
 export class ProxyService {
     private server: http.Server | undefined;
     private proxy: HttpProxyServer | undefined;
@@ -349,10 +371,22 @@ export class ProxyService {
         this.proxy.web(req, res, {
             target: targetUrl.origin,
             changeOrigin: true,
-            secure: false,
+            secure: shouldVerifyTargetTls(targetUrl.origin),
             buffer: undefined,
         });
         return true;
+    }
+
+    private isTargetAllowedForCredentialForwarding(): boolean {
+        if (!this.target) return false;
+        try {
+            const u = new URL(this.target);
+            if (u.protocol === 'https:') return true;
+            if (u.protocol === 'http:' && isLoopbackTarget(this.target)) return true;
+            return false;
+        } catch {
+            return false;
+        }
     }
 
     private async saveCookies() {
@@ -367,6 +401,9 @@ export class ProxyService {
     }
 
     public async setSessionToken(token: string): Promise<void> {
+        if (this.target && !this.isTargetAllowedForCredentialForwarding()) {
+            throw new Error('Session tokens cannot be forwarded to unencrypted remote HTTP targets. Use HTTPS or a loopback address.');
+        }
         const cleanToken = token.trim();
         this.cookieJar.set('n8n-auth', `n8n-auth=${cleanToken}`);
         await this.saveCookies();
@@ -404,7 +441,12 @@ export class ProxyService {
         const finalCookies: string[] = clientCookies ? [clientCookies] : [];
 
         if (this.cookieJar.size > 0) {
+            const allowSensitiveCookies = this.isTargetAllowedForCredentialForwarding();
             for (const [key, value] of this.cookieJar) {
+                if (key === 'n8n-auth' && !allowSensitiveCookies) {
+                    this.log(`[Proxy] Suppressed sensitive n8n-auth cookie forwarding to unencrypted remote HTTP target: ${this.target}`);
+                    continue;
+                }
                 if (!clientCookies || !clientCookies.includes(key + '=')) {
                     finalCookies.push(value);
                 }
@@ -443,7 +485,7 @@ export class ProxyService {
         this.proxy = HttpProxy.createProxyServer({
             target: this.target,
             changeOrigin: true,
-            secure: false,
+            secure: shouldVerifyTargetTls(this.target),
             // Intercept HTML responses so we can inject the n8n UI bridge.
             selfHandleResponse: true,
             cookieDomainRewrite: "", // Rewrite all domains to match localhost
@@ -630,7 +672,7 @@ export class ProxyService {
                 res.setHeader('access-control-allow-headers', '*');
 
                 // CRITICAL for SSE: Disable buffering
-                this.proxy.web(req, res, { buffer: undefined, changeOrigin: true, secure: false });
+                this.proxy.web(req, res, { buffer: undefined, changeOrigin: true, secure: shouldVerifyTargetTls(this.target) });
             }
         });
 
@@ -694,7 +736,7 @@ export class ProxyService {
                     this.wsServer.handleUpgrade(req, socket, head, (clientWs) => {
                         const upstreamWs = new WebSocket(upstreamUrl, {
                             headers,
-                            rejectUnauthorized: false,
+                            rejectUnauthorized: shouldVerifyTargetTls(this.target),
                             perMessageDeflate: false,
                         });
 
