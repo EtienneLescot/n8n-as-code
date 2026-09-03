@@ -738,6 +738,9 @@ environmentAuthProgram.command('folder-login')
         }
         const user = (options.user || '').trim();
         if (!user) throw new Error('Provide --user <email>.');
+        if (options.password && options.passwordStdin) {
+            throw new Error('Provide either --password or --password-stdin, not both.');
+        }
         // Warn whenever --password was passed on argv, even alongside --password-stdin.
         if (options.password) {
             console.warn(chalk.yellow('⚠ Passing --password on the command line can expose it in process listings and shell history. Prefer --password-stdin.'));

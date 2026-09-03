@@ -253,6 +253,9 @@ export class SyncManager extends EventEmitter {
             this.emit('log', `[SyncManager] Fetched remote state for workflow ${workflowId}.`);
             return true;
         } catch (error) {
+            if ((error as any)?.folderSessionFailClosed) {
+                throw error;
+            }
             this.emit('error', new Error(`Failed to fetch workflow ${workflowId}: ${error}`));
             return false;
         }

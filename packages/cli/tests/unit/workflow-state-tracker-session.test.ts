@@ -132,6 +132,20 @@ describe('WorkflowStateTracker session folder source', () => {
         await expect(tracker.refreshRemoteState()).rejects.toThrow(/session folder source failed/i);
     });
 
+    it('preserves prior remote state when a subsequent refreshRemoteState fails closed', async () => {
+        mockLoad.mockResolvedValue(sessionData());
+        const tracker = makeTracker();
+        await tracker.refreshRemoteState();
+        expect(tracker.getFilenameForId('wf-foldered')).toBe('Ai Chat/File Processing/Normalize Attachments.workflow.ts');
+
+        // Subsequent refresh fails closed
+        mockLoad.mockRejectedValue(new Error('401 Unauthorized'));
+        await expect(tracker.refreshRemoteState()).rejects.toThrow(/session folder source failed/i);
+
+        // Prior state must still be intact
+        expect(tracker.getFilenameForId('wf-foldered')).toBe('Ai Chat/File Processing/Normalize Attachments.workflow.ts');
+    });
+
     it('degrades to a flat pull when the flat fallback is opted in', async () => {
         mockLoad.mockRejectedValue(new Error('401 Unauthorized'));
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
