@@ -19,7 +19,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@n8n-as-code/telemetry": "2.0.1",
     "n8nac": "2.5.0",
-    "zod": "^3.25.76"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
