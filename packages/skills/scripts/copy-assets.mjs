@@ -26,6 +26,11 @@ const RUNTIME_ASSETS = [
     'n8n-credentials-ontology.json',
 ];
 
+/**
+ * Formats a byte size into megabytes string.
+ * @param {number} bytes
+ * @returns {string}
+ */
 function formatMb(bytes) {
     return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 }
