@@ -20,6 +20,7 @@ import { WorkflowWebview } from './ui/workflow-webview.js';
 import { AgentWorkbenchWebview } from './ui/agent-workbench-webview.js';
 import { ConfigurationWebview } from './ui/configuration-webview.js';
 import { WorkflowDecorationProvider } from './ui/workflow-decoration-provider.js';
+import { openExternalNavigation } from './utils/external-navigation.js';
 
 import { ProxyService } from './services/proxy-service.js';
 import { AgentRuntimeController } from './services/agent-runtime-controller.js';
@@ -952,7 +953,23 @@ async function openWorkflowInBrowser(workflow: IWorkflowStatus): Promise<void> {
     try {
         const url = await resolveWorkflowBrowserUrl(workflow);
         outputChannel.appendLine(`[n8n] Opening workflow ${workflow.id} in external browser: ${url}`);
-        await vscode.env.openExternal(vscode.Uri.parse(url));
+        const opened = await openExternalNavigation(
+            {
+                url,
+                reason: 'workflow-browser',
+                source: {
+                    workflowId: workflow.id,
+                    panelKind: 'workflow-tree',
+                },
+            },
+            {
+                outputChannel,
+                logPrefix: '[n8n]',
+            },
+        );
+        if (!opened) {
+            vscode.window.showWarningMessage(`Could not open workflow in external browser: ${url}`);
+        }
     } catch (e: any) {
         vscode.window.showErrorMessage(`Failed to open workflow in browser: ${e.message}`);
     }

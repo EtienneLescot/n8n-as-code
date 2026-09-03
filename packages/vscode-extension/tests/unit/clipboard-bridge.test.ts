@@ -601,3 +601,30 @@ test('Parent webview HTML: renders SSO overlay modal and action buttons', () => 
     assert.ok(html.includes('prompt-session-cookie'), 'Parent webview script must wire up prompt session cookie message');
     assert.ok(html.includes('n8n-sso-detected'), 'Parent webview must listen for n8n-sso-detected message');
 });
+
+test('ProxyService: handleExternalAuthProxyRequest strips n8n-auth from forwarded cookies to IdP', () => {
+    const { ProxyService } = require('../../src/services/proxy-service.js');
+    const service = new ProxyService();
+    (service as any).proxy = {
+        web: () => {},
+    };
+    const req: any = {
+        url: '/_auth/external/token-123',
+        headers: {
+            host: 'localhost:5678',
+            cookie: 'n8n-auth=sensitive-secret; other-cookie=safe-idp-val',
+        },
+    };
+    const res: any = {
+        setHeader: () => {},
+    };
+    (service as any).parseExternalAuthProxyRequest = () => ({
+        token: 'token-123',
+        targetUrl: 'https://login.microsoftonline.com/oauth/authorize?foo=bar',
+    });
+
+    const handled = (service as any).handleExternalAuthProxyRequest(req, res);
+    assert.strictEqual(handled, true);
+    assert.strictEqual(req.headers.cookie, 'other-cookie=safe-idp-val');
+    assert.ok(!req.headers.cookie.includes('n8n-auth'));
+});

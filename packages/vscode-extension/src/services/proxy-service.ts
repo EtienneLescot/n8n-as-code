@@ -368,6 +368,23 @@ export class ProxyService {
         res.setHeader('access-control-allow-origin', '*');
         res.setHeader('access-control-allow-credentials', 'true');
 
+        // CWE-522: Strip n8n session cookies before forwarding requests to external IdP
+        if (req.headers['cookie']) {
+            const clientCookies = Array.isArray(req.headers['cookie'])
+                ? req.headers['cookie'].join('; ')
+                : req.headers['cookie'];
+            const filteredCookies = clientCookies
+                .split(';')
+                .map((c) => c.trim())
+                .filter((c) => !c.startsWith('n8n-auth='))
+                .join('; ');
+            if (filteredCookies) {
+                req.headers['cookie'] = filteredCookies;
+            } else {
+                delete req.headers['cookie'];
+            }
+        }
+
         this.proxy.web(req, res, {
             target: targetUrl.origin,
             changeOrigin: true,
